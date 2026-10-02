@@ -11,6 +11,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
@@ -69,7 +70,23 @@ export function useMingoDialogSelection() {
     setLoadingMessages,
     setPagination,
     updateApprovalStatusInMessages,
-  } = useMingoMessagesStore();
+  } = useMingoMessagesStore(
+    useShallow(s => ({
+      activeDialogId: s.activeDialogId,
+      setActiveDialogId: s.setActiveDialogId,
+      setMessages: s.setMessages,
+      prependWithBoundaryMerge: s.prependWithBoundaryMerge,
+      getMessages: s.getMessages,
+      getStreamingId: s.getStreamingId,
+      setTyping: s.setTyping,
+      getTyping: s.getTyping,
+      getHighestStreamSeq: s.getHighestStreamSeq,
+      setLoadingDialog: s.setLoadingDialog,
+      setLoadingMessages: s.setLoadingMessages,
+      setPagination: s.setPagination,
+      updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
+    })),
+  );
 
   const approveRequestMutation = useApproveRequestMutation();
   const rejectRequestMutation = useRejectRequestMutation();

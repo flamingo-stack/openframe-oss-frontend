@@ -45,6 +45,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -236,7 +237,15 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const commandsUrl = useChatRuntime()?.endpoints.commandsUrl ?? '';
   const { commands: slashCommands } = useSlashCommandRegistry(commandsUrl, { enabled: Boolean(commandsUrl) });
 
-  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore();
+  const { activeDialogId, setActiveDialogId, resetUnread, addMessage, tokenUsageByDialog } = useMingoMessagesStore(
+    useShallow(s => ({
+      activeDialogId: s.activeDialogId,
+      setActiveDialogId: s.setActiveDialogId,
+      resetUnread: s.resetUnread,
+      addMessage: s.addMessage,
+      tokenUsageByDialog: s.tokenUsageByDialog,
+    })),
+  );
 
   // Server-side dialog search. The embeddable chat's search bar emits the
   // already-debounced term via `setSearchQuery`; it rides the `useMingoDialogs`

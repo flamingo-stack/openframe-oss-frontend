@@ -32,7 +32,7 @@ const TABS = [
 export default function AuthTabsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const loginOnly = useLoginOnlyMobileShell();
 
   const active = pathname?.startsWith(routes.auth.login) ? 'login' : 'signup';

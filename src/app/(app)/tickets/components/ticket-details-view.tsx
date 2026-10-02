@@ -37,6 +37,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation } from 'react-relay';
+import { useShallow } from 'zustand/react/shallow';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
@@ -183,7 +184,15 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
 
   const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
-    useTicketDetailsStore();
+    useTicketDetailsStore(
+      useShallow(s => ({
+        client: s.client,
+        clearChatState: s.clearChatState,
+        setChatHandlers: s.setChatHandlers,
+        updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
+        recordHighestStreamSeq: s.recordHighestStreamSeq,
+      })),
+    );
   const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
 
   const { messages: clientMessages, isTyping: isClientChatTyping } = client;

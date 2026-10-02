@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { type DeploymentInfo, type DeploymentType, detectDeployment } from '@/lib/deployment-detector';
 
 /**
@@ -64,7 +65,9 @@ const useDeploymentStore = create<DeploymentState>()(
  * Initializes once on first use and returns cached result thereafter
  */
 export function useDeployment() {
-  const { deployment, isInitialized, initialize } = useDeploymentStore();
+  const { deployment, isInitialized, initialize } = useDeploymentStore(
+    useShallow(s => ({ deployment: s.deployment, isInitialized: s.isInitialized, initialize: s.initialize })),
+  );
   // Through the hook, not `useDeploymentStore.getState().reset`: naming a hook as a value
   // is a rule violation the compiler bails out over. The action never changes.
   const reset = useDeploymentStore(state => state.reset);

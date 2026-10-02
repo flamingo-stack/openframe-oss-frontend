@@ -7,7 +7,7 @@ import { getDefaultRedirectPath } from '../lib/app-mode';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
   useEffect(() => {
     if (isAuthenticated === null) return undefined;

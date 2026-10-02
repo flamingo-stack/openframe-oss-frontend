@@ -45,12 +45,6 @@ export default function VerifyEmailPage() {
         <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] rounded-full bg-ods-text-primary" />
         <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.27s_infinite] rounded-full bg-ods-text-primary" />
         <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.54s_infinite] rounded-full bg-ods-text-primary" />
-        <style>{`
-          @keyframes dotTravel {
-            0%, 100% { width: 2px; height: 2px; opacity: 0.4; }
-            50% { width: 4px; height: 4px; opacity: 0.9; }
-          }
-        `}</style>
       </div>
 
       <a
