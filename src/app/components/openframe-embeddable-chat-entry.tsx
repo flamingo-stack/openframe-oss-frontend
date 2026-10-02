@@ -32,7 +32,9 @@
 
 import type {
   ChatContextPickerConfig,
+  DialogItem,
   EmbeddableChatHandle,
+  MingoDialogStatus,
   MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
@@ -58,6 +60,7 @@ import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subs
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
+import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
 
 interface OpenframeEmbeddableChatEntryProps {
@@ -195,6 +198,19 @@ export function OpenframeEmbeddableChatEntry({
   // every open and re-fires if a new prompt is queued while the drawer is
   // already open. `consumePendingPrompt` nulls the prompt as it reads it, so a
   // header open (no prompt) and StrictMode's double-invoke are both no-ops.
+  // v2 list: a chat Mingo is answering in shows its working dots. The server's
+  // `streamState` covers chats this tab never opened; a loaded chat's own phase
+  // is the fresher answer. (Unread replies the lib reads off the row itself.)
+  const dialogNodes = useMingoMessagesStore(s => s.dialogs);
+  const phaseByDialog = useMingoMessagesStore(s => s.phaseByDialog);
+  const dialogStatusOf = (dialog: DialogItem): MingoDialogStatus | undefined => {
+    const phase = phaseByDialog.get(dialog.id);
+    const streaming = phase
+      ? phase !== 'idle'
+      : dialogNodes.find(node => node.id === dialog.id)?.streamState === 'STREAMING';
+    return streaming ? 'working' : undefined;
+  };
+
   const pendingPrompt = useMingoLauncherStore(s => s.pendingPrompt);
   const consumePendingPrompt = useMingoLauncherStore(s => s.consumePendingPrompt);
 
@@ -315,6 +331,7 @@ export function OpenframeEmbeddableChatEntry({
         shell={shell}
         appearance={v2 ? 'v2' : 'classic'}
         onCollapse={v2?.onCollapse}
+        dialogStatusOf={v2 ? dialogStatusOf : undefined}
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
