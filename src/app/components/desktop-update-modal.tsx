@@ -4,6 +4,7 @@ import { Chevron01RightIcon, Rocket02Icon } from '@flamingo-stack/openframe-fron
 import { Button, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatBytes } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import {
   applyDesktopUpdate,
@@ -66,7 +67,20 @@ export function DesktopUpdateModal() {
   // The subscription effect reaches its actions through `getState()` instead of
   // these, so it can stay a mount-once effect with no action in its deps.
   const { version, releaseNotesUrl, isModalOpen, phase, downloaded, total, error, dismiss, startApply, fail } =
-    useDesktopUpdateStore();
+    useDesktopUpdateStore(
+      useShallow(s => ({
+        version: s.version,
+        releaseNotesUrl: s.releaseNotesUrl,
+        isModalOpen: s.isModalOpen,
+        phase: s.phase,
+        downloaded: s.downloaded,
+        total: s.total,
+        error: s.error,
+        dismiss: s.dismiss,
+        startApply: s.startApply,
+        fail: s.fail,
+      })),
+    );
 
   useEffect(() => {
     if (!isDesktopShell() || listenersRegistered) return;
