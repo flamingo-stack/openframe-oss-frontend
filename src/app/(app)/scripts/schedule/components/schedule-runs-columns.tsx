@@ -15,7 +15,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
@@ -166,7 +165,6 @@ export function useScheduleRunColumns(
   statusOptions: RunStatusOption[],
   dateFilter: TableDateFilter,
 ): ColumnDef<UiRun>[] {
-  const router = useRouter();
   const { toast } = useToast();
 
   const renderRowActions = useCallback(
@@ -272,11 +270,11 @@ export function useScheduleRunColumns(
         cell: ({ row }: { row: Row<UiRun> }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
-              onClick={() => router.push(runDetailsHref(row.original))}
+              onClick={openInNewTab(runDetailsHref(row.original))}
               variant="outline"
               size="icon"
               leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open run details"
+              aria-label="Open run details in new tab"
               className="bg-ods-card"
             />
           </div>
@@ -285,7 +283,7 @@ export function useScheduleRunColumns(
         meta: liveColumnMeta(RUN_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, statusOptions, dateFilter],
+    [renderRowActions, statusOptions, dateFilter],
   );
 }
 

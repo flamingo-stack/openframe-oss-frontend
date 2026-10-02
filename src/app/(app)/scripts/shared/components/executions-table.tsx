@@ -26,7 +26,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useRouter } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
@@ -300,7 +299,6 @@ export function ExecutionsTable({
   onMobileFilterClose,
   onEmptyChange,
 }: ExecutionsTableProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const { statusOptions, machineOptions, initiatorOptions } = facetOptions;
 
@@ -491,11 +489,11 @@ export function ExecutionsTable({
         cell: ({ row }: { row: Row<UiExecution> }) => (
           <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
             <Button
-              onClick={() => router.push(executionHref(row.original))}
+              onClick={openInNewTab(executionHref(row.original))}
               variant="outline"
               size="icon"
               leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open execution details"
+              aria-label="Open execution details in new tab"
               className="bg-ods-card"
             />
           </div>
@@ -504,7 +502,7 @@ export function ExecutionsTable({
         meta: liveColumnMeta(EXECUTION_COLUMNS.open),
       },
     ],
-    [renderRowActions, router, executionHref, statusOptions, initiatorOptions, machineOptions, dateFilter],
+    [renderRowActions, executionHref, statusOptions, initiatorOptions, machineOptions, dateFilter],
   );
 
   const filterGroups = useMemo(
