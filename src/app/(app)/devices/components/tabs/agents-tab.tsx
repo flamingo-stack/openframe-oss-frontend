@@ -121,7 +121,7 @@ export function AgentsTab({ device }: AgentsTabProps) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
-      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
         {combinedAgents.map((agent, idx) => {
           const toolType = normalizeToolTypeWithFallback(agent.toolType);
           const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');

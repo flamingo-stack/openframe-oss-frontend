@@ -343,7 +343,7 @@ export function SsoConfigurationTab() {
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
           <Tag className="self-start" label={row.original.status.label} variant={row.original.status.variant} />
         ),
-        meta: { width: 'w-auto shrink-0 md:w-[120px]' },
+        meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
       {
         accessorKey: 'allowedDomains',
@@ -397,7 +397,7 @@ export function SsoConfigurationTab() {
           );
         },
         enableSorting: false,
-        meta: { width: 'w-11 shrink-0 md:w-16', align: 'right' },
+        meta: { width: 'w-11 shrink-0 content-md:w-16', align: 'right' },
       },
     ],
     [],
@@ -446,8 +446,8 @@ export function SsoConfigurationTab() {
               <div key={row} className="flex items-start gap-3">
                 <Skeleton className="h-5 w-5 shrink-0 rounded" />
                 <div className="flex flex-1 flex-col gap-1">
-                  <Skeleton className="h-5 w-48 md:w-64" />
-                  <Skeleton className="h-4 w-full md:w-96" />
+                  <Skeleton className="h-5 w-48 content-md:w-64" />
+                  <Skeleton className="h-4 w-full content-md:w-96" />
                 </div>
               </div>
             ))}

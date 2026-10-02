@@ -322,12 +322,12 @@ function IncidentsTableContent({
           <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
             <TruncateText>{row.original.title}</TruncateText>
             {/* The Status column is hidden below lg; its time line moves under the title. */}
-            <div className="hidden min-w-0 lg:block">
+            <div className="hidden min-w-0 content-lg:block">
               <TruncateText variant="h6" tone="secondary">
                 {labelOf(INCIDENT_TYPE_LABELS, row.original.type)}
               </TruncateText>
             </div>
-            <div className="min-w-0 lg:hidden">
+            <div className="min-w-0 content-lg:hidden">
               <TruncateText variant="h6" tone="secondary">
                 {statusTime(row.original)}
               </TruncateText>
@@ -704,12 +704,12 @@ function IncidentsList({
             placeholder="Search for Incidents"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            startAdornment={<SearchIcon className="size-4 md:size-6" />}
+            startAdornment={<SearchIcon className="size-4 content-md:size-6" />}
           />
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
+            className="content-md:hidden"
             onClick={() => setMobileFilterOpen(true)}
             aria-label="Open filters"
             leftIcon={<Filter02Icon className="text-ods-text-primary" />}

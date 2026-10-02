@@ -8,6 +8,7 @@ import {
   AppLayoutDrawerContent,
   AppLayout as CoreAppLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import type { AppLayoutSidePanelConfig } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
@@ -21,7 +22,7 @@ import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-s
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
-import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -37,6 +38,7 @@ import { AiSpendLimitBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, T
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { MingoCompactionWatchers } from './mingo-compaction-watchers';
+import { isFullWidthPage, MingoSidePanel } from './mingo-side-panel';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
@@ -165,6 +167,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // resolves ONCE and survives close/reopen, but never fetches before the user
   // opens the chat at all.
   const [chatIdentityEnabled, setChatIdentityEnabled] = useState(false);
+  // Mingo v2 docks the chat into the layout, so it is on screen from the first
+  // paint: nothing to defer the identity to. Gated (not a plain boolean): which
+  // chat surface renders hangs on it, and a wrong first answer would mount the
+  // overlay drawer and then swap it out.
+  const mingoV2 = useFeatureFlagGate('mingo-v2');
   // Latched during render, not in an effect: the provider below reads this flag,
   // so an effect would render the drawer's first frame with identity still off
   // and start the fetch one paint later than the user opened it.
@@ -173,7 +180,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
   // throw inside the resolver effect that unmounts the whole shell. Leave
   // identity disabled there; the lib's designed fallback is anon identity.
-  if (chatOpen && !chatIdentityEnabled && !isAppShell()) {
+  if ((chatOpen || mingoV2 === 'on') && !chatIdentityEnabled && !isAppShell()) {
     setChatIdentityEnabled(true);
   }
 
@@ -521,48 +528,68 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [displayName, userEmail, avatarUrl, userRole, handleLogout],
   );
 
-  const chatDrawer = chatEnabled ? (
-    // ChatIdentityProvider wraps the drawer (not the remounting panel content)
-    // so chat identity resolves ONCE for the session and survives the drawer
-    // closing/reopening. Without it, EmbeddableChat self-fetches identity on
-    // every open (the panel unmounts on close). Must sit inside the chat
-    // runtime context (provided higher up by OpenframeChatRuntimeProvider).
-    <ChatIdentityProvider enabled={chatIdentityEnabled}>
-      <AppLayoutDrawer open={chatOpen} onOpenChange={setChatOpen}>
-        <AppLayoutDrawerContent
-          side="right"
-          flush
-          resizable
-          minSize={480}
-          // Default ~920px so every user opens the Mingo panel in its
-          // two-column "Current Chats" split (320px history rail + ~600px chat
-          // block, both well above their minimums); narrower resizes fall back
-          // to the stacked single-column layout. `storageKey` is versioned so
-          // this new default reaches users who had the old width persisted.
-          defaultSize={920}
-          storageKey="openframe:mingo-chat-width-v2"
-          panelClassName="!bg-ods-bg"
-          // No `AppLayoutDrawerTitle` is rendered (see below), so Radix's
-          // `aria-labelledby` points at an id that doesn't exist and the dialog has
-          // no accessible name. That was survivable while the drawer only ever
-          // opened from a click; a deep link opens it with no user gesture, moving
-          // focus into an unnamed dialog.
-          aria-label="Mingo AI chat"
-          // See WALKTHROUGH_OVERLAP_Z: the z-index belongs on Content (which
-          // owns the stacking context), not on the panel inside it.
-          style={WALKTHROUGH_OVERLAP_Z.content}
-          overlayClassName={WALKTHROUGH_OVERLAP_Z.overlay}
-        >
-          {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
+  const chatDrawer =
+    chatEnabled && mingoV2 === 'off' ? (
+      // ChatIdentityProvider wraps the drawer (not the remounting panel content)
+      // so chat identity resolves ONCE for the session and survives the drawer
+      // closing/reopening. Without it, EmbeddableChat self-fetches identity on
+      // every open (the panel unmounts on close). Must sit inside the chat
+      // runtime context (provided higher up by OpenframeChatRuntimeProvider).
+      <ChatIdentityProvider enabled={chatIdentityEnabled}>
+        <AppLayoutDrawer open={chatOpen} onOpenChange={setChatOpen}>
+          <AppLayoutDrawerContent
+            side="right"
+            flush
+            resizable
+            minSize={480}
+            // Default ~920px so every user opens the Mingo panel in its
+            // two-column "Current Chats" split (320px history rail + ~600px chat
+            // block, both well above their minimums); narrower resizes fall back
+            // to the stacked single-column layout. `storageKey` is versioned so
+            // this new default reaches users who had the old width persisted.
+            defaultSize={920}
+            storageKey="openframe:mingo-chat-width-v2"
+            panelClassName="!bg-ods-bg"
+            // No `AppLayoutDrawerTitle` is rendered (see below), so Radix's
+            // `aria-labelledby` points at an id that doesn't exist and the dialog has
+            // no accessible name. That was survivable while the drawer only ever
+            // opened from a click; a deep link opens it with no user gesture, moving
+            // focus into an unnamed dialog.
+            aria-label="Mingo AI chat"
+            // See WALKTHROUGH_OVERLAP_Z: the z-index belongs on Content (which
+            // owns the stacking context), not on the panel inside it.
+            style={WALKTHROUGH_OVERLAP_Z.content}
+            overlayClassName={WALKTHROUGH_OVERLAP_Z.overlay}
+          >
+            {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
               header + X button; a wrapper header would double it up. */}
-          <ChatDrawerErrorBoundary>
-            <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} />
-          </ChatDrawerErrorBoundary>
-        </AppLayoutDrawerContent>
-      </AppLayoutDrawer>
-      <MingoCompactionWatchers />
-    </ChatIdentityProvider>
-  ) : null;
+            <ChatDrawerErrorBoundary>
+              <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} />
+            </ChatDrawerErrorBoundary>
+          </AppLayoutDrawerContent>
+        </AppLayoutDrawer>
+        <MingoCompactionWatchers />
+      </ChatIdentityProvider>
+    ) : null;
+
+  // Mingo v2: the chat docked beside the page as the layout's side panel. Not an
+  // overlay, so it neither closes on navigation nor offers a close button while
+  // docked; the launcher's `isOpen` only means "opened from the header", which is
+  // how it shows when there is no room to dock (and on a phone). The compaction
+  // watchers stay in the `drawer` slot: they must outlive the panel, which
+  // unmounts while hidden.
+  const chatSidePanel: AppLayoutSidePanelConfig | undefined =
+    chatEnabled && mingoV2 === 'on'
+      ? {
+          label: 'Mingo AI chat',
+          storageKey: 'openframe:mingo-panel-v1',
+          collapsed: isFullWidthPage(pathname),
+          open: chatOpen,
+          onOpenChange: setChatOpen,
+          children: state => <MingoSidePanel {...state} identityEnabled={chatIdentityEnabled} />,
+        }
+      : undefined;
+  const chatWatchers = chatEnabled && mingoV2 === 'on' ? <MingoCompactionWatchers /> : null;
 
   return (
     <>
@@ -626,7 +653,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // the user can still see where they are and reach the account menu —
             // but nothing they lead to is reachable until the workspace is paid for.
             disabled={showLockContent}
-            drawer={chatDrawer}
+            drawer={chatDrawer ?? chatWatchers}
+            sidePanel={chatSidePanel}
             topBar={topBar}
           >
             {/* The page segment's boundary. Core used to own it (`loadingFallback`,

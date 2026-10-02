@@ -44,7 +44,9 @@ export function LockScreenActions({ leading, className }: LockScreenActionsProps
 
   return (
     <>
-      <div className={className ?? 'flex flex-col gap-[var(--spacing-system-mf)] sm:flex-row sm:flex-wrap'}>
+      <div
+        className={className ?? 'flex flex-col gap-[var(--spacing-system-mf)] content-sm:flex-row content-sm:flex-wrap'}
+      >
         {leading}
         {/* All three glyphs carry the error red per the design — these are the
             exits, and the row reads as one. The LABELS stay primary: an outline

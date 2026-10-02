@@ -23,14 +23,14 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * a diff in exactly one place.
  */
 
-const DEVICE = { id: 'device', header: 'DEVICE', width: 'flex-1 md:w-1/3' } satisfies TableSkeletonColumn;
+const DEVICE = { id: 'device', header: 'DEVICE', width: 'flex-1 content-md:w-1/3' } satisfies TableSkeletonColumn;
 const ORGANIZATION = {
   id: 'organization',
   header: 'CUSTOMER',
   width: 'w-1/6',
   hideAt: 'lg',
 } satisfies TableSkeletonColumn;
-const OS = { id: 'os', header: 'OS', width: 'w-[120px] md:w-1/6', hideAt: 'md' } satisfies TableSkeletonColumn;
+const OS = { id: 'os', header: 'OS', width: 'w-[120px] content-md:w-1/6', hideAt: 'md' } satisfies TableSkeletonColumn;
 const OPEN = {
   id: 'open',
   width: 'w-12 shrink-0 flex-none',
@@ -44,7 +44,7 @@ const OPEN = {
  */
 const QUICK_QUERY = {
   id: 'quick-query',
-  width: 'w-12 md:w-[160px] shrink-0 flex-none',
+  width: 'w-12 content-md:w-[160px] shrink-0 flex-none',
   align: 'right',
 } satisfies TableSkeletonColumn;
 

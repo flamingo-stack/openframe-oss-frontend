@@ -155,9 +155,13 @@ function policyInfoSkeletonRows(): PanelRow[] {
   const author = { key: 'author', value: <InlineSkeleton className="h-5 w-32" />, label: 'Author' };
 
   return [
-    { id: 'meta-desktop', className: 'hidden lg:flex lg:border-b-0', columns: [severity, status, author] },
-    { id: 'meta-severity-status', className: 'lg:hidden', columns: [severity, status] },
-    { id: 'meta-author', className: 'lg:hidden', columns: [author, { key: 'author-spacer' }] },
+    {
+      id: 'meta-desktop',
+      className: 'hidden content-lg:flex content-lg:border-b-0',
+      columns: [severity, status, author],
+    },
+    { id: 'meta-severity-status', className: 'content-lg:hidden', columns: [severity, status] },
+    { id: 'meta-author', className: 'content-lg:hidden', columns: [author, { key: 'author-spacer' }] },
   ];
 }
 
@@ -168,7 +172,7 @@ function policyInfoSkeletonRows(): PanelRow[] {
 function QueryInfoSkeleton() {
   return (
     <div aria-busy="true" className="rounded-lg border border-ods-border bg-ods-card p-6">
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-6 content-md:grid-cols-4">
         <div>
           <p className="text-ods-text-primary text-h4">
             <InlineSkeleton className="h-5 w-24" />
@@ -269,10 +273,14 @@ export function MonitoringEditSkeleton({ kind, onBack }: MonitoringSkeletonProps
       actionsVariant="primary-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div aria-busy="true" className="space-y-6 md:space-y-8">
+      <div aria-busy="true" className="space-y-6 content-md:space-y-8">
         {/* Name — and, on the query form, Frequency beside it. */}
-        <div className={isQuery ? 'flex flex-col gap-4 md:flex-row md:items-end' : 'md:max-w-[280px]'}>
-          <div className={isQuery ? 'w-full md:max-w-[280px]' : undefined}>
+        <div
+          className={
+            isQuery ? 'flex flex-col gap-4 content-md:flex-row content-md:items-end' : 'content-md:max-w-[280px]'
+          }
+        >
+          <div className={isQuery ? 'w-full content-md:max-w-[280px]' : undefined}>
             <Input label="Name" placeholder={COPY[kind].namePlaceholder} disabled />
           </div>
           {isQuery && (

@@ -107,7 +107,7 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
           const { Icon, label } = getSourceIcon(row.original.source);
           return (
             <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
-              <Icon className="h-4 w-4 shrink-0 md:h-6 md:w-6" />
+              <Icon className="h-4 w-4 shrink-0 content-md:h-6 content-md:w-6" />
               <div className="min-w-0">
                 <TruncateText tone="secondary">{label}</TruncateText>
               </div>

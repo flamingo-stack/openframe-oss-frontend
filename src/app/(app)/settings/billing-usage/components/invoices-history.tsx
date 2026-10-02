@@ -251,7 +251,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
 
   /**
    * The same two sortable columns, for the mobile modal — below `md` the table
-   * header is gone entirely (`hidden md:flex`), so its arrows are unreachable
+   * header is gone entirely (`hidden content-md:flex`), so its arrows are unreachable
    * and this is the only place left to reorder from.
    *
    * Labels are written out rather than taken from `INVOICE_COLUMNS[*].header`:
@@ -323,7 +323,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
 
-      {/* Below `md` the whole table header is gone (`hidden md:flex`), and the
+      {/* Below `md` the whole table header is gone (`hidden content-md:flex`), and the
           STATUS funnel with it — so the filter moves next to the search, the same
           toolbar shape the scripts and schedules tables use. */}
       <div className="flex items-center gap-[var(--spacing-system-m)]">
@@ -339,7 +339,7 @@ export function InvoicesHistory({ invoices }: { invoices: readonly InvoiceItem[]
         <Button
           variant="outline"
           size="icon"
-          className="md:hidden"
+          className="content-md:hidden"
           onClick={() => setMobileFilterOpen(true)}
           aria-label="Open filters"
           leftIcon={<Filter02Icon className="text-ods-text-primary" />}

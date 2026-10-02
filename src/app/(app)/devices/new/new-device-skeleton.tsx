@@ -7,11 +7,11 @@ export function NewDeviceSkeleton() {
       <div className="flex flex-col gap-6">
         <Skeleton className="h-5 w-40" />
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 content-md:flex-row content-md:items-center content-md:justify-between">
           <Skeleton className="h-9 w-32" />
         </div>
         {/* Organization + Platform */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2">
           <Skeleton className="h-12 w-full rounded-[6px]" />
           <Skeleton className="h-12 w-full rounded-[6px]" />
         </div>

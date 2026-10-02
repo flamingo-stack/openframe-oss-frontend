@@ -221,13 +221,13 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         title={organization.name || 'Customer'}
         subtitle={subtitle}
         image={{ src: logoSrc || '', alt: organization.name || 'Customer' }}
-        className="md:px-[var(--spacing-system-l)] md:pb-[var(--spacing-system-l)]"
+        className="content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]"
         backButton={{
           label: 'Back',
           onClick: handleBack,
         }}
         actions={actions}
-        contentClassName="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] md:px-0 md:pb-0"
+        contentClassName="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] content-md:px-0 content-md:pb-0"
         headerVariant="card"
       >
         <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange}>

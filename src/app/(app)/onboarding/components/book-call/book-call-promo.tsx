@@ -39,18 +39,18 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
         // 24 on a phone, 40 from tablet up — one token covers both stacked
         // layouts; desktop lays them side by side and takes the gap back.
         'gap-[var(--spacing-system-xl)]',
-        'lg:flex-row lg:items-center lg:justify-between lg:gap-[var(--spacing-system-l)]',
+        'content-lg:flex-row content-lg:items-center content-lg:justify-between content-lg:gap-[var(--spacing-system-l)]',
         MEETING_SCHEDULER_H,
         className,
       )}
     >
       {/* `shrink-0` so the copy keeps its lines while the video absorbs the
           card's height; capped to the design's measure on desktop. */}
-      <div className="flex min-w-0 shrink-0 flex-col lg:max-w-[440px]">
+      <div className="flex min-w-0 shrink-0 flex-col content-lg:max-w-[440px]">
         {/* `xs` is 4/8 and the glyph steps with it — 16px/4px on the phone
             mock, 24px/8px on the tablet one. */}
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <CalendarBookmarkIcon className="size-4 shrink-0 text-ods-open-yellow md:size-6" />
+          <CalendarBookmarkIcon className="size-4 shrink-0 text-ods-open-yellow content-md:size-6" />
           <h3 className="text-ods-text-primary text-h3">Book an onboarding call</h3>
         </div>
         <p className="mt-[var(--spacing-system-xs)] text-ods-text-secondary text-h6">
@@ -74,7 +74,7 @@ export function BookCallPromo({ onBookCall, disabled, className }: BookCallPromo
           stretching it — a stretched item's width would win and fight the
           ratio; `max-w-full` guards the narrow card where width binds instead.
           Renders nothing when the platform has no video. */}
-      <BookCallWalkthroughVideo className="w-full md:min-h-0 md:w-auto md:max-w-full md:flex-1 md:self-start lg:w-[460px] lg:flex-none lg:self-auto" />
+      <BookCallWalkthroughVideo className="w-full content-md:min-h-0 content-md:w-auto content-md:max-w-full content-md:flex-1 content-md:self-start content-lg:w-[460px] content-lg:flex-none content-lg:self-auto" />
     </section>
   );
 }

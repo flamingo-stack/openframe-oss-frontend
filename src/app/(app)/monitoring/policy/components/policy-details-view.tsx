@@ -124,19 +124,19 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     // Desktop (lg+): Severity + Status + Author on a single row → 2 rows total.
     {
       id: 'meta-desktop',
-      className: 'hidden lg:flex lg:border-b-0',
+      className: 'hidden content-lg:flex content-lg:border-b-0',
       columns: [severityColumn, statusColumn, authorColumn],
     },
     // Tablet & mobile (< lg): split into two rows — Severity + Status, then Author
     // on its own third row. The empty spacer keeps Author at the standard row height.
     {
       id: 'meta-severity-status',
-      className: 'lg:hidden',
+      className: 'content-lg:hidden',
       columns: [severityColumn, statusColumn],
     },
     {
       id: 'meta-author',
-      className: 'lg:hidden',
+      className: 'content-lg:hidden',
       columns: [authorColumn, { key: 'author-spacer' }],
     },
   ];

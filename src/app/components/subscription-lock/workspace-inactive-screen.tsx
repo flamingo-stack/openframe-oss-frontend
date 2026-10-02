@@ -81,7 +81,7 @@ export function WorkspaceInactiveScreen({ title, description, action }: Workspac
               one that belongs to THIS screen: this is the surface a user sits on
               while waiting for an admin to fix things elsewhere. */}
         <LockScreenActions
-          className="flex w-full flex-col items-stretch gap-[var(--spacing-system-m)] sm:w-auto sm:flex-row sm:flex-wrap sm:justify-center"
+          className="flex w-full flex-col items-stretch gap-[var(--spacing-system-m)] content-sm:w-auto content-sm:flex-row content-sm:flex-wrap content-sm:justify-center"
           leading={
             <>
               {action}

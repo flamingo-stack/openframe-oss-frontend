@@ -16,7 +16,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  *
  * This table used to be the one exception. It declared no `hideAt` at all and
  * instead took its header widths back below `lg` through `tabletHeaderWidth`
- * (`max-lg:[&&&]:flex-1`), outranking the core's own tablet rule on specificity
+ * (`content-max-lg:[&&&]:flex-1`), outranking the core's own tablet rule on specificity
  * — the only use of that escape hatch in the app. The result was five columns
  * still fighting for ~760px of tablet, every value under `TruncateText`, and a
  * row-count slot whose only slack was the 56px actions column.
@@ -63,7 +63,7 @@ const INVOICE_COLUMNS = {
   //
   // Dropped below `md`, where the row is down to two columns plus the link and
   // the tag would be squeezing the amount. The filter it belongs to is gone
-  // there anyway — the whole header is `hidden md:flex`.
+  // there anyway — the whole header is `hidden content-md:flex`.
   status: {
     id: 'status',
     header: 'STATUS',

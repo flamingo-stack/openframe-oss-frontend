@@ -55,7 +55,7 @@ export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVar
       )}
       {variant === 'new' && (
         <div>
-          <Button variant="accent" disabled className="w-full md:w-auto">
+          <Button variant="accent" disabled className="w-full content-md:w-auto">
             Generate Connection Link
           </Button>
         </div>

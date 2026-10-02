@@ -28,7 +28,7 @@ export function SoftwareLogResultToggle({ open, onToggle }: { open: boolean; onT
       {/* The design's split button on md+, a fixed 176px so "Show" and "Hide"
           don't resize it; `fullWidth` keeps the chevron flush right. Below md the
           column is one icon wide. */}
-      <div className="hidden w-[176px] md:block">
+      <div className="hidden w-[176px] content-md:block">
         <Button variant="outline" fullWidth onClick={onToggle} aria-expanded={open} splitIcon={chevron}>
           <ToggleLabel open={open} />
         </Button>
@@ -40,7 +40,7 @@ export function SoftwareLogResultToggle({ open, onToggle }: { open: boolean; onT
         aria-expanded={open}
         aria-label={label}
         leftIcon={chevron}
-        className="bg-ods-card md:hidden"
+        className="bg-ods-card content-md:hidden"
       />
     </div>
   );

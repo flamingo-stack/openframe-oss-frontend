@@ -48,7 +48,7 @@ export function JsonPanel({ title, value }: JsonPanelProps) {
       </div>
 
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
-        <div className="p-4 md:p-6">
+        <div className="p-4 content-md:p-6">
           <pre className="min-w-0 whitespace-pre-wrap break-words text-ods-text-primary text-code">
             {tokenizeJson(json).map((token, i) =>
               token.type === 'punct' ? (

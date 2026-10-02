@@ -262,7 +262,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
             flex row because the Timezone picker makes it five cells: the wrap is
             then the one `col-start-1` below, and both layouts are the same
             markup. */}
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] pb-[var(--spacing-system-lf)] md:grid-cols-4 md:items-end">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] pb-[var(--spacing-system-lf)] content-md:grid-cols-4 content-md:items-end">
           <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
             <Label className="text-h4">Date</Label>
             <Controller
@@ -376,7 +376,7 @@ export function ScheduleTimingFields({ showErrors, disabled = false }: { showErr
           {/* Back to column 1 when the Timezone picker took the third: the
               design wraps Repeat onto its own line rather than squeezing five
               controls into four columns. */}
-          <div className={cn('min-w-0', showTimeReference && 'md:col-start-1')}>
+          <div className={cn('min-w-0', showTimeReference && 'content-md:col-start-1')}>
             <Controller
               name="repeatEnabled"
               control={control}

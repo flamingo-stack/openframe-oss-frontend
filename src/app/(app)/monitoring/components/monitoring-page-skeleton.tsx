@@ -48,10 +48,10 @@ export function MonitoringPageSkeleton({ tab }: { tab?: string }) {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         {!isQueries && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 content-md:grid-cols-2 content-lg:grid-cols-4">
             {/* `DashboardInfoCard`'s own height — see the matching note in `policies.tsx`. */}
             {SUMMARY_CARD_KEYS.map(key => (
-              <Skeleton key={key} className="h-16 w-full md:h-[104px]" />
+              <Skeleton key={key} className="h-16 w-full content-md:h-[104px]" />
             ))}
           </div>
         )}

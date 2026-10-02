@@ -15,10 +15,10 @@ import { CONTACT_FIELD_LABELS } from '../../types/customer-form.types';
  * border of its LAST DOM child only; with the mobile rows coming last, every
  * md+ row that ends its card drops the border itself.
  */
-const SINGLE_COLUMN_ROW = 'md:min-h-20 md:py-0';
-const DESKTOP_ROW = 'hidden md:flex';
-const DESKTOP_LAST_ROW = 'hidden md:flex md:border-b-0';
-const MOBILE_ROW = 'md:hidden';
+const SINGLE_COLUMN_ROW = 'content-md:min-h-20 content-md:py-0';
+const DESKTOP_ROW = 'hidden content-md:flex';
+const DESKTOP_LAST_ROW = 'hidden content-md:flex content-md:border-b-0';
+const MOBILE_ROW = 'content-md:hidden';
 
 export interface CustomerInfoCells {
   website: ReactNode;
@@ -78,7 +78,7 @@ export const NO_CONTACTS_COPY = 'No contacts yet — add them from Edit Customer
 export function buildNoContactsRow(): PanelRow {
   return {
     id: 'contacts-empty',
-    className: 'flex items-center p-[var(--spacing-system-m)] md:min-h-20',
+    className: 'flex items-center p-[var(--spacing-system-m)] content-md:min-h-20',
     content: <p className="text-ods-text-secondary text-h4">{NO_CONTACTS_COPY}</p>,
   };
 }

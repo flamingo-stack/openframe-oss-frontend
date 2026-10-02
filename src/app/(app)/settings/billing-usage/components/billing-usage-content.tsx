@@ -383,7 +383,12 @@ export function BillingUsageContent() {
 
       <TestModeBanner />
 
-      <div className={cn('grid gap-[var(--spacing-system-m)]', flags.hasAi ? 'md:grid-cols-3' : 'md:grid-cols-1')}>
+      <div
+        className={cn(
+          'grid gap-[var(--spacing-system-m)]',
+          flags.hasAi ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
+        )}
+      >
         <UsageStatCard
           title="Device Usage"
           tone={device.overLimit ? 'warning' : 'default'}
@@ -522,7 +527,7 @@ export function BillingUsageContent() {
       <div
         className={cn(
           'grid grid-cols-1 items-start gap-[var(--spacing-system-l)]',
-          (flags.hasPendingPlan || ai.paid > 0) && 'md:grid-cols-2',
+          (flags.hasPendingPlan || ai.paid > 0) && 'content-md:grid-cols-2',
         )}
       >
         <SectionBlock title="Current Plan">

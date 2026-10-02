@@ -472,7 +472,7 @@ export function DeviceSelector({
               <EntityImage
                 src={fullImageUrl}
                 alt={device.organization || 'Customer'}
-                className="size-10 shrink-0 md:size-10"
+                className="size-10 shrink-0 content-md:size-10"
               />
               <div className="flex min-w-0 flex-col justify-center">
                 <TruncateText>{device.organization || ''}</TruncateText>
@@ -497,11 +497,11 @@ export function DeviceSelector({
         accessorKey: 'os',
         header: 'OS',
         cell: ({ row }: { row: Row<Device> }) => (
-          <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 md:w-6 md:h-6" />
+          <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
         ),
         enableSorting: false,
         meta: {
-          width: 'w-[200px] md:w-1/6',
+          width: 'w-[200px] content-md:w-1/6',
           hideAt: 'md',
         },
       },
@@ -515,7 +515,7 @@ export function DeviceSelector({
         },
         enableSorting: false,
         meta: {
-          width: 'w-auto shrink-0 md:w-[160px]',
+          width: 'w-auto shrink-0 content-md:w-[160px]',
           filter: { options: statusFilterOptions },
         },
       },
@@ -528,7 +528,7 @@ export function DeviceSelector({
           if (disabledReason) {
             return (
               <div data-no-row-click className="pointer-events-auto flex w-full items-center justify-end gap-2">
-                <span className="whitespace-pre-line text-right text-ods-text-secondary text-h6 max-md:hidden">
+                <span className="whitespace-pre-line text-right text-ods-text-secondary text-h6 content-max-md:hidden">
                   {disabledReason}
                 </span>
                 <Button
@@ -587,7 +587,7 @@ export function DeviceSelector({
           );
         },
         enableSorting: false,
-        meta: { width: 'w-12 md:w-auto md:min-w-[130px] shrink-0 flex-none', align: 'right' },
+        meta: { width: 'w-12 content-md:w-auto content-md:min-w-[130px] shrink-0 flex-none', align: 'right' },
       },
     ],
     [

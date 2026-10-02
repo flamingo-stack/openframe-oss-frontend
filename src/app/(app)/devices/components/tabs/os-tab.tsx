@@ -105,7 +105,7 @@ export function OsTab({ device }: OsTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
         {hasOs && (
           <Section title="Operating System">
             <InfoCard
@@ -123,7 +123,7 @@ export function OsTab({ device }: OsTabProps) {
       </div>
 
       {managementItems.length > 0 && (
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
           <Section title="Management">
             <InfoCard data={{ title: 'Fleet', items: managementItems }} />
           </Section>

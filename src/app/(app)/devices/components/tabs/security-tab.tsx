@@ -86,7 +86,9 @@ function SecuritySectionBlock({ title, cards }: Omit<SecuritySection, 'id'>) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
-      <div className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)]', cards.length > 1 && 'lg:grid-cols-3')}>
+      <div
+        className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)]', cards.length > 1 && 'content-lg:grid-cols-3')}
+      >
         {cards.map((card, index) => (
           <SecurityStatusCard key={card.title ?? index} {...card} />
         ))}

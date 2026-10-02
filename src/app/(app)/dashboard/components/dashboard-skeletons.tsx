@@ -43,7 +43,7 @@ function InlineSkeleton({ className }: { className?: string }) {
 
 // Exact wrapper of the core `DashboardInfoCard` (its `baseClassName`).
 const INFO_CARD_CLASS =
-  'flex h-16 items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)] transition-all md:h-[104px] md:gap-[var(--spacing-system-m)] md:p-[var(--spacing-system-m)]';
+  'flex h-16 items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)] transition-all content-md:h-[104px] content-md:gap-[var(--spacing-system-m)] content-md:p-[var(--spacing-system-m)]';
 
 /**
  * One `DashboardInfoCard` in its loading state. The title (or the status-tag
@@ -69,7 +69,7 @@ function InfoCardSkeleton({
         {/* Value (+ optional percentage) — the query-dependent part. */}
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
           <p className="text-ods-text-primary text-h2">
-            <InlineSkeleton className="h-4 w-8 md:h-6" />
+            <InlineSkeleton className="h-4 w-8 content-md:h-6" />
           </p>
           {showPercentage && (
             <p className="text-ods-text-secondary text-h4">
@@ -79,7 +79,7 @@ function InfoCardSkeleton({
         </div>
       </div>
       {/* Circular progress ring — responsive 24 → 56px, matching progressSize={{ base: 24, md: 56 }}. */}
-      {showProgress && <Skeleton className="size-6 shrink-0 rounded-full md:size-14" />}
+      {showProgress && <Skeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
     </div>
   );
 }
@@ -93,7 +93,7 @@ function CustomerInfoCardSkeleton() {
   return (
     <div className={cn(INFO_CARD_CLASS, 'col-span-2')}>
       {/* logo tile — mirrors the DashboardInfoCard icon slot */}
-      <Skeleton className="size-8 shrink-0 rounded-sm md:size-14" />
+      <Skeleton className="size-8 shrink-0 rounded-sm content-md:size-14" />
       <div className="flex min-w-0 flex-1 flex-col">
         <p className="text-ods-text-primary text-h3">
           <InlineSkeleton className="h-4 w-40" />
@@ -120,12 +120,12 @@ function OverviewHeaderSkeleton({ title, className }: { title: string; className
     <div
       className={cn(
         'flex items-end justify-between gap-[var(--spacing-system-m)]',
-        'md:flex-col md:items-start md:justify-start lg:flex-row lg:items-end lg:justify-between',
+        'content-md:flex-col content-md:items-start content-md:justify-start content-lg:flex-row content-lg:items-end content-lg:justify-between',
         'mb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]',
         className,
       )}
     >
-      <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xs)] md:min-h-12">
+      <div className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xs)] content-md:min-h-12">
         <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col justify-center">
             <h1 className="truncate text-ods-text-primary text-h2">{title}</h1>
@@ -141,7 +141,7 @@ export function DevicesOverviewSkeleton() {
   return (
     <div>
       <OverviewHeaderSkeleton title="Devices Overview" />
-      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
         {DEVICE_CARDS.map(title => (
           <InfoCardSkeleton key={title} title={title} showProgress showPercentage />
         ))}
@@ -155,7 +155,7 @@ export function TicketsOverviewSkeleton() {
   return (
     <div>
       <OverviewHeaderSkeleton title="Tickets Overview" />
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] content-md:grid-cols-2 content-lg:grid-cols-4">
         <InfoCardSkeleton titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />} />
         <InfoCardSkeleton
           titleSlot={
@@ -181,7 +181,7 @@ function CustomersRowsSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-mf)]">
       {CUSTOMER_ROW_KEYS.map(key => (
-        <div key={key} className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] lg:grid-cols-4">
+        <div key={key} className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
           <CustomerInfoCardSkeleton />
           <InfoCardSkeleton title="Online Devices" showProgress showPercentage />
           <InfoCardSkeleton title="Offline Devices" showProgress showPercentage />

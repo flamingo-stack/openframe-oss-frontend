@@ -66,9 +66,16 @@ interface OpenframeEmbeddableChatEntryProps {
   /** Change handler, shared with the host `AppLayoutDrawer`. The chat's own
    *  in-header X button calls this with `false` to close the drawer. */
   onOpenChange: (open: boolean) => void;
+  /** Offer the in-header close button. False when the chat is docked into the
+   *  layout and cannot close. Default true. */
+  closable?: boolean;
 }
 
-export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEmbeddableChatEntryProps) {
+export function OpenframeEmbeddableChatEntry({
+  open,
+  onOpenChange,
+  closable = true,
+}: OpenframeEmbeddableChatEntryProps) {
   const {
     state,
     subscription,
@@ -300,6 +307,7 @@ export function OpenframeEmbeddableChatEntry({ open, onOpenChange }: OpenframeEm
         shell="none"
         open={open}
         onOpenChange={onOpenChange}
+        closable={closable}
         // Signed-in user's name for the header sub-line under the chat title.
         // Fallback for the lib's server identity when the tenant identity route
         // returns no name — sourced from the host auth store.

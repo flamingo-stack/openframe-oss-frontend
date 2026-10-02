@@ -45,7 +45,7 @@ interface ScheduleInfoBarFromDataProps {
 
 /** One value/label cell, 80px tall from `md` up — the row height the design fixes. */
 const CELL_CLASS =
-  'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] md:py-0 md:h-[80px]';
+  'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
 
 export function ScheduleInfoBarFromData({
   name,
@@ -77,7 +77,7 @@ export function ScheduleInfoBarFromData({
         </div>
       )}
       <div
-        className={`grid grid-cols-2 ${isEventDriven ? 'md:grid-cols-2' : 'md:grid-cols-4'} ${
+        className={`grid grid-cols-2 ${isEventDriven ? 'content-md:grid-cols-2' : 'content-md:grid-cols-4'} ${
           addedBy ? 'border-b border-ods-border' : ''
         }`}
       >
@@ -88,11 +88,11 @@ export function ScheduleInfoBarFromData({
           </div>
         ) : (
           <>
-            <div className={`${CELL_CLASS} border-b border-ods-border md:border-b-0`}>
+            <div className={`${CELL_CLASS} border-b border-ods-border content-md:border-b-0`}>
               <TruncateText>{date}</TruncateText>
               <span className="text-ods-text-secondary text-h6">Date</span>
             </div>
-            <div className={`${CELL_CLASS} border-b border-ods-border md:border-b-0`}>
+            <div className={`${CELL_CLASS} border-b border-ods-border content-md:border-b-0`}>
               <TruncateText>{time}</TruncateText>
               <span className="text-ods-text-secondary text-h6">{timeLabel}</span>
             </div>
@@ -111,9 +111,9 @@ export function ScheduleInfoBarFromData({
           the offline rule and authorship on a separate line from the timing,
           and they split it in half rather than inheriting the timing columns. */}
       {(ifDeviceOffline || addedBy) && (
-        <div className="grid grid-cols-1 md:grid-cols-2">
+        <div className="grid grid-cols-1 content-md:grid-cols-2">
           {ifDeviceOffline && (
-            <div className={`${CELL_CLASS}${addedBy ? 'border-b border-ods-border md:border-b-0' : ''}`}>
+            <div className={`${CELL_CLASS}${addedBy ? 'border-b border-ods-border content-md:border-b-0' : ''}`}>
               <TruncateText>{ifDeviceOffline}</TruncateText>
               <span className="text-ods-text-secondary text-h6">If Device Offline</span>
             </div>

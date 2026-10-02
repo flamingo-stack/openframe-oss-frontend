@@ -871,13 +871,13 @@ export function ExecutionsTabShell({
               placeholder={searchPlaceholder}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
             />
           </div>
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
+            className="content-md:hidden"
             onClick={() => setMobileFilterOpen(true)}
             aria-label="Open filters"
             leftIcon={<Filter02Icon className="text-ods-text-primary" />}

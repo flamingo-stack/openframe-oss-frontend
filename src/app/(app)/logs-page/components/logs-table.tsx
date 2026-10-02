@@ -427,7 +427,7 @@ function LogsTableContent({
         cell: ({ row }: { row: Row<UiLogEntry> }) => (
           <ToolBadge
             toolType={normalizeToolTypeWithFallback(row.original.source.toolType)}
-            iconClassName="h-4 w-4 md:h-6 md:w-6"
+            iconClassName="h-4 w-4 content-md:h-6 content-md:w-6"
           />
         ),
         enableSorting: false,
@@ -867,12 +867,12 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             className="flex-1"
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
+            className="content-md:hidden"
             onClick={() => setMobileFilterOpen(true)}
             aria-label="Open filters"
             leftIcon={<Filter02Icon className="text-ods-text-primary" />}

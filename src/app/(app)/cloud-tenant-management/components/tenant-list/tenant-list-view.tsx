@@ -71,7 +71,7 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
               value={localSearch}
               onChange={e => setLocalSearch(e.target.value)}
               disabled={loading}
-              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
               aria-label="Search for Tenant"
             />
           </div>

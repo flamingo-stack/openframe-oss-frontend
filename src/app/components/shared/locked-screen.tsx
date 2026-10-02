@@ -40,7 +40,9 @@ export function LockedScreen({ icon, title, description, actions }: LockedScreen
         </div>
 
         {actions && (
-          <div className="flex w-full flex-col gap-[var(--spacing-system-s)] sm:w-auto sm:flex-row">{actions}</div>
+          <div className="flex w-full flex-col gap-[var(--spacing-system-s)] content-sm:w-auto content-sm:flex-row">
+            {actions}
+          </div>
         )}
       </div>
     </div>

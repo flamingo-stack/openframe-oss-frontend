@@ -124,7 +124,7 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
           showTimeout={false}
         />
 
-        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
           <div>
             <Label className="text-ods-text-primary text-h4">Timeout</Label>
             <Controller

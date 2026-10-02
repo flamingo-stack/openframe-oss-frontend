@@ -8,8 +8,8 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  */
 const TENANT_COLUMNS = {
   tenant: { id: 'tenant', header: 'Tenant', width: 'flex-1 min-w-0' },
-  customer: { id: 'customer', header: 'Customers', width: 'w-[220px] lg:w-[340px]', hideAt: 'md' },
-  access: { id: 'access', header: 'Access', width: 'w-[200px] lg:w-[216px]' },
+  customer: { id: 'customer', header: 'Customers', width: 'w-[220px] content-lg:w-[340px]', hideAt: 'md' },
+  access: { id: 'access', header: 'Access', width: 'w-[200px] content-lg:w-[216px]' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

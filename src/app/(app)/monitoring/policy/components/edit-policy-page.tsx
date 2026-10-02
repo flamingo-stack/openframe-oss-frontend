@@ -218,9 +218,9 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
       actionsVariant="primary-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="space-y-6 md:space-y-8">
+      <div className="space-y-6 content-md:space-y-8">
         {/* Name */}
-        <div className="md:max-w-[280px]">
+        <div className="content-md:max-w-[280px]">
           <Input
             {...register('name', {
               onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),

@@ -123,6 +123,7 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
   const urlDialogId = useSearchParams().get(MINGO_DIALOG_PARAM);
 
   const isOpen = useMingoLauncherStore(state => state.isOpen);
+  const panelShown = useMingoLauncherStore(state => state.panelShown);
   const activeDialogId = useMingoMessagesStore(state => state.activeDialogId);
 
   const mirroredRef = useRef<string | null>(null);
@@ -145,7 +146,8 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       urlDialogId: new URLSearchParams(window.location.search).get(MINGO_DIALOG_PARAM),
       mirroredDialogId: mirroredRef.current,
       canOpenDrawer,
-      drawerOpen: useMingoLauncherStore.getState().isOpen,
+      // Mingo v2 docks the chat into the layout: on screen without being "open".
+      drawerOpen: useMingoLauncherStore.getState().isOpen || useMingoLauncherStore.getState().panelShown,
       activeDialogId: useMingoMessagesStore.getState().activeDialogId,
       closedForNavigation: useMingoLauncherStore.getState().closedForNavigation,
     });
@@ -173,5 +175,5 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       case 'none':
         return;
     }
-  }, [pathname, urlDialogId, isOpen, activeDialogId, canOpenDrawer]);
+  }, [pathname, urlDialogId, isOpen, panelShown, activeDialogId, canOpenDrawer]);
 }

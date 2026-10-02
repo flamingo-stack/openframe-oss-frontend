@@ -58,7 +58,7 @@ export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGu
         <div className="flex flex-row items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-s)]">
             {/* 16px on mobile, 24px from md - per mockups 505-14963 / 505-13932. */}
-            <InfoCircleIcon className="size-4 shrink-0 text-ods-text-secondary md:size-6" />
+            <InfoCircleIcon className="size-4 shrink-0 text-ods-text-secondary content-md:size-6" />
             <div className="flex min-w-0 flex-col">
               <p className="text-ods-text-primary text-h4">Using Default Settings</p>
               <p className="text-ods-text-secondary text-h6">This customer follows guardrails defaults.</p>
@@ -77,7 +77,7 @@ export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGu
 
       {/* 60px tall with 12px padding on mobile, 80px with 16px from md - the
           `--spacing-system-m` token carries exactly that 12->16 step. */}
-      <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] md:min-h-20">
+      <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
         <InfoCell
           value={inheritsDefault ? <span className="text-ods-text-secondary">{modeLabel}</span> : modeLabel}
           label="Default Remote Access Permission"

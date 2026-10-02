@@ -13,7 +13,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 export const INCIDENT_COLUMNS = {
   incident: { id: 'type', header: 'Incident', width: 'flex-1 min-w-0', filterable: true },
   device: { id: 'organizationId', header: 'Device', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
-  severity: { id: 'severity', header: 'Severity', width: 'w-[96px] md:w-[120px]', filterable: true },
+  severity: { id: 'severity', header: 'Severity', width: 'w-[96px] content-md:w-[120px]', filterable: true },
   status: { id: 'status', header: 'Status', width: 'w-[150px]', hideAt: 'lg', filterable: true },
   assignee: { id: 'assigneeId', header: 'Assigned', width: 'w-[200px]', hideAt: 'lg', filterable: true },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },

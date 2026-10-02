@@ -32,7 +32,7 @@ export function SoftwareSearchToolbar({
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
         className="flex-1"
-        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
       />
     </div>
   );
