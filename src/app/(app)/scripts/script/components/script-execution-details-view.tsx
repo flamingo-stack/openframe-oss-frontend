@@ -18,7 +18,7 @@ import { displayValue, EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
@@ -85,8 +85,11 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     return () => clearInterval(interval);
   }, [isInFlight, environment, executionId]);
 
+  // `scriptId` is the raw DB id, but Script Details resolves its `?id=` through `node(id:)`.
   const handleBack = useSafeBack(
-    execution?.scriptId ? routes.scripts.details(execution.scriptId, { tab: 'executions' }) : routes.scripts.list,
+    execution?.scriptId
+      ? routes.scripts.details(ensureGlobalIdForType('Script', execution.scriptId), { tab: 'executions' })
+      : routes.scripts.list,
   );
 
   const actions = useMemo<PageActionButton[]>(() => {
