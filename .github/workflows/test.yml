@@ -24,12 +24,18 @@ env:
 
 jobs:
   scan:
-    name: "Scan Code"
+    name: "Scan Code: ${{ matrix.target.name }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
+      pull-requests: read
     if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: frontend, path: "." }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +47,8 @@ jobs:
         uses: ./.github/steps/trivy
         with:
           scan: code
+          path: ${{ matrix.target.path }}
+          image-name: ${{ matrix.target.name }}
 
   lint:
     name: 'Lint'
