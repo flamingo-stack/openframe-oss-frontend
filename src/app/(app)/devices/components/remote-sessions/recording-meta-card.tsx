@@ -54,7 +54,7 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
       </MetaCell>
       <MetaCell label="File size">{recording.sizeBytes != null ? formatBytes(recording.sizeBytes) : dash}</MetaCell>
       <MetaCell label="Hostname" className="lg:border-b-0">
-        {recording.hostname}
+        {recording.hostname ?? dash}
       </MetaCell>
       <MetaCell
         label="Customer ID (Site)"
@@ -68,12 +68,16 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
           />
         }
       >
-        <Link
-          href={routes.customers.details(recording.organization.id)}
-          className="text-ods-accent underline hover:text-ods-accent-hover"
-        >
-          {recording.organization.name}
-        </Link>
+        {recording.organization.id ? (
+          <Link
+            href={routes.customers.details(recording.organization.id)}
+            className="text-ods-accent underline hover:text-ods-accent-hover"
+          >
+            {recording.organization.name}
+          </Link>
+        ) : (
+          recording.organization.name || dash
+        )}
       </MetaCell>
       <MetaCell label="Logged-In User" className="border-b-0">
         {recording.loggedInUser ?? dash}

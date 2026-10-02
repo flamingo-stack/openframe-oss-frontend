@@ -1,15 +1,18 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
+import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import { useSessionRecording } from '../../hooks/use-session-recordings';
-import { RecordingUnavailableError, sessionRecordingsService } from '../../services/session-recordings-service';
+import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
@@ -32,8 +35,13 @@ interface RemoteSessionViewProps {
  */
 export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const handleBack = useSafeBack(routes.devices.list);
-  const { data: recording, isLoading } = useSessionRecording(recordingId);
+  const { toast } = useToast();
+  const recordingQuery = useSessionRecording(recordingId);
+  const recording = recordingQuery.data;
+  const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
   const player = useRecordingPlayer();
+  // Nothing to show but the error - unless local files were loaded in the meantime.
+  const failedToLoad = (!!loadError || isOffline) && player.state === 'empty';
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
   // the engine before the storage backend ships, so it hides behind the
@@ -60,26 +68,45 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
     }
   };
 
-  // Fetch the .mcrec once the detail arrives. The mock service always throws
-  // RecordingUnavailableError (no storage backend yet) - the page then shows
-  // the processing empty state, and in dev the local-file loader feeds the
-  // player instead.
-  const { loadBuffer } = player;
+  // Load the session's files once the detail arrives, oldest first: playback
+  // starts on the first while the rest download one by one. When no file can
+  // be fetched (still processing, or no storage) the
+  // page shows the processing empty state, and in dev the local-file loader
+  // can feed the player instead; a session missing only some files plays the
+  // rest and says so.
+  // Keyed on the session's files, not on the query result: a background
+  // refetch hands back an equal detail as a new object, and reloading the same
+  // files into the player restarts playback for nothing. The player's own
+  // callbacks are not stable across renders either, hence the effect event.
+  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const loadFiles = useEffectEvent(async () => {
+    if (!recording) return { failed: 0, total: 0 };
+    const { failed } = await player.loadSegments(
+      recording.segments.map(segment => () => sessionRecordingsApiService.downloadSegment(segment)),
+    );
+    return { failed, total: recording.segments.length };
+  });
   useEffect(() => {
-    if (!recording) return undefined;
+    if (!segmentsKey) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const buffer = await sessionRecordingsService.downloadRecording(recording);
-        if (!cancelled) await loadBuffer(buffer);
-      } catch (error) {
-        if (!cancelled && error instanceof RecordingUnavailableError) setUnavailable(true);
+        const { failed, total } = await loadFiles();
+        if (!cancelled && failed > 0) {
+          toast({
+            title: 'Part of the recording is missing',
+            description: `${failed} of ${total} files of this session could not be loaded.`,
+            variant: 'warning',
+          });
+        }
+      } catch {
+        if (!cancelled) setUnavailable(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [recording, loadBuffer]);
+  }, [segmentsKey, toast]);
 
   return (
     <PageLayout
@@ -91,15 +118,28 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       subtitleRow="while-loading"
       showHeader={!isFullscreen}
     >
-      <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents'}>
-        {showDevLoader && !isFullscreen && (
-          <DevLocalFileLoader
-            onLoad={async buffer => {
-              await player.loadBuffer(buffer);
-              setUnavailable(false);
-            }}
-          />
+      {/* Outside the player wrapper so it stays usable when the recording itself
+          failed to load - local files are how that case gets tested. */}
+      {showDevLoader && !isFullscreen && (
+        <DevLocalFileLoader
+          onLoad={async buffers => {
+            await player.loadSegments(buffers.map(buffer => () => Promise.resolve(buffer)));
+            setUnavailable(false);
+          }}
+        />
+      )}
+      {/* An unknown or hidden recording, or a failed read: the page has nothing to play. */}
+      {failedToLoad && (
+        <LoadError
+          {...loadErrorProps(isOffline, "Couldn't load this recording.", () => void recordingQuery.refetch())}
+        />
+      )}
+      <div
+        className={cn(
+          isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents',
+          failedToLoad && 'hidden',
         )}
+      >
         {!isFullscreen &&
           (isLoading ? <RecordingMetaCardSkeleton /> : recording && <RecordingMetaCard recording={recording} />)}
         {/* The player is ONE element per the mockup: the playback screen and

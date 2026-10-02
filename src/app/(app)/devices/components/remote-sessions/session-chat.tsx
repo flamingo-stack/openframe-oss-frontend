@@ -24,7 +24,7 @@ export function SessionChat({ messages, employee }: SessionChatProps) {
           <SessionChatMessageRow
             key={message.id}
             authorName={message.author}
-            isTechnician={message.author === employee.name}
+            isTechnician={message.fromTechnician}
             avatarUrl={employee.avatarUrl}
             sentAt={message.sentAt}
             body={message.body}

@@ -4,8 +4,9 @@ import type { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
 import {
   DesktopRecordingRenderer,
+  loadSessionSegments,
   McrecPlayer,
-  parseMcrec,
+  type ParsedRecording,
   type RecordingPlaybackSpeed,
   type RecordingPlayerState,
   TerminalRecordingRenderer,
@@ -22,8 +23,13 @@ export interface UseRecordingPlayerResult {
   protocol: 1 | 2 | null;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   terminalHostRef: React.RefObject<HTMLDivElement | null>;
-  /** Parse a `.mcrec` buffer, build the matching renderer, and rewind. */
-  loadBuffer: (buffer: ArrayBuffer) => Promise<void>;
+  /**
+   * Load a session's files, oldest first, into one timeline: playback can start
+   * on the first while the rest are fetched one by one and appended. A file that
+   * cannot be fetched is skipped and counted; if none loads, the first error is
+   * thrown.
+   */
+  loadSegments: (sources: ReadonlyArray<() => Promise<ArrayBuffer>>) => Promise<{ failed: number }>;
   togglePlay: () => void;
   seek: (ms: number) => void;
   stepBack: () => void;
@@ -35,8 +41,8 @@ export interface UseRecordingPlayerResult {
 /**
  * Owns one `McrecPlayer` for the recording page. The player instance lives in
  * a ref; React state mirrors only what the controls render (state, time,
- * duration, speed). The renderer is created on `loadBuffer` from the parsed
- * protocol: desktop draws into `canvasRef`, terminal lazily boots xterm into
+ * duration, speed). The renderer is created on `loadSegments` from the first
+ * file's protocol: desktop draws into `canvasRef`, terminal lazily boots xterm into
  * `terminalHostRef` (read-only, `disableStdin`).
  */
 export function useRecordingPlayer(): UseRecordingPlayerResult {
@@ -44,6 +50,8 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
   const terminalHostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<McrecPlayer | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
+  /** Bumped by every load, so an older one still downloading stops feeding the player. */
+  const loadGenerationRef = useRef(0);
 
   const [state, setState] = useState<RecordingPlayerState>('empty');
   const [currentMs, setCurrentMs] = useState(0);
@@ -66,12 +74,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     };
   }, []);
 
-  const loadBuffer = async (buffer: ArrayBuffer) => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    const recording = parseMcrec(buffer);
-
+  const attachRenderer = async (player: McrecPlayer, recording: ParsedRecording) => {
     if (recording.protocol === 2) {
       const canvas = canvasRef.current;
       if (!canvas) throw new Error('Player canvas is not mounted');
@@ -103,7 +106,21 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     }
 
     setProtocol(recording.protocol);
-    player.loadParsed(recording);
+  };
+
+  const loadSegments = (sources: ReadonlyArray<() => Promise<ArrayBuffer>>) => {
+    const generation = ++loadGenerationRef.current;
+    const isCurrent = () => generation === loadGenerationRef.current && playerRef.current !== null;
+    return loadSessionSegments(sources, {
+      isCurrent,
+      start: async (recording, complete) => {
+        const player = playerRef.current;
+        if (!player) return;
+        await attachRenderer(player, recording);
+        if (isCurrent()) player.loadParsed(recording, { complete });
+      },
+      extend: (recording, complete) => playerRef.current?.extend(recording, complete),
+    });
   };
 
   const togglePlay = () => {
@@ -135,7 +152,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     protocol,
     canvasRef,
     terminalHostRef,
-    loadBuffer,
+    loadSegments,
     togglePlay,
     seek,
     stepBack: () => {

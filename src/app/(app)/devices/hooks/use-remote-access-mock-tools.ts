@@ -3,8 +3,9 @@
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 
 /**
- * Whether the recording player's local .mcrec loader renders. TEMPORARY until
- * the recordings storage replaces the recordings mock.
+ * Whether the recording player's local .mcrec loader renders - QA tooling for
+ * playing sample files. TEMPORARY until recordings storage runs on every
+ * environment.
  *
  * Server flag `remote-access-mock-tools` (on for dev / qa) for deployed
  * builds; the dev server shows it regardless, mirroring the approval gate's
