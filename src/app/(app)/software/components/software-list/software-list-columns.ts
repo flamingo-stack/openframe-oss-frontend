@@ -8,14 +8,10 @@ import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
  * (no imports, no JSX).
  *
  * The record is the declaration; the array below fixes the render ORDER.
- * Sortable ids ARE the backend sort fields, so a header, the query and the
- * address bar agree on one string.
  */
 const SOFTWARE_LIST_COLUMNS = {
   name: { id: 'name', header: 'Software', width: 'flex-1 min-w-0' },
   currentVersion: { id: 'currentVersion', header: 'Current Version', width: 'flex-1 min-w-0', hideAt: 'md' },
-  // DEVICES carries the one server-side sort toggle; VULNS is not sortable.
-  devicesCount: { id: 'devicesCount', header: 'Devices', width: 'w-[100px] md:w-[144px]', sortable: true },
   vulnerabilities: { id: 'cveCount', header: 'Vulns', width: 'w-[96px]' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
@@ -26,17 +22,8 @@ export { SOFTWARE_LIST_COLUMNS };
 export const SOFTWARE_LIST_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   SOFTWARE_LIST_COLUMNS.name,
   SOFTWARE_LIST_COLUMNS.currentVersion,
-  SOFTWARE_LIST_COLUMNS.devicesCount,
   SOFTWARE_LIST_COLUMNS.vulnerabilities,
   SOFTWARE_LIST_COLUMNS.open,
 ];
-
-/**
- * The only values allowed to reach `SortInput.field` — everything else in the
- * URL falls back to the backend's own order. `softwares` and `deviceSoftware`
- * both sort by these (and by name, highest severity and CVE count, which the
- * table does not offer).
- */
-export const SOFTWARE_LIST_SORTABLE_COLUMN_IDS: readonly string[] = [SOFTWARE_LIST_COLUMNS.devicesCount.id];
 
 export const SOFTWARE_LIST_PAGE_SIZE = FLEET_LIST_PAGE_SIZE;

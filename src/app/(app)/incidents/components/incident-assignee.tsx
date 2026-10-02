@@ -84,7 +84,7 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
             <span className="text-ods-text-secondary">Unassigned</span>
           )
         }
-        label="Assigned"
+        label=""
       />
     </div>
   );
