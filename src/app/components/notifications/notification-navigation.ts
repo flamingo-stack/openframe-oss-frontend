@@ -1,7 +1,9 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import {
+  INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
+  isIncidentNotificationType,
   NOTIFICATION_ATTR,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
@@ -21,7 +23,9 @@ export const TICKET_ASSIGNED_TYPE = 'TICKET_ASSIGNED';
 export const TICKET_ESCALATED_BY_USER_TYPE = 'TICKET_ESCALATED_BY_USER';
 export const CUSTOMER_MESSAGE_PUBLISHED_TYPE = 'CUSTOMER_MESSAGE_PUBLISHED';
 export const ADMIN_MESSAGE_PUBLISHED_TYPE = 'ADMIN_MESSAGE_PUBLISHED';
-export const INSIGHT_DETECTED_TYPE = 'INSIGHT_DETECTED';
+// The incident family (the detection and its status transitions) is declared with the
+// attribute contract, Relay-free, because the mapper reads it too.
+export { INCIDENT_DETECTED_TYPE };
 
 /**
  * Types whose entity is a ticket; they navigate to the ticket dialog via `ticketId`.
@@ -130,7 +134,9 @@ function resolveAction(
     return mingoDialogAction(dialogId);
   }
 
-  if (type === INSIGHT_DETECTED_TYPE && insightId) {
+  // Detection and every status transition (acknowledged, snoozed, resolved) name the same
+  // incident, so they all open it.
+  if (isIncidentNotificationType(type) && insightId) {
     return incidentAction(insightId);
   }
 

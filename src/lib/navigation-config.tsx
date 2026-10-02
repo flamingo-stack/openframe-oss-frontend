@@ -29,6 +29,7 @@ const CATEGORY_BY_NAV_ID: Record<string, NotificationCategory> = {
   monitoring: NotificationCategory.MONITORING,
   logs: NotificationCategory.LOGS,
   tickets: NotificationCategory.TICKETS,
+  incidents: NotificationCategory.INSIGHTS,
 };
 
 /**

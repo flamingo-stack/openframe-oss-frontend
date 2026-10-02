@@ -2275,6 +2275,7 @@ enum NotificationCategory {
   SOFTWARE
   LOGS
   TICKETS
+  INSIGHTS
   MINGO
   GENERIC
 }
@@ -2321,6 +2322,7 @@ enum NotificationSettingGroup {
   MINGO_MESSAGES
   APPROVAL_TICKET
   APPROVAL_MINGO
+  INSIGHTS
 }
 
 type NotificationSettings {

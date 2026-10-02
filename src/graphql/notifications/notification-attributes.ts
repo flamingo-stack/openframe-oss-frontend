@@ -21,6 +21,29 @@ import {
 export { isApprovalNotificationType, MINGO_APPROVAL_REQUEST_TYPE, TICKET_APPROVAL_REQUEST_TYPE };
 
 /**
+ * The incident family of backend `TenantNotificationType`s: one emission per detection,
+ * then one per status transition, all naming the same incident. The label a card shows is
+ * the type as-is - the client never rewrites a backend name.
+ */
+export const INCIDENT_DETECTED_TYPE = 'INCIDENT_DETECTED';
+
+const INCIDENT_TYPE_PREFIX = 'INCIDENT_';
+
+/**
+ * True for any member of the family, including one this release has never heard of: the
+ * family shares a prefix by backend convention, and a transition added later should still
+ * look and route like its siblings rather than fall back to a generic tile.
+ */
+export function isIncidentNotificationType(type: unknown): type is string {
+  return typeof type === 'string' && type.startsWith(INCIDENT_TYPE_PREFIX);
+}
+
+/** The detection itself, as opposed to a status transition - the one card drawn by severity. */
+export function isIncidentDetectedType(type: unknown): boolean {
+  return type === INCIDENT_DETECTED_TYPE;
+}
+
+/**
  * Attribute keys this app reads out of the flat `attributes` map. Every other key the
  * backend sends rides along into `meta` untouched — the catalog adds facts (ticketNumber,
  * actorName, machineId, …) without a client release, and dropping them here would be the
@@ -30,6 +53,8 @@ export const NOTIFICATION_ATTR = {
   ticketId: 'ticketId',
   dialogId: 'dialogId',
   insightId: 'insightId',
+  /** The incident's own `InsightSeverity` (CRITICAL … INFO), on every insight type. */
+  insightSeverity: 'insightSeverity',
   approvalRequestId: 'approvalRequestId',
   approvalType: 'approvalType',
   resolution: 'resolution',

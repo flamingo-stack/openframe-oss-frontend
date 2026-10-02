@@ -4,13 +4,22 @@ import type {
   notificationFields_notification$data as NotificationFieldsData,
   notificationFields_notification$key as NotificationFieldsKey,
 } from '@/__generated__/notificationFields_notification.graphql';
-import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
-import { NOTIFICATION_ATTR, parseAttributeToolCalls, readNotificationAttributes } from './notification-attributes';
+import { InsightSeverity, NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
+import {
+  isIncidentDetectedType,
+  isIncidentNotificationType,
+  NOTIFICATION_ATTR,
+  parseAttributeToolCalls,
+  readNotificationAttributes,
+} from './notification-attributes';
 import { notificationFieldsFragment } from './notification-fields';
 
 export {
+  INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isApprovalResolved,
+  isIncidentDetectedType,
+  isIncidentNotificationType,
   MINGO_APPROVAL_REQUEST_TYPE,
   NOTIFICATION_ATTR,
   parseAttributeToolCalls,
@@ -308,7 +317,8 @@ export function parseSeverity(
 /**
  * Human label for a notification `type`: SNAKE_CASE → Title Case
  * (e.g. TICKET_STATUS_CHANGED → "Ticket Status Changed"). Data-driven so new backend
- * types label themselves.
+ * types label themselves, and nothing else: a type that reads wrong on screen is renamed
+ * on the backend, never re-worded here.
  */
 export function notificationTypeLabel(type: string | null | undefined): string | undefined {
   if (!type) return undefined;
@@ -318,6 +328,32 @@ export function notificationTypeLabel(type: string | null | undefined): string |
     .filter(Boolean)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+/** Incident severities whose detection card is painted red (Figma: the error variant). */
+const RED_INCIDENT_SEVERITIES: ReadonlySet<string> = new Set([InsightSeverity.CRITICAL, InsightSeverity.HIGH]);
+
+/**
+ * The severity an incident notification is DRAWN with, which is not the one the backend
+ * stamps on it.
+ *
+ * The backend's severity is per type, not per emission (`NotificationTypeSpec.getSeverity`
+ * takes no seed): every detection is WARNING, every transition INFO. The design keys the
+ * card on the incident itself instead - the neutral grey card unless a critical or high
+ * incident was just detected, and grey again once someone acknowledges, snoozes or resolves
+ * it, whatever its severity. The `insightSeverity` attribute travels on every incident type
+ * for exactly this, so the card reads it and the stamped value is set aside. Every other
+ * type keeps what the backend said.
+ */
+function presentedSeverity(
+  type: string | undefined,
+  attributes: Record<string, string>,
+  stamped: KnownSeverity | undefined,
+): KnownSeverity | undefined {
+  if (!isIncidentNotificationType(type)) return stamped;
+  const insightSeverity = attributes[NOTIFICATION_ATTR.insightSeverity];
+  const isRed = isIncidentDetectedType(type) && insightSeverity != null && RED_INCIDENT_SEVERITIES.has(insightSeverity);
+  return isRed ? 'DANGER' : 'INFO';
 }
 
 /**
@@ -379,9 +415,9 @@ export function readNotificationNode(ref: NotificationFieldsKey): NotificationFi
  * timestamp, and offers no type or entity metadata — a plain tile, no navigation.
  */
 export function mapNotificationNode(node: NotificationFieldsData): Notification {
-  const severity = normalizeSeverity(node.severity);
   const attributes = readNotificationAttributes(node.attributes);
   const notificationType = node.type ?? undefined;
+  const severity = presentedSeverity(notificationType, attributes, normalizeSeverity(node.severity));
 
   // Entity ids (`ticketId`, `dialogId`) drive navigation and auto-read uniformly across
   // types (see resolveNotificationAction); they sit at fixed keys for every type, known or
