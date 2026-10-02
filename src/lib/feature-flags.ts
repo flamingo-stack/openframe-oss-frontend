@@ -21,8 +21,8 @@ export const FEATURE_FLAG_NAMES = [
   // recording page), on top of `remote-access-approval`. On for dev / qa,
   // absent elsewhere until the recordings storage ships there.
   'session-recordings',
-  // TEMPORARY - remove together with the recordings mock. Shows the recording
-  // player's local .mcrec loader (`?dev=1`). On for dev / qa.
+  // TEMPORARY - remove once recordings storage runs on every environment. Shows
+  // the recording player's local .mcrec loader (`?dev=1`). On for dev / qa.
   'remote-access-mock-tools',
   // The next remote access cut (v2): surfaces built ahead of their backend
   // that must stay hidden when v1 (`remote-access-approval`) reaches every

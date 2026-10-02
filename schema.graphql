@@ -2790,6 +2790,18 @@ type Query {
   """
   activeRemoteSession(deviceId: String!): RemoteSession
 
+  """Sessions on a device, newest first. from/to bound startedAt. first is clamped to 1..100, default 20."""
+  remoteSessions(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteSessionConnection!
+
+  """Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20."""
+  remoteAccessRequests(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteAccessRequestConnection!
+
+  """
+  One recording by id, with its session. The detail route keys on the recording id. INVALID_CURSOR and
+  REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code.
+  """
+  remoteSessionRecording(recordingId: String!): RemoteSessionRecording!
+
   """
   Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
   Tenant scoping is applied by the datastore — the filter narrows within the tenant,
@@ -3367,6 +3379,18 @@ type RemoteSession {
   The session chat dialog; null when the tenant has the session chat off or the dialog could not be created.
   """
   dialogId: String
+  technician: RemoteAccessTechnician!
+  organization: RemoteAccessOrganization
+  recordings: [RemoteSessionRecording!]!
+
+  """endedAt - startedAt; null while ACTIVE. The tab's DURATION column."""
+  durationMs: Long
+
+  """
+  NONE: recording off for the session, or nothing arrived within a day of its end. PROCESSING: recording on and
+  nothing listed yet (ACTIVE, or ended less than 24 h ago). READY: at least one file.
+  """
+  recordingState: RemoteSessionRecordingState!
 }
 
 enum RemoteSessionEndReason {
@@ -3392,6 +3416,109 @@ REMOTE_SESSION_ENDED (the session was already over; the ended session is returne
 type RemoteSessionPayload {
   session: RemoteSession
   userErrors: [UserError!]!
+}
+
+enum RemoteSessionRecordingState {
+  NONE
+  PROCESSING
+  READY
+}
+
+enum RemoteAccessFallback {
+  DENY
+  ALLOW_WITH_NOTIFICATION
+  ALLOW_SILENTLY
+}
+
+"""
+Embedded copy taken at approval; the history row's employee. A row written before the copy existed carries the
+technician id as both id and name rather than failing the page.
+"""
+type RemoteAccessTechnician {
+  id: String!
+  name: String!
+  avatarUrl: String
+}
+
+type RemoteAccessOrganization {
+  """The customer page link on the detail page."""
+  organizationId: String
+  name: String!
+  logoUrl: String
+  siteUrl: String
+}
+
+"""
+One .mcrec file. A tunnel that re-pairs produces several under one relayId; the list is oldest first.
+Registered by listing the session's object prefix in the recordings bucket; empty where
+openframe.recordings is off.
+"""
+type RemoteSessionRecording {
+  recordingId: String!
+
+  """The tunnel this file belongs to; shared by every re-paired segment."""
+  relayId: String!
+
+  """MeshCentral's own file name, the last segment of the object path."""
+  fileName: String!
+  startedAt: Instant!
+  sizeBytes: Long
+  protocol: Int!
+
+  """
+  The download endpoint (302 to a short-lived signed GET); set on every file, in RemoteSession.recordings too.
+  """
+  downloadUrl: String
+
+  """The session this file belongs to, for the detail page's meta card and transcript (dialogId)."""
+  session: RemoteSession!
+}
+
+type RemoteSessionEdge {
+  node: RemoteSession!
+  cursor: String!
+}
+
+type RemoteSessionConnection {
+  edges: [RemoteSessionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+"""
+Audit row: one connect attempt, kept after it settles. policyScope + mode + appliedFallback are the "policy reason".
+"""
+type RemoteAccessRequestAudit {
+  requestId: String!
+  deviceId: String!
+  technician: RemoteAccessTechnician!
+  sessionKind: RemoteSessionKind!
+  status: RemoteAccessRequestStatus!
+  mode: RemoteAccessMode!
+  policyScope: RemoteAccessPolicyScope
+  decisionSource: RemoteAccessDecisionSource
+  appliedFallback: RemoteAccessFallback
+  reason: String
+  ticketId: String
+  ticketNumber: String
+  createdAt: Instant!
+  deliveredAt: Instant
+  resolvedAt: Instant
+  expiresAt: Instant!
+
+  """The session this request opened, when it was approved; null otherwise."""
+  session: RemoteSession
+}
+
+type RemoteAccessRequestEdge {
+  node: RemoteAccessRequestAudit!
+  cursor: String!
+}
+
+type RemoteAccessRequestConnection {
+  edges: [RemoteAccessRequestEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
 }
 
 " Remote session lifecycle, technician side (CU-86ajx02qj). A session record is created when a request\n reaches APPROVED; the machine side (sessions/current, sessions/{id}/end) stays REST on openframe-saas-client.\n Lifecycle events reach the technician as REMOTE_SESSION_STARTED / REMOTE_SESSION_ENDED on\n user.<technicianId>.notification, with no drawer entry. A lost tunnel ends the session\n (endReason CONNECTION_LOST) instead of parking it: the technician opens a new one."

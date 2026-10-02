@@ -3,14 +3,14 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { handleApiError } from '@/lib/handle-api-error';
-import { sessionRecordingsService } from '../services/session-recordings-service';
+import { sessionRecordingsApiService as service } from '../services/session-recordings-api-service';
 import { deviceQueryKeys } from '../utils/query-keys';
 
-/** Recordings of one device, for the Remote Sessions tab. */
+/** Remote sessions of one device, for the Remote Sessions tab. */
 export function useSessionRecordings(deviceId: string | null) {
   return useQuery({
     queryKey: deviceQueryKeys.sessionRecordings(deviceId ?? ''),
-    queryFn: deviceId ? () => sessionRecordingsService.list(deviceId) : skipToken,
+    queryFn: deviceId ? () => service.list(deviceId) : skipToken,
   });
 }
 
@@ -18,7 +18,7 @@ export function useSessionRecordings(deviceId: string | null) {
 export function useSessionRecording(recordingId: string | null) {
   return useQuery({
     queryKey: deviceQueryKeys.sessionRecording(recordingId ?? ''),
-    queryFn: recordingId ? () => sessionRecordingsService.get(recordingId) : skipToken,
+    queryFn: recordingId ? () => service.get(recordingId) : skipToken,
   });
 }
 
@@ -27,7 +27,7 @@ export function useDeleteSessionRecording(deviceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (recordingId: string) => sessionRecordingsService.delete(recordingId),
+    mutationFn: (recordingId: string) => service.delete(recordingId),
     onSuccess: (_data, recordingId) => {
       queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(deviceId) });
       // The record is gone - drop its cached detail instead of invalidating,

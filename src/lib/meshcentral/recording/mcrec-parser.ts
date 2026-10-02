@@ -1,4 +1,5 @@
 import {
+  MCREC_FLAG_BINARY,
   MCREC_FLAG_FROM_BROWSER,
   MCREC_RECORD_TYPE,
   type McrecMetadata,
@@ -66,7 +67,15 @@ export function parseMcrec(buffer: ArrayBuffer): ParsedRecording {
 
   const agentRecords = records
     .filter(
-      r => r.type === MCREC_RECORD_TYPE.NETWORK_DATA && (r.flags & MCREC_FLAG_FROM_BROWSER) === 0 && r.data.length > 0,
+      r =>
+        r.type === MCREC_RECORD_TYPE.NETWORK_DATA &&
+        (r.flags & MCREC_FLAG_FROM_BROWSER) === 0 &&
+        r.data.length > 0 &&
+        // On the desktop channel only binary records are KVM frames; a text one
+        // is control JSON the relay writes alongside ({"ctrlChannel":...}), and
+        // fed to the decoder its "{\"" reads as a frame header with a bogus
+        // size that swallows the real frames after it.
+        (protocol === 1 || (r.flags & MCREC_FLAG_BINARY) !== 0),
     )
     // The player's monotonic cursor (feedDue / seek replay) assumes ascending
     // timestamps; a relay writes them in order, but a record landing out of

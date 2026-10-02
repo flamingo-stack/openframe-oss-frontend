@@ -24,9 +24,19 @@ const SEEK_DRAIN_BATCH = 100;
  * agent-record whose timestamp it has passed. The renderer draws as fast as it
  * is fed, so pacing the FEED is what produces real-time playback.
  *
- * Seeking replays from record zero (KVM tiles are incremental - there are no
- * keyframes to jump to), gated on renderer drain per batch; a fresh seek
- * aborts an in-flight one via a generation counter.
+ * Seeking replays from the nearest restart point before the target (KVM tiles
+ * are incremental, so the only places a fresh decoder can start are the
+ * starts of the session's files - record zero for a single file), gated on
+ * renderer drain per batch; a fresh seek aborts an in-flight one via a
+ * generation counter.
+ *
+ * Each later file starts from a fresh renderer too: a tunnel that dropped
+ * mid-frame leaves a torn frame at the end of its file, and decoding the next
+ * file's opening on top of it would desync the stream.
+ *
+ * A session's files can arrive one by one: `loadParsed(..., { complete: false })`
+ * starts on what is there, `extend` appends the rest. Until the last one lands,
+ * reaching the end of the loaded part waits instead of ending.
  */
 export class McrecPlayer {
   private recording: ParsedRecording | null = null;
@@ -41,6 +51,11 @@ export class McrecPlayer {
   private virtualMs = 0;
   private anchorVirtualMs = 0;
   private anchorRealMs = 0;
+
+  /** False while more of the session is still being loaded. */
+  private complete = true;
+  /** `restartIndices` past the first: where a later file begins and the renderer starts over. */
+  private fileStarts = new Set<number>();
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private seekGeneration = 0;
@@ -75,15 +90,33 @@ export class McrecPlayer {
     return recording;
   }
 
-  /** Rewind to the start of an already-parsed recording. */
-  loadParsed(recording: ParsedRecording): void {
+  /**
+   * Rewind to the start of an already-parsed recording. `complete: false` when
+   * more of the session will follow through {@link extend}.
+   */
+  loadParsed(recording: ParsedRecording, { complete = true }: { complete?: boolean } = {}): void {
     this.stopClock();
     this.recording = recording;
+    this.complete = complete;
+    this.fileStarts = laterFileStarts(recording);
     this.cursor = 0;
     this.setVirtualTime(0);
     this.renderer?.reset();
     this.callbacks.onDuration?.(recording.durationMs);
     this.setState('ready');
+  }
+
+  /**
+   * Swap in a longer version of the loaded recording - the same records in
+   * front, more after them - without touching the playhead or what is on
+   * screen. `complete` says whether this is the whole session.
+   */
+  extend(recording: ParsedRecording, complete: boolean): void {
+    if (!this.recording || this.disposed) return;
+    this.recording = recording;
+    this.complete = complete;
+    this.fileStarts = laterFileStarts(recording);
+    this.callbacks.onDuration?.(recording.durationMs);
   }
 
   play(): void {
@@ -141,13 +174,13 @@ export class McrecPlayer {
       if (generation !== this.seekGeneration || this.disposed) return;
 
       const { agentRecords, baseTimeMs } = recording;
-      let index = 0;
+      let index = restartIndexBefore(recording, target);
       while (index < agentRecords.length && agentRecords[index].timeMs - baseTimeMs <= target) {
         // Checked on EVERY feed, not only at drain points: a newer seek resets
         // the renderer mid-replay, and even one stale tile fed into the fresh
         // decoder draws into the wrong frame (KVM tiles are incremental).
         if (generation !== this.seekGeneration || this.disposed) return;
-        renderer.feed(agentRecords[index].data);
+        this.feedRecord(renderer, index);
         index++;
         if (index % SEEK_DRAIN_BATCH === 0) {
           await renderer.waitForIdle();
@@ -160,7 +193,7 @@ export class McrecPlayer {
       this.cursor = index;
       this.setVirtualTime(target);
 
-      if (target >= recording.durationMs && recording.durationMs > 0) {
+      if (this.complete && target >= recording.durationMs && recording.durationMs > 0) {
         this.setState('ended');
         return;
       }
@@ -210,13 +243,21 @@ export class McrecPlayer {
       this.tickTimer = null;
       if (this.playerState !== 'playing' || !this.recording) return;
 
-      const elapsed = (performance.now() - this.anchorRealMs) * this.speed;
+      const now = performance.now();
+      const elapsed = (now - this.anchorRealMs) * this.speed;
       this.setVirtualTime(Math.min(this.anchorVirtualMs + elapsed, this.recording.durationMs));
       this.feedDue();
 
-      if (this.virtualMs >= this.recording.durationMs && this.cursor >= this.recording.agentRecords.length) {
+      const atEnd = this.virtualMs >= this.recording.durationMs && this.cursor >= this.recording.agentRecords.length;
+      if (atEnd && this.complete) {
         this.setState('ended');
         return;
+      }
+      if (atEnd) {
+        // Waiting for the next file: hold the clock here, so playback resumes
+        // from this point instead of jumping by the time spent waiting.
+        this.anchorVirtualMs = this.virtualMs;
+        this.anchorRealMs = now;
       }
       this.tickTimer = setTimeout(tick, McrecPlayer.TICK_MS);
     };
@@ -236,9 +277,17 @@ export class McrecPlayer {
     if (!recording || !renderer) return;
     const { agentRecords, baseTimeMs } = recording;
     while (this.cursor < agentRecords.length && agentRecords[this.cursor].timeMs - baseTimeMs <= this.virtualMs) {
-      renderer.feed(agentRecords[this.cursor].data);
+      this.feedRecord(renderer, this.cursor);
       this.cursor++;
     }
+  }
+
+  /** Feeds one agent record, starting the renderer over first where a later file of the session begins. */
+  private feedRecord(renderer: RecordingRenderer, index: number): void {
+    const recording = this.recording;
+    if (!recording) return;
+    if (this.fileStarts.has(index)) void renderer.reset();
+    renderer.feed(recording.agentRecords[index].data);
   }
 
   private setVirtualTime(ms: number): void {
@@ -251,4 +300,20 @@ export class McrecPlayer {
     this.playerState = state;
     this.callbacks.onState?.(state);
   }
+}
+
+/** The last restart point at or before `targetMs` - where a seek to it has to start replaying. */
+function restartIndexBefore(recording: ParsedRecording, targetMs: number): number {
+  const { agentRecords, baseTimeMs } = recording;
+  let start = 0;
+  for (const index of recording.restartIndices ?? [0]) {
+    const record = agentRecords[index];
+    if (!record || record.timeMs - baseTimeMs > targetMs) break;
+    start = index;
+  }
+  return start;
+}
+
+function laterFileStarts(recording: ParsedRecording): Set<number> {
+  return new Set((recording.restartIndices ?? [0]).filter(index => index > 0));
 }

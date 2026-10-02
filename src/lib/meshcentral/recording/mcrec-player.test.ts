@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseMcrec } from './mcrec-parser';
 import { McrecPlayer } from './mcrec-player';
+import { stitchRecordings } from './mcrec-stitch';
 import { MCREC_FLAG_BINARY, MCREC_RECORD_TYPE, type RecordingRenderer } from './mcrec-types';
 
 // ---- fake clock: vitest fake timers + performance.now kept in lockstep ----
@@ -239,5 +241,109 @@ describe('McrecPlayer', () => {
     expect(player.currentMs).toBe(0);
     advance(600);
     expect(player.state).toBe('ended');
+  });
+});
+
+describe('McrecPlayer over a stitched session', () => {
+  // Two files of one session: the second opens (like every file) with its own redraw.
+  const first = () =>
+    parseMcrec(
+      buildRecording([
+        [0, 1],
+        [1000, 2],
+        [2000, 3],
+      ]),
+    );
+  const second = () =>
+    parseMcrec(
+      buildRecording([
+        [3000, 4],
+        [4000, 5],
+      ]),
+    );
+
+  it('replays a seek from the start of the file that holds the target, not from zero', async () => {
+    const renderer = new FakeRenderer();
+    const player = new McrecPlayer();
+    player.attachRenderer(renderer);
+    player.loadParsed(stitchRecordings([first(), second()]));
+
+    await player.seek(3500);
+    expect(renderer.fed).toEqual([4]);
+
+    await player.seek(1500);
+    expect(renderer.fed).toEqual([1, 2]);
+  });
+
+  it('waits at the end of the loaded part, then carries on from there once the rest arrives', async () => {
+    const renderer = new FakeRenderer();
+    const states: string[] = [];
+    const player = new McrecPlayer({ onState: s => states.push(s) });
+    player.attachRenderer(renderer);
+    const head = first();
+    player.loadParsed(stitchRecordings([head]), { complete: false });
+
+    player.play();
+    advance(2500);
+    expect(renderer.fed).toEqual([1, 2, 3]);
+    expect(player.state).toBe('playing');
+    expect(player.currentMs).toBe(2000);
+
+    // Five seconds of waiting must not be skipped once the next file lands.
+    advance(5000);
+    player.extend(stitchRecordings([head, second()]), true);
+    advance(1100);
+    // The next file starts on a fresh renderer.
+    expect(renderer.fed).toEqual([4]);
+    expect(player.currentMs).toBeLessThan(3500);
+
+    advance(2000);
+    expect(renderer.fed).toEqual([4, 5]);
+    expect(player.state).toBe('ended');
+    expect(states).not.toContain('seeking');
+  });
+
+  it('lands paused, not ended, on a seek to the end of a session still loading', async () => {
+    const renderer = new FakeRenderer();
+    const player = new McrecPlayer();
+    player.attachRenderer(renderer);
+    player.loadParsed(stitchRecordings([first()]), { complete: false });
+
+    await player.seek(10_000);
+    expect(player.state).toBe('paused');
+    expect(player.currentMs).toBe(2000);
+  });
+});
+
+describe('McrecPlayer at the join of two files', () => {
+  it('starts the renderer over where the next file begins, in playback and in a seek replay', async () => {
+    const renderer = new FakeRenderer();
+    const player = new McrecPlayer();
+    player.attachRenderer(renderer);
+    const joined = stitchRecordings([
+      parseMcrec(
+        buildRecording([
+          [0, 1],
+          [1000, 2],
+        ]),
+      ),
+      parseMcrec(
+        buildRecording([
+          [2000, 3],
+          [3000, 4],
+        ]),
+      ),
+    ]);
+    player.loadParsed(joined);
+    const resetsAfterLoad = renderer.resets;
+
+    player.play();
+    advance(2100);
+    // The second file's first record went into a fresh renderer.
+    expect(renderer.resets).toBe(resetsAfterLoad + 1);
+    expect(renderer.fed).toEqual([3]);
+
+    await player.seek(3500);
+    expect(renderer.fed).toEqual([3, 4]);
   });
 });

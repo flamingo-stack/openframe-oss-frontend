@@ -27,6 +27,34 @@ describe('MeshDesktop.sendKeyCombo', () => {
   });
 });
 
+describe('MeshDesktop.onBinaryFrame', () => {
+  /** A header-only KVM frame: cmd, total size, then x/y. */
+  function frame(cmd: number, size: number, x = 0, y = 0): Uint8Array {
+    return new Uint8Array([cmd >> 8, cmd & 0xff, size >> 8, size & 0xff, x >> 8, x & 0xff, y >> 8, y & 0xff]);
+  }
+
+  function renderOnly(): { desktop: MeshDesktop; canvas: HTMLCanvasElement } {
+    const canvas = { width: 0, height: 0, getContext: () => null } as unknown as HTMLCanvasElement;
+    const desktop = new MeshDesktop();
+    desktop.attachRenderOnly(canvas);
+    return { desktop, canvas };
+  }
+
+  it('applies a screen size frame', async () => {
+    const { desktop, canvas } = renderOnly();
+    await desktop.onBinaryFrame(frame(7, 8, 1512, 949));
+    expect([canvas.width, canvas.height]).toEqual([1512, 949]);
+  });
+
+  it('drops a frame that claims a size below its header instead of looping on it, then recovers', async () => {
+    const { desktop, canvas } = renderOnly();
+    await desktop.onBinaryFrame(frame(7, 0, 800, 600));
+    expect(canvas.width).toBe(0);
+    await desktop.onBinaryFrame(frame(7, 8, 1280, 720));
+    expect([canvas.width, canvas.height]).toEqual([1280, 720]);
+  });
+});
+
 describe('MeshDesktop.beginStream', () => {
   // KVM command 7 (screen size) is the one command whose effect shows without a 2D context.
   const SCREEN_SIZE_800x600 = new Uint8Array([0x00, 0x07, 0x00, 0x08, 0x03, 0x20, 0x02, 0x58]);
