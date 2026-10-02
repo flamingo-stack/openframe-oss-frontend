@@ -72,6 +72,9 @@ interface OpenframeEmbeddableChatEntryProps {
   /** `'inline'` when the host is not a dialog (Mingo docked into the layout);
    *  default `'none'`, inside the `AppLayoutDrawer` dialog. */
   shell?: 'none' | 'inline';
+  /** Mingo v2 (the docked panel): the v2 layout, and the →| control that
+   *  collapses the chat back to the list alone. */
+  v2?: { onCollapse?: () => void };
 }
 
 export function OpenframeEmbeddableChatEntry({
@@ -79,6 +82,7 @@ export function OpenframeEmbeddableChatEntry({
   onOpenChange,
   closable = true,
   shell = 'none',
+  v2,
 }: OpenframeEmbeddableChatEntryProps) {
   const {
     state,
@@ -309,6 +313,8 @@ export function OpenframeEmbeddableChatEntry({
         // state the drawer is bound to, so the chat's in-header X button and
         // the drawer close in lockstep.
         shell={shell}
+        appearance={v2 ? 'v2' : 'classic'}
+        onCollapse={v2?.onCollapse}
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
