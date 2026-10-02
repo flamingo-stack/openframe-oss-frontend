@@ -42,7 +42,6 @@ import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/dev
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import { pluralize } from '@/lib/pluralize';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
@@ -609,7 +608,6 @@ const VULNERABILITIES_FRAGMENT = graphql`
       edges {
         node {
           cveId
-          devicesCount
         }
       }
     }
@@ -640,8 +638,6 @@ export function VulnerabilityItems({ query, selectedKeys, onToggle, atLimit }: C
                 type: CONTEXT_ENTITY_KIND.VULNERABILITY,
                 id: e.node.cveId,
                 label: e.node.cveId,
-                // How far the CVE reaches — the one figure the list shows per row.
-                description: e.node.devicesCount != null ? pluralize(e.node.devicesCount, 'device') : undefined,
               },
             ]
           : [],
