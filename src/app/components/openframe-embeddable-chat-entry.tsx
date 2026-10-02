@@ -76,8 +76,8 @@ interface OpenframeEmbeddableChatEntryProps {
    *  default `'none'`, inside the `AppLayoutDrawer` dialog. */
   shell?: 'none' | 'inline';
   /** Mingo v2 (the docked panel): the v2 layout, and the →| control that
-   *  collapses the chat back to the list alone. */
-  v2?: { onCollapse?: () => void };
+   *  steps the panel back one size (`collapseTo`, see the lib's EmbeddableChat). */
+  v2?: { onCollapse?: () => void; collapseTo?: 'list' | 'column' };
 }
 
 export function OpenframeEmbeddableChatEntry({
@@ -331,6 +331,7 @@ export function OpenframeEmbeddableChatEntry({
         shell={shell}
         appearance={v2 ? 'v2' : 'classic'}
         onCollapse={v2?.onCollapse}
+        collapseTo={v2?.collapseTo}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
         open={open}
         onOpenChange={onOpenChange}
