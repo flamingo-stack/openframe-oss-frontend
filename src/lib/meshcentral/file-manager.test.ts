@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MeshCentralFileManager } from './file-manager';
 import type { FileEntry, FileOperationRequest } from './file-manager-types';
 import { FileDeleteError } from './file-operations';
@@ -6,15 +6,21 @@ import type { MeshControlClient } from './meshcentral-control';
 
 const tunnel = vi.hoisted(() => ({
   sent: [] as string[],
+  starts: 0,
   onBinaryData: (_bytes: Uint8Array): void => {},
+  onStateChange: (_state: number): void => {},
 }));
 
 vi.mock('./meshcentral-tunnel', () => ({
   MeshTunnel: class {
-    constructor(options: { onBinaryData: (bytes: Uint8Array) => void }) {
+    constructor(options: { onBinaryData: (bytes: Uint8Array) => void; onStateChange: (state: number) => void }) {
       tunnel.onBinaryData = options.onBinaryData;
+      tunnel.onStateChange = options.onStateChange;
     }
-    start() {}
+    start() {
+      tunnel.starts++;
+    }
+    stop() {}
     getState() {
       return 3;
     }
@@ -31,6 +37,7 @@ const controlClient = {
 
 async function connect() {
   tunnel.sent.length = 0;
+  tunnel.starts = 0;
   const manager = new MeshCentralFileManager({ isRemote: true, nodeId: 'node', controlClient });
   await manager.connect();
   return manager;
@@ -80,5 +87,38 @@ describe('MeshCentralFileManager.deleteItems', () => {
 
     answerListing(ls, []);
     await expect(outcome).resolves.toBeUndefined();
+  });
+});
+
+describe('MeshCentralFileManager.navigateToPath', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('opens a new tunnel and lists again when the listing times out', async () => {
+    vi.useFakeTimers();
+    const manager = await connect();
+    const outcome = manager.navigateToPath('/tmp');
+    expect(tunnel.sent).toHaveLength(1);
+
+    tunnel.sent.length = 0;
+    await vi.advanceTimersByTimeAsync(8000);
+    await vi.waitFor(() => expect(tunnel.starts).toBe(2));
+    tunnel.onStateChange(3);
+
+    const [ls] = await sentFrames(1);
+    expect(ls).toMatchObject({ action: 'ls', path: '/tmp' });
+    answerListing(ls, [{ n: 'a.txt', t: 3 }]);
+    await expect(outcome).resolves.toEqual([{ n: 'a.txt', t: 3 }]);
+  });
+
+  it('goes to failed when the new tunnel does not open', async () => {
+    vi.useFakeTimers();
+    const manager = await connect();
+    const outcome = manager.navigateToPath('/tmp').catch((error: Error) => error);
+
+    await vi.advanceTimersByTimeAsync(8000 + 15000);
+    expect(await outcome).toMatchObject({ message: 'Reconnect timed out' });
+    expect(manager.getState()).toBe('failed');
   });
 });
