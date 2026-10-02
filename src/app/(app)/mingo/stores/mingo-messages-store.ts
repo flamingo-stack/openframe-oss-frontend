@@ -116,7 +116,18 @@ export function mutateMingoDialog<T>(dialogId: string, fn: (reducer: ChatStreamR
 function dropDialogCaches(dialogId: string): void {
   mirror.drop(dialogId);
   handlersByDialog.delete(dialogId);
+  const visit = recentDialogIds.indexOf(dialogId);
+  if (visit !== -1) recentDialogIds.splice(visit, 1);
 }
+
+/** How many most-recently opened dialogs keep their threads cached. The same
+ *  as the lib reducer cap, which the mirror's re-seed parking defeated: every
+ *  dialog opened stayed in memory for the life of the page, and the desktop
+ *  shell's page lives for days. */
+const MAX_CACHED_DIALOGS = 10;
+
+/** Dialogs in the order they were last opened, oldest first. */
+const recentDialogIds: string[] = [];
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
 
@@ -250,6 +261,34 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         // re-seeding the replacement reducer with it on the next `getReducer`.
         mirror.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
+
+        if (!dialogId) return;
+        const visit = recentDialogIds.indexOf(dialogId);
+        if (visit !== -1) recentDialogIds.splice(visit, 1);
+        recentDialogIds.push(dialogId);
+
+        // Drop the threads of dialogs outside the recent window. Reopening one
+        // loads its history again, exactly like a first open. A dialog still
+        // streaming is kept; unread counts, token usage and the stream cursor
+        // are small and stay.
+        const recent = new Set(recentDialogIds.slice(-MAX_CACHED_DIALOGS));
+        const { messagesByDialog, phaseByDialog } = get();
+        const stale = [...new Set([...mirror.knownKeys(), ...messagesByDialog.keys()])].filter(
+          key => !recent.has(key) && (phaseByDialog.get(key) ?? 'idle') === 'idle',
+        );
+        if (stale.length === 0) return;
+        for (const key of stale) dropDialogCaches(key);
+        set(state => {
+          const messages = new Map(state.messagesByDialog);
+          const phases = new Map(state.phaseByDialog);
+          const streaming = new Map(state.streamingIdByDialog);
+          for (const key of stale) {
+            messages.delete(key);
+            phases.delete(key);
+            streaming.delete(key);
+          }
+          return { messagesByDialog: messages, phaseByDialog: phases, streamingIdByDialog: streaming };
+        });
       },
 
       setDialogs: (dialogs: DialogNode[]) => {
