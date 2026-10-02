@@ -5,6 +5,7 @@ import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/co
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
@@ -124,7 +125,18 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
     updateApprovalStatusInMessages,
     isCreatingDialog,
     setCreatingDialog,
-  } = useMingoMessagesStore();
+  } = useMingoMessagesStore(
+    useShallow(s => ({
+      messagesByDialog: s.messagesByDialog,
+      pushOptimisticSend: s.pushOptimisticSend,
+      phaseByDialog: s.phaseByDialog,
+      setTyping: s.setTyping,
+      removeWelcomeMessages: s.removeWelcomeMessages,
+      updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
+      isCreatingDialog: s.isCreatingDialog,
+      setCreatingDialog: s.setCreatingDialog,
+    })),
+  );
 
   const isTyping = useMemo(() => {
     if (!dialogId) return false;
