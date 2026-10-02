@@ -109,3 +109,21 @@ export function appendPosthogHandoff(url: string): string {
     return url;
   }
 }
+
+/**
+ * Send an error to PostHog error tracking through the GTM-loaded
+ * `window.posthog`. No-op when PostHog isn't loaded. Never throws: it runs
+ * inside error boundaries, where a second throw would hide the first.
+ */
+export function capturePosthogException(error: unknown, properties?: Record<string, unknown>): void {
+  try {
+    const ph = (typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>).posthog : undefined) as
+      Record<string, unknown> | undefined;
+    const captureException = ph?.captureException;
+    if (typeof captureException === 'function') {
+      (captureException as (error: unknown, properties?: Record<string, unknown>) => void).call(ph, error, properties);
+    }
+  } catch {
+    // Analytics is best-effort — never break the error screen.
+  }
+}

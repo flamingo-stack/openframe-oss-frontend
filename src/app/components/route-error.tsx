@@ -2,6 +2,7 @@
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef } from 'react';
+import { capturePosthogException } from '@/lib/posthog/posthog-events';
 
 /**
  * The body every Next route-segment boundary renders. One implementation shared
@@ -47,8 +48,11 @@ export function RouteError({
 }) {
   const retryRef = useRef<HTMLButtonElement>(null);
 
+  // Captured, not only logged: a throw that reaches a route boundary replaces
+  // the page, and without this nothing outside the user's console records it.
   useEffect(() => {
     console.error(`[${label}]`, error);
+    capturePosthogException(error, { error_boundary: label, digest: error.digest });
   }, [error, label]);
 
   // The heading lives inside PageLayout, so the primary action is the focus
