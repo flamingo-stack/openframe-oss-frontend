@@ -41,6 +41,50 @@ export const formatDateTime = (input: DateInput | null | undefined): string => {
   return date ? `${dateFmt.format(date)} ${timeFmt.format(date)}` : EMPTY_VALUE;
 };
 
+export const viewerTimeZone = (): string => new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// Null for a missing zone or one the runtime does not know — `Intl` throws on those.
+function inZone(timeZone: string | null | undefined, options: Intl.DateTimeFormatOptions, locale?: string) {
+  try {
+    return timeZone ? new Intl.DateTimeFormat(locale, { ...options, timeZone }) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const formatDateTimeInZone = (
+  input: DateInput | null | undefined,
+  timeZone: string | null | undefined,
+): string => {
+  const date = toValidDate(input);
+  const day = inZone(timeZone, { dateStyle: 'short' });
+  const time = inZone(timeZone, { timeStyle: 'short' });
+  return date && day && time ? `${day.format(date)} ${time.format(date)}` : EMPTY_VALUE;
+};
+
+// Renamed by IANA; Chrome and agents on older tzdata still report the old id.
+const RENAMED_CITIES: Record<string, string> = {
+  Kiev: 'Kyiv',
+  Calcutta: 'Kolkata',
+  Saigon: 'Ho Chi Minh',
+  Rangoon: 'Yangon',
+  Katmandu: 'Kathmandu',
+  Godthab: 'Nuuk',
+  Faeroe: 'Faroe',
+};
+
+/** `(UTC+02:00) Kyiv`, with the offset the zone had at `at` — DST moves it. */
+export const formatTimeZone = (timeZone: string | null | undefined, at: DateInput | null | undefined): string => {
+  const fmt = inZone(timeZone, { timeZoneName: 'longOffset' }, 'en-US');
+  if (!timeZone || !fmt) return EMPTY_VALUE;
+
+  const offset = fmt.format(toValidDate(at) ?? new Date()).split('GMT')[1] || '+00:00';
+  const [area, ...rest] = timeZone.split('/');
+  const city = area === 'Etc' ? undefined : rest.pop();
+
+  return city ? `(UTC${offset}) ${RENAMED_CITIES[city] ?? city.replace(/_/g, ' ')}` : `(UTC${offset})`;
+};
+
 // Fixed-width 24-hour time with milliseconds, so log lines align in a column.
 const logTimeFmt = new Intl.DateTimeFormat(undefined, {
   hourCycle: 'h23',

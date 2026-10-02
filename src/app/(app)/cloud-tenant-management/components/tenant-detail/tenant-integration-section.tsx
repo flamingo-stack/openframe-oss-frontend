@@ -57,14 +57,6 @@ export function TenantIntegrationSection({ id }: { id: string }) {
 
   const rows: InfoSectionRow[] = [
     { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: { text: primaryDomain } },
-    {
-      id: 'domains',
-      label: INTEGRATION_LABELS.domains,
-      value:
-        domainNames.length > 1
-          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
-          : { text: domainNames[0] ?? primaryDomain },
-    },
     { id: 'directory-id', label: directoryIdLabel, value: { text: data.directoryId ?? EMPTY_VALUE } },
     { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: { text: data.grantedBy ?? EMPTY_VALUE } },
     {
@@ -81,6 +73,14 @@ export function TenantIntegrationSection({ id }: { id: string }) {
       },
     },
     { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: { text: authorisedBy } },
+    {
+      id: 'domains',
+      label: INTEGRATION_LABELS.domains,
+      value:
+        domainNames.length > 1
+          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
+          : { text: domainNames[0] ?? primaryDomain },
+    },
   ];
 
   return <InfoSection title="Integration" rows={rows} />;

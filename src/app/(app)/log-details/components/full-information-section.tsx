@@ -3,7 +3,6 @@
 import type { InfoCardData } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCard, ToolIcon } from '@flamingo-stack/openframe-frontend-core';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
-import { formatDateTime } from '@/lib/format-date';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface FullInformationSectionProps {
@@ -11,14 +10,6 @@ interface FullInformationSectionProps {
 }
 
 export function FullInformationSection({ logDetails }: FullInformationSectionProps) {
-  const formatTimestamp = (timestamp: string) => {
-    try {
-      return formatDateTime(timestamp);
-    } catch {
-      return timestamp;
-    }
-  };
-
   if (!logDetails) {
     return (
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -42,7 +33,8 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
     { label: 'severity', value: logDetails.severity },
     ...(logDetails.userId ? [{ label: 'userId', value: logDetails.userId }] : []),
     ...(logDetails.deviceId ? [{ label: 'deviceId', value: logDetails.deviceId }] : []),
-    { label: 'timestamp', value: formatTimestamp(logDetails.timestamp) },
+    // The wire value, like every other row here — the formatted date is in the page header.
+    { label: 'timestamp', value: logDetails.timestamp },
   ];
 
   return (
