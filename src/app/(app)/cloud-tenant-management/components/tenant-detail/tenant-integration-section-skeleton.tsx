@@ -17,11 +17,11 @@ const bar = (width: string): InfoSectionRow['value'] => ({
 export function TenantIntegrationSectionSkeleton({ provider }: { provider: string }) {
   const rows: InfoSectionRow[] = [
     { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: bar('w-32') },
-    { id: 'domains', label: INTEGRATION_LABELS.domains, value: bar('w-40') },
     { id: 'directory-id', label: providerPresentation(provider).directoryIdLabel, value: bar('w-64') },
     { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: bar('w-48') },
     { id: 'scopes', label: INTEGRATION_LABELS.scopes, value: bar('w-56') },
     { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: bar('w-72') },
+    { id: 'domains', label: INTEGRATION_LABELS.domains, value: bar('w-40') },
   ];
   return <InfoSection title="Integration" rows={rows} />;
 }

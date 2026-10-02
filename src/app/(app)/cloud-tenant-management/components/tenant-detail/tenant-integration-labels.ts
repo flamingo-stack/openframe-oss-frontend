@@ -5,8 +5,8 @@
  */
 export const INTEGRATION_LABELS = {
   primaryDomain: 'Primary domain',
-  domains: 'Domains',
   grantedBy: 'Granted by',
   scopes: 'Scopes held',
   authorisedBy: 'Authorised by',
+  domains: 'Additional domains',
 } as const;
