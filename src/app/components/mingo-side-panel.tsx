@@ -48,6 +48,7 @@ export function MingoSidePanel({ canClose, close, identityEnabled }: MingoSidePa
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <ChatDrawerErrorBoundary>
           <OpenframeEmbeddableChatEntry
+            shell="inline"
             open
             onOpenChange={open => {
               if (!open) close();

@@ -69,12 +69,16 @@ interface OpenframeEmbeddableChatEntryProps {
   /** Offer the in-header close button. False when the chat is docked into the
    *  layout and cannot close. Default true. */
   closable?: boolean;
+  /** `'inline'` when the host is not a dialog (Mingo docked into the layout);
+   *  default `'none'`, inside the `AppLayoutDrawer` dialog. */
+  shell?: 'none' | 'inline';
 }
 
 export function OpenframeEmbeddableChatEntry({
   open,
   onOpenChange,
   closable = true,
+  shell = 'none',
 }: OpenframeEmbeddableChatEntryProps) {
   const {
     state,
@@ -304,7 +308,7 @@ export function OpenframeEmbeddableChatEntry({
         // open/close, and positioning. `open` / `onOpenChange` are the same
         // state the drawer is bound to, so the chat's in-header X button and
         // the drawer close in lockstep.
-        shell="none"
+        shell={shell}
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
