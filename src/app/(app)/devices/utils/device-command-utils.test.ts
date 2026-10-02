@@ -99,15 +99,18 @@ describe('buildUninstallCommand', () => {
 });
 
 describe('package manager install methods', () => {
-  it('offers the script and Chocolatey, and keeps the unpublished packages disabled', () => {
+  it('offers the script, Chocolatey and Brew, and keeps the unpublished winget package disabled', () => {
     expect(isInstallMethodEnabled('script')).toBe(true);
     expect(isInstallMethodEnabled('chocolatey')).toBe(true);
+    expect(isInstallMethodEnabled('brew')).toBe(true);
     expect(isInstallMethodEnabled('winget')).toBe(false);
-    expect(isInstallMethodEnabled('brew')).toBe(false);
   });
 
-  it('installs the Chocolatey package under its published name', () => {
+  it('installs the published packages under their published names', () => {
     expect(PACKAGE_MANAGER_METHODS.chocolatey.installCommand).toBe('choco install openframe-client -y');
+    expect(PACKAGE_MANAGER_METHODS.brew.installCommand).toBe(
+      'brew install --cask flamingo-stack/openframe/openframe-client',
+    );
   });
 
   it('registers through the installed openframe-client binary', () => {
