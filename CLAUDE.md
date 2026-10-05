@@ -995,6 +995,27 @@ from the installed package. Edit the rules in the core lib, not here:
 
 **Tailwind preset:** ODS colors/utilities are provided via the core library's Tailwind preset (see `tailwind.config.ts`).
 
+### Content Area Breakpoints (page content follows its own width)
+
+With flag `mingo-v2` Mingo is docked into `AppLayout` as a resizable right column (`sidePanel`,
+`src/app/components/mingo-side-panel.tsx`): the window stays wide while the page gets narrow. Page
+content therefore lays out by the width of `<main>`, not the window. The full rule is "Content area
+breakpoints" in the ODS rules above; what it means here:
+
+- **Page content uses `content-md:` / `content-lg:`** (720 / 1024px of content; also `content-sm/xl/2xl`,
+  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (flag off, overlays portalled to
+  `<body>`) they fall back to the viewport's 800 / 1280px, so they are always safe in page content.
+- **Window chrome keeps `md:` / `lg:`**: header, navigation, modals, sheets, drawers, dropdowns,
+  toasts, fixed bars. Never mix `md:` and `content-md:` on one property of one element.
+- **JS layout decisions use `useContentMdUp()` / `useContentLgUp()` / `useContentBreakpoint()`**, not
+  `useMdUp()` / `useLgUp()`.
+- **Do not measure the window** (`vw`, `w-screen`, a `resize` listener on `window`) for page layout:
+  it does not see the panel. Measure the element (`ResizeObserver`, see `remote-shell/page.tsx`).
+- **Tokens need nothing:** under 720px of content the mobile `text-h*` / `--spacing-system-*` values
+  apply by themselves (`ods-content-area.css` in the core lib).
+- A "cleanup" of `content-md:` back to `md:` is a regression, not a simplification: it only shows with
+  Mingo docked.
+
 ### Inverted Progress Bar
 ```typescript
 // Disk usage: high = bad (red)
