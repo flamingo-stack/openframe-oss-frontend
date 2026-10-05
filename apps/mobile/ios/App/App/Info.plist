@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(OPENFRAME_DISPLAY_NAME)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>OpenFrame</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(OPENFRAME_URL_SCHEME)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(OPENFRAME_URL_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<!-- Attachment capture. WKWebView's own file picker offers "Take Photo or
+	     Video" for any input that accepts media, and iOS TERMINATES the app the
+	     moment that reaches the camera without NSCameraUsageDescription — the
+	     video arm records audio, so the microphone key is required for the same
+	     reason. NativeFilesPlugin's picker offers the same option. Removing
+	     either key brings the crash back. -->
+	<key>NSCameraUsageDescription</key>
+	<string>OpenFrame uses the camera so you can attach a photo to a ticket or knowledge base article.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OpenFrame uses the microphone to record audio when you attach a video to a ticket or knowledge base article.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>OpenFrame uses Face ID to unlock your saved sign-in and keep your session secure.</string>
+	<!-- The shared auth host the native token refresher (TokenLifecycle.swift)
+	     POSTs /oauth/refresh to, from the OPENFRAME_SHARED_HOST_URL build
+	     setting. The release lanes pass it from the same NEXT_PUBLIC_SHARED_HOST_URL
+	     the web bundle bakes, so the two cannot drift. Empty in a plain Xcode
+	     build, where the refresher falls back to the tenant host learned at login. -->
+	<key>OpenFrameSharedHostURL</key>
+	<string>$(OPENFRAME_SHARED_HOST_URL)</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+</dict>
+</plist>

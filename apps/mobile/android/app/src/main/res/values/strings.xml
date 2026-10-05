@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OpenFrame</string>
+    <string name="title_activity_main">OpenFrame</string>
+    <string name="package_name">ai.openframe.mobile</string>
+    <!-- OAuth callback scheme (coordinated with the gateway redirect allowlist and
+         the iOS Info.plist CFBundleURLTypes) — the value the NativeAuth deep-link
+         intent-filter below matches. NOT the applicationId. -->
+    <string name="custom_url_scheme">com.openframe.app</string>
+    <!-- Tray notifications the shell renders itself (PushNotifications). -->
+    <string name="push_channel_name">Notifications</string>
+    <string name="push_channel_description">Approvals, Mingo messages and ticket updates</string>
+    <string name="outcomes_channel_name">Action results</string>
+    <string name="action_approve">Approve</string>
+    <string name="action_reject">Reject</string>
+    <string name="action_reply">Reply</string>
+    <string name="reply_hint">Reply to Mingo</string>
+    <string name="action_approving">Approving…</string>
+    <string name="action_rejecting">Rejecting…</string>
+    <string name="action_sending_reply">Sending your reply…</string>
+    <string name="action_in_progress">Completing your action…</string>
+</resources>

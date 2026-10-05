@@ -1,0 +1,983 @@
+'use client';
+
+import {
+  ChatInput,
+  type Message as ChatMessage,
+  ChatMessageList,
+  LoadError,
+  ModelDisplay,
+  maxPersistedStreamSeq,
+  NotFoundError,
+} from '@flamingo-stack/openframe-frontend-core';
+import { useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  BoxArchiveIcon,
+  ChatsIcon,
+  ClipboardListIcon,
+  ClockHistoryIcon,
+  Menu02Icon,
+  PenEditIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  type ActionsMenuGroup,
+  type ActionsMenuItem,
+  Button,
+  InfoSection,
+  type InfoSectionRow,
+  NoData,
+  type PageActionButton,
+  PageLayout,
+  resolveStatusTagProps,
+  SimpleMarkdownRenderer,
+  type TabItem,
+  TabNavigation,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation } from 'react-relay';
+import { useShallow } from 'zustand/react/shallow';
+import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
+import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
+import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
+import { NotesSection } from '@/app/components/shared';
+import type { AiModel } from '@/app/hooks/use-ai-model';
+import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
+import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
+import { startTimerMutation } from '@/graphql/time-tracker/start-timer-mutation';
+import { makeSetCurrentTimerUpdater, toTicketGlobalId } from '@/graphql/time-tracker/time-tracker-helpers';
+import { EVENT_SUBTYPE, type EventSubtype, trackDashboardActivity } from '@/lib/analytics';
+import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingApprovals } from '@/lib/chat-history';
+import { EMPTY_VALUE } from '@/lib/empty-value';
+import { formatDateTime } from '@/lib/format-date';
+import { getFullImageUrl } from '@/lib/image-url';
+import { loadErrorProps } from '@/lib/query-state';
+import { routes } from '@/lib/routes';
+import { useAuthStore } from '@/stores';
+import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
+import { useDeviceDetails } from '../../devices/hooks/use-device-details';
+import { getDeviceName } from '../../devices/utils/device-name';
+import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
+import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
+import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';
+import { useApprovalRequests } from '../hooks/use-approval-requests';
+import { useAssignTicket } from '../hooks/use-assign-ticket';
+import { useDirectChat } from '../hooks/use-direct-chat';
+import { useHistoricalMessages } from '../hooks/use-historical-messages';
+import { useSideChunkProcessor } from '../hooks/use-side-chunk-processor';
+import { useTicketDetail } from '../hooks/use-ticket-detail';
+import { useTicketMessages } from '../hooks/use-ticket-messages';
+import { useAddTicketNote, useDeleteTicketNote, useUpdateTicketNote } from '../hooks/use-ticket-notes';
+import { useAssigneeOptions } from '../hooks/use-ticket-options';
+import { useTransitionTicket } from '../hooks/use-transition-ticket';
+import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
+import { useTicketDetailsStore } from '../stores/ticket-details-store';
+import type { ClientDialogOwner, DialogOwner } from '../types/dialog.types';
+import { hasActiveAiDialog } from '../utils/ai-dialog';
+import { lastClientMessageId } from '../utils/client-chat-read';
+import { isResolvedStatusId } from '../utils/is-resolved-status';
+import { latestAssistantModel } from '../utils/latest-assistant-model';
+import { ticketsQueryKeys } from '../utils/query-keys';
+import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
+import { getTicketDeviceName } from '../utils/ticket-device-name';
+import { formatTicketRef } from '../utils/ticket-ref';
+import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
+import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
+import { TicketAttachmentsSection } from './ticket-attachments-section';
+import { TicketDetailsSkeleton } from './ticket-details-skeleton';
+import { TicketDialogSubscription } from './ticket-dialog-subscription';
+import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
+import { TicketTagsSection } from './ticket-tags-section';
+
+interface TicketDetailsViewProps {
+  ticketId: string;
+}
+
+/**
+ * Wrap a device-menu item so opening it also fires a dashboard-activity event.
+ *
+ * The built device items navigate via `href`, which the core `ActionsMenu`
+ * renders as a `<Link>`. Whether a link row also invokes the item's `onClick`
+ * is a core-lib implementation detail we must not let the analytics silently
+ * depend on (it regressed once, dropping open_remote_shell/open_remote_control
+ * events entirely). So instead of attaching an `onClick` alongside `href`, we
+ * drop `href` and drive navigation ourselves inside `onClick` (track +
+ * `navigate`). That forces the reliable button-row path whose `onClick` always
+ * fires. For a submenu parent the click only expands the submenu, so we recurse
+ * into the leaf items that actually navigate, not the parent.
+ */
+function withActivityTracking(
+  item: ActionsMenuItem,
+  subtype: EventSubtype,
+  navigate: (href: string) => void,
+): ActionsMenuItem {
+  if (item.submenu && item.submenu.length > 0) {
+    return { ...item, submenu: item.submenu.map(child => withActivityTracking(child, subtype, navigate)) };
+  }
+  const { href, onClick: originalOnClick, ...rest } = item;
+  return {
+    ...rest,
+    onClick: () => {
+      trackDashboardActivity(subtype);
+      originalOnClick?.();
+      if (href) navigate(href);
+    },
+  };
+}
+
+/**
+ * The ticket page: the client chat beside a Ticket Details / Attachments / Tags
+ * column. The technician's own conversation lives in the global Mingo drawer,
+ * which carries the open ticket as context — see `useTrackOpenView` below — so
+ * this view neither renders nor subscribes to the ticket's ADMIN chat side.
+ */
+export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const handleBackToTickets = useSafeBack(routes.tickets.list);
+  const { toast } = useToast();
+  // Which of the two always-mounted layout columns is showing. Same 1280px the core preset
+  // gives the `lg:` classes below; `undefined` until the client viewport is known.
+  const isLgUp = useLgUp();
+  const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET' });
+  const { modelsByProvider } = useSupportedModels();
+  const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
+  const isClientOwner = useCallback((owner: ClientDialogOwner | DialogOwner): owner is ClientDialogOwner => {
+    return owner != null && typeof owner === 'object' && 'machineId' in owner;
+  }, []);
+
+  const queryClient = useQueryClient();
+  const {
+    ticket: dialog,
+    isLoading,
+    isOffline,
+    error: dialogError,
+    refetch: refetchTicket,
+  } = useTicketDetail(ticketId);
+
+  // Register the open ticket as the Mingo "open view" so it rides on the sidebar
+  // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
+  // `@ticket:id` marker expects (TICKET is REST-resolved — no global-id round-trip).
+  useTrackOpenView(
+    dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
+  );
+
+  // Device referenced by the ticket. Same hook & availability utility used by
+  // the Devices view, so remote-action gating stays in sync across views.
+  const machineId = useMemo(() => {
+    if (!dialog) return undefined;
+    // owner.machineId is the canonical machineId; dialog.deviceId is a backend passthrough
+    // that may contain a Mongo ObjectId, so prefer the owner field when available.
+    const ownerMachineId = isClientOwner(dialog.owner) ? dialog.owner.machineId : undefined;
+    return ownerMachineId || dialog.deviceId;
+  }, [dialog, isClientOwner]);
+  const { deviceDetails, isLoading: isDeviceLoading } = useDeviceDetails(machineId);
+  // The device this ticket is attached to, named like every other screen: the registry
+  // record once it has loaded; until then — or when deviceId is a Mongo ObjectId that
+  // resolves to nothing (see above) — the name the ticket itself carries. An ADMIN-owned
+  // ticket has no owner.machine, so without the registry it would only ever show hostname.
+  const ticketDeviceName = getDeviceName(deviceDetails) || (dialog ? getTicketDeviceName(dialog) : '');
+  const { items: deviceMenuItems } = useDeviceActionsMenu(deviceDetails, { deviceId: machineId });
+
+  const { client, clearChatState, setChatHandlers, updateApprovalStatusInMessages, recordHighestStreamSeq } =
+    useTicketDetailsStore(
+      useShallow(s => ({
+        client: s.client,
+        clearChatState: s.clearChatState,
+        setChatHandlers: s.setChatHandlers,
+        updateApprovalStatusInMessages: s.updateApprovalStatusInMessages,
+        recordHighestStreamSeq: s.recordHighestStreamSeq,
+      })),
+    );
+  const approvalStatuses = useTicketDetailsStore(s => s.approvalStatuses);
+
+  const { messages: clientMessages, isTyping: isClientChatTyping } = client;
+  // Re-arms the shared unread-message mark (TicketNotificationsAutoReader) on every
+  // end-user row the chat shows; technician and assistant rows do not move it.
+  const newestClientMessageId = lastClientMessageId(clientMessages);
+
+  const isClientCompacting = useMemo(() => {
+    const lastMsg = clientMessages.at(-1);
+    if (lastMsg?.role !== 'assistant' || !Array.isArray(lastMsg.content)) return false;
+    const tail = lastMsg.content.at(-1);
+    return tail?.type === 'context_compaction' && tail.status === 'started';
+  }, [clientMessages]);
+
+  const currentUser = useAuthStore(state => state.user);
+
+  const refetchDialog = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ticketsQueryKeys.detail(ticketId) });
+  }, [queryClient, ticketId]);
+  const addNoteMutation = useAddTicketNote(ticketId);
+  const updateNoteMutation = useUpdateTicketNote(ticketId);
+  const deleteNoteMutation = useDeleteTicketNote(ticketId);
+
+  const assignTicketMutation = useAssignTicket();
+  const assigneeOptions = useAssigneeOptions();
+  const { isUserDeleted } = useUserStatusMap();
+
+  const { isDirectMode, isStartingDirectChat, isSendingClientMessage, startDirectChat, sendClientMessage } =
+    useDirectChat({
+      ticketId,
+      dialogId: dialog?.dialogId,
+      currentMode: dialog?.currentMode,
+      onDialogCreated: refetchDialog,
+    });
+
+  // Take Over flow: leaving the AI-assisted state (status change, assignment,
+  // starting a direct chat) requires explicit confirmation via this modal.
+  const [takeOverTarget, setTakeOverTarget] = useState<TakeOverTicketTarget | null>(null);
+  const openTakeOver = useCallback(
+    (prefill?: Omit<TakeOverTicketTarget, 'ticket'>) => {
+      if (!dialog) return;
+      setTakeOverTarget({ ticket: dialog, ...prefill });
+    },
+    [dialog],
+  );
+
+  const handleAssign = useCallback(
+    (userId: string | null) => {
+      if (!dialog) return;
+      // Assigning a technician to an AI-worked ticket is a take-over; plain
+      // unassign (and any change once the AI is stopped) stays one click.
+      if (userId && hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialAssigneeId: userId });
+        return;
+      }
+      assignTicketMutation.mutate({ ticketId: dialog.id, assigneeId: userId });
+    },
+    [dialog, assignTicketMutation, openTakeOver],
+  );
+
+  // Transform backend notes to core UI TicketNote format
+  const uiNotes = useMemo(() => {
+    if (!dialog?.notes) return [];
+    return dialog.notes.map(note => ({
+      id: note.id,
+      text: note.content,
+      authorName: note.authorName || 'Unknown',
+      authorAvatar: getFullImageUrl(note.authorImageUrl, note.authorImageHash),
+      createdAt: note.createdAt,
+      isOwn: currentUser?.id === note.authorId,
+    }));
+  }, [dialog, currentUser]);
+
+  // The URL param is the ticket ID; messages belong to the linked dialog
+  const messageDialogId = dialog?.dialogId ?? null;
+
+  const clientChat = useTicketMessages(messageDialogId, CHAT_TYPE.CLIENT);
+
+  const transitionTicket = useTransitionTicket();
+  // Target-status kinds, to recognize a resolve at click time (availableTransitions
+  // carries no `kind`). Cached/shared with the board & table, so no extra fetch.
+  const { data: statusesData } = useTicketStatusesQuery();
+  const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
+
+  // Time tracker lives in a global host provider (enabled once the session
+  // resolves on an unlocked workspace). Starting here writes the running timer
+  // into the Relay store, which the host's CurrentTimer hydrator reads — so the
+  // global panel reflects it.
+  const timeTracker = useOptionalTimeTracker();
+  const [startTimer, isStartingTimer] = useMutation<StartTimerMutationType>(startTimerMutation);
+  const handleStartTimeTracking = useCallback(() => {
+    if (!dialog) return;
+    startTimer({
+      variables: { input: { ticketId: toTicketGlobalId(dialog.id), notes: null } },
+      updater: makeSetCurrentTimerUpdater('startTimer'),
+      onCompleted: () => {
+        toast({
+          title: 'Time tracking started',
+          description: 'A timer is now running for this ticket.',
+          variant: 'success',
+        });
+      },
+      onError: err => {
+        toast({ title: 'Failed to start timer', description: err.message, variant: 'destructive' });
+      },
+    });
+  }, [dialog, startTimer, toast]);
+  const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
+  const mainTab = searchParams.get('tab') === 'chat' ? 'chat' : 'details';
+  const handleMainTabChange = useCallback(
+    (tabId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', tabId);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
+
+  const clientDisplayName = ticketDeviceName || undefined;
+
+  const processClientChunk = useSideChunkProcessor('client', {
+    ticketId,
+    userDisplayName: clientDisplayName,
+    isDirectMode,
+    onMetadata: useCallback((metadata: { modelDisplayName: string; providerName: string }) => {
+      setCurrentClientModel({ provider: metadata.providerName, displayName: metadata.modelDisplayName });
+    }, []),
+  });
+
+  const dispatchChunk = useCallback(
+    (chunk: unknown) => {
+      const seq = (chunk as { streamSeq?: number }).streamSeq;
+      if (typeof seq === 'number') recordHighestStreamSeq('client', seq);
+      processClientChunk(chunk);
+    },
+    [processClientChunk, recordHighestStreamSeq],
+  );
+
+  // Sending while an approval is pending is an interrupt — backend cancels
+  // it and emits APPROVAL_RESULT (rejected) shortly. Flipping the latest
+  // pending approval on the same side optimistically resolves the card in
+  // the same frame as the user-message bubble, eliminating the flicker
+  // between the user's send and the backend's resolution chunk.
+  const sendClientMessageWithReject = useCallback(
+    (text: string) => {
+      const pendingId = findLatestPendingApprovalId(clientMessages);
+      if (pendingId) updateApprovalStatusInMessages('client', pendingId, 'rejected');
+      return sendClientMessage(text);
+    },
+    [sendClientMessage, clientMessages, updateApprovalStatusInMessages],
+  );
+
+  useEffect(() => {
+    if (!ticketId) return undefined;
+
+    return () => {
+      clearChatState();
+    };
+  }, [ticketId, clearChatState]);
+
+  // Model badge sources, in order of truth: live stream metadata (state set by
+  // the chunk processor) → the newest assistant message's provenance from
+  // history → what the NEXT reply would use, i.e. the customer's effective org
+  // config.
+  const historyClientModel = useMemo(
+    () => latestAssistantModel(clientChat.rawPages, modelsByProvider),
+    [clientChat.rawPages, modelsByProvider],
+  );
+  const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
+    enabled: !!dialog?.organizationId,
+  });
+  const orgClientModel = useMemo(
+    () =>
+      orgAiConfig?.llmProvider && orgAiConfig.providerModel
+        ? {
+            provider: orgAiConfig.llmProvider,
+            displayName: getProviderModelLabel(modelsByProvider, orgAiConfig.llmProvider, orgAiConfig.providerModel),
+          }
+        : null,
+    [orgAiConfig, modelsByProvider],
+  );
+  const displayClientModel = currentClientModel ?? historyClientModel ?? orgClientModel;
+
+  const clientInitialOptStartSeq = useMemo(() => maxPersistedStreamSeq(clientChat.rawPages), [clientChat.rawPages]);
+  // Fresh pages only (`isFetchedAfterMount`), not `isFetched`: on re-entry React Query
+  // serves the previous visit's cache first while `useTicketMessages` refetches, and
+  // `isFetched` is already true for it. A consumer created from that stale max seq
+  // replays every message that arrived while the user was away - and the refetch
+  // renders the same messages as persisted rows, so each shows twice (the replay
+  // lands after the history merge ran, so nothing dedupes it). Waiting for the
+  // post-mount fetch starts the consumer after the newest persisted seq instead;
+  // anything published in the meantime is still delivered from there.
+  const isInitialOptStartSeqReady = clientChat.isFetchedAfterMount;
+
+  // NATS reconnect: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
+  // outage longer than that leaves a gap the resume-by-seq cannot fill.
+  // Refetch persisted history — the merge layer dedupes what replay covers.
+  const refetchClientChat = clientChat.refetch;
+  const handleNatsReconnected = useCallback(() => {
+    void refetchClientChat();
+  }, [refetchClientChat]);
+
+  // Archive / Unarchive are plain lifecycle transitions (the per-status legacy
+  // mutations are rejected by the backend): Archive targets the ARCHIVED-kind
+  // status, Unarchive the first non-archived status from the snapshot
+  // (position order).
+  const handleArchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind === TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
+
+  const handleUnarchive = useCallback(() => {
+    if (!dialog || transitionTicket.isPending) return;
+    const toStatusId = statusesData?.snapshot.find(s => s.kind !== TICKET_STATUS_KIND.ARCHIVED)?.id;
+    if (!toStatusId) return;
+    transitionTicket.mutate({ ticketId, toStatusId });
+  }, [dialog, transitionTicket, statusesData, ticketId]);
+
+  // Starting a direct chat on an AI-worked ticket is a take-over (confirm
+  // status + assignee first); without an active AI dialog it starts directly.
+  const handleStartDirectChat = useCallback(() => {
+    if (hasActiveAiDialog(dialog)) {
+      openTakeOver();
+      return;
+    }
+    startDirectChat();
+  }, [dialog, openTakeOver, startDirectChat]);
+
+  const handleTransition = useCallback(
+    (toStatusId: string) => {
+      if (!dialog || transitionTicket.isPending) return;
+      // Server-enforced lock (Tech Required + pending approval): the dropdown
+      // is disabled in this state, but guard the programmatic path too.
+      if (isStatusLockedByPendingApproval(dialog)) return;
+      // Leaving a terminal status for a WORKING one is a REOPEN, not a plain
+      // move: it goes through the confirmation modal (target status + assignee
+      // + reason) instead of firing the transition directly. A terminal-to-
+      // terminal pick (e.g. Archived → Resolved) stays a plain move: the modal
+      // filters closed kinds out of its options, so routing it there could only
+      // render the target as a raw status id.
+      if (dialog.statusKind === TICKET_STATUS_KIND.RESOLVED || dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED) {
+        const targetKind = statusesData?.snapshot?.find(s => s.id === toStatusId)?.kind;
+        if (targetKind !== TICKET_STATUS_KIND.RESOLVED && targetKind !== TICKET_STATUS_KIND.ARCHIVED) {
+          setReopenTarget({ ticketId, initialStatusId: toStatusId });
+          return;
+        }
+      }
+      // Leaving the AI-assisted state is a TAKE OVER: confirm status +
+      // technician + stopping the AI instead of firing the transition.
+      if (hasActiveAiDialog(dialog)) {
+        openTakeOver({ initialStatusId: toStatusId });
+        return;
+      }
+      // Resolve is the inline status changer moving the ticket into a
+      // RESOLVED-kind status — there is no dedicated "resolve" button. Track
+      // optimistically on click (like the other activity events): losing one
+      // event on a failed transition is fine; missing real resolves because a
+      // success callback didn't land is not.
+      if (isResolvedStatusId(toStatusId, statusesData?.snapshot)) {
+        trackDashboardActivity(EVENT_SUBTYPE.RESOLVE_TICKET);
+      }
+      transitionTicket.mutate({ ticketId, toStatusId });
+    },
+    [dialog, ticketId, transitionTicket, statusesData, openTakeOver],
+  );
+
+  const handleApprovalAction = useCallback(
+    async (requestId: string | undefined, approving: boolean) => {
+      if (!requestId) return;
+      const mutate = approving ? handleApproveRequest : handleRejectRequest;
+      const status = approving ? APPROVAL_STATUS.APPROVED : APPROVAL_STATUS.REJECTED;
+      // Optimistic flip *before* the network round-trip. Backend starts
+      // streaming continuation chunks immediately on approval; if we wait
+      // for the mutation, the incoming MESSAGE_START adopts the still-
+      // pending bubble and text chunks overwrite the approval card.
+      updateApprovalStatusInMessages('client', requestId, status);
+      try {
+        await mutate(requestId);
+        // Resolving the approval releases the status lock and changes the
+        // available transitions - refresh the cached ticket right away.
+        refetchDialog();
+      } catch (error) {
+        toast({
+          title: approving ? 'Approval Failed' : 'Rejection Failed',
+          description:
+            error instanceof Error
+              ? error.message
+              : approving
+                ? 'Unable to approve request'
+                : 'Unable to reject request',
+          variant: 'destructive',
+          duration: 5000,
+        });
+      }
+    },
+    [handleApproveRequest, handleRejectRequest, toast, updateApprovalStatusInMessages, refetchDialog],
+  );
+
+  const handleApprove = useCallback(
+    (requestId?: string) => handleApprovalAction(requestId, true),
+    [handleApprovalAction],
+  );
+  const handleReject = useCallback(
+    (requestId?: string) => handleApprovalAction(requestId, false),
+    [handleApprovalAction],
+  );
+
+  useEffect(() => {
+    setChatHandlers('client', { onApprove: handleApprove, onReject: handleReject });
+  }, [handleApprove, handleReject, setChatHandlers]);
+
+  useHistoricalMessages({
+    side: 'client',
+    messageDialogId,
+    chatType: CHAT_TYPE.CLIENT,
+    assistantConfig: ASSISTANT_CONFIG.FAE,
+    pages: clientChat.rawPages,
+    dataUpdatedAt: clientChat.dataUpdatedAt,
+    isFetched: clientChat.isFetched,
+    onApprove: handleApprove,
+    onReject: handleReject,
+  });
+
+  const clientPendingApprovals = useMemo(
+    () => extractPendingApprovals(clientMessages, approvalStatuses),
+    [clientMessages, approvalStatuses],
+  );
+
+  const remapClientUserName = useCallback(
+    (msg: ChatMessage): ChatMessage =>
+      msg.authorType === 'user' && clientDisplayName ? { ...msg, name: clientDisplayName } : msg,
+    [clientDisplayName],
+  );
+
+  const clientChatMessages = useMemo(() => {
+    const visible = stripPendingApprovals(clientMessages).map(remapClientUserName);
+    if (dialog?.creationSource !== CREATION_SOURCE.FAE_FORM || clientChat.hasNextPage) {
+      return visible;
+    }
+    const faeMessage: ChatMessage = {
+      id: `synthetic-fae-form-${dialog.id}`,
+      content: [
+        'Your request has been received. We will contact you shortly.',
+        '',
+        'Subject:',
+        dialog.title || '',
+        '',
+        'Description:',
+        dialog.description || '(No description provided)',
+      ].join('\n'),
+      role: 'assistant',
+      name: ASSISTANT_CONFIG.FAE.name,
+      assistantType: ASSISTANT_CONFIG.FAE.type,
+      authorType: 'fae',
+      timestamp: new Date(dialog.createdAt),
+    };
+    return [faeMessage, ...visible];
+  }, [clientMessages, remapClientUserName, dialog, clientChat.hasNextPage]);
+
+  const menuActions = useMemo<ActionsMenuGroup[]>(() => {
+    if (!dialog) return [];
+
+    const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
+
+    const ticketItems: ActionsMenuItem[] = [];
+    const infoItems: ActionsMenuItem[] = [];
+    const remoteItems: ActionsMenuItem[] = [];
+
+    if (!isArchived) {
+      ticketItems.push({
+        id: 'edit-ticket',
+        label: 'Edit Ticket',
+        icon: <PenEditIcon className="text-ods-text-secondary" />,
+        onClick: () => router.push(routes.tickets.new({ edit: dialog.id })),
+      });
+    }
+
+    if (deviceDetails || isDeviceLoading) {
+      infoItems.push(deviceMenuItems.deviceDetails, deviceMenuItems.deviceLogs);
+      remoteItems.push(
+        withActivityTracking(deviceMenuItems.remoteShell, EVENT_SUBTYPE.OPEN_REMOTE_SHELL, href => router.push(href)),
+      );
+      if (deviceMenuItems.remoteControl) {
+        remoteItems.push(
+          withActivityTracking(deviceMenuItems.remoteControl, EVENT_SUBTYPE.OPEN_REMOTE_CONTROL, href =>
+            router.push(href),
+          ),
+        );
+      }
+      remoteItems.push(deviceMenuItems.manageFiles, deviceMenuItems.runScript);
+    }
+
+    const groups: ActionsMenuGroup[] = [];
+    const candidates = [ticketItems, infoItems, remoteItems];
+    candidates.forEach((items, idx) => {
+      if (items.length === 0) return;
+      const hasMore = candidates.slice(idx + 1).some(g => g.length > 0);
+      groups.push({ items, separator: hasMore });
+    });
+    return groups;
+  }, [dialog, deviceDetails, isDeviceLoading, deviceMenuItems, router]);
+
+  if (isLoading) {
+    return <TicketDetailsSkeleton onBack={handleBackToTickets} />;
+  }
+
+  // Before the not-found below, and not showing `dialogError` raw: offline the
+  // query PAUSES with no data, and this route answered that by telling the user
+  // their ticket does not exist.
+  if (dialogError || isOffline) {
+    return <LoadError {...loadErrorProps(isOffline, "Couldn't load this ticket.", () => refetchTicket())} />;
+  }
+
+  if (!dialog) {
+    return <NotFoundError message="Ticket not found" />;
+  }
+
+  const isAdminOwner = dialog.owner?.type === 'ADMIN';
+  const isResolved = dialog.statusKind === TICKET_STATUS_KIND.RESOLVED;
+  const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
+  const isClosed = isResolved || isArchived;
+  const clientTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
+  const showTokenMemory = !isClosed;
+
+  // The status tag is an inline changer driven by the ticket's available
+  // transitions. resolveStatusTagProps applies the
+  // unified design (AI_ASSISTANCE/RESOLVED → canonical styling like the board;
+  // TECH_REQUIRED and custom → backend color), shared with the chat surfaces.
+  const statusTag = resolveStatusTagProps({
+    status: dialog.statusId,
+    statusKind: dialog.statusKind,
+    statusName: dialog.statusName,
+    statusColor: dialog.statusColor,
+  });
+  // Tech Required + pending approval: the server rejects any transition, so
+  // the inline changer renders as a locked tag with the reason in a tooltip.
+  // Starting a direct chat stays available - it changes no status, and the
+  // handoff cancels the pending approval on the backend, which unlocks.
+  const isStatusLocked = isStatusLockedByPendingApproval(dialog);
+
+  const hasClientChat = !isAdminOwner;
+  const hasDescription = !!dialog.description?.trim();
+  const hasAssignedItems = !!(
+    assignedItems.customers?.length ||
+    assignedItems.devices?.length ||
+    assignedItems.articles?.length ||
+    assignedItems.tickets?.length
+  );
+  const hasTicketDetails = hasDescription || hasAssignedItems;
+  const showDetailsTabs = hasClientChat && hasTicketDetails;
+
+  // Is the client chat the pane on screen? Usually `?tab=chat`, the param notification routes
+  // point at. But with nothing to put in a Details tab — every AI-dialog ticket — the desktop
+  // column renders the chat bare while `mainTab` still reads 'details', and the mobile column
+  // keeps its tabs, so only the breakpoint separates the two.
+  const clientChatOnScreen = hasClientChat && (mainTab === 'chat' || (isLgUp === true && !showDetailsTabs));
+
+  const customerName =
+    dialog.organizationName ||
+    (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
+    undefined;
+
+  const infoRows: InfoSectionRow[] = [
+    // First row per Figma tickets 8001-100805: the bare sequential number, no
+    // `#`, no trailing icon - the reference technicians and clients quote.
+    {
+      id: 'ticket-number',
+      label: 'Ticket Number',
+      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : EMPTY_VALUE },
+    },
+    {
+      id: 'customer',
+      label: 'Customer',
+      value: customerName
+        ? {
+            text: customerName,
+            imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
+            imageFallback: customerName,
+          }
+        : { text: EMPTY_VALUE },
+    },
+    {
+      id: 'device',
+      label: 'Device',
+      value: {
+        text: ticketDeviceName || EMPTY_VALUE,
+        href: machineId ? routes.devices.details(machineId) : undefined,
+      },
+    },
+    {
+      id: 'assigned',
+      label: 'Assigned',
+      value: {
+        type: 'assignee',
+        currentAssignee:
+          dialog.assignedName && dialog.assignedTo
+            ? {
+                id: dialog.assignedTo,
+                name: dialog.assignedName,
+                avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
+                deleted: isUserDeleted(dialog.assignedTo),
+              }
+            : undefined,
+        options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
+        isLoading: assigneeOptions.isLoading,
+        isPending: assignTicketMutation.isPending,
+        onAssign: handleAssign,
+      },
+    },
+    {
+      id: 'created',
+      label: 'Created',
+      value: { text: formatDateTime(dialog.createdAt) },
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      value: {
+        type: 'status',
+        status: statusTag.status,
+        label: statusTag.label,
+        color: statusTag.color,
+        options: dialog.availableTransitions,
+        onSelect: handleTransition,
+        isPending: transitionTicket.isPending,
+        disabled: isStatusLocked,
+        disabledReason: isStatusLocked ? STATUS_LOCKED_BY_APPROVAL_REASON : undefined,
+      },
+    },
+  ];
+
+  // Time tracking only applies to tickets that have reached a human-handled
+  // status (tech-required or a custom lifecycle status); it's hidden for
+  // AI-assistance, resolved, and archived tickets. Once a timer is running the
+  // button disables — only one timer can be active at a time.
+  const canTrackTime =
+    dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM;
+  const isTimerActive = (timeTracker?.status ?? 'ready') !== 'ready';
+
+  const sidebarActions: PageActionButton[] = [];
+  if (!isArchived) {
+    sidebarActions.push({
+      label: 'Edit Ticket',
+      ariaLabel: 'Edit Ticket',
+      variant: 'outline',
+      icon: <PenEditIcon className="text-ods-text-secondary" />,
+      onClick: () => router.push(routes.tickets.new({ edit: dialog.id })),
+      iconOnlyOnDesktop: true,
+    });
+  }
+  if (canTrackTime) {
+    sidebarActions.push({
+      label: 'Track Time',
+      ariaLabel: 'Track time for this ticket',
+      tooltip: 'Track time for this ticket',
+      variant: 'outline',
+      icon: <ClockHistoryIcon className="text-ods-text-secondary" />,
+      onClick: handleStartTimeTracking,
+      disabled: isTimerActive || isStartingTimer,
+      iconOnlyOnDesktop: true,
+    });
+  }
+  const sidebarMenuItems: ActionsMenuItem[] = menuActions
+    .flatMap(group => group.items)
+    .filter(item => item.id !== 'edit-ticket');
+  if (isResolved) {
+    sidebarMenuItems.push({
+      id: 'archive',
+      label: transitionTicket.isPending ? 'Updating...' : 'Archive Ticket',
+      icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
+      onClick: handleArchive,
+      disabled: transitionTicket.isPending,
+    });
+  }
+  if (isArchived) {
+    sidebarMenuItems.push({
+      id: 'unarchive',
+      label: transitionTicket.isPending ? 'Updating...' : 'Unarchive Ticket',
+      icon: <BoxArchiveIcon className="text-ods-text-secondary" />,
+      onClick: handleUnarchive,
+      disabled: transitionTicket.isPending,
+    });
+  }
+  if (sidebarMenuItems.length > 0) {
+    sidebarActions.push({ label: 'Actions', ariaLabel: 'Actions', submenu: sidebarMenuItems });
+  }
+
+  const clientChatBody = (
+    <>
+      <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
+        <ChatMessageList
+          // The bordered card IS the visual frame here, so a native scrollbar
+          // sits inside its rounded edge and reads as chrome bolted onto the
+          // ticket, not as part of the thread. `scrollbar-hide` (core
+          // app-globals) lands on the scroller — the thread still scrolls,
+          // wheel/touch/keyboard and the jump-to-bottom button all unaffected.
+          className="scrollbar-hide"
+          messages={clientChatMessages}
+          dialogId={ticketId}
+          autoScroll={true}
+          showAvatars={false}
+          isLoading={clientChat.isLoading}
+          isTyping={isClientChatTyping}
+          pendingApprovals={clientPendingApprovals}
+          assistantType={ASSISTANT_CONFIG.FAE.type}
+          hasNextPage={clientChat.hasNextPage}
+          isFetchingNextPage={clientChat.isFetchingNextPage}
+          onLoadMore={clientChat.fetchNextPage}
+          contentClassName="!max-w-full px-[var(--spacing-system-mf)]"
+        />
+      </div>
+
+      {!isClosed && !isDirectMode && (
+        <div className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]">
+          <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
+            The AI assistant will be stopped and you will be able to communicate with the user directly.
+          </p>
+          <Button
+            variant="outline"
+            onClick={handleStartDirectChat}
+            disabled={isStartingDirectChat}
+            leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
+            className="shrink-0"
+          >
+            {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
+          </Button>
+        </div>
+      )}
+      {!isClosed && isDirectMode && (
+        <ChatInput
+          placeholder="Enter your Message..."
+          onSend={sendClientMessageWithReject}
+          sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
+          autoFocus={false}
+          className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
+        />
+      )}
+      {showTokenMemory && (displayClientModel || clientTokenUsage) && (
+        <div className="mt-[var(--spacing-system-xsf)]">
+          <ModelDisplay
+            provider={displayClientModel?.provider}
+            modelName={displayClientModel?.displayName}
+            usedTokens={clientTokenUsage?.totalTokensSize ?? undefined}
+            contextWindow={clientTokenUsage?.contextSize ?? undefined}
+          />
+        </div>
+      )}
+    </>
+  );
+
+  const mainTabs: TabItem[] = [
+    { id: 'details', label: 'Ticket Details', icon: ClipboardListIcon },
+    { id: 'chat', label: 'Client Chat', icon: ChatsIcon },
+  ];
+
+  // Ticket Details pane (description + assigned items) — shared by the tabbed and
+  // the standalone (no-tabs) layouts.
+  const ticketDetailsBody = (
+    <>
+      {hasDescription ? (
+        <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <p className="text-ods-text-secondary text-h5">Ticket Description</p>
+          <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
+            <SimpleMarkdownRenderer content={dialog.description ?? ''} />
+          </div>
+        </section>
+      ) : (
+        // No description: show the empty state only when there's nothing else in
+        // the pane (assigned items render on their own when present).
+        !hasAssignedItems && (
+          <NoData icon={<Menu02Icon />} title="No Description" description="This ticket has no description added yet" />
+        )
+      )}
+      {hasAssignedItems && (
+        <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <p className="text-ods-text-secondary text-h5">Assigned Items</p>
+          <AssignedItemsView showTitle={false} itemId={dialog.id} itemType="TICKET" />
+        </section>
+      )}
+    </>
+  );
+
+  // Ticket info / attachments / tags — the right sidebar on desktop, folded into
+  // the Ticket Details tab on tablet/mobile.
+  const sidebarContent = (
+    <>
+      <InfoSection title="Ticket Details" rows={infoRows} />
+      <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
+      <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
+      <NotesSection
+        notes={uiNotes}
+        isAddingNote={addNoteMutation.isPending}
+        onAddNote={text => addNoteMutation.mutate({ content: text })}
+        onEditNote={(id, text) => updateNoteMutation.mutate({ id, content: text })}
+        onDeleteNote={id => deleteNoteMutation.mutate(id)}
+      />
+    </>
+  );
+
+  return (
+    <>
+      <TicketDialogSubscription
+        dialogId={messageDialogId}
+        dispatchChunk={dispatchChunk}
+        clientInitialOptStartSeq={clientInitialOptStartSeq}
+        isInitialOptStartSeqReady={isInitialOptStartSeqReady}
+        onReconnected={handleNatsReconnected}
+      />
+      <TicketNotificationsAutoReader
+        ticketId={ticketId}
+        dialogId={messageDialogId}
+        clientChatOnScreen={clientChatOnScreen}
+        lastClientMessageId={newestClientMessageId}
+      />
+      <PageLayout
+        title={dialog.title || 'Untitled Dialog'}
+        backButton={{ label: 'Back', onClick: handleBackToTickets }}
+        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        actions={sidebarActions}
+        actionsVariant="icon-buttons"
+        contentClassName="flex min-h-0 flex-col"
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
+          {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
+          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:flex">
+            {showDetailsTabs ? (
+              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                {active =>
+                  active === 'chat' ? (
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                      {ticketDetailsBody}
+                    </div>
+                  )
+                }
+              </TabNavigation>
+            ) : hasClientChat ? (
+              <>
+                <h2 className="text-ods-text-secondary text-h5">Client Chat</h2>
+                {clientChatBody}
+              </>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                {ticketDetailsBody}
+              </div>
+            )}
+          </div>
+
+          {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
+              Ticket Details tab; the client chat (when present) gets its own tab without them. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:hidden">
+            {hasClientChat ? (
+              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                {active =>
+                  active === 'chat' ? (
+                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                      {ticketDetailsBody}
+                      {sidebarContent}
+                    </div>
+                  )
+                }
+              </TabNavigation>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                {ticketDetailsBody}
+                {sidebarContent}
+              </div>
+            )}
+          </div>
+
+          {/* Right sidebar — desktop only */}
+          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80 lg:overflow-auto">
+            {sidebarContent}
+          </aside>
+        </div>
+      </PageLayout>
+
+      <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
+
+      <TakeOverTicketModal target={takeOverTarget} onClose={() => setTakeOverTarget(null)} />
+    </>
+  );
+}

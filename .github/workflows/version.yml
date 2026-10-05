@@ -1,0 +1,53 @@
+name: Resolve Version
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to release (x.y.z). Leave empty for auto patch bump."
+        required: false
+        type: string
+        default: ''
+    outputs:
+      version:
+        description: "Resolved release version; empty on push"
+        value: ${{ jobs.version.outputs.version }}
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version_dispatch.outputs.version }}
+    steps:
+      - name: Resolve version (dispatch)
+        id: version_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          latest=$(gh api --paginate "repos/${GH_REPO}/git/refs/tags?per_page=100" --jq '.[].ref' \
+            | sed 's#^refs/tags/##' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1) || true
+          [[ -n "$latest" ]] || { echo "No x.y.z tags found"; exit 1; }
+          IFS='.' read -r cur_major cur_minor cur_patch <<< "$latest"
+          next_major="$((cur_major + 1)).0.0"
+          next_minor="${cur_major}.$((cur_minor + 1)).0"
+          next_patch="${cur_major}.${cur_minor}.$((cur_patch + 1))"
+
+          if [ -z "$INPUT_VERSION" ]; then
+            version="$next_patch"
+            echo "No version provided, auto patch bump: ${latest} -> ${version}"
+          else
+            case "$INPUT_VERSION" in
+              "$next_major"|"$next_minor"|"$next_patch") version="$INPUT_VERSION" ;;
+              *) echo "Invalid version bump: ${latest} -> ${INPUT_VERSION} (expected ${next_major}, ${next_minor}, or ${next_patch})"; exit 1 ;;
+            esac
+            echo "Using provided version: ${version}"
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"

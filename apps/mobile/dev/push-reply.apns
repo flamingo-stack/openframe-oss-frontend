@@ -1,0 +1,18 @@
+{
+  "Simulator Target Bundle": "ai.openframe.mobile",
+  "aps": {
+    "alert": {
+      "title": "Mingo",
+      "body": "I've drafted the maintenance notice — want me to send it?"
+    },
+    "sound": "default",
+    "category": "MINGO_REPLY",
+    "thread-id": "dialog:demo-dialog-1"
+  },
+  "notificationId": "demo-reply-notification",
+  "type": "ADMIN_AI_MESSAGE",
+  "category": "MINGO",
+  "severity": "INFO",
+  "dialogId": "demo-dialog-1",
+  "messagePreview": "I've drafted the maintenance notice — want me to send it?"
+}

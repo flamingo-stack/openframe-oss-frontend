@@ -1,0 +1,19 @@
+App/build
+App/Pods
+App/output
+App/App/public
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Generated Config files
+App/App/capacitor.config.json
+App/App/config.xml
+
+# Google Services (Firebase) — GoogleService-Info.plist carries the Firebase API key
+# + project IDs. Gitignored so it is NOT committed (repo may be public); supply it at
+# build/CI time (drop into App/App/ and the per-env App/App/GoogleServices/ folder).
+GoogleService-Info.plist
+App/App/GoogleServices/
