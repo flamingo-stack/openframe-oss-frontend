@@ -14,7 +14,8 @@ on:
     # The native shells release through desktop-release.yml; a shell-only merge
     # changes nothing in the web image.
     paths-ignore:
-      - 'apps/**'
+      - 'apps/desktop/**'
+      - 'apps/mobile/**'
       - '.github/workflows/desktop-*.yml'
   workflow_dispatch:
     inputs:
@@ -127,9 +128,9 @@ jobs:
             args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   --build-arg OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}"
-                  -f ./Dockerfile)
+                  -f ./apps/web/Dockerfile)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" .
+            docker buildx build "${args[@]}" ./apps/web
 
   # Same as the forks: every released image gets a GitHub release of the same
   # name, and its tag marks the commit the desktop shell builds its static export

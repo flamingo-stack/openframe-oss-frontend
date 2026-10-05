@@ -17,7 +17,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WEB_DIR="$(cd "$HERE/../.." && pwd)"
+WEB_DIR="$(cd "$HERE/../web" && pwd)"
 
 if [ ! -d "$WEB_DIR/node_modules" ]; then
   echo "▸ Installing web dependencies…"

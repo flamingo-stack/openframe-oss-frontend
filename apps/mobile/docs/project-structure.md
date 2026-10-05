@@ -12,7 +12,7 @@ There is **one UI codebase** (`openframe-frontend`) and a **thin native shell**
 bundle* of the frontend.
 
 ```
-┌─ openframe-frontend ───────────────┐   Next 16 App Router source (separate repo/monorepo)
+┌─ openframe-frontend ───────────────┐   Next 16 App Router source (apps/web)
 │  src/app/**, components, lib …      │   the SAME code that serves the web app
 └───────────────┬─────────────────────┘
                 │  OPENFRAME_BUILD_TARGET=export  npm run build
@@ -79,7 +79,7 @@ Everything runs through **`npm run build:web`** (`scripts/build-web.sh`):
    checkout of the web release tag (e.g. `git checkout 1.0.127`), so the shipped
    bundle is exactly that release and reports it as its version
    (`X-OpenFrame-Client`).
-1. **Build the frontend as a static export** — at the repository root it runs
+1. **Build the frontend as a static export** — in `apps/web` it runs
    `OPENFRAME_BUILD_TARGET=export npm run build`. That env flag flips
    `next.config.mjs` from `output: 'standalone'` (the web server build) to
    `output: 'export'`, emitting a static SPA into **`dist/`**. The export contains:

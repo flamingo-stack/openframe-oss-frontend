@@ -61,8 +61,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
+        working-directory: apps/web
         run: npm ci --no-audit --no-fund
 
       # No codegen step on purpose: the fast pass carries no type-aware rules, so
@@ -70,6 +72,7 @@ jobs:
       # `src/generated` present (verified). Skipping relay-compiler and
       # generate-enums keeps this job a fraction of the image build's cost.
       - name: ESLint
+        working-directory: apps/web
         run: npm run lint:ci
 
   build_image:
@@ -128,17 +131,17 @@ jobs:
             args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}"
-                  -f "./Dockerfile")
+                  -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" "."
+            docker buildx build "${args[@]}" "./apps/web"
 
       - name: Scan image
         uses: ./.github/steps/trivy
         with:
           scan: image
           image-name: ${{ env.REPOSITORY }}
-          dockerfile: ./Dockerfile
-          context: .
+          dockerfile: ./apps/web/Dockerfile
+          context: ./apps/web
 
       - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push
@@ -156,9 +159,9 @@ jobs:
             args=(--platform linux/amd64,linux/arm64
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   --build-arg OPENFRAME_BUNDLE_VERSION="pr-${PR_NUMBER}-${PR_SHA::7}"
-                  -f "./Dockerfile")
+                  -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
-            docker buildx build "${args[@]}" --push --provenance=false --sbom=true "."
+            docker buildx build "${args[@]}" --push --provenance=false --sbom=true "./apps/web"
 
   cleanup:
     name: Cleanup

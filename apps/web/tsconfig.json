@@ -30,5 +30,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "apps", "multi-platform-hub/**/*", "eslint.config.mjs"]
+  "exclude": ["node_modules", "dist", "multi-platform-hub/**/*", "eslint.config.mjs"]
 }
