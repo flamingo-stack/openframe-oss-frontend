@@ -1,0 +1,138 @@
+'use client';
+
+/**
+ * `renderMention` for `<EmbeddableChat>` — the `@marker:id` analogue of
+ * `renderEntityCard` for `[card://]`. The lib parses an inline mention token and
+ * calls this; we dispatch by marker to a SELF-FETCHING chip (each entity type
+ * owns its own fetcher + detail-page link), mirroring how `card://` markers
+ * route to per-type entity cards.
+ *
+ * Module-level (not a hook): it needs only the static entity-type config, so a
+ * stable identity falls out for free — the lib's per-message memo relies on
+ * `renderMention` keeping reference equality across streaming chunks.
+ *
+ * Coverage = all thirteen entity markers the agent can emit, plus `@chat:` — a
+ * reference to an EARLIER CONVERSATION recalled from chat memory, which is not an
+ * entity and opens in the drawer rather than on a page (`ChatReferenceChip`).
+ * GraphQL types (device, customer, kb article, kb folder, scheduled script,
+ * incident, software) resolve via Relay; REST/ai-agent types (policy, query,
+ * user, ticket) via `RestMentionChip`; a vulnerability needs no fetch at all —
+ * its CVE id IS its name. SCRIPT is dual-sourced — a NEW script (24-char
+ * ObjectId) resolves via Relay, a LEGACY Tactical script (numeric id) via REST —
+ * so both kinds of script id render regardless of the flag. Every chip falls
+ * back to a plain id chip (clickable where a route exists) if its fetch can't
+ * resolve a name. Unknown marker → bare token.
+ */
+
+import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import type { ReactNode } from 'react';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
+import { KnowledgeBaseItemType } from '@/generated/schema-enums';
+import { routes } from '@/lib/routes';
+import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
+import { CONTEXT_ENTITY_KIND, type ContextEntityKind, CONTEXT_ENTITY_MARKER as M } from '../context-types';
+import { CHAT_REFERENCE_MARKER, ChatReferenceChip } from './chat-reference-chip';
+import { MentionTag } from './mention-tag';
+import { GraphqlMentionChip } from './relay-mention-chips';
+import { RestMentionChip } from './rest-mention-chips';
+
+const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
+const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
+const CHAT_REFERENCE_ICON = <ChatsIcon size={24} />;
+
+/** marker → lead icon, taken from the picker's entity-type config, plus the
+ *  mention-only kinds the picker doesn't offer. */
+const ICON_BY_MARKER = new Map<string, ReactNode>([
+  ...MINGO_CONTEXT_ENTITY_TYPES.flatMap(t => (t.marker ? [[t.marker, t.icon] as const] : [])),
+  [M.KB_FOLDER, KB_FOLDER_ICON],
+]);
+
+/**
+ * New OpenFrame scripts carry a 24-char Mongo ObjectId raw db id; legacy Tactical
+ * scripts carry a plain numeric id. Used to route a `@script:id` to the right
+ * resolver (Relay vs Tactical REST) so both kinds render.
+ */
+const OBJECT_ID_RE = /^[0-9a-f]{24}$/i;
+
+export function renderMingoMention({
+  marker,
+  id,
+  label,
+}: {
+  marker: string;
+  id: string;
+  /** Known display name (a context item's picked label). Inline mentions don't
+   *  have one; context items do. Used as the chip's fallback so it never shows a
+   *  bare id when the live resolve misses (e.g. a script id the resolver can't
+   *  find, or a reloaded message whose label was stripped on the wire). */
+  label?: string;
+}): ReactNode {
+  const icon = ICON_BY_MARKER.get(marker);
+  switch (marker) {
+    case CHAT_REFERENCE_MARKER:
+      // Not an entity: an earlier conversation Mingo cites from chat memory.
+      // Opens IN the drawer (see the chip), never on a page.
+      return <ChatReferenceChip id={id} icon={CHAT_REFERENCE_ICON} />;
+    case M.DEVICE:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.DEVICE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.ORGANIZATION:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.ORGANIZATION} id={id} icon={icon} fallbackLabel={label} />;
+    case M.KB_ARTICLE:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_ARTICLE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.KB_FOLDER:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.KB_FOLDER} id={id} icon={icon} fallbackLabel={label} />;
+    case M.SCHEDULED_SCRIPT:
+      // Native-only (schedules never existed in Tactical), so — unlike SCRIPT
+      // below — there is no id-shape dispatch: every id resolves through Relay.
+      return (
+        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT} id={id} icon={icon} fallbackLabel={label} />
+      );
+    case M.INSIGHT:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.INSIGHT} id={id} icon={icon} fallbackLabel={label} />;
+    case M.SOFTWARE:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SOFTWARE} id={id} icon={icon} fallbackLabel={label} />;
+    case M.VULNERABILITY:
+      // A CVE id is its own name: nothing to resolve, so no fetch and no
+      // skeleton — a linked chip straight away.
+      return <MentionTag icon={icon} label={label || id} href={routes.software.vulnerability(id)} />;
+    case M.SCRIPT:
+      // Dual-sourced: a 24-char ObjectId is a NATIVE script (Relay `script(id:)`);
+      // anything else (numeric) is a LEGACY Tactical id, still reachable in old
+      // chat history even though nothing writes those ids any more.
+      return OBJECT_ID_RE.test(id) ? (
+        <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} icon={icon} fallbackLabel={label} />
+      ) : (
+        <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />
+      );
+    case M.POLICY:
+    case M.QUERY:
+    case M.USER:
+    case M.TICKET:
+      return <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />;
+    default:
+      // Unknown marker → let the lib render the bare `@marker:id` token.
+      return null;
+  }
+}
+
+/**
+ * `renderContextItem` for `<EmbeddableChat>` — renders a user's ATTACHED context
+ * chip (from `contextItems`) IDENTICALLY to an inline `@marker:id` mention.
+ * Bridges the structured `{ type: <KIND>, id }` shape to the marker-keyed mention
+ * path: maps the stored kind to its backend marker and delegates to
+ * `renderMingoMention`, so the attached chip is the same self-fetching,
+ * name-resolving, linked chip. Returns null for an unknown kind → the lib falls
+ * back to its default label-only pill. Module-level for a stable identity (the
+ * message memo depends on it).
+ */
+export function renderMingoContextItem(item: ChatContextItem): ReactNode {
+  const marker = M[item.type as ContextEntityKind];
+  if (!marker) return null;
+  // Context items carry the picked display name — pass it as the chip's fallback
+  // so it shows the name immediately (and never a bare id) even if the live
+  // re-fetch can't resolve. `label === id` (history with the label stripped on
+  // the wire) is treated as "no label".
+  const label = item.label && item.label !== item.id ? item.label : undefined;
+  return renderMingoMention({ marker, id: item.id, label });
+}

@@ -1,0 +1,30 @@
+{
+  "src": "./src",
+  "schema": "./schema.graphql",
+  "language": "typescript",
+  "eagerEsModules": true,
+  "artifactDirectory": "./src/__generated__",
+  "exclude": ["**/node_modules/**", "**/__mocks__/**", "**/__generated__/**"],
+  "customScalarTypes": {
+    "Instant": {
+      "name": "Instant",
+      "path": "../lib/graphql-scalars"
+    },
+    "Date": {
+      "name": "LocalDate",
+      "path": "../lib/graphql-scalars"
+    },
+    "Long": {
+      "name": "Long",
+      "path": "../lib/graphql-scalars"
+    },
+    "JSON": {
+      "name": "JsonValue",
+      "path": "../lib/graphql-scalars"
+    },
+    "ObjectId": "string",
+    "_FieldSet": "string"
+  },
+  "requireCustomScalarTypes": true,
+  "useImportTypeSyntax": true
+}

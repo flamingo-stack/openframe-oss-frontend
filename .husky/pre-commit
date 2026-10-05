@@ -5,13 +5,20 @@
 # about through its last command.
 set -eu
 
+# Git runs hooks from the repository root; the web app and every tool below
+# (eslint/prettier/tsc configs, node_modules) live in apps/web. `--relative`
+# limits each diff to that directory and prints paths relative to it, which is
+# what tsc's diagnostics carry. The native shells (apps/desktop, apps/mobile)
+# have no JS/TS gate here.
+cd apps/web
+
 # NUL-delimited, and the extension filter lives in a git pathspec rather than a
 # grep: `git diff --name-only` quotes any path containing a non-ASCII byte
 # ("src/caf\303\251.ts"), so such a file matched neither the `$`-anchored
 # extension pattern nor a real file on disk and was silently skipped by both
 # checks below. `-z` turns quoting off, and nothing line-oriented touches the list.
 staged_files() {
-  git diff --cached --name-only -z --diff-filter=ACMR \
+  git diff --cached --relative --name-only -z --diff-filter=ACMR \
     -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs'
 }
 
@@ -28,7 +35,7 @@ fi
 # content that is not what gets committed. Materializing the index instead would
 # mean a full checkout-index tree plus a node_modules symlink for tsc to resolve
 # `@/*` — too much machinery for a pre-commit hook, so refuse the ambiguity.
-PARTIAL=$(git diff --name-only -z \
+PARTIAL=$(git diff --relative --name-only -z \
   -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' \
   | tr '\0' '\n' | STAGED="$STAGED" awk '
     BEGIN { n = split(ENVIRON["STAGED"], f, "\n") }
