@@ -129,6 +129,12 @@ export function SettingsHub() {
   const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
   const visibleItems = defaultItems.filter(item => {
     if (item.href === routes.settings.billingUsage) {
+      // OFFE-003: price/plan/invoice/usage-cost entry points must never render
+      // on the Capacitor shell — App Store/Play Store rules forbid non-IAP
+      // purchase paths, so this card is excluded outright on mobile.
+      if (billingHidden) {
+        return false;
+      }
       return billingsGate === 'on' && billingAccessGate === 'allowed';
     }
     return true;
