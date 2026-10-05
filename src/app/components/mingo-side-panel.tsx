@@ -34,7 +34,7 @@ interface MingoSidePanelProps extends AppLayoutSidePanelRenderState {
  * on screen; only a panel opened from the header (no room to dock, or a phone)
  * can be put away, and the header's button does that.
  */
-export function MingoSidePanel({ close, collapse, collapsesTo, identityEnabled }: MingoSidePanelProps) {
+export function MingoSidePanel({ canClose, close, collapse, collapsesTo, identityEnabled }: MingoSidePanelProps) {
   // On screen for as long as the layout renders it. The URL sync reads this to
   // keep `?mingoDialog=` on the conversation a docked panel shows.
   const setPanelShown = useMingoLauncherStore(state => state.setPanelShown);
@@ -42,6 +42,14 @@ export function MingoSidePanel({ close, collapse, collapsesTo, identityEnabled }
     setPanelShown(true);
     return () => setPanelShown(false);
   }, [setPanelShown]);
+  // A panel that cannot be put away stays across navigations, conversation and
+  // all; one opened from the header over the page still closes on one.
+  const setPanelDocked = useMingoLauncherStore(state => state.setPanelDocked);
+  const docked = !canClose;
+  useEffect(() => {
+    setPanelDocked(docked);
+    return () => setPanelDocked(false);
+  }, [docked, setPanelDocked]);
 
   return (
     <ChatIdentityProvider enabled={identityEnabled}>
