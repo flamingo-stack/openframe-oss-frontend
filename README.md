@@ -90,7 +90,7 @@ flowchart LR
 
 ### Application Domain Structure
 
-The application is organized by feature domain under `src/app`:
+The web app lives in `apps/web/` (the Tauri desktop and Capacitor mobile shells that bundle it are `apps/desktop/` and `apps/mobile/`). It is organized by feature domain under `apps/web/src/app`:
 
 ```mermaid
 flowchart TD
@@ -128,7 +128,7 @@ The application uses three complementary state management approaches:
 ```bash
 # 1. Clone the repository
 git clone https://github.com/flamingo-stack/openframe-oss-frontend.git
-cd openframe-oss-frontend
+cd openframe-oss-frontend/apps/web
 
 # 2. Install dependencies
 npm install
@@ -154,7 +154,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 > Refer to your environment configuration for actual backend URLs.
 
-### Available Scripts
+### Available Scripts (run in `apps/web`)
 
 | Script | Description |
 |--------|-------------|
@@ -199,7 +199,7 @@ We welcome contributions! Please read the [Contributing Guidelines](./CONTRIBUTI
 Key points:
 - All code must be TypeScript with strict typing
 - Follow the [Conventional Commits](https://www.conventionalcommits.org/) format
-- Run `npm run type-check`, `npm run lint`, and `npm run relay` before submitting
+- Run `npm run type-check`, `npm run lint`, and `npm run relay` in `apps/web` before submitting
 - Coordinate in the OpenMSP Slack community before starting large features
 
 ---
