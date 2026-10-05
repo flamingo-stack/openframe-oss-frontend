@@ -420,9 +420,12 @@ export function useMeshFileManager({
           description: (error as Error).message,
           variant: 'destructive',
         });
-        // Anything but a verified failure changed nothing we know of, so the
-        // selection stays for a retry.
-        if (!(error instanceof FileDeleteError)) return;
+        // Only a verified failure (FileDeleteError) tells us the delete call
+        // actually ran against the server and we can reason about what may
+        // have changed. For anything else (connection drop, timeout, other
+        // unexpected exception) we don't know what happened, so keep the
+        // selection for a retry and skip the refresh entirely.
+        return;
       }
 
       // No refresh: fileManager.deleteItems lists the folder itself to check the outcome. After
