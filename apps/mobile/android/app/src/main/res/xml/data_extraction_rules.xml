@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- allowBackup="false" already disables cloud backup, but on Android 12+ it does
+     NOT disable device-to-device transfer. SecureTokenStore's blob is wrapped by
+     an AndroidKeystore RSA key that never leaves the device, so a transferred
+     copy is permanently undecryptable — the user lands in a broken auth state
+     instead of a clean logged-out one. Exclude it from both channels. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ai.openframe.mobile.auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ai.openframe.mobile.auth.xml" />
+    </device-transfer>
+</data-extraction-rules>
