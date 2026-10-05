@@ -11,6 +11,11 @@ permissions:
 on:
   push:
     branches: [main]
+    # The native shells release through desktop-release.yml; a shell-only merge
+    # changes nothing in the web image.
+    paths-ignore:
+      - 'apps/**'
+      - '.github/workflows/desktop-*.yml'
   workflow_dispatch:
     inputs:
       version:

@@ -18,3 +18,7 @@ schema.graphql
 # Not formatted by anything today; including them would bury the code diff.
 *.md
 *.mdx
+
+# The native shells (Tauri, Capacitor) were never Prettier-formatted, and their
+# Xcode/Tauri JSON is tool-owned. Formatting them belongs to the apps/web move.
+apps

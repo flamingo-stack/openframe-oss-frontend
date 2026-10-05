@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Stage flavor identity: launcher/app label only (the launcher shows the
+     ACTIVITY label, so title_activity_main must be overridden too). Everything
+     else inherits from main — incl. custom_url_scheme, deliberately shared
+     until the gateway accepts per-env schemes (see the distribution plan). -->
+<resources>
+    <string name="app_name">OF Stage</string>
+    <string name="title_activity_main">OF Stage</string>
+</resources>

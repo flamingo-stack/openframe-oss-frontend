@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "ai.openframe.mobile",
+  "aps": {
+    "alert": {
+      "title": "OpenFrame",
+      "body": "DESKTOP-1A2B3C just went offline"
+    },
+    "sound": "default",
+    "badge": 1
+  },
+  "route": "/devices/details?id=demo-device-123"
+}
