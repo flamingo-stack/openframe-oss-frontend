@@ -424,8 +424,7 @@ export class TicketService implements TicketServiceInterface {
     const response = await apiClient.get<ChunkData[]>(url);
 
     if (!response.ok) {
-      console.error(`Failed to fetch ${chatType} chunks:`, response.status);
-      return [];
+      throw new Error(response.error || `Failed to fetch ${chatType} chunks (${response.status})`);
     }
 
     return response.data || [];
