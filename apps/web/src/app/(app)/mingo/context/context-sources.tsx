@@ -22,7 +22,7 @@ import {
   TimerIcon,
   UserIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-icon';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import type { FeatureFlagName } from '@/lib/feature-flags';

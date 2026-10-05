@@ -27,7 +27,7 @@
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
-import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-icon';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
