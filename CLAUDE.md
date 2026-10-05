@@ -13,6 +13,9 @@ config. There are no npm workspaces and no root `package.json` — run every com
 `apps/web`'s `prepare` script) and gate only `apps/web`. Desktop and mobile were imported with
 full history from `openframe-saas-desktop` / `openframe-saas-mobile`.
 
+Node is declared once, in the root `.nvmrc`: every `setup-node` step reads it, and the major in
+`apps/web/Dockerfile` (a literal, so Renovate can pin its digest) is bumped with it.
+
 ## Shells and the web bundle
 
 - `scripts/build-web.sh` in each shell builds `apps/web`'s static export

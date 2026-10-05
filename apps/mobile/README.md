@@ -55,7 +55,7 @@ flowchart TD
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 24 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the web app's Node
 - For iOS: full Xcode (from the Mac App Store — Command Line Tools alone are not enough), an Apple ID added to Xcode
 - For Android: Android Studio / JDK
 - No CocoaPods required — Capacitor 8 resolves iOS native dependencies via Swift Package Manager
