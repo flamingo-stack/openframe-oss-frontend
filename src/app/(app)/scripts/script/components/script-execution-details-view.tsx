@@ -14,11 +14,11 @@ import { useRetryKey, ValueText } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
-import { displayValue, EMPTY_VALUE } from '@/lib/empty-value';
-import { formatDateTime } from '@/lib/format-date';
+import { displayValue, EMPTY_VALUE, isEmptyValue } from '@/lib/empty-value';
+import { formatDateTime, formatDateTimeInZone, formatTimeZone, viewerTimeZone } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId } from '@/lib/relay-id';
+import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
@@ -54,6 +54,32 @@ function DetailCell({ value, label }: { value: ReactNode; label: string }) {
   );
 }
 
+const ROW_CLASS = 'flex flex-wrap items-center gap-[var(--spacing-system-m)]';
+const CARD_ROW_CLASS = `${ROW_CLASS} border-b border-ods-border p-[var(--spacing-system-m)]`;
+
+/** Zone | Start | Finish — the two times share the second half, under Status | Execution Time. */
+function TimingRow({
+  zone,
+  zoneLabel,
+  start,
+  finish,
+}: {
+  zone: ReactNode;
+  zoneLabel: string;
+  start: ReactNode;
+  finish: ReactNode;
+}) {
+  return (
+    <div className={CARD_ROW_CLASS}>
+      <DetailCell value={zone} label={zoneLabel} />
+      <div className={cn(ROW_CLASS, 'min-w-[140px] flex-[1_0_0]')}>
+        <DetailCell value={start} label="Start Time" />
+        <DetailCell value={finish} label="Finish Time" />
+      </div>
+    </div>
+  );
+}
+
 function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsViewProps) {
   const { toast } = useToast();
   const environment = useRelayEnvironment();
@@ -85,13 +111,18 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     return () => clearInterval(interval);
   }, [isInFlight, environment, executionId]);
 
+  // `scriptId` is the raw DB id, but Script Details resolves its `?id=` through `node(id:)`.
   const handleBack = useSafeBack(
-    execution?.scriptId ? routes.scripts.details(execution.scriptId, { tab: 'executions' }) : routes.scripts.list,
+    execution?.scriptId
+      ? routes.scripts.details(ensureGlobalIdForType('Script', execution.scriptId), { tab: 'executions' })
+      : routes.scripts.list,
   );
 
   const actions = useMemo<PageActionButton[]>(() => {
     if (!execution) return [];
     const copyDetails = () => {
+      const zone = execution.machine?.timezone;
+      const zoneLabel = formatTimeZone(zone, execution.dispatchedAt);
       const lines = [
         `Execution ID: ${execution.executionId}`,
         `Script Name: ${displayValue(execution.scriptName)}`,
@@ -100,6 +131,14 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
         `Executed by: ${initiatorName(execution.initiator)}`,
         `Status: ${executionStatusLabel(execution.status)}`,
         `Privilege Level: ${privilegeLevelLabel(execution.privilegeLevel)}`,
+        ...(isEmptyValue(zoneLabel)
+          ? []
+          : [
+              `Device Timezone: ${zoneLabel}`,
+              `Device Start Time: ${formatDateTimeInZone(execution.dispatchedAt, zone)}`,
+              `Device Finish Time: ${formatDateTimeInZone(execution.finishedAt, zone)}`,
+            ]),
+        `Your Timezone: ${formatTimeZone(viewerTimeZone(), execution.dispatchedAt)}`,
         `Start Time: ${formatDateTime(execution.dispatchedAt)}`,
         `Finish Time: ${formatDateTime(execution.finishedAt)}`,
         `Execution Time (ms): ${displayValue(execution.executionTimeMs)}`,
@@ -126,6 +165,9 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
 
   const result = executionOutput(execution);
   const org = execution.machine?.organization?.name;
+  // The device's current zone: the execution keeps none of its own.
+  const deviceZone = execution.machine?.timezone;
+  const deviceZoneLabel = formatTimeZone(deviceZone, execution.dispatchedAt);
 
   // The initiator id is a User global id; decode to the raw id the REST-backed
   // employee page expects, then link "Executed by" to that user (new tab).
@@ -144,9 +186,14 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
-        {/* Row 1 — identity */}
-        <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
+        {/* Row 1 — the script */}
+        <div className={CARD_ROW_CLASS}>
           <DetailCell value={displayValue(execution.scriptName)} label="Script Name" />
+          <DetailCell value={privilegeLevelLabel(execution.privilegeLevel)} label="Privilege Level" />
+        </div>
+
+        {/* Row 2 — identity */}
+        <div className={CARD_ROW_CLASS}>
           <DetailCell
             value={
               <div className="flex min-w-0 items-center gap-1">
@@ -217,15 +264,24 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
             }
             label="Status"
           />
-        </div>
-
-        {/* Row 2 — timing */}
-        <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
-          <DetailCell value={privilegeLevelLabel(execution.privilegeLevel)} label="Privilege Level" />
-          <DetailCell value={formatDateTime(execution.dispatchedAt)} label="Start Time" />
-          <DetailCell value={formatDateTime(execution.finishedAt)} label="Finish Time" />
           <DetailCell value={formatCount(execution.executionTimeMs)} label="Execution Time (ms)" />
         </div>
+
+        {/* Rows 3–4 — timing, on the device's clock and on the viewer's */}
+        {!isEmptyValue(deviceZoneLabel) && (
+          <TimingRow
+            zone={deviceZoneLabel}
+            zoneLabel="Device Timezone"
+            start={formatDateTimeInZone(execution.dispatchedAt, deviceZone)}
+            finish={formatDateTimeInZone(execution.finishedAt, deviceZone)}
+          />
+        )}
+        <TimingRow
+          zone={formatTimeZone(viewerTimeZone(), execution.dispatchedAt)}
+          zoneLabel="Your Timezone"
+          start={formatDateTime(execution.dispatchedAt)}
+          finish={formatDateTime(execution.finishedAt)}
+        />
 
         {/* Result — an in-flight execution with no output yet says so (the page
             polls, so the output streams in) instead of a dead-end "—". */}
@@ -257,16 +313,19 @@ function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: strin
 }
 
 /**
- * Card body skeleton: the identity row (Script Name / Device / Executed by /
- * Status), the timing row (Privilege / Start / Finish / Execution Time), then
- * the Result block — mirrors the card markup above, including the 40px avatar
- * that makes the "Executed by" cell (and thus the identity row) taller.
+ * Card body skeleton: the script row (Script Name / Privilege), the identity
+ * row (Device / Executed by / Status / Execution Time), the two timing rows,
+ * then the Result block — mirrors the card markup above, including the 40px
+ * avatar that makes the "Executed by" cell (and thus the identity row) taller.
  */
 function ExecutionDetailsCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
-      <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
+      <div className={CARD_ROW_CLASS}>
         <DetailCellSkeleton valueWidth="w-40" label="Script Name" />
+        <DetailCellSkeleton valueWidth="w-20" label="Privilege Level" />
+      </div>
+      <div className={CARD_ROW_CLASS}>
         <DetailCellSkeleton valueWidth="w-32" label="Device" />
         {/* Executed by — round avatar + name, same 40px avatar as the loaded cell */}
         <DetailCell
@@ -279,13 +338,17 @@ function ExecutionDetailsCardSkeleton() {
           label="Executed by"
         />
         <DetailCellSkeleton valueWidth="w-24" label="Status" />
-      </div>
-      <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        <DetailCellSkeleton valueWidth="w-20" label="Privilege Level" />
-        <DetailCellSkeleton valueWidth="w-32" label="Start Time" />
-        <DetailCellSkeleton valueWidth="w-32" label="Finish Time" />
         <DetailCellSkeleton valueWidth="w-16" label="Execution Time (ms)" />
       </div>
+      {['Device Timezone', 'Your Timezone'].map(zoneLabel => (
+        <TimingRow
+          key={zoneLabel}
+          zone={<Skeleton className="h-6 w-36" />}
+          zoneLabel={zoneLabel}
+          start={<Skeleton className="h-6 w-32" />}
+          finish={<Skeleton className="h-6 w-32" />}
+        />
+      ))}
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
         <Skeleton className="h-6 w-3/4 max-w-full" />
         <div className="text-ods-text-secondary text-h6">Result</div>

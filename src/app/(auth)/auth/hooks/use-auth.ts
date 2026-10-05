@@ -64,7 +64,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  const { setTenantId } = useAuthStore();
+  const setTenantId = useAuthStore(s => s.setTenantId);
   const { clearTokens } = useTokenStorage();
 
   const [email, setEmail] = useLocalStorage('auth:email', '');

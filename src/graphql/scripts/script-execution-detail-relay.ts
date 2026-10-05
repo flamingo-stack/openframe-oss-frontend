@@ -32,6 +32,7 @@ export const scriptExecutionDetailRelayQuery = graphql`
           nickname
           hostname
           displayName
+          timezone
           organization {
             id
             name

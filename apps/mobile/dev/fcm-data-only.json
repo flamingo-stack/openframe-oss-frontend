@@ -1,0 +1,19 @@
+{
+  "message": {
+    "token": "<FCM registration token of the device>",
+    "android": { "priority": "HIGH", "collapse_key": "68c0000000000000000000aa" },
+    "data": {
+      "notificationId": "68c0000000000000000000aa",
+      "type": "MINGO_APPROVAL_REQUEST",
+      "category": "MINGO",
+      "severity": "INFO",
+      "title": "Mingo wants to run a script",
+      "body": "restart-service.ps1 on WS-042",
+      "groupKey": "dialog:68c0000000000000000000bb",
+      "pushCategory": "APPROVAL_REQUEST",
+      "approvalRequestId": "68c0000000000000000000cc",
+      "dialogId": "68c0000000000000000000bb",
+      "recipientUserId": "<the signed-in user's id>"
+    }
+  }
+}

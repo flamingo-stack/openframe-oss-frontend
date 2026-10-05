@@ -51,7 +51,7 @@ export function useMingoRealtimeSubscription(
   const onChunkReceivedRef = useRef(onChunkReceived);
   const catchupRefs = useRef<Map<string, unknown>>(new Map());
 
-  const { resetUnread } = useMingoMessagesStore();
+  const resetUnread = useMingoMessagesStore(s => s.resetUnread);
 
   useEffect(() => {
     onChunkReceivedRef.current = onChunkReceived;

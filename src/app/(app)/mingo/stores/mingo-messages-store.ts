@@ -3,6 +3,7 @@ import {
   type ChatStreamReducer,
   createChatDialogStore,
   DEFAULT_DIALOG_SIDE,
+  DEFAULT_MAX_REDUCERS,
   type StreamingPhase,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
@@ -113,9 +114,24 @@ export function mutateMingoDialog<T>(dialogId: string, fn: (reducer: ChatStreamR
   return mirror.mutate(dialogId, fn);
 }
 
+/** How many most-recently opened dialogs keep their threads cached — the
+ *  lib reducer cap, which the mirror's re-seed parking defeated: every dialog
+ *  opened stayed in memory for the life of the page, and the desktop shell's
+ *  page lives for days. */
+const MAX_CACHED_DIALOGS = DEFAULT_MAX_REDUCERS;
+
+/** Dialogs in the order they were last opened, oldest first. */
+const recentDialogIds: string[] = [];
+
+function forgetRecent(dialogId: string): void {
+  const index = recentDialogIds.indexOf(dialogId);
+  if (index !== -1) recentDialogIds.splice(index, 1);
+}
+
 function dropDialogCaches(dialogId: string): void {
   mirror.drop(dialogId);
   handlersByDialog.delete(dialogId);
+  forgetRecent(dialogId);
 }
 
 // ─── Zustand store (persistence/cache + identity + read mirror) ─────────────
@@ -250,6 +266,47 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
         // re-seeding the replacement reducer with it on the next `getReducer`.
         mirror.setActiveKeys(dialogId ? [dialogId] : []);
         set({ activeDialogId: dialogId });
+
+        if (!dialogId) return;
+        forgetRecent(dialogId);
+        recentDialogIds.push(dialogId);
+        if (recentDialogIds.length > MAX_CACHED_DIALOGS) {
+          recentDialogIds.splice(0, recentDialogIds.length - MAX_CACHED_DIALOGS);
+        }
+
+        // Drop the threads of dialogs outside the recent window, together with
+        // their stream cursor: reopening one then resumes the live tail from
+        // the history it loads, so JetStream replays what history lacks
+        // (realtime-only guide frames, turns newer than a cached history
+        // page) — the same as opening it after a page reload. Only the active
+        // dialog has a live subscription and it is always in the window, so a
+        // dialog left mid-stream is evicted too: nothing would ever end its
+        // stream while it is closed. Unread counts and token usage are small
+        // and stay.
+        const recent = new Set(recentDialogIds);
+        const stale = [...new Set([...mirror.knownKeys(), ...get().messagesByDialog.keys()])].filter(
+          key => !recent.has(key),
+        );
+        if (stale.length === 0) return;
+        for (const key of stale) dropDialogCaches(key);
+        set(state => {
+          const messages = new Map(state.messagesByDialog);
+          const phases = new Map(state.phaseByDialog);
+          const streaming = new Map(state.streamingIdByDialog);
+          const cursors = new Map(state.highestStreamSeqByDialog);
+          for (const key of stale) {
+            messages.delete(key);
+            phases.delete(key);
+            streaming.delete(key);
+            cursors.delete(key);
+          }
+          return {
+            messagesByDialog: messages,
+            phaseByDialog: phases,
+            streamingIdByDialog: streaming,
+            highestStreamSeqByDialog: cursors,
+          };
+        });
       },
 
       setDialogs: (dialogs: DialogNode[]) => {
@@ -401,6 +458,7 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
 
       resetAll: () => {
         for (const dialogId of mirror.knownKeys()) dropDialogCaches(dialogId);
+        recentDialogIds.length = 0;
         // Nothing is displayed after a reset — release any surviving pin.
         mirror.setActiveKeys([]);
         set({

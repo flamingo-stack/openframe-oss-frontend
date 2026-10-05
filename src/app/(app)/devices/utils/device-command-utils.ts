@@ -130,7 +130,7 @@ export const PACKAGE_MANAGER_METHODS: Record<Exclude<InstallMethod, 'script'>, P
   brew: {
     label: 'Brew',
     commandTitle: 'Brew Install Command',
-    installCommand: 'brew install --cask openframe',
+    installCommand: 'brew install --cask flamingo-stack/openframe/openframe-client',
   },
 };
 
@@ -139,7 +139,7 @@ export function installMethodLabel(method: InstallMethod): string {
 }
 
 /** Methods whose package is published; the rest are pending DevOps publishing. */
-const ENABLED_INSTALL_METHODS: ReadonlySet<InstallMethod> = new Set(['script', 'chocolatey']);
+const ENABLED_INSTALL_METHODS: ReadonlySet<InstallMethod> = new Set(['script', 'chocolatey', 'brew']);
 
 /**
  * A method whose package is not live yet is shown disabled in the Install

@@ -1,0 +1,20 @@
+{
+  "Simulator Target Bundle": "ai.openframe.mobile",
+  "aps": {
+    "alert": {
+      "title": "Mingo needs your approval",
+      "body": "Restart nginx on web-01"
+    },
+    "sound": "default",
+    "category": "APPROVAL_REQUEST",
+    "thread-id": "dialog:demo-dialog-1"
+  },
+  "notificationId": "demo-approval-notification",
+  "type": "MINGO_APPROVAL_REQUEST",
+  "category": "MINGO",
+  "severity": "INFO",
+  "approvalRequestId": "demo-approval-1",
+  "dialogId": "demo-dialog-1",
+  "approvalType": "COMMAND_EXECUTION",
+  "resolution": "PENDING"
+}
