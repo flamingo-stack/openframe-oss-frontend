@@ -14,10 +14,10 @@ const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
 
 // The version this bundle reports in `X-OpenFrame-Client` (src/lib/client-identity.ts).
 // The Docker build is handed the release version as a build-arg: its context has
-// no .git, and the desktop release passes the web release tag it runs from.
+// no .git, and the desktop build in the same release gets the same version.
 // Everything else describes the checkout — a mobile build from a local checkout
-// still traces back to a commit (`1.0.125-4-geae0416-dirty`); `--match` keeps the
-// shells' own desktop-v*/mobile-v* tags out of it. No version at all is '' and
+// still traces back to a commit (`1.0.125-4-geae0416-dirty`); `--match` keeps
+// non-release tags out of it. No version at all is '' and
 // goes out as `bundle/-`.
 function resolveBundleVersion() {
   if (process.env.OPENFRAME_BUNDLE_VERSION) return process.env.OPENFRAME_BUNDLE_VERSION;

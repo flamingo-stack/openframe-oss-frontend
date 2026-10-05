@@ -18,7 +18,7 @@
     "relay": "relay-compiler",
     "relay:watch": "relay-compiler --watch",
     "type-check": "tsc --noEmit",
-    "prepare": "husky || true",
+    "prepare": "cd ../.. && husky || true",
     "core:link": "yalc add @flamingo-stack/openframe-frontend-core",
     "core:unlink": "yalc remove @flamingo-stack/openframe-frontend-core",
     "test:node": "node --test src/lib/*.test.mjs",

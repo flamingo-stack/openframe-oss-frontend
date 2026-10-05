@@ -65,20 +65,18 @@ against the produced artifact, which is why `tauri.conf.json` sets
 
 ## Releasing
 
-`.github/workflows/desktop-release.yml` is dispatched **from the web release tag
-prod runs** — `openframe-saas.frontend.image.tag` in
-`manifests/tenant/values-prod.yaml` of openframe-saas-tenant:
+The desktop shell has no release of its own. Every `.github/workflows/release.yml`
+dispatch builds the web image and the shell from one commit under one version:
 
 ```sh
-gh workflow run desktop-release.yml --ref 1.0.150 [-f version=x.y.z]
+gh workflow run release.yml [-f version=x.y.z]
 ```
 
-The shell and its bundled web export are built from that one commit; a dispatch
-from anything but an `x.y.z` tag fails before any build leg starts. The release is
-tagged `desktop-vx.y.z` (bare `x.y.z` tags in this repository are web releases),
-and the first one after the move into this repository needs an explicit
-`version`. Pushes to `main` that touch `apps/desktop/` build the rolling
-`desktop-latest` prerelease.
+The `x.y.z` GitHub release carries the image reference, the installers and
+`updater.json`. The build for the web version prod runs
+(`openframe-saas.frontend.image.tag` in openframe-saas-tenant's
+`manifests/tenant/values-prod.yaml`) is that version's release. Pushes to `main`
+that touch the shell build it as workflow artifacts only (`0.0.0-dev.N`).
 
 ## Configuration
 
