@@ -5,16 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 
 // Tickets live on the ai-agent GraphQL endpoint, not the main /api/graphql schema.
-const TICKETS_GRAPHQL_ENDPOINT = '/chat/graphql';
 const MAIN_GRAPHQL_ENDPOINT = '/api/graphql';
-
-const TICKETS_TOTAL_QUERY = `
-  query CancellationTicketTotal {
-    ticketStatistics {
-      totalCount
-    }
-  }
-`;
 
 /**
  * Articles and the folders they are filed in, in one round trip — the dialog
@@ -66,8 +57,6 @@ interface GraphQlEnvelope<T> {
 }
 
 interface CancellationImpact {
-  /** Total tickets across every status (active, on-hold, resolved, …). */
-  tickets: number;
   kbArticles: number;
   /** Folders those articles are filed in — named beside the article count. */
   kbFolders: number;
@@ -78,19 +67,13 @@ interface CancellationImpact {
   savedQueries: number;
 }
 
-async function fetchTicketsTotal(): Promise<number> {
-  // `totalCount` is computed from the lifecycle status counts on the backend;
-  // the legacy `statusCounts` this used to sum has come back empty since the
-  // custom-status lifecycle shipped, so this figure always showed 0.
-  const res = await apiClient.post<GraphQlEnvelope<{ ticketStatistics?: { totalCount?: number } }>>(
-    TICKETS_GRAPHQL_ENDPOINT,
-    { query: TICKETS_TOTAL_QUERY },
-  );
-  if (!res.ok || res.data?.errors?.length) {
-    throw new Error(res.error || res.data?.errors?.[0]?.message || 'Failed to load ticket total');
-  }
-  return res.data?.data?.ticketStatistics?.totalCount ?? 0;
-}
+// Tickets are intentionally omitted from the cancellation-impact dialog: the
+// backend's `ticketStatistics.totalCount` is computed from legacy
+// `statusCounts` summation that has come back empty since the custom-status
+// lifecycle shipped, so this figure always reported 0. Surfacing a permanent
+// 0 would understate — rather than warn about — data loss, which defeats the
+// purpose of this dialog, so the count is withheld entirely until the
+// backend field is fixed.
 
 interface KnowledgeBaseTrees {
   articles?: Array<{ id: string }>;
@@ -125,8 +108,8 @@ async function fetchScriptCounts(): Promise<{ scripts: number; schedules: number
 }
 
 /**
- * Best-effort "what you'll lose" counts for the cancellation modal. Sourced from three
- * transports (ai-agent GraphQL, main GraphQL, Fleet REST); each is settled independently so
+ * Best-effort "what you'll lose" counts for the cancellation modal. Sourced from two
+ * transports (main GraphQL, Fleet REST); each is settled independently so
  * one failing source still shows the rest. Fetched lazily — only while the modal is open.
  * Read-only ancillary data, so failures degrade to 0 silently rather than toasting.
  */
@@ -136,8 +119,7 @@ export function useCancellationImpact({ enabled }: { enabled: boolean }) {
     enabled,
     staleTime: 60_000,
     queryFn: async () => {
-      const [tickets, knowledgeBase, scripts, policies, queries] = await Promise.allSettled([
-        fetchTicketsTotal(),
+      const [knowledgeBase, scripts, policies, queries] = await Promise.allSettled([
         fetchKnowledgeBase(),
         fetchScriptCounts(),
         fleetApiClient.getPoliciesCount(),
@@ -145,7 +127,6 @@ export function useCancellationImpact({ enabled }: { enabled: boolean }) {
       ]);
 
       return {
-        tickets: tickets.status === 'fulfilled' ? tickets.value : 0,
         kbArticles: knowledgeBase.status === 'fulfilled' ? knowledgeBase.value.articles : 0,
         kbFolders: knowledgeBase.status === 'fulfilled' ? knowledgeBase.value.folders : 0,
         scripts: scripts.status === 'fulfilled' ? scripts.value.scripts : 0,
