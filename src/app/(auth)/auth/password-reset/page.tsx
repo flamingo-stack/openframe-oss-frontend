@@ -8,6 +8,7 @@ import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-aut
 import { authApiClient } from '@/lib/auth-api-client';
 
 const MIN_PASSWORD_LENGTH = 8;
+const AUTH_LOGIN_PATH = '/auth';
 
 export default function PasswordResetPage() {
   const searchParams = useSearchParams();
@@ -27,7 +28,7 @@ export default function PasswordResetPage() {
         description: 'No reset token provided. Please use the link from your password reset email.',
         variant: 'destructive',
       });
-      router.push('/auth');
+      router.push(AUTH_LOGIN_PATH);
     }
   }, [token, router, toast]);
 
@@ -35,7 +36,7 @@ export default function PasswordResetPage() {
   const isMismatch = !!confirmPassword && password !== confirmPassword;
   const isValid = password.length >= MIN_PASSWORD_LENGTH && password === confirmPassword;
 
-  const handleBack = () => router.push('/auth');
+  const handleBack = () => router.push(AUTH_LOGIN_PATH);
 
   const handleSubmit = async () => {
     if (!token || !isValid) return;
@@ -60,7 +61,7 @@ export default function PasswordResetPage() {
       });
 
       setTimeout(() => {
-        router.push('/auth');
+        router.push(AUTH_LOGIN_PATH);
       }, 2000);
     } catch (error) {
       console.error('Password reset error:', error);
