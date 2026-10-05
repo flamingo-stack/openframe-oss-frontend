@@ -4,6 +4,9 @@ name: Openframe Test
 # WORKFLOW CONFIGURATION
 # =============================================================================
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, closed]
@@ -29,7 +32,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    if: github.event_name == 'pull_request'
+    if: github.event.pull_request.state == 'open'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,10 +45,69 @@ jobs:
         with:
           scan: code
 
+  # Each app is checked only when its paths change; `every` applies to both
+  # filters, so desktop is one brace pattern.
+  changes:
+    name: 'Changes'
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    permissions:
+      pull-requests: read
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - uses: dorny/paths-filter@v4.0.2
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            web:
+              - '!apps/desktop/**'
+              - '!apps/mobile/**'
+            desktop:
+              - '{apps/desktop,.github/steps/rust-setup}/**'
+
+  # Repo-wide and cheap, so ungated.
+  static:
+    name: 'Static Checks'
+    runs-on: ubuntu-latest
+    needs: [changes]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: ./.github/steps/yaml-lint
+        with:
+          path: .github
+
+      - uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
+
+      - name: shellcheck
+        run: shellcheck apps/desktop/scripts/*.sh
+
+      - name: Parse-check tauri.conf.json
+        run: |
+          set -euo pipefail
+          conf=apps/desktop/src-tauri/tauri.conf.json
+          jq . "$conf" > /dev/null
+          if jq -e '.bundle.createUpdaterArtifacts and (.plugins.updater.pubkey // "") == ""' "$conf" > /dev/null; then
+            echo "::error file=$conf::createUpdaterArtifacts is on but plugins.updater.pubkey is empty"
+            exit 1
+          fi
+
   lint:
     name: 'Lint'
     runs-on: ubuntu-latest
-    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     permissions:
       contents: read
 
@@ -75,10 +137,46 @@ jobs:
         working-directory: apps/web
         run: npm run lint:ci
 
+  unit_test:
+    name: 'Unit Test'
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+
+      # Tests import the git-ignored enums and relay artifacts.
+      - name: Generate code
+        working-directory: apps/web
+        run: npm run generate-enums && npx relay-compiler
+
+      - name: Unit tests
+        working-directory: apps/web
+        run: npm test
+
   build_image:
     name: 'Test Frontend'
     runs-on: ubuntu-latest
-    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    needs: [changes]
+    if: needs.changes.outputs.web == 'true'
     permissions:
       contents: read
       packages: write
@@ -163,10 +261,70 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" --push --provenance=false --sbom=true "./apps/web"
 
+  desktop_test:
+    name: "Desktop Test: ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}-latest"
+    needs: [changes]
+    if: needs.changes.outputs.desktop == 'true'
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: 0
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos
+            extra_targets: ''
+          - os: windows
+            extra_targets: aarch64-pc-windows-msvc
+
+    steps:
+      # Runs PR-authored build scripts; never hand them a persisted credential.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Prepare Rust tools
+        uses: ./.github/steps/rust-setup
+        with:
+          path: apps/desktop/src-tauri
+          toolchain: stable
+          targets: ${{ matrix.extra_targets }}
+          components: clippy, rustfmt
+          shared-key: ${{ runner.os }}-${{ runner.arch }}
+
+      - name: Run lint
+        run: make lint
+
+      - name: Run tests
+        run: make test
+
+      # ARM64 is cross-compiled and never executed: this is its only check.
+      - name: Cross-compile check (${{ matrix.extra_targets }})
+        if: matrix.extra_targets != ''
+        run: |
+          set -euo pipefail
+          make web-placeholder
+          cd src-tauri && cargo check --all-targets --target "${{ matrix.extra_targets }}"
+
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
     if: github.event.pull_request.state != 'open'
+    permissions:
+      packages: write
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -184,11 +342,10 @@ jobs:
 
   all-checks:
     name: 'All Checks'
-    needs: [lint, build_image]
+    needs: [changes, static, lint, unit_test, build_image, desktop_test]
     runs-on: ubuntu-latest
-    if: |
-      always() &&
-      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || !contains(needs.*.result, 'skipped'))
+    # Skipped only with `changes` (draft or closed PR); an app's skipped jobs pass.
+    if: always() && needs.changes.result != 'skipped'
     steps:
       - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
