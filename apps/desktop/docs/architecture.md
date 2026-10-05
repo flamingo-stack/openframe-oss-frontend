@@ -31,13 +31,12 @@ builds the web app in this same repository — installs its dependencies if
 missing, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies `dist/` to
 `www/`. The shell and the bundle always come from one commit.
 
-A release is dispatched from the web release tag prod runs
-(`openframe-saas.frontend.image.tag` in openframe-saas-tenant's
-`manifests/tenant/values-prod.yaml`), so a shipped build never carries web code
-prod is not running; `desktop-release.yml` refuses any other ref before a build
-leg starts, and passes the tag as `OPENFRAME_BUNDLE_VERSION`. Only the rolling
-`desktop-latest` build from a push to `main` tracks `main`, matching the dev
-environment's `latest` image.
+`release.yml` builds the web image and the shell from one commit under one
+version, passed to both as `OPENFRAME_BUNDLE_VERSION`. The shell build matching
+prod is the release named by `openframe-saas.frontend.image.tag` in
+openframe-saas-tenant's `manifests/tenant/values-prod.yaml`. A push to `main`
+builds the shell as workflow artifacts only, matching the dev environment's
+`latest` image.
 
 `www/` is a generated artifact. `tauri.conf.json` sets `frontendDist: "../www"`,
 and `generate_context!` embeds the directory **at compile time** — so `www/` must
