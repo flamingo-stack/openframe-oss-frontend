@@ -1,4 +1,4 @@
-name: Resolve Version
+name: Desktop Resolve Version
 
 on:
   workflow_call:
@@ -10,7 +10,7 @@ on:
         default: ''
     outputs:
       version:
-        description: "Release tag: 'latest' for a rolling build, x.y.z for a release"
+        description: "Release tag: 'desktop-latest' for a rolling build, desktop-vx.y.z for a release"
         value: ${{ jobs.version.outputs.version }}
       app_version:
         description: "Version baked into the binary: x.y.z, or x.y.z-dev.N for a rolling build"
@@ -26,7 +26,9 @@ jobs:
       version: ${{ steps.version_push.outputs.version || steps.version_dispatch.outputs.version }}
       app_version: ${{ steps.version_push.outputs.app_version || steps.version_dispatch.outputs.app_version }}
     steps:
-      - name: Last published release
+      # Desktop releases are tagged desktop-vx.y.z; bare x.y.z tags in this
+      # repository are web releases and must never be bumped from here.
+      - name: Last published desktop release
         id: published
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,7 +37,7 @@ jobs:
           set -euo pipefail
           latest=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
             --json tagName --jq '.[].tagName' \
-            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+            | sed -nE 's/^desktop-v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' | sort -V | tail -1 || true)
           echo "last published release: ${latest:-<none>}"
           echo "latest=${latest}" >> "$GITHUB_OUTPUT"
 
@@ -54,7 +56,7 @@ jobs:
             app_version="0.0.0-dev.${RUN_NUMBER}"
           fi
           echo "push event: version resolves to latest, app version ${app_version}"
-          echo "version=latest" >> "$GITHUB_OUTPUT"
+          echo "version=desktop-latest" >> "$GITHUB_OUTPUT"
           echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve version (dispatch)
@@ -69,7 +71,7 @@ jobs:
           # First release only: nothing to bump from, so it must be explicit.
           if [[ -z "$LATEST" ]]; then
             if [[ -z "$INPUT_VERSION" ]]; then
-              echo "::error::No published releases to bump from. Pass an explicit version (x.y.z) for the first release."
+              echo "::error::No published desktop releases to bump from. Pass an explicit version (x.y.z) for the first release."
               exit 1
             fi
             if ! [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -77,7 +79,7 @@ jobs:
               exit 1
             fi
             echo "No published releases yet, first release: ${INPUT_VERSION}"
-            echo "version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "version=desktop-v${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
             echo "app_version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -99,5 +101,5 @@ jobs:
             echo "Using provided version: ${version}"
           fi
 
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "version=desktop-v${version}" >> "$GITHUB_OUTPUT"
           echo "app_version=${version}" >> "$GITHUB_OUTPUT"

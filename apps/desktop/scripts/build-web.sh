@@ -1,22 +1,11 @@
 #!/usr/bin/env bash
-# Build the openframe-oss-frontend STATIC EXPORT and stage it as the Tauri web
-# bundle (www/). This repo holds no UI code — the shell embeds that export.
+# Build the web app's STATIC EXPORT from this repository and stage it as the
+# Tauri web bundle (www/). The shell holds no UI code — it embeds that export,
+# always from the same commit as the shell itself.
 #
-# Source of the frontend, in order:
-#   FRONTEND_DIR=/path/to/checkout   use an existing working copy as-is (no git
-#                                    operations — this is the local dev loop)
-#   otherwise                        fresh shallow clone of FRONTEND_REPO at
-#                                    FRONTEND_REF into .frontend/ (git-ignored),
-#                                    re-cloned on every build. FRONTEND_REF
-#                                    is required — no `main` default, so a build
-#                                    never silently ships the frontend's tip. A
-#                                    release passes the frontend image tag prod
-#                                    runs; the frontend release workflow tags
-#                                    that commit with a GitHub release.
-#
-# Mirrors openframe-mobile/scripts/build-web.sh, with one difference: no
-# inject-env.mjs step — the desktop shell injects window.__ENV at RUNTIME (see
-# src-tauri/src/lib.rs env_init_script), so nothing is baked into the HTML here.
+# No inject-env.mjs step, unlike apps/mobile/scripts/build-web.sh: the desktop
+# shell injects window.__ENV at RUNTIME (see src-tauri/src/lib.rs
+# env_init_script), so nothing is baked into the HTML here.
 #
 # The shell's one configured URL is the shared auth host, and it comes from the
 # Rust build rather than this script:
@@ -27,50 +16,23 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FRONTEND_REPO="${FRONTEND_REPO:-https://github.com/flamingo-stack/openframe-oss-frontend}"
-FRONTEND_REF="${FRONTEND_REF:-}"
-CHECKOUT="$HERE/.frontend"
+WEB_DIR="$(cd "$HERE/../.." && pwd)"
 
-if [ -n "${FRONTEND_DIR:-}" ]; then
-  if [ ! -d "$FRONTEND_DIR" ]; then
-    echo "✗ FRONTEND_DIR not found: $FRONTEND_DIR" >&2
-    exit 1
-  fi
-  echo "▸ Using local frontend checkout: $FRONTEND_DIR"
-else
-  if [ -z "$FRONTEND_REF" ]; then
-    echo "✗ FRONTEND_REF is required: the frontend image tag to release against (e.g. 1.0.100), or a branch for a dev build" >&2
-    exit 1
-  fi
-  # Shallow, single-ref: this is a build input, not something to develop in.
-  # Re-cloned every time rather than refreshed in place: fetching a tag into an
-  # existing shallow checkout leaves no local tag ref, so the bundle's
-  # `git describe` (its X-OpenFrame-Client version) would report a bare sha
-  # instead of the release. `npm ci` below reinstalls from scratch either way.
-  echo "▸ Cloning $FRONTEND_REPO ($FRONTEND_REF) → .frontend/…"
-  rm -rf "$CHECKOUT"
-  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$FRONTEND_REF" "$FRONTEND_REPO" "$CHECKOUT"
-  FRONTEND_DIR="$CHECKOUT"
-  echo "▸ Frontend $FRONTEND_REF at $(git -C "$CHECKOUT" rev-parse --short HEAD)"
+if [ ! -d "$WEB_DIR/node_modules" ]; then
+  echo "▸ Installing web dependencies…"
+  ( cd "$WEB_DIR" && npm ci )
 fi
 
-echo "▸ Installing frontend dependencies…"
-if [ -f "$FRONTEND_DIR/package-lock.json" ]; then
-  ( cd "$FRONTEND_DIR" && npm ci )
-else
-  ( cd "$FRONTEND_DIR" && npm install )
-fi
+echo "▸ Building static export ($WEB_DIR)…"
+( cd "$WEB_DIR" && OPENFRAME_BUILD_TARGET="export" npm run build )
 
-echo "▸ Building static export…"
-( cd "$FRONTEND_DIR" && OPENFRAME_BUILD_TARGET="export" npm run build )
-
-if [ ! -d "$FRONTEND_DIR/dist" ]; then
-  echo "✗ export produced no dist/ in $FRONTEND_DIR" >&2
+if [ ! -d "$WEB_DIR/dist" ]; then
+  echo "✗ export produced no dist/ in $WEB_DIR" >&2
   exit 1
 fi
 
 echo "▸ Staging export bundle → www/"
 rm -rf "$HERE/www"
-cp -R "$FRONTEND_DIR/dist" "$HERE/www"
+cp -R "$WEB_DIR/dist" "$HERE/www"
 
 echo "✓ web bundle staged. Next: npm run dev (or make build)"

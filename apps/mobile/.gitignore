@@ -4,9 +4,6 @@ node_modules/
 # web bundle (build artifact — produced by build:web / web:placeholder)
 www/
 
-# frontend checkout cloned by build:web when FRONTEND_REF is set
-/.frontend/
-
 # native build output (lane archives, exported .ipas, DerivedData)
 build/
 # defensive: the same artifacts if a lane is ever pointed outside build/

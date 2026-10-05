@@ -27,19 +27,17 @@ viability and cold-start time.
 ## Bundle pipeline
 
 `scripts/build-web.sh` (wrapped by `make web`, aliased `npm run build:web`)
-clones the frontend into git-ignored `.frontend/` — shallow, single ref, fresh on
-every build so a tag checkout keeps its tag for the bundle's version stamp — installs, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies
-`dist/` to `www/`. `FRONTEND_DIR` points it at an existing checkout instead and
-runs no git operations against it.
+builds the web app in this same repository — installs its dependencies if
+missing, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies `dist/` to
+`www/`. The shell and the bundle always come from one commit.
 
-The ref is `FRONTEND_REF`, and it is required: there is no `main` default, so a
-build never silently ships whatever the frontend's tip happens to be. A release
-passes the frontend image tag prod runs (`openframe-saas.frontend.image.tag` in
-openframe-saas-tenant's `manifests/tenant/values-prod.yaml`); the frontend's
-release workflow creates a GitHub release of the same name at the built commit,
-and `release.yml` verifies the tag exists before any build leg starts. Only the
-rolling `latest` build from a push to `main` tracks frontend `main`, matching the
-dev environment's `latest` image.
+A release is dispatched from the web release tag prod runs
+(`openframe-saas.frontend.image.tag` in openframe-saas-tenant's
+`manifests/tenant/values-prod.yaml`), so a shipped build never carries web code
+prod is not running; `desktop-release.yml` refuses any other ref before a build
+leg starts, and passes the tag as `OPENFRAME_BUNDLE_VERSION`. Only the rolling
+`desktop-latest` build from a push to `main` tracks `main`, matching the dev
+environment's `latest` image.
 
 `www/` is a generated artifact. `tauri.conf.json` sets `frontendDist: "../www"`,
 and `generate_context!` embeds the directory **at compile time** — so `www/` must

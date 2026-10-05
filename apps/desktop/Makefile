@@ -3,9 +3,9 @@
 # Mirrors clients/openframe-chat/Makefile in openframe-oss-tenant so the same CI
 # shape drives both:
 #   make lint
-#   make build TARGET=<rust-target> OPENFRAME_VERSION=<v> FRONTEND_REF=<tag> [BUNDLES=app]
+#   make build TARGET=<rust-target> OPENFRAME_VERSION=<v> [BUNDLES=app]
 #
-# Two differences, both forced by this shell bundling the openframe-frontend
+# Two differences, both forced by this shell bundling the web app's
 # static export rather than building its own UI:
 #   - `build` stages www/ first (chat uses tauri's beforeBuildCommand); the
 #     bundle is embedded by generate_context! at compile time, so every Rust
@@ -14,7 +14,7 @@
 #
 # `make build` is the CI path: tauri.conf.json asks for updater artifacts, which
 # fail without TAURI_SIGNING_PRIVATE_KEY. A local unsigned .app skips them:
-#   make web FRONTEND_DIR=<frontend checkout>
+#   make web
 #   OPENFRAME_SHARED_HOST_URL=<host> npx tauri build --bundles app \
 #     --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
@@ -62,10 +62,7 @@ endif
 deps:
 	$(NPM) ci
 
-# Stage the openframe-oss-frontend static export into www/. Clones/refreshes
-# .frontend/ at FRONTEND_REF=<tag|branch> — required; a release passes the
-# frontend image tag prod runs. FRONTEND_DIR=<path> uses an existing checkout
-# instead and needs no ref.
+# Stage the web app's static export, built from this same commit, into www/.
 web:
 	$(NPM) run build:web
 

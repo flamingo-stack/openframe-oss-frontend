@@ -1,4 +1,4 @@
-name: OpenFrame Console Test
+name: Desktop Test
 
 # =============================================================================
 # WORKFLOW CONFIGURATION
@@ -11,6 +11,16 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
+    # The shell is built against a placeholder bundle here, so web-only changes
+    # cannot affect it.
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/desktop-*.yml'
+      - '.github/steps/rust-setup/**'
+      - '.github/steps/setup-macos-signing/**'
+      - '.github/steps/sign-windows-package/**'
+      - '.github/steps/yaml-lint/**'
+      - '.github/actionlint.yaml'
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +33,7 @@ concurrency:
 
 jobs:
   lint:
-    name: "Lint"
+    name: "Desktop Lint"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,18 +42,20 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/steps/yaml-lint
+        with:
+          path: .github
 
       - uses: docker://rhysd/actionlint:1.7.7
         with:
-          args: -color
+          args: -color .github/workflows/desktop-release.yml .github/workflows/desktop-test.yml .github/workflows/desktop-version.yml
 
       - name: shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck apps/desktop/scripts/*.sh
 
       - name: Parse-check tauri.conf.json
         run: |
           set -euo pipefail
-          conf=src-tauri/tauri.conf.json
+          conf=apps/desktop/src-tauri/tauri.conf.json
           jq . "$conf" > /dev/null
           if jq -e '.bundle.createUpdaterArtifacts and (.plugins.updater.pubkey // "") == ""' "$conf" > /dev/null; then
             echo "::error file=$conf::createUpdaterArtifacts is on but plugins.updater.pubkey is empty"
@@ -52,7 +64,7 @@ jobs:
 
 
   test_shell:
-    name: "Test Shell: ${{ matrix.os }}"
+    name: "Desktop Test Shell: ${{ matrix.os }}"
     runs-on: "${{ matrix.os }}-latest"
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     env:
@@ -60,6 +72,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +97,7 @@ jobs:
       - name: Prepare Rust tools
         uses: ./.github/steps/rust-setup
         with:
-          path: src-tauri
+          path: apps/desktop/src-tauri
           toolchain: stable
           targets: ${{ matrix.extra_targets }}
           components: clippy, rustfmt
@@ -106,7 +119,7 @@ jobs:
 
 
   all-checks:
-    name: "All Checks"
+    name: "Desktop All Checks"
     needs: [lint, test_shell]
     permissions: {}
     runs-on: ubuntu-latest

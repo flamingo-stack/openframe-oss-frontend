@@ -177,6 +177,21 @@ to a full version tag for the same reason.
 - **An override does not reach a subtree the lockfile already holds.** Delete that package's entries
   from `package-lock.json` (not the whole file — that re-resolves everything), then `npm install`.
 
+### Native Shells (`apps/`)
+
+The desktop (Tauri, `apps/desktop/`) and mobile (Capacitor, `apps/mobile/`) shells live in this
+repository, imported with full history from `openframe-saas-desktop` / `openframe-saas-mobile`.
+They hold no UI code: `scripts/build-web.sh` in each builds THIS repo's static export and stages it
+into the shell's `www/`, so a shell and its bundle are always one commit. Each has its own
+`package.json`/lockfile and its own `CLAUDE.md`/`README.md`; root `tsconfig`/Prettier exclude `apps/`.
+
+- **Desktop CI** is `.github/workflows/desktop-{test,release,version}.yml` (path-filtered to
+  `apps/desktop/`). A release is dispatched FROM the web release tag prod runs
+  (`gh workflow run desktop-release.yml --ref 1.0.150`) and is tagged `desktop-vx.y.z`; bare `x.y.z`
+  tags stay web releases. The web `release.yml` ignores `apps/**`.
+- A bridge name change (Tauri command/event, Capacitor plugin method) touches `src/lib/native-shell.ts`
+  and the shell implementation in the same PR.
+
 ### Core Library is External
 
 `@flamingo-stack/openframe-frontend-core` is **NOT part of OpenFrame** — it is a **separate, external library** shared across the Flamingo Stack.

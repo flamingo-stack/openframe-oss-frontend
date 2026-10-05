@@ -63,7 +63,6 @@ npm install
 # 2. stage a web bundle into www/  (pick ONE)
 npm run web:placeholder                       # dev stub — proves the device pipeline
 # — or — the real openframe-frontend export:
-FRONTEND_DIR=~/flamingo/openframe-frontend \
 NEXT_PUBLIC_TENANT_HOST_URL=https://<your-tenant> \
   npm run build:web
 

@@ -1,4 +1,4 @@
-name: OpenFrame Console Release
+name: Desktop Release
 
 # =============================================================================
 # WORKFLOW CONFIGURATION
@@ -11,17 +11,17 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src-tauri/**'
-      - 'scripts/**'
-      - 'Makefile'
-      - 'package.json'
-      - 'package-lock.json'
+      - 'apps/desktop/src-tauri/**'
+      - 'apps/desktop/scripts/**'
+      - 'apps/desktop/Makefile'
+      - 'apps/desktop/package.json'
+      - 'apps/desktop/package-lock.json'
+  # Run it FROM the web release tag prod runs (openframe-saas.frontend.image.tag in
+  # openframe-saas-tenant manifests/tenant/values-prod.yaml), e.g.
+  #   gh workflow run desktop-release.yml --ref 1.0.150
+  # The shell and its bundled web export are that one commit.
   workflow_dispatch:
     inputs:
-      frontend_tag:
-        description: "openframe-oss-frontend image tag to bundle: the one prod runs (openframe-saas.frontend.image.tag in openframe-saas-tenant manifests/tenant/values-prod.yaml), e.g. 1.0.100."
-        required: true
-        type: string
       version:
         description: "Version to Release (x.y.z). Leave empty for auto patch bump."
         required: false
@@ -42,36 +42,47 @@ jobs:
     name: Resolve Version
     permissions:
       contents: read
-    uses: ./.github/workflows/version.yml
+    uses: ./.github/workflows/desktop-version.yml
     with:
       version: ${{ inputs.version }}
 
-  # Pins the bundled frontend: a dispatch to the git tag the frontend release
-  # created with the image prod runs, a push to frontend main (the dev 'latest'
-  # image's source). Fails here, before three build legs spend their minutes.
-  frontend:
-    name: Resolve Frontend
+  # The bundled web export is built from this run's own commit. A dispatch must
+  # run from a web release tag, so a shipped build never carries web code prod
+  # is not running; a push to main is the rolling dev build. The ref doubles as
+  # the bundle's X-OpenFrame-Client version, matching the web image's.
+  # Fails here, before three build legs spend their minutes.
+  web:
+    name: Resolve Web
     permissions: {}
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.resolve.outputs.ref }}
-      sha: ${{ steps.resolve.outputs.sha }}
+      sha: ${{ github.sha }}
     steps:
-      - name: Resolve frontend ref
+      - name: Resolve web ref
         id: resolve
         env:
-          REF: ${{ inputs.frontend_tag || 'main' }}
-          KIND: ${{ inputs.frontend_tag && 'tags' || 'heads' }}
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          sha=$(git ls-remote --exit-code https://github.com/flamingo-stack/openframe-oss-frontend "refs/$KIND/$REF" | cut -f1) \
-            || { echo "::error::openframe-oss-frontend has no refs/$KIND/$REF; a frontend release creates its tag."; exit 1; }
-          echo "frontend: $REF @ $sha"
-          { echo "ref=$REF"; echo "sha=$sha"; } >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = workflow_dispatch ]; then
+            if [ "$REF_TYPE" != tag ] || ! [[ "$REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Dispatch from a web release tag (gh workflow run desktop-release.yml --ref <x.y.z>), not '$REF_NAME'."
+              exit 1
+            fi
+            ref="$REF_NAME"
+          else
+            ref="main-${SHA::7}"
+          fi
+          echo "web: $ref @ $SHA"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
   build:
     name: "Build: ${{ matrix.leg }}"
-    needs: [version, frontend]
+    needs: [version, web]
     permissions:
       contents: read
     runs-on: "${{ matrix.runner }}"
@@ -81,6 +92,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: apps/desktop
     strategy:
       fail-fast: false
       matrix:
@@ -133,11 +145,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
 
       - name: Prepare Rust tools
         uses: ./.github/steps/rust-setup
         with:
-          path: src-tauri
+          path: apps/desktop/src-tauri
           toolchain: stable
           targets: ${{ matrix.archs }}
           shared-key: ${{ runner.os }}-${{ matrix.target }}
@@ -153,7 +168,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           BUNDLES: ${{ matrix.bundles }}
-          FRONTEND_REF: ${{ needs.frontend.outputs.ref }}
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.web.outputs.ref }}
           # Never the 'latest' tag: this Makefile applies it and tauri needs semver.
           OPENFRAME_VERSION: ${{ needs.version.outputs.app_version }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -177,7 +192,7 @@ jobs:
           certificate_profile_name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           tauri_signing_private_key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri_signing_private_key_password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          target_path: ./src-tauri/target
+          target_path: ./apps/desktop/src-tauri/target
           target: ${{ matrix.target }}
 
       - name: Collect artifacts
@@ -200,20 +215,19 @@ jobs:
           fi
           ls -lh artifacts/
 
-      - name: Record bundled frontend commit
+      - name: Record bundled web commit
         if: always()
         env:
           LEG: ${{ matrix.leg }}
-          REF: ${{ needs.frontend.outputs.ref }}
-        run: |
-          sha=$(git -C .frontend rev-parse HEAD 2>/dev/null) || exit 0
-          echo "**$LEG** bundled \`openframe-oss-frontend@$REF\` (\`$sha\`)" | tee -a "$GITHUB_STEP_SUMMARY"
+          REF: ${{ needs.web.outputs.ref }}
+          SHA: ${{ needs.web.outputs.sha }}
+        run: echo "**$LEG** bundled web \`$REF\` (\`$SHA\`)" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: "openframe-console-${{ matrix.leg }}"
-          path: artifacts/
+          path: apps/desktop/artifacts/
           if-no-files-found: error
           retention-days: 30
 
@@ -227,7 +241,7 @@ jobs:
 
   release:
     name: "Create Release"
-    needs: [version, frontend, build]
+    needs: [version, web, build]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -292,16 +306,16 @@ jobs:
       - name: Generate release header
         env:
           SHARED_HOST: ${{ inputs.shared_host_url || secrets.OPENFRAME_SHARED_HOST_URL }}
-          FRONTEND_REF: ${{ needs.frontend.outputs.ref }}
-          FRONTEND_SHA: ${{ needs.frontend.outputs.sha }}
+          WEB_REF: ${{ needs.web.outputs.ref }}
+          WEB_SHA: ${{ needs.web.outputs.sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob   # unmatched globs vanish, so .sig and updater.json skip themselves
           row() { local label=$1; shift; for f in "$@"; do echo "| $label | \`$(basename "$f")\` |"; done; }
           {
-            echo "## OpenFrame Console"
+            echo "## OpenFrame Console (desktop)"
             echo
-            echo "Native shell bundling the openframe-oss-frontend static export."
+            echo "Native shell bundling the web app's static export from the same commit."
             echo
             echo "| Platform | Artifact |"
             echo "|---|---|"
@@ -309,24 +323,28 @@ jobs:
             row "macOS (Universal) — update"       final-artifacts/*.app.tar.gz
             row "Windows x64 — install + update"   final-artifacts/*_x64-setup.exe
             row "Windows arm64 — install + update" final-artifacts/*_arm64-setup.exe
-            printf "\nBundles openframe-oss-frontend \`%s\` (\`%s\`). Built against shared auth host \`%s\`. Updater manifest: \`updater.json\`.\n" "$FRONTEND_REF" "$FRONTEND_SHA" "$SHARED_HOST"
+            printf "\nBundles web \`%s\` (\`%s\`). Built against shared auth host \`%s\`. Updater manifest: \`updater.json\`.\n" "$WEB_REF" "$WEB_SHA" "$SHARED_HOST"
             printf '\n---\n'
           } > RELEASE_HEADER.md
           cat RELEASE_HEADER.md
 
-      - name: Delete existing latest release
+      - name: Delete existing desktop-latest release
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release delete latest --yes --cleanup-tag || true
+          GH_REPO: ${{ github.repository }}
+        run: gh release delete desktop-latest --yes --cleanup-tag || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.version }}
-          name: "🦩 ${{ needs.version.outputs.version }}"
+          target_commitish: ${{ github.sha }}
+          name: "🦩 Desktop ${{ needs.version.outputs.app_version }}"
           draft: false
           prerelease: ${{ github.event_name == 'push' }}
+          # The repository's Latest release is the web one.
+          make_latest: false
           token: ${{ secrets.GITHUB_TOKEN }}
           body_path: RELEASE_HEADER.md
           files: |

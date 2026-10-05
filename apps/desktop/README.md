@@ -19,13 +19,12 @@ OAuth callback has no way back into the app, leaving sign-in unable to complete.
 - Rust (stable) and the [Tauri 2 system prerequisites](https://tauri.app/start/prerequisites/)
   for your platform
 - Node.js 20+
-- `git` (the frontend export is cloned at build time)
 
 ## Quick start
 
 ```sh
 npm install
-FRONTEND_REF=main npm run build:web   # clone + build openframe-oss-frontend, stage into www/
+npm run build:web   # build the repo's web app (static export), stage into www/
 npm run dev         # tauri dev
 ```
 
@@ -50,7 +49,7 @@ bakes no host.
 ```sh
 make lint     # rustfmt --check + clippy -D warnings
 make test     # cargo test
-make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com FRONTEND_REF=1.0.100
+make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
 ```
 
 | Variable | Purpose |
@@ -59,9 +58,6 @@ make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com FRONTEND_REF=1.0.1
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
 | `BUNDLES` | Bundle subset, e.g. `BUNDLES=app` for an unsigned macOS `.app`. |
-| `FRONTEND_DIR` | Use an existing frontend checkout instead of cloning. No git operations are run against it — this is the local dev loop. |
-| `FRONTEND_REF` | **Required unless `FRONTEND_DIR` is set.** Frontend git tag or branch to build; no default, so a build never silently tracks `main`. A release uses the frontend image tag prod runs (see [Releasing](#releasing)). |
-| `FRONTEND_REPO` | Frontend origin, if not the public repo. |
 
 Code signing and notarization are deliberately **not** in the Makefile — they run
 against the produced artifact, which is why `tauri.conf.json` sets
@@ -69,14 +65,20 @@ against the produced artifact, which is why `tauri.conf.json` sets
 
 ## Releasing
 
-`release.yml` on `workflow_dispatch` takes a mandatory `frontend_tag`: the
-openframe-oss-frontend image tag prod runs, `openframe-saas.frontend.image.tag`
-in `manifests/tenant/values-prod.yaml` of openframe-saas-tenant. The pipeline
-resolves the frontend git tag of the same name (the frontend release workflow
-creates a GitHub release for every released image) and builds the static export
-from that commit. Pushes to `main` build the rolling
-`latest` prerelease from frontend `main`, the same source as the dev
-environment's `latest` image.
+`.github/workflows/desktop-release.yml` is dispatched **from the web release tag
+prod runs** — `openframe-saas.frontend.image.tag` in
+`manifests/tenant/values-prod.yaml` of openframe-saas-tenant:
+
+```sh
+gh workflow run desktop-release.yml --ref 1.0.150 [-f version=x.y.z]
+```
+
+The shell and its bundled web export are built from that one commit; a dispatch
+from anything but an `x.y.z` tag fails before any build leg starts. The release is
+tagged `desktop-vx.y.z` (bare `x.y.z` tags in this repository are web releases),
+and the first one after the move into this repository needs an explicit
+`version`. Pushes to `main` that touch `apps/desktop/` build the rolling
+`desktop-latest` prerelease.
 
 ## Configuration
 

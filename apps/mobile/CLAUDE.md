@@ -31,8 +31,6 @@ Strategy: `~/flamingo/openframe-desktop/docs/mobile-app-plan.md` + `native-apps-
 | `NEXT_PUBLIC_MOBILE_APP_SCHEME` | OAuth callback scheme baked into the bundle |
 | `NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER` | dev-ticket observer toggle |
 | `NEXT_PUBLIC_MOBILE_AUTH_UI` | `login-only` (default: no Sign Up tab, no in-app org setup, no-account notice — App Review 3.1.1/3.1.3) or `legacy` (the tabbed sign-up flow) |
-| `FRONTEND_DIR` | frontend checkout override (default `~/flamingo/openframe-frontend`) |
-| `FRONTEND_REF` | build from a fresh clone of the frontend at this release tag (or branch) instead of a local checkout — use for store builds; mutually exclusive with `FRONTEND_DIR`; clone URL overridable with `FRONTEND_REPO` |
 
 `www/` and `ios/App/App/public/` are git-ignored artifacts — a fresh clone must stage a
 bundle (`web:placeholder` or `build:web`) + `cap sync` before Xcode can build.
