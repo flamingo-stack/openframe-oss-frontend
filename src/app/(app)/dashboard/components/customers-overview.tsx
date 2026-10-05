@@ -77,8 +77,8 @@ export function CustomersOverviewSection() {
             percentageDisplay="plain"
             href={
               org.active > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=ONLINE`
-                : `/devices?organizationIds=${org.organizationId}`
+                ? routes.devices.list({ organizationIds: [org.organizationId], statuses: ['ONLINE'] })
+                : routes.devices.list({ organizationIds: [org.organizationId] })
             }
           />
 
@@ -92,8 +92,8 @@ export function CustomersOverviewSection() {
             percentageDisplay="plain"
             href={
               org.inactive > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=OFFLINE`
-                : `/devices?organizationIds=${org.organizationId}`
+                ? routes.devices.list({ organizationIds: [org.organizationId], statuses: ['OFFLINE'] })
+                : routes.devices.list({ organizationIds: [org.organizationId] })
             }
           />
         </div>
