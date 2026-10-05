@@ -232,7 +232,8 @@ export class FileOperations {
   }
 
   validatePath(path: string): boolean {
-    const segments = path.split('/');
+    const separator = this.detectSeparator(path);
+    const segments = path.split(separator);
     for (const segment of segments) {
       if (segment === '..' || segment === '.') {
         return false;
@@ -241,3 +242,4 @@ export class FileOperations {
     return true;
   }
 }
+
