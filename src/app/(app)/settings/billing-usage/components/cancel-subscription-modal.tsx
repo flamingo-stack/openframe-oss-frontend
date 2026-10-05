@@ -298,7 +298,7 @@ function DataLossBox({ stats }: { stats: DataLossStats }) {
     // the ONE child the column could crush: it collapsed to a sliver instead of
     // pushing the body into a scroll.
     <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-[var(--ods-open-yellow-secondary)] p-[var(--spacing-system-xsf)]">
+      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-ods-warning-secondary p-[var(--spacing-system-xsf)]">
         <AlertCircleIcon className="size-6 shrink-0 text-ods-warning" />
         <p className="flex-1 text-ods-warning text-h6">
           Once your subscription ends, this data will no longer be accessible.
@@ -318,7 +318,7 @@ function DataLossSkeleton() {
     // Same `shrink-0`, same reason as `DataLossBox` — and it has to match, or the
     // loading state is the one that collapses.
     <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg">
-      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-[var(--ods-open-yellow-secondary)] p-[var(--spacing-system-xsf)]">
+      <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-ods-warning-secondary p-[var(--spacing-system-xsf)]">
         <AlertCircleIcon className="size-6 shrink-0 text-ods-warning" />
         <p className="flex-1 text-ods-warning text-h6">
           Once your subscription ends, this data will no longer be accessible.
@@ -335,3 +335,4 @@ function DataLossSkeleton() {
     </div>
   );
 }
+
