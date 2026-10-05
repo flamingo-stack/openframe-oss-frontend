@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- Dev flavor identity: launcher/app label only — see the stage counterpart
+     for why title_activity_main is overridden as well. -->
+<resources>
+    <string name="app_name">OF Dev</string>
+    <string name="title_activity_main">OF Dev</string>
+</resources>

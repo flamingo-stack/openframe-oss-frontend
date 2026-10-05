@@ -1,0 +1,32 @@
+{
+  "name": "openframe-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenFrame native mobile shell (Capacitor) — wraps the openframe-frontend static export. No UI code lives here; see docs/.",
+  "scripts": {
+    "web:placeholder": "node scripts/make-placeholder-web.mjs",
+    "build:web": "bash scripts/build-web.sh",
+    "inject-env": "node scripts/inject-env.mjs",
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "run:ios": "cap run ios",
+    "push:demo": "xcrun simctl push booted ai.openframe.mobile dev/push-sample.apns",
+    "push:approval": "xcrun simctl push booted ai.openframe.mobile dev/push-approval.apns",
+    "push:reply": "xcrun simctl push booted ai.openframe.mobile dev/push-reply.apns"
+  },
+  "dependencies": {
+    "@capacitor-firebase/messaging": "^8.3.0",
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "typescript": "^6.0.3"
+  }
+}

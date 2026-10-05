@@ -99,6 +99,7 @@ Neither rule set lives in this repo: both come from the shared config shipped in
 loads. Its README is the reference.
 
 ```bash
+cd apps/web
 npm run lint         # ESLint, the fast pass
 npm run lint:fix     # ESLint autofix
 npm run format:fix   # Prettier
