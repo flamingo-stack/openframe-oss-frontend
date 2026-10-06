@@ -234,26 +234,16 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Unsigned build check only; store builds are the apps/mobile/scripts lanes.
-  build_mobile:
-    name: "Build Mobile: ${{ matrix.leg }}"
+  # Signed store builds, attached to the release for manual upload to App Store Connect / Play.
+  build_ios:
+    name: 'Build iOS'
     needs: [version]
     if: github.event_name == 'workflow_dispatch'
-    runs-on: "${{ matrix.runner }}"
-    timeout-minutes: 60
+    runs-on: macos-latest
     defaults:
       run:
         shell: bash
         working-directory: apps/mobile
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - leg: ios
-            runner: macos-latest
-          - leg: android
-            runner: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -264,79 +254,97 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: |
-            apps/web/package-lock.json
-            apps/mobile/package-lock.json
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+          VERSION_NAME: ${{ needs.version.outputs.version }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          npm ci
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
+          BUILD_NUMBER="$GITHUB_RUN_NUMBER" scripts/build-ios-prod.sh
+          mv build/prod/*.ipa "OpenFrame_${VERSION_NAME}.ipa"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-mobile-ios
+          path: apps/mobile/OpenFrame_*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+  build_android:
+    name: 'Build Android'
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
 
       - name: Set up Java
-        if: matrix.leg == 'android'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
-          cache: gradle
 
-      # Gitignored; the prod Firebase config the store lanes also require.
-      - name: Write Firebase config
-        env:
-          IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
-          ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ "${{ matrix.leg }}" = ios ]; then
-            printf '%s' "$IOS_GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
-          else
-            printf '%s' "$ANDROID_GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
-          fi
-
-      # Same env as scripts/build-{ios,android}-prod.sh.
-      - name: Build web bundle
+      - name: Build
         env:
           NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-          NEXT_PUBLIC_APP_MODE: saas-tenant
-          NEXT_PUBLIC_MOBILE_APP_SCHEME: com.openframe.app
           OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+          VERSION_NAME: ${{ needs.version.outputs.version }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+          UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+          OF_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          OF_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          OF_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           npm ci
-          npm run build:web
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
+          export OF_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+          base64 --decode <<< "$UPLOAD_KEYSTORE" > "$OF_UPLOAD_STORE_FILE"
+          JBR="$JAVA_HOME" VERSION_CODE="$GITHUB_RUN_NUMBER" scripts/build-android-prod.sh
+          mv android/app/build/outputs/bundle/prodRelease/app-prod-release.aab "OpenFrame_${VERSION_NAME}.aab"
 
-      - name: Build iOS
-        if: matrix.leg == 'ios'
-        env:
-          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-          RELEASE_VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          xcodebuild build \
-            -project ios/App/App.xcodeproj -scheme App -configuration Release \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            OPENFRAME_SHARED_HOST_URL="$OPENFRAME_SHARED_HOST_URL" \
-            MARKETING_VERSION="$RELEASE_VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
-
-      - name: Build Android
-        if: matrix.leg == 'android'
-        working-directory: apps/mobile/android
-        env:
-          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-          RELEASE_VERSION: ${{ needs.version.outputs.version }}
-        run: |
-          ./gradlew bundleProdRelease \
-            -PofSharedHostUrl="$OPENFRAME_SHARED_HOST_URL" \
-            -PofVersionName="$RELEASE_VERSION" -PofVersionCode="$GITHUB_RUN_NUMBER"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-mobile-android
+          path: apps/mobile/OpenFrame_*.aab
+          if-no-files-found: error
+          retention-days: 30
 
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop, build_mobile]
+    needs: [version, build_image, build_desktop, build_ios, build_android]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download desktop artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: openframe-console-*
+          pattern: openframe-*
           path: final-artifacts
           merge-multiple: true
 
@@ -388,6 +396,10 @@ jobs:
           - **macOS** (Universal): \`.dmg\` to install, \`.app.tar.gz\` for the updater
           - **Windows** (x64, arm64): \`_x64-setup.exe\`, \`_arm64-setup.exe\`
           - Updater manifest: \`updater.json\`
+
+          ## OpenFrame Mobile
+          - **iOS**: \`.ipa\` for App Store Connect (Transporter)
+          - **Android**: \`.aab\` for Play Console
           ---
           EOF
 
