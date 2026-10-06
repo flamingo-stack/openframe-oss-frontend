@@ -21,10 +21,13 @@ export function EmptyState(props: EmptyStateProps) {
     // Nearest scroll container; falls back to the viewport outside the app shell.
     const scroller = el.closest('main');
 
-    // The page's outermost wrapper - the direct child of the scroll container.
+    // The page's outermost wrapper with a box of its own. A `display: contents`
+    // wrapper (the content-area scope `AppLayout` puts in `<main>` with a docked
+    // side panel) reports an empty rect: measuring it would add the whole
+    // container's height to the fill, and again on every resize.
     let pageRoot: HTMLElement = el;
-    while (pageRoot.parentElement && pageRoot.parentElement !== scroller) {
-      pageRoot = pageRoot.parentElement;
+    for (let node = el.parentElement; node && node !== scroller; node = node.parentElement) {
+      if (getComputedStyle(node).display !== 'contents') pageRoot = node;
     }
 
     const recompute = () => {
