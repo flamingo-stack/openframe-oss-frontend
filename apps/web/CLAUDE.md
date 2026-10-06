@@ -509,7 +509,7 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 1. **New GraphQL code against `/api/graphql` → react-relay.** Queries, fragments, mutations, pagination — all through Relay.
 2. **REST APIs → `@tanstack/react-query`** with `apiClient` (this is not changing).
 3. **Legacy GraphQL** (raw POST through `apiClient` or react-query wrappers) still exists — leave it working, but migrate it to Relay when touching it substantially. Do not add new code in that style.
-4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
+4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation. The same holds for the auth server's one query on `/sas/graphql` (`authErrorMessage`, read by `/auth/error` through `authApiClient.authErrorMessage`): a different service, a different schema, pre-authentication.
 5. No Apollo Client anywhere.
 
 **Every first-party request to the tenant gateway carries `X-OpenFrame-Client`** (format and the backend-agreed
@@ -1093,7 +1093,7 @@ localStorage.removeItem('auth-storage');
 
 ### Backend Services (all via the gateway)
 - **REST** — `/api/*` — openframe-api
-- **GraphQL** — `/api/graphql` — openframe-api (Relay + legacy); `/chat/graphql` — saas-ai-agent (tickets/mingo, raw-POST, SaaS only)
+- **GraphQL** — `/api/graphql` — openframe-api (Relay + legacy); `/chat/graphql` — saas-ai-agent (tickets/mingo, raw-POST, SaaS only); `/sas/graphql` — auth server (the `/auth/error` page's `authErrorMessage` lookup, raw-POST, public)
 - **Live updates** — NATS over WebSocket at `/ws/nats-api` (notifications, chat chunks); tool WS at `/ws/tools/{toolId}`
 - **Authentication** — `/oauth/*` (gateway BFF: login/callback/refresh/logout/dev-exchange); registration via `/sas/oauth/*`
 - **Tool proxies** — `/tools/{toolId}/*` (Fleet; API keys injected by the gateway)
