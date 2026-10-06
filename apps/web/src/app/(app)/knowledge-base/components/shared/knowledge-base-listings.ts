@@ -1,5 +1,6 @@
 import { ConnectionHandler, type RecordProxy, type RecordSourceProxy, ROOT_ID } from 'relay-runtime';
 import type { KnowledgeBaseFilterInput } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
+import { KnowledgeBaseScope } from '@/generated/schema-enums';
 
 // The tables' `@connection` keys, spelled a second time: the test runs these helpers against the
 // tables' own queries, so a drift fails there instead of turning every helper into a no-op.
@@ -18,16 +19,27 @@ export interface KnowledgeBaseListing {
 }
 
 /**
- * The `knowledgeBaseItems` arguments of a listing — what the table sends, and so
- * what its connection in the store is keyed by. `type: null` is the level as one
- * list, folders first.
- *
- * TODO(oss-lib#2545): send `scope` — CHILDREN while browsing, DESCENDANTS under a
- * search or a tag filter. Until then the server picks the depth itself, and a
- * search or a tag filter lists the subtree's articles without the folders.
+ * A search or a tag filter reaches below the level: it lists everything under
+ * it, at any depth, so its rows come from different folders.
  */
-export function knowledgeBaseListingArgs({ parentId, search, tagIds }: KnowledgeBaseListing) {
-  const filter: KnowledgeBaseFilterInput = { parentId, type: null, tagIds: tagIds.length > 0 ? [...tagIds] : null };
+export function isSubtreeListing({ search, tagIds }: Pick<KnowledgeBaseListing, 'search' | 'tagIds'>): boolean {
+  return search !== '' || tagIds.length > 0;
+}
+
+/**
+ * The `knowledgeBaseItems` arguments of a listing — what the table sends, and so
+ * what its connection in the store is keyed by. `type: null` is folders and
+ * articles as one list, folders first. The scope is always named: the level's
+ * own items while browsing, its whole subtree under a search or a tag filter.
+ */
+export function knowledgeBaseListingArgs(listing: KnowledgeBaseListing) {
+  const { parentId, search, tagIds } = listing;
+  const filter: KnowledgeBaseFilterInput = {
+    parentId,
+    type: null,
+    tagIds: tagIds.length > 0 ? [...tagIds] : null,
+    scope: isSubtreeListing(listing) ? KnowledgeBaseScope.DESCENDANTS : KnowledgeBaseScope.CHILDREN,
+  };
   return { filter, search: search || null };
 }
 
@@ -50,7 +62,7 @@ export function removeFromListings(store: RecordSourceProxy, listingIds: readonl
   }
 }
 
-/** The item left this level — whichever page it was moved, archived or deleted from. */
+/** The item left this level — whichever page it was archived or deleted from. */
 export function removeFromFolderListing(store: RecordSourceProxy, parentId: string | null, itemId: string): void {
   removeFromListings(store, [folderListingId(parentId)], itemId);
 }
@@ -62,6 +74,31 @@ export function removeFromFolderListing(store: RecordSourceProxy, parentId: stri
  */
 export function invalidateFolderListing(store: RecordSourceProxy, parentId: string | null): void {
   store.get(folderListingId(parentId))?.invalidateRecord();
+}
+
+interface FolderMove {
+  itemId: string;
+  from: string | null;
+  to: string | null;
+  /** The listings on screen that draw the item, when it is moved from a list. */
+  onScreen?: readonly string[];
+}
+
+/**
+ * The item moved to another folder. The level it left loses the row and the one
+ * it joined is marked stale. Any other listing on screen is a subtree (a search,
+ * a tag filter): whether the item is still under it is the server's to say, so
+ * that one is marked stale as well.
+ */
+export function moveBetweenFolders(store: RecordSourceProxy, { itemId, from, to, onScreen = [] }: FolderMove): void {
+  if (from === to) return;
+  const left = folderListingId(from);
+  removeFromListings(store, [left], itemId);
+  for (const listingId of new Set([folderListingId(to), ...onScreen])) {
+    if (listingId !== left) {
+      store.get(listingId)?.invalidateRecord();
+    }
+  }
 }
 
 /** The archive gained or lost an article from another page — same reasoning as above. */

@@ -12,7 +12,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { FolderPicker } from '../shared/folder-picker';
 import { FolderPickerFallback } from '../shared/folder-picker-fallback';
 import type { FolderTarget } from '../shared/folder-tree';
-import { invalidateFolderListing, removeFromFolderListing } from '../shared/knowledge-base-listings';
+import { moveBetweenFolders } from '../shared/knowledge-base-listings';
 
 const moveToFolderModalFragment = graphql`
   fragment moveToFolderModal_item on KnowledgeBaseItem {
@@ -28,6 +28,10 @@ const moveToFolderModalMutation = graphql`
     moveToFolder(id: $id, parentId: $parentId) {
       id
       parentId
+      # What a search result shows as the row's folder.
+      parent {
+        name
+      }
       updatedAt
     }
   }
@@ -38,9 +42,11 @@ interface MoveToFolderModalProps {
   item: moveToFolderModal_item$key;
   isOpen: boolean;
   onClose: () => void;
+  /** The listings on screen the item is drawn from, when it is moved from a list. */
+  listingIds?: readonly string[];
 }
 
-export function MoveToFolderModal({ item, isOpen, onClose }: MoveToFolderModalProps) {
+export function MoveToFolderModal({ item, isOpen, onClose, listingIds }: MoveToFolderModalProps) {
   const { toast } = useToast();
   const data = useFragment(moveToFolderModalFragment, item);
   const [commit, isInFlight] = useMutation<MoveToFolderModalMutationType>(moveToFolderModalMutation);
@@ -59,13 +65,7 @@ export function MoveToFolderModal({ item, isOpen, onClose }: MoveToFolderModalPr
     const from = data.parentId ?? null;
     commit({
       variables: { id: data.id, parentId: target.id },
-      updater: store => {
-        if (target.id === from) return;
-        // Only the level's own listing loses the row. A search result keeps it: the
-        // item still matches, wherever it lives now.
-        removeFromFolderListing(store, from, data.id);
-        invalidateFolderListing(store, target.id);
-      },
+      updater: store => moveBetweenFolders(store, { itemId: data.id, from, to: target.id, onScreen: listingIds }),
       onCompleted: () => {
         toast({ title: 'Moved', description: `${data.name} moved to ${target.name}`, variant: 'success' });
         onClose();

@@ -91,6 +91,9 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
 
 const PAGE_SIZE = 100;
 
+/** Every `assignedItems` read, of any item — what a write to assignments invalidates. */
+export const ASSIGNED_ITEMS_QUERY_KEY = ['assignments', 'assigned-items'] as const;
+
 interface AssignedTargetNode {
   // __typename is a GraphQL protocol field name
   __typename: 'Organization' | 'Machine' | 'Ticket' | 'KnowledgeBaseItem';
@@ -318,7 +321,7 @@ export function useAssignedItems({ itemId, itemType, enabled = true }: UseAssign
 
   return useQueries({
     queries: ASSIGNMENT_TARGET_TYPES.map(targetType => ({
-      queryKey: ['assignments', 'assigned-items', itemType, normalizedItemId, targetType],
+      queryKey: [...ASSIGNED_ITEMS_QUERY_KEY, itemType, normalizedItemId, targetType],
       queryFn: () => fetchAssignedItems(normalizedItemId as string, targetType),
       enabled: isEnabled,
       staleTime: 30_000,

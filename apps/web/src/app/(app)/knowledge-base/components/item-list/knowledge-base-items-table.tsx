@@ -24,11 +24,15 @@ import type {
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
-import { KnowledgeBaseItemType } from '@/generated/schema-enums';
+import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { type KnowledgeBaseListing, knowledgeBaseListingArgs } from '../shared/knowledge-base-listings';
+import {
+  isSubtreeListing,
+  type KnowledgeBaseListing,
+  knowledgeBaseListingArgs,
+} from '../shared/knowledge-base-listings';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
@@ -37,39 +41,13 @@ import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';
 
 /**
  * One level of the knowledge base — the root or a folder — as ONE paged list:
- * its folders first, by name, then its articles, newest change first. Search
- * and the tag filter go to the server.
+ * folders first, by name, then articles, newest change first. Browsing lists the
+ * level itself; a search or a tag filter goes to the server and lists everything
+ * under the level, at any depth.
  */
 const knowledgeBaseItemsTableQuery = graphql`
-  query knowledgeBaseItemsTableQuery(
-    $filter: KnowledgeBaseFilterInput
-    $search: String
-    $first: Int!
-    $after: String
-    $folderFilter: KnowledgeBaseFilterInput
-    $searching: Boolean!
-  ) {
+  query knowledgeBaseItemsTableQuery($filter: KnowledgeBaseFilterInput, $search: String, $first: Int!, $after: String) {
     ...knowledgeBaseItemsTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
-
-    # TODO(oss-lib#2545): delete this field, its two variables and the merge in
-    # the component. Before that backend a search lists articles only, so the
-    # folders matching it are asked for apart. Once it is out the listing above
-    # carries them and this answer is a subset of it.
-    searchFolders: knowledgeBaseItems(filter: $folderFilter, search: $search, first: $first)
-      @include(if: $searching)
-      @connection(key: "knowledgeBaseItemsTable_searchFolders", filters: ["filter", "search"]) {
-      __id
-      edges {
-        node {
-          id
-          type
-          ...knowledgeBaseItemNameCell_item
-          ...knowledgeBaseItemCreatedCell_item
-          ...knowledgeBaseItemActionsCell_item
-          ...knowledgeBaseItemDialogs_item
-        }
-      }
-    }
   }
 `;
 
@@ -93,6 +71,11 @@ const knowledgeBaseItemsTableFragment = graphql`
           id
           # Where the row leads: a folder opens its listing, an article its page.
           type
+          # The folder the row is in. A search or a tag filter lists a whole
+          # subtree, so there the name says it; null is the root level.
+          parent {
+            name
+          }
           ...knowledgeBaseItemNameCell_item
           ...knowledgeBaseItemCreatedCell_item
           ...knowledgeBaseItemActionsCell_item
@@ -112,12 +95,20 @@ type ItemRow = knowledgeBaseItemsTable_query$data['knowledgeBaseItems']['edges']
 const getRowId = (row: ItemRow) => row.id;
 const rowHref = (row: ItemRow) => knowledgeBaseItemHref(row.type, row.id);
 
-function buildColumns(onOpenDialog: (row: ItemRow, dialog: ItemDialogKind) => void): ColumnDef<ItemRow>[] {
+function buildColumns(
+  isSubtree: boolean,
+  onOpenDialog: (row: ItemRow, dialog: ItemDialogKind) => void,
+): ColumnDef<ItemRow>[] {
   return [
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.name.id,
       header: KNOWLEDGE_BASE_ITEM_COLUMNS.name.header,
-      cell: ({ row }: { row: Row<ItemRow> }) => <KnowledgeBaseItemNameCell item={row.original} />,
+      cell: ({ row }: { row: Row<ItemRow> }) => (
+        <KnowledgeBaseItemNameCell
+          item={row.original}
+          folder={isSubtree ? (row.original.parent?.name ?? ROOT_FOLDER.name) : undefined}
+        />
+      ),
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.name),
     },
@@ -166,14 +157,10 @@ export function KnowledgeBaseItemsTable({
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
 
-  const { filter, search } = knowledgeBaseListingArgs(listing);
   const variables: KnowledgeBaseItemsTableQueryType['variables'] = {
-    filter,
-    search,
+    ...knowledgeBaseListingArgs(listing),
     first: KNOWLEDGE_BASE_PAGE_SIZE,
     after: null,
-    folderFilter: { ...filter, type: KnowledgeBaseItemType.FOLDER },
-    searching: search !== null,
   };
   const queryData = useLazyLoadQuery<KnowledgeBaseItemsTableQueryType>(knowledgeBaseItemsTableQuery, variables, {
     fetchPolicy: 'store-and-network',
@@ -186,24 +173,14 @@ export function KnowledgeBaseItemsTable({
   >(knowledgeBaseItemsTableFragment, queryData);
   const items = data.knowledgeBaseItems;
 
-  // A mutation elsewhere marked this listing stale — a folder created on this
-  // level, an article moved into it (`invalidateFolderListing`). Asking again
-  // from the top is the only way to learn where the server sorts the newcomer.
+  // A mutation marked this listing stale — a folder created on this level, an
+  // item moved into it or within a search result. Asking again from the top is
+  // the only way to learn what the server lists now, and where.
   useSubscribeToInvalidationState([items.__id], () => {
     fetchQuery(environment, knowledgeBaseItemsTableQuery, variables, { fetchPolicy: 'network-only' }).subscribe({});
   });
 
-  const listed = items.edges.map(edge => edge.node);
-  // TODO(oss-lib#2545): `rows` is `listed`, the count is `filteredCount` and the
-  // listing ids are the one `__id` — see `searchFolders` in the query. Folders
-  // the listing already holds are dropped here, so the two backends draw the
-  // same list and neither draws a folder twice.
-  const searchFolders = queryData.searchFolders;
-  const listedIds = new Set(listed.map(row => row.id));
-  const unlistedFolders = (searchFolders?.edges ?? []).map(edge => edge.node).filter(row => !listedIds.has(row.id));
-  const rows: ItemRow[] = [...unlistedFolders, ...listed];
-  const totalCount = items.filteredCount + unlistedFolders.length;
-  const listingIds = searchFolders ? [items.__id, searchFolders.__id] : [items.__id];
+  const rows = items.edges.map(edge => edge.node);
 
   const fetchNextPage = () => {
     if (!hasNext || isLoadingNext) return;
@@ -218,17 +195,17 @@ export function KnowledgeBaseItemsTable({
 
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ItemRow, ItemDialogKind>();
 
+  const isSubtree = isSubtreeListing(listing);
   const table = useDataTable<ItemRow>({
     data: rows,
-    columns: buildColumns(openDialog),
+    columns: buildColumns(isSubtree, openDialog),
     getRowId,
     enableSorting: false,
   });
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); a level with nothing on it gets the page's empty state instead.
-  const isNarrowed = listing.search !== '' || listing.tagIds.length > 0;
-  const showEmptyState = !isNarrowed && !isPending && rows.length === 0;
+  const showEmptyState = !isSubtree && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -249,7 +226,7 @@ export function KnowledgeBaseItemsTable({
             <DataTable.Header
               stickyHeader
               stickyHeaderOffset={stickyHeaderOffset}
-              rightSlot={<DataTable.RowCount itemName="item" totalCount={totalCount} />}
+              rightSlot={<DataTable.RowCount itemName="item" totalCount={items.filteredCount} />}
             />
             <DataTable.Body
               emptyState={{
@@ -279,7 +256,7 @@ export function KnowledgeBaseItemsTable({
           kind={dialog.kind}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingIds={listingIds}
+          listingIds={[items.__id]}
         />
       )}
     </>

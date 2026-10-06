@@ -7,11 +7,18 @@ import { ARTICLE_STATUS_VARIANT } from './article-status';
 import { KB_ITEM_ICON } from './knowledge-base-item-icon';
 
 /** The NAME column's values — typed off the cell's fragment, so a list that is not on Relay is checked against it. */
-export type KnowledgeBaseItemNameProps = Omit<knowledgeBaseItemNameCell_item$data, ' $fragmentType'>;
+export type KnowledgeBaseItemNameProps = Omit<knowledgeBaseItemNameCell_item$data, ' $fragmentType'> & {
+  /** The folder the row is in — for a list whose rows come from different folders. */
+  folder?: string;
+};
 
-/** NAME column: the glyph, the name, the status of an article that is not live, and its summary. */
-export function KnowledgeBaseItemName({ type, name, status, summary }: KnowledgeBaseItemNameProps) {
+/**
+ * NAME column: the glyph, the name, the status of an article that is not live,
+ * and under them the folder (where the list says it) and an article's summary.
+ */
+export function KnowledgeBaseItemName({ type, name, status, summary, folder }: KnowledgeBaseItemNameProps) {
   const isFolder = type === KnowledgeBaseItemType.FOLDER;
+  const caption = [folder, isFolder ? null : summary].filter(Boolean).join(' · ');
   const Icon = KB_ITEM_ICON[isFolder ? KnowledgeBaseItemType.FOLDER : KnowledgeBaseItemType.ARTICLE];
   const flag =
     status === KnowledgeBaseArticleStatus.DRAFT || status === KnowledgeBaseArticleStatus.ARCHIVED ? status : null;
@@ -29,9 +36,9 @@ export function KnowledgeBaseItemName({ type, name, status, summary }: Knowledge
           </div>
           {flag && <Tag variant={ARTICLE_STATUS_VARIANT[flag]} label={flag} className="shrink-0" />}
         </div>
-        {!isFolder && summary && (
+        {caption && (
           <TruncateText variant="h6" tone="secondary">
-            {summary}
+            {caption}
           </TruncateText>
         )}
       </div>

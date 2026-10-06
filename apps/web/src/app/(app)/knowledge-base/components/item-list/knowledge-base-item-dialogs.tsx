@@ -23,7 +23,7 @@ interface KnowledgeBaseItemDialogsProps {
   kind: ItemDialogKind;
   isOpen: boolean;
   onClose: () => void;
-  /** The listings on screen the row is drawn from — an archived or deleted item leaves them at once. */
+  /** The listings on screen the row is drawn from — an archived or deleted item leaves them at once, a moved one may. */
   listingIds: readonly string[];
 }
 
@@ -35,7 +35,7 @@ export function KnowledgeBaseItemDialogs({ item, kind, isOpen, onClose, listingI
     case 'rename':
       return <RenameFolderModal folder={data} isOpen={isOpen} onClose={onClose} />;
     case 'move':
-      return <MoveToFolderModal item={data} isOpen={isOpen} onClose={onClose} />;
+      return <MoveToFolderModal item={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
     case 'delete':
       return <DeleteFolderModal folder={data} isOpen={isOpen} onClose={onClose} listingIds={listingIds} />;
     case 'archive':

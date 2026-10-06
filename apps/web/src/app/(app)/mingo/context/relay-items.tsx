@@ -41,6 +41,7 @@ import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/r
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
+import { ROOT_FOLDER } from '@/app/(app)/knowledge-base/components/shared/folder-tree';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
@@ -210,6 +211,10 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
 
 // ─────────────────────────── Knowledge Article ──────────────────────────────
 
+// Every article in the knowledge base, whatever folder it is filed in. The scope
+// is what says so: without one a listing that carries no search stops at the root
+// level, and an article inside a folder could only be found by typing its name.
+// Archived articles are never in this connection.
 const KB_FRAGMENT = graphql`
   fragment relayItemsKb_query on Query
   @refetchable(queryName: "relayItemsKbPaginationQuery")
@@ -218,13 +223,15 @@ const KB_FRAGMENT = graphql`
     first: { type: "Int", defaultValue: 10 }
     after: { type: "String" }
   ) {
-    knowledgeBaseItems(filter: { type: ARTICLE }, search: $search, first: $first, after: $after)
+    knowledgeBaseItems(filter: { type: ARTICLE, scope: DESCENDANTS }, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsKb_knowledgeBaseItems") {
       edges {
         node {
           id
           name
-          type
+          parent {
+            name
+          }
         }
       }
     }
@@ -257,7 +264,8 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
                 id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
-                description: e.node.type ?? undefined,
+                // The folder it is in — what tells two articles of one name apart.
+                description: e.node.parent?.name ?? ROOT_FOLDER.name,
               },
             ]
           : [],

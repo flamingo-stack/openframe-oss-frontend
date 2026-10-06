@@ -30,6 +30,9 @@ const unarchiveArticleModalMutation = graphql`
       id
       status
       parentId
+      parent {
+        name
+      }
       updatedAt
     }
   }
