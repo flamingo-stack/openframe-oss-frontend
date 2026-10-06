@@ -327,7 +327,7 @@ jobs:
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop]
+    needs: [version, build_image, build_desktop, build_mobile]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
