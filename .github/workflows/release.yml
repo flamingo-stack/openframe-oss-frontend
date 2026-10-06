@@ -234,6 +234,96 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Unsigned build check only; store builds are the apps/mobile/scripts lanes.
+  build_mobile:
+    name: "Build Mobile: ${{ matrix.leg }}"
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: "${{ matrix.runner }}"
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/mobile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: ios
+            runner: macos-latest
+          - leg: android
+            runner: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            apps/mobile/package-lock.json
+
+      - name: Set up Java
+        if: matrix.leg == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Gitignored; the prod Firebase config the store lanes also require.
+      - name: Write Firebase config
+        env:
+          IOS_GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
+          ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ "${{ matrix.leg }}" = ios ]; then
+            printf '%s' "$IOS_GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
+          else
+            printf '%s' "$ANDROID_GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
+          fi
+
+      # Same env as scripts/build-{ios,android}-prod.sh.
+      - name: Build web bundle
+        env:
+          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          NEXT_PUBLIC_APP_MODE: saas-tenant
+          NEXT_PUBLIC_MOBILE_APP_SCHEME: com.openframe.app
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          npm ci
+          npm run build:web
+
+      - name: Build iOS
+        if: matrix.leg == 'ios'
+        env:
+          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          xcodebuild build \
+            -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            OPENFRAME_SHARED_HOST_URL="$OPENFRAME_SHARED_HOST_URL" \
+            MARKETING_VERSION="$RELEASE_VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Build Android
+        if: matrix.leg == 'android'
+        working-directory: apps/mobile/android
+        env:
+          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          ./gradlew bundleProdRelease \
+            -PofSharedHostUrl="$OPENFRAME_SHARED_HOST_URL" \
+            -PofVersionName="$RELEASE_VERSION" -PofVersionCode="$GITHUB_RUN_NUMBER"
+
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'

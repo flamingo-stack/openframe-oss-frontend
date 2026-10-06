@@ -24,8 +24,8 @@ Node is declared once, in the root `.nvmrc`: every `setup-node` step reads it, a
 - **Release** is one `.github/workflows/release.yml` (version from `version.yml`): a dispatch
   publishes the web image and the desktop shell from one commit as one `x.y.z` release; a push to
   `main` builds only what changed (`latest` image, desktop as workflow artifacts). PR checks for web
-  and desktop are one `test.yml`, gated per app by paths, behind the required "All Checks". Mobile
-  has no CI.
+  and desktop are one `test.yml`, gated per app by paths, behind the required "All Checks". A
+  dispatch also builds mobile unsigned as a check; store builds are the `apps/mobile/scripts` lanes.
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
 
