@@ -11,6 +11,8 @@ export interface DialogsQueryParams {
   statusFilters?: string[];
   statusIds?: string[];
   organizationIds?: string[];
+  /** Machine ids — the device detail tab's scope. */
+  deviceIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
   /** Only tickets with unread client-chat messages (the row badge). */
@@ -40,6 +42,7 @@ export const dialogsQueryKeys = {
         statusFilters: params.statusFilters || [],
         statusIds: params.statusIds || [],
         organizationIds: params.organizationIds || [],
+        deviceIds: params.deviceIds || [],
         assigneeIds: params.assigneeIds || [],
         tagIds: params.tagIds || [],
         unreadOnly: params.unreadOnly ?? false,
