@@ -18,6 +18,7 @@
 #            VERSION_CODE=n — overrides versionCode (Play requires it to increase
 #                             per upload; build.gradle's default is 1).
 #            VERSION_NAME=x — overrides versionName.
+#            JBR=/path      — JDK home (default: Android Studio's bundled JBR).
 #
 # One-time prerequisites:
 #   - Play Console app record for ai.openframe.mobile, Play App Signing enrolled.
@@ -26,7 +27,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+JBR="${JBR:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"  # CI passes its JDK
 AAB="$HERE/android/app/build/outputs/bundle/prodRelease/app-prod-release.aab"
 
 # Required even with SKIP_WEB=1: the native refresher bakes it into BuildConfig.
