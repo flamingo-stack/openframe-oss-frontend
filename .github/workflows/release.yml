@@ -312,15 +312,15 @@ jobs:
           OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
           VERSION_NAME: ${{ needs.version.outputs.version }}
           GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
-          UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
-          OF_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          OF_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          OF_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: upload
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}  # PKCS12: key password = store password
         run: |
           npm ci
           printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
-          export OF_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
-          base64 --decode <<< "$UPLOAD_KEYSTORE" > "$OF_UPLOAD_STORE_FILE"
+          export ANDROID_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+          base64 --decode <<< "$ANDROID_UPLOAD_KEYSTORE" > "$ANDROID_UPLOAD_STORE_FILE"
           JBR="$JAVA_HOME" VERSION_CODE="$GITHUB_RUN_NUMBER" scripts/build-android-prod.sh
           mv android/app/build/outputs/bundle/prodRelease/app-prod-release.aab "OpenFrame_${VERSION_NAME}.aab"
 
