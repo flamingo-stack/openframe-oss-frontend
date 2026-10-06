@@ -95,14 +95,17 @@ export function CompanyTeamStep({
 
       <div className="flex flex-col">
         {/* Column labels — shown once above the rows */}
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-xs)] md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-xs)] content-md:grid-cols-2">
           <Label>User Email</Label>
-          <Label className="hidden md:block">Role</Label>
+          <Label className="hidden content-md:block">Role</Label>
         </div>
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
           {rows.map((row, idx) => (
-            <div key={idx} className="grid grid-cols-1 items-center gap-[var(--spacing-system-xs)] md:grid-cols-2">
+            <div
+              key={idx}
+              className="grid grid-cols-1 items-center gap-[var(--spacing-system-xs)] content-md:grid-cols-2"
+            >
               <Input
                 placeholder="Enter Email Here"
                 value={row.email}
@@ -145,7 +148,7 @@ export function CompanyTeamStep({
       </div>
 
       {/* Footer actions */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
         <Link
           href={routes.settings.employees}
           className="flex flex-1 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary transition-colors hover:text-ods-text-primary"
@@ -153,7 +156,7 @@ export function CompanyTeamStep({
           <ExternalLinkIcon size={24} className="shrink-0" />
           <span className="underline text-h4">Manage Roles</span>
         </Link>
-        <div className="hidden flex-1 md:block" />
+        <div className="hidden flex-1 content-md:block" />
         {!completed ? (
           <Button
             variant="outline"
@@ -164,14 +167,14 @@ export function CompanyTeamStep({
             }}
             loading={actions.complete.loading}
             disabled={actions.complete.disabled}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Mark as Complete
           </Button>
         ) : (
           // Keep the completed step's primary button its own width — don't let it
           // stretch into the removed "Mark as Complete" slot.
-          <div className="hidden md:block md:flex-1" aria-hidden />
+          <div className="hidden content-md:block content-md:flex-1" aria-hidden />
         )}
         <Button
           variant="accent"
@@ -181,7 +184,7 @@ export function CompanyTeamStep({
           }}
           disabled={!canSubmit || actions.primary.disabled}
           loading={actions.primary.loading}
-          className="w-full md:flex-1"
+          className="w-full content-md:flex-1"
         >
           Send Invites
         </Button>

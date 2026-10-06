@@ -224,7 +224,7 @@ export function TicketFormFields({
       />
 
       {/* Organization, Device, Assigned, Status — 4-column grid (2 on mobile) */}
-      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-6 content-lg:grid-cols-4">
         <Controller
           name="organizationId"
           control={control}

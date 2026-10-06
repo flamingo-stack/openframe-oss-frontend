@@ -236,7 +236,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
               router.push(routes.settings.aiSettings({ tab: 'customer', edit: true }));
             }}
             leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-            className="w-full md:w-auto"
+            className="w-full content-md:w-auto"
           >
             Edit Default Configuration
           </Button>
@@ -263,7 +263,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     }
 
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)] max-md:[&_input]:!text-[14px] max-md:[&_textarea]:!text-[14px]">
+      <div className="flex flex-col gap-[var(--spacing-system-l)] content-max-md:[&_input]:!text-[14px] content-max-md:[&_textarea]:!text-[14px]">
         {toggleRow}
 
         {useDefault ? (
@@ -292,7 +292,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
           </>
         ) : (
           <>
-            <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-start">
+            <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-start">
               <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
                 <Controller
                   name="assistantName"
@@ -310,20 +310,20 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 />
               </div>
 
-              <div className="w-full shrink-0 md:w-[274px]">
+              <div className="w-full shrink-0 content-md:w-[274px]">
                 <ImageUploader
                   fieldLabel="Assistant Avatar"
                   value={avatarUrl}
                   onChange={handleAvatarChange}
                   onRemove={handleAvatarRemove}
-                  className="[&>div]:!h-[154px] md:[&>div]:!h-[148px] [&_button]:size-10 [&_button]:p-2 md:[&_button]:size-12 md:[&_button]:p-3"
+                  className="[&>div]:!h-[154px] content-md:[&>div]:!h-[148px] [&_button]:size-10 [&_button]:p-2 content-md:[&_button]:size-12 content-md:[&_button]:p-3"
                   alt={assistantName || effectiveView.assistantName}
                 />
               </div>
             </div>
 
             <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-              <div className="flex flex-col gap-[var(--spacing-system-l)] md:flex-row md:items-end">
+              <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-end">
                 <div className="min-w-0 flex-1">
                   <Controller
                     name="applicationTheme"

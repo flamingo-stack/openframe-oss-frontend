@@ -32,7 +32,7 @@ export function TicketsAssignedTable({ tickets, isLoading }: TicketsAssignedTabl
         placeholder="Search for Ticket"
         value={search}
         onChange={e => setSearch(e.target.value)}
-        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
       />
       <TicketTableBody tickets={filtered} isLoading={isLoading} emptyMessage="No tickets assigned." skeletonRows={3} />
     </div>

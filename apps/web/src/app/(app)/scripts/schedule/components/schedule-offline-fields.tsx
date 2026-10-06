@@ -169,7 +169,7 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
       ? // Desktop only. Below `md` the caption plus two controls cannot share a
         // row with the option's own label without squeezing it to nothing, so
         // the same fields render full-width under the group instead.
-        { ...option, trailing: <div className="hidden md:flex">{windowFieldsFor(false)}</div> }
+        { ...option, trailing: <div className="hidden content-md:flex">{windowFieldsFor(false)}</div> }
       : option,
   );
 
@@ -208,7 +208,7 @@ export function ScheduleOfflineFields({ showErrors, disabled = false }: { showEr
               disabled={disabled}
               options={options}
             />
-            <div className="pt-[var(--spacing-system-xs)] md:hidden">{windowFieldsFor(true)}</div>
+            <div className="pt-[var(--spacing-system-xs)] content-md:hidden">{windowFieldsFor(true)}</div>
             {intervalError && (
               <div className="absolute bottom-0 left-0 right-0 translate-y-full">
                 <TruncateText variant="h6" className="text-ods-error">

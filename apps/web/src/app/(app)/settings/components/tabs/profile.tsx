@@ -160,7 +160,7 @@ export function ProfileTab() {
         </div>
 
         {/* Authorized by section - show if SSO provider is known */}
-        {/* <div className="shrink-0 hidden md:flex items-center gap-2 bg-ods-bg border border-ods-border rounded-lg px-3 py-2">
+        {/* <div className="shrink-0 hidden content-md:flex items-center gap-2 bg-ods-bg border border-ods-border rounded-lg px-3 py-2">
           <span className="text-sm text-ods-text-secondary">Authorized by</span>
           <GoogleLogo className="w-5 h-5" />
           <MicrosoftIcon className="w-5 h-5" />

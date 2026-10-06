@@ -104,7 +104,7 @@ export function DeviceSetupStep({
       </p>
 
       {/* Select Customer / Select Platform */}
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
         <Autocomplete
           options={orgOptions}
           value={organizationId || null}
@@ -157,11 +157,11 @@ export function DeviceSetupStep({
       {/* Device connected → "Mark as Complete" + "Go to Devices"; otherwise the
           waiting status. Completion is explicit (persisted to the backend). */}
       {hasDevice ? (
-        <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-          <p className="text-ods-text-secondary text-h6 md:flex-1">
-            Device connected. <span className="md:block">Manage it from the Devices page.</span>
+        <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
+          <p className="text-ods-text-secondary text-h6 content-md:flex-1">
+            Device connected. <span className="content-md:block">Manage it from the Devices page.</span>
           </p>
-          <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:w-auto md:flex-row md:items-center">
+          <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:w-auto content-md:flex-row content-md:items-center">
             {!completed && (
               <Button
                 variant="outline"
@@ -169,7 +169,7 @@ export function DeviceSetupStep({
                 onClick={() => onComplete?.()}
                 loading={completing}
                 disabled={completing}
-                className="w-full md:w-auto"
+                className="w-full content-md:w-auto"
               >
                 Mark as Complete
               </Button>
@@ -182,19 +182,19 @@ export function DeviceSetupStep({
                 if (!completed) onCompleteBackground?.();
                 router.push(onboardingHintUrl('/devices', 'devices', pathname));
               }}
-              className="w-full md:w-auto"
+              className="w-full content-md:w-auto"
             >
               Go to Devices
             </Button>
           </div>
         </div>
       ) : (
-        <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+        <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
           {/* One line on mobile, broken into two lines from md up. */}
-          <p className="text-ods-text-secondary text-h6 md:flex-1">
-            Run the command on a client machine <span className="md:block">to connect your first device</span>
+          <p className="text-ods-text-secondary text-h6 content-md:flex-1">
+            Run the command on a client machine <span className="content-md:block">to connect your first device</span>
           </p>
-          <div className="flex items-center justify-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-secondary md:justify-end">
+          <div className="flex items-center justify-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-secondary content-md:justify-end">
             <DotsLoaderIcon size={24} />
             <span className="whitespace-nowrap text-h4">Waiting for first device</span>
           </div>

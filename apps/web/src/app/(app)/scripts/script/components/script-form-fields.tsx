@@ -12,7 +12,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckboxBlock, Input, Textarea, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { SHELL_TYPES, type ShellTypeDefinition } from '@flamingo-stack/openframe-frontend-core/types';
 import type { ReactNode } from 'react';
 import { Controller, type UseFormReturn, useFormState } from 'react-hook-form';
@@ -67,7 +67,7 @@ export function ScriptFormFields({
 }: ScriptFormFieldsProps) {
   const { control, watch, setValue, getValues } = form;
   const watchedSupportedPlatforms = watch('supported_platforms');
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
   // Subscribe to errors so the platform inline message tracks validation live.
   const { errors } = useFormState({ control });
 
@@ -81,7 +81,7 @@ export function ScriptFormFields({
           marker itself — that is what `scrollToFirstInvalidField` looks for. */}
       <div className="relative" data-invalid={(showErrors && !!errors.supported_platforms) || undefined}>
         <Label className="text-ods-text-primary text-h4">Supported Platform</Label>
-        <div className="mt-1 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mt-1 grid grid-cols-2 gap-4 content-lg:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(p => {
             const isDisabled = DISABLED_PLATFORMS.includes(p.id);
             return (
@@ -118,9 +118,9 @@ export function ScriptFormFields({
                   onCheckedChange={checked => field.onChange(checked)}
                   label="Run as User"
                   disabled={disabled}
-                  // Match the SelectButton card height (h-11 md:h-16) — the block's
+                  // Match the SelectButton card height (h-11 content-md:h-16) — the block's
                   // own min-height is shorter, so override it on the inner label.
-                  className="[&>label]:h-11 [&>label]:min-h-0 md:[&>label]:h-16"
+                  className="[&>label]:h-11 [&>label]:min-h-0 content-md:[&>label]:h-16"
                 />
               )}
             />
@@ -136,7 +136,7 @@ export function ScriptFormFields({
       </div>
 
       {/* Form Fields */}
-      <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-6 content-lg:grid-cols-4">
         <Controller
           name="name"
           control={control}
@@ -254,7 +254,7 @@ export function ScriptFormFields({
       {tagsField}
 
       {/* Script Arguments and Environment Variables */}
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6 content-lg:flex-row">
         <Controller
           name="args"
           control={control}

@@ -86,7 +86,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
         </div>
       )}

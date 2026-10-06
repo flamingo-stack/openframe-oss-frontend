@@ -145,7 +145,7 @@ export function CustomerSetupStep({
       </p>
 
       {/* Name + Website (left) / Logo (right) */}
-      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
+      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] content-md:flex-row">
         <div className="flex w-full min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <Input
             label="Customer Name"
@@ -175,18 +175,18 @@ export function CustomerSetupStep({
             description="Click to upload or drag and drop"
             alt={name || 'Customer logo'}
             // Pin height only on desktop, where it aligns with the two-input column on the left.
-            dropzoneClassName="md:h-[148px]"
+            dropzoneClassName="content-md:h-[148px]"
           />
         </div>
       </div>
 
       {/* Full form link (left) / mandatory hint + save (right) */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
         <FullFormLink href={routes.customers.new} label="Full Organization Form" />
 
         {/* Mark as Complete (hidden once the step is done) + Save Customer.
             Buttons share the right half, each flex-1; they stack full-width on mobile. */}
-        <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+        <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
           {!completed ? (
             <Button
               variant="outline"
@@ -197,14 +197,14 @@ export function CustomerSetupStep({
               }}
               loading={actions.complete.loading}
               disabled={actions.complete.disabled}
-              className="w-full md:flex-1"
+              className="w-full content-md:flex-1"
             >
               Mark as Complete
             </Button>
           ) : (
             // Keep the completed step's primary button its own width — don't let it
             // stretch into the removed "Mark as Complete" slot.
-            <div className="hidden md:block md:flex-1" aria-hidden />
+            <div className="hidden content-md:block content-md:flex-1" aria-hidden />
           )}
           <Button
             variant="accent"
@@ -214,7 +214,7 @@ export function CustomerSetupStep({
             }}
             disabled={!name.trim() || actions.primary.disabled}
             loading={actions.primary.loading}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Save Customer
           </Button>

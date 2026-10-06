@@ -27,10 +27,10 @@ interface EmployeeDetailsViewProps {
 }
 
 const CARD_CONTAINER =
-  'flex flex-col rounded-md border border-ods-border bg-ods-card md:flex-row md:items-center md:gap-[var(--spacing-system-m)] md:p-[var(--spacing-system-m)]';
+  'flex flex-col rounded-md border border-ods-border bg-ods-card content-md:flex-row content-md:items-center content-md:gap-[var(--spacing-system-m)] content-md:p-[var(--spacing-system-m)]';
 
 const CARD_ROW =
-  'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] md:contents';
+  'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:contents';
 
 function ProfileFieldSkeleton({ valueClassName }: { valueClassName: string }) {
   return (
@@ -47,7 +47,7 @@ function EmployeeSummarySkeleton() {
       <div className={CARD_ROW}>
         <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
           {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
-          <Skeleton className="size-9 shrink-0 rounded-full md:size-12" />
+          <Skeleton className="size-9 shrink-0 rounded-full content-md:size-12" />
           <ProfileFieldSkeleton valueClassName="h-6 w-32" />
         </div>
         <ProfileFieldSkeleton valueClassName="h-6 w-40" />
@@ -190,7 +190,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                   svg are overridden here instead of forking the lib component. */}
               <DeletedUserAvatar
                 size="lg"
-                className="h-9 w-9 md:h-12 md:w-12 [&>svg]:h-4 [&>svg]:w-4 md:[&>svg]:h-6 md:[&>svg]:w-6"
+                className="h-9 w-9 content-md:h-12 content-md:w-12 [&>svg]:h-4 [&>svg]:w-4 content-md:[&>svg]:h-6 content-md:[&>svg]:w-6"
               />
               <InfoCell value={displayName} label="Name" />
             </div>
@@ -213,7 +213,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
                 fallback={displayName}
                 size="lg"
                 variant="round"
-                className="h-9 w-9 md:h-12 md:w-12"
+                className="h-9 w-9 content-md:h-12 content-md:w-12"
               />
               <InfoCell value={displayName} label="Name" />
             </div>

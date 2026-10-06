@@ -58,12 +58,12 @@ export function KnowledgeBaseSearchToolbar({
             onClick={() => setIsTagsModalOpen(true)}
             aria-label="Filter by tags"
             leftIcon={<Filter02Icon />}
-            className="md:hidden"
+            className="content-md:hidden"
           />
         </div>
 
         {/* `contents`, so a folder with no tags leaves no empty box — and no gap — under the search. */}
-        <div className="hidden md:contents">
+        <div className="hidden content-md:contents">
           <Suspense fallback={<SelectableTagsRowSkeleton />}>
             <KnowledgeBaseTagsRow
               parentId={parentId}

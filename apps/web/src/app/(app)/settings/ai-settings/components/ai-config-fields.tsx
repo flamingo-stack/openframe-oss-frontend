@@ -134,7 +134,7 @@ export function AiAnswerStyleFields<T extends AiLogicFormValues & FieldValues>({
               value={field.value}
               onValueChange={field.onChange}
               options={ANSWER_STYLE_OPTIONS}
-              itemClassName="p-[var(--spacing-system-sf)] gap-[var(--spacing-system-s)] [&>button]:size-4 md:[&>button]:size-6"
+              itemClassName="p-[var(--spacing-system-sf)] gap-[var(--spacing-system-s)] [&>button]:size-4 content-md:[&>button]:size-6"
               error={fieldState.error?.message}
             />
           </div>

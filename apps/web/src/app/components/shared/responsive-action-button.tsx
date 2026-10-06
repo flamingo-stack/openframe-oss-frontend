@@ -40,7 +40,7 @@ export function ResponsiveActionButton({
         onClick={onClick}
         disabled={disabled}
         leftIcon={icon}
-        className={cn('hidden md:inline-flex', className)}
+        className={cn('hidden content-md:inline-flex', className)}
       >
         {label}
       </Button>
@@ -52,7 +52,7 @@ export function ResponsiveActionButton({
         disabled={disabled}
         aria-label={label}
         leftIcon={icon}
-        className={cn('md:hidden', className)}
+        className={cn('content-md:hidden', className)}
       />
     </>
   );

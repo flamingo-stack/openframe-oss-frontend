@@ -15,7 +15,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 
 const SCRIPT_COLUMNS = {
   name: { id: 'name', header: 'Name', width: 'flex-1 min-w-0' },
-  shellType: { id: 'shellType', header: 'Shell Type', width: 'w-[100px] md:w-[160px]', filterable: true },
+  shellType: { id: 'shellType', header: 'Shell Type', width: 'w-[100px] content-md:w-[160px]', filterable: true },
   supportedPlatforms: { id: 'supportedPlatforms', header: 'OS', width: 'w-[80px]', hideAt: 'lg', filterable: true },
   authorId: { id: 'authorId', header: 'Added by', width: 'w-[250px]', hideAt: 'lg', filterable: true },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
@@ -28,12 +28,12 @@ const SCHEDULE_COLUMNS = {
   dateTime: {
     id: 'dateTime',
     header: 'Date & Time',
-    width: 'w-[100px] md:w-[160px]',
+    width: 'w-[100px] content-md:w-[160px]',
     hideAt: 'md',
     dateFilterable: true,
   },
   repeat: { id: 'repeat', header: 'Repeat', width: 'w-[120px]', hideAt: 'md', sortable: true },
-  deviceCount: { id: 'deviceCount', header: 'Devices', width: 'w-[100px] md:w-[140px]', hideAt: 'lg' },
+  deviceCount: { id: 'deviceCount', header: 'Devices', width: 'w-[100px] content-md:w-[140px]', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;

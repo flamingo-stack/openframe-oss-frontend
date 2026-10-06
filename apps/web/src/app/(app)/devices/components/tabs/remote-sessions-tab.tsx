@@ -357,7 +357,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
+            className="content-md:hidden"
             onClick={() => setMobileFilterOpen(true)}
             aria-label="Open filters"
             leftIcon={<Filter02Icon className="text-ods-text-primary" />}

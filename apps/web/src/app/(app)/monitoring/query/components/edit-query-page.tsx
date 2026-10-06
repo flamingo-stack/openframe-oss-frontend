@@ -265,11 +265,11 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
       actionsVariant="primary-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <div className="space-y-6 md:space-y-8">
+      <div className="space-y-6 content-md:space-y-8">
         {/* Name & Frequency */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+        <div className="flex flex-col gap-4 content-md:flex-row content-md:items-end">
           {/* Name */}
-          <div className="w-full md:max-w-[280px]">
+          <div className="w-full content-md:max-w-[280px]">
             <Input
               {...register('name', {
                 onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),

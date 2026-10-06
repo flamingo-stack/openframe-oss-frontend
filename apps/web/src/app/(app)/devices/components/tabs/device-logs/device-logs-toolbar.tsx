@@ -68,14 +68,14 @@ export function DeviceLogsToolbar({
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <div className="flex flex-col gap-[var(--spacing-system-mf)] md:flex-row md:items-start">
+      <div className="flex flex-col gap-[var(--spacing-system-mf)] content-md:flex-row content-md:items-start">
         <div className="min-w-0 flex-1">
           <Input
             placeholder="Search for Log"
             aria-label="Search device logs"
             value={search}
             onChange={event => onSearchChange(event.target.value)}
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
             error={searchError ?? undefined}
             disabled={disabled}
           />
@@ -87,11 +87,11 @@ export function DeviceLogsToolbar({
           onCheckedChange={onAutoUpdateChange}
           disabled={disabled}
           truncateLabel
-          className="md:w-auto md:shrink-0"
+          className="content-md:w-auto content-md:shrink-0"
         />
       </div>
 
-      <div className="flex flex-col gap-[var(--spacing-system-s)] md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-[var(--spacing-system-s)] content-md:flex-row content-md:items-center content-md:justify-between">
         <div role="group" aria-label="Log levels" className="flex flex-wrap gap-[var(--spacing-system-xxs)]">
           {DEVICE_LOG_LEVELS.map(level => {
             const on = selectedLevels.length === 0 || selectedLevels.includes(level);
@@ -114,7 +114,10 @@ export function DeviceLogsToolbar({
 
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
           <Select value={range} onValueChange={value => onRangeChange(value as DeviceLogRange)} disabled={disabled}>
-            <SelectTrigger aria-label="Time range" className="min-w-[180px] flex-1 md:w-[200px] md:flex-none">
+            <SelectTrigger
+              aria-label="Time range"
+              className="min-w-[180px] flex-1 content-md:w-[200px] content-md:flex-none"
+            >
               <SelectValue>{DEVICE_LOG_RANGE_LABELS[range]}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -134,7 +137,7 @@ export function DeviceLogsToolbar({
               toDate={pickerBounds.toDate}
               placeholder="Select dates"
               disabled={disabled}
-              className="min-w-[220px] flex-1 md:w-[290px] md:flex-none"
+              className="min-w-[220px] flex-1 content-md:w-[290px] content-md:flex-none"
             />
           )}
           <Button

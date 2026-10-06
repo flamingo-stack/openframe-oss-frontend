@@ -23,10 +23,10 @@ export function WorktimePageSkeleton() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        {/* Search input + date-range picker row (`md:w-[276px]` picker). */}
-        <div className="flex flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-start">
-          <Skeleton className="h-12 w-full rounded-[6px] md:flex-1" />
-          <Skeleton className="h-12 w-full rounded-[6px] md:w-[276px]" />
+        {/* Search input + date-range picker row (`content-md:w-[276px]` picker). */}
+        <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
+          <Skeleton className="h-12 w-full rounded-[6px] content-md:flex-1" />
+          <Skeleton className="h-12 w-full rounded-[6px] content-md:w-[276px]" />
         </div>
         <WorkTimeTableSkeleton showEmployee showCustomer />
       </div>

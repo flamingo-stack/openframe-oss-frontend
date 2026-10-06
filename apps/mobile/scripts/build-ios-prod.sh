@@ -15,6 +15,10 @@
 #            SKIP_WEB=1    — reuse the already-staged www/ bundle (must have been
 #                            built by this lane, or the baked env won't match).
 #            WEB_ONLY=1    — stage the prod web bundle + cap sync, then stop.
+#            VERSION_NAME=x — MARKETING_VERSION for this archive.
+#            ASC_KEY_PATH  — App Store Connect API key (.p8, Admin role) with
+#                            ASC_KEY_ID + ASC_ISSUER_ID: signs without an Xcode
+#                            account (CI).
 #
 # Manual prerequisites (one-time, outside this script):
 #   - App Store Connect app record for ai.openframe.mobile.
@@ -74,7 +78,9 @@ xcodebuild archive \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
   OPENFRAME_SHARED_HOST_URL="$NEXT_PUBLIC_SHARED_HOST_URL" \
-  ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER}
+  ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER} \
+  ${VERSION_NAME:+MARKETING_VERSION=$VERSION_NAME} \
+  ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
 
 echo "▸ Exporting .ipa for App Store Connect…"
 rm -rf "$EXPORT_DIR"
@@ -82,7 +88,8 @@ xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
   -exportOptionsPlist "$HERE/ios/App/exportOptions-appstore.plist" \
   -exportPath "$EXPORT_DIR" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
 
 # aps-environment must be checked on the EXPORTED ipa, not the archive: with
 # cloud-managed automatic signing the archive is signed with the local Apple

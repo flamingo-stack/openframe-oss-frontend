@@ -9,3 +9,5 @@ node_modules/
 
 # Claude
 **/.claude/
+/src/
+/tsconfig.tsbuildinfo

@@ -15,6 +15,7 @@ const base: MingoUrlSyncInput = {
   drawerOpen: false,
   activeDialogId: null,
   closedForNavigation: false,
+  docked: false,
 };
 
 describe('resolveMingoUrlSync', () => {
@@ -94,6 +95,27 @@ describe('resolveMingoUrlSync', () => {
         drawerOpen: true,
         activeDialogId: 'd-1',
       }),
+    ).toEqual({ type: 'close' });
+  });
+
+  it('docked: carries the conversation onto the new route instead of closing', () => {
+    // The docked panel stays on screen across navigations; dropping the param
+    // there left the chat open on a URL that no longer named it.
+    expect(
+      resolveMingoUrlSync({
+        ...base,
+        navigated: true,
+        mirroredDialogId: 'd-1',
+        drawerOpen: true,
+        activeDialogId: 'd-1',
+        docked: true,
+      }),
+    ).toEqual({ type: 'write', dialogId: 'd-1' });
+  });
+
+  it('docked: still closes when back drops the param on the same page', () => {
+    expect(
+      resolveMingoUrlSync({ ...base, mirroredDialogId: 'd-1', drawerOpen: true, activeDialogId: 'd-1', docked: true }),
     ).toEqual({ type: 'close' });
   });
 

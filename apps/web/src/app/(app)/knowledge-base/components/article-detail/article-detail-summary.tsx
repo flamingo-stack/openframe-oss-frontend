@@ -38,10 +38,13 @@ const CELL_CLASSES = 'h-20';
 function SummaryCard({ author, updated, status }: { author: ReactNode; updated: ReactNode; status: ReactNode }) {
   return (
     <Card className="border-ods-border px-[var(--spacing-system-mf)] py-0">
-      <div className="grid grid-cols-2 gap-x-[var(--spacing-system-mf)] lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-x-[var(--spacing-system-mf)] content-lg:grid-cols-3">
         {author}
         {updated}
-        <div className="col-span-2 -mx-[var(--spacing-system-mf)] border-t border-ods-border lg:hidden" aria-hidden />
+        <div
+          className="col-span-2 -mx-[var(--spacing-system-mf)] border-t border-ods-border content-lg:hidden"
+          aria-hidden
+        />
         {status}
       </div>
     </Card>

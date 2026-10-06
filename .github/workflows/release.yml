@@ -234,19 +234,117 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Signed store builds, attached to the release for manual upload to App Store Connect / Play.
+  build_ios:
+    name: 'Build iOS'
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+          VERSION_NAME: ${{ needs.version.outputs.version }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_PLIST }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          npm ci
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > ios/App/App/GoogleService-Info.plist
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
+          BUILD_NUMBER="$GITHUB_RUN_NUMBER" scripts/build-ios-prod.sh
+          mv build/prod/*.ipa "OpenFrame_${VERSION_NAME}.ipa"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-mobile-ios
+          path: apps/mobile/OpenFrame_*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+  build_android:
+    name: 'Build Android'
+    needs: [version]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          OPENFRAME_BUNDLE_VERSION: ${{ needs.version.outputs.version }}
+          VERSION_NAME: ${{ needs.version.outputs.version }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+          ANDROID_UPLOAD_KEYSTORE: ${{ secrets.ANDROID_UPLOAD_KEYSTORE }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: upload
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}  # PKCS12: key password = store password
+        run: |
+          npm ci
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/src/prod/google-services.json
+          export ANDROID_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+          base64 --decode <<< "$ANDROID_UPLOAD_KEYSTORE" > "$ANDROID_UPLOAD_STORE_FILE"
+          JBR="$JAVA_HOME" VERSION_CODE="$GITHUB_RUN_NUMBER" scripts/build-android-prod.sh
+          mv android/app/build/outputs/bundle/prodRelease/app-prod-release.aab "OpenFrame_${VERSION_NAME}.aab"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-mobile-android
+          path: apps/mobile/OpenFrame_*.aab
+          if-no-files-found: error
+          retention-days: 30
+
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop]
+    needs: [version, build_image, build_desktop, build_ios, build_android]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download desktop artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: openframe-console-*
+          pattern: openframe-*
           path: final-artifacts
           merge-multiple: true
 
@@ -298,6 +396,10 @@ jobs:
           - **macOS** (Universal): \`.dmg\` to install, \`.app.tar.gz\` for the updater
           - **Windows** (x64, arm64): \`_x64-setup.exe\`, \`_arm64-setup.exe\`
           - Updater manifest: \`updater.json\`
+
+          ## OpenFrame Mobile
+          - **iOS**: \`.ipa\` for App Store Connect (Transporter)
+          - **Android**: \`.aab\` for Play Console
           ---
           EOF
 

@@ -11,7 +11,7 @@ interface AiSettingsAdminCardProps {
   providerModelLabel?: string;
 }
 
-const CELL = 'flex items-center gap-2 min-h-14 md:min-h-20 px-3 md:px-4 py-3 md:py-4';
+const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-md:px-4 py-3 content-md:py-4';
 
 /**
  * Read-only summary card for the Mingo (ADMIN) tab: LLM provider, provider model
@@ -23,7 +23,7 @@ export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettings
   const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
   return (
-    <div className="grid grid-cols-1 rounded-md border border-ods-border bg-ods-card sm:grid-cols-3">
+    <div className="grid grid-cols-1 rounded-md border border-ods-border bg-ods-card content-sm:grid-cols-3">
       <div className={CELL}>
         <InfoCell
           value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}

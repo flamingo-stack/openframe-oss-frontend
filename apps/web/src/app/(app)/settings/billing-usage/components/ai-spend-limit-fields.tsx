@@ -83,7 +83,7 @@ export function AiSpendLimitFields({ limit, disabled = false, onCommit }: AiSpen
         <>
           <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
             <p className="text-ods-text-secondary text-h5">Set a monthly spending limit</p>
-            <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] content-sm:grid-cols-2">
               {PRESET_TOKEN_LIMITS.map(tokens => {
                 const usd = limit.tokensToUsd(tokens);
                 return (

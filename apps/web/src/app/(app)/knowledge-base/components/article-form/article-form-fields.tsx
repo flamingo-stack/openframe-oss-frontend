@@ -47,7 +47,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-md:grid-cols-2">
         <Controller
           name="title"
           control={control}

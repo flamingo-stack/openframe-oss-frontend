@@ -40,7 +40,7 @@ export function ScheduleFields({
   const inPast = isScheduleStartInPast(date, time, timeReference);
 
   return (
-    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-4 md:items-start">
+    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-md:grid-cols-4 content-md:items-start">
       <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
         <Label className="text-h4">Date</Label>
         <DatePickerInputSimple

@@ -96,7 +96,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         placeholder="Search for Knowledge Article"
         value={search}
         onChange={event => setSearch(event.target.value)}
-        startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
       />
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="item" />} />

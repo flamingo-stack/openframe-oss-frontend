@@ -49,8 +49,11 @@ export function CustomerContactsFields({ control, disabled, showErrors }: Custom
             // other fields stack full-width; from md on all four sit in one row
             // with the trash at the end. Fixed 24px gaps keep the hanging error
             // text of one field clear of the next.
-            <div key={row.id} className="flex flex-col gap-[var(--spacing-system-lf)] md:flex-row md:items-end">
-              <div className="flex items-end gap-[var(--spacing-system-xsf)] md:contents">
+            <div
+              key={row.id}
+              className="flex flex-col gap-[var(--spacing-system-lf)] content-md:flex-row content-md:items-end"
+            >
+              <div className="flex items-end gap-[var(--spacing-system-xsf)] content-md:contents">
                 <div className="min-w-0 flex-1">
                   <ContactInput
                     control={control}
@@ -66,7 +69,7 @@ export function CustomerContactsFields({ control, disabled, showErrors }: Custom
                   size="icon"
                   aria-label="Remove contact"
                   leftIcon={<TrashIcon />}
-                  className="shrink-0 md:order-last [&_svg]:!text-ods-error"
+                  className="shrink-0 content-md:order-last [&_svg]:!text-ods-error"
                   onClick={() => remove(index)}
                   disabled={disabled}
                 />

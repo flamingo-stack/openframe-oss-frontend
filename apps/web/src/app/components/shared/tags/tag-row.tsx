@@ -69,7 +69,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
     [onChange, tag.key],
   );
 
-  const labelClassName = isFirst ? '[&>label]:hidden md:[&>label]:block' : undefined;
+  const labelClassName = isFirst ? '[&>label]:hidden content-md:[&>label]:block' : undefined;
 
   const disabledValueAutocomplete = (
     <Autocomplete
@@ -94,8 +94,8 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
   const valuesError = useMemo(() => validateTagValues(tag.values), [tag.values]);
 
   return (
-    <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row md:gap-[var(--spacing-system-s)]">
-      <div className="w-full min-w-0 md:flex-1" ref={focusInputOnMount}>
+    <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] content-md:flex-row content-md:gap-[var(--spacing-system-s)]">
+      <div className="w-full min-w-0 content-md:flex-1" ref={focusInputOnMount}>
         <Autocomplete
           options={keyOptions}
           value={tag.key || null}
@@ -115,7 +115,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
         />
       </div>
 
-      <div className="flex w-full min-w-0 items-end gap-[var(--spacing-system-s)] md:flex-1">
+      <div className="flex w-full min-w-0 items-end gap-[var(--spacing-system-s)] content-md:flex-1">
         <div className="min-w-0 flex-1">
           {tag.key ? (
             <Suspense fallback={disabledValueAutocomplete}>
@@ -142,7 +142,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
           size="icon"
           onClick={onDelete}
           aria-label="Remove tag row"
-          leftIcon={<TrashIcon className="size-4 text-ods-error md:size-6" />}
+          leftIcon={<TrashIcon className="size-4 text-ods-error content-md:size-6" />}
         />
       </div>
     </div>

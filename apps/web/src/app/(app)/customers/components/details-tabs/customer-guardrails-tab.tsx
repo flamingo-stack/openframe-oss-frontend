@@ -68,7 +68,7 @@ export function CustomerGuardrailsTab({ organizationId }: CustomerGuardrailsTabP
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {inheritsDefault && (
-        <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)] md:flex-row md:items-center">
+        <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)] content-md:flex-row content-md:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-s)]">
             <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
             <div className="flex min-w-0 flex-col">
@@ -80,7 +80,7 @@ export function CustomerGuardrailsTab({ organizationId }: CustomerGuardrailsTabP
             variant="outline"
             onClick={() => router.push(routes.settings.aiSettings({ tab: 'guardrails', edit: true }))}
             leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-            className="shrink-0 self-start md:self-auto"
+            className="shrink-0 self-start content-md:self-auto"
           >
             Edit Default Guardrails
           </Button>

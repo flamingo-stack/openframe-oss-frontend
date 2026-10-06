@@ -14,7 +14,7 @@
 #            WEB_ONLY=1         — stage web bundle + cap sync, then stop.
 #            SKIP_DISTRIBUTE=1  — build the APK, skip the App Distribution upload.
 #            RELEASE=1          — assembleDevRelease instead of Debug (needs the
-#                                 OF_UPLOAD_* keystore config, else the APK is
+#                                 ANDROID_UPLOAD_* keystore config, else the APK is
 #                                 unsigned and App Distribution rejects it).
 #            TESTER_GROUP=qa    — App Distribution group (default: qa).
 #            RELEASE_NOTES=...  — shown to testers in the invite/App Tester.

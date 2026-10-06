@@ -106,15 +106,12 @@ export function LogDrawer({
       {/* md:w matches the mobileBreakpoint: below it the panel is forced
           full-bleed, so a fixed width there would detach it from the right edge */}
       <AppLayoutDrawerContent side="right" className="md:w-[400px]">
-        {/* Header */}
+        {/* Header: title, status and time only. The log text itself goes in the
+            body. The header is not a scroll region and the panel clips, so a long
+            log up here grew past the panel and squeezed the body to nothing: the
+            wheel had nothing to scroll and the end of the log was unreachable. */}
         <AppLayoutDrawerHeader>
           <AppLayoutDrawerTitle>Log Details</AppLayoutDrawerTitle>
-
-          {description && (
-            <AppLayoutDrawerDescription className="leading-6 text-ods-text-primary text-h4">
-              {description}
-            </AppLayoutDrawerDescription>
-          )}
 
           {(statusTag || timestamp) && (
             <div className="flex items-center gap-2">
@@ -127,6 +124,14 @@ export function LogDrawer({
         {/* Body */}
         <AppLayoutDrawerBody>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+            {/* The log text: still the dialog's accessible description, rendered
+                inside the scroll region. `asChild` makes the slot a div, so the
+                content may hold block elements (the loading skeleton). */}
+            {description && (
+              <AppLayoutDrawerDescription asChild className="leading-6 text-ods-text-primary text-h4">
+                <div>{description}</div>
+              </AppLayoutDrawerDescription>
+            )}
             {/* Info Card — vertical fields: Value on top, Label below */}
             {infoFields && infoFields.length > 0 && (
               <div className="flex flex-col gap-3 rounded-[6px] border border-ods-border bg-ods-card p-4">

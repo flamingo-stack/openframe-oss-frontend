@@ -246,7 +246,14 @@ export const routes = {
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
-    error: '/auth/error',
+    /**
+     * Where every auth failure ends. `ref` is the auth server's reference for what went wrong: an
+     * `AuthErrorCode` name (`SSO_SESSION_EXPIRED`) or the 8-character key of a message it stored for a
+     * few minutes. The page resolves it through the `authErrorMessage` query and shows only what comes
+     * back; nothing in this URL is rendered. The old `error=<text>` parameter is gone on purpose: it let
+     * anyone put their own sentence on the page under our logo.
+     */
+    error: (o?: { ref?: string }) => withQuery('/auth/error', { ref: o?.ref }),
     /**
      * Where the auth server sends an SSO login whose identity has no account yet
      * (`openframe.sso.login.signup-continue-url`). The page reads the asserted identity from the

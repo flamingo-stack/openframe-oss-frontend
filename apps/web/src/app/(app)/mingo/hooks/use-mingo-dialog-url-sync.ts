@@ -28,6 +28,11 @@ export interface MingoUrlSyncInput {
   activeDialogId: string | null;
   /** The drawer closed BECAUSE of a navigation issued in the same handler. */
   closedForNavigation: boolean;
+  /**
+   * Mingo v2 docked into the layout: it stays on screen across navigations, so a
+   * new route carries its conversation along instead of closing it.
+   */
+  docked: boolean;
 }
 
 /**
@@ -49,6 +54,7 @@ export function resolveMingoUrlSync({
   drawerOpen,
   activeDialogId,
   closedForNavigation,
+  docked,
 }: MingoUrlSyncInput): MingoUrlSyncAction {
   // 1. No instruction in the URL, and either it just lost the one we were
   //    mirroring (back/forward) or the route changed under an open drawer. The
@@ -60,7 +66,12 @@ export function resolveMingoUrlSync({
   //    its own effect in `AppShell`, because a navigation can CARRY an instruction
   //    — a deep link lands on `?mingoDialog=` on a fresh route — and a close in a
   //    separate effect would race that open within the same commit.
-  if (!urlDialogId && (navigated || mirroredDialogId)) {
+  //
+  //    A docked panel is not covering anything and cannot be put away: a new route
+  //    falls through to step 3, which writes its conversation onto it. Only a
+  //    param lost in place (back/forward on the same page) still closes.
+  const lostOurs = mirroredDialogId !== null && !(docked && navigated);
+  if (!urlDialogId && ((navigated && !docked) || lostOurs)) {
     return { type: 'close' };
   }
 
@@ -123,6 +134,8 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
   const urlDialogId = useSearchParams().get(MINGO_DIALOG_PARAM);
 
   const isOpen = useMingoLauncherStore(state => state.isOpen);
+  const panelShown = useMingoLauncherStore(state => state.panelShown);
+  const panelDocked = useMingoLauncherStore(state => state.panelDocked);
   const activeDialogId = useMingoMessagesStore(state => state.activeDialogId);
 
   const mirroredRef = useRef<string | null>(null);
@@ -145,9 +158,11 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       urlDialogId: new URLSearchParams(window.location.search).get(MINGO_DIALOG_PARAM),
       mirroredDialogId: mirroredRef.current,
       canOpenDrawer,
-      drawerOpen: useMingoLauncherStore.getState().isOpen,
+      // Mingo v2 docks the chat into the layout: on screen without being "open".
+      drawerOpen: useMingoLauncherStore.getState().isOpen || useMingoLauncherStore.getState().panelShown,
       activeDialogId: useMingoMessagesStore.getState().activeDialogId,
       closedForNavigation: useMingoLauncherStore.getState().closedForNavigation,
+      docked: useMingoLauncherStore.getState().panelDocked,
     });
 
     switch (action.type) {
@@ -173,5 +188,5 @@ export function useMingoDialogUrlSync(canOpenDrawer: boolean): void {
       case 'none':
         return;
     }
-  }, [pathname, urlDialogId, isOpen, activeDialogId, canOpenDrawer]);
+  }, [pathname, urlDialogId, isOpen, panelShown, panelDocked, activeDialogId, canOpenDrawer]);
 }
