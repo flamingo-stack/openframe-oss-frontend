@@ -2,25 +2,21 @@
 
 import type { ActionsMenuGroup, PageActionButton } from '@flamingo-stack/openframe-frontend-core';
 import {
+  KnowledgeBaseArticleView,
+  type KnowledgeBaseArticleStatus,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
   BoxArchiveIcon,
   FileEditIcon,
   FolderEditIcon,
   PenEditIcon,
   Refresh01LeftIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Card,
-  PageLayout,
-  SquareAvatar,
-  Tag,
-  TicketAttachmentsList,
-  TicketDetailSection,
-  TruncateText,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { AssignedItemsView } from '@/components/assignments';
 import { formatDate } from '@/lib/format-date';
@@ -45,13 +41,7 @@ interface ArticleDetailsPageProps {
   articleId: string;
 }
 
-type ArticleStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
-
-const STATUS_VARIANT: Record<ArticleStatus, 'success' | 'warning' | 'grey'> = {
-  PUBLISHED: 'success',
-  DRAFT: 'warning',
-  ARCHIVED: 'grey',
-};
+type ArticleStatus = KnowledgeBaseArticleStatus;
 
 function ArticleDetailsContent({ articleId }: { articleId: string }) {
   const handleBack = useSafeBack(routes.knowledgeBase.list);
@@ -193,69 +183,18 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
         ];
 
   return (
-    <PageLayout
+    <KnowledgeBaseArticleView
       title={article.name}
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actionsVariant="menu-primary"
+      onBack={handleBack}
       actions={actions}
       menuActions={menuActions}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      tags={article.tags?.filter(Boolean).map(tag => ({ id: tag.id, label: tag.key }))}
+      author={{ name: authorName, imageUrl: authorImageUrl, deleted: isDeletedAuthor }}
+      updatedLabel={formatDate(updatedAt)}
+      status={status}
+      content={<SimpleMarkdownRenderer content={article.content ?? ''} textSize="compact" />}
+      attachments={uiAttachments}
     >
-      {article.tags?.some(Boolean) && (
-        <div className="flex flex-wrap gap-[var(--spacing-system-xsf)]">
-          {article.tags.filter(Boolean).map(tag => (
-            <Tag key={tag.id} label={tag.key} variant="outline" className="max-w-full" />
-          ))}
-        </div>
-      )}
-
-      <Card className="border-ods-border px-[var(--spacing-system-mf)] py-0">
-        <div className="grid grid-cols-2 gap-x-[var(--spacing-system-mf)] content-lg:grid-cols-3">
-          <div className="flex h-20 min-w-0 items-center gap-[var(--spacing-system-xsf)]">
-            {isDeletedAuthor ? (
-              <DeletedUserAvatar size="md" />
-            ) : (
-              <SquareAvatar
-                src={authorImageUrl}
-                fallback={authorName ?? 'A'}
-                alt={authorName ?? 'Author'}
-                size="md"
-                variant="round"
-              />
-            )}
-            <div className="flex min-w-0 flex-1 flex-col">
-              <TruncateText className={isDeletedAuthor ? 'text-ods-error' : undefined}>
-                {authorName ?? 'Unknown'}
-              </TruncateText>
-              <p className="truncate text-heading-5 text-ods-text-secondary">Author</p>
-            </div>
-          </div>
-
-          <div className="flex h-20 min-w-0 flex-col justify-center">
-            <TruncateText>{formatDate(updatedAt)}</TruncateText>
-            <p className="truncate text-heading-5 text-ods-text-secondary">Updated</p>
-          </div>
-
-          <div
-            className="col-span-2 -mx-[var(--spacing-system-mf)] border-t border-ods-border content-lg:hidden"
-            aria-hidden
-          />
-
-          <div className="flex h-20 min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
-            <Tag variant={STATUS_VARIANT[status]} label={status} />
-            <p className="truncate text-heading-5 text-ods-text-secondary">Status</p>
-          </div>
-        </div>
-      </Card>
-
-      <SimpleMarkdownRenderer content={article.content ?? ''} textSize="compact" />
-
-      {uiAttachments.length > 0 && (
-        <TicketDetailSection label="Attachments">
-          <TicketAttachmentsList attachments={uiAttachments} />
-        </TicketDetailSection>
-      )}
-
       <AssignedItemsView itemId={article.id} itemType="KNOWLEDGE_ARTICLE" />
 
       <ArchiveArticleModal
@@ -276,7 +215,7 @@ function ArticleDetailsContent({ articleId }: { articleId: string }) {
         article={unarchiveOpen ? { id: article.id, name: article.name } : null}
         sourceConnectionId={sourceConnectionId}
       />
-    </PageLayout>
+    </KnowledgeBaseArticleView>
   );
 }
 
