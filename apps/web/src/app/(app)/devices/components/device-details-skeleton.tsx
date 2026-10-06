@@ -91,7 +91,7 @@ const SKELETON_ACTIONS: PageActionButton[] = [
       // Deliberately a placeholder, not an arrow or a chevron: which one this
       // becomes is the OS answer we don't have yet. The cell it reserves is what
       // matters.
-      icon: <Skeleton className="h-4 w-4 rounded md:h-6 md:w-6" />,
+      icon: <Skeleton className="h-4 w-4 rounded content-md:h-6 content-md:w-6" />,
       'aria-label': 'Remote Shell',
       onClick: noop,
       disabled: true,
@@ -233,15 +233,17 @@ function CustomerCellSkeleton() {
  */
 function DeviceInfoSectionSkeleton() {
   const rowClass =
-    'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 md:min-h-20 border-b border-ods-border';
+    'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 content-md:min-h-20 border-b border-ods-border';
 
   const hostname = <InfoCellSkeleton label="Hostname" valueWidth="w-28" />;
-  const device = <InfoCellSkeleton label="Device" valueWidth="w-44" iconClass="w-5 h-5 md:w-7 md:h-7" />;
-  const type = <InfoCellSkeleton label="Type" valueWidth="w-24" iconClass="w-4 h-4 md:w-6 md:h-6" />;
+  const device = (
+    <InfoCellSkeleton label="Device" valueWidth="w-44" iconClass="w-5 h-5 content-md:w-7 content-md:h-7" />
+  );
+  const type = <InfoCellSkeleton label="Type" valueWidth="w-24" iconClass="w-4 h-4 content-md:w-6 content-md:h-6" />;
   const serial = <InfoCellSkeleton label="Serial Number" valueWidth="w-52" />;
   const registered = <InfoCellSkeleton label="Registered" valueWidth="w-40" />;
   const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
-  const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 md:w-6 md:h-6" />;
+  const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 content-md:w-6 content-md:h-6" />;
   const customer = <CustomerCellSkeleton />;
   const addedBy = <DeviceAddedByCellSkeleton />;
   const emptyCell = <div className="flex-1" aria-hidden="true" />;
@@ -249,7 +251,7 @@ function DeviceInfoSectionSkeleton() {
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {/* ===== Mobile + Tablet (< lg) ===== */}
-      <div className="flex flex-col lg:hidden">
+      <div className="flex flex-col content-lg:hidden">
         <div className={rowClass}>
           {hostname}
           {device}
@@ -259,14 +261,14 @@ function DeviceInfoSectionSkeleton() {
           {serial}
         </div>
         {/* Mobile (< md): customer and added-by each as a full-width row */}
-        <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
           {customer}
         </div>
-        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
           {addedBy}
         </div>
         {/* Tablet (md to lg): customer + added-by in one row */}
-        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
+        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] content-md:flex content-md:items-center content-md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
           {addedBy}
         </div>
@@ -274,13 +276,13 @@ function DeviceInfoSectionSkeleton() {
           {registered}
           {updated}
         </div>
-        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] md:min-h-20">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] content-md:min-h-20">
           {uuid}
         </div>
       </div>
 
       {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
-      <div className="hidden lg:flex lg:flex-col">
+      <div className="hidden content-lg:flex content-lg:flex-col">
         <div className={rowClass}>
           {hostname}
           {device}
@@ -339,7 +341,7 @@ function HardwareBlockSkeleton({
 function HardwareTabSkeleton() {
   // Mirrors the real Hardware tab rows: System/Boot/CPU share one 3-col row; Memory and
   // Storage each get their own row.
-  const row = 'grid grid-cols-1 lg:grid-cols-3 gap-[var(--spacing-system-l)]';
+  const row = 'grid grid-cols-1 content-lg:grid-cols-3 gap-[var(--spacing-system-l)]';
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className={row}>
@@ -363,14 +365,14 @@ function OsTabSkeleton() {
       {/* OPERATING SYSTEM — single card (title + subtitle + items) in a 3-col grid */}
       <div>
         <SectionHeadingSkeleton width="w-32" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={5} showSubtitle />
         </div>
       </div>
       {/* BOOT & TIME — single card with items */}
       <div>
         <SectionHeadingSkeleton width="w-24" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={5} />
         </div>
       </div>
@@ -384,7 +386,7 @@ function NetworkTabSkeleton() {
       {/* Full-width Public IP card */}
       <InfoCardSkeleton itemCount={1} />
       {/* Local IPv4 / IPv6 addresses — 2-col grid */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 content-lg:grid-cols-2">
         <InfoCardSkeleton itemCount={4} />
         <InfoCardSkeleton itemCount={4} />
       </div>
@@ -399,7 +401,7 @@ function SecurityTabSkeleton() {
       <div>
         <SectionHeadingSkeleton width="w-40" />
         <SectionHeadingSkeleton width="w-40" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={4} />
           <InfoCardSkeleton itemCount={2} />
@@ -409,7 +411,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-32" />
         <SectionHeadingSkeleton width="w-32" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={4} />
         </div>
       </div>
@@ -417,7 +419,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-36" />
         <SectionHeadingSkeleton width="w-36" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={2} />
           <InfoCardSkeleton itemCount={2} />
@@ -427,7 +429,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-40" />
         <SectionHeadingSkeleton width="w-40" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={3} />
         </div>
       </div>
@@ -435,7 +437,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-44" />
         <SectionHeadingSkeleton width="w-44" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={4} />
           <InfoCardSkeleton itemCount={2} />
         </div>
@@ -444,7 +446,7 @@ function SecurityTabSkeleton() {
       <div className="pt-6">
         <SectionHeadingSkeleton width="w-52" />
         <SectionHeadingSkeleton width="w-52" />
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 content-lg:grid-cols-3">
           <InfoCardSkeleton itemCount={3} />
         </div>
       </div>
@@ -459,7 +461,7 @@ function AgentsTabSkeleton() {
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       {/* Matches the real "Agent Versions" heading (`h3.text-h5`). */}
       <TextSkeleton typography="text-h5" width="w-32" />
-      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="relative flex flex-col">
             <div className="absolute left-4 top-4 z-10">

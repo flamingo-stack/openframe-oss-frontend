@@ -64,7 +64,7 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
   }
 
   return (
-    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
       {argRows.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" rows={argRows} /> : <div />}
       {envRows.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" rows={envRows} />}
     </div>

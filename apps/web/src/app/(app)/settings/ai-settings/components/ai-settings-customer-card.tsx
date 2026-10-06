@@ -22,7 +22,7 @@ interface AiSettingsCustomerCardProps {
   providerModelLabel?: string;
 }
 
-const CELL = 'flex items-center gap-2 min-h-14 md:min-h-20 px-3 md:px-4 py-3 md:py-4';
+const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-md:px-4 py-3 content-md:py-4';
 
 export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: AiSettingsCustomerCardProps) {
   const ProviderIcon = LLM_PROVIDER_ICON[aiConfig.llmProvider];
@@ -37,9 +37,9 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
         // while the previews show the default avatar.
         src={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash) || FAE_AVATAR_DATA_URI}
         alt={view.assistantName}
-        // EntityImage defaults to size-[52px] md:size-[60px]; override both
+        // EntityImage defaults to size-[52px] content-md:size-[60px]; override both
         // breakpoints so the avatar stays 40×40 (the md: default would otherwise win).
-        className="size-10 rounded-full md:size-10"
+        className="size-10 rounded-full content-md:size-10"
       />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TruncateText>{view.assistantName}</TruncateText>
@@ -67,7 +67,7 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
   ];
 
   return (
-    <div className="grid grid-cols-2 rounded-md border border-ods-border bg-ods-card lg:grid-cols-4">
+    <div className="grid grid-cols-2 rounded-md border border-ods-border bg-ods-card content-lg:grid-cols-4">
       {cells.map((cell, idx) => (
         <div key={idx} className={cn(CELL, idx < cells.length - 2 && 'border-b border-ods-border')}>
           {cell}

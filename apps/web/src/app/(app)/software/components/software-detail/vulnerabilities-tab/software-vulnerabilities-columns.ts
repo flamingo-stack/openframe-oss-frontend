@@ -14,7 +14,7 @@ const SOFTWARE_VULNERABILITY_COLUMNS = {
   discoveredAt: {
     id: 'discoveredAt',
     header: 'Discovered',
-    width: 'w-[140px] md:w-[180px]',
+    width: 'w-[140px] content-md:w-[180px]',
     hideAt: 'lg',
     sortable: true,
   },

@@ -58,7 +58,7 @@ export function RunScriptConfigStepSkeleton() {
         <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
         {/* Timeout + Run as User */}
-        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
             <Skeleton className="h-6 w-24" />
             <Skeleton className="h-12 w-full rounded-md" />

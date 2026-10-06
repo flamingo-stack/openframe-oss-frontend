@@ -131,7 +131,7 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: LOG_COLUMN_WIDTHS.tool, hideAt: 'md' },
         cell: ({ row }: { row: Row<LogRow> }) => (
-          <ToolBadge toolType={row.original.toolType} iconClassName="h-4 w-4 md:h-6 md:w-6" />
+          <ToolBadge toolType={row.original.toolType} iconClassName="h-4 w-4 content-md:h-6 content-md:w-6" />
         ),
       },
       {
@@ -211,9 +211,9 @@ export function LoggingStep({
       </DataTable>
 
       {/* Footer: Mark as Complete + View Logs */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <div className="hidden flex-1 md:block" />
-        <div className="hidden flex-1 md:block" />
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
+        <div className="hidden flex-1 content-md:block" />
+        <div className="hidden flex-1 content-md:block" />
         {!completed ? (
           <Button
             variant="outline"
@@ -221,14 +221,14 @@ export function LoggingStep({
             onClick={() => onComplete?.()}
             loading={completing}
             disabled={completing}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Mark as Complete
           </Button>
         ) : (
           // Keep the completed step's primary button its own width — don't let it
           // stretch into the removed "Mark as Complete" slot.
-          <div className="hidden md:block md:flex-1" aria-hidden />
+          <div className="hidden content-md:block content-md:flex-1" aria-hidden />
         )}
         <Button
           variant="accent"
@@ -238,7 +238,7 @@ export function LoggingStep({
             if (!completed) onCompleteBackground?.();
             router.push(onboardingHintUrl('/logs-page', 'logs', pathname));
           }}
-          className="w-full md:flex-1"
+          className="w-full content-md:flex-1"
         >
           View Logs
         </Button>

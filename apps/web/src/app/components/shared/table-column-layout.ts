@@ -48,7 +48,7 @@ export interface TableSkeletonColumn {
    * below): `DataTable.Header` only does that on its own for columns with a
    * `meta.filter`, and the calendar is not one. Without the opt-in the control
    * vanishes between `md` and `lg` — exactly the window where the toolbar's
-   * mobile filter button (`md:hidden`) is gone too, leaving no way at all to
+   * mobile filter button (`content-md:hidden`) is gone too, leaving no way at all to
    * reach the date filter.
    */
   dateFilterable?: boolean;
@@ -61,7 +61,7 @@ export interface TableSkeletonColumn {
  * The core drops every header cell there except the ones a user can act on, and
  * packs the survivors left beside their controls — its tablet header is a filter
  * toolbar, not a row of labels. One table (Invoices History) used to opt out of
- * that with a `tabletHeaderWidth` string of literal `max-lg:[&&&]:…` classes,
+ * that with a `tabletHeaderWidth` string of literal `content-max-lg:[&&&]:…` classes,
  * outranking the core's own `[&&]` rule on specificity. It was the only use in
  * the app, and it bought a tablet where five columns still fought over ~760px.
  *

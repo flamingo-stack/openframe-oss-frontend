@@ -2,7 +2,7 @@
 
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Skeleton, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
@@ -64,7 +64,7 @@ function ScriptParamsPanel({
         'flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-sf)] p-[var(--spacing-system-m)]',
         // Desktop layers the panels over the card (1:49182); the phone (1:49002)
         // flattens the whole card to one tone and lets the rules do the dividing.
-        'bg-ods-bg md:bg-ods-card',
+        'bg-ods-bg content-md:bg-ods-card',
         className,
       )}
     >
@@ -89,7 +89,7 @@ function ScriptParamsPanel({
  */
 export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardProps) {
   const router = useRouter();
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
   // The editor is kept once built, so re-opening a card is instant and a closed
   // one costs nothing beyond memory.
@@ -131,7 +131,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
           fixed 80px. */}
       <div
         className={cn(
-          'flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] md:h-[80px] md:gap-[var(--spacing-system-m)] md:py-0',
+          'flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] content-md:h-[80px] content-md:gap-[var(--spacing-system-m)] content-md:py-0',
           // Tone follows the STATE, not the breakpoint. Closed, the header is
           // the card's own face and keeps its tone (1:49009). Open, it becomes
           // chrome over the source and drops to the darker background tone
@@ -148,7 +148,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
         {/* `contents` on mobile: the wrapper exists only to make the right half a
             single flex child on desktop. Dissolving it below `md` lets Timeout
             share the row's width with Name evenly, as the mobile mock has it. */}
-        <div className="contents md:flex md:min-w-0 md:flex-1 md:items-center md:gap-[var(--spacing-system-m)]">
+        <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col justify-center">
             <span className="truncate text-ods-text-primary text-h4">
               {script.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} Seconds
@@ -156,7 +156,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
             <span className="truncate text-ods-text-secondary text-h6">Timeout</span>
           </div>
 
-          <Button variant="outline" onClick={handleScriptDetails} className="hidden md:flex">
+          <Button variant="outline" onClick={handleScriptDetails} className="hidden content-md:flex">
             Script Details
           </Button>
 
@@ -183,7 +183,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
           undo history. `inert` because clipping alone still leaves it in the tab
           order. */}
       <div
-        className="hidden transition-[grid-template-rows] duration-300 ease-in-out md:grid"
+        className="hidden transition-[grid-template-rows] duration-300 ease-in-out content-md:grid"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
         inert={!isExpanded}
       >
@@ -210,26 +210,26 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
       {/* The panels: what the chevron opens on a phone, permanent furniture on
           desktop. One instance serving both — the `!` is what lets the desktop
           rule beat the inline row template. Rendering two copies behind
-          `md:hidden` would duplicate the list for assistive tech instead. */}
+          `content-md:hidden` would duplicate the list for assistive tech instead. */}
       <div
-        className="grid transition-[grid-template-rows] duration-300 ease-in-out md:!grid-rows-[1fr]"
+        className="grid transition-[grid-template-rows] duration-300 ease-in-out content-md:!grid-rows-[1fr]"
         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
         // Only on a phone, where this region actually collapses. `isMdUp` is
         // `undefined` until the media query resolves; inerting for that first
         // frame is harmless, since the only focusable thing inside is the
-        // `md:hidden` button, which desktop does not render anyway.
+        // `content-md:hidden` button, which desktop does not render anyway.
         inert={!isExpanded && !isMdUp}
       >
         <div className="min-h-0 overflow-hidden">
           {/* Two equal panels split by a single rule (horizontal once they
               stack). Both always render, so an empty half still holds its column
               instead of letting the other one span the card. */}
-          <div className="flex flex-col items-stretch border-t border-ods-border md:flex-row">
+          <div className="flex flex-col items-stretch border-t border-ods-border content-md:flex-row">
             <ScriptParamsPanel
               title="Script Arguments"
               rows={argRows}
               emptyText="No script arguments"
-              className="border-b border-ods-border md:border-b-0 md:border-r"
+              className="border-b border-ods-border content-md:border-b-0 content-md:border-r"
             />
             <ScriptParamsPanel
               title="Environment Vars"
@@ -239,7 +239,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
               // Details", so the way into the script sits at the foot of the
               // last panel.
               footer={
-                <Button variant="outline" onClick={handleScriptDetails} className="w-full md:hidden">
+                <Button variant="outline" onClick={handleScriptDetails} className="w-full content-md:hidden">
                   Show Script Details
                 </Button>
               }
@@ -255,18 +255,18 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
 export function ScheduleScriptCardSkeleton() {
   return (
     <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
-      <div className="flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] md:h-[80px] md:gap-[var(--spacing-system-m)] md:py-0">
+      <div className="flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] content-md:h-[80px] content-md:gap-[var(--spacing-system-m)] content-md:py-0">
         <div className="flex min-w-0 flex-1 flex-col">
           <Skeleton className="mb-1 h-6 w-44" />
           <Skeleton className="h-5 w-12" />
         </div>
-        <div className="contents md:flex md:min-w-0 md:flex-1 md:items-center md:gap-[var(--spacing-system-m)]">
+        <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col">
             <Skeleton className="mb-1 h-6 w-24" />
             <Skeleton className="h-5 w-16" />
           </div>
-          <Skeleton className="hidden h-12 w-[130px] rounded-[6px] md:block" />
-          <Skeleton className="h-11 w-11 rounded-[6px] md:h-12 md:w-12" />
+          <Skeleton className="hidden h-12 w-[130px] rounded-[6px] content-md:block" />
+          <Skeleton className="h-11 w-11 rounded-[6px] content-md:h-12 content-md:w-12" />
         </div>
       </div>
 
@@ -280,13 +280,13 @@ export function ScheduleScriptCardSkeleton() {
           each optional, and an empty panel says so in one line ("No script
           arguments"), so exactly ONE placeholder row is reserved — the line every
           panel has either way. */}
-      <div className="hidden flex-col items-stretch border-t border-ods-border md:flex md:flex-row">
+      <div className="hidden flex-col items-stretch border-t border-ods-border content-md:flex content-md:flex-row">
         {SKELETON_PANELS.map((panel, panelIndex) => (
           <div
             key={panel}
             className={cn(
-              'flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-sf)] bg-ods-bg p-[var(--spacing-system-m)] md:bg-ods-card',
-              panelIndex === 0 && 'border-b border-ods-border md:border-b-0 md:border-r',
+              'flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-sf)] bg-ods-bg p-[var(--spacing-system-m)] content-md:bg-ods-card',
+              panelIndex === 0 && 'border-b border-ods-border content-md:border-b-0 content-md:border-r',
             )}
           >
             <span className="truncate text-ods-text-primary text-h4">{panel}</span>

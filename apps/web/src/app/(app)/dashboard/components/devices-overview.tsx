@@ -66,7 +66,7 @@ export function DevicesOverviewSection() {
         />
       )}
 
-      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
         {statusCards.map(card => (
           <DashboardInfoCard
             key={card.status}

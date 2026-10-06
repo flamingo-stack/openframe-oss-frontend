@@ -164,7 +164,7 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
     </div>
   ),
   enableSorting: false,
-  meta: { width: 'w-24 md:w-32 shrink-0 flex-none' },
+  meta: { width: 'w-24 content-md:w-32 shrink-0 flex-none' },
 };
 
 const customerColumn: ColumnDef<WorkTimeRow> = {
@@ -175,7 +175,7 @@ const customerColumn: ColumnDef<WorkTimeRow> = {
     if (!organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
     return (
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
-        <EntityImage src={organizationImageUrl} alt={organizationName} className="size-12 md:size-12" />
+        <EntityImage src={organizationImageUrl} alt={organizationName} className="size-12 content-md:size-12" />
         <div className="flex min-w-0 flex-col">
           <TruncateText>{organizationName}</TruncateText>
           {organizationEmail && (
@@ -244,7 +244,7 @@ function buildColumns(
       </div>
     ),
     enableSorting: false,
-    meta: { width: 'w-24 md:w-28 shrink-0 flex-none', align: 'right' },
+    meta: { width: 'w-24 content-md:w-28 shrink-0 flex-none', align: 'right' },
   };
 
   return [
@@ -366,7 +366,7 @@ function WorkTimeTableData({
 
   return (
     <>
-      <div className="flex flex-col gap-[var(--spacing-system-m)] md:flex-row">
+      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
         <DashboardInfoCard
           className="flex-1"
           title="TODAY TOTAL"
@@ -445,7 +445,7 @@ export function WorkTimeTableSkeleton({
           bars only for the duration + entry count. The previous hand-rolled
           placeholder had no fixed height, so the row was ~33px short of the
           104px cards and the table below jumped on load. */}
-      <div className="flex flex-col gap-[var(--spacing-system-m)] md:flex-row">
+      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
         {STAT_CARDS.map(card => (
           <InfoCardSkeleton
             key={card.title}
@@ -635,13 +635,13 @@ export function WorkTimeTable({
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-start">
+      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search for Work Time"
-          startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
-          className="w-full md:flex-1"
+          startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
+          className="w-full content-md:flex-1"
         />
         <DatePicker
           mode="range"
@@ -650,7 +650,7 @@ export function WorkTimeTable({
           formatDate={formatDate}
           numberOfMonths={2}
           placeholder="Select dates"
-          className="md:w-[276px]"
+          className="content-md:w-[276px]"
         />
       </div>
 

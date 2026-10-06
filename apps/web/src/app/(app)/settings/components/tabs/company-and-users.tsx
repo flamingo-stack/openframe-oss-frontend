@@ -195,13 +195,13 @@ export function CompanyAndUsersTab() {
             </div>
           );
         },
-        meta: { width: 'w-1/3 max-md:flex-[3] max-md:min-w-0' },
+        meta: { width: 'w-1/3 content-max-md:flex-[3] content-max-md:min-w-0' },
       },
       {
         accessorKey: 'roles',
         header: 'ROLE',
         cell: ({ row }: { row: Row<UnifiedUserRecord> }) => <ValueText value={(row.original.roles || []).join(', ')} />,
-        meta: { width: 'w-1/3 max-md:flex-[2] max-md:min-w-0' },
+        meta: { width: 'w-1/3 content-max-md:flex-[2] content-max-md:min-w-0' },
       },
       {
         accessorKey: 'status',
@@ -329,7 +329,7 @@ export function CompanyAndUsersTab() {
             placeholder="Search for Users"
             value={localSearch}
             onChange={e => setLocalSearch(e.target.value)}
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
         </div>
         <DataTable table={table}>

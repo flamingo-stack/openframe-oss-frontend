@@ -111,7 +111,7 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
               router.push(routes.settings.aiSettings({ tab: 'device-guardrails', edit: true }));
             }}
             leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-            className="w-full md:w-auto"
+            className="w-full content-md:w-auto"
           >
             Edit Default Guardrails
           </Button>
@@ -119,14 +119,14 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
       />
 
       {useDefault ? (
-        <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] md:min-h-20">
+        <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
           <InfoCell
             value={<span className="text-ods-text-secondary">{REMOTE_ACCESS_MODE_META[tenantMode].label}</span>}
             label="Default Remote Access Permission"
           />
         </div>
       ) : (
-        <div className="md:w-1/2">
+        <div className="content-md:w-1/2">
           <Select
             value={selectedMode}
             onValueChange={value => setChoice({ useDefault: false, mode: value as RemoteAccessMode })}

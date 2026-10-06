@@ -98,7 +98,12 @@ export function UsageView() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
-      <div className={cn('grid gap-[var(--spacing-system-m)]', hasAi ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')}>
+      <div
+        className={cn(
+          'grid gap-[var(--spacing-system-m)]',
+          hasAi ? 'grid-cols-1 content-md:grid-cols-2' : 'grid-cols-1',
+        )}
+      >
         <DashboardInfoCard
           title="Device Usage"
           value={devicesUsed}
@@ -123,7 +128,10 @@ export function UsageView() {
       )}
 
       <div
-        className={cn('grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]', showLimits && 'md:grid-cols-2')}
+        className={cn(
+          'grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]',
+          showLimits && 'content-md:grid-cols-2',
+        )}
       >
         <SectionBlock title="Usage Overview">
           <BillingRow label="Active devices" value={formatCount(activeDevices)} />

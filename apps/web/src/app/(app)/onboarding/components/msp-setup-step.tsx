@@ -123,7 +123,7 @@ export function MspSetupStep({
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
       {/* Name + Website (left) / Logo (right) */}
-      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
+      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] content-md:flex-row">
         <div className="flex w-full min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <Input
             id="msp-org-name"
@@ -157,15 +157,15 @@ export function MspSetupStep({
             alt={name || 'Organization logo'}
             // Pin height only on desktop, where it aligns with the two-input column on the
             // left. On mobile the columns stack, so let the dropzone use its natural height.
-            dropzoneClassName="md:h-[148px]"
+            dropzoneClassName="content-md:h-[148px]"
           />
         </div>
       </div>
 
       {/* Mark as Complete + Save — aligned to the right, matching the design grid */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <div className="hidden flex-1 md:block" />
-        <div className="hidden flex-1 md:block" />
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
+        <div className="hidden flex-1 content-md:block" />
+        <div className="hidden flex-1 content-md:block" />
         {!completed ? (
           <Button
             variant="outline"
@@ -176,14 +176,14 @@ export function MspSetupStep({
             }}
             loading={actions.complete.loading}
             disabled={actions.complete.disabled}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Mark as Complete
           </Button>
         ) : (
           // Keep the completed step's primary button its own width — don't let it
           // stretch into the removed "Mark as Complete" slot.
-          <div className="hidden md:block md:flex-1" aria-hidden />
+          <div className="hidden content-md:block content-md:flex-1" aria-hidden />
         )}
         <Button
           variant="accent"
@@ -193,7 +193,7 @@ export function MspSetupStep({
           }}
           loading={actions.primary.loading}
           disabled={actions.primary.disabled}
-          className="w-full md:flex-1"
+          className="w-full content-md:flex-1"
         >
           Save Organization
         </Button>

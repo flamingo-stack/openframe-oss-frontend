@@ -27,31 +27,31 @@ export function CustomerHeaderSkeleton() {
     <div
       className={cn(
         'flex items-end justify-between gap-[var(--spacing-system-m)]',
-        'md:flex-col md:items-start md:justify-start lg:flex-row lg:items-end lg:justify-between',
+        'content-md:flex-col content-md:items-start content-md:justify-start content-lg:flex-row content-lg:items-end content-lg:justify-between',
         'pt-[var(--spacing-system-l)]',
         // card variant: card bg/border + padding on mobile only
         'border-b border-ods-border bg-ods-card px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]',
-        'md:mb-[var(--spacing-system-l)] md:border-b-0 md:bg-transparent md:px-0 md:pb-0',
+        'content-md:mb-[var(--spacing-system-l)] content-md:border-b-0 content-md:bg-transparent content-md:px-0 content-md:pb-0',
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
         {/* Back button (hidden on mobile to match TitleBlock) */}
-        <Skeleton className="hidden h-10 w-44 md:block" />
+        <Skeleton className="hidden h-10 w-44 content-md:block" />
         {/* Identity row: logo + (title + subtitle) */}
         <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
-          <Skeleton className="size-12 shrink-0 rounded-md md:size-16" />
+          <Skeleton className="size-12 shrink-0 rounded-md content-md:size-16" />
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-            <Skeleton className="h-7 w-72 max-w-full md:h-9" />
+            <Skeleton className="h-7 w-72 max-w-full content-md:h-9" />
             <Skeleton className="h-5 w-56 max-w-full" />
           </div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {/* Mobile: single icon button (icon-buttons variant collapses on mobile) */}
-        <Skeleton className="h-12 w-12 rounded-[6px] md:hidden" />
+        <Skeleton className="h-12 w-12 rounded-[6px] content-md:hidden" />
         {/* Desktop: full action buttons */}
-        <Skeleton className="hidden h-12 w-[200px] rounded-[6px] md:block" />
-        <Skeleton className="hidden h-12 w-[180px] rounded-[6px] md:block" />
+        <Skeleton className="hidden h-12 w-[200px] rounded-[6px] content-md:block" />
+        <Skeleton className="hidden h-12 w-[180px] rounded-[6px] content-md:block" />
       </div>
     </div>
   );
@@ -111,10 +111,10 @@ export function CustomerDetailsTabSkeleton() {
       <StackedRowsPanel rows={contactRows} />
       {/* Notes card: title + two lines of text */}
       <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
-        <Skeleton className="h-8 w-32 md:h-10" />
+        <Skeleton className="h-8 w-32 content-md:h-10" />
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <Skeleton className="h-5 w-full md:h-6" />
-          <Skeleton className="h-5 w-2/3 md:h-6" />
+          <Skeleton className="h-5 w-full content-md:h-6" />
+          <Skeleton className="h-5 w-2/3 content-md:h-6" />
         </div>
       </div>
     </div>
@@ -224,9 +224,9 @@ interface CustomerDetailsSkeletonProps {
  */
 export function CustomerDetailsSkeleton({ activeTab = 'devices' }: CustomerDetailsSkeletonProps) {
   return (
-    <div className="flex w-full flex-col md:px-[var(--spacing-system-l)] md:pb-[var(--spacing-system-l)]">
+    <div className="flex w-full flex-col content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]">
       <CustomerHeaderSkeleton />
-      <div className="flex flex-col gap-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] md:px-0 md:pb-0">
+      <div className="flex flex-col gap-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] content-md:px-0 content-md:pb-0">
         <CustomerTabNavigationSkeleton />
         {getCustomerTabSkeleton(activeTab)}
       </div>

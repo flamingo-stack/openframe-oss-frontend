@@ -182,7 +182,7 @@ function OrganizationCell({ device }: { device: Device }) {
 
   return (
     <div className="flex items-center gap-3">
-      <EntityImage src={fullImageUrl} alt={device.organization || 'Customer'} className="size-12 md:size-12" />
+      <EntityImage src={fullImageUrl} alt={device.organization || 'Customer'} className="size-12 content-md:size-12" />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <span className="break-words text-ods-text-primary text-h4">{device.organization || ''}</span>
       </div>
@@ -278,7 +278,7 @@ export function getDeviceTableColumns(
           </div>
         );
       },
-      meta: { width: 'flex-1 md:w-1/4' },
+      meta: { width: 'flex-1 content-md:w-1/4' },
     },
     {
       accessorKey: 'status',
@@ -292,14 +292,14 @@ export function getDeviceTableColumns(
             <div className="inline-flex">
               <Tag label={statusConfig.label} variant={statusConfig.variant} />
             </div>
-            <span className="hidden text-ods-text-secondary text-h6 md:flex">
+            <span className="hidden text-ods-text-secondary text-h6 content-md:flex">
               {device.last_seen ? formatDateTime(device.last_seen) : 'Never'}
             </span>
           </div>
         );
       },
       meta: {
-        width: 'w-auto shrink-0 md:w-1/5',
+        width: 'w-auto shrink-0 content-md:w-1/5',
         // Declared unconditionally, empty options and all. `meta.filter` is what
         // keeps a header cell visible below `lg`, so dropping it until the
         // options query resolves made every header on a tablet disappear on
@@ -313,10 +313,10 @@ export function getDeviceTableColumns(
       id: 'os',
       header: 'OS',
       cell: ({ row }: { row: Row<Device> }) => (
-        <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 md:w-6 md:h-6" />
+        <OSTypeBadge osType={row.original.osType} iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
       ),
       meta: {
-        width: 'w-[200px] md:w-1/6',
+        width: 'w-[200px] content-md:w-1/6',
         hideAt: 'md',
         filter: { options: osFilterOptions, pending: filtersPending },
       },

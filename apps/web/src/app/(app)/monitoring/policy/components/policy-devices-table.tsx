@@ -82,7 +82,11 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
           return (
             <div className="flex items-center gap-3">
-              <EntityImage src={fullImageUrl} alt={r.organization || 'Customer'} className="size-12 md:size-12" />
+              <EntityImage
+                src={fullImageUrl}
+                alt={r.organization || 'Customer'}
+                className="size-12 content-md:size-12"
+              />
               <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
               </div>
@@ -154,7 +158,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
                 className="w-full bg-ods-card"
               >
                 {/* Icon-only on mobile, per design. */}
-                <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
+                <span className="hidden content-md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
               </Button>
             </div>
           );

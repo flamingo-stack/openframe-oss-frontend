@@ -34,7 +34,7 @@ function formatUptime(seconds?: number): string | undefined {
 
 /** A row of hardware blocks — a 3-column grid where every block stretches to an equal width. */
 function Row({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-3">{children}</div>;
+  return <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">{children}</div>;
 }
 
 /**

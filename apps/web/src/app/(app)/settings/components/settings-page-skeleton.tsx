@@ -15,13 +15,13 @@ export function SettingsPageSkeleton() {
     <PageLayout
       title="Settings"
       className="min-h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      contentClassName="gap-[var(--spacing-system-l)] lg:gap-[var(--spacing-system-xl)]"
+      contentClassName="gap-[var(--spacing-system-l)] content-lg:gap-[var(--spacing-system-xl)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <Skeleton className="h-40 w-full rounded-md" />
       </div>
 
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
         {MENU_CARD_KEYS.map(key => (
           <Skeleton key={key} className="h-[88px] w-full rounded-md" />
         ))}

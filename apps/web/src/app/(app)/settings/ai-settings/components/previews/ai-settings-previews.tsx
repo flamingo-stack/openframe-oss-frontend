@@ -82,11 +82,17 @@ export function AiSettingsPreviews({
       {/* Just the affordance: every consumer already renders the assistant's
           name, avatar, model, theme and accent directly above this, so a
           summary card here only repeats them. */}
-      <Button type="button" variant="outline" fullWidth className="md:hidden" onClick={() => openPreview('welcome')}>
+      <Button
+        type="button"
+        variant="outline"
+        fullWidth
+        className="content-md:hidden"
+        onClick={() => openPreview('welcome')}
+      >
         Preview Assistant
       </Button>
 
-      <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg md:grid">
+      <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid">
         <ThumbnailTrigger
           themeClass={themeClass}
           label="Open the welcome screen preview at full size"

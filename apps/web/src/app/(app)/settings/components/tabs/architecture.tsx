@@ -65,7 +65,7 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
         />
       </div>
       {isLoading && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-lg border border-ods-border bg-ods-card p-6">
               <div className="mb-4 flex items-center gap-4">
@@ -84,7 +84,7 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
       {layerOrder.map(layer => (
         <div key={layer} className="space-y-4">
           <div className="text-ods-text-primary text-h2">{layer}</div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2">
             {grouped[layer].map(tool => {
               const rows: Array<{
                 label?: string;

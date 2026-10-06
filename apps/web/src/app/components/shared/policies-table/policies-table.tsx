@@ -149,7 +149,7 @@ export function PoliciesTable({
             </div>
           ) : null,
         enableSorting: false,
-        meta: { width: 'w-12 md:w-auto md:min-w-[100px] shrink-0 flex-none', align: 'right' },
+        meta: { width: 'w-12 content-md:w-auto content-md:min-w-[100px] shrink-0 flex-none', align: 'right' },
       });
     }
 

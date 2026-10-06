@@ -32,9 +32,9 @@ export function KnowledgeBaseStep({
       </p>
 
       {/* Footer actions */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
-        <div className="hidden flex-1 md:block" />
-        <div className="hidden flex-1 md:block" />
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
+        <div className="hidden flex-1 content-md:block" />
+        <div className="hidden flex-1 content-md:block" />
         {!completed ? (
           <Button
             variant="outline"
@@ -42,14 +42,14 @@ export function KnowledgeBaseStep({
             onClick={() => onComplete?.()}
             loading={completing}
             disabled={completing}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Mark as Complete
           </Button>
         ) : (
           // Keep the completed step's primary button its own width — don't let it
           // stretch into the removed "Mark as Complete" slot.
-          <div className="hidden md:block md:flex-1" aria-hidden />
+          <div className="hidden content-md:block content-md:flex-1" aria-hidden />
         )}
         <Button
           variant="accent"
@@ -59,7 +59,7 @@ export function KnowledgeBaseStep({
             if (!completed) onCompleteBackground?.();
             router.push(onboardingHintUrl(routes.knowledgeBase.new(), 'knowledge', pathname));
           }}
-          className="w-full md:flex-1"
+          className="w-full content-md:flex-1"
         >
           Create Article
         </Button>

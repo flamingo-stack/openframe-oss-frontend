@@ -29,7 +29,7 @@ interface TenantFormFieldsProps {
 }
 
 /** One column on a phone, two at md (a four-way split is too narrow there), four at lg — the frames' proportions. */
-const FIELD_GRID = 'grid grid-cols-1 gap-[var(--spacing-system-lf)] md:grid-cols-2 lg:grid-cols-4';
+const FIELD_GRID = 'grid grid-cols-1 gap-[var(--spacing-system-lf)] content-md:grid-cols-2 content-lg:grid-cols-4';
 
 export function TenantFormFields({
   control,
@@ -49,7 +49,7 @@ export function TenantFormFields({
             name="domain"
             control={control}
             render={({ field, fieldState }) => (
-              <div className="md:col-span-2">
+              <div className="content-md:col-span-2">
                 <Input
                   type="text"
                   inputMode="url"

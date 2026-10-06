@@ -215,7 +215,7 @@ export function SettingsHub() {
     <PageLayout
       title="Settings"
       className="min-h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      contentClassName="gap-[var(--spacing-system-l)] lg:gap-[var(--spacing-system-xl)]"
+      contentClassName="gap-[var(--spacing-system-l)] content-lg:gap-[var(--spacing-system-xl)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         {/* Organization + Profile */}
@@ -231,7 +231,7 @@ export function SettingsHub() {
       </div>
 
       {/* Navigation Cards Grid */}
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
         {gatesResolved
           ? visibleItems.map(item => {
               const {

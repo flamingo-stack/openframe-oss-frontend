@@ -53,7 +53,7 @@ export function NewTenantView() {
           // No provider on offer (or not known yet) leaves nothing a Generate could create.
           disabled={!isValid || !offered || offered.length === 0}
           loading={isCreating}
-          className="w-full md:w-auto"
+          className="w-full content-md:w-auto"
         >
           Generate Connection Link
         </Button>

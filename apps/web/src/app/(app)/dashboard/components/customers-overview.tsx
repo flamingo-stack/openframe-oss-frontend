@@ -45,14 +45,21 @@ export function CustomersOverviewSection() {
       const fullImageUrl = getFullImageUrl(org.imageUrl, org.imageHash);
 
       return (
-        <div key={org.id} className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] lg:grid-cols-4">
+        <div
+          key={org.id}
+          className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] content-lg:grid-cols-4"
+        >
           {/* Customer column — full row on mobile/tablet, half row on desktop.
               The `[&>div:first-child>span]` override enlarges the card's icon
               slot content so the customer logo fills the tile (Figma). */}
           <DashboardInfoCard
             className="col-span-2 [&>div:first-child>span]:size-full"
             icon={
-              <EntityImage src={fullImageUrl} alt={org.name} className="size-full rounded-none border-0 md:size-full" />
+              <EntityImage
+                src={fullImageUrl}
+                alt={org.name}
+                className="size-full rounded-none border-0 content-md:size-full"
+              />
             }
             titleSlot={
               <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
@@ -63,7 +70,7 @@ export function CustomersOverviewSection() {
               </div>
             }
             value={org.websiteUrl || 'Organization'}
-            valueClassName="text-ods-text-secondary text-h6 md:text-h6"
+            valueClassName="text-ods-text-secondary text-h6 content-md:text-h6"
             href={routes.customers.details(org.organizationId)}
           />
 

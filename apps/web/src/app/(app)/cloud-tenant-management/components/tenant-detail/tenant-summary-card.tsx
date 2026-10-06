@@ -19,10 +19,10 @@ import {
 } from '../../utils/tenant-presentation';
 
 // The two-row identity card of the details page (Figma 2097-140910 / 2097-119207) and its one-row cut
-// on Edit / Reconnect (2097-123264). Own row classes: the employee card's `md:contents` folds into one row.
+// on Edit / Reconnect (2097-123264). Own row classes: the employee card's `content-md:contents` folds into one row.
 const CARD_CLASSES = 'flex flex-col rounded-md border border-ods-border bg-ods-card';
 const ROW_CLASSES =
-  'grid grid-cols-2 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] md:flex md:min-h-20 md:items-center md:py-0';
+  'grid grid-cols-2 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:flex content-md:min-h-20 content-md:items-center content-md:py-0';
 const DIVIDED_ROW_CLASSES = 'border-t border-ods-border';
 
 // The cells' labels, shared with the skeleton: they are static, so the loading card draws them for real.

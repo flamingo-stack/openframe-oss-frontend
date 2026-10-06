@@ -48,6 +48,10 @@ export const FEATURE_FLAG_NAMES = [
   // dialog's AI context on demand. Off = the item is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // Mingo docked into the layout (Mingo v2): a resizable column beside the page
+  // instead of the overlay drawer, the page laying out by the room it leaves
+  // (`content-md:` / `content-lg:`). Off = the overlay drawer.
+  'mingo-v2',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];
