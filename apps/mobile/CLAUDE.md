@@ -381,7 +381,7 @@ build configurations.
   export-compliance prompt.
 - **Store lanes differ from the others.** `build-android-prod.sh` emits a **signed AAB**
   (`bundleProdRelease`) — Play rejects APKs and unsigned bundles, so it hard-fails when the
-  `OF_UPLOAD_*` keystore vars are absent rather than letting Gradle log-and-continue. Bump
+  `ANDROID_UPLOAD_*` keystore vars are absent rather than letting Gradle log-and-continue. Bump
   per upload with `VERSION_CODE=`/`VERSION_NAME=` (wired to `-PofVersionCode`/`-PofVersionName`).
   `build-ios-prod.sh` takes `BUILD_NUMBER=` and asserts the exported **.ipa**'s
   `aps-environment` is `production` (see the signing gotcha below).
