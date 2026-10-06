@@ -113,8 +113,8 @@ describe('CustomerDetailsTab cards', () => {
   it('renders each contact once for desktop and split in two for mobile, dropping the last border', () => {
     render(customer({ contacts: [CONTACT, { ...CONTACT, contactName: 'John Roe', email: 'john@acme.com' }] }));
 
-    const desktopRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="md:flex"]')];
-    const mobileRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="md:hidden"]')];
+    const desktopRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="content-md:flex"]')];
+    const mobileRows = [...contactsPanel().querySelectorAll<HTMLElement>('[class~="content-md:hidden"]')];
     expect(desktopRows).toHaveLength(2);
     expect(mobileRows).toHaveLength(4);
 
@@ -127,8 +127,8 @@ describe('CustomerDetailsTab cards', () => {
     expect(mobileRows[1].textContent).toContain('jane@acme.com');
     expect(mobileRows[2].textContent).toContain('John Roe');
 
-    expect(desktopRows[0].className).not.toContain('md:border-b-0');
-    expect(desktopRows[1].className).toContain('md:border-b-0');
+    expect(desktopRows[0].className).not.toContain('content-md:border-b-0');
+    expect(desktopRows[1].className).toContain('content-md:border-b-0');
   });
 
   it('shows the empty state when there are no contacts', () => {
@@ -150,11 +150,11 @@ describe('CustomerDetailsTab cards', () => {
     render(customer({ physicalAddress: '1 Main St', mailingAddress: '' }));
 
     const info = panels()[0];
-    const desktop = info.querySelector<HTMLElement>('[class~="md:flex"]');
-    const mobile = [...info.querySelectorAll<HTMLElement>('[class~="md:hidden"]')];
+    const desktop = info.querySelector<HTMLElement>('[class~="content-md:flex"]');
+    const mobile = [...info.querySelectorAll<HTMLElement>('[class~="content-md:hidden"]')];
     expect(desktop?.textContent).toContain('1 Main St');
     expect(desktop?.textContent).toContain('Mailing Address');
-    expect(desktop?.className).toContain('md:border-b-0');
+    expect(desktop?.className).toContain('content-md:border-b-0');
     expect(mobile).toHaveLength(2);
     expect(mobile[1].textContent).toContain('—');
   });

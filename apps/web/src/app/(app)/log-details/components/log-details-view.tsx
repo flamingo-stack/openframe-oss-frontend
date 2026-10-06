@@ -108,14 +108,14 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
     >
       <div className="flex w-full flex-col gap-6">
         {/* Status and Timestamp */}
-        <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4">
+        <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
           <Tag label={logDetails.severity} variant={getSeverityVariant(logDetails.severity)} />
           <span className="text-ods-text-primary text-h4">{formatDateTime(logDetails.timestamp)}</span>
         </div>
 
         {/* Log Summary Card */}
         <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
-          <div className="flex flex-col items-start gap-4 p-4 md:p-6">
+          <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
             <div className="flex w-full flex-col gap-2">
               <div className="break-words text-ods-text-primary text-h4">
                 {logDetails.message || 'No message available'}

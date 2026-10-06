@@ -79,7 +79,7 @@ function DeviceGuardrailsView({ policy }: { policy: TenantRemoteAccessPolicy }) 
   return (
     /* Same "table-cell" card as the customer tab: 60px/12px padding on
        mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
-    <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] md:min-h-20">
+    <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
       <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label="Default Remote Access Permission" />
     </div>
   );

@@ -237,8 +237,8 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
         touchReorder
           ? // Touch: the mock spaces name / move buttons / delete by the same
             // fixed 8px, so the grid gap matches the controls-cluster gap.
-            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
-          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
+            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] content-lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] content-lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
         'items-start gap-y-[var(--spacing-system-m)]',
         'rounded-md border border-ods-border p-[var(--spacing-system-m)]',
         drag.isDragging && 'bg-ods-bg opacity-70 shadow-lg',
@@ -250,10 +250,10 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
           <button
             type="button"
             aria-label="Drag to reorder"
-            className="flex size-11 cursor-grab items-center justify-center rounded-sm text-ods-text-secondary outline-none hover:text-ods-text-primary focus-visible:ring-2 focus-visible:ring-ods-focus active:cursor-grabbing md:size-12"
+            className="flex size-11 cursor-grab items-center justify-center rounded-sm text-ods-text-secondary outline-none hover:text-ods-text-primary focus-visible:ring-2 focus-visible:ring-ods-focus active:cursor-grabbing content-md:size-12"
             {...drag.dragHandleProps}
           >
-            <DraggerIcon className="size-4 md:size-6" />
+            <DraggerIcon className="size-4 content-md:size-6" />
           </button>
         </div>
       )}
@@ -270,8 +270,8 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
 
       <div
         className={cn(
-          'col-span-2 row-start-2 min-w-0 lg:col-span-1 lg:row-start-1',
-          touchReorder ? 'col-start-1 lg:col-start-2' : 'col-start-2 lg:col-start-3',
+          'col-span-2 row-start-2 min-w-0 content-lg:col-span-1 content-lg:row-start-1',
+          touchReorder ? 'col-start-1 content-lg:col-start-2' : 'col-start-2 content-lg:col-start-3',
         )}
       >
         <Controller
@@ -292,7 +292,7 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
       <div
         className={cn(
           'row-start-1 flex items-center gap-[var(--spacing-system-xsf)]',
-          touchReorder ? 'col-start-2 lg:col-start-3' : 'col-start-3 lg:col-start-4',
+          touchReorder ? 'col-start-2 content-lg:col-start-3' : 'col-start-3 content-lg:col-start-4',
           LABEL_OFFSET_CLASS,
         )}
       >

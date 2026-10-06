@@ -68,7 +68,7 @@ const EXECUTIONS_EMPTY_STATE = {
 function RunInfoCell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0 ${className ?? ''}`}
+      className={`flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0 ${className ?? ''}`}
     >
       {children}
       <span className="text-ods-text-secondary text-h6">{label}</span>
@@ -94,16 +94,16 @@ function RunInfoBar({ run }: { run: RunNode }) {
 
   return (
     <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="grid grid-cols-2 border-b border-ods-border md:grid-cols-4">
+      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
             held — so the honest equivalent is how many devices answered it. */}
-        <RunInfoCell label="Devices Responded" className="border-b border-ods-border md:border-b-0">
+        <RunInfoCell label="Devices Responded" className="border-b border-ods-border content-md:border-b-0">
           <span className="truncate text-ods-text-primary text-h4">
             {responded} / {total}
           </span>
         </RunInfoCell>
-        <RunInfoCell label="Executed by" className="border-b border-ods-border md:border-b-0">
+        <RunInfoCell label="Executed by" className="border-b border-ods-border content-md:border-b-0">
           <div className="flex min-w-0 items-center gap-2">
             {isDeleted ? (
               <DeletedUserAvatar size="sm" />
@@ -141,7 +141,7 @@ function RunInfoBar({ run }: { run: RunNode }) {
           <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />
         </RunInfoCell>
         {/* The design's fourth slot is an empty spacer, not a cell. */}
-        <div className="hidden md:block" />
+        <div className="hidden content-md:block" />
       </div>
       <div className="grid grid-cols-2">
         <RunInfoCell label="Start Time">
@@ -159,26 +159,32 @@ function RunInfoBar({ run }: { run: RunNode }) {
 function RunInfoBarSkeleton() {
   return (
     <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="grid grid-cols-2 border-b border-ods-border md:grid-cols-4">
+      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {['responded', 'by', 'status', 'spacer'].map(cell => (
-          <div key={cell} className="flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0">
+          <div
+            key={cell}
+            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
+          >
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 w-20 max-w-full md:h-4" />
+              <Skeleton className="inline-block h-3 w-20 max-w-full content-md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 w-14 max-w-full md:h-3" />
+              <Skeleton className="inline-block h-2.5 w-14 max-w-full content-md:h-3" />
             </div>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-2">
         {['start', 'finish'].map(cell => (
-          <div key={cell} className="flex min-w-0 flex-col items-start justify-center px-4 py-3 md:h-[80px] md:py-0">
+          <div
+            key={cell}
+            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
+          >
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 w-32 max-w-full md:h-4" />
+              <Skeleton className="inline-block h-3 w-32 max-w-full content-md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 w-16 max-w-full md:h-3" />
+              <Skeleton className="inline-block h-2.5 w-16 max-w-full content-md:h-3" />
             </div>
           </div>
         ))}

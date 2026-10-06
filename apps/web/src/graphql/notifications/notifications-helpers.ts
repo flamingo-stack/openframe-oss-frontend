@@ -121,14 +121,14 @@ function insertEdgeByCreatedAt(store: RecordSourceSelectorProxy, conn: RecordPro
 
 /**
  * Every updater below is idempotent: it may run for the same notification twice — the user's
- * own mutation, then the READ / DELETED event the backend publishes for it, in either order
+ * own mutation, then the read-state event the backend publishes for it, in either order
  * and around the optimistic revert in between. A second pass finds nothing left to flip,
  * remove or count, and inserts no duplicate edge.
  */
 export function makeMarkReadUpdater(
   id: string,
   pairs: NotificationConnectionPair[],
-  options: { adjustCount?: boolean } = {},
+  options: { adjustCount?: boolean; status?: Extract<NotificationReadStatus, 'READ' | 'ARCHIVED'> } = {},
 ) {
   return (store: RecordSourceSelectorProxy) => {
     const node = store.get(id);
@@ -139,7 +139,7 @@ export function makeMarkReadUpdater(
     if (options.adjustCount !== false && node.getValue('read') === false) {
       adjustUnreadCount(store, node.getValue('category'), -1);
     }
-    setReadStatus(node, NotificationReadStatus.READ);
+    setReadStatus(node, options.status ?? NotificationReadStatus.READ);
 
     const root = store.getRoot();
     const seen = new Set<string>();
@@ -258,12 +258,19 @@ export function makeDeleteNotificationUpdater(id: string, pairs: NotificationCon
   };
 }
 
-export type NotificationReadStateEvent = 'READ' | 'DELETED';
+const READ_STATE_EVENTS = ['READ', 'ARCHIVED', 'DELETED'] as const;
+
+export type NotificationReadStateEvent = (typeof READ_STATE_EVENTS)[number];
+
+export function isReadStateEvent(eventType: string | undefined): eventType is NotificationReadStateEvent {
+  return READ_STATE_EVENTS.some(event => event === eventType);
+}
 
 /**
- * Apply a READ / DELETED live event: the recipient's read-state changed elsewhere (another
- * tab, another device, or this tab's own mutation echoing back), and the event carries the
- * ids only — the cards are already in the store, so each is flipped or dropped in place.
+ * Apply a live read-state event: the recipient's read-state changed outside this
+ * updater (another tab, another device, this tab's own mutation echoing back, or the
+ * notification's ticket or dialog being archived), and the event carries the ids only — the
+ * cards are already in the store, so each is flipped or dropped in place.
  * An id the store never loaded is skipped, which is why the caller still refetches the
  * counts afterwards.
  */
@@ -274,8 +281,17 @@ export function makeReadStateUpdater(
 ) {
   return (store: RecordSourceSelectorProxy) => {
     for (const id of ids) {
-      const apply = eventType === 'READ' ? makeMarkReadUpdater(id, pairs) : makeDeleteNotificationUpdater(id, pairs);
-      apply(store);
+      if (eventType === 'DELETED') {
+        makeDeleteNotificationUpdater(id, pairs)(store);
+        continue;
+      }
+      // Archiving moves only UNREAD rows, so an ARCHIVED never downgrades a row already READ here:
+      // a later mark-read overtook it — the archive and the read are published by different services.
+      const status =
+        eventType === 'ARCHIVED' && store.get(id)?.getValue('status') !== NotificationReadStatus.READ
+          ? NotificationReadStatus.ARCHIVED
+          : NotificationReadStatus.READ;
+      makeMarkReadUpdater(id, pairs, { status })(store);
     }
   };
 }

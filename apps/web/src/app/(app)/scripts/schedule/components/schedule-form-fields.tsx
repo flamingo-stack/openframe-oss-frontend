@@ -9,7 +9,7 @@ import {
   Textarea,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '../../shared/utils/script-utils';
@@ -34,7 +34,7 @@ interface ScheduleFormFieldsProps {
  */
 export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFormFieldsProps) {
   const { control, formState, getValues, setValue } = useFormContext<EditScheduleFormData>();
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
   const supportedPlatforms = useWatch({ control, name: 'supportedPlatforms' });
 
   const togglePlatform = useCallback(
@@ -115,7 +115,7 @@ export function ScheduleFormFields({ showErrors, disabled = false }: ScheduleFor
         data-invalid={(showErrors && !!formState.errors.supportedPlatforms) || undefined}
       >
         <Label className="text-h4">Supported Platform</Label>
-        <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-md:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(platform => {
             const comingSoon = DISABLED_PLATFORMS.includes(platform.id);
             return (

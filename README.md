@@ -123,7 +123,7 @@ The application uses three complementary state management approaches:
 
 ## Quick Start
 
-> **Prerequisites:** Node.js 18+, npm 9+, Git. See the [Prerequisites Guide](./docs/getting-started/prerequisites.md) for full details.
+> **Prerequisites:** Node.js 24 (the version in [`.nvmrc`](./.nvmrc)) with its bundled npm, Git. See the [Prerequisites Guide](./docs/getting-started/prerequisites.md) for full details.
 
 ```bash
 # 1. Clone the repository

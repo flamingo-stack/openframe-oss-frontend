@@ -158,7 +158,7 @@ export function ApiKeysTab() {
             variant={row.original.enabled ? 'success' : 'grey'}
           />
         ),
-        meta: { width: 'w-auto shrink-0 md:w-[120px]' },
+        meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
       {
         accessorKey: 'id',

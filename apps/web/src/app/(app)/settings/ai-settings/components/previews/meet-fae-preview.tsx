@@ -114,7 +114,7 @@ export function MeetFaePreview({
                 // The 72px tile is a desktop-width figure; at phone width 1:1 it
                 // eats a third of the row. Thumbnails only render at `md` and up,
                 // so they keep the original size either way.
-                className="flex size-12 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg md:size-[72px]"
+                className="flex size-12 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg content-md:size-[72px]"
                 style={{ color: accentColor }}
               >
                 <Icon className="size-6" />
@@ -163,7 +163,7 @@ export function MeetFaePreview({
   if (!isThumbnail) return <div className="h-full w-full overflow-y-auto">{body}</div>;
 
   return (
-    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.264] md:h-[296px] md:[--preview-scale:0.313] lg:h-[380px] lg:[--preview-scale:0.402]">
+    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.264] content-md:h-[296px] content-md:[--preview-scale:0.313] content-lg:h-[380px] content-lg:[--preview-scale:0.402]">
       {/* 1:1 content in a 945px slot, transform-scaled (not zoom) to the per-breakpoint card
           height. zoom mis-renders text in Safari, so we scale via transform instead; the
           wrapper reserves the post-scale footprint so the card still centers the content. */}

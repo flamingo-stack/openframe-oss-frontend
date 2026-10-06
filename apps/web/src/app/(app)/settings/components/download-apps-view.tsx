@@ -99,7 +99,7 @@ export function DownloadAppsView() {
       {/* Grid stays two-column with one card: the Mobile App card keeps the width and
           proportions it has on the web rather than stretching its QR plate across the
           page. */}
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-2">
         {!desktopShell && (
           <AppCard title="Desktop App" description="System notifications and auto-start on boot.">
             {degradedMessage && <p className="text-ods-warning text-h6">{degradedMessage}</p>}

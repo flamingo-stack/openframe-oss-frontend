@@ -9,9 +9,9 @@ interface LogDetailsSkeletonProps {
 
 function StatusTimestampSkeleton() {
   return (
-    <div className="flex flex-col items-start gap-3 md:flex-row md:items-center md:gap-4">
+    <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
       <Skeleton className="h-6 w-14 rounded-[4px]" />
-      <Skeleton className="h-5 w-40 md:h-6" />
+      <Skeleton className="h-5 w-40 content-md:h-6" />
     </div>
   );
 }
@@ -19,9 +19,9 @@ function StatusTimestampSkeleton() {
 function LogSummaryCardSkeleton() {
   return (
     <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
-      <div className="flex flex-col items-start gap-4 p-4 md:p-6">
+      <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
         <div className="flex w-full flex-col gap-2">
-          <Skeleton className="h-5 w-2/3 max-w-[480px] md:h-6" />
+          <Skeleton className="h-5 w-2/3 max-w-[480px] content-md:h-6" />
           <div className="flex items-center gap-2">
             <Skeleton className="h-5 w-16 rounded-[4px]" />
             <Skeleton className="h-1 w-1 rounded-full" />
@@ -59,7 +59,7 @@ function FullInformationSkeleton() {
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="flex flex-col divide-y divide-ods-border">
           {FULL_INFO_ROWS.map(({ labelWidth, valueWidth }, i) => (
-            <div key={i} className="p-4 md:p-6">
+            <div key={i} className="p-4 content-md:p-6">
               <div className="flex w-full items-center gap-2">
                 <Skeleton className={`h-5 ${labelWidth} shrink-0`} />
                 <div className="h-px min-h-px min-w-px flex-1 bg-ods-border" />
@@ -98,7 +98,7 @@ function DetailsSkeleton() {
     <div className="flex w-full flex-col gap-3">
       <Skeleton className="h-5 w-20" />
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
-        <div className="p-4 md:p-6">
+        <div className="p-4 content-md:p-6">
           <div className="flex flex-col gap-2">
             {DETAILS_LINE_WIDTHS.map((width, i) => (
               <Skeleton

@@ -13,15 +13,20 @@ config. There are no npm workspaces and no root `package.json` — run every com
 `apps/web`'s `prepare` script) and gate only `apps/web`. Desktop and mobile were imported with
 full history from `openframe-saas-desktop` / `openframe-saas-mobile`.
 
+Node is declared once, in the root `.nvmrc`: every `setup-node` step reads it, and the major in
+`apps/web/Dockerfile` (a literal, so Renovate can pin its digest) is bumped with it.
+
 ## Shells and the web bundle
 
 - `scripts/build-web.sh` in each shell builds `apps/web`'s static export
   (`OPENFRAME_BUILD_TARGET=export`) and stages it into the shell's `www/`, so a shell and its
   bundle are always one commit.
-- **Desktop CI** is `.github/workflows/desktop-{test,release,version}.yml` (path-filtered to
-  `apps/desktop/`). A release is dispatched FROM the web release tag prod runs
-  (`gh workflow run desktop-release.yml --ref 1.0.150`) and is tagged `desktop-vx.y.z`; bare `x.y.z`
-  tags stay web releases. The web `release.yml` ignores `apps/desktop/**` and `apps/mobile/**`.
+- **Release** is one `.github/workflows/release.yml` (version from `version.yml`): a dispatch
+  publishes the web image, the desktop shell and the signed mobile `.ipa`/`.aab` (built by the
+  `apps/mobile/scripts/build-*-prod.sh` lanes, uploaded to the stores by hand) from one commit as
+  one `x.y.z` release; a push to `main` builds only what changed (`latest` image, desktop as
+  workflow artifacts). PR checks for web and desktop are one `test.yml`, gated per app by paths,
+  behind the required "All Checks".
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
 

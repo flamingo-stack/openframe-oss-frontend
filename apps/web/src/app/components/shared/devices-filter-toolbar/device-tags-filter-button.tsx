@@ -14,7 +14,7 @@ import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
  * search input beside it.
  *
  * Two buttons rather than one with a hidden label: `size="icon"` is not just "no
- * text" — it is a square box (`w-11 md:w-12`), uniform padding and a smaller glyph
+ * text" — it is a square box (`w-11 content-md:w-12`), uniform padding and a smaller glyph
  * below md. Reproducing that on a `size="default"` button would mean four
  * `max-md:` overrides fighting the lib's cva variants; letting each variant render
  * itself and hiding one in CSS keeps both exactly as the design system defines them.
@@ -28,7 +28,7 @@ export function DeviceTagsFilterButton({ onClick }: { onClick: () => void }) {
         variant="outline"
         onClick={onClick}
         leftIcon={<Filter02Icon className="text-ods-text-secondary" />}
-        className="hidden shrink-0 md:inline-flex"
+        className="hidden shrink-0 content-md:inline-flex"
       >
         Device Tags
       </Button>
@@ -42,7 +42,7 @@ export function DeviceTagsFilterButton({ onClick }: { onClick: () => void }) {
         // rather than as decoration next to one. Same as every other mobile filter
         // trigger in the app.
         leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-        className="shrink-0 md:hidden"
+        className="shrink-0 content-md:hidden"
       />
     </>
   );

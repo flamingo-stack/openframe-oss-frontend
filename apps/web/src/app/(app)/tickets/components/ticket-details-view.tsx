@@ -32,7 +32,7 @@ import {
   type TabItem,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentLgUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -142,7 +142,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { toast } = useToast();
   // Which of the two always-mounted layout columns is showing. Same 1280px the core preset
   // gives the `lg:` classes below; `undefined` until the client viewport is known.
-  const isLgUp = useLgUp();
+  const isLgUp = useContentLgUp();
   const assignedItems = useAssignedItems({ itemId: ticketId, itemType: 'TICKET' });
   const { modelsByProvider } = useSupportedModels();
   const [currentClientModel, setCurrentClientModel] = useState<AiModel | null>(null);
@@ -917,9 +917,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         actionsVariant="icon-buttons"
         contentClassName="flex min-h-0 flex-col"
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] content-lg:flex-row">
           {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
-          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:flex">
+          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:flex">
             {showDetailsTabs ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
@@ -946,7 +946,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
           {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
               Ticket Details tab; the client chat (when present) gets its own tab without them. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] lg:hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:hidden">
             {hasClientChat ? (
               <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
                 {active =>
@@ -969,7 +969,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           </div>
 
           {/* Right sidebar — desktop only */}
-          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80 lg:overflow-auto">
+          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] content-lg:flex content-lg:w-80 content-lg:overflow-auto">
             {sidebarContent}
           </aside>
         </div>

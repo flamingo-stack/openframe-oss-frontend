@@ -97,13 +97,13 @@ export function buildNotificationColumns({
                 <span className={cn('size-1.5 rounded-full', dotColorByVariant[variant])} />
               )}
             </div>
-            <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] md:flex">
+            <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] content-md:flex">
               {/* Real content leads; the context-derived kind label moved to the details column. */}
               <NotificationTitle row={row.original} className={titleColor} />
               <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
             </div>
             {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
-            <div className="flex min-w-0 flex-col md:hidden">
+            <div className="flex min-w-0 flex-col content-md:hidden">
               <NotificationTitle row={row.original} className={titleColor} />
               <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
                 {row.original.description || relativeTime}
@@ -139,7 +139,7 @@ export function buildNotificationColumns({
       id: 'action',
       header: '',
       enableSorting: false,
-      meta: { width: 'w-11 shrink-0 md:w-[210px]', align: 'right' },
+      meta: { width: 'w-11 shrink-0 content-md:w-[210px]', align: 'right' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
@@ -165,7 +165,7 @@ export function buildNotificationColumns({
         return (
           <div data-no-row-click className="flex w-full justify-end">
             <SplitButton
-              className="hidden md:inline-flex"
+              className="hidden content-md:inline-flex"
               variant="outline"
               href={navigates ? action.route : undefined}
               onClick={onOpen}
@@ -182,7 +182,7 @@ export function buildNotificationColumns({
             </SplitButton>
             {/* Mobile: the labeled SplitButton doesn't fit — collapse to an icon-only open button. */}
             <Button
-              className="md:hidden"
+              className="content-md:hidden"
               variant="outline"
               size="icon"
               href={navigates ? action.route : undefined}
@@ -198,7 +198,7 @@ export function buildNotificationColumns({
       id: 'rowIcon',
       header: '',
       enableSorting: false,
-      meta: { width: 'w-11 shrink-0 md:w-12', align: 'right' },
+      meta: { width: 'w-11 shrink-0 content-md:w-12', align: 'right' },
       cell: ({ row }: { row: Row<NotificationRow> }) => (
         <div data-no-row-click className="flex items-center justify-end">
           {rowVariant === 'unread' ? (

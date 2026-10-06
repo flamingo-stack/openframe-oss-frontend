@@ -381,7 +381,7 @@ function ScriptsTableContent({
         accessorKey: 'shellType',
         header: SCRIPT_COLUMNS.shellType.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <ScriptShellBadge value={row.original.shellType} iconClassName="h-4 w-4 md:h-6 md:w-6" />
+          <ScriptShellBadge value={row.original.shellType} iconClassName="h-4 w-4 content-md:h-6 content-md:w-6" />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
@@ -391,7 +391,10 @@ function ScriptsTableContent({
         accessorKey: 'supportedPlatforms',
         header: SCRIPT_COLUMNS.supportedPlatforms.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 md:w-6 md:h-6" />
+          <OSTypeBadgeGroup
+            osTypes={row.original.supportedPlatforms}
+            iconSize="w-4 h-4 content-md:w-6 content-md:h-6"
+          />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
@@ -783,7 +786,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
     <Button
       variant="outline"
       size="icon"
-      className="md:hidden"
+      className="content-md:hidden"
       onClick={() => setMobileFilterOpen(true)}
       aria-label="Open filters"
       leftIcon={<Filter02Icon className="text-ods-text-primary" />}

@@ -384,7 +384,10 @@ function SchedulesTableContent({
         accessorKey: 'supportedPlatforms',
         header: SCHEDULE_COLUMNS.supportedPlatforms.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 md:w-6 md:h-6" />
+          <OSTypeBadgeGroup
+            osTypes={row.original.supportedPlatforms}
+            iconSize="w-4 h-4 content-md:w-6 content-md:h-6"
+          />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
@@ -847,7 +850,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
     <Button
       variant="outline"
       size="icon"
-      className="md:hidden"
+      className="content-md:hidden"
       onClick={() => setMobileFilterOpen(true)}
       aria-label="Open filters"
       leftIcon={<Filter02Icon className="text-ods-text-primary" />}
@@ -872,7 +875,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="flex-1"
-              startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+              startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
             />
             {mobileFilterButton}
           </div>

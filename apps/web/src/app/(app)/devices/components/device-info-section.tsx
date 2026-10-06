@@ -50,7 +50,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
 
   // Cells defined once and reused across both responsive layouts below.
   // Icons: 16px on mobile, 24px on tablet+ (matches the responsive design).
-  const iconSize = 'w-4 h-4 md:w-6 md:h-6';
+  const iconSize = 'w-4 h-4 content-md:w-6 content-md:h-6';
   const typeIcon = renderDeviceTypeIcon(device.type, `${iconSize} text-ods-text-secondary`);
 
   // The original device name — with a nickname in the page title, this cell is
@@ -61,7 +61,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     <InfoCell
       value={deviceLabel}
       label="Device"
-      icon={<OSTypeIcon osType={device.osType || device.platform} size="w-5 h-5 md:w-7 md:h-7" />}
+      icon={<OSTypeIcon osType={device.osType || device.platform} size="w-5 h-5 content-md:w-7 content-md:h-7" />}
     />
   );
   const serialCell = <InfoCell value={serialNumber} label="Serial Number" />;
@@ -70,7 +70,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
 
   const customerInner = device.organization && (
     <>
-      <EntityImage src={customerImageUrl} alt={device.organization} className="size-10 md:size-10" />
+      <EntityImage src={customerImageUrl} alt={device.organization} className="size-10 content-md:size-10" />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         {customerHref ? (
           <Link href={customerHref} className="min-w-0">
@@ -109,12 +109,12 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   );
 
   const rowClass =
-    'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 md:min-h-20 border-b border-ods-border';
+    'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 content-md:min-h-20 border-b border-ods-border';
 
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {/* ===== Mobile + Tablet (< lg) ===== */}
-      <div className="flex flex-col lg:hidden">
+      <div className="flex flex-col content-lg:hidden">
         <div className={rowClass}>
           {hostnameCell}
           {deviceCell}
@@ -128,16 +128,16 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
             dividers reach the card edges (no horizontal padding constraining
             the border). */}
         {customerInner && (
-          <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+          <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
             {customerInner}
           </div>
         )}
-        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] md:hidden">
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
           {addedByCell}
         </div>
 
         {/* Tablet (md to lg): customer + added-by in one horizontal row. */}
-        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] md:flex md:items-center md:gap-[var(--spacing-system-m)]">
+        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] content-md:flex content-md:items-center content-md:gap-[var(--spacing-system-m)]">
           {customerInner && (
             <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customerInner}</div>
           )}
@@ -148,13 +148,13 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {registeredCell}
           {updatedCell}
         </div>
-        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] md:min-h-20">
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] content-md:min-h-20">
           {uuidCell}
         </div>
       </div>
 
       {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
-      <div className="hidden lg:flex lg:flex-col">
+      <div className="hidden content-lg:flex content-lg:flex-col">
         {/* Row 1: Hostname · Device · Type · Serial Number */}
         <div className={rowClass}>
           {hostnameCell}

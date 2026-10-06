@@ -42,15 +42,15 @@ export function OnboardingCompleteBanner({
   return (
     <div
       className={cn(
-        'flex w-full flex-col gap-[var(--spacing-system-sf)] rounded-md border border-ods-border p-[var(--spacing-system-m)] md:flex-row md:items-center',
+        'flex w-full flex-col gap-[var(--spacing-system-sf)] rounded-md border border-ods-border p-[var(--spacing-system-m)] content-md:flex-row content-md:items-center',
         className ?? 'bg-ods-card',
       )}
     >
       {/* Emoji + text stay in one row even on mobile — only the CTA drops below (per the
           mobile Figma). On desktop this group grows to push the CTA to the right. */}
-      <div className="flex items-center gap-[var(--spacing-system-s)] md:min-w-0 md:flex-1">
+      <div className="flex items-center gap-[var(--spacing-system-s)] content-md:min-w-0 content-md:flex-1">
         {/* Emoji box — 40px on mobile, 48px on desktop. */}
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg text-h3 md:size-12">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg text-h3 content-md:size-12">
           <span aria-hidden>{emoji}</span>
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
@@ -59,7 +59,7 @@ export function OnboardingCompleteBanner({
         </div>
       </div>
 
-      <Button variant="accent" leftIcon={actionIcon} onClick={onAction} className="w-full md:w-auto">
+      <Button variant="accent" leftIcon={actionIcon} onClick={onAction} className="w-full content-md:w-auto">
         {actionLabel}
       </Button>
     </div>

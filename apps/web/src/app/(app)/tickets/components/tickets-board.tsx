@@ -721,7 +721,7 @@ export function TicketsBoard({
                   <Button
                     variant="outline"
                     size="icon"
-                    className="md:hidden"
+                    className="content-md:hidden"
                     onClick={() => setMobileFiltersOpen(true)}
                     aria-label="Open filters"
                     leftIcon={<Filter02Icon className="text-ods-text-primary" />}
@@ -731,7 +731,7 @@ export function TicketsBoard({
             </div>
             {/* Mobile keeps these filters in the modal next to the search input.
                 Tablet lays them out two per row, desktop four (the mock's grid). */}
-            <div className="hidden gap-[var(--spacing-system-l)] md:grid md:grid-cols-2 lg:grid-cols-4">
+            <div className="hidden gap-[var(--spacing-system-l)] content-md:grid content-md:grid-cols-2 content-lg:grid-cols-4">
               <OrganizationFilter
                 value={organizationIds ?? []}
                 onChange={ids => onOrganizationIdsChange?.(ids)}

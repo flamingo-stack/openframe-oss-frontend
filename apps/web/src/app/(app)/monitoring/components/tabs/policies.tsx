@@ -169,16 +169,16 @@ export function Policies() {
     >
       {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 content-md:grid-cols-2 content-lg:grid-cols-4">
         {isLoading ? (
-          // `h-16 md:h-[104px]` is `DashboardInfoCard`'s own height — a plain h-20
+          // `h-16 content-md:h-[104px]` is `DashboardInfoCard`'s own height — a plain h-20
           // placeholder is taller on mobile and much shorter on desktop, so the
           // grid visibly jumped when the real cards replaced it.
           <>
-            <Skeleton className="h-16 w-full md:h-[104px]" />
-            <Skeleton className="h-16 w-full md:h-[104px]" />
-            <Skeleton className="h-16 w-full md:h-[104px]" />
-            <Skeleton className="h-16 w-full md:h-[104px]" />
+            <Skeleton className="h-16 w-full content-md:h-[104px]" />
+            <Skeleton className="h-16 w-full content-md:h-[104px]" />
+            <Skeleton className="h-16 w-full content-md:h-[104px]" />
+            <Skeleton className="h-16 w-full content-md:h-[104px]" />
           </>
         ) : (
           // `hasData` decides the VALUES, never whether the cards render: with no

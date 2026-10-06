@@ -135,7 +135,7 @@ export function ScriptingStep({
       {/* Supported Platform + Run as User */}
       <div className="flex w-full flex-col gap-[var(--spacing-system-xxs)]">
         <Label className="text-ods-text-primary text-h4">Supported Platform</Label>
-        <div className="grid grid-cols-2 gap-[var(--spacing-system-m)] lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-[var(--spacing-system-m)] content-lg:grid-cols-4">
           {AVAILABLE_PLATFORMS.map(p => {
             const isDisabled = DISABLED_PLATFORMS.includes(p.id);
             return (
@@ -169,8 +169,8 @@ export function ScriptingStep({
                 checked={field.value}
                 onCheckedChange={checked => field.onChange(checked)}
                 label="Run as User"
-                // Match the SelectButton card height (h-11 md:h-16).
-                className="[&>label]:h-11 [&>label]:min-h-0 md:[&>label]:h-16"
+                // Match the SelectButton card height (h-11 content-md:h-16).
+                className="[&>label]:h-11 [&>label]:min-h-0 content-md:[&>label]:h-16"
               />
             )}
           />
@@ -178,7 +178,7 @@ export function ScriptingStep({
       </div>
 
       {/* Name / Shell Type / Timeout */}
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
         <Controller
           name="name"
           control={form.control}
@@ -259,9 +259,9 @@ export function ScriptingStep({
       />
 
       {/* Footer: full-form link (left) + Mark as Complete + Add Script (right) */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
         <FullFormLink href={routes.scripts.new} label="Full Script Form" />
-        <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+        <div className="flex flex-1 flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
           {!completed ? (
             <Button
               variant="outline"
@@ -272,14 +272,14 @@ export function ScriptingStep({
               }}
               loading={actions.complete.loading}
               disabled={actions.complete.disabled}
-              className="w-full md:flex-1"
+              className="w-full content-md:flex-1"
             >
               Mark as Complete
             </Button>
           ) : (
             // Keep the completed step's primary button its own width — don't let it
             // stretch into the removed "Mark as Complete" slot.
-            <div className="hidden md:block md:flex-1" aria-hidden />
+            <div className="hidden content-md:block content-md:flex-1" aria-hidden />
           )}
           <Button
             variant="accent"
@@ -289,7 +289,7 @@ export function ScriptingStep({
             }}
             loading={actions.primary.loading}
             disabled={actions.primary.disabled}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Add Script
           </Button>

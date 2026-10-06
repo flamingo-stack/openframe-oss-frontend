@@ -34,7 +34,7 @@ import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-lay
  * shifts when the data lands.
  */
 const INFO_CARD_CLASS =
-  'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-xsf)] md:p-[var(--spacing-system-m)] h-16 md:h-[104px] flex gap-[var(--spacing-system-s)] md:gap-[var(--spacing-system-m)] items-center transition-all';
+  'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-xsf)] content-md:p-[var(--spacing-system-m)] h-16 content-md:h-[104px] flex gap-[var(--spacing-system-s)] content-md:gap-[var(--spacing-system-m)] items-center transition-all';
 
 /**
  * Inline skeleton bar, phrasing-valid (`<span>`) so it can live INSIDE the real
@@ -87,8 +87,8 @@ export function InfoCardSkeleton({
           {titleSlot ?? <p className="truncate text-ods-text-secondary text-h5">{title}</p>}
         </div>
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className={cn('truncate text-ods-text-primary text-h3 md:text-h2', valueClassName)}>
-            <InlineSkeleton className="h-4 w-8 md:h-6" />
+          <p className={cn('truncate text-ods-text-primary text-h3 content-md:text-h2', valueClassName)}>
+            <InlineSkeleton className="h-4 w-8 content-md:h-6" />
           </p>
           {showSubValue && (
             <p className="text-ods-text-secondary text-h6">
@@ -102,7 +102,7 @@ export function InfoCardSkeleton({
           )}
         </div>
       </div>
-      {showProgress && <Skeleton className="size-6 shrink-0 rounded-full md:size-14" />}
+      {showProgress && <Skeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
     </div>
   );
 }

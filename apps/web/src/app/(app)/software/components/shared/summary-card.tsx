@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
 
 /** Static class names — Tailwind only sees whole literals. */
-const GRID_COLUMNS = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4' } as const;
+const GRID_COLUMNS = { 2: 'content-md:grid-cols-2', 3: 'content-md:grid-cols-3', 4: 'content-md:grid-cols-4' } as const;
 
 export type SummaryCardColumns = keyof typeof GRID_COLUMNS;
 
@@ -36,8 +36,8 @@ export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
           <div
             key={field.label}
             className={cn(
-              'flex min-h-14 items-center p-[var(--spacing-system-m)] md:min-h-20',
-              idx < fields.length - 1 && 'border-b border-ods-border md:border-b-0',
+              'flex min-h-14 items-center p-[var(--spacing-system-m)] content-md:min-h-20',
+              idx < fields.length - 1 && 'border-b border-ods-border content-md:border-b-0',
             )}
           >
             <InfoCell value={field.value} label={field.label} />

@@ -120,8 +120,8 @@ export function OnboardingAccordionItem({
         {/* Icon box — matches the chevron Button's `size="icon"` footprint (44px → 48px). */}
         <div
           className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ods-border md:h-12 md:w-12',
-            '[&_svg]:size-4 md:[&_svg]:size-6',
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-ods-border content-md:h-12 content-md:w-12',
+            '[&_svg]:size-4 content-md:[&_svg]:size-6',
             // One fill in every state, locked included — the design draws the
             // four rows in identical colours and lets the trailing control say
             // which is which.
@@ -144,7 +144,7 @@ export function OnboardingAccordionItem({
             which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <p className="text-ods-text-primary text-h3">
-            {loading ? <InlineTextSkeleton className="h-4 w-40 md:h-5" /> : title}
+            {loading ? <InlineTextSkeleton className="h-4 w-40 content-md:h-5" /> : title}
           </p>
           <p className="text-ods-text-secondary text-h6">
             {loading ? <InlineTextSkeleton className="h-3 w-64 max-w-full" /> : description}
@@ -154,7 +154,7 @@ export function OnboardingAccordionItem({
         {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.
             Status is the one thing the skeleton doesn't know, so only this control is a placeholder. */}
         {loading ? (
-          <Skeleton className="h-11 w-11 shrink-0 rounded-md md:h-12 md:w-12" />
+          <Skeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
         ) : isDisabled ? (
           requirementHint ? (
             <p className="shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6">{requirementHint}</p>

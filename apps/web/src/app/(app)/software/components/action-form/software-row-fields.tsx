@@ -32,7 +32,7 @@ interface SoftwareRowFieldsProps {
 /** One package to install or update: its manager, the package, and what the catalog says about it. */
 export function SoftwareRowFields({ row, removable, onChange, onRemove }: SoftwareRowFieldsProps) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)] lg:flex-row lg:items-end">
+    <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)] content-lg:flex-row content-lg:items-end">
       <div className="min-w-0 flex-1">
         <Select
           value={row.packageManager}

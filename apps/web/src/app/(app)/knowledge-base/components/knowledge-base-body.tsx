@@ -12,7 +12,7 @@ import {
   PageLayout,
   TagSearchInput,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { notFound } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { graphql, useFragment, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -409,7 +409,7 @@ function KnowledgeBaseBodyShell({
   const [isContentEmpty, setIsContentEmpty] = useState(false);
   // Below `md` (phones) the inline tags row is hidden and a filter button next
   // to the search opens the tags modal instead; tablet/desktop keep the row.
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const isSubtreeMode = parentId !== null && tagIds.length > 0;

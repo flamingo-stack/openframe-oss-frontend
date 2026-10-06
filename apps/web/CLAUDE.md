@@ -509,7 +509,7 @@ The app is **gradually migrating GraphQL data fetching to react-relay**. The rul
 1. **New GraphQL code against `/api/graphql` → react-relay.** Queries, fragments, mutations, pagination — all through Relay.
 2. **REST APIs → `@tanstack/react-query`** with `apiClient` (this is not changing).
 3. **Legacy GraphQL** (raw POST through `apiClient` or react-query wrappers) still exists — leave it working, but migrate it to Relay when touching it substantially. Do not add new code in that style.
-4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation.
+4. **Exception — the `/chat/graphql` domain (tickets, mingo, AI settings)**: it talks to the saas-ai-agent service whose schema is NOT in `schema.graphql`, so it stays on raw-POST permanently. Extending raw-POST there is correct, not a violation. The same holds for the auth server's one query on `/sas/graphql` (`authErrorMessage`, read by `/auth/error` through `authApiClient.authErrorMessage`): a different service, a different schema, pre-authentication.
 5. No Apollo Client anywhere.
 
 **Every first-party request to the tenant gateway carries `X-OpenFrame-Client`** (format and the backend-agreed
@@ -997,6 +997,27 @@ from the installed package. Edit the rules in the core lib, not here:
 
 **Tailwind preset:** ODS colors/utilities are provided via the core library's Tailwind preset (see `tailwind.config.ts`).
 
+### Content Area Breakpoints (page content follows its own width)
+
+With flag `mingo-v2` Mingo is docked into `AppLayout` as a resizable right column (`sidePanel`,
+`src/app/components/mingo-side-panel.tsx`): the window stays wide while the page gets narrow. Page
+content therefore lays out by the width of `<main>`, not the window. The full rule is "Content area
+breakpoints" in the ODS rules above; what it means here:
+
+- **Page content uses `content-md:` / `content-lg:`** (720 / 1024px of content; also `content-sm/xl/2xl`,
+  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (flag off, overlays portalled to
+  `<body>`) they fall back to the viewport's 800 / 1280px, so they are always safe in page content.
+- **Window chrome keeps `md:` / `lg:`**: header, navigation, modals, sheets, drawers, dropdowns,
+  toasts, fixed bars. Never mix `md:` and `content-md:` on one property of one element.
+- **JS layout decisions use `useContentMdUp()` / `useContentLgUp()` / `useContentBreakpoint()`**, not
+  `useMdUp()` / `useLgUp()`.
+- **Do not measure the window** (`vw`, `w-screen`, a `resize` listener on `window`) for page layout:
+  it does not see the panel. Measure the element (`ResizeObserver`, see `remote-shell/page.tsx`).
+- **Tokens need nothing:** under 720px of content the mobile `text-h*` / `--spacing-system-*` values
+  apply by themselves (`ods-content-area.css` in the core lib).
+- A "cleanup" of `content-md:` back to `md:` is a regression, not a simplification: it only shows with
+  Mingo docked.
+
 ### Inverted Progress Bar
 ```typescript
 // Disk usage: high = bad (red)
@@ -1072,7 +1093,7 @@ localStorage.removeItem('auth-storage');
 
 ### Backend Services (all via the gateway)
 - **REST** — `/api/*` — openframe-api
-- **GraphQL** — `/api/graphql` — openframe-api (Relay + legacy); `/chat/graphql` — saas-ai-agent (tickets/mingo, raw-POST, SaaS only)
+- **GraphQL** — `/api/graphql` — openframe-api (Relay + legacy); `/chat/graphql` — saas-ai-agent (tickets/mingo, raw-POST, SaaS only); `/sas/graphql` — auth server (the `/auth/error` page's `authErrorMessage` lookup, raw-POST, public)
 - **Live updates** — NATS over WebSocket at `/ws/nats-api` (notifications, chat chunks); tool WS at `/ws/tools/{toolId}`
 - **Authentication** — `/oauth/*` (gateway BFF: login/callback/refresh/logout/dev-exchange); registration via `/sas/oauth/*`
 - **Tool proxies** — `/tools/{toolId}/*` (Fleet; API keys injected by the gateway)

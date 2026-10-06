@@ -23,7 +23,7 @@ function MetaCell({ label, adornment, children, className }: MetaCellProps) {
       className={cn(
         // Mobile rows are content-height with a 12px vertical padding
         // (Figma 775-50723); desktop rows are the fixed 80px cells.
-        'flex min-w-0 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] lg:h-20 lg:py-0',
+        'flex min-w-0 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] content-lg:h-20 content-lg:py-0',
         className,
       )}
     >
@@ -46,19 +46,19 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
   const dash = <span className="text-ods-text-secondary">-</span>;
 
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card lg:grid-cols-4">
+    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4">
       <MetaCell label="Date">{formatDateTime(recording.startedAt)}</MetaCell>
       <MetaCell label="Resolution">{recording.resolution ?? dash}</MetaCell>
       <MetaCell label="Duration">
         {recording.durationMs != null ? formatDurationMs(recording.durationMs) : dash}
       </MetaCell>
       <MetaCell label="File size">{recording.sizeBytes != null ? formatBytes(recording.sizeBytes) : dash}</MetaCell>
-      <MetaCell label="Hostname" className="lg:border-b-0">
+      <MetaCell label="Hostname" className="content-lg:border-b-0">
         {recording.hostname ?? dash}
       </MetaCell>
       <MetaCell
         label="Customer ID (Site)"
-        className="lg:border-b-0"
+        className="content-lg:border-b-0"
         adornment={
           <EntityImage
             src={recording.organization.logoUrl}
@@ -103,7 +103,7 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
 
 export function RecordingMetaCardSkeleton() {
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card lg:grid-cols-4">
+    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4">
       {Array.from({ length: 8 }, (_, index) => (
         <div
           key={index}

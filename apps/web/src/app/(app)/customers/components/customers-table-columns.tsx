@@ -41,7 +41,7 @@ export function CustomerNameCell({ org }: { org: UiCustomerEntry }) {
 
   return (
     <div className="flex min-w-0 items-center gap-4">
-      <EntityImage src={fullImageUrl} alt={org.name} className="size-12 md:size-12" />
+      <EntityImage src={fullImageUrl} alt={org.name} className="size-12 content-md:size-12" />
       <div className="flex min-w-0 flex-col justify-center">
         <TruncateText>{org.name}</TruncateText>
         {org.email && (
@@ -143,7 +143,7 @@ export function CustomersSearchInput({ value, onChange }: CustomersSearchInputPr
       placeholder="Search for Customer"
       value={value}
       onChange={e => onChange(e.target.value)}
-      startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+      startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
     />
   );
 }

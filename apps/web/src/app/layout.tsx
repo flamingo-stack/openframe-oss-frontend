@@ -4,7 +4,6 @@ import { Suspense } from 'react';
 import './globals.css';
 import '@flamingo-stack/openframe-frontend-core/styles';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
-import { azeretMono, dmSans } from '@/lib/fonts';
 import { NatsAppProvider } from '@/lib/nats/nats-app-provider';
 import { sidebarWidthFoucScript } from '@/lib/navigation-sidebar-state';
 import { Toaster } from '@/lib/openframe-core-ui';
@@ -110,7 +109,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // the bundle loads. The SSR/standalone web build keeps <PublicEnvScript />.
   const isStaticExport = process.env.OPENFRAME_BUILD_TARGET === 'export';
   return (
-    <html lang="en" suppressHydrationWarning className={`dark ${azeretMono.variable} ${dmSans.variable}`}>
+    <html lang="en" suppressHydrationWarning className="dark">
       <head>
         {!isStaticExport && <PublicEnvScript />}
         {/* Seeds the sidebar width before first paint so the real `NavigationSidebar`

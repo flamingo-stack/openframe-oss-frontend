@@ -63,12 +63,12 @@ function MainChatPaneSkeleton() {
 /** A main pane beside a Ticket Details / Attachments / Tags sidebar. */
 function SidebarLayoutSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] lg:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] content-lg:flex-row">
       {/* Main pane — chat is the most common case; transitions seamlessly into it */}
       <MainChatPaneSkeleton />
 
       {/* Right sidebar — desktop only, matching the loaded layout */}
-      <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] lg:flex lg:w-80">
+      <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] content-lg:flex content-lg:w-80">
         {/* Ticket Details info card */}
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <Skeleton className="h-5 w-28" />

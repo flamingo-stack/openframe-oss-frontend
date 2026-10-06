@@ -29,10 +29,10 @@ android {
     // (env vars win over gradle properties; both kept out of git — see app/src/README.md).
     // Absent → `signingConfigs.release` is never created, so debug/dev builds and
     // unsigned `release` builds keep working with no keystore present.
-    def ofStoreFile = System.getenv('OF_UPLOAD_STORE_FILE') ?: findProperty('OF_UPLOAD_STORE_FILE')
-    def ofStorePassword = System.getenv('OF_UPLOAD_STORE_PASSWORD') ?: findProperty('OF_UPLOAD_STORE_PASSWORD')
-    def ofKeyAlias = System.getenv('OF_UPLOAD_KEY_ALIAS') ?: findProperty('OF_UPLOAD_KEY_ALIAS')
-    def ofKeyPassword = System.getenv('OF_UPLOAD_KEY_PASSWORD') ?: findProperty('OF_UPLOAD_KEY_PASSWORD')
+    def ofStoreFile = System.getenv('ANDROID_UPLOAD_STORE_FILE') ?: findProperty('ANDROID_UPLOAD_STORE_FILE')
+    def ofStorePassword = System.getenv('ANDROID_UPLOAD_STORE_PASSWORD') ?: findProperty('ANDROID_UPLOAD_STORE_PASSWORD')
+    def ofKeyAlias = System.getenv('ANDROID_UPLOAD_KEY_ALIAS') ?: findProperty('ANDROID_UPLOAD_KEY_ALIAS')
+    def ofKeyPassword = System.getenv('ANDROID_UPLOAD_KEY_PASSWORD') ?: findProperty('ANDROID_UPLOAD_KEY_PASSWORD')
     def hasReleaseSigning = ofStoreFile && ofStorePassword && ofKeyAlias && ofKeyPassword
     if (hasReleaseSigning) {
         signingConfigs {
@@ -54,7 +54,7 @@ android {
             if (hasReleaseSigning) {
                 signingConfig signingConfigs.release
             } else {
-                logger.lifecycle("No OF_UPLOAD_* keystore config — release build left unsigned (see app/src/README.md).")
+                logger.lifecycle("No ANDROID_UPLOAD_* keystore config — release build left unsigned (see app/src/README.md).")
             }
         }
     }

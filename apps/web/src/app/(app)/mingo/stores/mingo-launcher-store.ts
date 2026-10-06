@@ -48,8 +48,24 @@ interface MingoLauncherStore {
    * would erase the flag before the effect ever read it.
    */
   closedForNavigation: boolean;
+  /**
+   * Mingo v2: the chat is on screen as part of the layout (docked beside the page,
+   * or opened over it). Docked, it shows a conversation while `isOpen` — which
+   * there means "opened from the header" — is false, so the URL sync asks this
+   * too. Always false with the overlay drawer.
+   */
+  panelShown: boolean;
+  /**
+   * Mingo v2: the panel is a column of the layout that cannot be put away (docked,
+   * or dragged over the whole content area), so it stays on screen across
+   * navigations, and its conversation with it. False while it was opened from the
+   * header over the page, which a navigation still closes.
+   */
+  panelDocked: boolean;
 
   setOpen: (open: boolean) => void;
+  setPanelShown: (shown: boolean) => void;
+  setPanelDocked: (docked: boolean) => void;
   setCanOpen: (canOpen: boolean) => void;
   toggle: () => void;
   close: () => void;
@@ -80,7 +96,11 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       pendingDraft: null,
       pendingNewChat: false,
       closedForNavigation: false,
+      panelShown: false,
+      panelDocked: false,
 
+      setPanelShown: panelShown => set({ panelShown }, false, 'setPanelShown'),
+      setPanelDocked: panelDocked => set({ panelDocked }, false, 'setPanelDocked'),
       setOpen: open => set(open ? { isOpen: true, closedForNavigation: false } : { isOpen: false }, false, 'setOpen'),
       setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
       toggle: () =>

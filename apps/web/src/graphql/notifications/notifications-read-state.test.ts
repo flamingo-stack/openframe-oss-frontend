@@ -34,7 +34,7 @@ import {
 } from './notifications-helpers';
 
 /**
- * A READ / DELETED live event runs the same store updaters as the user's own mutation, and
+ * A live read-state event runs the same store updaters as the user's own mutation, and
  * the backend publishes the event to the tab that fired the mutation too. So every updater
  * has to survive a second pass over the same notification — around Relay's optimistic
  * revert, in either order — without a duplicate row or a double-decremented badge.
@@ -207,6 +207,59 @@ describe('a READ event', () => {
     expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual(['n-2']);
     // One card, one decrement — however many connections listed it.
     expect(unreadCount(environment)).toBe(2);
+  });
+});
+
+describe('an ARCHIVED event', () => {
+  let environment: Environment;
+
+  beforeEach(() => {
+    environment = makeEnvironment();
+    update(environment, store => {
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
+      createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
+      seedBuckets(store, 2);
+      seedUnread(store, 'n-1', UNFILTERED_NOTIFICATION_PAIR.unread);
+    });
+  });
+
+  it('moves the card to history flagged ARCHIVED and frees its bucket', () => {
+    update(environment, makeReadStateUpdater('ARCHIVED', ['n-1'], [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(statusOf(environment, 'n-1')).toBe(NotificationReadStatus.ARCHIVED);
+    expect(isRead(environment, 'n-1')).toBe(true);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual([]);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['n-1']);
+    expect(unreadCount(environment)).toBe(1);
+  });
+
+  it('is a no-op the second time', () => {
+    update(environment, makeReadStateUpdater('ARCHIVED', ['n-1'], [UNFILTERED_NOTIFICATION_PAIR]));
+    update(environment, makeReadStateUpdater('ARCHIVED', ['n-1'], [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['n-1']);
+    expect(unreadCount(environment)).toBe(1);
+  });
+
+  it('still moves a card a refetch already flagged, without counting it twice', () => {
+    update(environment, store =>
+      seedNode(store, 'n-2', UNFILTERED_NOTIFICATION_PAIR.unread, NotificationReadStatus.ARCHIVED),
+    );
+    update(environment, makeReadStateUpdater('ARCHIVED', ['n-2'], [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(statusOf(environment, 'n-2')).toBe(NotificationReadStatus.ARCHIVED);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.unread)).toEqual(['n-1']);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['n-2']);
+    expect(unreadCount(environment)).toBe(2);
+  });
+
+  it('does not flag a row a later mark-read already reached', () => {
+    update(environment, makeReadStateUpdater('READ', ['n-1'], [UNFILTERED_NOTIFICATION_PAIR]));
+    update(environment, makeReadStateUpdater('ARCHIVED', ['n-1'], [UNFILTERED_NOTIFICATION_PAIR]));
+
+    expect(statusOf(environment, 'n-1')).toBe(NotificationReadStatus.READ);
+    expect(nodeIds(environment, UNFILTERED_NOTIFICATION_PAIR.read)).toEqual(['n-1']);
+    expect(unreadCount(environment)).toBe(1);
   });
 });
 

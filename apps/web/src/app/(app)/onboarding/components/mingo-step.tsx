@@ -98,7 +98,7 @@ export function MingoStep({
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
       {/* Intro + quick actions (left) / demo video (right) */}
-      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
+      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] content-md:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <p className="text-ods-text-primary text-h4">
             Mingo knows your entire OpenFrame workspace - devices, tickets, Customers, team. Mingo can both answer and
@@ -142,9 +142,9 @@ export function MingoStep({
 
       {/* Footer actions — right column mirrors the intro/video split above so the
           buttons line up flush with the demo video block. */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-l)] md:flex-row">
-        <div className="hidden flex-1 md:block" />
-        <div className="flex w-full flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-l)] content-md:flex-row">
+        <div className="hidden flex-1 content-md:block" />
+        <div className="flex w-full flex-1 flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
           {!completed ? (
             <Button
               variant="outline"
@@ -152,14 +152,14 @@ export function MingoStep({
               onClick={() => onComplete?.()}
               loading={completing}
               disabled={completing}
-              className="w-full md:flex-1"
+              className="w-full content-md:flex-1"
             >
               Mark as Complete
             </Button>
           ) : (
             // Keep the completed step's primary button its own width — don't let it
             // stretch into the removed "Mark as Complete" slot.
-            <div className="hidden md:block md:flex-1" aria-hidden />
+            <div className="hidden content-md:block content-md:flex-1" aria-hidden />
           )}
           <Button
             variant="accent"
@@ -169,7 +169,7 @@ export function MingoStep({
               if (!completed) onCompleteBackground?.();
               startNewChat();
             }}
-            className="w-full md:flex-1"
+            className="w-full content-md:flex-1"
           >
             Start New Chat
           </Button>

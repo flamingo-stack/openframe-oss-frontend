@@ -280,7 +280,7 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
                 router.push(routes.settings.aiSettings({ tab: 'guardrails', edit: true }));
               }}
               leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-              className="w-full md:w-auto"
+              className="w-full content-md:w-auto"
             >
               Edit Default Guardrails
             </Button>

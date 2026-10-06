@@ -51,8 +51,8 @@ const FLEET_SOFTWARE_COLUMNS = {
  * equivalent of and is the least useful of the three for mobile triage anyway.
  */
 const FLEET_VULNERABILITY_COLUMNS = {
-  cve: { id: 'cve', header: 'CVE ID', width: 'flex-1 min-w-0 md:flex-none md:w-[20%]' },
-  severity: { id: 'severity', header: 'SEVERITY', width: 'w-[88px] md:w-[16%]', sortable: true },
+  cve: { id: 'cve', header: 'CVE ID', width: 'flex-1 min-w-0 content-md:flex-none content-md:w-[20%]' },
+  severity: { id: 'severity', header: 'SEVERITY', width: 'w-[88px] content-md:w-[16%]', sortable: true },
   software: { id: 'software_name', header: 'SOFTWARE', width: 'flex-1 min-w-0', hideAt: 'md' },
   discovered: { id: 'created_at', header: 'DISCOVERED', width: 'w-[18%]', sortable: true, hideAt: 'md' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },

@@ -21,7 +21,7 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { formatLastOnline } from '@/app/(app)/devices/utils/device-last-online';
 import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
@@ -44,7 +44,7 @@ interface QueryDevicesTableProps {
 
 export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
   const { rows, isLoading } = useQueryDevicesTable(queryId);
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -159,7 +159,11 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
           const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
           return (
             <div className="flex items-center gap-3">
-              <EntityImage src={fullImageUrl} alt={r.organization || 'Customer'} className="size-12 md:size-12" />
+              <EntityImage
+                src={fullImageUrl}
+                alt={r.organization || 'Customer'}
+                className="size-12 content-md:size-12"
+              />
               <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
               </div>
@@ -228,7 +232,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
                 className="w-full bg-ods-card"
               >
                 {/* Icon-only on mobile, per design. */}
-                <span className="hidden md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
+                <span className="hidden content-md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
               </Button>
             </div>
           );
@@ -283,7 +287,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
             placeholder="Search for Devices"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
         </div>
         {isMdUp ? (
