@@ -3,7 +3,9 @@
 import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
+import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { AUTH_ERROR_REF } from '../constants/auth-error-codes';
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -12,7 +14,9 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     if (!token) {
-      router.replace(`/auth/error?error=${encodeURIComponent('Invalid verification link. Please try again.')}`);
+      // A code, not a sentence: the error page resolves it through the auth server, the same way it
+      // resolves the server's own redirect when the token turns out to be invalid.
+      router.replace(routes.auth.error({ ref: AUTH_ERROR_REF.VERIFICATION_LINK_INVALID }));
       return;
     }
 

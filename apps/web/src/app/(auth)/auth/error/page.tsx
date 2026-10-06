@@ -1,23 +1,22 @@
 'use client';
 
 import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, SkeletonText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { routes } from '@/lib/routes';
+import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
 
-const DEFAULT_ERROR = {
-  title: 'Oops, Something Went Wrong',
-  description: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
-};
-
+/**
+ * Where every auth failure lands. The URL carries one thing, `ref`, and the page shows only what the
+ * auth server answers for it (`useAuthErrorMessage`): a catalog sentence, a message the server stored
+ * for this attempt, or its generic entry. No query parameter is ever rendered - the page used to print
+ * `?error=<text>` as the message, which let anyone put their own words under our logo.
+ */
 export default function AuthErrorPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const errorCode = searchParams.get('error') || '';
-  const { title, description } = {
-    title: DEFAULT_ERROR.title,
-    description: errorCode || DEFAULT_ERROR.description,
-  };
+  const { title, description, isLoading } = useAuthErrorMessage(searchParams.get('ref'));
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
@@ -35,7 +34,11 @@ export default function AuthErrorPage() {
       <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
         <div className="flex flex-col gap-2">
           <h1 className="text-ods-text-primary text-h2">{title}</h1>
-          <p className="text-ods-text-secondary text-h4">{description}</p>
+          {isLoading ? (
+            <SkeletonText lines={2} className="w-[360px] max-w-full" aria-busy="true" />
+          ) : (
+            <p className="text-ods-text-secondary text-h4">{description}</p>
+          )}
         </div>
 
         <div className="flex gap-4">
@@ -45,7 +48,7 @@ export default function AuthErrorPage() {
           >
             Contact Support
           </Button>
-          <Button variant="accent" onClick={() => router.push('/auth')}>
+          <Button variant="accent" onClick={() => router.push(routes.auth.root)}>
             Go to Login
           </Button>
         </div>

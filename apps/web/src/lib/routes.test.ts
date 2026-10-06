@@ -72,3 +72,12 @@ describe('cloudTenantManagement', () => {
     expect(routes.cloudTenantManagement.details(7)).toBe('/cloud-tenant-management/details?id=7');
   });
 });
+
+describe('auth.error', () => {
+  it('carries the reference as `ref` and nothing else', () => {
+    // The page resolves `ref` through the auth server; there is no `error=<text>` form any more.
+    expect(routes.auth.error()).toBe('/auth/error');
+    expect(routes.auth.error({ ref: 'VERIFICATION_LINK_INVALID' })).toBe('/auth/error?ref=VERIFICATION_LINK_INVALID');
+    expect(routes.auth.error({ ref: '7KQ2M9XD' })).toBe('/auth/error?ref=7KQ2M9XD');
+  });
+});
