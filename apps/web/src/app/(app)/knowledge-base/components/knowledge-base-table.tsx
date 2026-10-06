@@ -1,6 +1,10 @@
 'use client';
 
 import {
+  type KnowledgeBaseRow,
+  KnowledgeBaseTableBody,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
   BoxArchiveIcon,
   FolderEditIcon,
   PenEditIcon,
@@ -27,7 +31,7 @@ import { routes } from '@/lib/routes';
 import { getArchivedArticlesConnectionId } from '../hooks/use-archived-articles';
 import { ArchiveArticleModal, type ArchiveArticleTarget } from './archive-article-modal';
 import { useFolderRowActions } from './folder-row-actions';
-import { type KnowledgeBaseRow, KnowledgeBaseTableBody } from './knowledge-base-table-columns';
+import { knowledgeBaseRowHref } from './knowledge-base-row-href';
 import { type MoveToFolderItem, MoveToFolderModal } from './move-to-folder-modal';
 import { UnarchiveArticleModal, type UnarchiveArticleTarget } from './unarchive-article-modal';
 
@@ -194,6 +198,7 @@ export function KnowledgeBaseItemsListView(props: ListViewProps) {
     <>
       <KnowledgeBaseTableBody
         items={items as ReadonlyArray<KnowledgeBaseRow> as KnowledgeBaseRow[]}
+        getHref={knowledgeBaseRowHref}
         mode={mode}
         emptyMessage={emptyMessage}
         actionsColumn={actionsColumn}

@@ -895,7 +895,9 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
             <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
               <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
                 <RouteGuard>         <!-- App mode route filtering -->
-                  {children}         <!-- Page content -->
+                  <DevicesViewConfig>  <!-- device href / image URL / mobile shell for the core lib's device views -->
+                    {children}       <!-- Page content -->
+                  </DevicesViewConfig>
                 </RouteGuard>
               </NotificationsDataProvider>
             </FeatureFlagsLoader>

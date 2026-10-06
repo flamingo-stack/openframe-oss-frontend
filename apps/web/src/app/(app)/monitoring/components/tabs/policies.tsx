@@ -1,27 +1,25 @@
 'use client';
 
-import { PlusCircleIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  DashboardInfoCard,
-  DataTable,
-  Input,
-  PageLayout,
-  Skeleton,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+  computePolicySummary,
+  getPolicyTableStatus,
+  PoliciesTable,
+  type PolicyTableRow,
+  PolicySummaryCards,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { PlusCircleIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { PoliciesTable, type PolicyTableRow, type PolicyTableStatus, SectionLoadError } from '@/app/components/shared';
+import { SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
-import { computePolicySummary, getPolicyStatus, POLICY_STATUS_CONFIG } from '../../utils/compute-policy-summary';
 import { PoliciesEmptyState } from '../policies-empty-state';
 
 const PAGE_SIZE = 20;
@@ -108,33 +106,18 @@ export function Policies() {
   // Map the fleet-wide Policy model into the shared table's normalized view-model.
   const rows = useMemo<PolicyTableRow[]>(
     () =>
-      visiblePolicies.map(policy => {
-        const status = getPolicyStatus(policy);
-        const config = POLICY_STATUS_CONFIG[status];
-        const failing = policy.failing_host_count;
-        const responded = policy.passing_host_count + failing;
-        const missing = (policy.hosts_include_any?.length ?? 0) - responded;
-
-        let note: PolicyTableStatus['note'];
-        if (status === 'partial' && missing > 0) {
-          note = { text: `${missing} ${missing === 1 ? 'device' : 'devices'} left`, tone: 'warning' };
-        } else if (status === 'failing') {
-          note = { text: `${failing} ${failing === 1 ? 'device' : 'devices'}`, tone: 'error' };
-        }
-
-        return {
-          id: String(policy.id),
-          name: policy.name,
-          description: policy.description,
-          critical: policy.critical,
-          severityLabel: policy.critical ? 'Critical' : 'Low',
-          status: { label: config.label, variant: config.variant, note },
-          // Temporarily hidden along with the Platform column. Restore to re-enable.
-          // platforms: parsePlatforms(policy.platform),
-          actions: rowActions(policy),
-          href: routes.monitoring.policy(policy.id),
-        };
-      }),
+      visiblePolicies.map(policy => ({
+        id: String(policy.id),
+        name: policy.name,
+        description: policy.description,
+        critical: policy.critical,
+        severityLabel: policy.critical ? 'Critical' : 'Low',
+        status: getPolicyTableStatus(policy),
+        // Temporarily hidden along with the Platform column. Restore to re-enable.
+        // platforms: parsePlatforms(policy.platform),
+        actions: rowActions(policy),
+        href: routes.monitoring.policy(policy.id),
+      })),
     [visiblePolicies, rowActions],
   );
 
@@ -168,56 +151,11 @@ export function Policies() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       {(error || isOffline) && <SectionLoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, () => refetch())} />}
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 gap-4 content-md:grid-cols-2 content-lg:grid-cols-4">
-        {isLoading ? (
-          // `h-16 content-md:h-[104px]` is `DashboardInfoCard`'s own height — a plain h-20
-          // placeholder is taller on mobile and much shorter on desktop, so the
-          // grid visibly jumped when the real cards replaced it.
-          <>
-            <Skeleton className="h-16 w-full content-md:h-[104px]" />
-            <Skeleton className="h-16 w-full content-md:h-[104px]" />
-            <Skeleton className="h-16 w-full content-md:h-[104px]" />
-            <Skeleton className="h-16 w-full content-md:h-[104px]" />
-          </>
-        ) : (
-          // `hasData` decides the VALUES, never whether the cards render: with no
-          // data there is nothing to skeleton towards — the strip above already
-          // says the load failed — and a placeholder that never resolves is the
-          // exact lie this contract exists to remove. `—` for the same reason the
-          // dashboard counters use it: `computePolicySummary` of an empty list
-          // reports "Total Policies 0 / Failed 0", an all-clear a compliance
-          // console has not earned.
-          <>
-            <DashboardInfoCard title="Total Policies" value={hasData ? summary.totalPolicies : EMPTY_VALUE} />
-            <DashboardInfoCard
-              title="Compliance Rate"
-              value={
-                hasData
-                  ? `${summary.compliantPolicies}/${summary.compliantPolicies + summary.failingPolicies}`
-                  : EMPTY_VALUE
-              }
-              percentage={hasData ? summary.compliantPoliciesPercentage : undefined}
-              showProgress={hasData}
-            />
-            <DashboardInfoCard
-              title="Failed Policies"
-              value={hasData ? summary.failingPolicies : EMPTY_VALUE}
-              percentage={hasData ? summary.failingPoliciesPercentage : undefined}
-              showProgress={hasData}
-              progressVariant="error"
-            />
-            <DashboardInfoCard
-              title="Updated"
-              value={
-                !hasData ? EMPTY_VALUE : summary.lastUpdatedAt ? formatRelativeTime(summary.lastUpdatedAt) : EMPTY_VALUE
-              }
-              valueClassName="!text-h3"
-              tooltip="Policy compliance stats are updated hourly. View a policy's devices for real-time status."
-            />
-          </>
-        )}
-      </div>
+      {/* Summary Stats. `hasData` decides the VALUES, never whether the cards render: with no
+          data there is nothing to skeleton towards (the strip above already says the load
+          failed), and "Total Policies 0 / Failed 0" is an all-clear a compliance console has
+          not earned. */}
+      <PolicySummaryCards summary={summary} isLoading={isLoading} hasData={hasData} />
 
       {showEmptyState ? (
         <PoliciesEmptyState />

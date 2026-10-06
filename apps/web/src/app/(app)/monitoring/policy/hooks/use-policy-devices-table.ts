@@ -1,8 +1,7 @@
+import { DEVICE_ENRICHMENT_FILTER, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
-import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
-import { getDeviceName } from '../../../devices/utils/device-name';
 import type { ComplianceStatus, PolicyDeviceRow } from '../types/policy-device-row';
 import { usePolicyResponseHosts } from './use-policy-response-hosts';
 

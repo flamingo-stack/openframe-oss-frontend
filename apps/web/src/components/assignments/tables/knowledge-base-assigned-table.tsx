@@ -1,13 +1,14 @@
 'use client';
 
+import {
+  type KnowledgeBaseRow,
+  KnowledgeBaseTableBody,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
-import {
-  type KnowledgeBaseRow,
-  KnowledgeBaseTableBody,
-} from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
+import { knowledgeBaseRowHref } from '@/app/(app)/knowledge-base/components/knowledge-base-row-href';
 
 interface KnowledgeBaseAssignedTableProps {
   articles: KnowledgeBaseRow[];
@@ -38,6 +39,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
       />
       <KnowledgeBaseTableBody
         items={filtered}
+        getHref={knowledgeBaseRowHref}
         mode="standard"
         isLoading={isLoading}
         emptyMessage="No articles assigned."

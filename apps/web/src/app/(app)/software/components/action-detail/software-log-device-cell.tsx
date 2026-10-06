@@ -1,13 +1,15 @@
 'use client';
 
+import {
+  DeviceTypeTile,
+  formatLastOnline,
+  getDeviceName,
+  getDeviceStatusConfig,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogDeviceCell_machine$key } from '@/__generated__/softwareLogDeviceCell_machine.graphql';
-import { formatLastOnline } from '@/app/(app)/devices/utils/device-last-online';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
-import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { ValueText } from '@/app/components/shared';
-import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 
 const softwareLogDeviceCellFragment = graphql`
   fragment softwareLogDeviceCell_machine on Machine {

@@ -1,11 +1,10 @@
 'use client';
 
+import { getDeviceName, type KnowledgeBaseRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
-import type { KnowledgeBaseRow } from '@/app/(app)/knowledge-base/components/knowledge-base-table-columns';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';

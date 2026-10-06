@@ -1,5 +1,6 @@
 'use client';
 
+import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ArrowRightUpIcon,
@@ -39,7 +40,6 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';

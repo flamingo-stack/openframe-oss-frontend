@@ -12,6 +12,10 @@
  */
 
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  getDeviceName,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { relayItemsDevices_query$key } from '@/__generated__/relayItemsDevices_query.graphql';
@@ -38,8 +42,6 @@ import type { relayItemsSoftwarePaginationQuery } from '@/__generated__/relayIte
 import type { relayItemsVulnerabilities_query$key } from '@/__generated__/relayItemsVulnerabilities_query.graphql';
 import type { relayItemsVulnerabilitiesListQuery } from '@/__generated__/relayItemsVulnerabilitiesListQuery.graphql';
 import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/relayItemsVulnerabilitiesPaginationQuery.graphql';
-import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';

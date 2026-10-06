@@ -9,6 +9,7 @@
  */
 
 import type { ChatContextEntityType } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { KNOWLEDGE_BASE_ITEM_ICON } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
   BracketCurlyEllipsisVrIcon,
@@ -22,13 +23,12 @@ import {
   TimerIcon,
   UserIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/knowledge-base-item-icon';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import type { FeatureFlagName } from '@/lib/feature-flags';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from './context-types';
 
-const KbArticleIcon = KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
+const KbArticleIcon = KNOWLEDGE_BASE_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
 
 /**
  * Entity types in picker display order. `marker` is the backend mention short

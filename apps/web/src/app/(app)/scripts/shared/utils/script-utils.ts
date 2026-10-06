@@ -1,5 +1,4 @@
-import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
-import type { DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import { DEVICE_STATUS, type DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 
 export { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 

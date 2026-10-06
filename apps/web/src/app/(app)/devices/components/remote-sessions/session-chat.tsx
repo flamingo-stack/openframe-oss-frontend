@@ -1,7 +1,7 @@
 'use client';
 
+import { RemoteDesktopChatMessageRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { RecordingChatMessage, RecordingEmployee } from '../../types/session-recording';
-import { SessionChatMessageRow } from './session-chat-message-row';
 
 interface SessionChatProps {
   messages: RecordingChatMessage[];
@@ -21,7 +21,7 @@ export function SessionChat({ messages, employee }: SessionChatProps) {
       <span className="text-ods-text-secondary text-h5">Session Chat</span>
       <div className="flex flex-col gap-[var(--spacing-system-xsf)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
         {messages.map(message => (
-          <SessionChatMessageRow
+          <RemoteDesktopChatMessageRow
             key={message.id}
             authorName={message.author}
             isTechnician={message.fromTechnician}

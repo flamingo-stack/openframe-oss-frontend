@@ -4,11 +4,14 @@
 // DIRECT-mode dialog the backend provisions with the session; the mock
 // approval backend has no dialog and runs an in-memory stand-in instead.
 
-export type RemoteSessionChatAuthor = 'technician' | 'user';
+import type { RemoteSessionChatMessage } from '@flamingo-stack/openframe-frontend-core/components/features';
 
-export interface RemoteSessionChatMessage {
+export type RemoteSessionChatRowAuthor = 'technician' | 'user';
+
+/** One chat line as the dialog delivers it; the panel renders it as the shared `RemoteSessionChatMessage`. */
+export interface RemoteSessionChatRow {
   id: string;
-  author: RemoteSessionChatAuthor;
+  author: RemoteSessionChatRowAuthor;
   /** Display name: the technician's name, or "User" for the end user. */
   authorName: string;
   /** ISO timestamp. */
@@ -18,11 +21,10 @@ export interface RemoteSessionChatMessage {
   seq?: number;
 }
 
-/** Who is typing on this side of the chat - shown on the technician's rows. */
-export interface RemoteSessionChatTechnician {
-  name: string;
-  avatarUrl?: string;
-}
-
 /** The end user has no profile on the wire - the design shows a plain "User". */
 export const REMOTE_SESSION_END_USER_NAME = 'User';
+
+/** A dialog row as the chat panel takes it. */
+export function toRemoteSessionChatMessage(row: RemoteSessionChatRow): RemoteSessionChatMessage {
+  return { id: row.id, author: row.author, name: row.authorName, text: row.body, at: new Date(row.sentAt) };
+}

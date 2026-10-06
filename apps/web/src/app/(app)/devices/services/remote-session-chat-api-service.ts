@@ -1,12 +1,9 @@
 import { CHAT_TYPE, OWNER_TYPE } from '@flamingo-stack/openframe-frontend-core';
 import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
+import type { RemoteDesktopChatTechnician } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ticketService } from '@/app/(app)/tickets/services';
 import type { AdminOwner, Message } from '@/app/(app)/tickets/types/dialog.types';
-import {
-  REMOTE_SESSION_END_USER_NAME,
-  type RemoteSessionChatMessage,
-  type RemoteSessionChatTechnician,
-} from '../types/remote-session-chat';
+import { REMOTE_SESSION_END_USER_NAME, type RemoteSessionChatRow } from '../types/remote-session-chat';
 import type { IRemoteSessionChatService, RemoteSessionChatHistory } from './remote-session-chat-service';
 
 /**
@@ -31,11 +28,11 @@ function technicianName(owner: Message['owner']): string {
 }
 
 /** The rows of one persisted message: TEXT by owner; anything else (system notices, assistant turns) is not a chat line. */
-function rowsOf(message: Message): RemoteSessionChatMessage[] {
+function rowsOf(message: Message): RemoteSessionChatRow[] {
   const data = message.messageData;
   const items = Array.isArray(data) ? data : data ? [data] : [];
   const seq = typeof message.lastChunkStreamSeq === 'number' ? message.lastChunkStreamSeq : undefined;
-  const rows: RemoteSessionChatMessage[] = [];
+  const rows: RemoteSessionChatRow[] = [];
   items.forEach((item, index) => {
     const text = (item as { type?: string; text?: string }).text;
     if (item.type !== TEXT_ROW || !text) return;
@@ -72,8 +69,8 @@ let liveRowCounter = 0;
  */
 export function decodeRemoteSessionChatChunk(
   payload: unknown,
-  technician?: RemoteSessionChatTechnician,
-): RemoteSessionChatMessage | null {
+  technician?: RemoteDesktopChatTechnician,
+): RemoteSessionChatRow | null {
   const event = decodeNatsChunk(payload);
   if (!event || event.type !== 'participant' || event.kind === 'system' || !event.text) return null;
   // The decoder lifts the JetStream sequence into the event; a chunk without one gets a local id.

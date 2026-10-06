@@ -1,6 +1,10 @@
 'use client';
 
 import { useJetStreamDialogSubscription } from '@flamingo-stack/openframe-frontend-core';
+import type {
+  RemoteDesktopChatTechnician,
+  RemoteSessionChatMessage,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NATS_TOPICS } from '@/app/(app)/tickets/constants';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -8,7 +12,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useRemoteAccessSession } from '../components/remote-access/remote-access-session-context';
 import { decodeRemoteSessionChatChunk, remoteSessionChatApiService } from '../services/remote-session-chat-api-service';
-import type { RemoteSessionChatMessage, RemoteSessionChatTechnician } from '../types/remote-session-chat';
+import { type RemoteSessionChatRow, toRemoteSessionChatMessage } from '../types/remote-session-chat';
 
 const CHAT_CHUNKS_STREAM = 'CHAT_CHUNKS';
 
@@ -22,7 +26,7 @@ export function useRemoteSessionDialogId(): string | null {
 }
 
 /** The signed-in technician as the chat shows them on their own rows. */
-export function useRemoteSessionChatTechnician(): RemoteSessionChatTechnician {
+export function useRemoteDesktopChatTechnician(): RemoteDesktopChatTechnician {
   const user = useAuthStore(s => s.user);
   return useMemo(
     () => ({
@@ -36,9 +40,9 @@ export function useRemoteSessionChatTechnician(): RemoteSessionChatTechnician {
 interface ChatStore {
   dialogId: string | null;
   /** The persisted page, oldest first. */
-  history: RemoteSessionChatMessage[];
+  history: RemoteSessionChatRow[];
   /** What the feed delivered after the page, in arrival order. */
-  live: RemoteSessionChatMessage[];
+  live: RemoteSessionChatRow[];
   historyLoaded: boolean;
   /** The page's highest stamped sequence; the feed opens right after it, older chunks are dropped. */
   lastSeq: number;
@@ -54,7 +58,7 @@ export interface RemoteSessionChatState {
   messages: RemoteSessionChatMessage[];
   isLoading: boolean;
   sending: boolean;
-  technician: RemoteSessionChatTechnician;
+  technician: RemoteDesktopChatTechnician;
   /** Resolves `false` when nothing was sent (blank text, no dialog, failure). */
   send: (body: string) => Promise<boolean>;
 }
@@ -70,13 +74,13 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
   // the effect body), live rows arriving before the page stay ordered after it.
   const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
   const [sending, setSending] = useState(false);
-  const technician = useRemoteSessionChatTechnician();
+  const technician = useRemoteDesktopChatTechnician();
   const technicianRef = useRef(technician);
   useEffect(() => {
     technicianRef.current = technician;
   }, [technician]);
 
-  const deliver = useCallback((dialog: string, message: RemoteSessionChatMessage) => {
+  const deliver = useCallback((dialog: string, message: RemoteSessionChatRow) => {
     setStore(prev => {
       const base = storeFor(prev, dialog);
       if (message.seq !== undefined && message.seq <= base.lastSeq) return base;
@@ -162,7 +166,10 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     [dialogId],
   );
 
-  const messages = useMemo(() => [...current.history, ...current.live], [current.history, current.live]);
+  const messages = useMemo(
+    () => [...current.history, ...current.live].map(toRemoteSessionChatMessage),
+    [current.history, current.live],
+  );
   return {
     messages,
     isLoading: !!dialogId && !current.historyLoaded,

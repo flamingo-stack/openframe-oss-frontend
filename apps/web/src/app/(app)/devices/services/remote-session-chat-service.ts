@@ -1,11 +1,11 @@
 // Remote session chat service surface; the dialog is served by
 // remote-session-chat-api-service.ts.
 
-import type { RemoteSessionChatMessage } from '../types/remote-session-chat';
+import type { RemoteSessionChatRow } from '../types/remote-session-chat';
 
 export interface RemoteSessionChatHistory {
   /** Oldest first. */
-  messages: RemoteSessionChatMessage[];
+  messages: RemoteSessionChatRow[];
   /** The highest JetStream sequence on the page; the live feed opens right after it. 0 = nothing stamped. */
   lastSeq: number;
 }

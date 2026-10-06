@@ -1,11 +1,14 @@
 'use client';
 
+import {
+  getDeviceName,
+  getDeviceOperatingSystem,
+  getDeviceStatusConfig,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
-import { getDeviceOperatingSystem, getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 
 interface DeviceInfoSectionProps {

@@ -1,24 +1,17 @@
 'use client';
 
+import { type ActionsMenuGroup, Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
-  ActionsMenuDropdown,
-  type ActionsMenuGroup,
-  Button,
-  NoData,
-  PageLayout,
-  Skeleton,
-  TruncateText,
-} from '@flamingo-stack/openframe-frontend-core';
+  getDeviceName,
+  RemoteDesktopChatPanel,
+  RemoteDesktopView,
+  RemoteDesktopViewSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
-  ChatOffIcon,
-  ChatTextIcon,
-  Collapse02Icon,
-  Expand02Icon,
   Loading01Icon,
   MonitorIcon,
   MonitorOffIcon,
   ScanXmarkIcon,
-  Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -29,7 +22,6 @@ import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
@@ -41,7 +33,6 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
-import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
 import {
   comboLabel,
@@ -50,7 +41,6 @@ import {
   type RemoteShortcut,
   SHORTCUT_DESCRIPTIONS,
 } from './remote-shortcuts';
-import { SessionChatPanel } from './session-chat-panel';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
@@ -655,29 +645,7 @@ function RemoteDesktopSession() {
       : [];
 
   if (!legacyDeviceData && isDeviceLoading) {
-    return (
-      <PageLayout
-        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back', onClick: handleBack }}
-      >
-        <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-            <Skeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
-            <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-4 w-36" />
-            </div>
-          </div>
-          <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
-            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-            <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-          </div>
-        </div>
-
-        <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
-      </PageLayout>
-    );
+    return <RemoteDesktopViewSkeleton onBack={handleBack} />;
   }
 
   if (!legacyDeviceData && deviceError) {
@@ -700,89 +668,28 @@ function RemoteDesktopSession() {
     );
   }
 
-  const deviceInfoBlock = (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-      <div className="flex-shrink-0 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)]">
-        <MonitorIcon className="h-4 w-4 text-ods-text-primary" />
-      </div>
-      <div className="flex min-w-0 flex-col">
-        <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
-        <TruncateText
-          variant="h6"
-          tone="secondary"
-        >{`Desktop • ${organizationName || 'Unknown Customer'}`}</TruncateText>
-      </div>
-    </div>
-  );
-
-  const controlsBar = (
-    <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
-      {deviceInfoBlock}
-      <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
-        {displays.length > 1 && (
-          <ActionsMenuDropdown
-            groups={displayMenuGroups}
-            customTrigger={
-              <Button variant="outline" leftIcon={<MonitorIcon className="h-4 w-4 md:h-6 md:w-6" />}>
-                Display {currentDisplay === 0 ? 'All' : currentDisplay}
-              </Button>
-            }
-          />
-        )}
-        {chatDialogId && !sessionEnded && (
-          <Button
-            variant="outline"
-            onClick={toggleChat}
-            leftIcon={
-              showChat ? (
-                <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
-              ) : (
-                <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
-              )
-            }
-          >
-            {showChat ? 'Close Chat' : 'Open Chat'}
-          </Button>
-        )}
-        <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Settings"
-          onClick={() => setSettingsOpen(true)}
-          leftIcon={<Settings01Icon />}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-          leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
-        />
-      </div>
-    </div>
-  );
-
   // "Show All" grid: the main canvas keeps receiving the combined
   // virtual-desktop stream and stays mounted (hidden) as the blit source;
   // each display with known geometry (cmd 82) gets its own cropped view.
   const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
   const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
 
-  const chatPanel = (variant: 'side' | 'overlay') =>
+  // Beside the screen, and over it in fullscreen: the view places the panel, the variant styles it.
+  const chatPanel =
     showChat && chatDialogId ? (
-      <SessionChatPanel
+      <RemoteDesktopChatPanel
         messages={chat.messages}
         loading={chat.isLoading}
         technician={chat.technician}
         sending={chat.sending}
         onSend={chat.send}
-        variant={variant}
+        variant={isFullscreen ? 'overlay' : 'side'}
       />
     ) : null;
 
-  const canvasContainer = (
-    <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
+  // What fills the view's screen box: the stream's canvas and the session's status over it.
+  const screen = (
+    <>
       <canvas
         ref={canvasRef}
         tabIndex={0}
@@ -877,40 +784,28 @@ function RemoteDesktopSession() {
           />
         </div>
       )}
-      {isFullscreen && chatPanel('overlay')}
-    </div>
+    </>
   );
 
-  return (
-    <PageLayout
-      className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      showHeader={!isFullscreen}
-    >
-      <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
-        {isFullscreen ? (
-          <FullscreenToolbar
-            deviceName={deviceName || `Device ${deviceId}`}
-            displayMenuGroups={displayMenuGroups}
-            currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
-            actionsMenuGroups={actionsMenuGroups}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onExitFullscreen={exitFullscreen}
-            chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
-            onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
-          />
-        ) : (
-          controlsBar
-        )}
-        {/* One wrapper in both modes: the canvas must keep its DOM node across
-            the fullscreen toggle (MeshDesktop is attached to it once), so the
-            tree shape never changes - only the side panel comes and goes. */}
-        <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
-          {canvasContainer}
-          {!isFullscreen && chatPanel('side')}
-        </div>
-      </div>
+  const hasChat = chatDialogId !== null && !sessionEnded;
 
+  return (
+    <RemoteDesktopView
+      deviceName={deviceName || `Device ${deviceId}`}
+      organizationName={organizationName}
+      onBack={handleBack}
+      fullscreen={isFullscreen}
+      onEnterFullscreen={enterFullscreen}
+      onExitFullscreen={exitFullscreen}
+      displayMenuGroups={displayMenuGroups}
+      currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
+      actionsMenuGroups={actionsMenuGroups}
+      onOpenSettings={() => setSettingsOpen(true)}
+      chatOpen={hasChat ? showChat : undefined}
+      onToggleChat={hasChat ? toggleChat : undefined}
+      screen={screen}
+      chat={chatPanel}
+    >
       <RemoteSettingsModal
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -929,6 +824,6 @@ function RemoteDesktopSession() {
           onSave={setShortcuts}
         />
       )}
-    </PageLayout>
+    </RemoteDesktopView>
   );
 }

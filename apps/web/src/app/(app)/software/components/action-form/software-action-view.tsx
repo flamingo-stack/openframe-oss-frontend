@@ -1,41 +1,96 @@
 'use client';
 
-import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Button,
-  type PageActionButton,
-  PageLayout,
-  RadioGroupBlock,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMemo, useState } from 'react';
-import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+  type DeviceFilterInput,
+  DEVICE_STATUS,
+  ErrorBoundary,
+  type PackageSearchSlotProps,
+  PackageSearchFieldPlaceholder,
+  SoftwareActionForm,
+  type SoftwareDeviceScope,
+  type SoftwareScheduleTiming,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Suspense, useMemo } from 'react';
+import type { Device } from '@/app/(app)/devices/types/device.types';
+import { TIME_REFERENCE_OPTIONS } from '@/app/(app)/scripts/schedule/types/edit-schedule.types';
+import {
+  earliestScheduleDay,
+  getTimeSlotOptions,
+  isScheduleStartInPast,
+  PAST_START_MESSAGE,
+} from '@/app/(app)/scripts/schedule/utils/schedule-timing';
 import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
-import { PACKAGE_MANAGER_OS } from '../shared/package-managers';
-import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
 import { BundleDevicePicker } from './bundle-device-picker';
-import { ScheduleFields } from './schedule-fields';
-import { newSoftwareRow, type SoftwareRow } from './software-row';
-import { SoftwareRowFields } from './software-row-fields';
+import { PackageSearchField } from './package-search-field';
 import { useDraftBundle } from './use-draft-bundle';
-import { type RunMode, useSoftwareActionSubmit } from './use-software-action-submit';
+import { useSoftwareActionSubmit } from './use-software-action-submit';
 
 function agentMissing(device: Device): string | undefined {
   return device.machineId ? undefined : 'Agent is not\nconnected';
 }
 
+/** Date / Time / Timezone read exactly as a script schedule's start is. */
+const SCHEDULE_TIMING: SoftwareScheduleTiming<ScheduleTimeReference> = {
+  timeReferenceOptions: TIME_REFERENCE_OPTIONS,
+  getTimeOptions: getTimeSlotOptions,
+  getEarliestDay: earliestScheduleDay,
+  getStartError: (date, time, timeReference) =>
+    isScheduleStartInPast(date, time, timeReference) ? PAST_START_MESSAGE : undefined,
+};
+
+const INITIAL_VALUES = { timeReference: ScheduleTimeReference.SERVER };
+
+/** "Software Name": the catalog search, behind its own boundaries so a failed search does not take the form down. */
+function renderPackageSearch({ packageManager, value, onChange }: PackageSearchSlotProps) {
+  return (
+    // Keyed by catalog: a new package manager starts a new search.
+    <ErrorBoundary key={packageManager} fallback={<PackageSearchFieldPlaceholder error="Couldn't search packages." />}>
+      <Suspense fallback={<PackageSearchFieldPlaceholder />}>
+        <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+interface ScopedBundleDevicePickerProps {
+  osTypesKey: string;
+  bundleId: string | null;
+  createError: Error | null;
+  onRetryCreate: () => void;
+}
+
+/**
+ * The picker within the form's frame: live devices on the OS the chosen
+ * packages install on. Keyed by the OS list's text so a re-render with the
+ * same rows keeps the same object: the picker's queries and facets are keyed by it.
+ */
+function ScopedBundleDevicePicker({ osTypesKey, bundleId, createError, onRetryCreate }: ScopedBundleDevicePickerProps) {
+  const scope = useMemo<DeviceFilterInput>(
+    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: osTypesKey.split(',') }),
+    [osTypesKey],
+  );
+  return (
+    <BundleDevicePicker
+      bundleId={bundleId}
+      createError={createError}
+      onRetryCreate={onRetryCreate}
+      scope={scope}
+      isDeviceDisabled={agentMissing}
+    />
+  );
+}
+
 /**
  * Install Software (design 591:8524) and Update Software (409:48080 / 409:48175):
- * which catalog packages, now or on a schedule, on which devices. One page for
- * both flows.
+ * the container of the core library's `SoftwareActionForm`.
  *
- * The packages and the timing are form state; the devices are not. They live on
- * a draft bundle the form opens (`useDraftBundle`) and every assignment edits in
- * place, so the selection is never held in the browser — and submit sends the
- * bundle's id, not a list (`useSoftwareActionSubmit`).
+ * The packages and the timing are the form's own state; the devices are not.
+ * They live on a draft bundle this page opens (`useDraftBundle`) and every
+ * assignment edits in place, so the selection is never held in the browser, and
+ * submit sends the bundle's id, not a list (`useSoftwareActionSubmit`).
  */
 export function SoftwareActionView({
   action,
@@ -45,109 +100,39 @@ export function SoftwareActionView({
   /** The module's flag has not answered yet: the form draws, the picker does not fetch and nothing submits. */
   loading?: boolean;
 }) {
-  const copy = SOFTWARE_ACTION_COPY[action];
   const handleBack = useSafeBack(routes.software.actions);
   const { bundleId, deviceCount, createError, retryCreate, markSubmitted } = useDraftBundle({ enabled: !loading });
   const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
-  const [rows, setRows] = useState<SoftwareRow[]>(() => [newSoftwareRow('row-0')]);
-  const [mode, setMode] = useState<RunMode>('now');
-  const [date, setDate] = useState<Date | null>(null);
-  const [time, setTime] = useState('');
-  const [timeReference, setTimeReference] = useState<ScheduleTimeReference>(ScheduleTimeReference.SERVER);
-
-  // The picker's frame: live devices on the OS the chosen packages install on.
-  // Keyed by the OS list's text so a re-render with the same rows keeps the
-  // same object — the picker's queries and facets are keyed by it.
-  const osTypesKey = [...new Set(rows.map(row => PACKAGE_MANAGER_OS[row.packageManager]))].sort().join(',');
-  const scope = useMemo<DeviceFilterInput>(
-    () => ({ statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE], osTypes: osTypesKey.split(',') }),
-    [osTypesKey],
-  );
-
-  const actions: PageActionButton[] = [
-    { label: 'Cancel', onClick: handleBack, variant: 'outline', showOnlyMobile: true },
-    {
-      label: mode === 'now' ? copy.runLabel : copy.scheduleLabel,
-      variant: 'accent',
-      onClick: () => submit({ rows, bundleId, deviceCount, mode, date, time, timeReference }),
-      disabled: loading || deviceCount === 0,
-      loading: isSubmitting,
-    },
-  ];
-
-  const updateRow = (next: SoftwareRow) => setRows(current => current.map(row => (row.key === next.key ? next : row)));
-  const removeRow = (key: string) => setRows(current => current.filter(row => row.key !== key));
-  const addRow = () => setRows(current => [...current, newSoftwareRow(crypto.randomUUID())]);
+  const renderDevicePicker = ({ osTypesKey }: SoftwareDeviceScope) =>
+    loading ? (
+      <ServerDevicePickerSkeleton />
+    ) : (
+      <ScopedBundleDevicePicker
+        // A new OS set is a different candidate list, not a refetch of this
+        // one: remounting drops straight to the skeleton instead of leaving
+        // the previous OS's devices on screen, and addable, while the
+        // deferred query catches up. The picker's search and funnels go with
+        // it, which is right: they narrowed a list that no longer exists.
+        key={osTypesKey}
+        osTypesKey={osTypesKey}
+        bundleId={bundleId}
+        createError={createError}
+        onRetryCreate={retryCreate}
+      />
+    );
 
   return (
-    <PageLayout
-      title={copy.formTitle}
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {rows.map(row => (
-        <SoftwareRowFields
-          key={row.key}
-          row={row}
-          removable={rows.length > 1}
-          onChange={updateRow}
-          onRemove={() => removeRow(row.key)}
-        />
-      ))}
-
-      <Button
-        type="button"
-        variant="outline"
-        size="small"
-        className="self-start"
-        onClick={addRow}
-        leftIcon={<PlusCircleIcon size={24} className="text-ods-text-secondary" />}
-      >
-        Add Software
-      </Button>
-
-      <RadioGroupBlock
-        name="runMode"
-        variant="grouped"
-        value={mode}
-        onValueChange={value => setMode(value as RunMode)}
-        options={copy.modes}
-        itemClassName="py-[var(--spacing-system-sf)]"
-      />
-
-      {mode === 'schedule' && (
-        <ScheduleFields
-          date={date}
-          time={time}
-          timeReference={timeReference}
-          onDateChange={setDate}
-          onTimeChange={setTime}
-          onTimeReferenceChange={setTimeReference}
-        />
-      )}
-
-      <h2 className="pt-[var(--spacing-system-l)] text-ods-text-primary text-h2">Device Selection</h2>
-
-      {loading ? (
-        <ServerDevicePickerSkeleton />
-      ) : (
-        <BundleDevicePicker
-          // A new OS set is a different candidate list, not a refetch of this
-          // one: remounting drops straight to the skeleton instead of leaving
-          // the previous OS's devices on screen — and addable — while the
-          // deferred query catches up. The picker's search and funnels go with
-          // it, which is right: they narrowed a list that no longer exists.
-          key={osTypesKey}
-          bundleId={bundleId}
-          createError={createError}
-          onRetryCreate={retryCreate}
-          scope={scope}
-          isDeviceDisabled={agentMissing}
-        />
-      )}
-    </PageLayout>
+    <SoftwareActionForm<ScheduleTimeReference>
+      action={action}
+      onBack={handleBack}
+      onSubmit={values => submit({ ...values, bundleId, deviceCount })}
+      submitDisabled={loading || deviceCount === 0}
+      submitting={isSubmitting}
+      timing={SCHEDULE_TIMING}
+      initialValues={INITIAL_VALUES}
+      renderPackageSearch={renderPackageSearch}
+      renderDevicePicker={renderDevicePicker}
+    />
   );
 }
