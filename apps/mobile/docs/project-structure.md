@@ -118,7 +118,7 @@ to its own repo, wire it as a git submodule or CI artifact (see
    Git-ignored; never edit it directly.
 3. **Native runtime (Swift, via SPM):** `ios/App/CapApp-SPM/Package.swift` declares the
    dependency on `capacitor-swift-pm` (the Capacitor + Cordova native libraries),
-   pinned to the CLI version (`exact: "8.4.1"`). Xcode resolves it — **this is why
+   pinned to the CLI version (`exact: "8.4.3"`). Xcode resolves it — **this is why
    there's no CocoaPods.** The file is CLI-managed (`// DO NOT MODIFY`).
 4. **Native host (Swift, yours):** `ios/App/App/AppDelegate.swift` boots the app and a
    `CAPBridgeViewController` (a `WKWebView` host that loads `public/`). This is the only

@@ -2,6 +2,7 @@
 # Next.js 16 standalone (distDir=dist), multi-arch via BuildKit
 # Base image pinned to a full version tag. Node 24, not 22: every node:22 image still ships
 # npm with tar 7.5.11 (CVE-2026-59873, CRITICAL), which fails the Scan Code job.
+# The major is the one in the root .nvmrc, which CI and laptops read: bump both together.
 FROM --platform=$BUILDPLATFORM node:24.21.0-alpine3.24 AS builder
 WORKDIR /app
 

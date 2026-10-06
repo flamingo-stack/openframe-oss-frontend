@@ -57,6 +57,7 @@ import {
   adjustUnreadCount,
   connectionHasNode,
   isApprovalResolved,
+  isReadStateEvent,
   makeMarkReadUpdater,
   makeReadStateUpdater,
   mapNotificationNode,
@@ -167,15 +168,18 @@ function prependNotificationEdge(
 }
 
 /**
- * READ / DELETED: the recipient's read-state changed in another tab, on another device, or
- * in this tab (its own mutation echoes back — the updaters are idempotent for that). Ids
- * only, so nothing is rendered from the event: the cards already in the store are flipped
- * or dropped in place, in whichever lists are mounted.
+ * READ / ARCHIVED / DELETED: the recipient's read-state changed in another tab, on another
+ * device, in this tab (its own mutation echoes back — the updaters are idempotent for that),
+ * or because the notification's ticket or dialog was archived. Ids only, so nothing is
+ * rendered from the event: the cards already in the store are flipped or dropped in place,
+ * in whichever lists are mounted.
  *
  * An id the store never loaded (a card outside the paged window, a bulk mark-all) adjusts
  * no bucket locally, so the counts are refetched after every event either way.
  *
- * A READ for a row not already READ here may be an archive — see `requestReadStatusRefresh`.
+ * History re-reads the statuses when the store can't settle them: a READ for a row not already
+ * READ may be an archive from an older backend, and an ARCHIVED id the store never loaded has no
+ * card to flag — see `requestReadStatusRefresh`.
  */
 function applyReadStateEvent(
   environment: IEnvironment,
@@ -185,10 +189,12 @@ function applyReadStateEvent(
   const ids = (notificationIds ?? []).filter(id => typeof id === 'string' && id.length > 0).map(notificationGlobalId);
   if (ids.length === 0) return;
   const source = environment.getStore().getSource();
-  const mayBeArchive = eventType === 'READ' && ids.some(id => source.get(id)?.status !== NotificationReadStatus.READ);
+  const needsStatusRefresh =
+    (eventType === 'READ' && ids.some(id => source.get(id)?.status !== NotificationReadStatus.READ)) ||
+    (eventType === 'ARCHIVED' && ids.some(id => source.get(id) == null));
   commitLocalUpdate(environment, makeReadStateUpdater(eventType, ids, getLiveConnectionPairs()));
   refreshUnreadCounts(environment);
-  if (mayBeArchive) requestReadStatusRefresh();
+  if (needsStatusRefresh) requestReadStatusRefresh();
 }
 
 interface NatsNotificationPayload {
@@ -202,10 +208,10 @@ interface NatsNotificationPayload {
   category?: string;
   // CREATED is the initial push; UPDATED supersedes an earlier push with the same id
   // (e.g. an approval request whose status changed). Absent → treat as CREATED.
-  // READ / DELETED carry no card and no top-level id — only `notificationIds` — and say
-  // the recipient's read-state changed elsewhere.
+  // Read-state events (`NotificationReadStateEvent`) carry no card and no top-level id — only
+  // `notificationIds` — and say the recipient's read-state changed elsewhere.
   eventType?: 'CREATED' | 'UPDATED' | NotificationReadStateEvent;
-  // READ / DELETED only: every notification the transition touched. A bulk action
+  // Read-state events only: every notification the transition touched. A bulk action
   // (mark all read, delete all read) arrives as ONE event carrying every id.
   notificationIds?: string[];
   // The notification's facts: the backend type string and the flat attribute map (entity
@@ -656,7 +662,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   useNatsJsonSubscription<NatsNotificationPayload>(
     subject,
     useCallback(payload => {
-      if (payload.eventType === 'READ' || payload.eventType === 'DELETED') {
+      if (isReadStateEvent(payload.eventType)) {
         applyReadStateEvent(environmentRef.current, payload.eventType, payload.notificationIds);
         return;
       }

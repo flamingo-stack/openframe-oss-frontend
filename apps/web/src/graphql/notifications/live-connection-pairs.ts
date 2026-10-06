@@ -1,7 +1,7 @@
 import { type NotificationConnectionPair, UNFILTERED_NOTIFICATION_PAIR } from './notifications-helpers';
 
 /**
- * The connection pairs a live READ / DELETED event has to reach.
+ * The connection pairs a live read-state event has to reach.
  *
  * The drawer reads the unfiltered pair, which the live bridge knows by name. The
  * `/notifications` page keys its connections by the search string as well, and Relay
@@ -30,10 +30,13 @@ export function getLiveConnectionPairs(): NotificationConnectionPair[] {
 /**
  * History lists that render a row's read status and have to re-read it from the server.
  *
- * The backend relays an entity's ARCHIVED transition over NATS as a plain READ event, so a
- * READ for a row not already READ here could be either a read elsewhere or an archive — and
- * only the server knows which. Archiving moves only UNREAD rows, so a READ for a row already
- * READ is never one. Drop this once the event carries the status.
+ * oss-lib 6.37.31+ (#2466) relays an entity's archive as an ARCHIVED event, which the store
+ * applies directly. A refresh is requested only when the store can't settle a status itself:
+ * - an ARCHIVED for an id that was never loaded, so there is no card to flag;
+ * - from older backends, which relay the archive as a plain READ, a READ for a row not already
+ *   READ here — a read elsewhere and an archive look the same, and only the server knows which.
+ *   Archiving moves only UNREAD rows, so a READ for a row already READ is never an archive.
+ *   Drop this case once every environment runs 6.37.31+.
  */
 const readStatusRefreshListeners = new Set<() => void>();
 
