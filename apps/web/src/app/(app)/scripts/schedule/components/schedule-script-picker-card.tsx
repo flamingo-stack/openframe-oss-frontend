@@ -15,7 +15,7 @@ import {
   Label,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { FocusEvent } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { parseKeyValues } from '../../shared/utils/script-key-values';
@@ -101,7 +101,7 @@ export function ScheduleScriptPickerCard({
   const { itemRef, dragHandleProps, isDragging, dragAndDropEnabled } = useSortableItem();
   // Mobile folds the args/env editors into accordions; `undefined` (SSR/first
   // render) keeps the expanded variant and settles before first paint.
-  const isMdUp = useMdUp();
+  const isMdUp = useContentMdUp();
 
   const { scripts, isLoading, inputValue, onInputChange, onOpen, onClose } =
     useScheduleScriptsAutocomplete(supportedPlatforms);
@@ -162,7 +162,7 @@ export function ScheduleScriptPickerCard({
       ref={itemRef}
       // No inline style here — the list writes `transform` straight onto this
       // node during a drag (see `SortableList`).
-      className={`flex flex-col gap-[var(--spacing-system-sf)] rounded-[6px] border bg-ods-bg p-[var(--spacing-system-l)] md:gap-[var(--spacing-system-lf)] ${
+      className={`flex flex-col gap-[var(--spacing-system-sf)] rounded-[6px] border bg-ods-bg p-[var(--spacing-system-l)] content-md:gap-[var(--spacing-system-lf)] ${
         isDragging ? 'relative z-10 border-ods-accent shadow-lg' : 'border-ods-border'
       }`}
     >
@@ -171,7 +171,7 @@ export function ScheduleScriptPickerCard({
           with DnD the approved desktop layout stays — handle beside the select,
           delete beside the timeout, the two halves side by side from md. */}
       <div
-        className={`flex flex-col gap-[var(--spacing-system-sf)] md:gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'md:flex-row md:items-end' : ''}`}
+        className={`flex flex-col gap-[var(--spacing-system-sf)] content-md:gap-[var(--spacing-system-lf)] ${dragAndDropEnabled ? 'content-md:flex-row content-md:items-end' : ''}`}
       >
         <div
           className={`flex min-w-0 flex-1 items-end ${
@@ -351,7 +351,7 @@ export function ScheduleScriptPickerCard({
           </AccordionItem>
         </Accordion>
       ) : (
-        <div className="flex flex-col items-start gap-[var(--spacing-system-lf)] md:flex-row">
+        <div className="flex flex-col items-start gap-[var(--spacing-system-lf)] content-md:flex-row">
           <div className="w-full min-w-0 flex-1 [&_label]:text-h4">
             <Controller
               name={`scripts.${index}.args`}

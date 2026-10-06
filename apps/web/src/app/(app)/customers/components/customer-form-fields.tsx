@@ -37,8 +37,8 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-lf)]">
       {/* Row 1: name + website (left) | logo (right on lg, below on md/sm) */}
-      <div className="flex flex-col items-stretch gap-[var(--spacing-system-lf)] lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-lf)] md:flex-row lg:flex-col">
+      <div className="flex flex-col items-stretch gap-[var(--spacing-system-lf)] content-lg:flex-row">
+        <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-lf)] content-md:flex-row content-lg:flex-col">
           <div className="min-w-0 flex-1">
             <Controller
               name="name"
@@ -75,7 +75,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
           </div>
         </div>
 
-        {logoSlot && <div className="w-full shrink-0 lg:w-[316px]">{logoSlot}</div>}
+        {logoSlot && <div className="w-full shrink-0 content-lg:w-[316px]">{logoSlot}</div>}
       </div>
 
       <Controller
@@ -97,7 +97,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
       {/* Row 3: physical address + same-as-physical checkbox. While the box is
           on, the mailing line mirrors every keystroke here in the same event —
           an effect would lag the two inputs one character apart. */}
-      <div className="flex flex-col gap-[var(--spacing-system-mf)] md:flex-row md:items-end md:gap-[var(--spacing-system-lf)]">
+      <div className="flex flex-col gap-[var(--spacing-system-mf)] content-md:flex-row content-md:items-end content-md:gap-[var(--spacing-system-lf)]">
         <div className="min-w-0 flex-1">
           <Controller
             name="physicalAddress"
@@ -124,7 +124,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
           render={({ field }) => (
             <CheckboxBlock
               id="mailing-same"
-              className="min-w-0 flex-1 md:max-w-[50%]"
+              className="min-w-0 flex-1 content-md:max-w-[50%]"
               label="Mailing Address Same as Physical"
               checked={field.value}
               onCheckedChange={checked => {

@@ -10,7 +10,7 @@ const SOFTWARE_ACTION_COLUMNS = {
   action: { id: 'action', header: 'Action', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
   engine: { id: 'engine', header: 'Engine', width: 'flex-1 min-w-0', hideAt: 'lg', filterable: true },
   status: { id: 'status', header: 'Status', width: 'flex-1 min-w-0', filterable: true },
-  processedDevices: { id: 'processedDevices', header: 'Processed Devices', width: 'w-[120px] md:w-[184px]' },
+  processedDevices: { id: 'processedDevices', header: 'Processed Devices', width: 'w-[120px] content-md:w-[184px]' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

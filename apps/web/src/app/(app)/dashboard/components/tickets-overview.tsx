@@ -25,7 +25,7 @@ export function TicketsOverviewSection() {
         />
       )}
 
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] content-md:grid-cols-2 content-lg:grid-cols-4">
         <DashboardInfoCard
           titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />}
           value={tickets.aiAssistance ?? EMPTY_VALUE}

@@ -95,7 +95,7 @@ export function ScheduleCriteriaFields({ criteria, onChange, deviceFilters, disa
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-4">
         <Autocomplete
           multiple
           label="Customer"
@@ -196,18 +196,18 @@ function CustomCriteriaField() {
  *
  * Only the two dropdowns wait on a request, so only they are placeholders — the
  * labels and the Custom Criteria block are static and render for real. The
- * boxes carry the fields' own `h-11 md:h-12`, and the labels the `text-h4 mb-1`
+ * boxes carry the fields' own `h-11 content-md:h-12`, and the labels the `text-h4 mb-1`
  * that `FieldWrapper` gives them, so the editor doesn't resize under the user
  * when the options land.
  */
 export function ScheduleCriteriaFieldsSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-4">
         {['Customer', 'OS'].map(label => (
           <div key={label} className="flex w-full flex-col">
             <span className="mb-1 text-ods-text-primary text-h4">{label}</span>
-            <Skeleton className="h-11 w-full rounded-[6px] md:h-12" />
+            <Skeleton className="h-11 w-full rounded-[6px] content-md:h-12" />
           </div>
         ))}
       </div>

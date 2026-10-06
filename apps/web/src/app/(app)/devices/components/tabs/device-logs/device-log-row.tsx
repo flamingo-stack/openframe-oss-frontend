@@ -83,7 +83,7 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
             as="span"
             variant="outline"
             label={<span>{data.hostname}</span>}
-            className="hidden shrink-0 md:inline-flex"
+            className="hidden shrink-0 content-md:inline-flex"
           />
         )}
         {data.count != null && data.count > 1 && (

@@ -98,7 +98,7 @@ export function FaeChatPreview({
   if (!isThumbnail) return body;
 
   return (
-    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.225] md:h-[296px] md:[--preview-scale:0.266] lg:h-[380px] lg:[--preview-scale:0.342]">
+    <div className="grid h-[250px] w-full place-items-center overflow-hidden rounded-md border border-ods-border bg-ods-bg [--preview-scale:0.225] content-md:h-[296px] content-md:[--preview-scale:0.266] content-lg:h-[380px] content-lg:[--preview-scale:0.342]">
       {/* 1:1 content in a 1112px slot, transform-scaled (not zoom) to the per-breakpoint card
           height. zoom mis-renders text in Safari, so we scale via transform instead; the
           wrapper reserves the post-scale footprint so the card still centers the content. */}

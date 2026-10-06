@@ -21,7 +21,7 @@ interface InvoicesFilterModalProps {
 
 /**
  * The table's sort and its one filter, restated for the widths where the header
- * is gone entirely (`hidden md:flex`) and its arrows and funnel are unreachable.
+ * is gone entirely (`hidden content-md:flex`) and its arrows and funnel are unreachable.
  * This is the translation between TanStack's state and `FilterModal`'s shape,
  * in both directions — the state itself stays in `useInvoicesTable`, so the two
  * sets of controls can never disagree.

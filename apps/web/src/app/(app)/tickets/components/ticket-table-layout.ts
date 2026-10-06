@@ -28,7 +28,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 const TICKET_COLUMNS = {
   // Header reads TICKET (Figma tickets 8002-256659): the cell carries the title
   // and, under it, the ticket number with the relative creation time.
-  title: { id: 'title', header: 'TICKET', width: 'w-[60%] md:flex-1 min-w-0' },
+  title: { id: 'title', header: 'TICKET', width: 'w-[60%] content-md:flex-1 min-w-0' },
   source: { id: 'source', header: 'SOURCE', width: '', hideAt: 'md' },
   assignee: { id: 'assignee', header: 'ASSIGNEE', width: '', hideAt: 'lg' },
   status: { id: 'status', header: 'STATUS', width: '' },

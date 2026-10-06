@@ -61,7 +61,7 @@ export function TicketsStep({
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-l)]">
       {/* Intro (left) / demo video (right) */}
-      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] md:flex-row">
+      <div className="flex w-full flex-col items-start gap-[var(--spacing-system-l)] content-md:flex-row">
         <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
           <p className="text-ods-text-primary text-h4">
             Every conversation AI Assistant handles is logged as a ticket. Your team can review what happened, add
@@ -107,9 +107,9 @@ export function TicketsStep({
 
       {/* Footer actions — right column mirrors the intro/video split above so the
           buttons line up flush with the demo video block. */}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-l)] md:flex-row">
-        <div className="hidden flex-1 md:block" />
-        <div className="flex w-full flex-1 flex-col gap-[var(--spacing-system-m)] md:flex-row md:items-center">
+      <div className="flex w-full flex-col gap-[var(--spacing-system-l)] content-md:flex-row">
+        <div className="hidden flex-1 content-md:block" />
+        <div className="flex w-full flex-1 flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-center">
           {!completed ? (
             <Button
               variant="outline"
@@ -117,14 +117,14 @@ export function TicketsStep({
               onClick={() => onComplete?.()}
               loading={completing}
               disabled={completing}
-              className="w-full md:flex-1"
+              className="w-full content-md:flex-1"
             >
               Mark as Complete
             </Button>
           ) : (
             // Keep the completed step's primary button its own width — don't let it
             // stretch into the removed "Mark as Complete" slot.
-            <div className="hidden md:block md:flex-1" aria-hidden />
+            <div className="hidden content-md:block content-md:flex-1" aria-hidden />
           )}
           {/* No tickets yet → passive "waiting" state; once one arrives → primary action. */}
           {hasTickets ? (
@@ -136,12 +136,12 @@ export function TicketsStep({
                 if (!completed) onCompleteBackground?.();
                 router.push(onboardingHintUrl('/tickets', 'tickets', pathname));
               }}
-              className="w-full md:flex-1"
+              className="w-full content-md:flex-1"
             >
               Go to Tickets
             </Button>
           ) : (
-            <div className="flex w-full items-center justify-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-secondary md:flex-1">
+            <div className="flex w-full items-center justify-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-secondary content-md:flex-1">
               <DotsLoaderIcon size={24} />
               <span className="whitespace-nowrap text-h4">Waiting for first ticket</span>
             </div>

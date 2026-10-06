@@ -71,12 +71,12 @@ export function BillingUsageSkeleton() {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
           <InfoCardSkeleton title="Device Usage" />
           <InfoCardSkeleton title="AI Usage" withProgress={false} />
         </div>
 
-        <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] md:grid-cols-2">
+        <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2">
           <SectionBlock title="Usage Overview">
             <BillingRow label="Active devices" value={<Value width="w-8" />} />
             <BillingRow label="Inactive devices" value={<Value width="w-8" />} />
@@ -101,7 +101,7 @@ export function BillingUsageSkeleton() {
           subscription that does not carry the AI product at all, which the
           response has not said yet. Two cards reflowing into three on arrival is
           the more disruptive of the two guesses. */}
-      <div className="grid gap-[var(--spacing-system-m)] md:grid-cols-3">
+      <div className="grid gap-[var(--spacing-system-m)] content-md:grid-cols-3">
         <StatCardSkeleton title="Device Usage" />
         <StatCardSkeleton title="Free AI Tokens" caption="Updated monthly" />
         <StatCardSkeleton title="Paid AI Tokens" />
@@ -128,7 +128,7 @@ export function BillingUsageSkeleton() {
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
+            className="content-md:hidden"
             disabled
             aria-hidden
             tabIndex={-1}

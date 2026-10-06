@@ -48,7 +48,7 @@ export function GuardrailsTemplatePicker({
                 e.stopPropagation();
                 onCreateCustomPolicyFrom(option.id);
               }}
-              className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover md:inline-flex [&_svg]:!size-6"
+              className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover content-md:inline-flex [&_svg]:!size-6"
               leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
               disabled={disabled}
             >
@@ -57,7 +57,7 @@ export function GuardrailsTemplatePicker({
             {/* Mobile: collapsed into an ellipsis actions menu. preventDefault
                 stops the wrapping radio label from selecting the option. */}
             <div
-              className="md:hidden"
+              className="content-md:hidden"
               onClick={e => {
                 e.preventDefault();
                 e.stopPropagation();

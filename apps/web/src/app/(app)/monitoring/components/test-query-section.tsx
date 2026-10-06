@@ -138,7 +138,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           it, the results (skeleton / table / empty state), per design. */}
       {isOpen && (
         <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-[6px] border border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
-          <div className="grid grid-cols-2 items-end gap-[var(--spacing-system-m)] lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+          <div className="grid grid-cols-2 items-end gap-[var(--spacing-system-m)] content-lg:grid-cols-[1fr_1fr_1fr_1fr_auto]">
             {/* Device — searchable select (search field is the first dropdown
                 item), same pattern as the ticket assignee picker. */}
             <div className="order-1 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
@@ -156,21 +156,21 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
               />
             </div>
 
-            <TimingStat value={test.startedLabel} label="Started" className="order-3 lg:order-2" />
-            <TimingStat value={test.durationLabel} label="Duration" className="order-4 lg:order-3" />
-            <TestRunStatusStat status={test.status} className="order-5 lg:order-4" />
+            <TimingStat value={test.startedLabel} label="Started" className="order-3 content-lg:order-2" />
+            <TimingStat value={test.durationLabel} label="Duration" className="order-4 content-lg:order-3" />
+            <TestRunStatusStat status={test.status} className="order-5 content-lg:order-4" />
 
             {/* Action. The column is fixed-width on desktop and every button
                 fills it (and matches the SelectTrigger height), so swapping
                 Run Test / Stop Test / Test Again never shifts the layout. */}
-            <div className="order-2 flex items-end justify-end lg:order-5 lg:w-[150px]">
+            <div className="order-2 flex items-end justify-end content-lg:order-5 content-lg:w-[150px]">
               {test.isActive ? (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={test.stop}
                   leftIcon={<StopIcon size={16} />}
-                  className="h-11 w-full md:h-12"
+                  className="h-11 w-full content-md:h-12"
                 >
                   Stop Test
                 </Button>
@@ -181,7 +181,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   onClick={handleRun}
                   disabled={!canRun}
                   leftIcon={<Refresh01LeftIcon size={16} />}
-                  className="h-11 w-full md:h-12"
+                  className="h-11 w-full content-md:h-12"
                 >
                   Test Again
                 </Button>
@@ -191,7 +191,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                   variant="accent"
                   onClick={handleRun}
                   disabled={!canRun}
-                  className="h-11 w-full md:h-12"
+                  className="h-11 w-full content-md:h-12"
                 >
                   Run Test
                 </Button>

@@ -131,12 +131,15 @@ function RemoteShellSession() {
           tunnelRef.current.sendCtrl({ ctrlChannel: 102938, type: 'termsize', cols: term.cols, rows: term.rows });
         }
       };
-      window.addEventListener('resize', handleResize);
+      // The container, not the window: a docked side panel narrows the page
+      // without the window changing size.
+      const resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(container);
       const disposeResize = term.onResize(() => handleResize);
       const disposeData = term.onData((d: string) => tunnelRef.current?.sendBinary(new TextEncoder().encode(d)));
 
       cleanupRef.current = () => {
-        window.removeEventListener('resize', handleResize);
+        resizeObserver.disconnect();
         disposeResize.dispose();
         disposeData.dispose();
         tunnelRef.current?.stop();
@@ -258,7 +261,7 @@ function RemoteShellSession() {
   // Loading skeleton
   if (isDeviceLoading) {
     return (
-      <div className="flex h-full animate-pulse flex-col overflow-hidden p-4 md:p-6">
+      <div className="flex h-full animate-pulse flex-col overflow-hidden p-4 content-md:p-6">
         <div className="flex-shrink-0 bg-ods-bg py-2">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded bg-ods-border" />
@@ -294,7 +297,7 @@ function RemoteShellSession() {
   // Error state
   if (deviceError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 md:p-6">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 content-md:p-6">
         <div className="text-ods-error text-h4">Error: {deviceError}</div>
         <Button onClick={safeBackToDevices}>Back</Button>
       </div>
@@ -305,7 +308,7 @@ function RemoteShellSession() {
   if (!meshcentralAgentId) {
     const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote shell');
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 md:p-6">
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-4 content-md:p-6">
         <div className="text-ods-error text-h4">{copy.title}</div>
         <p className="text-ods-text-secondary">{copy.description}</p>
         <Button onClick={safeBackToDevice}>Back</Button>
@@ -316,7 +319,7 @@ function RemoteShellSession() {
   return (
     <PageLayout
       title="Remote Shell"
-      className="h-full px-4 pb-4 md:px-6 md:pb-6"
+      className="h-full px-4 pb-4 content-md:px-6 content-md:pb-6"
       contentClassName="flex flex-col"
       backButton={{
         label: 'Back',

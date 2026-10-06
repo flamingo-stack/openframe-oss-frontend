@@ -121,7 +121,7 @@ runs:
           found=1
           echo "Re-signing updater signature for $(basename "$f")"
           rm -f "$f.sig"
-          npx tauri signer sign \
+          npm --prefix apps/desktop exec -- tauri signer sign \
             --private-key "$TAURI_SIGNING_PRIVATE_KEY" \
             --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" \
             "$f"

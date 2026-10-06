@@ -55,7 +55,7 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading = false 
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
         <p className="text-ods-text-secondary text-h5">{label}</p>
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-xsf)] content-sm:grid-cols-2">
           {TOP_UP_PRESETS_USD.map(usd => {
             const tokens = topUp.tokensForUsd(usd);
             return (

@@ -110,7 +110,7 @@ export function NetworkTab({ device }: NetworkTabProps) {
       )}
 
       {(hasIpv4 || hasIpv6) && (
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
           {hasIpv4 && (
             <Labeled title="IPv4 Addresses">
               <InfoCard data={{ items: [{ value: sortedIpv4, copyable: true }] }} />

@@ -46,17 +46,25 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
           180px with w-full buttons. Either way, swapping Run / Stop / Test
           Again never moves Started/Duration horizontally. */}
       <div className="flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)]">
-        <TimingStat value={test.startedLabel} label="Started" className="w-1/4 shrink-0 md:w-auto md:flex-1" />
-        <TimingStat value={test.durationLabel} label="Duration" className="w-1/4 shrink-0 md:w-auto md:flex-1" />
-        <TestRunStatusStat status={test.status} className="hidden md:flex md:flex-1" />
-        <div className="ml-auto flex shrink-0 items-center justify-end md:w-[180px]">
+        <TimingStat
+          value={test.startedLabel}
+          label="Started"
+          className="w-1/4 shrink-0 content-md:w-auto content-md:flex-1"
+        />
+        <TimingStat
+          value={test.durationLabel}
+          label="Duration"
+          className="w-1/4 shrink-0 content-md:w-auto content-md:flex-1"
+        />
+        <TestRunStatusStat status={test.status} className="hidden content-md:flex content-md:flex-1" />
+        <div className="ml-auto flex shrink-0 items-center justify-end content-md:w-[180px]">
           {test.isActive ? (
             <Button
               type="button"
               variant="outline"
               onClick={test.stop}
               leftIcon={<StopIcon size={16} />}
-              className="h-11 md:h-12 md:w-full"
+              className="h-11 content-md:h-12 content-md:w-full"
             >
               Stop Test
             </Button>
@@ -67,7 +75,7 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
               onClick={handleRun}
               disabled={!canRun}
               leftIcon={<Refresh01LeftIcon size={16} />}
-              className="h-11 md:h-12 md:w-full"
+              className="h-11 content-md:h-12 content-md:w-full"
             >
               Test Again
             </Button>
@@ -77,7 +85,7 @@ export function QuickQueryPanel({ fleetHostId, deviceName, initialQuery }: Quick
               variant="accent"
               onClick={handleRun}
               disabled={!canRun}
-              className="h-11 md:h-12 md:w-full"
+              className="h-11 content-md:h-12 content-md:w-full"
             >
               Run Quick Query
             </Button>

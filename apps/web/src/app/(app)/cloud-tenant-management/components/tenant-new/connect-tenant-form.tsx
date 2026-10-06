@@ -67,7 +67,7 @@ export function ConnectTenantForm({ record }: { record: TenantFormRecord }) {
             onClick={generateLink}
             disabled={!isValid}
             loading={isGenerating}
-            className="w-full md:w-auto"
+            className="w-full content-md:w-auto"
           >
             Generate Connection Link
           </Button>

@@ -46,7 +46,7 @@ export function PlanSections({ subscription, billingPlan }: PlanSectionsProps) {
     <div
       className={cn(
         'grid grid-cols-1 items-start gap-[var(--spacing-system-l)]',
-        schedule.hasPendingPlan && 'md:grid-cols-2',
+        schedule.hasPendingPlan && 'content-md:grid-cols-2',
       )}
     >
       <CurrentPlanSection subscription={data} billingPlan={catalog ?? null} />

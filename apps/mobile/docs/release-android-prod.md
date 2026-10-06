@@ -11,8 +11,8 @@ APK — Play requires an AAB for new apps and rejects unsigned uploads.
 
 ```sh
 NEXT_PUBLIC_SHARED_HOST_URL=https://<prod shared auth host> \
-OF_UPLOAD_STORE_FILE=$HOME/keys/openframe-upload.jks \
-OF_UPLOAD_STORE_PASSWORD=… OF_UPLOAD_KEY_ALIAS=upload OF_UPLOAD_KEY_PASSWORD=… \
+ANDROID_UPLOAD_STORE_FILE=$HOME/keys/openframe-upload.jks \
+ANDROID_UPLOAD_STORE_PASSWORD=… ANDROID_UPLOAD_KEY_ALIAS=upload ANDROID_UPLOAD_KEY_PASSWORD=… \
 VERSION_CODE=<increasing int> VERSION_NAME=1.0.1 \
 scripts/build-android-prod.sh
 ```
@@ -21,7 +21,7 @@ Web bundle (prod env baked) → `cap sync` → `bundleProdRelease` →
 `android/app/build/outputs/bundle/prodRelease/app-prod-release.aab`. Upload it
 in Play Console → the target track → Create release.
 
-The `OF_UPLOAD_*` values may equally live in `android/gradle.properties` or
+The `ANDROID_UPLOAD_*` values may equally live in `android/gradle.properties` or
 `~/.gradle/gradle.properties` (see `android/app/src/README.md`); the lane checks
 all three, and then verifies the finished AAB is actually signed — Gradle
 otherwise emits an unsigned bundle with nothing but a log line.

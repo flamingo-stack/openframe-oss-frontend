@@ -42,7 +42,7 @@ export function DevicesGrid({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 content-md:grid-cols-2 content-lg:grid-cols-3">
             {devices.map(device => {
               const statusConfig = getDeviceStatusConfig(device.status);
               return (

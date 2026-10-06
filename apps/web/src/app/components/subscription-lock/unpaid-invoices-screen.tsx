@@ -204,7 +204,7 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
   const name = invoice.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
 
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] sm:h-20 sm:flex-row sm:items-center sm:py-0">
+    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0">
       {/* The identifier over the date it was issued — an em dash when a legacy
           entry has no number, the same reading the Invoices History table uses. */}
       <InvoiceCell caption={formatDate(invoice.createdAt)}>{invoice.invoiceNumber ?? EMPTY_VALUE}</InvoiceCell>

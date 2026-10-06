@@ -177,7 +177,12 @@ export function BillingUsageContent() {
 
       {/* Two AI counters, because AI runs on two figures: what the period gives
           away, and the balance it draws from once that is spent. */}
-      <div className={cn('grid gap-[var(--spacing-system-m)]', hasAi ? 'md:grid-cols-3' : 'md:grid-cols-1')}>
+      <div
+        className={cn(
+          'grid gap-[var(--spacing-system-m)]',
+          hasAi ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
+        )}
+      >
         <DeviceUsageCard subscription={subscription} />
         {hasAi && (
           <>

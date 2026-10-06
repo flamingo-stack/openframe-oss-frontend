@@ -109,7 +109,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
             <TruncateText>{row.original.cve}</TruncateText>
             {/* SOFTWARE has a column of its own from `md` up; below that it is folded
                 in here, so a mobile row still says which package the CVE is in. */}
-            <div className="min-w-0 md:hidden">
+            <div className="min-w-0 content-md:hidden">
               <TruncateText variant="h6" tone="secondary">
                 {softwareLabel(row.original)}
               </TruncateText>
@@ -290,7 +290,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full"
-            startAdornment={<SearchIcon className="h-4 w-4 md:h-6 md:w-6" />}
+            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
           />
         </div>
       )}

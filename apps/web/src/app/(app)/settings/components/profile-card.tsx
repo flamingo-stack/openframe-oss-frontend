@@ -59,7 +59,7 @@ function ProfileCardSkeleton() {
           <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
-      <Skeleton className="h-11 w-11 shrink-0 rounded-md md:h-12 md:w-12" />
+      <Skeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
     </div>
   );
 }
