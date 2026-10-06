@@ -22,7 +22,7 @@ read from `android/app/src/stage/google-services.json` automatically.
 
 Flags: `SKIP_WEB=1` (reuse staged bundle), `WEB_ONLY=1` (stop after sync — then
 test via Android Studio, Build Variants → `stageDebug`), `SKIP_DISTRIBUTE=1`
-(build only), `RELEASE=1` (`assembleStageRelease`; needs the `OF_UPLOAD_*`
+(build only), `RELEASE=1` (`assembleStageRelease`; needs the `ANDROID_UPLOAD_*`
 keystore or App Distribution rejects the unsigned APK), `TESTER_GROUP=<name>`.
 
 ## One-time setup

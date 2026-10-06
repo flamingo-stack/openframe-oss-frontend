@@ -43,21 +43,21 @@ default (debug-key / unsigned) path so debug/CI builds keep working:
 
 | gradle property          | env var                   | meaning                    |
 |--------------------------|---------------------------|----------------------------|
-| `OF_UPLOAD_STORE_FILE`   | `OF_UPLOAD_STORE_FILE`    | path to the keystore (.jks)|
-| `OF_UPLOAD_STORE_PASSWORD`| `OF_UPLOAD_STORE_PASSWORD`| keystore password          |
-| `OF_UPLOAD_KEY_ALIAS`    | `OF_UPLOAD_KEY_ALIAS`     | signing key alias          |
-| `OF_UPLOAD_KEY_PASSWORD` | `OF_UPLOAD_KEY_PASSWORD`  | key password               |
+| `ANDROID_UPLOAD_STORE_FILE`   | `ANDROID_UPLOAD_STORE_FILE`    | path to the keystore (.jks)|
+| `ANDROID_UPLOAD_STORE_PASSWORD`| `ANDROID_UPLOAD_STORE_PASSWORD`| keystore password          |
+| `ANDROID_UPLOAD_KEY_ALIAS`    | `ANDROID_UPLOAD_KEY_ALIAS`     | signing key alias          |
+| `ANDROID_UPLOAD_KEY_PASSWORD` | `ANDROID_UPLOAD_KEY_PASSWORD`  | key password               |
 
 The keystore file itself and any `gradle.properties` carrying these values are gitignored
 (`*.jks`, `*.keystore`, `keystore.properties`, `signing.properties`). No keystore is
-committed or generated here — create one with `keytool` and point `OF_UPLOAD_STORE_FILE`
+committed or generated here — create one with `keytool` and point `ANDROID_UPLOAD_STORE_FILE`
 at it.
 
 Example (build a signed release AAB for stage):
 
 ```
-OF_UPLOAD_STORE_FILE=$HOME/keys/openframe-upload.jks \
-OF_UPLOAD_STORE_PASSWORD=… OF_UPLOAD_KEY_ALIAS=upload OF_UPLOAD_KEY_PASSWORD=… \
+ANDROID_UPLOAD_STORE_FILE=$HOME/keys/openframe-upload.jks \
+ANDROID_UPLOAD_STORE_PASSWORD=… ANDROID_UPLOAD_KEY_ALIAS=upload ANDROID_UPLOAD_KEY_PASSWORD=… \
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ./gradlew bundleStageRelease
 ```
