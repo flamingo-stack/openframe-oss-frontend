@@ -95,7 +95,7 @@ export function NotificationsPageView() {
     [debouncedSearch],
   );
 
-  // A live READ / DELETED event reaches the drawer's unfiltered pair by name; this page's
+  // A live read-state event reaches the drawer's unfiltered pair by name; this page's
   // search-keyed pair it has to be told about, or a card read elsewhere stays in the table.
   useEffect(() => registerLiveConnectionPairs(filterPairs), [filterPairs]);
 
