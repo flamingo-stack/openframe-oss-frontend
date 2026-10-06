@@ -34,7 +34,15 @@ interface MingoSidePanelProps extends AppLayoutSidePanelRenderState {
  * on screen; only a panel opened from the header (no room to dock, or a phone)
  * can be put away, and the header's button does that.
  */
-export function MingoSidePanel({ canClose, close, collapse, collapsesTo, identityEnabled }: MingoSidePanelProps) {
+export function MingoSidePanel({
+  canClose,
+  close,
+  collapse,
+  collapsesTo,
+  canExpand,
+  expand,
+  identityEnabled,
+}: MingoSidePanelProps) {
   // On screen for as long as the layout renders it. The URL sync reads this to
   // keep `?mingoDialog=` on the conversation a docked panel shows.
   const setPanelShown = useMingoLauncherStore(state => state.setPanelShown);
@@ -67,9 +75,11 @@ export function MingoSidePanel({ canClose, close, collapse, collapsesTo, identit
             // One step back at a time: the whole area to the column it left
             // (the open chat stays), the column to the list alone. A panel
             // opened from the header, or on a phone, has no column to go to.
+            // From the list alone, |← widens it back to the list and the chat.
             v2={{
               onCollapse: collapsesTo ? collapse : undefined,
               collapseTo: collapsesTo === 'column' ? 'column' : 'list',
+              onExpand: canExpand ? expand : undefined,
             }}
           />
         </ChatDrawerErrorBoundary>
