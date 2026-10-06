@@ -1,7 +1,7 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
-import { ChatIdentityProvider } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ChatIdentityProvider, MINGO_V2_RAIL_WIDTH } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AppLayoutDrawer,
@@ -582,6 +582,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     chatEnabled && mingoV2 === 'on'
       ? {
           label: 'Mingo AI chat',
+          minWidth: MINGO_V2_RAIL_WIDTH,
           storageKey: 'openframe:mingo-panel-v1',
           collapsed: isFullWidthPage(pathname),
           open: chatOpen,
