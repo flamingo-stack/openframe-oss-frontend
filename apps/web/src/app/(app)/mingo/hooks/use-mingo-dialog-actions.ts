@@ -85,6 +85,9 @@ export function useMingoDialogActions() {
       try {
         await runDialogMutation(ARCHIVE_MINGO_DIALOG_MUTATION, { input: { id } }, 'archiveDialog');
         invalidateDialogs();
+        // The dialog's own record carries its `status`: refetch it so reopening
+        // this conversation (archive page, link) sees it archived.
+        void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(id) });
         toast({ title: 'Chat archived', variant: 'success' });
       } catch (err) {
         toast({
@@ -95,7 +98,7 @@ export function useMingoDialogActions() {
         throw err;
       }
     },
-    [invalidateDialogs, toast],
+    [invalidateDialogs, queryClient, toast],
   );
 
   const unarchiveDialog = useCallback(
@@ -103,6 +106,11 @@ export function useMingoDialogActions() {
       try {
         await runDialogMutation(UNARCHIVE_MINGO_DIALOG_MUTATION, { input: { id } }, 'unarchiveDialog');
         invalidateDialogs();
+        // Awaited, unlike the list refreshes: the chat leaves its read-only mode
+        // when this promise resolves, and it reads "archived" off the dialog's
+        // own record (`status`) - the record has to say ACTIVE by then, or the
+        // "Unarchive the chat" banner would stay until the next poll.
+        await queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(id) });
         toast({ title: 'Chat unarchived', variant: 'success' });
       } catch (err) {
         toast({
@@ -113,7 +121,7 @@ export function useMingoDialogActions() {
         throw err;
       }
     },
-    [invalidateDialogs, toast],
+    [invalidateDialogs, queryClient, toast],
   );
 
   const fetchArchivedDialogs = useCallback(

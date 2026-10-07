@@ -21,13 +21,21 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  */
 export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
 
-function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
-  // Admin owner → trailing avatar in the chat-history rows (Figma 113:63224).
+/**
+ * A dialog as the lib's list rows and header read it. Also the open conversation's
+ * own record (`UnifiedChatState.activeDialog`), which is where the lib learns that a
+ * conversation reached by link, notification or reload is archived.
+ */
+export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
+  // Admin owner → trailing avatar in the chat-history rows.
   // Client-owned dialogs (machine) carry no admin user — no avatar.
   const ownerUser = dialog.owner?.user;
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
     id: dialog.id,
+    // Read-only in the chat until restored. Never true for a row of the active
+    // list (`ACTIVE_DIALOG_STATUSES`); it matters for the open conversation.
+    archived: dialog.status === 'ARCHIVED',
     // The backend generates the title asynchronously after the first message;
     // until it lands the dialog has no title — show a provisional name, not an
     // error-looking "Untitled Dialog".

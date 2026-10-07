@@ -207,6 +207,9 @@ export class TicketService implements TicketServiceInterface {
     if (params.organizationIds?.length) {
       filter.organizationIds = params.organizationIds;
     }
+    if (params.deviceIds?.length) {
+      filter.deviceIds = params.deviceIds;
+    }
     if (params.assigneeIds?.length) {
       filter.assigneeIds = params.assigneeIds;
     }

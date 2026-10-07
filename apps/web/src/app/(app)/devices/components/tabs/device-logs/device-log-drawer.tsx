@@ -33,8 +33,8 @@ export function DeviceLogDrawer({ entry, onClose, deviceId }: DeviceLogDrawerPro
     <LogDrawer
       isOpen={entry !== null}
       onClose={onClose}
-      // The description slot is a <p>: a block span keeps the message's own line breaks.
-      description={entry && <span className="block whitespace-pre-wrap break-words">{entry.message}</span>}
+      // pre-wrap keeps the message's own line breaks.
+      description={entry && <div className="whitespace-pre-wrap break-words">{entry.message}</div>}
       statusTag={entry ? { label: entry.level, variant: deviceLogLevelVariant(entry.level) } : undefined}
       timestamp={entry ? formatDateTime(entry.timestamp) : undefined}
       infoFields={entry ? infoFields(entry) : []}
