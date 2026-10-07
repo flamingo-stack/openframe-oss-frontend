@@ -20,20 +20,11 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { getTicketTableColumns } from '../../../tickets/components/ticket-table-columns';
 import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
-import type { ClientDialogOwner, Dialog } from '../../../tickets/types/dialog.types';
+import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
 
 interface CustomerTicketsTabProps {
   organizationId: string;
-}
-
-function ticketBelongsToOrganization(ticket: Dialog, organizationId: string): boolean {
-  if (ticket.organizationId === organizationId) return true;
-  if ('machine' in (ticket.owner || {})) {
-    const owner = ticket.owner as ClientDialogOwner;
-    if (owner.machine?.organizationId === organizationId) return true;
-  }
-  return false;
 }
 
 export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) {
@@ -42,8 +33,11 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
+  // Scoped on the server (`TicketFilterInput.organizationIds`): a ticket counts as the customer's
+  // only through its own `organizationId`, not through the owning machine's current organization.
   const {
     dialogs: tickets,
+    filteredCount,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
@@ -52,12 +46,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   } = useTicketsQuery({
     archived: false,
     search: debouncedSearch,
+    organizationIds: [organizationId],
   });
-
-  const orgTickets = useMemo(
-    () => tickets.filter(t => ticketBelongsToOrganization(t, organizationId)),
-    [tickets, organizationId],
-  );
 
   const { isUserDeleted } = useUserStatusMap();
   const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false, isUserDeleted }), [isUserDeleted]);
@@ -87,7 +77,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   );
 
   const table = useDataTable<Dialog>({
-    data: orgTickets,
+    data: tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
@@ -128,7 +118,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         <DataTable.Header
           stickyHeader
           stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="ticket" totalCount={orgTickets.length} />}
+          rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
         />
         <DataTable.Body
           loading={isLoading}
@@ -142,9 +132,6 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
           skeletonRows={2}
-          // The rows are narrowed on the client, so a page can arrive in full and
-          // add none of them: the footer reads progress off this count instead.
-          loadedCount={tickets.length}
         />
       </DataTable>
     </div>

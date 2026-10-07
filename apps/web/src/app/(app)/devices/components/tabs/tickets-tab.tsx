@@ -19,7 +19,7 @@ import {
 } from '../../../tickets/components/ticket-table-columns';
 import { DEVICE_TICKET_COLUMNS } from '../../../tickets/components/ticket-table-layout';
 import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
-import type { ClientDialogOwner, Dialog } from '../../../tickets/types/dialog.types';
+import type { Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
@@ -27,39 +27,18 @@ interface TicketsTabProps {
   device: Device | null;
 }
 
-// TEMPORARY: the tickets API has no device filter (TicketFilterInput only
-// supports statuses/organizations/assignees/tags), so we fetch the largest
-// page the backend allows (100) and match tickets to this device client-side.
-// Replace with a server-side `filter: { machineIds }` once the backend
-// supports it.
-const DEVICE_TICKETS_PAGE_SIZE = 100;
-
-/** Match a ticket to this device strictly by machine id — never by hostname
- *  (hostnames are not unique or stable across Fleet/GraphQL sources). */
-function ticketBelongsToDevice(ticket: Dialog, deviceIds: string[]): boolean {
-  if (deviceIds.length === 0) return false;
-  if (ticket.deviceId && deviceIds.includes(ticket.deviceId)) return true;
-
-  const owner = ticket.owner;
-  if (owner && 'machine' in owner) {
-    const machine = (owner as ClientDialogOwner).machine;
-    if (machine?.machineId && deviceIds.includes(machine.machineId)) return true;
-    if (machine?.id && deviceIds.includes(machine.id)) return true;
-  }
-  if (owner && 'machineId' in owner && (owner as ClientDialogOwner).machineId) {
-    if (deviceIds.includes((owner as ClientDialogOwner).machineId)) return true;
-  }
-
-  return false;
-}
-
 export function TicketsTab({ device }: TicketsTabProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
+  // Scoped on the server by machine id (`TicketFilterInput.deviceIds`, the id the detail route
+  // carries and the one `Ticket.deviceId` stores). A ticket whose device was unlinked is not the
+  // device's any more, so the old owner-machine fallback is gone with the client-side matcher.
+  const machineId = device?.machineId;
   const {
     dialogs: tickets,
+    filteredCount,
     isLoading,
     isFetchingNextPage,
     hasNextPage,
@@ -68,16 +47,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
   } = useTicketsQuery({
     archived: false,
     search: debouncedSearch,
-    pageSize: DEVICE_TICKETS_PAGE_SIZE,
+    deviceIds: machineId ? [machineId] : [],
+    enabled: Boolean(machineId),
   });
-
-  // The device is identified by its machineId (the detail route param) — keep `id` too as a fallback.
-  const deviceIds = useMemo(
-    () => [device?.machineId, device?.id].filter((value): value is string => Boolean(value)),
-    [device?.machineId, device?.id],
-  );
-
-  const deviceTickets = useMemo(() => tickets.filter(t => ticketBelongsToDevice(t, deviceIds)), [tickets, deviceIds]);
 
   // Reuse the shared ticket columns, but drop the device/source column — it's redundant on a
   // device-scoped list — and keep the trailing open-in-new-tab action.
@@ -112,7 +84,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   }, [isUserDeleted]);
 
   const table = useDataTable<Dialog>({
-    data: deviceTickets,
+    data: tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
@@ -127,14 +99,16 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active or still loading).
   const hasSearch = debouncedSearch.trim().length > 0;
-  const isEmpty = deviceTickets.length === 0;
+  const isEmpty = tickets.length === 0;
   const showChrome = isLoading || !isEmpty || hasSearch;
 
   // Genuinely no tickets (no data before any search manipulation) → the plain
   // design empty state: icon + title + description only — the rich
   // onboarding version stays on the Tickets page. A search with zero matches
-  // keeps the table chrome and its compact empty state below.
-  if (!isLoading && isEmpty && !hasSearch) {
+  // keeps the table chrome and its compact empty state below. Only once the
+  // server has nothing further to page in — an empty first page with a next
+  // page is still "loading", not "empty".
+  if (!isLoading && isEmpty && !hasNextPage && !hasSearch) {
     return (
       <TabEmptyState
         icon={<TagIcon />}
@@ -160,7 +134,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
           <DataTable.Header
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="ticket" totalCount={deviceTickets.length} />}
+            rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
           />
         )}
         <DataTable.Body
@@ -181,9 +155,6 @@ export function TicketsTab({ device }: TicketsTabProps) {
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
           skeletonRows={2}
-          // The rows are narrowed on the client, so a page can arrive in full and
-          // add none of them: the footer reads progress off this count instead.
-          loadedCount={tickets.length}
         />
       </DataTable>
     </div>
