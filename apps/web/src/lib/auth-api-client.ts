@@ -453,6 +453,18 @@ class AuthApiClient {
     return buildAuthUrl(`/sas/oauth/login/sso?${params.toString()}`);
   }
 
+  /**
+   * Where the browser goes right after password registration: the auth server already signed the new
+   * owner into its session, and `/oauth/continue` (unlike `/oauth/login`) runs the authorize round trip
+   * without clearing it, so the user lands in the new tenant without logging in again. A TOP-LEVEL
+   * navigation — the chain sets the auth cookies. `redirectTo` is pre-encoded and, as in
+   * {@link AuthApiClient.loginUrl}, dropped in shared mode where the auth host owns the landing.
+   */
+  continueUrl(tenantId: string, redirectTo: string) {
+    const redirectParam = isSaasSharedMode() ? '' : `&redirectTo=${redirectTo}`;
+    return buildAuthUrl(`/oauth/continue?tenantId=${encodeURIComponent(tenantId)}${redirectParam}`);
+  }
+
   /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
   loginUrl(tenantId: string, redirectTo: string, provider?: string, options?: { authMobile?: boolean }) {
     // The built-in OpenFrame login has no provider param; 'openframe-sso' is its legacy id.
