@@ -31,10 +31,10 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Every other npm dependency: listed in the Dependency Dashboard, a PR only when its box is ticked. Releases younger than 7 days are not offered",
+      "description": "Every other npm dependency: releases younger than 7 days are not offered",
       "matchManagers": ["npm"],
       "matchPackageNames": ["!@flamingo-stack/openframe-frontend-core"],
-      "dependencyDashboardApproval": true,
+      "dependencyDashboardApproval": false,
       "minimumReleaseAge": "7 days"
     },
     {
