@@ -1,5 +1,6 @@
 'use client';
 
+import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
@@ -58,7 +59,7 @@ function LogDrawerDetailsContent({ variables, fallback }: LogDrawerDetailsConten
   const log = data.logDetails;
   if (!log) return <>{fallback}</>;
 
-  return <span className="block whitespace-pre-wrap break-words">{formatLogDetailsRefForCopy(log)}</span>;
+  return <div className="whitespace-pre-wrap break-words">{formatLogDetailsRefForCopy(log)}</div>;
 }
 
 class LogDrawerDetailsErrorBoundary extends Component<
@@ -80,15 +81,13 @@ class LogDrawerDetailsErrorBoundary extends Component<
   }
 }
 
-// span-based on purpose: the drawer description slot renders a <p>, so the
-// core-lib Skeleton (a <div>) would produce invalid HTML nesting here.
 function LogDrawerDetailsSkeleton() {
   return (
-    <span className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <span className="block h-5 w-full animate-pulse rounded-md bg-ods-skeleton" />
-      <span className="block h-5 w-full animate-pulse rounded-md bg-ods-skeleton" />
-      <span className="block h-5 w-3/4 animate-pulse rounded-md bg-ods-skeleton" />
-    </span>
+    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+      <Skeleton className="h-5 w-full" />
+      <Skeleton className="h-5 w-full" />
+      <Skeleton className="h-5 w-3/4" />
+    </div>
   );
 }
 

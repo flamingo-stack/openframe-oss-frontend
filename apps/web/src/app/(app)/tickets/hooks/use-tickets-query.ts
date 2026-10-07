@@ -15,12 +15,17 @@ export function useTicketsQuery({
   search,
   statusFilters,
   organizationIds,
+  deviceIds,
   assigneeIds,
   tagIds,
   unreadOnly,
   sort,
   pageSize = TICKETS_PAGE_SIZE,
-}: DialogsQueryParams) {
+  enabled = true,
+}: DialogsQueryParams & {
+  /** `false` holds the request — a scoped list must not fall back to the whole tenant while its scope id is unknown. */
+  enabled?: boolean;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -49,18 +54,20 @@ export function useTicketsQuery({
       statusFilters,
       statusIds,
       organizationIds,
+      deviceIds,
       assigneeIds,
       tagIds,
       unreadOnly,
       sort,
       pageSize,
     }),
-    enabled: !waitingForStatusIds,
+    enabled: enabled && !waitingForStatusIds,
     queryFn: async ({ pageParam }) => {
       return ticketService.fetchDialogs({
         statusIds: statusIds ?? [],
         search: search || undefined,
         organizationIds: organizationIds?.length ? organizationIds : undefined,
+        deviceIds: deviceIds?.length ? deviceIds : undefined,
         assigneeIds: assigneeIds?.length ? assigneeIds : undefined,
         tagIds: tagIds?.length ? tagIds : undefined,
         unreadOnly: unreadOnly || undefined,
@@ -92,6 +99,8 @@ export function useTicketsQuery({
   }, [error, toast]);
 
   const dialogs = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data?.pages]);
+  // The server's count of everything the filter matches, not what has been paged in so far.
+  const filteredCount = query.data?.pages[0]?.filteredCount ?? 0;
 
   const resetToFirstPage = useCallback(() => {
     queryClient.resetQueries({
@@ -101,6 +110,7 @@ export function useTicketsQuery({
         statusFilters,
         statusIds,
         organizationIds,
+        deviceIds,
         assigneeIds,
         tagIds,
         unreadOnly,
@@ -115,6 +125,7 @@ export function useTicketsQuery({
     statusFilters,
     statusIds,
     organizationIds,
+    deviceIds,
     assigneeIds,
     tagIds,
     unreadOnly,
@@ -124,6 +135,7 @@ export function useTicketsQuery({
 
   return {
     dialogs,
+    filteredCount,
     isLoading: query.isLoading || (waitingForStatusIds && !statusesQuery.isError),
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,

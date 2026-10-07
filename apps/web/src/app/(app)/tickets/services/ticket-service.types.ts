@@ -32,6 +32,8 @@ export interface FetchTicketsParams {
   statusIds: string[];
   search?: string;
   organizationIds?: string[];
+  /** Machine ids (`Ticket.deviceId`), not Relay global ids — openframe-oss-lib#2550. */
+  deviceIds?: string[];
   assigneeIds?: string[];
   tagIds?: string[];
   // Sent as `TicketFilterInput.hasUnreadNotifications: true`; the backend

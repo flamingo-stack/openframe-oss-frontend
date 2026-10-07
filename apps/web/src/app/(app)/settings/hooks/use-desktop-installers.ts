@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryState } from '@/lib/query-state';
 
-const DESKTOP_REPO = 'flamingo-stack/openframe-saas-desktop';
+const DESKTOP_REPO = 'flamingo-stack/openframe-oss-frontend';
 
 /**
  * Human-facing release list. Also the fallback target for a download button whose
