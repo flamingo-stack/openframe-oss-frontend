@@ -7,8 +7,11 @@ use tokio::sync::Mutex;
 
 use crate::{autostart, load_config, tokens, AppConfig, MAIN_LABEL};
 
+/// Builds released before the monorepo move poll openframe-saas-desktop's latest
+/// release instead; that repo keeps a bridge `updater.json` pointing at a release
+/// of this one, which carries this URL and so moves them over on their next update.
 const DEFAULT_MANIFEST_URL: &str =
-    "https://github.com/flamingo-stack/openframe-saas-desktop/releases/latest/download/updater.json";
+    "https://github.com/flamingo-stack/openframe-oss-frontend/releases/latest/download/updater.json";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(300);
 const RUNTIME_POLL_INTERVAL: Duration = Duration::from_secs(45 * 60);
