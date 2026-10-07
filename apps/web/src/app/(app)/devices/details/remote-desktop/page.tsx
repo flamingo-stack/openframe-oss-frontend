@@ -125,6 +125,7 @@ const SESSION_ENDED_COPY: Record<RemoteSessionEndReason, string> = {
   admin: 'The remote session was ended',
   timeout: 'The remote session reached its time limit',
   connection_lost: 'The connection to the device was lost',
+  never_connected: 'The remote desktop never connected',
   policy: 'Remote access to this device was disabled',
 };
 
@@ -135,7 +136,7 @@ function RemoteDesktopSession() {
   // the first token of every relay id, so the gateway gate can match the
   // tunnel against the grant. Read once into a ref - the session is mounted
   // only after approval and never re-approved while mounted.
-  const { requestId: approvedRequestId, ended: remoteSessionEnd, endSession } = useRemoteAccessSession();
+  const { requestId: approvedRequestId, ended: remoteSessionEnd, endSession, requestAgain } = useRemoteAccessSession();
   const relayIdPrefixRef = useRef(
     approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
   );
@@ -870,9 +871,22 @@ function RemoteDesktopSession() {
             title="Session ended"
             description={SESSION_ENDED_COPY[remoteSessionEnd?.endReason ?? 'client']}
             button={
-              <Button variant="outline" onClick={handleBack}>
-                Back to Device Details
-              </Button>
+              // A desktop that never connected is retried as a new request (a
+              // new session); the ended session cannot carry a tunnel any more.
+              remoteSessionEnd?.endReason === 'never_connected' && requestAgain ? (
+                <div className="flex items-stretch gap-[var(--spacing-system-mf)]">
+                  <Button variant="outline" onClick={handleBack}>
+                    Back to Device Details
+                  </Button>
+                  <Button variant="accent" onClick={requestAgain}>
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" onClick={handleBack}>
+                  Back to Device Details
+                </Button>
+              )
             }
           />
         </div>
