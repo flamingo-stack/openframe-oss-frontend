@@ -11,9 +11,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, closed]
     branches: [main]
+  merge_group:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -50,13 +51,20 @@ jobs:
   changes:
     name: 'Changes'
     runs-on: ubuntu-latest
-    if: github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    if: github.event_name == 'merge_group' || (github.event.pull_request.state == 'open' && !github.event.pull_request.draft)
     permissions:
+      contents: read
       pull-requests: read
     outputs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
     steps:
+      # Outside pull_request the filter diffs with git.
+      - if: github.event_name == 'merge_group'
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - uses: dorny/paths-filter@v4.0.2
         id: filter
         with:
@@ -233,7 +241,9 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "./apps/web"
 
+      # Merge queue only builds; images are scanned and pushed per PR.
       - name: Scan image
+        if: github.event_name == 'pull_request'
         uses: ./.github/steps/trivy
         with:
           scan: image
@@ -243,6 +253,7 @@ jobs:
 
       - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push
+        if: github.event_name == 'pull_request'
         uses: nick-fields/retry@v4
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
@@ -322,7 +333,7 @@ jobs:
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
-    if: github.event.pull_request.state != 'open'
+    if: github.event_name == 'pull_request' && github.event.pull_request.state != 'open'
     permissions:
       packages: write
     steps:
