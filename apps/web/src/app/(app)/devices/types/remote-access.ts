@@ -188,11 +188,13 @@ export type RemoteSessionStatus = 'ACTIVE' | 'ENDED';
 /**
  * Why a session is over: `client` - the end user pressed End Session, `admin`
  * - the technician left, `timeout` - the session cap passed, `connection_lost`
- * - the tunnel dropped (there is no rejoin: the technician opens a new
- * session), `policy` - reserved, nothing produces it yet. Lower-case as on the
- * NATS wire; the GraphQL enum arrives upper-case and is folded.
+ * - a connected desktop was lost (there is no rejoin: the technician opens a
+ * new session), `never_connected` - the desktop never connected within the
+ * reconnect grace, `policy` - a desktop relay arrived for a device the session
+ * was not approved for. Lower-case as on the NATS wire; the GraphQL enum
+ * arrives upper-case and is folded.
  */
-export type RemoteSessionEndReason = 'admin' | 'client' | 'timeout' | 'connection_lost' | 'policy';
+export type RemoteSessionEndReason = 'admin' | 'client' | 'timeout' | 'connection_lost' | 'never_connected' | 'policy';
 
 /**
  * The session record the backend creates when a request reaches APPROVED:

@@ -8,15 +8,17 @@ import type { RemoteSession, RemoteSessionEnd } from '../../types/remote-access'
  * remote-desktop session builds its MeshCentral relay ids as
  * `<requestId>.<p>.<nonce>` so the gateway can match the tunnel against the
  * grant. `session` is the record behind it (null until found), `ended` flips
- * once the session is over, `endSession` is the technician's own end.
+ * once the session is over, `endSession` is the technician's own end, and
+ * `requestAgain` sends a new request in place of an ended session.
  * Everything empty = no approval in play (flag off, legacy auto-start); the
- * tunnel then keeps its random id.
+ * tunnel then keeps its random id, and there is nothing to request again.
  */
 export interface RemoteAccessSessionContextValue {
   requestId: string | null;
   session: RemoteSession | null;
   ended: RemoteSessionEnd | null;
   endSession: () => void;
+  requestAgain: (() => void) | null;
 }
 
 const NO_SESSION: RemoteAccessSessionContextValue = {
@@ -24,6 +26,7 @@ const NO_SESSION: RemoteAccessSessionContextValue = {
   session: null,
   ended: null,
   endSession: () => {},
+  requestAgain: null,
 };
 
 const RemoteAccessSessionContext = createContext<RemoteAccessSessionContextValue>(NO_SESSION);

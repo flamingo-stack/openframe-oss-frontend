@@ -3401,6 +3401,7 @@ enum RemoteSessionEndReason {
   CLIENT
   TIMEOUT
   CONNECTION_LOST
+  NEVER_CONNECTED
   POLICY
 }
 
