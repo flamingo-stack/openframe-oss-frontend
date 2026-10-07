@@ -125,6 +125,15 @@ export const GET_MINGO_DIALOG_QUERY = `
       type
       ... on AdminDialogOwner {
        userId
+       user {
+        id
+        firstName
+        lastName
+        image {
+         imageUrl
+         hash
+        }
+       }
       }
       ... on ClientDialogOwner {
       machineId
