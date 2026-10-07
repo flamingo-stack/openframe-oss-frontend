@@ -30,6 +30,13 @@ export const INCIDENT_DETECTED_TYPE = 'INCIDENT_DETECTED';
 const INCIDENT_TYPE_PREFIX = 'INCIDENT_';
 
 /**
+ * A release asks the directory providers for permissions the connected tenants have not granted;
+ * sent once per revision to every active admin. Names no entity: `attributes.providers` is the
+ * comma-joined provider list, and the action is the tenant list.
+ */
+export const NEW_PERMISSIONS_REQUIRED_TYPE = 'NEW_PERMISSIONS_REQUIRED';
+
+/**
  * True for any member of the family, including one this release has never heard of: the
  * family shares a prefix by backend convention, and a transition added later should still
  * look and route like its siblings rather than fall back to a generic tile.
