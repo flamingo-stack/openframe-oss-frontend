@@ -13,6 +13,7 @@ import { markSubscriptionLocked, waitForSubscriptionGate } from '../subscription
 import { detectTrialExpiredFromGraphqlErrors, hasTrialExpiredClassification } from '../subscription-lock-signal';
 import { refreshTokens } from '../token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from '../token-store';
+import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '../version-check';
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -39,7 +40,7 @@ function getGraphqlUrl(): string {
  * by then there is no page to hold the request for.
  */
 export function sendGraphqlKeepalive(request: { text: string | null }, variables: Record<string, unknown>): void {
-  if (!request.text || typeof window === 'undefined') return;
+  if (!request.text || typeof window === 'undefined' || isUpdateRequired()) return;
   void fetch(getGraphqlUrl(), {
     method: 'POST',
     headers: {
@@ -242,6 +243,9 @@ async function executeFetchWithRetry(
 ): Promise<Response> {
   const startedAt = Date.now();
   for (let attempt = 0; ; attempt++) {
+    // A 426 from any other request ends the sequence: no attempt after it may
+    // reach the wire.
+    if (isUpdateRequired()) throw new UpdateRequiredError();
     if (!isOnline()) {
       const remaining = RETRY_TOTAL_BUDGET_MS - (Date.now() - startedAt);
       const grace = Math.min(OFFLINE_GRACE_MS, remaining);
@@ -329,6 +333,11 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
     throw new BailoutToClientRenderError();
   }
 
+  // Once the gateway has refused this bundle, nothing goes back on the wire:
+  // not a retry, not a boundary's reconnect re-issue. The blocking screen is
+  // already replacing the tree this request was for.
+  if (isUpdateRequired()) throw new UpdateRequiredError();
+
   const isMutation = request.operationKind === 'mutation';
 
   // Checked ABOVE the session gate, because offline is already the answer and
@@ -389,10 +398,17 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
   // not sit queued behind a link that may never return.
   const send = isMutation ? executeFetch : executeFetchWithRetry;
 
+  // A 426 may have landed while this request was parked on the gates above.
+  if (isUpdateRequired()) throw new UpdateRequiredError();
+
   // Captured BEFORE the request goes out: a 401 that comes back after the
   // credential has already rotated needs a retry, not another rotation.
   const sentAtEpoch = getTokenEpoch();
   let response = await send(request, variables, getAuthHeaders());
+
+  // Ahead of the 401 path: a too-old bundle says nothing about the session. 426
+  // is a 4xx, so the retry policy above has already passed it straight through.
+  if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
 
   // --- 401 handling: token refresh, then retry once ---
   if (response.status === 401) {
@@ -418,6 +434,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
       throw new Error('Authentication failed');
     }
     response = await send(request, variables, getAuthHeaders());
+    if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
   }
 
   if (!response.ok) {

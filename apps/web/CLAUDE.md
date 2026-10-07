@@ -518,6 +518,10 @@ live before a schema field is removed. `apiClient`, Relay, the upload helpers an
 new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
 make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined
 at build time from `OPENFRAME_BUNDLE_VERSION` (`next.config.mjs`) — the Docker build gets it as a build-arg.
+The gateway answers a mobile bundle below the policy's `minBundleVersion` with **426**, and every place that sends the
+header handles it (`src/lib/version-check.ts`): bail out with `UpdateRequiredError` while `isUpdateRequired()`, and run
+`noteUpgradeRequired(response)` *before* any 401 → refresh → logout branch. That flips the app into the blocking
+"Update required" screen (`AppUpdateGate` in the root layout) and keeps the request off every retry path.
 
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 

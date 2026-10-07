@@ -92,6 +92,10 @@ final class SecureTokenStore {
     // transfer — a second file would have to be added to both lists.
     static final String TENANT_HOST = "tenantHost";
     static final String SHARED_HOST = "sharedHost";
+    // The web bundle's version, pushed with the hosts for X-OpenFrame-Client, and
+    // the shell build that pushed it (TokenLifecycle.clientIdentity).
+    static final String CLIENT_BUNDLE_VERSION = "clientBundleVersion";
+    static final String CLIENT_BUNDLE_VERSION_BUILD = "clientBundleVersionBuild";
 
     private static final String AES_TRANSFORMATION =
         KeyProperties.KEY_ALGORITHM_AES + "/" + KeyProperties.BLOCK_MODE_GCM + "/" + KeyProperties.ENCRYPTION_PADDING_NONE;

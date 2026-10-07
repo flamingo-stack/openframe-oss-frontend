@@ -33,6 +33,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -83,6 +84,10 @@ final class TokenLifecycle {
     private static final long LOST_ROTATION_COOLDOWN_MS = 60_000;
     /** The claim carrying the user UUID in our own access token ({@code sub} is the email). */
     static final String CLAIM_USER_ID = "userId";
+    /** The web bundle's own acceptance rule for a header version (client-identity.ts). */
+    private static final Pattern HEADER_VERSION = Pattern.compile("^[0-9A-Za-z.-]{1,32}$");
+    /** Version name and code: a store update changes at least one. */
+    private static final String SHELL_BUILD = BuildConfig.VERSION_NAME + "+" + BuildConfig.VERSION_CODE;
 
     /** Reject codes the web view sees on refreshTokens; every one maps to "transient" there. */
     static final class Code {
@@ -605,6 +610,36 @@ final class TokenLifecycle {
         }
         store.putPlain(SecureTokenStore.SHARED_HOST, normalized);
         return true;
+    }
+
+    /**
+     * The bundle version the web view reports in X-OpenFrame-Client, pushed with
+     * the hosts. Not baked in here: the bundle is the half the gateway gates on,
+     * and only the bundle knows its own version. Recorded against the build that
+     * pushed it — see {@link #clientIdentity}.
+     */
+    void setClientBundleVersion(String version) {
+        store.putPlain(SecureTokenStore.CLIENT_BUNDLE_VERSION, version);
+        store.putPlain(SecureTokenStore.CLIENT_BUNDLE_VERSION_BUILD, SHELL_BUILD);
+    }
+
+    /**
+     * X-OpenFrame-Client for the shell's own gateway calls — the value the web
+     * view sends, with {@code -} for whichever half is unknown. The pushed bundle
+     * version counts only under the build that pushed it: the prefs survive a
+     * store update, and until the web view of the NEW build runs, an action would
+     * otherwise report the old bundle and draw the very 426 the user just updated
+     * to escape. {@code -} passes the gateway as unknown.
+     */
+    String clientIdentity() {
+        String bundle = SHELL_BUILD.equals(store.getPlain(SecureTokenStore.CLIENT_BUNDLE_VERSION_BUILD))
+            ? store.getPlain(SecureTokenStore.CLIENT_BUNDLE_VERSION)
+            : null;
+        return "android/" + headerVersion(BuildConfig.VERSION_NAME) + " bundle/" + headerVersion(bundle);
+    }
+
+    private static String headerVersion(String value) {
+        return value != null && HEADER_VERSION.matcher(value).matches() ? value : "-";
     }
 
     /** The tenant origin the web view learned at login, or null before any login. */
