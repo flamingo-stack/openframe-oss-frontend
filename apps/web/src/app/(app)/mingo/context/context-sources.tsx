@@ -29,6 +29,7 @@ import type { FeatureFlagName } from '@/lib/feature-flags';
 import { CONTEXT_ENTITY_KIND, CONTEXT_ENTITY_MARKER, type ContextEntityKind } from './context-types';
 
 const KbArticleIcon = KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
+const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 
 /**
  * Entity types in picker display order. `marker` is the backend mention short
@@ -75,6 +76,15 @@ export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
     label: 'Knowledge Article',
     marker: CONTEXT_ENTITY_MARKER.KB_ARTICLE,
     icon: <KbArticleIcon size={24} />,
+  },
+  {
+    // Next to Knowledge Article on purpose — a folder is "every article on this
+    // topic", so the two read as one pair. The glyph is the Knowledge Base
+    // table's folder icon, the same the `@kbFolder` chip wears.
+    type: CONTEXT_ENTITY_KIND.KB_FOLDER,
+    label: 'Knowledge Folder',
+    marker: CONTEXT_ENTITY_MARKER.KB_FOLDER,
+    icon: <KbFolderIcon size={24} />,
   },
   {
     type: CONTEXT_ENTITY_KIND.POLICY,
