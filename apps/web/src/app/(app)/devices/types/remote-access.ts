@@ -217,6 +217,8 @@ export interface RemoteSession {
   ticketId?: string;
   ticketNumber?: string;
   recordingEnabled?: boolean;
+  /** Why the session runs without the recording its policy asked for; `storage_full` = the tenant's storage is used up. */
+  recordingSuppressed?: 'storage_full' | null;
   /** The session chat dialog; null until the backend provisions it. */
   dialogId: string | null;
 }
