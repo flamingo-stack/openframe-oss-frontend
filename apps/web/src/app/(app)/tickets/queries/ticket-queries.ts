@@ -5,6 +5,7 @@ export const CREATE_TICKET_MUTATION = `
     createTicket(input: $input) {
       ticket {
         id
+        ticketId
         ticketNumber
         title
         description
@@ -94,6 +95,7 @@ export const GET_TICKET_QUERY = `
   query GetTicket($id: ID!) {
     ticket(id: $id) {
       id
+      ticketId
       ticketNumber
       title
       description
@@ -156,6 +158,7 @@ export const GET_TICKET_QUERY = `
       }
       dialog {
         id
+        dialogId
         currentMode
         tokenUsage {
           chatType
@@ -207,12 +210,13 @@ export const GET_TICKET_QUERY = `
 export const TICKETS_DEFAULT_SORT = { field: 'order', direction: 'ASC' } as const;
 
 export const GET_TICKETS_QUERY = `
-  query GetTickets($filter: TicketFilterInput, $pagination: CursorPaginationInput, $search: String, $sort: SortInput!) {
-    tickets(filter: $filter, pagination: $pagination, search: $search, sort: $sort) {
+  query GetTickets($filter: TicketFilterInput, $first: Int, $after: String, $search: String, $sort: SortInput!) {
+    tickets(filter: $filter, first: $first, after: $after, search: $search, sort: $sort) {
       edges {
         cursor
         node {
           id
+          ticketId
           ticketNumber
           title
           statusDefinition {
@@ -292,12 +296,14 @@ export const GET_TICKETS_QUERY = `
  * carrying a new field must ship BEFORE a frontend selecting it. Same constraint
  * at the `GET_TICKETS_QUERY` selection. Fields added that way:
  * `unreadMessageCount` (openframe-saas-tenant#3301), `lastActivityAt` /
- * `activityState` (#2938), and `machine.nickname` on every
- * `ClientTicketOwner.machine` selection in this file (#3020).
+ * `activityState` (#2938), `machine.nickname` on every
+ * `ClientTicketOwner.machine` selection in this file (#3020), and the raw
+ * `ticketId` / `dialog.dialogId` companions plus `first` / `after` (#3719).
  */
 const BOARD_CARD_TICKET_FRAGMENT = `
   fragment BoardCardTicket on Ticket {
     id
+    ticketId
     ticketNumber
     title
     statusDefinition {
@@ -313,6 +319,7 @@ const BOARD_CARD_TICKET_FRAGMENT = `
     }
     dialog {
       id
+      dialogId
       currentMode
     }
     owner {
@@ -385,7 +392,8 @@ export const GET_BOARD_COLUMN_TICKETS_QUERY = `
   query GetBoardColumnTickets($statusId: ID!, $limit: Int!, $cursor: String, $search: String, $organizationIds: [ID!], $assigneeIds: [ID!], $tagIds: [ID!], $hasUnreadNotifications: Boolean, $activity: [TicketActivityFilter!]) {
     tickets(
       filter: { statusIds: [$statusId], organizationIds: $organizationIds, assigneeIds: $assigneeIds, tagIds: $tagIds, hasUnreadNotifications: $hasUnreadNotifications, activity: $activity }
-      pagination: { limit: $limit, cursor: $cursor }
+      first: $limit
+      after: $cursor
       search: $search
       sort: { field: "order", direction: ASC }
     ) {

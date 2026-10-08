@@ -44,7 +44,7 @@ import {
   useSlashCommandRegistry,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
@@ -424,6 +424,16 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [activeDialogId, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
+
+  // A `?mingoDialog=` link copied from a bundle older than the raw-id mapping
+  // carries the Relay global `Dialog.id`. `dialog(id)` accepts it, but the NATS
+  // subject, the list rows and the active-dialog registry only know the raw id,
+  // so switch to the raw one once the dialog says what it is.
+  useEffect(() => {
+    if (dialogData && activeDialogId === dialogData.id && dialogData.dialogId !== activeDialogId) {
+      selectDialog(dialogData.dialogId);
+    }
+  }, [dialogData, activeDialogId, selectDialog]);
 
   // ─── Create a fresh dialog and send into it (always-new) ──────────────────
   // Shared by the draft branch of `sendMessage` and external launchers that

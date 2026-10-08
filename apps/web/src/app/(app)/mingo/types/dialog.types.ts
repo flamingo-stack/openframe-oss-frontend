@@ -12,7 +12,10 @@ export interface DialogTokenUsage {
 export type DialogStreamState = 'IDLE' | 'STREAMING';
 
 export interface DialogNode {
+  /** Relay global id. Use `dialogId` for anything outside GraphQL. */
   id: string;
+  /** Raw dialog id: NATS subjects, notifications, REST, `?mingoDialog=`. */
+  dialogId: string;
   title: string;
   status: string;
   streamState: DialogStreamState;

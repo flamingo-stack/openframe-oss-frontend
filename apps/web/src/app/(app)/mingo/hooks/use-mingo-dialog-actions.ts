@@ -30,14 +30,21 @@ interface FetchArchivedResult {
 }
 
 async function runDialogMutation(query: string, variables: Record<string, unknown>, key: string): Promise<void> {
-  const response = await apiClient.post<{ data: Record<string, DialogMutationPayload> }>('/chat/graphql', {
+  const response = await apiClient.post<{
+    data?: Record<string, DialogMutationPayload> | null;
+    errors?: Array<{ message: string }>;
+  }>('/chat/graphql', {
     query,
     variables,
   });
   if (!response.ok || !response.data) {
     throw new Error(response.error || 'Request failed');
   }
-  const payload = response.data.data[key];
+  // GraphQL errors (e.g. INVALID_ID) arrive with HTTP 200 and a null payload.
+  if (response.data.errors?.length) {
+    throw new Error(response.data.errors[0].message);
+  }
+  const payload = response.data.data?.[key];
   if (payload?.userErrors?.length) {
     throw new Error(payload.userErrors[0].message);
   }
@@ -131,7 +138,8 @@ export function useMingoDialogActions() {
           query: GET_MINGO_DIALOGS_QUERY,
           variables: {
             filter: { agentTypes: ['ADMIN'], statuses: ['ARCHIVED'] },
-            pagination: { limit: params.limit ?? 20, cursor: params.cursor },
+            first: params.limit ?? 20,
+            after: params.cursor,
             search: params.search,
           },
         });
@@ -141,7 +149,7 @@ export function useMingoDialogActions() {
         const { edges, pageInfo } = response.data.data.dialogs;
         return {
           dialogs: edges.map(edge => ({
-            id: edge.node.id,
+            id: edge.node.dialogId,
             title: edge.node.title || 'New Chat',
             timestamp: new Date(edge.node.createdAt),
           })),

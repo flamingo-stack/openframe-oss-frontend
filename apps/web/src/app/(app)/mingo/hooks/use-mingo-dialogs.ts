@@ -32,7 +32,9 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
   const ownerUser = dialog.owner?.user;
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
-    id: dialog.id,
+    // Raw, not the global `id`: the lib uses `DialogItem.id` for selection, the
+    // active-dialog check and the NATS subscription, all of which see raw ids.
+    id: dialog.dialogId,
     // Read-only in the chat until restored. Never true for a row of the active
     // list (`ACTIVE_DIALOG_STATUSES`); it matters for the open conversation.
     archived: dialog.status === 'ARCHIVED',
@@ -85,10 +87,8 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
           // client-side re-filtering needed.
           scope: scope === 'my' ? 'MY' : 'ALL',
         },
-        pagination: {
-          limit,
-          cursor: pageParam,
-        },
+        first: limit,
+        after: pageParam,
         search,
       };
 
@@ -138,7 +138,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     if (!query.data?.pages) return [];
 
     const allDialogs = query.data.pages.flatMap(page => page.dialogs);
-    return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0));
+    return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.dialogId) ?? 0));
   }, [query.data, unreadByDialog]);
 
   return {

@@ -80,7 +80,7 @@ export function mingoActionFor(
   if (session) {
     return {
       label: 'Open Mingo Session',
-      onClick: () => openMingoDialogInDrawer(session.id),
+      onClick: () => openMingoDialogInDrawer(session.dialogId),
       // Also while another row's prompt is in flight: that draft, landing,
       // resets the drawer to a new chat over the conversation just opened.
       disabled: !canOpenMingo || pendingId !== null,

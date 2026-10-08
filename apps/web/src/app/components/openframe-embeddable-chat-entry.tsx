@@ -207,7 +207,7 @@ export function OpenframeEmbeddableChatEntry({
     const phase = phaseByDialog.get(dialog.id);
     const streaming = phase
       ? phase !== 'idle'
-      : dialogNodes.find(node => node.id === dialog.id)?.streamState === 'STREAMING';
+      : dialogNodes.find(node => node.dialogId === dialog.id)?.streamState === 'STREAMING';
     return streaming ? 'working' : undefined;
   };
 

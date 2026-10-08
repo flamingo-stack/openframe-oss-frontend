@@ -207,7 +207,7 @@ export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOp
           });
         }
 
-        router.replace(created?.id ? routes.tickets.dialog(created.id) : routes.tickets.list);
+        router.replace(created ? routes.tickets.dialog(created.ticketId) : routes.tickets.list);
       }
     } catch {
       // Reported by the mutation that threw; see above.
