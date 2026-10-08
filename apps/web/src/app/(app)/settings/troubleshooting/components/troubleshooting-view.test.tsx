@@ -1,9 +1,10 @@
 /**
  * The Troubleshooting page against a stubbed Relay layer: what the URL says is
  * what `deviceLogs` is asked for. No device = the whole tenant (`machineIds`
- * null, never `[]`); picked devices and levels reach the variables; an empty
- * answer with something narrowed offers Reset, and Reset writes every param
- * in one URL update. Each assertion was verified to fail with its guard removed.
+ * null, never `[]`); picked devices and levels reach the variables; the
+ * customer filter follows its flag; an empty answer with something narrowed
+ * offers Reset, and Reset writes every param in one URL update. Each assertion
+ * was verified to fail with its guard removed.
  */
 
 import { type NavigationImpl, registerNavigation } from '@flamingo-stack/openframe-frontend-core/embed-shims';
@@ -20,6 +21,7 @@ import {
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { TroubleshootingView } from './troubleshooting-view';
 
 const spies = vi.hoisted(() => ({
@@ -58,7 +60,14 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal =>
 }));
 
 vi.mock('@/app/hooks/use-safe-back', () => ({ useSafeBack: () => vi.fn() }));
-vi.mock('@/lib/api-client', () => ({ apiClient: { post: vi.fn(), get: vi.fn() }, REQUEST_TIMEOUT_MS: 30_000 }));
+vi.mock('@/lib/api-client', () => ({
+  // The customer picker lists organizations through the api client; an empty page keeps it quiet.
+  apiClient: {
+    post: vi.fn(async () => ({ ok: true, data: { data: { organizations: { edges: [] } } } })),
+    get: vi.fn(),
+  },
+  REQUEST_TIMEOUT_MS: 30_000,
+}));
 vi.mock('@/app/(app)/devices/queries/devices-api', () => ({ fetchDevicesPage: spies.fetchDevicesPage }));
 vi.mock('@/app/components/subscription-lock/subscription-guard', () => ({ useSubscriptionOpen: () => true }));
 
@@ -109,11 +118,21 @@ async function mount(query: string) {
 function lastVariables() {
   const call = spies.lazyLoadQuery.mock.calls.at(-1);
   if (!call) throw new Error('deviceLogs was never asked for');
-  return call[1] as { machineIds: string[] | null; filter: { levels?: string[]; from?: string } };
+  return call[1] as {
+    machineIds: string[] | null;
+    organizationIds: string[] | null;
+    filter: { levels?: string[]; from?: string };
+  };
+}
+
+function flags(enabled: boolean) {
+  useFeatureFlagsStore.getState().setFlags([{ name: 'device-logs-customer-filter', enabled }]);
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
+  useFeatureFlagsStore.getState().reset();
+  flags(false);
   spies.replace.mockReset();
   spies.lazyLoadQuery.mockReset().mockReturnValue({});
   spies.fetchDevicesPage.mockReset().mockResolvedValue({
@@ -136,6 +155,7 @@ describe('TroubleshootingView', () => {
     await mount('');
     const variables = lastVariables();
     expect(variables.machineIds).toBeNull();
+    expect(variables.organizationIds).toBeNull();
     expect(variables.filter.levels).toBeUndefined();
     expect(variables.filter.from).toEqual(expect.any(String));
     expect(container.textContent).toContain('No logs in this range');
@@ -150,8 +170,26 @@ describe('TroubleshootingView', () => {
     expect(container.textContent).toContain('Reset filters');
   });
 
-  it('resets the devices and the log params in one URL write', async () => {
-    await mount('device=m-1&logLevels=ERROR&logRange=7d');
+  it('sends the picked customers once the flag is on, and ignores them while it is off', async () => {
+    flags(true);
+    await mount('customer=org-1&customer=org-2&device=m-1');
+    expect(lastVariables().organizationIds).toEqual(['org-1', 'org-2']);
+    expect(lastVariables().machineIds).toEqual(['m-1']);
+    // The picker is on the page, with the picked customers as its chips.
+    expect(container.textContent).toContain('org-1');
+
+    await act(async () => {
+      root.unmount();
+    });
+    flags(false);
+    await mount('customer=org-1');
+    expect(lastVariables().organizationIds).toBeNull();
+    expect(container.textContent).not.toContain('org-1');
+  });
+
+  it('resets the customers, the devices and the log params in one URL write', async () => {
+    flags(true);
+    await mount('customer=org-1&device=m-1&logLevels=ERROR&logRange=7d');
     const reset = Array.from(container.querySelectorAll('button')).find(
       button => button.textContent?.trim() === 'Reset filters',
     );
@@ -162,6 +200,7 @@ describe('TroubleshootingView', () => {
     expect(spies.replace).toHaveBeenCalledTimes(1);
     const [href] = spies.replace.mock.calls[0];
     const written = new URLSearchParams(href.split('?')[1] ?? '');
+    expect(written.getAll('customer')).toEqual([]);
     expect(written.getAll('device')).toEqual([]);
     expect(written.getAll('logLevels')).toEqual([]);
     expect(written.get('logRange')).toBeNull();

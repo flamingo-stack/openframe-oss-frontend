@@ -9,16 +9,16 @@ import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/dev
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { sortDevicesLiveFirst, toDeviceOption } from '../utils/device-option';
-import { TROUBLESHOOTING_DEVICE_LIMIT } from '../utils/troubleshooting-params';
+import { TROUBLESHOOTING_PICK_LIMIT } from '../utils/troubleshooting-params';
 
 const OPTIONS_LIMIT = 50;
-// One object for the cache key and the request, as the ticket form's device picker does.
-const FLEET_FILTER = { statuses: [...DEFAULT_DEVICES_LIST_STATUSES] };
 
 interface DeviceFilterProps {
   /** machineIds, as the URL carries them. */
   value: string[];
   onChange: (value: string[]) => void;
+  /** The picked customers: the list offers their devices only. Omitted = the whole fleet. */
+  organizationIds?: readonly string[];
   disabled?: boolean;
   className?: string;
 }
@@ -28,12 +28,20 @@ interface DeviceFilterProps {
  * query. Same imperative page fetch as the ticket form's picker, through
  * react-query so the open list keeps its rows while the next search resolves.
  */
-export function DeviceFilter({ value, onChange, disabled, className }: DeviceFilterProps) {
+export function DeviceFilter({ value, onChange, organizationIds, disabled, className }: DeviceFilterProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  // One object for the cache key and the request, as the ticket form's device picker does.
+  const filter = useMemo(
+    () => ({
+      statuses: [...DEFAULT_DEVICES_LIST_STATUSES],
+      ...(organizationIds && { organizationIds: [...organizationIds] }),
+    }),
+    [organizationIds],
+  );
   const query = useQuery({
-    queryKey: deviceQueryKeys.page(FLEET_FILTER, debouncedSearch, OPTIONS_LIMIT),
-    queryFn: () => fetchDevicesPage({ filter: FLEET_FILTER, search: debouncedSearch, first: OPTIONS_LIMIT }),
+    queryKey: deviceQueryKeys.page(filter, debouncedSearch, OPTIONS_LIMIT),
+    queryFn: () => fetchDevicesPage({ filter, search: debouncedSearch, first: OPTIONS_LIMIT }),
     placeholderData: keepPreviousData,
   });
   const fetched = useMemo(() => sortDevicesLiveFirst(query.data?.devices ?? []).map(toDeviceOption), [query.data]);
@@ -77,7 +85,7 @@ export function DeviceFilter({ value, onChange, disabled, className }: DeviceFil
       placeholder="Show All Devices"
       loading={query.isLoading}
       error={query.isError ? "Couldn't load devices" : undefined}
-      maxItems={TROUBLESHOOTING_DEVICE_LIMIT}
+      maxItems={TROUBLESHOOTING_PICK_LIMIT}
       startAdornment={<Filter02Icon className="size-6 text-ods-text-secondary" />}
       disabled={disabled}
       className={className}
