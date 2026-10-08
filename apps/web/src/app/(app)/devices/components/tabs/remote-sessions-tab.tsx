@@ -47,6 +47,26 @@ function recordingHref(row: RecordingSummary): string | null {
   return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
 }
 
+/**
+ * The empty table's line, by what narrowed it: the search, the session date
+ * range, or a column funnel (EMPLOYEE / EXPIRES). Only a list with nothing
+ * narrowing it says sessions will appear here.
+ */
+export function emptyDescription({
+  search,
+  hasDateRange,
+  hasColumnFilters,
+}: {
+  search: string;
+  hasDateRange: boolean;
+  hasColumnFilters: boolean;
+}): string {
+  if (search) return `No results for "${search}".`;
+  if (hasDateRange) return 'No sessions in the selected date range.';
+  if (hasColumnFilters) return 'No sessions match the selected filters.';
+  return 'Recorded remote sessions for this device will appear here.';
+}
+
 /** The column funnels the mobile FilterModal mirrors. */
 const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COLUMNS.expires.id];
 
@@ -272,11 +292,11 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           emptyState={{
             icon: <ComputerMouseIcon />,
             title: 'No remote sessions found',
-            description: debouncedSearch
-              ? `No results for "${debouncedSearch}".`
-              : dateRange
-                ? 'No sessions in the selected date range.'
-                : 'Recorded remote sessions for this device will appear here.',
+            description: emptyDescription({
+              search: debouncedSearch,
+              hasDateRange: dateRange !== undefined,
+              hasColumnFilters: columnFilters.length > 0,
+            }),
           }}
         />
       </DataTable>

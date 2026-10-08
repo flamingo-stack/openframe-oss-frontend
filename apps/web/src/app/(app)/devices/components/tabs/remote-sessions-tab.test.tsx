@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatDate } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
-import { RemoteSessionsTab } from './remote-sessions-tab';
+import { emptyDescription, RemoteSessionsTab } from './remote-sessions-tab';
 
 const NOW = Date.parse('2026-10-08T12:00:00Z');
 
@@ -128,6 +128,15 @@ describe('RemoteSessionsTab rows', () => {
     expect([READY, PROCESSING, FAILED, KEPT, EXPIRED].map(del)).toEqual([true, false, true, false, true]);
   });
 
+  it('dims the trash glyph of a row that cannot be deleted', () => {
+    const glyph = (row: RecordingSummary) =>
+      button(row, 'Delete recording')?.querySelector('svg')?.getAttribute('class');
+    expect(glyph(READY)).toContain('text-ods-error');
+    expect(glyph(READY)).not.toContain('text-ods-error-secondary');
+    expect(glyph(PROCESSING)).toContain('text-ods-error-secondary');
+    expect(glyph(KEPT)).toContain('text-ods-error-secondary');
+  });
+
   it('deletes a failed session by its session id', () => {
     act(() => button(FAILED, 'Delete recording')?.click());
     const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
@@ -135,5 +144,17 @@ describe('RemoteSessionsTab rows', () => {
     );
     act(() => confirm?.click());
     expect(hooks.mutate).toHaveBeenCalledWith({ sessionId: 'failed', recordingId: null }, expect.anything());
+  });
+});
+
+describe('emptyDescription', () => {
+  it('names what narrowed the list, and only an un-narrowed list promises sessions', () => {
+    const none = { search: '', hasDateRange: false, hasColumnFilters: false };
+    expect(emptyDescription({ ...none, hasColumnFilters: true })).toBe('No sessions match the selected filters.');
+    expect(emptyDescription({ ...none, hasDateRange: true, hasColumnFilters: true })).toBe(
+      'No sessions in the selected date range.',
+    );
+    expect(emptyDescription({ ...none, search: 'roman', hasColumnFilters: true })).toBe('No results for "roman".');
+    expect(emptyDescription(none)).toBe('Recorded remote sessions for this device will appear here.');
   });
 });
