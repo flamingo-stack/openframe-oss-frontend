@@ -125,6 +125,15 @@ export const GET_MINGO_DIALOG_QUERY = `
       type
       ... on AdminDialogOwner {
        userId
+       user {
+        id
+        firstName
+        lastName
+        image {
+         imageUrl
+         hash
+        }
+       }
       }
       ... on ClientDialogOwner {
       machineId
@@ -155,26 +164,63 @@ export const GET_MINGO_DIALOG_QUERY = `
   }
 `;
 
-export function getMingoDialogMessagesQuery() {
-  // Guide Mode V3 persists an answer's source metadata (product-doc sources,
-  // video refs, card refs) in its own `GUIDE` row, separate from the answer
-  // text, and its clarification cards in `ASK` rows. Fetch both so a reloaded
-  // dialog renders exactly what the live turn did. `GuideData.text` is
-  // deliberately NOT selected: payload-only records persist it as an empty
-  // string, which would replay as an empty text segment.
-  const guideModeFragment = `... on GuideData {
-              payload
-            }
-
-            ... on AskData {
-              ${ASK_INTRO_ALIAS}: text
-              question
-              options {
-                label
-                description
+/**
+ * An answer's attachments (cited sources, videos, cards), persisted in their own
+ * row beside the answer text. Selected field for field as the live `ATTACHMENTS`
+ * chunk carries them: the core lib decodes both through one function, so a
+ * reloaded dialog renders exactly what the live turn did.
+ */
+const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
+              sources {
+                index
+                name
+                path
+                documentType
+                externalUrl
+                targetPlatform
+                id
+                sourceRepo
+                items {
+                  id
+                  name
+                  path
+                  documentType
+                  externalUrl
+                  targetPlatform
+                }
+              }
+              videos {
+                ref
+                type
+                sourceRepo
+                id
+                title
+                url
+                metadata {
+                  videoUrl
+                  youtubeUrl
+                  parentDocType
+                  parentDocId
+                }
+              }
+              cards {
+                ref
+                entityType
+                entityId
               }
             }`;
 
+/**
+ * What a backend from before saas-tenant#3633 has in place of `AttachmentsData`
+ * (see `fetchMingoDialogMessages`). `GuideData.text` is NOT selected:
+ * payload-only records persist it as an empty string, which would replay as an
+ * empty text segment.
+ */
+const LEGACY_GUIDE_FRAGMENT = `... on GuideData {
+              payload
+            }`;
+
+export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGuide?: boolean } = {}) {
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
@@ -219,7 +265,16 @@ export function getMingoDialogMessagesQuery() {
               text
             }
 
-            ${guideModeFragment}
+            ${legacyGuide ? LEGACY_GUIDE_FRAGMENT : ATTACHMENTS_FRAGMENT}
+
+            ... on AskData {
+              ${ASK_INTRO_ALIAS}: text
+              question
+              options {
+                label
+                description
+              }
+            }
 
             ... on ExecutingToolData {
               type
