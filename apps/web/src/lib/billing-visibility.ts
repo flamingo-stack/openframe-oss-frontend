@@ -77,5 +77,5 @@ export function openBillingInBrowser(): void {
   const origin = runtimeEnv.tenantHostUrl().replace(/\/+$/, '');
   // Trailing slash: the canonical form under `trailingSlash: true`, so the link
   // never depends on how the web deployment treats the bare path.
-  window.open(`${origin}${routes.settings.billingUsage}/`, '_blank', 'noopener,noreferrer');
+  window.open(`${origin}${routes.settings.billingUsage()}/`, '_blank', 'noopener,noreferrer');
 }

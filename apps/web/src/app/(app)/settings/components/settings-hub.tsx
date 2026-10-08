@@ -45,7 +45,7 @@ interface SettingsNavItem {
 
 const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
-    href: routes.settings.billingUsage,
+    href: routes.settings.billingUsage(),
     icon: PiggyBankIcon,
     title: 'Billing & Usage',
     description: 'Subscription details, usage data, and payment settings',
@@ -137,7 +137,7 @@ export function SettingsHub() {
   });
   const gatesResolved = billingsGate !== 'loading' && billingAccessGate !== 'loading';
   const visibleItems = defaultItems.filter(item => {
-    if (item.href === routes.settings.billingUsage) {
+    if (item.href === routes.settings.billingUsage()) {
       return billingsGate === 'on' && billingAccessGate === 'allowed';
     }
     return true;
@@ -247,7 +247,7 @@ export function SettingsHub() {
                 icon: Icon,
                 title,
                 description,
-              } = item.href === routes.settings.billingUsage && billingHidden ? USAGE_MENU_ITEM : item;
+              } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
               return (
                 <SettingMenuItem
                   key={item.href}
