@@ -403,6 +403,8 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: (o?: { action?: BillingUsageAction }) => withQuery('/settings/billing-usage', { action: o?.action }),
+    /** Tenant-wide device logs (the per-device ones are the device's `device-logs` tab). */
+    troubleshooting: '/settings/troubleshooting',
   },
 
   /**
