@@ -12,10 +12,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
-import { getMingoDialogMessagesQuery } from '../(app)/mingo/queries/dialogs-queries';
+import { fetchMingoDialogMessages } from '../(app)/mingo/queries/fetch-dialog-messages';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
-import type { MessagesResponse } from '../(app)/mingo/types/message.types';
 import { mingoDialogQueryKeys } from '../(app)/mingo/utils/query-keys';
 
 // Nothing has been sent while the stream is not live, so this bound can be short.
@@ -60,9 +59,11 @@ const LATEST_MESSAGES_LIMIT = 10;
  * persisted, so none can come before it.
  */
 async function latestStreamSeq(dialogId: string): Promise<number> {
-  const response = await apiClient.post<MessagesResponse>('/chat/graphql', {
-    query: getMingoDialogMessagesQuery(),
-    variables: { dialogId, limit: LATEST_MESSAGES_LIMIT, sortField: 'createdAt', sortDirection: 'DESC' },
+  const response = await fetchMingoDialogMessages({
+    dialogId,
+    limit: LATEST_MESSAGES_LIMIT,
+    sortField: 'createdAt',
+    sortDirection: 'DESC',
   });
   if (!response.ok || !response.data?.data?.messages) {
     throw new Error(response.error || 'Failed to fetch messages');
