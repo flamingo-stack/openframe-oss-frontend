@@ -546,6 +546,9 @@ type DeviceLogEntry {
   """ When the agent wrote the line"""
   level: String!
   message: String!
+
+  """ Device the line came from"""
+  machineId: String
   hostname: String
   count: Long
 }
@@ -563,7 +566,7 @@ input DeviceLogFilterInput {
   """ None of these may appear in the message; same matching and limits"""
   from: Instant
 
-  """ Inclusive; defaults to 7 days before `to`"""
+  """ Inclusive; defaults to 7 days before `to`, or 24 hours when no device is named"""
   to: Instant
 }
 
@@ -3081,9 +3084,12 @@ type Query {
   """One bundle by id. Null when it does not exist (or was already reaped)."""
   softwareBundle(id: ID!): SoftwareBundle
 
-  " Agent logs of one device, newest first, always scoped to the current tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
+  " Agent logs, newest first, always scoped to the current tenant.\n Name devices with `machineIds`, or omit it to follow every device in the tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
   deviceLogs(
-    machineId: String!
+    machineId: String @deprecated(reason: "Use machineIds; a value given here is added to that list")
+
+    """ 1-50 devices. Omit for every device in the tenant; an empty list is rejected"""
+    machineIds: [String!]
     filter: DeviceLogFilterInput
     first: Int
 

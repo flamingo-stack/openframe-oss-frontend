@@ -3,6 +3,7 @@
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import {
   ChartDonutIcon,
+  ClipboardListIcon,
   CompassIcon,
   Hierarchy02Icon,
   Logout01Icon,
@@ -84,6 +85,14 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     icon: CompassIcon,
     title: 'Download Apps',
     description: 'Install OpenFrame on desktop, iOS, and Android',
+  },
+  {
+    href: routes.settings.troubleshooting,
+    // The same glyph as a device's Device Logs tab: this is that view across the fleet.
+    icon: ClipboardListIcon,
+    title: 'Troubleshooting',
+    description: 'Device logs across every device in your workspace',
+    badge: 'Beta',
   },
 ];
 

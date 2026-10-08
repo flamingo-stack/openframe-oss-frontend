@@ -396,6 +396,8 @@ export const routes = {
     architecture: '/settings/architecture',
     downloadApps: '/settings/download-apps',
     billingUsage: '/settings/billing-usage',
+    /** Tenant-wide device logs (the per-device ones are the device's `device-logs` tab). */
+    troubleshooting: '/settings/troubleshooting',
   },
 
   /**

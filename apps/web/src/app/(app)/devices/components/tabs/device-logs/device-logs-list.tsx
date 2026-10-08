@@ -24,24 +24,26 @@ const PAGE_SIZE = 100;
 
 export type DeviceLogsFilter = NonNullable<deviceLogsListQuery$variables['filter']>;
 
+// `machineIds` omitted (null) is every device in the tenant; an empty list is a
+// request the API rejects, so callers hand over undefined instead of [].
 const deviceLogsListQueryNode = graphql`
-  query deviceLogsListQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
-    ...deviceLogsList_query @arguments(machineId: $machineId, filter: $filter, first: $first, after: $after)
+  query deviceLogsListQuery($machineIds: [String!], $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
+    ...deviceLogsList_query @arguments(machineIds: $machineIds, filter: $filter, first: $first, after: $after)
   }
 `;
 
-// Keyed on the machine and the filter: cursors belong to the filter that made them.
+// Keyed on the devices and the filter: cursors belong to the filter that made them.
 const deviceLogsListFragment = graphql`
   fragment deviceLogsList_query on Query
   @refetchable(queryName: "deviceLogsListPaginationQuery")
   @argumentDefinitions(
-    machineId: { type: "String!" }
+    machineIds: { type: "[String!]" }
     filter: { type: "DeviceLogFilterInput" }
     first: { type: "Int!" }
     after: { type: "String" }
   ) {
-    deviceLogs(machineId: $machineId, filter: $filter, first: $first, after: $after)
-      @connection(key: "deviceLogsList_deviceLogs", filters: ["machineId", "filter"]) {
+    deviceLogs(machineIds: $machineIds, filter: $filter, first: $first, after: $after)
+      @connection(key: "deviceLogsList_deviceLogs", filters: ["machineIds", "filter"]) {
       edges {
         cursor
         node {
@@ -54,9 +56,11 @@ const deviceLogsListFragment = graphql`
 `;
 
 interface DeviceLogsListProps {
-  machineId: string;
+  /** The devices to read, 1-50; omitted = every device in the tenant. Never an empty list. */
+  machineIds?: readonly string[];
   filter: DeviceLogsFilter;
-  deviceHostname: string;
+  /** The one device the list belongs to; omitted on a multi-device list — see `DeviceLogRow`. */
+  deviceHostname?: string;
   /** The rows lag the controls while a filter change is in flight. */
   isPending: boolean;
   autoUpdate: boolean;
@@ -69,7 +73,7 @@ interface DeviceLogsListProps {
 
 /** The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted per filter. */
 export function DeviceLogsList({
-  machineId,
+  machineIds,
   filter,
   deviceHostname,
   isPending,
@@ -82,7 +86,10 @@ export function DeviceLogsList({
   const environment = useRelayEnvironment();
   const { toast } = useToast();
   const retryKey = useRetryKey();
-  const variables = useMemo(() => ({ machineId, filter, first: PAGE_SIZE, after: null }), [machineId, filter]);
+  const variables = useMemo(
+    () => ({ machineIds: machineIds ?? null, filter, first: PAGE_SIZE, after: null }),
+    [machineIds, filter],
+  );
   const queryData = useLazyLoadQuery<deviceLogsListQuery>(deviceLogsListQueryNode, variables, {
     fetchPolicy: 'store-and-network',
     fetchKey: retryKey,
