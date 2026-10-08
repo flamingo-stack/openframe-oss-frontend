@@ -104,10 +104,6 @@ export const EP = {
   docsContent: (sourceId: string) => `${CONTENT}/docs/sources/${sourceId}/content`,
   docsResolveLink: `${CONTENT}/docs/resolve-link`,
   docsSearch: `${CONTENT}/docs/search`,
-  // The questions an "Ask Mingo" card offers (`AssistantRuntime.askPromptsUrl`):
-  // the hub's general questions, picked by the `section` each FAQ passes as its
-  // topic. The lib appends `?count=&section=&exclude=`.
-  askPrompts: `${CONTENT}/quick-actions/questions`,
   // Walkthrough video — the floating per-platform demo video (mounted app-wide
   // by `<WalkthroughVideo>`, not by a Help Center page). Public: no auth, no
   // platform param — the hub resolves the platform server-side and answers with
