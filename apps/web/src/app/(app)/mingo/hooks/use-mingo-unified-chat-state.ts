@@ -60,7 +60,7 @@ import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
-import { useMingoDialogs } from './use-mingo-dialogs';
+import { transformToDialogItem, useMingoDialogs } from './use-mingo-dialogs';
 import { useMingoRealtimeSubscription } from './use-mingo-realtime-subscription';
 
 const ADMIN_CHAT_TYPE = 'ADMIN_AI_CHAT' as const;
@@ -342,6 +342,15 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [liveModel, aiModel],
   );
 
+  // ─── The open conversation's own record ─────────────────────────────────
+  // From the dialog query, not the list: a conversation reached by link,
+  // notification or reload (`?mingoDialog=`) is not necessarily in `dialogs` -
+  // archived, or past the pages loaded so far - and the list only ever holds
+  // active ones. This is the only way the lib learns the conversation is
+  // archived and keeps it read-only; it also gives the header its title and
+  // owner. Memoized like `model`: the chat-state memo below depends on it.
+  const activeDialog = useMemo(() => (dialogData ? transformToDialogItem(dialogData) : null), [dialogData]);
+
   // ─── Token usage: store (kept live by realtime) first, dialog query fallback ─
   const tokenUsage = useMemo<DialogTokenUsage | null>(() => {
     if (!activeDialogId) return null;
@@ -611,6 +620,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // Dialog management
       dialogs: dialogs as DialogItem[],
       activeDialogId,
+      activeDialog,
       selectDialog,
       startNewDialog,
       deleteDialog: noopDialogAction,
@@ -658,6 +668,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       tokenUsage,
       dialogs,
       activeDialogId,
+      activeDialog,
       selectDialog,
       startNewDialog,
       noopDialogAction,

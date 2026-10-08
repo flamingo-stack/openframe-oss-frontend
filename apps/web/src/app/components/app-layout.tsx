@@ -1,12 +1,17 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
-import { ChatIdentityProvider, MINGO_V2_RAIL_WIDTH } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  ChatIdentityProvider,
+  MINGO_V2_RAIL_WIDTH,
+  MINGO_V2_SPLIT_WIDTH,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AppLayoutDrawer,
   AppLayoutDrawerContent,
   AppLayout as CoreAppLayout,
+  SIDE_PANEL_FRAME_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import type { AppLayoutSidePanelConfig } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
@@ -583,7 +588,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ? {
           label: 'Mingo AI chat',
           minWidth: MINGO_V2_RAIL_WIDTH,
-          storageKey: 'openframe:mingo-panel-v1',
+          // A first launch opens the list beside a new chat, as much of it as fits.
+          defaultWidth: MINGO_V2_SPLIT_WIDTH + SIDE_PANEL_FRAME_WIDTH,
+          // v2: widths chosen before the default existed start over at it.
+          storageKey: 'openframe:mingo-panel-v2',
           collapsed: isFullWidthPage(pathname),
           open: chatOpen,
           onOpenChange: setChatOpen,

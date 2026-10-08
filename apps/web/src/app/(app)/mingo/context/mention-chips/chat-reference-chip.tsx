@@ -9,7 +9,7 @@
  *
  * `chat` is a reference marker, not a `ContextItemType`: nothing attaches a
  * conversation as context, the picker does not offer one, and it has no entry
- * in `CONTEXT_ENTITY_MARKER`. It is a mention-only marker like `kbFolder`.
+ * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
  *
  * Unlike every entity chip, the target is not a page. The conversation opens IN
  * THE DRAWER, in place, over whatever page the drawer floats — the same path a

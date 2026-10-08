@@ -66,7 +66,6 @@ export default defineConfig([
     files: [
       'src/app/(app)/tickets/components/board-columns-cache.ts',
       'src/app/components/onboarding-top-bar-cache.tsx',
-      'src/app/(auth)/auth/check-email/page.tsx',
       'src/app/account-deleted/page.tsx',
       'src/app/components/app-layout.tsx',
       'src/lib/nats/nats-app-config.tsx',

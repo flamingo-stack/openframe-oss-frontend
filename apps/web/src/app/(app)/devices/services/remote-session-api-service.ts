@@ -82,7 +82,14 @@ const endMutation = graphql`
 
 const STATUSES: ReadonlySet<string> = new Set(['ACTIVE', 'ENDED']);
 const MODES: ReadonlySet<string> = new Set(REMOTE_ACCESS_MODES);
-const END_REASONS: ReadonlySet<string> = new Set(['admin', 'client', 'timeout', 'connection_lost', 'policy']);
+const END_REASONS: ReadonlySet<string> = new Set([
+  'admin',
+  'client',
+  'timeout',
+  'connection_lost',
+  'never_connected',
+  'policy',
+]);
 /** An end of an already ended session: the outcome is the same, nothing left to end. */
 const END_ALREADY_ENDED_CODE = 'REMOTE_SESSION_ENDED';
 

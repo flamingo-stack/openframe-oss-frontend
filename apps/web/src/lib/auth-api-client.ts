@@ -69,6 +69,22 @@ export interface PendingSsoJoin extends PendingSsoIdentity {
   roles: string[];
 }
 
+/** What the `/auth/error` page shows for a `ref`, as the auth server's `authErrorMessage` answers it. */
+export interface AuthErrorMessage {
+  /** An `AuthErrorCode` name; `UNEXPECTED` for anything the server did not recognise. */
+  code: string;
+  message: string;
+}
+
+/** The one query the auth server serves on `/sas/graphql`: pre-authentication, for the error page only. */
+const AUTH_ERROR_MESSAGE_QUERY =
+  'query authErrorMessage($reference: String!) { authErrorMessage(reference: $reference) { code message } }';
+
+interface AuthErrorMessageEnvelope {
+  data?: { authErrorMessage?: AuthErrorMessage | null } | null;
+  errors?: ReadonlyArray<{ message?: string }>;
+}
+
 class AuthApiClient {
   /**
    * `sentAtEpoch` is the {@link getTokenEpoch} value captured before the request
@@ -158,6 +174,33 @@ class AuthApiClient {
   discoverTenants<T = unknown>(email: string) {
     const path = `/sas/tenant/discover?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
+  }
+
+  /**
+   * The text the `/auth/error` page shows for the `ref` it was sent with: an `AuthErrorCode` name, or
+   * the key of a message the auth server stored for a few minutes. Public and session-less, like the
+   * page. The server answers anything it does not recognise - an expired key, free text - with the
+   * `UNEXPECTED` entry and its generic sentence, so what comes back is always safe to render, and it
+   * is the only thing the page renders.
+   *
+   * Raw-POST GraphQL on purpose: the auth server's schema is not the tenant API's `schema.graphql`,
+   * so there is nothing for Relay to compile it against - the same reason `/chat/graphql` stays raw.
+   */
+  async authErrorMessage(reference: string): Promise<AuthApiResponse<AuthErrorMessage>> {
+    const response = await requestPublic<AuthErrorMessageEnvelope>('/sas/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: AUTH_ERROR_MESSAGE_QUERY, variables: { reference } }),
+    });
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: response.error };
+    }
+    const message = response.data?.data?.authErrorMessage;
+    if (!message) {
+      const detail = response.data?.errors?.[0]?.message;
+      return { ok: false, status: response.status, error: detail || 'The error message could not be resolved' };
+    }
+    return { ok: true, status: response.status, data: message };
   }
 
   checkDomainAvailability<T = unknown>(subdomain: string, organizationName: string) {
@@ -408,6 +451,18 @@ class AuthApiClient {
       params.append('authMobile', 'true');
     }
     return buildAuthUrl(`/sas/oauth/login/sso?${params.toString()}`);
+  }
+
+  /**
+   * Where the browser goes right after password registration: the auth server already signed the new
+   * owner into its session, and `/oauth/continue` (unlike `/oauth/login`) runs the authorize round trip
+   * without clearing it, so the user lands in the new tenant without logging in again. A TOP-LEVEL
+   * navigation — the chain sets the auth cookies. `redirectTo` is pre-encoded and, as in
+   * {@link AuthApiClient.loginUrl}, dropped in shared mode where the auth host owns the landing.
+   */
+  continueUrl(tenantId: string, redirectTo: string) {
+    const redirectParam = isSaasSharedMode() ? '' : `&redirectTo=${redirectTo}`;
+    return buildAuthUrl(`/oauth/continue?tenantId=${encodeURIComponent(tenantId)}${redirectParam}`);
   }
 
   /** `redirectTo` is pre-encoded by the caller — it is interpolated as-is. */
