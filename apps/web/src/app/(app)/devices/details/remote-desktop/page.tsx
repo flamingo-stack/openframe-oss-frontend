@@ -12,6 +12,7 @@ import {
 import {
   ChatOffIcon,
   ChatTextIcon,
+  Chevron02DownIcon,
   Collapse02Icon,
   Expand02Icon,
   Loading01Icon,
@@ -119,6 +120,11 @@ const FIRST_FRAME_TIMEOUT_MS = 10_000;
 /** Fresh pairings the page tries on its own before it hands the failure to the technician. */
 const MAX_STREAM_RETRIES = 2;
 
+/** The agent reports display ids only, no monitor names. */
+function displayLabel(displayId: number): string {
+  return `Display ${displayId}`;
+}
+
 /** The "Session ended" line per end reason; the dev lever plays the end user's end. */
 const SESSION_ENDED_COPY: Record<RemoteSessionEndReason, string> = {
   client: 'The user ended the remote session',
@@ -210,9 +216,8 @@ function RemoteDesktopSession() {
   const [remoteSettings, setRemoteSettings] = useState<RemoteSettingsConfig>(DEFAULT_SETTINGS);
   const isReconnectingRef = useRef(false);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
-  const [currentDisplay, setCurrentDisplay] = useState(0);
-  const currentDisplayRef = useRef(currentDisplay);
-  const didAutoSelectDisplayRef = useRef(false);
+  // The display the agent streams; MeshDesktop picks the primary until the technician picks one.
+  const [currentDisplay, setCurrentDisplay] = useState<number | null>(null);
   const [firstFrameReceived, setFirstFrameReceived] = useState(false);
   // A relay that pairs proves nothing about the stream: the agent can accept
   // the tunnel and never start the capture, and nothing on the wire says so.
@@ -275,10 +280,6 @@ function RemoteDesktopSession() {
   }, []);
 
   useEffect(() => {
-    currentDisplayRef.current = currentDisplay;
-  }, [currentDisplay]);
-
-  useEffect(() => {
     remoteSettingsRef.current = remoteSettings;
   }, [remoteSettings]);
 
@@ -316,17 +317,9 @@ function RemoteDesktopSession() {
       streamRetriesRef.current = 0;
     });
 
-    // Set up display list change callback
-    desktop.onDisplayListChange?.(newDisplays => {
+    desktop.onDisplayListChange?.((newDisplays, streamed) => {
       setDisplays(newDisplays);
-      // Auto-select primary display once, on the initial list. Later callbacks
-      // (cmd 82 location updates) must not kick the user off an explicitly
-      // chosen "All Displays" (id 0) selection.
-      const primaryDisplay = newDisplays.find(d => d.primary);
-      if (primaryDisplay && currentDisplayRef.current === 0 && !didAutoSelectDisplayRef.current) {
-        didAutoSelectDisplayRef.current = true;
-        setCurrentDisplay(primaryDisplay.id);
-      }
+      setCurrentDisplay(streamed);
     });
 
     const canvas = canvasRef.current;
@@ -595,7 +588,7 @@ function RemoteDesktopSession() {
       setCurrentDisplay(displayId);
       toast({
         title: 'Display Switched',
-        description: `Switched to display ${displayId}`,
+        description: `Switched to ${displayLabel(displayId)}`,
         variant: 'success',
         duration: 2000,
       });
@@ -623,37 +616,22 @@ function RemoteDesktopSession() {
 
   const actionsMenuGroups = createActionsMenuGroups(actionHandlers, enableInput, clipboardEnabled, shortcuts);
 
+  // One entry per separate display; with one display or none (macOS agents
+  // before multi-monitor support, Linux) there is nothing to pick.
   const displayMenuGroups: ActionsMenuGroup[] =
     displays.length > 1
       ? [
           {
-            items: [
-              ...(displays.some(d => d.id === 0) || displays.length > 1
-                ? [
-                    {
-                      id: 'display-all',
-                      label: 'All Displays',
-                      icon: <MonitorIcon className="h-4 w-4" />,
-                      type: 'checkbox' as const,
-                      checked: currentDisplay === 0,
-                      onClick: () => handleDisplayChange(0),
-                    },
-                  ]
-                : []),
-              ...displays
-                .filter(d => d.id !== 0)
-                .map(display => ({
-                  id: `display-${display.id}`,
-                  label: `Display ${display.id}${display.primary ? ' (Primary)' : ''}`,
-                  icon: <MonitorIcon className="h-4 w-4" />,
-                  type: 'checkbox' as const,
-                  checked: currentDisplay === display.id,
-                  onClick: () => handleDisplayChange(display.id),
-                })),
-            ],
+            items: displays.map(display => ({
+              id: `display-${display.id}`,
+              label: displayLabel(display.id),
+              icon: <MonitorIcon className="h-6 w-6" />,
+              onClick: () => handleDisplayChange(display.id),
+            })),
           },
         ]
       : [];
+  const currentDisplayLabel = currentDisplay === null ? 'Display' : displayLabel(currentDisplay);
 
   if (!legacyDeviceData && isDeviceLoading) {
     return (
@@ -717,58 +695,61 @@ function RemoteDesktopSession() {
   );
 
   const controlsBar = (
-    <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
-      {deviceInfoBlock}
-      <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
-        {displays.length > 1 && (
-          <ActionsMenuDropdown
-            groups={displayMenuGroups}
-            customTrigger={
-              <Button variant="outline" leftIcon={<MonitorIcon className="h-4 w-4 md:h-6 md:w-6" />}>
-                Display {currentDisplay === 0 ? 'All' : currentDisplay}
-              </Button>
-            }
-          />
-        )}
-        {chatDialogId && !sessionEnded && (
+    <div className="flex flex-shrink-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
+      <div className="flex items-center justify-between gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
+        {deviceInfoBlock}
+        <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+          {chatDialogId && !sessionEnded && (
+            <Button
+              variant="outline"
+              onClick={toggleChat}
+              leftIcon={
+                showChat ? (
+                  <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
+                ) : (
+                  <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
+                )
+              }
+            >
+              {showChat ? 'Close Chat' : 'Open Chat'}
+            </Button>
+          )}
+          <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
           <Button
             variant="outline"
-            onClick={toggleChat}
-            leftIcon={
-              showChat ? (
-                <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
-              ) : (
-                <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
-              )
-            }
-          >
-            {showChat ? 'Close Chat' : 'Open Chat'}
-          </Button>
-        )}
-        <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Settings"
-          onClick={() => setSettingsOpen(true)}
-          leftIcon={<Settings01Icon />}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-          leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
-        />
+            size="icon"
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+            leftIcon={<Settings01Icon />}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            onClick={isFullscreen ? exitFullscreen : enterFullscreen}
+            leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
+          />
+        </div>
       </div>
+      {displayMenuGroups.length > 0 && (
+        <ActionsMenuDropdown
+          groups={displayMenuGroups}
+          align="start"
+          customTrigger={
+            <button
+              type="button"
+              aria-label="Switch display"
+              className="flex w-full items-center gap-[var(--spacing-system-xs)] border-t border-ods-border p-[var(--spacing-system-sf)] text-left text-ods-text-primary outline-none transition-colors hover:bg-ods-bg-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus"
+            >
+              <MonitorIcon className="h-6 w-6 shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-h4">{currentDisplayLabel}</span>
+              <Chevron02DownIcon className="h-6 w-6 shrink-0" />
+            </button>
+          }
+        />
+      )}
     </div>
   );
-
-  // "Show All" grid: the main canvas keeps receiving the combined
-  // virtual-desktop stream and stays mounted (hidden) as the blit source;
-  // each display with known geometry (cmd 82) gets its own cropped view.
-  const gridDisplays = displays.filter(d => d.id !== 0 && d.w > 0 && d.h > 0);
-  const isGridActive = currentDisplay === 0 && gridDisplays.length > 1;
 
   const chatPanel = (variant: 'side' | 'overlay') =>
     showChat && chatDialogId ? (
@@ -788,29 +769,9 @@ function RemoteDesktopSession() {
         ref={canvasRef}
         tabIndex={0}
         className="absolute inset-0 h-full w-full object-contain outline-none"
-        style={{ visibility: firstFrameReceived && !isGridActive ? 'visible' : 'hidden' }}
+        style={{ visibility: firstFrameReceived ? 'visible' : 'hidden' }}
         onContextMenu={e => e.preventDefault()}
       />
-      {isGridActive && firstFrameReceived && (
-        <div className="absolute inset-0 grid grid-cols-2 content-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-mf)]">
-          {gridDisplays.map(display => (
-            <div key={display.id} className="relative flex min-h-0 min-w-0 items-center justify-center">
-              <canvas
-                ref={el => {
-                  const desktop = desktopRef.current;
-                  if (!desktop || !el) return undefined;
-                  desktop.attachDisplayView?.(display.id, el);
-                  return () => desktop.detachDisplayView?.(display.id);
-                }}
-                tabIndex={0}
-                aria-label={`Display ${display.id}${display.primary ? ' (Primary)' : ''}`}
-                className="max-h-full max-w-full object-contain outline-none"
-                onContextMenu={e => e.preventDefault()}
-              />
-            </div>
-          ))}
-        </div>
-      )}
       {!firstFrameReceived && state >= 1 && connectionStatus !== 'failed' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)]">
           {/* Three-dot pulse per the "Connecting" mockup (1036-31098). */}
@@ -906,7 +867,7 @@ function RemoteDesktopSession() {
           <FullscreenToolbar
             deviceName={deviceName || `Device ${deviceId}`}
             displayMenuGroups={displayMenuGroups}
-            currentDisplayLabel={`Display ${currentDisplay === 0 ? 'All' : currentDisplay}`}
+            currentDisplayLabel={currentDisplayLabel}
             actionsMenuGroups={actionsMenuGroups}
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}

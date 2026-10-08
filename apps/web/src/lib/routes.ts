@@ -242,7 +242,6 @@ export const routes = {
   auth: {
     root: '/auth',
     login: '/auth/login',
-    checkEmail: '/auth/check-email',
     verify: '/auth/verify',
     invite: '/auth/invite',
     passwordReset: '/auth/password-reset',
