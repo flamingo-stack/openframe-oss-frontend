@@ -20,6 +20,7 @@ import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
+import { canDeleteSession } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
@@ -58,9 +59,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const deleteRecording = useDeleteSessionRecording(recording?.deviceId ?? '');
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
-  // Delete lives in the "..." menu; it appears once the backend can delete.
+  // Delete lives in the "..." menu, for a recording the server would let go (not kept).
   const menuActions: ActionsMenuGroup[] =
-    sessionRecordingsApiService.canDelete && recording
+    sessionRecordingsApiService.canDelete && recording && canDeleteSession(recording)
       ? [
           {
             items: [
@@ -231,12 +232,15 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
         isPending={deleteRecording.isPending}
         onConfirm={() => {
           if (!recording) return;
-          deleteRecording.mutate(recordingId, {
-            onSuccess: () => {
-              setIsDeleteOpen(false);
-              router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
+          deleteRecording.mutate(
+            { sessionId: recording.id, recordingId },
+            {
+              onSuccess: () => {
+                setIsDeleteOpen(false);
+                router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
+              },
             },
-          });
+          );
         }}
       />
     </PageLayout>

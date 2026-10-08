@@ -24,6 +24,7 @@ import { getDeviceName } from '../utils/device-name';
 import { getDeviceStatusConfig } from '../utils/device-status';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
+import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { useDeviceTabs } from './tabs/device-tabs';
 
@@ -210,6 +211,9 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
           className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
         />
       )}
+
+      {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. */}
+      <RecordingStorageBanner className="mb-[var(--spacing-system-l)]" />
 
       {/* Tab Navigation */}
       <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange}>

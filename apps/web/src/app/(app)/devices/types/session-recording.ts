@@ -7,6 +7,15 @@ export interface RecordingEmployee {
   avatarUrl?: string;
 }
 
+/**
+ * Where a session's recording stands, from the server's `recordingState`:
+ * `none` = recording off, or started without it; `processing` = running, or
+ * ended under 30 minutes ago with no file yet; `ready` = something to play;
+ * `failed` = no file 30 minutes after the end; `expired` = removed by
+ * retention; `deleted` = removed by a technician.
+ */
+export type RecordingState = 'none' | 'processing' | 'ready' | 'failed' | 'expired' | 'deleted';
+
 /** One row of the Remote Sessions tab: a remote session and the recording it produced, if any. */
 export interface RecordingSummary {
   /** The session id. */
@@ -20,8 +29,11 @@ export interface RecordingSummary {
   sizeBytes: number | null;
   /** 1 = terminal, 2 = desktop/KVM. */
   protocol: 1 | 2;
-  /** Recording on, no file stored yet. */
-  processing: boolean;
+  recordingState: RecordingState;
+  /** A file of the session is kept: exempt from retention, and it cannot be deleted. */
+  kept: boolean;
+  /** ISO timestamp the earliest playable file expires at; null when none is left or none expires. */
+  expiresAt: string | null;
   /** The recording page opens on this file (the session's first); null when there is nothing to play. */
   recordingId: string | null;
   /** The technician who ran the session. */
@@ -57,4 +69,13 @@ export interface RecordingDetail extends RecordingSummary {
   /** Every file of the session, oldest first; the player joins them into one timeline. */
   segments: RecordingSegment[];
   chat: RecordingChatMessage[];
+}
+
+/** The tenant's recording storage. `full` means the pool of recordings that are not kept is used up. */
+export interface RecordingStorage {
+  usedBytes: number;
+  limitBytes: number;
+  keptBytes: number;
+  keptLimitBytes: number;
+  full: boolean;
 }
