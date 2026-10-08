@@ -245,6 +245,10 @@ export function useAuth() {
       // Funnel: registration is server-confirmed. `signup_completed` (with the
       // OpenFrame user.id + email) fires once the authenticated session resolves
       // — see PostHogAnalyticsBridge — since no user id exists yet here.
+      // Set BEFORE the branches below on purpose: the account exists from this point on, so
+      // whichever sign-in lands first - the continue hop, the shell's native login, or a manual
+      // login after a dismissed sheet - is this user's first session, which is exactly when the
+      // event belongs. The check-email flow relied on the same carry-over until its login.
       markPendingSignup();
 
       if (!tenant?.id) {
