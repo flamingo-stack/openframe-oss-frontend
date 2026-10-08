@@ -390,17 +390,25 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // chat is opened. Nothing is typed:
   //   - `available`: the launcher store's `canOpen` (an unlocked workspace with
   //     the chat mounted), so a card never offers a chat that cannot open;
-  //   - name and glyph: the Mingo agent's published config, from the runtime's
-  //     own `aiAgentConfigUrl` (the request the "Meet Mingo" onboarding step
-  //     makes, cached per URL). With no name the lib renders no card;
+  //   - name and glyph: the server's (see below; both requests are the ones the
+  //     chat panel and the "Meet Mingo" step make, cached per URL). With no name
+  //     the lib renders no card;
   //   - `askPromptsUrl`: the hub's general questions, picked by the topic each
   //     FAQ passes;
   //   - `open`: `openMingo` below, this app's own launcher.
   const chatCanOpen = useMingoLauncherStore(state => state.canOpen);
-  const assistantConfigUrl = runtime.endpoints.aiAgentConfigUrl?.(ASSISTANT_AGENT_SLUG);
-  const { config: assistantConfig } = useEmptyStateConfig(assistantConfigUrl, { enabled: Boolean(assistantConfigUrl) });
-  const assistantName = assistantConfig.name ?? null;
-  const assistantIcon = assistantConfig.icon ?? null;
+  // Identity, from the SERVER, in the hub's own order: the platform's chat
+  // identity an admin set in chat config (`emptyStateUrl`, the request the chat
+  // panel makes), else the Mingo agent's published one (`aiAgentConfigUrl`),
+  // read only once the platform is known to have none.
+  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl);
+  const agentConfigUrl = runtime.endpoints.aiAgentConfigUrl?.(ASSISTANT_AGENT_SLUG);
+  const needsAgent = platformLoaded && (!platformConfig.name || !platformConfig.icon);
+  const { config: agentConfig } = useEmptyStateConfig(agentConfigUrl, {
+    enabled: needsAgent && Boolean(agentConfigUrl),
+  });
+  const assistantName = platformConfig.name ?? agentConfig.name ?? null;
+  const assistantIcon = platformConfig.icon ?? agentConfig.icon ?? null;
   // One element per glyph, so the assistant runtime keeps one identity between renders.
   const assistantIconNode = useMemo(
     () => (assistantIcon ? <EntityIcon icon={assistantIcon} size={32} className="size-full" /> : undefined),
