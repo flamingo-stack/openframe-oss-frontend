@@ -198,9 +198,9 @@ export function useCreateTicketForm({ ticketId, prefill }: UseCreateTicketFormOp
           tempAttachmentIds: tempAttachmentIds.length ? tempAttachmentIds : undefined,
         });
 
-        if (created?.id && Object.keys(nextAssignments).length > 0) {
+        if (created && Object.keys(nextAssignments).length > 0) {
           await applyAssignmentsDiff({
-            itemId: created.id,
+            itemId: created.ticketId,
             itemType: 'TICKET',
             prev: {},
             next: nextAssignments,

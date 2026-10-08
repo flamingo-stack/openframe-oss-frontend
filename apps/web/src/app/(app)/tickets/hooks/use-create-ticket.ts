@@ -10,7 +10,7 @@ import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 
-/** `id` is the Relay global id; `ticketId` is the raw one every route and cache key uses. */
+/** Only `CreateTicket` selects `ticketId`; the other `TicketPayload` mutations do not. */
 type CreateTicketPayload = Omit<TicketPayload, 'ticket'> & { ticket: (Ticket & { ticketId: string }) | null };
 
 async function createTicketApi(input: CreateTicketInput) {

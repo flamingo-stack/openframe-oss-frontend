@@ -27,10 +27,10 @@ import { refreshUnreadCounts } from './unread-counts-relay';
  *
  * `entityId` is the RAW entity id, not a Relay global id, even though the mutation runs
  * against openframe-api: `NotificationReadState.entityId` is written and counted with the
- * id the notification's producer carried (for a ticket, the ai-agent's raw `Ticket.ticketId`,
- * not its global `Ticket.id`; the id the ai-agent's own `Ticket.unreadNotificationCount` is
- * keyed on - a field that still exists there
- * even though the board badge reads `unreadMessageCount`). Encoding it — as the saas-api time-tracker
+ * id the notification's producer carried (for a ticket, the ai-agent's raw `Ticket.ticketId`
+ * rather than its global `Ticket.id`; the raw id is also what the ai-agent's own
+ * `Ticket.unreadNotificationCount` is keyed on, a field that still exists there even though
+ * the board badge reads `unreadMessageCount`). Encoding it — as the saas-api time-tracker
  * mutations require via `toTicketGlobalId` — would match zero rows and silently no-op.
  *
  * No toast on failure: the user never triggered this, so a toast would be noise about

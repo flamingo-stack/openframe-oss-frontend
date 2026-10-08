@@ -57,6 +57,7 @@ import {
 } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
+import type { DialogNode } from '../types';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
@@ -142,6 +143,23 @@ export interface MingoUnifiedChat {
 export function needsAllChatsScope(ownerUserId: string | undefined, currentUserId: string | undefined): boolean {
   if (!ownerUserId || !currentUserId) return false;
   return ownerUserId !== currentUserId;
+}
+
+/**
+ * The raw dialog id to switch to when the open conversation was reached by its Relay
+ * global id — a `?mingoDialog=` link copied from a bundle older than the raw-id mapping.
+ * `dialog(id)` accepts it, but the NATS subject, the list rows and the active-dialog
+ * registry only know the raw id.
+ *
+ * Null unless the loaded record is the one the active id names: the dialog query is
+ * keyed on the active id, so once the switch lands the record's global `id` no longer
+ * matches and this stops answering.
+ */
+export function rawDialogIdToAdopt(
+  activeDialogId: string | null,
+  dialog: Pick<DialogNode, 'id' | 'dialogId'> | null,
+): string | null {
+  return activeDialogId && dialog?.id === activeDialogId ? dialog.dialogId : null;
 }
 
 /** Slash-command action that dumps a row's body into the chat verbatim. */
@@ -425,14 +443,11 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [activeDialogId, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 
-  // A `?mingoDialog=` link copied from a bundle older than the raw-id mapping
-  // carries the Relay global `Dialog.id`. `dialog(id)` accepts it, but the NATS
-  // subject, the list rows and the active-dialog registry only know the raw id,
-  // so switch to the raw one once the dialog says what it is.
+  // An effect, not a render-time reconcile like the scope above: `selectDialog`
+  // subscribes to NATS and starts the dialog queries.
   useEffect(() => {
-    if (dialogData && activeDialogId === dialogData.id && dialogData.dialogId !== activeDialogId) {
-      selectDialog(dialogData.dialogId);
-    }
+    const rawId = rawDialogIdToAdopt(activeDialogId, dialogData);
+    if (rawId) selectDialog(rawId);
   }, [dialogData, activeDialogId, selectDialog]);
 
   // ─── Create a fresh dialog and send into it (always-new) ──────────────────

@@ -68,11 +68,7 @@ export interface DialogConnection {
   };
 }
 
-export interface DialogsResponse {
-  data: {
-    dialogs: DialogConnection;
-  };
-}
+export type DialogsResponse = GraphQlResponse<{ dialogs: DialogConnection }>;
 
 /** The `dialog(id:)` envelope. `dialog` is `null` when the id resolves to
  *  nothing this user can open — the `mingo-dialog` queryFn tells that apart

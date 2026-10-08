@@ -5,6 +5,7 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
+import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
@@ -97,11 +98,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         variables,
       });
 
-      if (!response.ok || !response.data) {
-        throw new Error(response.error || 'Failed to fetch dialogs');
-      }
-
-      const { edges, pageInfo } = response.data.data.dialogs;
+      const { edges, pageInfo } = extractGraphQlData(response).dialogs;
       return {
         dialogs: edges.map(edge => edge.node),
         pageInfo,

@@ -5,6 +5,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
+import type { GraphQlResponse } from '../../tickets/utils/graphql';
+import { extractGraphQlData } from '../../tickets/utils/graphql';
 import {
   ARCHIVE_MINGO_DIALOG_MUTATION,
   GET_MINGO_DIALOGS_QUERY,
@@ -30,21 +32,11 @@ interface FetchArchivedResult {
 }
 
 async function runDialogMutation(query: string, variables: Record<string, unknown>, key: string): Promise<void> {
-  const response = await apiClient.post<{
-    data?: Record<string, DialogMutationPayload> | null;
-    errors?: Array<{ message: string }>;
-  }>('/chat/graphql', {
+  const response = await apiClient.post<GraphQlResponse<Record<string, DialogMutationPayload>>>('/chat/graphql', {
     query,
     variables,
   });
-  if (!response.ok || !response.data) {
-    throw new Error(response.error || 'Request failed');
-  }
-  // GraphQL errors (e.g. INVALID_ID) arrive with HTTP 200 and a null payload.
-  if (response.data.errors?.length) {
-    throw new Error(response.data.errors[0].message);
-  }
-  const payload = response.data.data?.[key];
+  const payload = extractGraphQlData(response)[key];
   if (payload?.userErrors?.length) {
     throw new Error(payload.userErrors[0].message);
   }
@@ -143,10 +135,7 @@ export function useMingoDialogActions() {
             search: params.search,
           },
         });
-        if (!response.ok || !response.data) {
-          throw new Error(response.error || 'Failed to fetch archived chats');
-        }
-        const { edges, pageInfo } = response.data.data.dialogs;
+        const { edges, pageInfo } = extractGraphQlData(response).dialogs;
         return {
           dialogs: edges.map(edge => ({
             id: edge.node.dialogId,
