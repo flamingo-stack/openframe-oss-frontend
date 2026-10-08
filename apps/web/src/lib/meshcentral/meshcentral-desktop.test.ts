@@ -84,3 +84,104 @@ describe('MeshDesktop.beginStream', () => {
     expect(canvas.width).not.toBe(800);
   });
 });
+
+describe('MeshDesktop displays', () => {
+  const ALL = 0xffff;
+
+  /** Display list (cmd 11): the ids, then the display the agent streams now. */
+  function displayList(ids: number[], selected: number): Uint8Array {
+    const words = [ids.length, ...ids, selected];
+    const size = 4 + words.length * 2;
+    return new Uint8Array([0x00, 0x0b, size >> 8, size & 0xff, ...words.flatMap(w => [w >> 8, w & 0xff])]);
+  }
+
+  /** Display locations (cmd 82): 10 bytes per display, x / y signed. */
+  function displayLocations(rects: Array<[id: number, x: number, y: number, w: number, h: number]>): Uint8Array {
+    const size = 4 + rects.length * 10;
+    const bytes = new Uint8Array(size);
+    const view = new DataView(bytes.buffer);
+    view.setUint16(0, 82);
+    view.setUint16(2, size);
+    rects.forEach(([id, x, y, w, h], i) => {
+      const at = 4 + i * 10;
+      view.setUint16(at, id);
+      view.setInt16(at + 2, x);
+      view.setInt16(at + 4, y);
+      view.setUint16(at + 6, w);
+      view.setUint16(at + 8, h);
+    });
+    return bytes;
+  }
+
+  /** The display ids the desktop asked the agent to switch to (cmd 12). */
+  function switches(frames: Uint8Array[]): number[] {
+    return frames.filter(f => f[1] === 0x0c).map(f => (f[4] << 8) | f[5]);
+  }
+
+  function connected() {
+    const canvas = document.createElement('canvas');
+    canvas.getContext = () => null;
+    const desktop = new MeshDesktop();
+    desktop.attachRenderOnly(canvas);
+    const frames: Uint8Array[] = [];
+    desktop.setSender(bytes => frames.push(bytes));
+    frames.length = 0;
+    const updates: Array<{ ids: number[]; current: number | null }> = [];
+    desktop.onDisplayListChange((list, current) => updates.push({ ids: list.map(d => d.id), current }));
+    return { desktop, frames, updates };
+  }
+
+  it('reads every display of a location message, with negative offsets, and takes the one at 0,0 as primary', async () => {
+    const { desktop } = connected();
+    await desktop.onBinaryFrame(
+      displayLocations([
+        [1, -1920, 0, 1920, 1080],
+        [2, 0, 0, 2560, 1440],
+        [3, 2560, -360, 1080, 1920],
+      ]),
+    );
+    expect(desktop.getDisplayList()).toEqual([
+      { id: 1, x: -1920, y: 0, w: 1920, h: 1080, primary: false },
+      { id: 2, x: 0, y: 0, w: 2560, h: 1440, primary: true },
+      { id: 3, x: 2560, y: -360, w: 1080, h: 1920, primary: false },
+    ]);
+  });
+
+  it('never lists the all-displays view and switches an agent streaming it to the primary display', async () => {
+    const { desktop, frames, updates } = connected();
+    await desktop.onBinaryFrame(
+      displayLocations([
+        [1, -1920, 0, 1920, 1080],
+        [2, 0, 0, 2560, 1440],
+      ]),
+    );
+    await desktop.onBinaryFrame(displayList([1, 2, ALL], ALL));
+    expect(desktop.getDisplayList().map(d => d.id)).toEqual([1, 2]);
+    expect(switches(frames)).toEqual([2]);
+    expect(updates.at(-1)).toEqual({ ids: [1, 2], current: 2 });
+  });
+
+  it('switches a fresh relay back to the display the technician picked', async () => {
+    const { desktop, frames } = connected();
+    await desktop.onBinaryFrame(displayList([1, 2, 3], 1));
+    desktop.switchDisplay(3);
+    desktop.beginStream();
+    await desktop.onBinaryFrame(displayList([1, 2, 3], 1));
+    expect(switches(frames)).toEqual([3, 3]);
+  });
+
+  it('follows the agent when it already streams the target and offers nothing to pick with one display', async () => {
+    const { desktop, frames, updates } = connected();
+    await desktop.onBinaryFrame(displayList([1], 1));
+    expect(switches(frames)).toEqual([]);
+    expect(updates.at(-1)).toEqual({ ids: [1], current: 1 });
+  });
+
+  it('ignores a location message whose size is not a whole number of displays', async () => {
+    const { desktop } = connected();
+    const torn = displayLocations([[1, 0, 0, 1920, 1080]]);
+    const header = new Uint8Array([0x00, 82, 0x00, 16]);
+    await desktop.onBinaryFrame(new Uint8Array([...header, ...torn.subarray(4), 0x00, 0x01]));
+    expect(desktop.getDisplayList()).toEqual([]);
+  });
+});
