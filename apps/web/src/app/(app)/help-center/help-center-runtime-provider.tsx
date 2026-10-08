@@ -24,6 +24,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { type ReactNode, useContext, useMemo } from 'react';
 import { CONTENT_ENDPOINTS } from './endpoints';
+import { HelpCenterAssistantRuntime } from './help-center-assistant-runtime';
 import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 
 // NOTE: the lib `PageShell`'s padding is overridden with OpenFrame's host grid
@@ -67,7 +68,10 @@ export function HelpCenterRuntimeProvider({ children }: { children: ReactNode })
   // (`CONTENT_ENDPOINTS` is a stable module constant; no memo needed.)
   return (
     <EndpointsRuntimeContext.Provider value={CONTENT_ENDPOINTS}>
-      <ChatRuntimeContext.Provider value={runtime}>{children}</ChatRuntimeContext.Provider>
+      <ChatRuntimeContext.Provider value={runtime}>
+        {/* The "Ask Mingo" card beside every FAQ of the subtree opens this app's own drawer. */}
+        <HelpCenterAssistantRuntime>{children}</HelpCenterAssistantRuntime>
+      </ChatRuntimeContext.Provider>
     </EndpointsRuntimeContext.Provider>
   );
 }
