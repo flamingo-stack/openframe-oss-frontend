@@ -67,8 +67,8 @@ function dashboardReturnUrl(): string {
   const port = window.location.port ? `:${window.location.port}` : '';
   const returnUrl =
     hostname === 'localhost' || hostname === '127.0.0.1'
-      ? `${protocol}//${hostname}${port}/dashboard`
-      : `${window.location.origin}/dashboard`;
+      ? `${protocol}//${hostname}${port}${routes.dashboard}`
+      : `${window.location.origin}${routes.dashboard}`;
   return encodeURIComponent(appendPosthogHandoff(returnUrl));
 }
 
@@ -185,6 +185,21 @@ export function useAuth() {
     setIsLoading(false);
   };
 
+  /**
+   * The organization exists but the sign-in that should follow it did not happen. Say so before
+   * showing the login screen: otherwise the obvious next move is a second registration, which
+   * fails on the address already being taken.
+   */
+  const signInToContinue = () => {
+    toast({
+      title: 'Organization Created',
+      description: 'Sign in with your email and password to continue.',
+      variant: 'success',
+    });
+    setIsLoading(false);
+    router.replace(routes.auth.login);
+  };
+
   const registerOrganization = async (data: RegisterRequest) => {
     setIsLoading(true);
 
@@ -234,8 +249,7 @@ export function useAuth() {
 
       if (!tenant?.id) {
         // The account exists, only the tenant to continue into is missing from the answer.
-        setIsLoading(false);
-        router.replace(routes.auth.login);
+        signInToContinue();
         return;
       }
 
@@ -246,16 +260,20 @@ export function useAuth() {
           await nativeLoginToDashboard({
             tenantId: tenant.id,
             provider: 'openframe',
-            tenantDomain: tenant.domain || undefined,
+            // 'localhost' is the request's stand-in for "no domain" (see above), not a host.
+            tenantDomain: tenant.domain && tenant.domain !== 'localhost' ? tenant.domain : undefined,
           });
         } catch (error) {
-          if (!isUserCanceled(error)) {
-            toast({
-              title: 'Login Failed',
-              description: error instanceof Error ? error.message : 'Unable to sign in',
-              variant: 'destructive',
-            });
+          if (isUserCanceled(error)) {
+            // Dismissing the sign-in sheet is deliberate, but the organization is already there.
+            signInToContinue();
+            return;
           }
+          toast({
+            title: 'Login Failed',
+            description: error instanceof Error ? error.message : 'Unable to sign in',
+            variant: 'destructive',
+          });
           setIsLoading(false);
           router.replace(routes.auth.login);
         }
