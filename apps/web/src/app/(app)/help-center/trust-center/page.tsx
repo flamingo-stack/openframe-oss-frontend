@@ -14,11 +14,15 @@ import { EP, HELP_CENTER_BASE } from '../endpoints';
  * EndpointsRuntime. `shell={false}` because `AppLayout` already provides the
  * page `<main>`.
  */
+/** The topic of the Trust Center FAQ's "Ask Mingo" card: the hub's general questions tagged `trust-center`. */
+const TRUST_CENTER_ASK = { topic: 'trust-center' } as const;
+
 export default function TrustCenterRoute() {
   return (
     <TrustCenterPage
       shell={false}
       endpoint={EP.trustCenter}
+      ask={TRUST_CENTER_ASK}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
     />
   );
