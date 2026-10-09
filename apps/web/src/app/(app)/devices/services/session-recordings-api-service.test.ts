@@ -111,6 +111,29 @@ describe('fromWireSession', () => {
     const files = session().recordings;
     expect(fromWireSession(session({ recordings: [files[0], { ...files[1], status: 'HELD' }] })).kept).toBe(true);
   });
+
+  it('reads a kept session as a playable one that is kept', () => {
+    const files = session().recordings.map(file => ({ ...file, status: 'HELD' }));
+    expect(
+      fromWireSession(session({ recordingState: 'KEPT', recordingExpiresAt: null, recordings: files })),
+    ).toMatchObject({ recordingState: 'ready', kept: true, recordingId: 'rec-1', expiresAt: null, sizeBytes: 150 });
+  });
+
+  it('keeps the original size of expired and deleted files', () => {
+    const [first, second] = session().recordings;
+    expect(fromWireSession(session({ recordings: [{ ...first, status: 'DELETED' }, second] })).sizeBytes).toBe(150);
+    expect(
+      fromWireSession(
+        session({
+          recordingState: 'EXPIRED',
+          recordings: [
+            { ...first, status: 'EXPIRED', downloadUrl: null },
+            { ...second, status: 'EXPIRED', downloadUrl: null },
+          ],
+        }),
+      ).sizeBytes,
+    ).toBe(150);
+  });
 });
 
 describe('SessionRecordingsApiService', () => {

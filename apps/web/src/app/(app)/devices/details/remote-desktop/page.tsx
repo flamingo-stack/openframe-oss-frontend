@@ -10,8 +10,7 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
 import {
-  ChatOffIcon,
-  ChatTextIcon,
+  ChatsIcon,
   Chevron02DownIcon,
   Collapse02Icon,
   Expand02Icon,
@@ -646,15 +645,15 @@ function RemoteDesktopSession() {
         className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         backButton={{ label: 'Back', onClick: handleBack }}
       >
-        <div className="flex flex-shrink-0 items-center justify-between gap-[var(--spacing-system-mf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+        <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
+          <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
             <Skeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
             <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-36" />
             </div>
           </div>
-          <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+          <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
             <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
             <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
             <Skeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
@@ -687,9 +686,9 @@ function RemoteDesktopSession() {
   }
 
   const deviceInfoBlock = (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
       <div className="flex-shrink-0 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)]">
-        <MonitorIcon className="h-4 w-4 text-ods-text-primary" />
+        <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
       </div>
       <div className="flex min-w-0 flex-col">
         <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
@@ -701,22 +700,19 @@ function RemoteDesktopSession() {
     </div>
   );
 
+  // Header per Figma 2155-109503 (desktop) / 2164-111246 (tablet): the device
+  // card and the buttons share one 80px row on desktop; below that the buttons
+  // drop to a row of their own. Chat, actions, fullscreen, settings - in that order.
   const controlsBar = (
     <div className="flex flex-shrink-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
-      <div className="flex items-center justify-between gap-[var(--spacing-system-mf)] px-[var(--spacing-system-mf)] py-[var(--spacing-system-xs)]">
+      <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
         {deviceInfoBlock}
-        <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
+        <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
           {chatDialogId && !sessionEnded && (
             <Button
               variant="outline"
               onClick={toggleChat}
-              leftIcon={
-                showChat ? (
-                  <ChatOffIcon className="h-4 w-4 md:h-6 md:w-6" />
-                ) : (
-                  <ChatTextIcon className="h-4 w-4 md:h-6 md:w-6" />
-                )
-              }
+              leftIcon={<ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />}
             >
               {showChat ? 'Close Chat' : 'Open Chat'}
             </Button>
@@ -725,16 +721,16 @@ function RemoteDesktopSession() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="Settings"
-            onClick={() => setSettingsOpen(true)}
-            leftIcon={<Settings01Icon />}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            onClick={isFullscreen ? exitFullscreen : enterFullscreen}
+            leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
           />
           <Button
             variant="outline"
             size="icon"
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            onClick={isFullscreen ? exitFullscreen : enterFullscreen}
-            leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
+            aria-label="Settings"
+            onClick={() => setSettingsOpen(true)}
+            leftIcon={<Settings01Icon />}
           />
         </div>
       </div>

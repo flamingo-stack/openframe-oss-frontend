@@ -1,8 +1,8 @@
 'use client';
 
 import { notFound, useSearchParams } from 'next/navigation';
-import { ContentErrorBoundary } from '@/app/components/shared';
-import { KnowledgeBaseView } from '../components/knowledge-base-view';
+import { KnowledgeBaseView } from '../components/item-list/knowledge-base-view';
+import { KnowledgeBasePageShell } from '../components/shared/knowledge-base-page-shell';
 
 export default function FolderPage() {
   const id = useSearchParams().get('id');
@@ -10,8 +10,9 @@ export default function FolderPage() {
     notFound();
   }
   return (
-    <ContentErrorBoundary title="Knowledge Base" message="Couldn't load this folder.">
-      <KnowledgeBaseView folderId={id} />
-    </ContentErrorBoundary>
+    <KnowledgeBasePageShell errorMessage="Couldn't load this folder." resetKey={id}>
+      {/* Keyed by id: the router reuses this segment when only `?id=` changes. */}
+      <KnowledgeBaseView key={id} folderId={id} />
+    </KnowledgeBasePageShell>
   );
 }

@@ -9,6 +9,7 @@ import {
   SquareAvatar,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
@@ -193,7 +194,7 @@ export function remoteSessionColumns({
     {
       id: REMOTE_SESSION_COLUMNS.expires.id,
       header: REMOTE_SESSION_COLUMNS.expires.header,
-      accessorFn: (row: RecordingSummary) => expiresFilterValue(row),
+      accessorFn: (row: RecordingSummary) => expiresFilterValue(row, now),
       cell: ({ row }: { row: Row<RecordingSummary> }) => <ExpiresCell row={row.original} now={now} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
@@ -201,32 +202,39 @@ export function remoteSessionColumns({
     },
     {
       id: REMOTE_SESSION_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<RecordingSummary> }) => (
-        <div
-          data-no-row-click
-          className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]"
-        >
-          <Button
-            variant="outline"
-            size="icon"
-            leftIcon={<TrashIcon className="h-6 w-6 text-ods-error" />}
-            aria-label="Delete recording"
-            disabled={!canDeleteSession(row.original)}
-            onClick={() => onDelete(row.original)}
-          />
-          {/* onClick, not `href`: the row itself is a link (rowHref), and an
+      cell: ({ row }: { row: Row<RecordingSummary> }) => {
+        const deletable = canDeleteSession(row.original);
+        return (
+          <div
+            data-no-row-click
+            className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]"
+          >
+            <Button
+              variant="outline"
+              size="icon"
+              // The glyph carries its own colour, so the disabled one dims to the
+              // design's dark red itself - the button's disabled tone does not reach it.
+              leftIcon={
+                <TrashIcon className={cn('h-6 w-6', deletable ? 'text-ods-error' : 'text-ods-error-secondary')} />
+              }
+              aria-label="Delete recording"
+              disabled={!deletable}
+              onClick={() => onDelete(row.original)}
+            />
+            {/* onClick, not `href`: the row itself is a link (rowHref), and an
               anchor nested in an anchor is invalid HTML (hydration error). */}
-          <Button
-            onClick={() => onOpen(row.original)}
-            variant="outline"
-            size="icon"
-            leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-            aria-label="Open session recording"
-            disabled={!canOpenSession(row.original)}
-            className="bg-ods-card"
-          />
-        </div>
-      ),
+            <Button
+              onClick={() => onOpen(row.original)}
+              variant="outline"
+              size="icon"
+              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+              aria-label="Open session recording"
+              disabled={!canOpenSession(row.original)}
+              className="bg-ods-card"
+            />
+          </div>
+        );
+      },
       enableSorting: false,
       meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
     },

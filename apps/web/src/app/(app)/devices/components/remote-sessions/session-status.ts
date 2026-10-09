@@ -15,14 +15,22 @@ export const EXPIRES_FILTER_OPTIONS: { id: ExpiresFilterValue; value: ExpiresFil
   { id: 'expired', value: 'expired', label: 'Expired' },
 ];
 
+const HOUR_MS = 60 * 60 * 1000;
+
+/** "Expiring" = deleted within this window - the same 7 days the server's EXPIRING filter uses. */
+export const EXPIRING_WINDOW_MS = 7 * 24 * HOUR_MS;
+
 /**
- * Which EXPIRES filter a row falls under; null for a row with nothing that
- * expires (processing, failed, deleted, not recorded), which no filter picks.
+ * Which EXPIRES filter a row falls under; null for a row no filter picks:
+ * nothing that expires (processing, failed, deleted, not recorded), or a
+ * recording with more than a week left.
  */
-export function expiresFilterValue(row: SessionRow): ExpiresFilterValue | null {
+export function expiresFilterValue(row: SessionRow, now: number): ExpiresFilterValue | null {
   if (row.kept) return 'kept';
   if (row.recordingState === 'expired') return 'expired';
-  if (row.recordingState === 'ready' && row.expiresAt) return 'expiring';
+  if (row.recordingState === 'ready' && row.expiresAt && Date.parse(row.expiresAt) - now < EXPIRING_WINDOW_MS) {
+    return 'expiring';
+  }
   return null;
 }
 
@@ -46,7 +54,17 @@ export function isRecordingGone(row: SessionRow): boolean {
   return row.recordingState === 'expired' || row.recordingState === 'deleted';
 }
 
-const HOUR_MS = 60 * 60 * 1000;
+/**
+ * Why the recording page has nothing to play, under "Session recording
+ * unavailable": a deleted or expired recording says so from its state, and
+ * "processing" is left for files that could not be fetched. Null while the
+ * recording may still play.
+ */
+export function recordingUnavailableNote(row: Pick<SessionRow, 'recordingState'>, fetchFailed: boolean): string | null {
+  if (row.recordingState === 'deleted') return 'This recording was deleted';
+  if (row.recordingState === 'expired') return 'This recording has expired';
+  return fetchFailed ? 'The video is still being processed, check back in a moment' : null;
+}
 
 /**
  * "Expires in N hours" under the expiry date once less than a day is left.

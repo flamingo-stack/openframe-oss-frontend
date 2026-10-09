@@ -20,7 +20,7 @@ import { PlayerControls } from './player-controls';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
-import { canDeleteSession } from './session-status';
+import { canDeleteSession, isRecordingGone, recordingUnavailableNote } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
@@ -59,6 +59,10 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const deleteRecording = useDeleteSessionRecording(recording?.deviceId ?? '');
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
+  // A deleted or expired recording has no files left to fetch: the page says
+  // so from the session's state instead of waiting on downloads that 410.
+  const gone = !!recording && isRecordingGone(recording);
+  const unavailableNote = recording ? recordingUnavailableNote(recording, unavailable) : null;
   // Delete lives in the "..." menu, for a recording the server would let go (not kept).
   const menuActions: ActionsMenuGroup[] =
     sessionRecordingsApiService.canDelete && recording && canDeleteSession(recording)
@@ -103,7 +107,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // refetch hands back an equal detail as a new object, and reloading the same
   // files into the player restarts playback for nothing. The player's own
   // callbacks are not stable across renders either, hence the effect event.
-  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const segmentsKey =
+    recording && !gone ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
   const loadFiles = useEffectEvent(async () => {
     if (!recording) return { failed: 0, total: 0 };
     const { failed } = await player.loadSegments(
@@ -114,7 +119,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   useEffect(() => {
     if (!segmentsKey) return undefined;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const { failed, total } = await loadFiles();
         if (!cancelled && failed > 0) {
@@ -188,7 +193,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
             >
               <RecordingPlayer
                 player={player}
-                unavailable={unavailable}
+                unavailableNote={unavailableNote}
                 className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
               />
               {/* No controls until a recording is actually loaded - the
