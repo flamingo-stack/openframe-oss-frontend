@@ -25,6 +25,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVICE_LOG_LIST_DEBOUNCE_MS } from '@/app/(app)/devices/hooks/use-deferred-log-list';
+import { DEVICE_LOG_SEARCH_DEBOUNCE_MS } from '@/app/(app)/devices/hooks/use-device-log-filters';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { TroubleshootingView } from './troubleshooting-view';
 
@@ -308,29 +309,36 @@ describe('TroubleshootingView', () => {
     expect(asked.at(-1)).toEqual(['DEBUG', 'INFO']);
   });
 
-  it('writes the search once the typing pauses, and asks for it once', async () => {
+  it('writes the search once the typing stops, not at a pause between words, and asks for it once', async () => {
     await mount('');
-    for (const value of ['d', 'di', 'dis', 'disk']) {
-      await act(async () => {
-        typeInto(searchInput(), value);
-        vi.advanceTimersByTime(100);
-      });
-    }
-    // Mid-word: the box shows every key, the URL has not been written.
+    const type = async (values: string[], gapMs: number) => {
+      for (const value of values) {
+        await act(async () => {
+          typeInto(searchInput(), value);
+          vi.advanceTimersByTime(gapMs);
+        });
+      }
+    };
+    // A word, then the kind of pause that comes before the next one.
+    await type(['d', 'di', 'dis', 'disk'], 100);
+    await act(async () => {
+      vi.advanceTimersByTime(300 - 100);
+    });
     expect(searchInput().value).toBe('disk');
     expect(spies.replace).not.toHaveBeenCalled();
 
+    await type(['disk ', 'disk f', 'disk fu', 'disk ful', 'disk full'], 100);
     await act(async () => {
-      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(DEVICE_LOG_SEARCH_DEBOUNCE_MS - 100);
     });
     expect(spies.replace).toHaveBeenCalledTimes(1);
-    expect(new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '').get('logSearch')).toBe('disk');
+    expect(new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '').get('logSearch')).toBe('disk full');
 
     await settle();
     const searched = spies.lazyLoadQuery.mock.calls
       .map(([, variables]) => (variables.filter as { contains?: string[] }).contains)
       .filter(contains => contains !== undefined);
-    expect(new Set(searched.map(contains => contains.join(' ')))).toEqual(new Set(['disk']));
+    expect(new Set(searched.map(contains => contains.join(' ')))).toEqual(new Set(['disk full']));
   });
 
   it('does not page the old list while the next one is on its way', async () => {

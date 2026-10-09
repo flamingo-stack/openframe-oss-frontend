@@ -57,6 +57,14 @@ export function deviceLogParamReset(defaultRange: DeviceLogPreset = DEFAULT_DEVI
 
 export const DEVICE_LOG_PARAM_RESET = deviceLogParamReset();
 
+/**
+ * How long the search box waits for the typing to stop before it writes the URL.
+ * As on Devices and Customers, whose searches are also server-side and heavy: each
+ * `deviceLogs` search is a Loki scan of the whole window, and a pause between two
+ * words should not send half a phrase.
+ */
+export const DEVICE_LOG_SEARCH_DEBOUNCE_MS = 500;
+
 /** The part of a `useApiParams` result the hook reads and writes; a wider schema fits. */
 export type DeviceLogParamsApi = Pick<
   UseApiParamsReturn<typeof DEVICE_LOG_PARAM_SCHEMA>,
@@ -121,7 +129,11 @@ export function useDeviceLogFilters(
   { defaultRange = DEFAULT_DEVICE_LOG_RANGE }: DeviceLogFiltersOptions = {},
 ): DeviceLogFilters {
   const searchParams = useSearchParams();
-  const { search, setSearch } = useSearchParam(params.logSearch, value => setParam('logSearch', value));
+  const { search, setSearch } = useSearchParam(
+    params.logSearch,
+    value => setParam('logSearch', value),
+    DEVICE_LOG_SEARCH_DEBOUNCE_MS,
+  );
 
   // Memoized for identity: `useDeferredQuery` tells a pending refetch apart by reference.
   const parsedSearch = useMemo(() => parseDeviceLogSearch(params.logSearch), [params.logSearch]);
