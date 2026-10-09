@@ -2,13 +2,13 @@
 
 import { InfoCard, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
+import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
 import { getAgentFooter } from '../../utils/agent-footer';
-import { getDeviceStatusConfig } from '../../utils/device-status';
 import { getToolConnectionDisplayStatus, type ToolConnectionDisplayStatus } from '../../utils/tool-connection-status';
 import { TabEmptyState } from './tab-empty-state';
 

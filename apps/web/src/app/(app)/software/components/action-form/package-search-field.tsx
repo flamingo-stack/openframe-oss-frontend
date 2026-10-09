@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  PACKAGE_SEARCH_LABEL,
+  PACKAGE_SEARCH_PLACEHOLDER,
+  type SelectedPackage,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Autocomplete, type AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useDeferredValue, useState } from 'react';
@@ -10,7 +15,6 @@ import type {
 } from '@/__generated__/packageSearchFieldQuery.graphql';
 import { BrewPackageType, type PackageManagerType } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
-import { PACKAGE_SEARCH_LABEL, PACKAGE_SEARCH_PLACEHOLDER } from './package-search-field-placeholder';
 
 /**
  * Package-manager catalog search (Homebrew / Chocolatey / winget). An empty search lists the
@@ -40,15 +44,6 @@ const SEARCH_LIMIT = 25;
 const NOT_YET = null;
 
 type SearchItem = NonNullable<packageSearchFieldQuery$data['searchPackages']>['edges'][number]['node'];
-
-/** A catalog package the user picked — kept whole so the row can show its description and version. */
-export interface SelectedPackage {
-  id: string;
-  name: string;
-  description: string | null;
-  version: string | null;
-  packageType: BrewPackageType | null;
-}
 
 function toSelectedPackage(item: SearchItem): SelectedPackage {
   return {

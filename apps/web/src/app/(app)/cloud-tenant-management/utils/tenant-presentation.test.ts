@@ -2,6 +2,12 @@
 // enum value has a non-empty answer, and an unknown value (a backend ahead of the SDL)
 // degrades to a neutral rendering instead of a crash.
 
+import {
+  accessStateTag,
+  formatLastRead,
+  lastReadAt,
+  usersCountLabel,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DirectoryAccessState,
@@ -14,7 +20,6 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
 import {
   accessStateHint,
-  accessStateTag,
   capabilityLabels,
   checkResultTag,
   consentAlert,
@@ -22,13 +27,10 @@ import {
   consentIssueReport,
   consentIssueTag,
   formatConnectedAt,
-  formatLastRead,
   isReadable,
-  lastReadAt,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
   providerPresentation,
-  usersCountLabel,
 } from './tenant-presentation';
 
 const access = (state: DirectoryAccessState) => ({ state });

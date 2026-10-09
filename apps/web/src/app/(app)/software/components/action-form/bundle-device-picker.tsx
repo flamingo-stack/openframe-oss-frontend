@@ -1,11 +1,16 @@
 'use client';
 
+import {
+  type DeviceFilterInput,
+  type DeviceSelectorNarrowing,
+  EMPTY_NARROWING,
+  narrowingToFilter,
+  type SubTab,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ContentErrorBoundary } from '@/app/components/shared';
-import type { DeviceSelectorNarrowing, SubTab } from '@/app/components/shared/device-selector/device-selector.types';
-import { EMPTY_NARROWING, narrowingToFilter } from '@/app/components/shared/device-selector/picker-narrowing';
 import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { BundlePickerLists } from './bundle-picker-lists';

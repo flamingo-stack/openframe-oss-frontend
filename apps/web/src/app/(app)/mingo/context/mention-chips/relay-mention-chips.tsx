@@ -1,4 +1,5 @@
 'use client';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { type ReactNode, Suspense } from 'react';
 /**
  * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
@@ -39,7 +40,6 @@ import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChi
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentionChipsSoftwareQuery.graphql';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';

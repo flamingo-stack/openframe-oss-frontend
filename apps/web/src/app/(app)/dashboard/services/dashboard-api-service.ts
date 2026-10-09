@@ -1,8 +1,8 @@
 'use client';
 
+import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { apiClient } from '@/lib/api-client';
 import { EMPTY_VALUE } from '@/lib/empty-value';
-import { DEFAULT_DASHBOARD_STATUSES, DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { fetchDeviceStatusCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { API_ENDPOINTS } from '../../tickets/constants';

@@ -1,11 +1,13 @@
 'use client';
 
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  type DeviceFilterInput,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo } from 'react';
 import { useSearchParam } from '@/app/hooks/use-search-param';
-import { DEFAULT_DEVICES_LIST_STATUSES } from '../constants/device-statuses';
-import type { DeviceFilterInput } from '../types/device.types';
 
 interface UseDevicesUrlParamsOptions {
   /**

@@ -1,8 +1,9 @@
 'use client';
 
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAllDevices } from '../queries/devices-api';
-import type { Device, DeviceFilterInput } from '../types/device.types';
+import type { Device } from '../types/device.types';
 import { deviceQueryKeys } from '../utils/query-keys';
 
 const EMPTY_DEVICES: Device[] = [];

@@ -1,5 +1,10 @@
 'use client';
 
+import type {
+  DeviceFilterInput,
+  DeviceSelectorNarrowing,
+  SubTab,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   bundlePickerLists_assigned$data as AssignedFragmentData,
@@ -13,10 +18,9 @@ import type { bundlePickerListsAssignedPaginationQuery as AssignedPaginationQuer
 import type { bundlePickerListsAssignedQuery as AssignedQueryType } from '@/__generated__/bundlePickerListsAssignedQuery.graphql';
 import type { bundlePickerListsAvailablePaginationQuery as AvailablePaginationQueryType } from '@/__generated__/bundlePickerListsAvailablePaginationQuery.graphql';
 import type { bundlePickerListsAvailableQuery as AvailableQueryType } from '@/__generated__/bundlePickerListsAvailableQuery.graphql';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { useRetryKey } from '@/app/components/shared';
 import type { AssignmentOwner } from '@/app/components/shared/device-selector/assignment-updaters';
-import type { DeviceSelectorNarrowing, SubTab } from '@/app/components/shared/device-selector/device-selector.types';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';

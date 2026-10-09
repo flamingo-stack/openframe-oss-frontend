@@ -10,7 +10,11 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
-import { WarningBlock } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  getDeviceName,
+  getDeviceStatusConfig,
+  WarningBlock,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -20,8 +24,6 @@ import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
-import { getDeviceName } from '../utils/device-name';
-import { getDeviceStatusConfig } from '../utils/device-status';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';

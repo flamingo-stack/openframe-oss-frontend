@@ -1,5 +1,6 @@
 'use client';
 
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   Copy01Icon,
@@ -31,7 +32,6 @@ import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';

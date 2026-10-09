@@ -1,6 +1,6 @@
 'use client';
 
-import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DeviceTypeTile, OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   BracketCurlyEllipsisVrIcon,
@@ -18,7 +18,6 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
-import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';

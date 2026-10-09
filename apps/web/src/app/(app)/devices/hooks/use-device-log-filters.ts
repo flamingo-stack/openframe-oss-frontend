@@ -57,10 +57,18 @@ export function deviceLogParamReset(defaultRange: DeviceLogPreset = DEFAULT_DEVI
 
 export const DEVICE_LOG_PARAM_RESET = deviceLogParamReset();
 
+/**
+ * How long the search box waits for the typing to stop before it writes the URL.
+ * As on Devices and Customers, whose searches are also server-side and heavy: each
+ * `deviceLogs` search is a Loki scan of the whole window, and a pause between two
+ * words should not send half a phrase.
+ */
+export const DEVICE_LOG_SEARCH_DEBOUNCE_MS = 500;
+
 /** The part of a `useApiParams` result the hook reads and writes; a wider schema fits. */
 export type DeviceLogParamsApi = Pick<
   UseApiParamsReturn<typeof DEVICE_LOG_PARAM_SCHEMA>,
-  'params' | 'pendingParams' | 'setParam' | 'setParams'
+  'pendingParams' | 'setParam' | 'setParams'
 >;
 
 export interface DeviceLogFiltersOptions {
@@ -106,44 +114,40 @@ function levelsOf(values: readonly string[]): DeviceLogLevel[] {
  * device's Device Logs tab and the Troubleshooting page: which devices the
  * list reads is the caller's, everything about *which lines* is here.
  *
- * The controls show `pendingParams`, the last write's intent, and the query
- * follows `params`, the URL: a pick repaints the control at once instead of a
- * router round trip later, while the list still changes exactly once per URL.
+ * The controls AND the query read `pendingParams`, the last write's intent, not
+ * `params`, the URL. Next commits a URL write inside a transition, and a list
+ * that suspends in that transition holds the commit until its data lands: read
+ * from the URL, a pick froze the controls and the list for as long as the query
+ * took, and `useDeferredQuery` never reported it pending (`useDeferredValue`
+ * does not defer inside a transition). Read from the intent, a pick is an urgent
+ * update: the controls repaint at once, and the list keeps its rows, marked
+ * pending, until the next ones arrive. The URL only mirrors the intent for
+ * links and back/forward, which reach `pendingParams` once nothing is in flight.
  */
 export function useDeviceLogFilters(
-  { params, pendingParams, setParam, setParams }: DeviceLogParamsApi,
+  { pendingParams: params, setParam, setParams }: DeviceLogParamsApi,
   { defaultRange = DEFAULT_DEVICE_LOG_RANGE }: DeviceLogFiltersOptions = {},
 ): DeviceLogFilters {
   const searchParams = useSearchParams();
-  const { search, setSearch } = useSearchParam(params.logSearch, value => setParam('logSearch', value));
+  const { search, setSearch } = useSearchParam(
+    params.logSearch,
+    value => setParam('logSearch', value),
+    DEVICE_LOG_SEARCH_DEBOUNCE_MS,
+  );
 
   // Memoized for identity: `useDeferredQuery` tells a pending refetch apart by reference.
   const parsedSearch = useMemo(() => parseDeviceLogSearch(params.logSearch), [params.logSearch]);
   const selectedLevels = useMemo(() => levelsOf(params.logLevels), [params.logLevels]);
-  const urlRange: DeviceLogRange = isDeviceLogRange(params.logRange) ? params.logRange : defaultRange;
+  const range: DeviceLogRange = isDeviceLogRange(params.logRange) ? params.logRange : defaultRange;
   const customRange = useMemo(() => dateRangeFromParams(params.logFrom, params.logTo), [params.logFrom, params.logTo]);
-
-  // The same three as the controls draw them: the intent while a write is in flight, the URL otherwise.
-  const shownLevels = useMemo(() => levelsOf(pendingParams.logLevels), [pendingParams.logLevels]);
-  const shownRange: DeviceLogRange = isDeviceLogRange(pendingParams.logRange) ? pendingParams.logRange : defaultRange;
-  const shownCustomRange = useMemo(
-    () => dateRangeFromParams(pendingParams.logFrom, pendingParams.logTo),
-    [pendingParams.logFrom, pendingParams.logTo],
-  );
 
   // "Now" is fixed per list and read in events only, so a preset's window does not slide on every render.
   // Refresh moves it, and so does the `refresh` stamp "View Device Logs" sets after a script run.
   const [refreshedAt, setRefreshedAt] = useState(() => Date.now());
   const anchor = Math.max(refreshedAt, Number(searchParams.get('refresh')) || 0);
-  // A preset's URL lands a router round trip after the click; the anchor moves with it, so the change is one request.
-  const [pendingAnchor, setPendingAnchor] = useState<{ range: DeviceLogRange; at: number } | null>(null);
-  if (pendingAnchor !== null && pendingAnchor.range === urlRange) {
-    setPendingAnchor(null);
-    setRefreshedAt(pendingAnchor.at);
-  }
 
   const filter = useMemo<DeviceLogsFilter>(() => {
-    const next: DeviceLogsFilter = deviceLogRangeBounds(urlRange, customRange, anchor, defaultRange);
+    const next: DeviceLogsFilter = deviceLogRangeBounds(range, customRange, anchor, defaultRange);
     // Every level on and every level off both mean "send no levels".
     if (selectedLevels.length > 0 && selectedLevels.length < DEVICE_LOG_LEVELS.length) next.levels = selectedLevels;
     if (parsedSearch.error === null) {
@@ -151,19 +155,20 @@ export function useDeviceLogFilters(
       if (parsedSearch.excludes.length > 0) next.excludes = parsedSearch.excludes;
     }
     return next;
-  }, [urlRange, customRange, anchor, defaultRange, selectedLevels, parsedSearch]);
+  }, [range, customRange, anchor, defaultRange, selectedLevels, parsedSearch]);
 
   // A range that ended before this list was made cannot grow, so there is nothing to tail.
   const rangeClosed = filter.to != null && (parseInstant(filter.to)?.getTime() ?? Infinity) <= anchor;
-  const hasFilters = shownLevels.length > 0 || search !== '' || shownRange !== defaultRange;
+  const hasFilters = selectedLevels.length > 0 || search !== '' || range !== defaultRange;
 
   const toggleLevel = (level: DeviceLogLevel) => {
-    const on = shownLevels.length === 0 ? [...DEVICE_LOG_LEVELS] : shownLevels;
+    const on = selectedLevels.length === 0 ? [...DEVICE_LOG_LEVELS] : selectedLevels;
     const next = on.includes(level) ? on.filter(item => item !== level) : [...on, level];
     setParam('logLevels', next.length === DEVICE_LOG_LEVELS.length ? [] : next);
   };
   const changeRange = (next: DeviceLogRange) => {
-    setPendingAnchor({ range: next, at: Date.now() });
+    // The window counts back from the pick; both updates land in one render, so the change is one request.
+    setRefreshedAt(Date.now());
     setParams({ logRange: next, ...(next === 'custom' ? {} : { logFrom: '', logTo: '' }) });
   };
   const changeCustomRange = (next: DateRange | undefined) => {
@@ -182,11 +187,11 @@ export function useDeviceLogFilters(
     search,
     setSearch,
     searchError: parsedSearch.error,
-    selectedLevels: shownLevels,
+    selectedLevels,
     toggleLevel,
-    range: shownRange,
+    range,
     changeRange,
-    customRange: shownCustomRange,
+    customRange,
     changeCustomRange,
     pickerBounds: deviceLogPickerBounds(anchor),
     filter,
