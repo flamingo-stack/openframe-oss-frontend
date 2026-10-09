@@ -169,6 +169,11 @@ enum BillingMetricType {
 enum BillingPeriod {
   MONTHLY
   YEARLY
+  """
+  Bought outright rather than on a cycle: the period of a prepaid package, which is paid for once and
+  lasts until it is spent. A plan that holds one cannot be serialized at all without this value.
+  """
+  UNLIMITED
 }
 
 """ --- Billing Plan (detailed) ---"""
@@ -267,6 +272,19 @@ input CancelSubscriptionInput {
 input CheckoutInput {
   products: [ProductCheckoutInput!]!
   discountCode: String
+  """
+  Whether to keep the bank topped up automatically once the subscription is running. A switch and
+  nothing else: what it charges is the token amount above, and the level it fires at is a fifth of
+  that. Set when the checkout completes, so a checkout that is abandoned leaves no arrangement behind.
+  """
+  autoTopUpEnabled: Boolean
+  """
+  Money to put towards AI tokens as part of this checkout. Required, and at least the configured
+  minimum, unless the requirement is switched off by configuration: a subscription that starts with an
+  empty bank can use AI only until its free grant runs out. The amount is charged on the checkout's own
+  invoice, and the tokens land when it is paid.
+  """
+  tokenAmountUsd: Float
 }
 
 """ --- Subscription / Checkout ---"""
@@ -306,6 +324,11 @@ input CreateArticleInput {
   assignedDeviceIds: [ID!]
   assignedTicketIds: [ID!]
   assignedKnowledgeArticleIds: [ID!]
+
+  """
+  Ids of temp attachments, already uploaded, to attach to the new article.
+  """
+  attachmentTempIds: [ID!]
 }
 
 input CreateDirectoryConnectionInput {
@@ -546,6 +569,12 @@ type DeviceLogEntry {
   """ When the agent wrote the line"""
   level: String!
   message: String!
+
+  """ Device the line came from"""
+  machineId: String
+
+  """ Organization of the device, when its agent sends it"""
+  organizationId: String
   hostname: String
   count: Long
 }
@@ -563,7 +592,7 @@ input DeviceLogFilterInput {
   """ None of these may appear in the message; same matching and limits"""
   from: Instant
 
-  """ Inclusive; defaults to 7 days before `to`"""
+  """ Inclusive; defaults to 7 days before `to`, or 24 hours when no device is named"""
   to: Instant
 }
 
@@ -1518,6 +1547,12 @@ input KnowledgeBaseFilterInput {
   parentId: ID
   type: KnowledgeBaseItemType
   tagIds: [ID]
+
+  """
+  How far below parentId to look, for folders and articles alike. Omitted: CHILDREN, or
+  DESCENDANTS when the listing carries a search or tagIds.
+  """
+  scope: KnowledgeBaseScope
 }
 
 type KnowledgeBaseItem implements AssignableTarget & Node {
@@ -1525,6 +1560,9 @@ type KnowledgeBaseItem implements AssignableTarget & Node {
   type: KnowledgeBaseItemType!
   name: String!
   parentId: ID
+
+  """The folder this item is in; null at the root level."""
+  parent: KnowledgeBaseItem
   slug: String
   sortOrder: Int
   content: String
@@ -1562,6 +1600,21 @@ type KnowledgeBaseItemEdge {
 enum KnowledgeBaseItemType {
   FOLDER
   ARTICLE
+}
+
+"""
+The reach of a knowledgeBaseItems listing. An absent parentId cannot say it on its own: it already
+means the root level, so it cannot also mean every level. In both scopes folders come first, by
+name (case-insensitive, digits by value), then articles, most recently updated first.
+"""
+enum KnowledgeBaseScope {
+  """The items directly under parentId; the root level when there is none."""
+  CHILDREN
+
+  """
+  Everything under parentId at any depth; the whole knowledge base when there is none.
+  """
+  DESCENDANTS
 }
 
 type KnowledgeBaseTempAttachmentPayload {
@@ -1705,6 +1758,15 @@ type Machine implements Node & AssignableTarget {
   Server-resolved: the device page and the Remote Control entry point read effectiveMode from here.
   """
   remoteAccess: DeviceRemoteAccess!
+  """
+  False when no enabled package manager can ever work on this device. Software Management then hides it
+  from device pickers and skips it at dispatch; inventory and vulnerabilities still show it.
+  """
+  softwareManagementSupported: Boolean!
+  """
+  Package managers as last reported by the device agent. Null until the first report.
+  """
+  packageManagers: MachinePackageManagers
 }
 
 type Mutation {
@@ -2223,6 +2285,27 @@ type Mutation {
   Delete this tenant's Stripe test clock (dev/stage only). Cascades to delete the customer, resetting the tenant to trial.
   """
   resetTestClock: Boolean!
+  """
+  Sets the standing arrangement to top the token bank up automatically.
+  
+  Enabling requires a threshold, and the amount must exceed it — a refill that landed back on the level
+  that triggered it would fire again on the very next pass. Never fires on a trial, where there is no
+  card to charge, and is not gated by outstanding invoices, because it buys a one-off pack rather than
+  changing a subscription.
+  """
+  updateAutoTopUp(input: AutoTopUpSettingsInput!): AutoTopUpSettings!
+  """
+  Buy AI tokens for the given amount in USD. The amount must be a whole number of dollars and at
+  least the configured minimum; the backend converts it to a quantity at the current tiered price
+  and raises an invoice for it. Tokens are credited only once that invoice is paid, so the value
+  returned is where the customer goes to pay it.
+  
+  Available to a tenant that has run out of tokens: hitting the AI budget stops AI, not the purchase
+  that lifts it. Not available while the subscription itself is blocked — past due, suspended,
+  cancelled, or an expired trial — because we do not sell more to a tenant that already owes: settle
+  first, then buy.
+  """
+  purchaseTokens(amountUsd: Float!): TokenPurchase!
 }
 
 input MutationDeleteInput {
@@ -2699,7 +2782,7 @@ type PendingInvoice {
   dueDate: Instant
 
   """Long-lived Stripe-hosted URL where the customer can pay."""
-  hostedInvoiceUrl: String!
+  hostedInvoiceUrl: String
 
   """
   Human-readable Stripe invoice number (e.g. "ABCD-0001"). Null for legacy entries not yet reconciled.
@@ -3081,9 +3164,16 @@ type Query {
   """One bundle by id. Null when it does not exist (or was already reaped)."""
   softwareBundle(id: ID!): SoftwareBundle
 
-  " Agent logs of one device, newest first, always scoped to the current tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
+  " Agent logs, newest first, always scoped to the current tenant.\n Name devices with `machineIds`, or omit it to follow every device in the tenant.\n Paginate with first/after (older entries); re-query without `after` to pick up newer ones."
   deviceLogs(
-    machineId: String!
+    machineId: String @deprecated(reason: "Use machineIds; a value given here is added to that list")
+
+    """ 1-50 devices. Omit for every device in the tenant; an empty list is rejected"""
+    machineIds: [String!]
+
+    """ 1-50 organizations (customers) of this tenant; with machineIds, lines must match both. Omit for every organization; an empty list is rejected. Only matches lines from agents that send their organization
+    """
+    organizationIds: [String!]
     filter: DeviceLogFilterInput
     first: Int
 
@@ -3266,6 +3356,10 @@ type Query {
   """
   testClockTime: TestClockResult
   _service: _Service!
+  """
+  The standing automatic top-up arrangement, including why the system switched it off if it did.
+  """
+  autoTopUpSettings: AutoTopUpSettings!
 }
 
 enum RemoteAccessDecisionSource {
@@ -3432,6 +3526,83 @@ enum RemoteAccessFallback {
   DENY
   ALLOW_WITH_NOTIFICATION
   ALLOW_SILENTLY
+}
+
+"""
+PRESENT — installed. MISSING — installable, the platform bootstraps it. UNSUPPORTED — can never run on this
+device (architecture, edition, build or another OS). UNKNOWN — the agent's probe failed.
+"""
+enum PackageManagerState {
+  PRESENT
+  MISSING
+  UNSUPPORTED
+  UNKNOWN
+}
+
+"""
+Per-manager state reported by the agent. A manager of another OS reads as UNSUPPORTED.
+"""
+type MachinePackageManagers {
+  brew: PackageManagerState
+  winget: PackageManagerState
+  choco: PackageManagerState
+}
+
+"""
+The arrangement to set. The amount must exceed the threshold, and both are whole dollars.
+"""
+input AutoTopUpSettingsInput {
+  enabled: Boolean!
+  amountUsd: Float
+  thresholdUsd: Float
+}
+
+"""
+The standing arrangement to buy more tokens before the bank empties.
+
+Fires on the threshold rather than on zero: a refill that begins at zero arrives after the thing it was
+meant to prevent, with AI already stopped. Both figures are validated exactly as a manual purchase is.
+"""
+type AutoTopUpSettings {
+  """
+  Whether the system may charge the card on file when the bank falls below the threshold.
+  """
+  enabled: Boolean!
+
+  """What one automatic top-up charges, in USD."""
+  amountUsd: Float
+
+  """The level the bank may fall to before the next pack is bought, in USD."""
+  thresholdUsd: Float
+
+  """
+  The same threshold in tokens, converted at the prices in force when it was saved.
+  """
+  thresholdTokens: Long
+
+  """
+  Set only when the system switched the arrangement off; null when the customer did.
+  """
+  disabledReason: AutoTopUpDisabledReason
+
+  """
+  Where to send the customer to add a card, set only when the arrangement was refused for want of one.
+  
+  Automatic charges need a payment method that works with nobody present, which a wallet is not. When
+  there is none, nothing is saved: the rest of this type describes what will be armed once the customer
+  returns from this page, not what is armed now.
+  """
+  paymentMethodSetupUrl: String
+}
+
+"""
+Why the system switched automatic top-up off. Absent when the customer switched it off itself.
+"""
+enum AutoTopUpDisabledReason {
+  """
+  The card declined an automatic charge. One charge, one outcome — it is never retried.
+  """
+  PAYMENT_FAILED
 }
 
 """
@@ -4587,7 +4758,7 @@ type SubscriptionDetail {
   Full history of the tenant's Stripe invoices, newest first. Each carries a `status`; the ones still
   awaiting payment are those with status OPEN. Empty only when the tenant has no invoices at all.
   """
-  pendingInvoices: [PendingInvoice!]!
+  pendingInvoices: [PendingInvoice!]
 
   """Aggregated usage for the current billing period."""
   usage: SubscriptionUsage!
@@ -4607,6 +4778,12 @@ type SubscriptionDetail {
   a real cap: nothing beyond the free tokens may be spent.
   """
   aiSpendCapUsd: Float
+  """
+  When the invoice for the period that just closed must be paid, while it is still unpaid. Empty when
+  nothing is outstanding — everything settled, or the invoice not issued yet — and empty for a
+  subscription Stripe charges itself, which asks nobody for anything and so has no date to meet.
+  """
+  invoiceDueDate: Date
 }
 
 type SubscriptionDiscount {
@@ -4702,6 +4879,17 @@ type SubscriptionUsage {
   What the AI overage accrued so far costs, in USD. This is what aiSpendCapUsd is measured against.
   """
   aiSpendUsd: Float!
+  """
+  What those tokens are worth, priced at the rate each pack was bought at and excluding tax. Zero
+  whenever purchasedTokensRemaining is, so the two never contradict each other.
+  """
+  purchasedTokensRemainingUsd: Float!
+  """
+  Prepaid tokens still available, net of anything owed, and never below zero: a tenant that kept working
+  through an automatic top-up has nothing left to spend rather than a negative amount of it. What it owes
+  is settled by the next purchase and is not reported here.
+  """
+  purchasedTokensRemaining: Long!
 }
 
 """ Tag key definition (shared across all entity types)"""
@@ -5011,12 +5199,45 @@ enum UpdateAction {
   CANCEL
 }
 
+"""
+One save of an article — everything the edit form can change, in a single mutation. A field left
+out (or null) is not touched; an empty list means none.
+"""
 input UpdateArticleInput {
   id: ID!
   name: String
+
+  """
+  The folder to move the article into. Null leaves it where it is — see moveToRoot.
+  """
   parentId: ID
+
+  """
+  True moves the article to the root level, which a null parentId cannot ask for.
+  """
+  moveToRoot: Boolean
   content: String
   summary: String
+
+  """
+  DRAFT or PUBLISHED sets that status, restoring an archived article on the way; ARCHIVED archives it.
+  """
+  status: KnowledgeBaseArticleStatus
+
+  """The tags the article has after the save."""
+  tagIds: [ID!]
+
+  """The assignments of each kind the article has after the save."""
+  assignedOrganizationIds: [ID!]
+  assignedDeviceIds: [ID!]
+  assignedTicketIds: [ID!]
+  assignedKnowledgeArticleIds: [ID!]
+
+  """Ids of temp attachments, already uploaded, to attach."""
+  attachmentTempIds: [ID!]
+
+  """Ids of this article's attachments to delete."""
+  deleteAttachmentIds: [ID!]
 }
 
 input UpdateDirectoryConnectionInput {
@@ -5305,6 +5526,18 @@ scalar _FieldSet
 
 type _Service {
   sdl: String!
+}
+
+"""What a token purchase left the customer with: an invoice to pay."""
+type TokenPurchase {
+  """Tokens the amount bought at the price in force when it was quoted."""
+  tokens: Long!
+
+  """Amount charged, in USD, excluding tax."""
+  amountUsd: Float!
+
+  """Where the customer pays the invoice. Tokens land once it is paid."""
+  paymentUrl: String!
 }
 
 """
