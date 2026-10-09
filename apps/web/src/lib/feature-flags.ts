@@ -52,6 +52,11 @@ export const FEATURE_FLAG_NAMES = [
   // instead of the overlay drawer, the page laying out by the room it leaves
   // (`content-md:` / `content-lg:`). Off = the overlay drawer.
   'mingo-v2',
+  // "Show All Customers" on Settings → Troubleshooting, over
+  // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
+  // report their customer, so the control stays hidden until the agents do. On
+  // for dev / qa, absent elsewhere, which reads as off.
+  'device-logs-customer-filter',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

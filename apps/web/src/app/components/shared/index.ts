@@ -28,6 +28,7 @@ export {
   TableSkeleton,
 } from './page-skeleton-primitives';
 export { PoliciesTable, type PoliciesTableProps } from './policies-table/policies-table';
+export { QueryIsland } from './query-island';
 export type {
   PolicyStatusVariant,
   PolicyTableAction,
