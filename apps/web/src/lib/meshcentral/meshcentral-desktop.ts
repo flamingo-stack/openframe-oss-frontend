@@ -744,8 +744,15 @@ export class MeshDesktop implements DesktopInputHandlers {
    * technician's pick while the agent still lists it, the primary otherwise.
    * Runs on every list or location update, so a fresh relay (whose agent starts
    * on its own default) is switched back to that display.
+   *
+   * One display leaves nothing to switch. The Windows agent names its only
+   * monitor 1 in the location message but lists "no displays, streaming 0", so
+   * the two never agree - and each switch asks for a refresh, which the agent
+   * answers with a screen reset and both messages again: the picture flickers
+   * for as long as the session lasts.
    */
   private applyTargetDisplay() {
+    if (this.displayList.length <= 1) return;
     const listed = (id: number | null) => id !== null && this.displayList.some(d => d.id === id);
     const target = listed(this.requestedDisplay)
       ? this.requestedDisplay

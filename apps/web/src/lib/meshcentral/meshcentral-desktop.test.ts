@@ -170,6 +170,18 @@ describe('MeshDesktop displays', () => {
     expect(switches(frames)).toEqual([3, 3]);
   });
 
+  it('never switches a one-monitor Windows agent, which names its display 1 but lists none and streams 0', async () => {
+    const { desktop, frames } = connected();
+    desktop.beginStream();
+    // The agent sends both messages on every display list and every refresh.
+    for (let i = 0; i < 3; i++) {
+      await desktop.onBinaryFrame(displayLocations([[1, 0, 0, 1920, 1080]]));
+      await desktop.onBinaryFrame(displayList([], 0));
+    }
+    expect(switches(frames)).toEqual([]);
+    expect(frames.filter(f => f[1] === 0x06)).toEqual([]);
+  });
+
   it('follows the agent when it already streams the target and offers nothing to pick with one display', async () => {
     const { desktop, frames, updates } = connected();
     await desktop.onBinaryFrame(displayList([1], 1));
