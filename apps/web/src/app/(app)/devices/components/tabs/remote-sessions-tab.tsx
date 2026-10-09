@@ -1,12 +1,6 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import {
-  ArrowRightUpIcon,
-  ComputerMouseIcon,
-  Filter02Icon,
-  TrashIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ComputerMouseIcon, Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -15,31 +9,26 @@ import {
   type DateFilterResult,
   type DateRange,
   FilterModal,
-  type Row,
   SearchInput,
   type SortDirection,
   type SortingState,
-  SquareAvatar,
-  TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
-import { ValueText } from '@/app/components/shared/value-text';
+import type { TableDateFilter } from '@/app/components/shared/date-column-header';
+import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
-import { formatDate, formatDateTime, formatTime } from '@/lib/format-date';
+import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
-import { multiSelectFilterFn } from '@/lib/table-filters';
 import { useDeleteSessionRecording, useSessionRecordings } from '../../hooks/use-session-recordings';
-import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
-import { formatBytes, formatDurationMs } from '../remote-sessions/format';
+import { remoteSessionColumns } from '../remote-sessions/remote-session-columns';
+import { canOpenSession, EXPIRES_FILTER_OPTIONS } from '../remote-sessions/session-status';
 import { REMOTE_SESSION_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
@@ -53,27 +42,42 @@ const EMPTY_COLUMN_FILTERS: ColumnFiltersState = [];
 /** Newest session first, like every history list on the device page. */
 const DEFAULT_SORTING: SortingState = [{ id: REMOTE_SESSION_COLUMNS.session.id, desc: true }];
 
-function employeeInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
 /** The page a row opens: the session's recording, when it has one to play. */
 function recordingHref(row: RecordingSummary): string | null {
-  return row.recordingId ? routes.devices.remoteSessionRecording(row.recordingId) : null;
+  return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
 }
+
+/**
+ * The empty table's line, by what narrowed it: the search, the session date
+ * range, or a column funnel (EMPLOYEE / EXPIRES). Only a list with nothing
+ * narrowing it says sessions will appear here.
+ */
+export function emptyDescription({
+  search,
+  hasDateRange,
+  hasColumnFilters,
+}: {
+  search: string;
+  hasDateRange: boolean;
+  hasColumnFilters: boolean;
+}): string {
+  if (search) return `No results for "${search}".`;
+  if (hasDateRange) return 'No sessions in the selected date range.';
+  if (hasColumnFilters) return 'No sessions match the selected filters.';
+  return 'Recorded remote sessions for this device will appear here.';
+}
+
+/** The column funnels the mobile FilterModal mirrors. */
+const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COLUMNS.expires.id];
 
 /** Remote sessions of this device, one row per session, each opening the recording it produced. */
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
   const { data, isLoading } = useSessionRecordings(deviceId);
-  const canDelete = sessionRecordingsApiService.canDelete;
   const deleteRecording = useDeleteSessionRecording(deviceId ?? '');
+  // The "Expires in N hours" countdown keeps moving while the tab is open.
+  const now = useNow(60_000);
 
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORTING);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(EMPTY_COLUMN_FILTERS);
@@ -130,25 +134,26 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     return names.map(name => ({ id: name, value: name, label: name }));
   }, [allRecordings]);
 
-  // The mobile FilterModal (Figma 758-46869) and the desktop header funnel are
+  // The mobile FilterModal (Figma 758-46869) and the desktop header funnels are
   // two views over the SAME columnFilters state, bridged between TanStack's
   // array shape and the modal's `Record<columnId, selectedIds>` shape.
-  const employeeFilterId = REMOTE_SESSION_COLUMNS.employee.id;
   const modalFilterGroups = useMemo(
-    () => [{ id: employeeFilterId, title: 'Employee', options: employeeOptions }],
-    [employeeFilterId, employeeOptions],
+    () => [
+      { id: REMOTE_SESSION_COLUMNS.employee.id, title: 'Employee', options: employeeOptions },
+      { id: REMOTE_SESSION_COLUMNS.expires.id, title: 'Expires', options: EXPIRES_FILTER_OPTIONS },
+    ],
+    [employeeOptions],
   );
   const modalFilters = useMemo(() => {
-    const selected = columnFilters.find(filter => filter.id === employeeFilterId)?.value;
-    return Array.isArray(selected) && selected.length > 0 ? { [employeeFilterId]: selected as string[] } : {};
-  }, [columnFilters, employeeFilterId]);
-  const handleModalFilterChange = useCallback(
-    (filters: Record<string, string[]>) => {
-      const selected = filters[employeeFilterId] ?? [];
-      setColumnFilters(selected.length > 0 ? [{ id: employeeFilterId, value: selected }] : []);
-    },
-    [employeeFilterId],
-  );
+    const filters: Record<string, string[]> = {};
+    for (const filter of columnFilters) {
+      if (Array.isArray(filter.value) && filter.value.length > 0) filters[filter.id] = filter.value as string[];
+    }
+    return filters;
+  }, [columnFilters]);
+  const handleModalFilterChange = useCallback((filters: Record<string, string[]>) => {
+    setColumnFilters(MODAL_FILTER_IDS.flatMap(id => (filters[id]?.length ? [{ id, value: filters[id] }] : [])));
+  }, []);
 
   // Everything sortable on the desktop header is sortable in the modal too -
   // the same `sorting` state, so a direction picked here lights the header
@@ -169,117 +174,18 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const handleModalSortClear = useCallback(() => setSorting([]), []);
 
   const columns = useMemo<ColumnDef<RecordingSummary>[]>(
-    () => [
-      {
-        id: REMOTE_SESSION_COLUMNS.session.id,
-        header: () => <DateColumnHeader label={REMOTE_SESSION_COLUMNS.session.header} filter={dateFilter} />,
-        // ISO timestamps sort correctly as strings.
-        accessorFn: (row: RecordingSummary) => row.startedAt,
-        cell: ({ row }: { row: Row<RecordingSummary> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
-              <TruncateText>{formatDate(row.original.startedAt)}</TruncateText>
-              {row.original.processing && <Tag label="PROCESSING" variant="warning" className="shrink-0" />}
-            </div>
-            <TruncateText variant="h6" tone="secondary">
-              {formatTime(row.original.startedAt)}
-            </TruncateText>
-          </div>
-        ),
-        enableSorting: true,
-        meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.session),
-      },
-      {
-        id: REMOTE_SESSION_COLUMNS.employee.id,
-        header: REMOTE_SESSION_COLUMNS.employee.header,
-        accessorFn: (row: RecordingSummary) => row.employee.name,
-        cell: ({ row }: { row: Row<RecordingSummary> }) => {
-          const { name, role, avatarUrl } = row.original.employee;
-          return (
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
-              <SquareAvatar
-                variant="round"
-                size="md"
-                src={avatarUrl}
-                fallback={employeeInitials(name)}
-                alt={name}
-                initialsClassName="text-ods-text-secondary"
-              />
-              <div className="flex min-w-0 flex-col justify-center">
-                <TruncateText>{name}</TruncateText>
-                {role && (
-                  <TruncateText variant="h6" tone="secondary">
-                    {role}
-                  </TruncateText>
-                )}
-              </div>
-            </div>
-          );
+    () =>
+      remoteSessionColumns({
+        dateFilter,
+        employeeOptions,
+        now,
+        onOpen: row => {
+          const href = recordingHref(row);
+          if (href) router.push(href);
         },
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.employee, { filter: { options: employeeOptions } }),
-      },
-      {
-        id: REMOTE_SESSION_COLUMNS.duration.id,
-        header: REMOTE_SESSION_COLUMNS.duration.header,
-        // Still-processing recordings have no duration yet - sort them last.
-        accessorFn: (row: RecordingSummary) => row.durationMs ?? -1,
-        cell: ({ row }: { row: Row<RecordingSummary> }) => {
-          const { durationMs, sizeBytes } = row.original;
-          return (
-            <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-              <ValueText value={durationMs != null ? formatDurationMs(durationMs) : null} />
-              {sizeBytes != null && (
-                <TruncateText variant="h6" tone="secondary">
-                  {formatBytes(sizeBytes)}
-                </TruncateText>
-              )}
-            </div>
-          );
-        },
-        enableSorting: true,
-        meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.duration),
-      },
-      {
-        id: REMOTE_SESSION_COLUMNS.actions.id,
-        cell: ({ row }: { row: Row<RecordingSummary> }) => {
-          const href = recordingHref(row.original);
-          return (
-            <div
-              data-no-row-click
-              className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]"
-            >
-              {canDelete && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  leftIcon={<TrashIcon className="h-6 w-6" />}
-                  aria-label="Delete recording"
-                  disabled={!row.original.recordingId}
-                  onClick={() => setDeleteTarget(row.original)}
-                />
-              )}
-              {/* onClick, not `href`: the row itself is a link (rowHref), and an
-                  anchor nested in an anchor is invalid HTML (hydration error). */}
-              {href && (
-                <Button
-                  onClick={() => router.push(href)}
-                  variant="outline"
-                  size="icon"
-                  leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-                  aria-label="Open session recording"
-                  className="bg-ods-card"
-                />
-              )}
-            </div>
-          );
-        },
-        enableSorting: false,
-        meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
-      },
-    ],
-    [canDelete, dateFilter, employeeOptions, router],
+        onDelete: setDeleteTarget,
+      }),
+    [dateFilter, employeeOptions, now, router],
   );
 
   const table = useDataTable<RecordingSummary>({
@@ -386,11 +292,11 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           emptyState={{
             icon: <ComputerMouseIcon />,
             title: 'No remote sessions found',
-            description: debouncedSearch
-              ? `No results for "${debouncedSearch}".`
-              : dateRange
-                ? 'No sessions in the selected date range.'
-                : 'Recorded remote sessions for this device will appear here.',
+            description: emptyDescription({
+              search: debouncedSearch,
+              hasDateRange: dateRange !== undefined,
+              hasColumnFilters: columnFilters.length > 0,
+            }),
           }}
         />
       </DataTable>
@@ -435,8 +341,11 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         variant="destructive"
         isPending={deleteRecording.isPending}
         onConfirm={() => {
-          if (!deleteTarget?.recordingId) return;
-          deleteRecording.mutate(deleteTarget.recordingId, { onSuccess: () => setDeleteTarget(null) });
+          if (!deleteTarget) return;
+          deleteRecording.mutate(
+            { sessionId: deleteTarget.id, recordingId: deleteTarget.recordingId },
+            { onSuccess: () => setDeleteTarget(null) },
+          );
         }}
       />
     </div>

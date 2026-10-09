@@ -1,7 +1,8 @@
 'use client';
 
-import { type ActionsMenuGroup, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { type ActionsMenuGroup, PageLayout, type PageActionButton } from '@flamingo-stack/openframe-frontend-core';
+import { KeepRecordingModal, ReleaseKeepingModal } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LockIcon, TrashIcon, UnlockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -9,17 +10,25 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useEffectEvent, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { formatDateTime } from '@/lib/format-date';
+import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
-import { useDeleteSessionRecording, useSessionRecording } from '../../hooks/use-session-recordings';
+import {
+  useDeleteSessionRecording,
+  useKeepSessionRecording,
+  useRecordingStorage,
+  useReleaseSessionRecording,
+  useSessionRecording,
+} from '../../hooks/use-session-recordings';
 import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
+import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
+import { canDeleteSession, canKeepSession, isRecordingGone, recordingUnavailableNote } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
@@ -54,13 +63,23 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isKeepOpen, setIsKeepOpen] = useState(false);
+  const [isReleaseOpen, setIsReleaseOpen] = useState(false);
   const router = useRouter();
   const deleteRecording = useDeleteSessionRecording(recording?.deviceId ?? '');
+  const keepRecording = useKeepSessionRecording(recording?.deviceId ?? '');
+  const releaseRecording = useReleaseSessionRecording(recording?.deviceId ?? '');
+  const storage = useRecordingStorage();
+  const keep = recording?.keep ?? null;
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
-  // Delete lives in the "..." menu; it appears once the backend can delete.
+  // A deleted or expired recording has no files left to fetch: the page says
+  // so from the session's state instead of waiting on downloads that 410.
+  const gone = !!recording && isRecordingGone(recording);
+  const unavailableNote = recording ? recordingUnavailableNote(recording, unavailable) : null;
+  // Delete lives in the "..." menu, for a recording the server would let go (not kept).
   const menuActions: ActionsMenuGroup[] =
-    sessionRecordingsApiService.canDelete && recording
+    sessionRecordingsApiService.canDelete && recording && canDeleteSession(recording)
       ? [
           {
             items: [
@@ -75,6 +94,25 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           },
         ]
       : [];
+
+  // Keep Recording, or Release Keeping once kept (Figma 1755-93683 / 1755-94111);
+  // outline per the design, where `menu-primary` would default to accent.
+  const actions: PageActionButton[] = [];
+  if (keep) {
+    actions.push({
+      label: 'Release Keeping',
+      icon: <UnlockIcon size={24} />,
+      variant: 'outline',
+      onClick: () => setIsReleaseOpen(true),
+    });
+  } else if (recording && canKeepSession(recording)) {
+    actions.push({
+      label: 'Keep Recording',
+      icon: <LockIcon size={24} />,
+      variant: 'outline',
+      onClick: () => setIsKeepOpen(true),
+    });
+  }
 
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -102,7 +140,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // refetch hands back an equal detail as a new object, and reloading the same
   // files into the player restarts playback for nothing. The player's own
   // callbacks are not stable across renders either, hence the effect event.
-  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const segmentsKey =
+    recording && !gone ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
   const loadFiles = useEffectEvent(async () => {
     if (!recording) return { failed: 0, total: 0 };
     const { failed } = await player.loadSegments(
@@ -113,7 +152,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   useEffect(() => {
     if (!segmentsKey) return undefined;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const { failed, total } = await loadFiles();
         if (!cancelled && failed > 0) {
@@ -141,6 +180,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       loading={isLoading}
       subtitleRow="while-loading"
       showHeader={!isFullscreen}
+      actionsVariant="menu-primary"
+      actions={actions}
       menuActions={menuActions}
     >
       {/* Outside the player wrapper so it stays usable when the recording itself
@@ -187,7 +228,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
             >
               <RecordingPlayer
                 player={player}
-                unavailable={unavailable}
+                unavailableNote={unavailableNote}
                 className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
               />
               {/* No controls until a recording is actually loaded - the
@@ -215,6 +256,38 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           {showChat && <SessionChat messages={recording.chat} employee={recording.employee} />}
         </div>
       </div>
+      <KeepRecordingModal
+        isOpen={isKeepOpen}
+        onClose={() => setIsKeepOpen(false)}
+        keptUsage={keptUsageText(storage.data)}
+        isPending={keepRecording.isPending}
+        onConfirm={selection => {
+          if (!recording) return;
+          keepRecording.mutate(
+            { sessionId: recording.id, recordingId, selection },
+            { onSuccess: () => setIsKeepOpen(false) },
+          );
+        }}
+      />
+      {keep && (
+        <ReleaseKeepingModal
+          isOpen={isReleaseOpen}
+          onClose={() => setIsReleaseOpen(false)}
+          keptBy={keep.keptBy}
+          keptOn={formatDate(keep.keptAt)}
+          reason={keepReasonText(keep)}
+          expiresOn={formatDate(keep.expiresAtOnRelease)}
+          dueOn={releaseDueOn(keep)}
+          isPending={releaseRecording.isPending}
+          onConfirm={() => {
+            if (!recording) return;
+            releaseRecording.mutate(
+              { sessionId: recording.id, recordingId },
+              { onSuccess: () => setIsReleaseOpen(false) },
+            );
+          }}
+        />
+      )}
       <ConfirmDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
@@ -231,12 +304,15 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
         isPending={deleteRecording.isPending}
         onConfirm={() => {
           if (!recording) return;
-          deleteRecording.mutate(recordingId, {
-            onSuccess: () => {
-              setIsDeleteOpen(false);
-              router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
+          deleteRecording.mutate(
+            { sessionId: recording.id, recordingId },
+            {
+              onSuccess: () => {
+                setIsDeleteOpen(false);
+                router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
+              },
             },
-          });
+          );
         }}
       />
     </PageLayout>

@@ -151,13 +151,16 @@ afterEach(async () => {
 });
 
 describe('TroubleshootingView', () => {
-  it('asks for the whole tenant when no device is picked', async () => {
+  it('asks for the whole tenant over the last hour when nothing is picked', async () => {
     await mount('');
     const variables = lastVariables();
     expect(variables.machineIds).toBeNull();
     expect(variables.organizationIds).toBeNull();
     expect(variables.filter.levels).toBeUndefined();
-    expect(variables.filter.from).toEqual(expect.any(String));
+    // The page opens on the last hour, not the device tab's day.
+    const from = Date.parse(variables.filter.from ?? '');
+    expect(Math.abs(Date.now() - from - 60 * 60 * 1000)).toBeLessThan(5_000);
+    expect(container.textContent).toContain('Last hour');
     expect(container.textContent).toContain('No logs in this range');
     expect(container.textContent).not.toContain('Reset filters');
   });
@@ -185,6 +188,26 @@ describe('TroubleshootingView', () => {
     await mount('customer=org-1');
     expect(lastVariables().organizationIds).toBeNull();
     expect(container.textContent).not.toContain('org-1');
+  });
+
+  it('repaints a level chip on the click, before the URL round trip lands', async () => {
+    await mount('');
+    const chip = Array.from(container.querySelectorAll('[role="button"]')).find(
+      element => element.textContent?.trim() === 'ERROR',
+    ) as HTMLElement | undefined;
+    expect(chip?.getAttribute('aria-pressed')).toBe('true');
+    await act(async () => {
+      chip?.click();
+    });
+    // The URL is still the old one (the mocked router never lands a write): the chip shows the intent anyway.
+    expect(chip?.getAttribute('aria-pressed')).toBe('false');
+    expect(lastVariables().filter.levels).toBeUndefined();
+    expect(spies.replace).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '').getAll('logLevels')).toEqual([
+      'DEBUG',
+      'INFO',
+      'WARN',
+    ]);
   });
 
   it('resets the customers, the devices and the log params in one URL write', async () => {

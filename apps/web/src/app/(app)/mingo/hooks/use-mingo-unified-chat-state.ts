@@ -30,6 +30,7 @@ import type {
   DialogItem,
   DialogTokenUsage,
   MessageSegment,
+  MingoDialogStatus,
   SlashCommandSummary,
   StreamingPhase,
   UnifiedChatMessage,
@@ -59,6 +60,7 @@ import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
+import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
 import { transformToDialogItem, useMingoDialogs } from './use-mingo-dialogs';
 import { useMingoRealtimeSubscription } from './use-mingo-realtime-subscription';
@@ -102,6 +104,8 @@ export interface MingoUnifiedChat {
    * inside it.
    */
   pendingApprovals: MessageSegment[];
+  /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
+  dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
   /**
    * Create a brand-new dialog and send `text` into it, regardless of any
    * currently-active dialog. Used by external launchers (e.g. the "Ask Mingo
@@ -266,6 +270,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
 
   const {
     dialogs,
+    nodes: dialogNodes,
     isLoading: isLoadingDialogs,
     isError: isDialogsError,
     isFetchingNextPage: isFetchingNextDialogPage,
@@ -301,6 +306,12 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     isTyping,
     isCompacting,
   } = useMingoChat(activeDialogId);
+
+  const dialogStatusOf = useMingoDialogRowStatus({
+    activeDialogId,
+    nodes: dialogNodes,
+    activeThreadLoaded: isMessagesFetched,
+  });
 
   const { subscribeToDialog, subscribedDialogs, onConnectionChange, connectionState } =
     useMingoRealtimeSubscription(activeDialogId);
@@ -724,6 +735,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
      *  displayed nowhere unless the host hands them to the chat's sticky
      *  footer, which is why they leave this hook separately from `state`. */
     pendingApprovals,
+    dialogStatusOf,
     sendInNewDialog,
     searchQuery,
     setSearchQuery,
