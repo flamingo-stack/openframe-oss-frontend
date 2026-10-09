@@ -57,31 +57,19 @@ describe('mobile auth UI switch', () => {
 });
 
 /**
- * `/mobile` is the QR landing page: public, session-less, and exempt from the mode rules
- * below it in the guard. The exemption has to stop at the segment — a prefix match would
- * hand every future `/mobile*` route the same blanket pass, above the saas-shared and
- * saas-tenant gates it sits in front of.
- *
- * Pins the APP-SIDE allowlist. `proxy.ts` carries a deliberate second copy — the two
- * cannot share code, since this module reaches into `platform.ts` for globals the Edge
- * runtime lacks — and `proxy.test.ts` pins that one against the same cases, so the pair
- * cannot drift in silence.
+ * `/mobile` (the install QR code's address) has no page: `proxy.ts` redirects it before
+ * the app renders, so the app-side allowlist carries no exemption for it. In saas-shared
+ * mode it is as closed as every other route but `/auth`.
  */
-describe('the /mobile allowlist in saas-shared mode', () => {
+describe('the mode allowlist in saas-shared mode', () => {
   afterEach(() => {
     setEnv('NEXT_PUBLIC_APP_MODE', undefined);
   });
 
-  it('exempts the page and anything under it', () => {
+  it('allows the auth routes and nothing the proxy answers on its own', () => {
     setEnv('NEXT_PUBLIC_APP_MODE', 'saas-shared');
-    expect(isRouteAllowedInCurrentMode('/mobile')).toBe(true);
-    // `trailingSlash: true` is what the export build actually serves.
-    expect(isRouteAllowedInCurrentMode('/mobile/')).toBe(true);
-  });
-
-  it('does not exempt a route that merely starts with the same letters', () => {
-    setEnv('NEXT_PUBLIC_APP_MODE', 'saas-shared');
+    expect(isRouteAllowedInCurrentMode('/auth')).toBe(true);
+    expect(isRouteAllowedInCurrentMode('/mobile')).toBe(false);
     expect(isRouteAllowedInCurrentMode('/mobile-onboarding')).toBe(false);
-    expect(isRouteAllowedInCurrentMode('/mobiles')).toBe(false);
   });
 });
