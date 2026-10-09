@@ -798,6 +798,17 @@ type DirectoryConnectionOptions {
   providers: [DirectoryProvider!]!
 }
 
+type DirectoryConsentAnnouncement {
+  """Providers with permissions this tenant has not been told about, Microsoft 365 first."""
+  providers: [DirectoryProvider!]!
+
+  """Banner labels of the newly requested permissions, in release order, without duplicates."""
+  features: [String!]!
+
+  """Ready-to-show banner text: at most three features, then "and more"."""
+  message: String!
+}
+
 type DirectoryConnectionPayload {
   connection: DirectoryConnection
   userErrors: [UserError!]!
@@ -2258,6 +2269,13 @@ type Mutation {
   """
   deleteDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
 
+  """
+  Hide the current re-consent banner for the whole tenant: acknowledges every provider it names up to its
+  latest revision. A later release that requests more permissions shows a new banner. Idempotent; true
+  also when there was nothing to dismiss.
+  """
+  dismissDirectoryConsentAnnouncement: Boolean!
+
   """Create a manually-managed user (source is always OPENFRAME)."""
   createOrgUser(organizationId: ID!, input: CreateOrgUserInput!): OrgUserPayload!
 
@@ -3341,6 +3359,14 @@ type Query {
   the same "not found" every other single-connection operation raises.
   """
   directoryConnection(connectionId: ID!): DirectoryConnection
+
+  """
+  The tenant-wide re-consent banner for the connection list: OpenFrame now requests permissions that
+  connections consented earlier lack. Null when there is nothing to announce. Tenant-level only — it never
+  reflects what an individual connection was granted. A provider leaves it once any one of its connections
+  completes consent again, or when dismissDirectoryConsentAnnouncement hides it.
+  """
+  directoryConsentAnnouncement: DirectoryConsentAnnouncement
 
   """
   All users of the organization across sources; source filters to one origin.

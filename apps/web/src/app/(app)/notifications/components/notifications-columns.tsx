@@ -16,7 +16,7 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { getNotificationCategoryIcon } from '@/app/components/notifications/notification-category-icons';
+import { getNotificationIcon } from '@/app/components/notifications/notification-category-icons';
 import { resolveNotificationAction } from '@/app/components/notifications/notification-navigation';
 import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 
@@ -87,13 +87,13 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'flex-[2] min-w-0' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
-        const { category, severity, variant = 'default' } = row.original.notification;
+        const { severity, variant = 'default' } = row.original.notification;
         const titleColor = (severity && titleColorBySeverity[severity]) ?? 'text-ods-text-primary';
         const relativeTime = formatTicketRelativeTime(new Date(row.original.createdAt).toISOString());
         return (
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-ods-border text-ods-text-secondary">
-              {getNotificationCategoryIcon(category) ?? (
+              {getNotificationIcon(row.original.notification) ?? (
                 <span className={cn('size-1.5 rounded-full', dotColorByVariant[variant])} />
               )}
             </div>

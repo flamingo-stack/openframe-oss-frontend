@@ -9,6 +9,7 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
+import { ConsentAnnouncementBanner } from './consent-announcement-banner';
 import { TenantsTable } from './tenants-table';
 import { TENANTS_PAGE_SIZE, TENANTS_TABLE_COLUMNS } from './tenants-table-columns';
 
@@ -61,6 +62,7 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
+        {!loading && <ConsentAnnouncementBanner />}
         {!isEmpty && (
           <div
             ref={toolbarRef}

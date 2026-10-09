@@ -5,6 +5,7 @@ import {
   BracketCurlyIcon,
   ChartDonutIcon,
   ClipboardListIcon,
+  CloudIcon,
   IdCardIcon,
   MonitorIcon,
   PackageIcon,
@@ -12,6 +13,12 @@ import {
   TagIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
+import { NEW_PERMISSIONS_REQUIRED_TYPE } from '@/graphql/notifications/notification-attributes';
+
+/** Backend `type` → icon, for the types whose category (GENERIC) carries none. */
+const iconByType: Record<string, ReactNode> = {
+  [NEW_PERMISSIONS_REQUIRED_TYPE]: <CloudIcon size={16} />,
+};
 
 /**
  * Backend `NotificationCategory` → icon, mirroring the app navigation mapping
@@ -38,13 +45,17 @@ const iconByCategory: Record<string, ReactNode> = {
   ),
 };
 
-export function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {
-  return category ? iconByCategory[category.toUpperCase()] : undefined;
+/** The tile icon: the type's own when it has one, else the category's, else none (the severity dot). */
+export function getNotificationIcon(notification: Notification): ReactNode | undefined {
+  const type = notification.meta?.notificationType;
+  const byType = typeof type === 'string' ? iconByType[type] : undefined;
+  const category = notification.category;
+  return byType ?? (category ? iconByCategory[category.toUpperCase()] : undefined);
 }
 
-/** Attach the category icon for tile rendering; explicit `icon`/`imageUrl` win. */
-export function withCategoryIcon(notification: Notification): Notification {
+/** Attach the icon for tile rendering; explicit `icon`/`imageUrl` win. */
+export function withNotificationIcon(notification: Notification): Notification {
   if (notification.icon || notification.imageUrl) return notification;
-  const icon = getNotificationCategoryIcon(notification.category);
+  const icon = getNotificationIcon(notification);
   return icon ? { ...notification, icon } : notification;
 }
