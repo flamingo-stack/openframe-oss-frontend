@@ -39,6 +39,11 @@ export function canOpenSession(row: SessionRow): boolean {
   return row.recordingState === 'ready' && row.recordingId !== null;
 }
 
+/** Keep is offered for a recording that can still play and is not kept yet. */
+export function canKeepSession(row: SessionRow): boolean {
+  return !row.kept && row.recordingState === 'ready';
+}
+
 /**
  * The server refuses a running session and a kept file, and a session that
  * recorded nothing has nothing to delete. Failed and expired rows can still be

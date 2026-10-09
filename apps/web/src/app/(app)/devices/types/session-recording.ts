@@ -1,5 +1,7 @@
 // Remote-session read models for the Remote Sessions tab and the recording
-// page. Both the mock service and the openframe-saas-api client produce them.
+// page, produced by the openframe-saas-api client.
+
+import type { RemoteSessionKeepReason } from '@flamingo-stack/openframe-frontend-core/components/features';
 
 export interface RecordingEmployee {
   name: string;
@@ -15,6 +17,20 @@ export interface RecordingEmployee {
  * retention; `deleted` = removed by a technician.
  */
 export type RecordingState = 'none' | 'processing' | 'ready' | 'failed' | 'expired' | 'deleted';
+
+/** A Keep on a session's recordings: who placed it, when, why, and what a Release would do. */
+export interface RecordingKeep {
+  keptBy: string;
+  /** ISO timestamp. */
+  keptAt: string;
+  reason: RemoteSessionKeepReason;
+  /** The text an "Other" reason carries. */
+  note: string | null;
+  /** ISO timestamp the kept files were due to expire at; null when none expires. */
+  dueAt: string | null;
+  /** ISO timestamp the recording expires at if released now: `dueAt`, or now plus the grace when that is later. */
+  expiresAtOnRelease: string | null;
+}
 
 /** One row of the Remote Sessions tab: a remote session and the recording it produced, if any. */
 export interface RecordingSummary {
@@ -32,6 +48,8 @@ export interface RecordingSummary {
   recordingState: RecordingState;
   /** A file of the session is kept: exempt from retention, and it cannot be deleted. */
   kept: boolean;
+  /** The Keep itself, while the session is kept. */
+  keep: RecordingKeep | null;
   /** ISO timestamp the earliest playable file expires at; null when none is left or none expires. */
   expiresAt: string | null;
   /** The recording page opens on this file (the session's first); null when there is nothing to play. */
@@ -65,7 +83,6 @@ export interface RecordingDetail extends RecordingSummary {
   organization: { id?: string; name: string; logoUrl?: string };
   /** e.g. "1280 × 720" - may be unknown until the file is decoded. */
   resolution?: string;
-  loggedInUser?: string;
   /** Every file of the session, oldest first; the player joins them into one timeline. */
   segments: RecordingSegment[];
   chat: RecordingChatMessage[];

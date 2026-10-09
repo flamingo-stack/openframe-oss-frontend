@@ -1,3 +1,7 @@
+import type {
+  KeepRecordingSelection,
+  RemoteSessionKeepReason,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { fetchQuery, graphql } from 'react-relay';
 import { readInlineData } from 'relay-runtime';
 import type {
@@ -7,9 +11,15 @@ import type {
 import type { sessionRecordingsApiServiceDeleteMutation as DeleteMutation } from '@/__generated__/sessionRecordingsApiServiceDeleteMutation.graphql';
 import type { sessionRecordingsApiServiceDetailQuery as DetailQuery } from '@/__generated__/sessionRecordingsApiServiceDetailQuery.graphql';
 import type { sessionRecordingsApiServiceDeviceQuery as DeviceQuery } from '@/__generated__/sessionRecordingsApiServiceDeviceQuery.graphql';
+import type { sessionRecordingsApiServiceKeepMutation as KeepMutation } from '@/__generated__/sessionRecordingsApiServiceKeepMutation.graphql';
 import type { sessionRecordingsApiServiceListQuery as ListQuery } from '@/__generated__/sessionRecordingsApiServiceListQuery.graphql';
+import type { sessionRecordingsApiServiceReleaseMutation as ReleaseMutation } from '@/__generated__/sessionRecordingsApiServiceReleaseMutation.graphql';
 import type { sessionRecordingsApiServiceStorageQuery as StorageQuery } from '@/__generated__/sessionRecordingsApiServiceStorageQuery.graphql';
-import { RemoteSessionRecordingState, RemoteSessionRecordingStatus } from '@/generated/schema-enums';
+import {
+  RecordingHoldReason,
+  RemoteSessionRecordingState,
+  RemoteSessionRecordingStatus,
+} from '@/generated/schema-enums';
 import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -17,6 +27,7 @@ import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 import type {
   RecordingChatMessage,
   RecordingDetail,
+  RecordingKeep,
   RecordingSegment,
   RecordingState,
   RecordingStorage,
@@ -40,6 +51,16 @@ const sessionFragment = graphql`
     durationMs
     recordingState
     recordingExpiresAt
+    recordingHold {
+      heldBy {
+        name
+      }
+      heldAt
+      reason
+      note
+      dueAt
+      expiresAtOnRelease
+    }
     dialogId
     technician {
       name
@@ -110,6 +131,28 @@ const deleteMutation = graphql`
   }
 `;
 
+const keepMutation = graphql`
+  mutation sessionRecordingsApiServiceKeepMutation($input: KeepRecordingInput!) {
+    keepRecording(input: $input) {
+      userErrors {
+        code
+        message
+      }
+    }
+  }
+`;
+
+const releaseMutation = graphql`
+  mutation sessionRecordingsApiServiceReleaseMutation($sessionId: String!) {
+    releaseRecording(sessionId: $sessionId) {
+      userErrors {
+        code
+        message
+      }
+    }
+  }
+`;
+
 const deviceQuery = graphql`
   query sessionRecordingsApiServiceDeviceQuery($machineId: String!) {
     device(machineId: $machineId) {
@@ -134,6 +177,33 @@ const RECORDING_STATES: Record<RemoteSessionRecordingState, RecordingState> = {
   [RemoteSessionRecordingState.DELETED]: 'deleted',
 };
 
+// The core-lib Keep modal names one reason differently from the server.
+const KEEP_REASONS_FROM_WIRE: Record<RecordingHoldReason, RemoteSessionKeepReason> = {
+  [RecordingHoldReason.CLIENT_DISPUTE]: 'CLIENT_DISPUTE',
+  [RecordingHoldReason.INTERNAL_REVIEW]: 'INTERNAL_REVIEW',
+  [RecordingHoldReason.LEGAL_COMPLIANCE]: 'LEGAL_OR_COMPLIANCE',
+  [RecordingHoldReason.OTHER]: 'OTHER',
+};
+
+const KEEP_REASONS_TO_WIRE: Record<RemoteSessionKeepReason, RecordingHoldReason> = {
+  CLIENT_DISPUTE: RecordingHoldReason.CLIENT_DISPUTE,
+  INTERNAL_REVIEW: RecordingHoldReason.INTERNAL_REVIEW,
+  LEGAL_OR_COMPLIANCE: RecordingHoldReason.LEGAL_COMPLIANCE,
+  OTHER: RecordingHoldReason.OTHER,
+};
+
+function fromWireHold(hold: NonNullable<WireSession['recordingHold']>): RecordingKeep {
+  return {
+    keptBy: hold.heldBy.name,
+    keptAt: String(hold.heldAt),
+    // A reason this client does not know yet still reads as a Keep.
+    reason: KEEP_REASONS_FROM_WIRE[hold.reason as RecordingHoldReason] ?? 'OTHER',
+    note: hold.note ?? null,
+    dueAt: hold.dueAt != null ? String(hold.dueAt) : null,
+    expiresAtOnRelease: hold.expiresAtOnRelease != null ? String(hold.expiresAtOnRelease) : null,
+  };
+}
+
 /** The wire session (the fragment's data) -> the tab's row. */
 export function fromWireSession(session: WireSession): RecordingSummary {
   const files = session.recordings;
@@ -151,6 +221,7 @@ export function fromWireSession(session: WireSession): RecordingSummary {
     kept:
       session.recordingState === RemoteSessionRecordingState.KEPT ||
       files.some(file => file.status === RemoteSessionRecordingStatus.HELD),
+    keep: session.recordingHold ? fromWireHold(session.recordingHold) : null,
     expiresAt: session.recordingExpiresAt != null ? String(session.recordingExpiresAt) : null,
     recordingId: files[0]?.recordingId ?? null,
     employee: {
@@ -288,6 +359,20 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
     const payload = await commitMutationPromise<DeleteMutation>(deleteMutation, { sessionId });
     const [refusal] = payload.deleteRecording.userErrors;
     if (refusal) throw new Error(refusal.message || 'Could not delete the recording');
+  }
+
+  async keep(sessionId: string, { reason, description }: KeepRecordingSelection): Promise<void> {
+    const payload = await commitMutationPromise<KeepMutation>(keepMutation, {
+      input: { sessionId, reason: KEEP_REASONS_TO_WIRE[reason], note: description },
+    });
+    const [refusal] = payload.keepRecording.userErrors;
+    if (refusal) throw new Error(refusal.message || 'Could not keep the recording');
+  }
+
+  async release(sessionId: string): Promise<void> {
+    const payload = await commitMutationPromise<ReleaseMutation>(releaseMutation, { sessionId });
+    const [refusal] = payload.releaseRecording.userErrors;
+    if (refusal) throw new Error(refusal.message || 'Could not release the recording');
   }
 
   async storage(): Promise<RecordingStorage> {

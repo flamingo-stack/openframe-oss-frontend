@@ -18,6 +18,7 @@ import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { RecordingSummary } from '../../types/session-recording';
 import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
 import { formatBytes, formatDurationMs } from './format';
+import { keepReasonText } from './recording-keep';
 import {
   canDeleteSession,
   canOpenSession,
@@ -59,13 +60,20 @@ const STATE_TAGS: Partial<Record<RecordingSummary['recordingState'], { label: st
     failed: { label: 'FAILED', variant: 'error' },
   };
 
-/** The EXPIRES cell per Figma 1644-6911: kept, the expiry date (with a countdown on the last day), or expired. */
+/** The EXPIRES cell per Figma 1644-6911: kept (by whom, why), the expiry date (with a countdown on the last day), or expired. */
 function ExpiresCell({ row, now }: { row: RecordingSummary; now: number }) {
   if (row.kept) {
     return (
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        <LockIcon className="h-6 w-6 shrink-0 text-ods-text-primary" />
-        <TruncateText>Kept</TruncateText>
+      <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+        <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+          <LockIcon className="h-6 w-6 shrink-0 text-ods-text-primary" />
+          <TruncateText>Kept</TruncateText>
+        </div>
+        {row.keep && (
+          <TruncateText variant="h6" tone="secondary">
+            {`Kept by ${row.keep.keptBy} · ${keepReasonText(row.keep)}`}
+          </TruncateText>
+        )}
       </div>
     );
   }
