@@ -3,16 +3,18 @@
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { defineParamSchema } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useMemo, useState } from 'react';
 import { DeviceLogDrawer } from '@/app/(app)/devices/components/tabs/device-logs/device-log-drawer';
 import type { DeviceLogEntry } from '@/app/(app)/devices/components/tabs/device-logs/device-log-row';
 import { DeviceLogsList } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-list';
 import { DeviceLogsListSkeleton } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-skeleton';
 import {
-  DEVICE_LOG_PARAM_RESET,
-  DEVICE_LOG_PARAM_SCHEMA,
+  deviceLogParamReset,
+  deviceLogParamSchema,
   useDeviceLogFilters,
 } from '@/app/(app)/devices/hooks/use-device-log-filters';
+import type { DeviceLogPreset } from '@/app/(app)/devices/utils/device-log-time';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -20,6 +22,19 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { pickedIdsFromParams } from '../utils/troubleshooting-params';
 import { TroubleshootingToolbar } from './troubleshooting-toolbar';
+
+/**
+ * A tenant-wide list opens on the last hour: a day of every device's lines is a
+ * firehose, and the trouble being looked for is usually happening now.
+ */
+const DEFAULT_RANGE: DeviceLogPreset = '1h';
+
+// The log params with the page's own: see `deviceLogParamSchema`.
+const PARAM_SCHEMA = defineParamSchema({
+  ...deviceLogParamSchema(DEFAULT_RANGE),
+  customer: { type: 'array', default: [] },
+  device: { type: 'array', default: [] },
+});
 
 /** Under a customer filter the API skips lines whose agent does not report its customer yet. */
 const CUSTOMER_EMPTY_DESCRIPTION =
@@ -35,13 +50,8 @@ export function TroubleshootingView() {
   const handleBack = useSafeBack(routes.settings.root());
   // Tri-state: a `customer` param must not reach the query before the flag has answered.
   const customerFilter = useFeatureFlagGate('device-logs-customer-filter');
-  // One hook for the log params and the page's own: see `DEVICE_LOG_PARAM_SCHEMA`.
-  const { params, setParam, setParams } = useApiParams({
-    ...DEVICE_LOG_PARAM_SCHEMA,
-    customer: { type: 'array', default: [] },
-    device: { type: 'array', default: [] },
-  });
-  const filters = useDeviceLogFilters({ params, setParam, setParams });
+  const { params, pendingParams, setParam, setParams } = useApiParams(PARAM_SCHEMA);
+  const filters = useDeviceLogFilters({ params, pendingParams, setParam, setParams }, { defaultRange: DEFAULT_RANGE });
   const { filter, anchor } = filters;
 
   const machineIds = useMemo(() => pickedIdsFromParams(params.device), [params.device]);
@@ -70,7 +80,7 @@ export function TroubleshootingView() {
   const resetFilters = () => {
     filters.setSearch('');
     // One write for every param: a second `setParams` would re-base on a URL the first has not reached.
-    setParams({ ...DEVICE_LOG_PARAM_RESET, customer: [], device: [] });
+    setParams({ ...deviceLogParamReset(DEFAULT_RANGE), customer: [], device: [] });
   };
 
   const actions: PageActionButton[] = [
