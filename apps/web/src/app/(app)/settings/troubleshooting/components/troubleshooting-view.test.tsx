@@ -162,6 +162,18 @@ function refreshButton() {
   return Array.from(container.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Refresh');
 }
 
+function searchInput() {
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Search device logs"]');
+  if (!input) throw new Error('no search box');
+  return input;
+}
+
+/** A keystroke as React sees it: the native setter, then the event its onChange listens to. */
+function typeInto(input: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 /** What the list's live region says to a screen reader. */
 function listStatus() {
   return Array.from(container.querySelectorAll('[role="status"]'))
@@ -294,6 +306,31 @@ describe('TroubleshootingView', () => {
     // The first pick never became a request of its own; the second composed with it.
     expect(asked).not.toContainEqual(['DEBUG', 'INFO', 'WARN']);
     expect(asked.at(-1)).toEqual(['DEBUG', 'INFO']);
+  });
+
+  it('writes the search once the typing pauses, and asks for it once', async () => {
+    await mount('');
+    for (const value of ['d', 'di', 'dis', 'disk']) {
+      await act(async () => {
+        typeInto(searchInput(), value);
+        vi.advanceTimersByTime(100);
+      });
+    }
+    // Mid-word: the box shows every key, the URL has not been written.
+    expect(searchInput().value).toBe('disk');
+    expect(spies.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(spies.replace).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '').get('logSearch')).toBe('disk');
+
+    await settle();
+    const searched = spies.lazyLoadQuery.mock.calls
+      .map(([, variables]) => (variables.filter as { contains?: string[] }).contains)
+      .filter(contains => contains !== undefined);
+    expect(new Set(searched.map(contains => contains.join(' ')))).toEqual(new Set(['disk']));
   });
 
   it('does not page the old list while the next one is on its way', async () => {
