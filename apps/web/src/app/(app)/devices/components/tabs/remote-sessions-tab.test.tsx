@@ -56,6 +56,7 @@ const session = (id: string, startedAt: string, overrides: Partial<RecordingSumm
   protocol: 2,
   recordingState: 'ready',
   kept: false,
+  keep: null,
   expiresAt: null,
   recordingId: `${id}-file`,
   employee: { name: 'Roman Smith' },
@@ -70,7 +71,17 @@ const PROCESSING = session('processing', '2026-10-08T11:00:00Z', {
   recordingId: null,
 });
 const FAILED = session('failed', '2026-10-07T10:00:00Z', { recordingState: 'failed', recordingId: null });
-const KEPT = session('kept', '2026-05-02T10:00:00Z', { kept: true });
+const KEPT = session('kept', '2026-05-02T10:00:00Z', {
+  kept: true,
+  keep: {
+    keptBy: 'Dana Whitfield',
+    keptAt: '2026-05-03T10:00:00Z',
+    reason: 'CLIENT_DISPUTE',
+    note: null,
+    dueAt: '2026-07-31T10:00:00Z',
+    expiresAtOnRelease: '2026-07-31T10:00:00Z',
+  },
+});
 const EXPIRED = session('expired', '2026-06-01T10:00:00Z', { recordingState: 'expired' });
 
 let container: HTMLDivElement;
@@ -117,6 +128,7 @@ describe('RemoteSessionsTab rows', () => {
     expect(rowOf(READY).textContent).toContain(formatDate(READY.expiresAt ?? ''));
     expect(rowOf(READY).textContent).toContain('Expires in 18 hours');
     expect(rowOf(KEPT).textContent).toContain('Kept');
+    expect(rowOf(KEPT).textContent).toContain('Kept by Dana Whitfield · Client dispute');
     expect(rowOf(EXPIRED).textContent).toContain('Expired');
   });
 

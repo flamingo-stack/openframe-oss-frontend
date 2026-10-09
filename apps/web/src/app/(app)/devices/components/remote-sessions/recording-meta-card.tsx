@@ -1,13 +1,15 @@
 'use client';
 
+import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { EntityImage, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { formatDateTime } from '@/lib/format-date';
+import { formatDate, formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import type { RecordingDetail } from '../../types/session-recording';
 import { formatBytes, formatDurationMs } from './format';
+import { keepReasonText } from './recording-keep';
 
 interface MetaCellProps {
   label: string;
@@ -37,10 +39,12 @@ function MetaCell({ label, adornment, children, className }: MetaCellProps) {
 }
 
 /**
- * The recording metadata card (Figma 758-46357): Date / Resolution / Duration /
- * File size over Hostname / Customer / Logged-In User / Employee. Four columns
- * in two rows on desktop; the tablet and mobile mockups both collapse it to
- * two columns in four rows, with the row dividers always spanning the card.
+ * The recording metadata card (Figma 1755-93683): Date / Resolution / Duration /
+ * File size over Hostname / Customer / Employee / Expires on. A kept recording
+ * does not expire, so its last cell reads who kept it, when and why instead
+ * (1755-94111). Four columns in two rows on desktop; the tablet and mobile
+ * mockups both collapse it to two columns in four rows, with the row dividers
+ * always spanning the card.
  */
 export function RecordingMetaCard({ recording }: { recording: RecordingDetail }) {
   const dash = <span className="text-ods-text-secondary">-</span>;
@@ -79,9 +83,6 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
           recording.organization.name || dash
         )}
       </MetaCell>
-      <MetaCell label="Logged-In User" className="border-b-0">
-        {recording.loggedInUser ?? dash}
-      </MetaCell>
       <MetaCell
         label="Employee"
         className="border-b-0"
@@ -97,6 +98,21 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
       >
         {recording.employee.name}
       </MetaCell>
+      {recording.keep ? (
+        <MetaCell
+          label={`on ${formatDate(recording.keep.keptAt)} for ${keepReasonText(recording.keep)}`}
+          className="border-b-0"
+        >
+          <span className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+            <LockIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">Kept by {recording.keep.keptBy}</span>
+          </span>
+        </MetaCell>
+      ) : (
+        <MetaCell label="Expires on" className="border-b-0">
+          {recording.expiresAt ? formatDate(recording.expiresAt) : dash}
+        </MetaCell>
+      )}
     </div>
   );
 }

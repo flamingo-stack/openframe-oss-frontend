@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecordingSummary } from '../../types/session-recording';
 import {
   canDeleteSession,
+  canKeepSession,
   canOpenSession,
   expiresFilterValue,
   EXPIRING_WINDOW_MS,
@@ -28,6 +29,14 @@ describe('session row status', () => {
       expect(canOpenSession(row({ recordingState }))).toBe(false);
     }
     expect(canOpenSession(row({ recordingId: null }))).toBe(false);
+  });
+
+  it('offers Keep only for a playable recording that is not kept yet', () => {
+    expect(canKeepSession(row())).toBe(true);
+    expect(canKeepSession(row({ kept: true }))).toBe(false);
+    for (const recordingState of ['processing', 'failed', 'expired', 'deleted', 'none'] as const) {
+      expect(canKeepSession(row({ recordingState }))).toBe(false);
+    }
   });
 
   it('deletes ready, failed and expired recordings, never a kept or processing one', () => {

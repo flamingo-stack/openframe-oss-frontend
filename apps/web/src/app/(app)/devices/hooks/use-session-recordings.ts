@@ -1,5 +1,6 @@
 'use client';
 
+import type { KeepRecordingSelection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -58,6 +59,56 @@ export function useDeleteSessionRecording(deviceId: string) {
     },
     onError: error => {
       handleApiError(error, toast, 'Failed to delete the recording');
+    },
+  });
+}
+
+/** What a Keep needs: the session it keeps, the file its detail page is cached under, and the dialog's choice. */
+export interface KeepSessionRecordingTarget extends DeleteSessionRecordingTarget {
+  selection: KeepRecordingSelection;
+}
+
+/**
+ * Keep and Release both change the row, the page and the storage pools (a
+ * Keep moves the session's bytes into the kept allowance, a Release back).
+ */
+function useRefreshKeptRecording(deviceId: string) {
+  const queryClient = useQueryClient();
+  return (recordingId: string | null) => {
+    void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(deviceId) });
+    void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.recordingStorage() });
+    if (recordingId) void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecording(recordingId) });
+  };
+}
+
+export function useKeepSessionRecording(deviceId: string) {
+  const { toast } = useToast();
+  const refresh = useRefreshKeptRecording(deviceId);
+
+  return useMutation({
+    mutationFn: ({ sessionId, selection }: KeepSessionRecordingTarget) => service.keep(sessionId, selection),
+    onSuccess: (_data, { recordingId }) => {
+      refresh(recordingId);
+      toast({ title: 'Recording Kept', description: "It won't be deleted automatically", variant: 'success' });
+    },
+    onError: error => {
+      handleApiError(error, toast, 'Failed to keep the recording');
+    },
+  });
+}
+
+export function useReleaseSessionRecording(deviceId: string) {
+  const { toast } = useToast();
+  const refresh = useRefreshKeptRecording(deviceId);
+
+  return useMutation({
+    mutationFn: ({ sessionId }: DeleteSessionRecordingTarget) => service.release(sessionId),
+    onSuccess: (_data, { recordingId }) => {
+      refresh(recordingId);
+      toast({ title: 'Keeping Released', description: 'Nothing is deleted now', variant: 'success' });
+    },
+    onError: error => {
+      handleApiError(error, toast, 'Failed to release the recording');
     },
   });
 }
