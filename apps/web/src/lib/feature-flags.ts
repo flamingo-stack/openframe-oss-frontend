@@ -54,6 +54,11 @@ export const FEATURE_FLAG_NAMES = [
   // instead of the overlay drawer, the page laying out by the room it leaves
   // (`content-md:` / `content-lg:`). Off = the overlay drawer.
   'mingo-v2',
+  // AI-first onboarding: the full-screen `/setup` wizard in place of the
+  // dashboard's Initial Setup card, and the Getting Started tour inside the
+  // docked Mingo panel in place of `/onboarding`. Off = the card, the page, the
+  // sidebar entry and the coach marks. The tour needs `mingo-v2` on as well.
+  'onboarding-v2',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

@@ -10,6 +10,8 @@ import type { completeUserOnboardingMutation as CompleteUserType } from '@/__gen
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
+import { clearTourStarted } from '@/app/(app)/setup/lib/tour-start';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 import type { Instant } from '@/lib/graphql-scalars';
 import {
@@ -62,6 +64,7 @@ export function useOnboardingMutations() {
   const environment = useRelayEnvironment();
   const setTenant = useOnboardingStore(state => state.setTenant);
   const setUser = useOnboardingStore(state => state.setUser);
+  const userId = useAuthStore(state => state.user?.id);
   const [pending, setPending] = useState(0);
 
   const begin = useCallback(() => setPending(count => count + 1), []);
@@ -205,6 +208,8 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.resetUserOnboarding));
+          // The v2 tour's "started" marker is part of the user's progress too.
+          clearTourStarted(userId);
           toast({
             title: 'Onboarding reset',
             description: 'Your Get Started tour is available again.',
@@ -215,7 +220,7 @@ export function useOnboardingMutations() {
         onError: onError('Failed to reset onboarding'),
       });
     },
-    [environment, begin, finish, setUser, toast, onError],
+    [environment, begin, finish, setUser, toast, onError, userId],
   );
 
   return {
