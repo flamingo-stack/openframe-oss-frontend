@@ -14,13 +14,14 @@
  * never see a GraphQL envelope.
  */
 
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { fetchQuery } from 'relay-runtime';
 import type { devicesPageRelayQuery as DevicesPageRelayQueryType } from '@/__generated__/devicesPageRelayQuery.graphql';
 import { devicesPageRelayQuery } from '@/graphql/devices/devices-page-relay';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { apiClient } from '@/lib/api-client';
 import { getRelayEnvironment } from '@/lib/relay/environment';
-import type { Device, DeviceFilterInput, DeviceGraphQlNode, GraphQlResponse } from '../types/device.types';
+import type { Device, DeviceGraphQlNode, GraphQlResponse } from '../types/device.types';
 import { readMachineEdges } from '../utils/read-machine';
 import {
   GET_DEVICE_ORGANIZATION_COUNTS_QUERY,

@@ -1,11 +1,13 @@
 'use client';
 
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  getDeviceName,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
-import { DEFAULT_DEVICES_LIST_STATUSES } from '../constants/device-statuses';
 import { fetchDevicesPage } from '../queries/devices-api';
-import { getDeviceName } from '../utils/device-name';
 import { deviceQueryKeys } from '../utils/query-keys';
 
 /** The header funnel lists every device by name; a fleet past this size shows its first devices. */

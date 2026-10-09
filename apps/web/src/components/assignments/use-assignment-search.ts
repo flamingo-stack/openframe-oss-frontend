@@ -1,9 +1,9 @@
 'use client';
 
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { ticketService } from '@/app/(app)/tickets/services';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';

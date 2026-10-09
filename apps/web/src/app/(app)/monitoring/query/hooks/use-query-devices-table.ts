@@ -1,10 +1,9 @@
+import { DEVICE_ENRICHMENT_FILTER, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
-import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
-import { getDeviceName } from '../../../devices/utils/device-name';
 import type { QueryDeviceRow } from '../types/query-device-row';
 
 const QUERY_HOSTS_PAGE_SIZE = 100;

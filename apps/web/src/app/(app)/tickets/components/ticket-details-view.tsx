@@ -9,7 +9,7 @@ import {
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
-import { useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
   ChatsIcon,
@@ -58,7 +58,6 @@ import { routes } from '@/lib/routes';
 import { useAuthStore } from '@/stores';
 import { useDeviceActionsMenu } from '../../devices/hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../../devices/hooks/use-device-details';
-import { getDeviceName } from '../../devices/utils/device-name';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, CREATION_SOURCE } from '../constants';

@@ -1,9 +1,9 @@
 'use client';
 
+import { packageManagerLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareActionEngineCell_action$key } from '@/__generated__/softwareActionEngineCell_action.graphql';
-import { packageManagerLabel } from '../shared/package-managers';
 
 const softwareActionEngineCellFragment = graphql`
   fragment softwareActionEngineCell_action on SoftwareActionRun {

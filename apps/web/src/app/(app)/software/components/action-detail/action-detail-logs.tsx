@@ -1,11 +1,11 @@
 'use client';
 
+import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { graphql, useFragment } from 'react-relay';
 import type { actionDetailLogs_action$key } from '@/__generated__/actionDetailLogs_action.graphql';
 import type { ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
-import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
 import { SoftwareLogsTable } from './software-logs-table';
 
 const actionDetailLogsFragment = graphql`

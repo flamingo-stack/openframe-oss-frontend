@@ -1,26 +1,21 @@
 'use client';
 
-import { ArrowRightUpIcon, CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Button,
-  type ColumnDef,
-  DataTable,
-  type Row,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useLayoutEffect } from 'react';
+  lastReadAt,
+  type TenantRow,
+  TenantsTableView,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
-import type { tenantsTable_query$data, tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
+import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
 import type { tenantsTablePaginationQuery } from '@/__generated__/tenantsTablePaginationQuery.graphql';
 import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__/tenantsTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
-import { openInNewTab } from '@/lib/open-in-new-tab';
+import { EmptyState, useRetryKey } from '@/app/components/shared';
+import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
-import { TenantAccessCell } from './tenant-access-cell';
-import { TenantCell } from './tenant-cell';
-import { TenantCustomerCell } from './tenant-customer-cell';
-import { TENANT_COLUMNS, TENANTS_PAGE_SIZE } from './tenants-table-columns';
+
+export const TENANTS_PAGE_SIZE = 20;
 
 const tenantsTableQuery = graphql`
   query tenantsTableQuery($search: String, $first: Int!, $after: String) {
@@ -28,6 +23,9 @@ const tenantsTableQuery = graphql`
   }
 `;
 
+// The fields of a row are the core library's `TenantRow`: its cells take plain props, so the
+// selection lives here. `access` is a (TTL-cached) provider probe per row; the list is where the
+// design shows it.
 const tenantsTableFragment = graphql`
   fragment tenantsTable_query on Query
   @refetchable(queryName: "tenantsTablePaginationQuery")
@@ -43,9 +41,20 @@ const tenantsTableFragment = graphql`
         node {
           id
           name
-          ...tenantCell_connection
-          ...tenantCustomerCell_connection
-          ...tenantAccessCell_connection
+          provider
+          domain
+          userCount
+          lastSyncAt
+          access {
+            state
+          }
+          organization {
+            name
+            image {
+              imageUrl
+              hash
+            }
+          }
         }
       }
       pageInfo {
@@ -56,52 +65,7 @@ const tenantsTableFragment = graphql`
   }
 `;
 
-type TenantRow = tenantsTable_query$data['directoryConnections']['edges'][number]['node'];
-
 const tenantRowHref = (row: TenantRow) => routes.cloudTenantManagement.details(row.id);
-const getRowId = (row: TenantRow) => row.id;
-
-const COLUMNS: ColumnDef<TenantRow>[] = [
-  {
-    id: TENANT_COLUMNS.tenant.id,
-    header: TENANT_COLUMNS.tenant.header,
-    cell: ({ row }: { row: Row<TenantRow> }) => <TenantCell connection={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(TENANT_COLUMNS.tenant),
-  },
-  {
-    id: TENANT_COLUMNS.customer.id,
-    header: TENANT_COLUMNS.customer.header,
-    cell: ({ row }: { row: Row<TenantRow> }) => <TenantCustomerCell connection={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(TENANT_COLUMNS.customer),
-  },
-  {
-    id: TENANT_COLUMNS.access.id,
-    header: TENANT_COLUMNS.access.header,
-    cell: ({ row }: { row: Row<TenantRow> }) => <TenantAccessCell connection={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(TENANT_COLUMNS.access),
-  },
-  {
-    id: TENANT_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<TenantRow> }) => (
-      // The row itself is the details link; a nested `<a>` is invalid, so this opens the same href.
-      <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-        <Button
-          onClick={openInNewTab(tenantRowHref(row.original))}
-          variant="outline"
-          size="icon"
-          leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-          aria-label={`Open ${row.original.name} in new tab`}
-          className="bg-ods-card"
-        />
-      </div>
-    ),
-    enableSorting: false,
-    meta: liveColumnMeta(TENANT_COLUMNS.open),
-  },
-];
 
 interface TenantsTableProps {
   search: string;
@@ -111,7 +75,7 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The tenant rows — suspends on the query, so it lives under the view's `<Suspense>`. */
+/** The tenant rows: suspends on the query, so it lives under the view's `<Suspense>`. */
 export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
@@ -124,8 +88,28 @@ export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOff
     tenantsTable_query$key
   >(tenantsTableFragment, queryData);
 
-  const rows = data.directoryConnections.edges.map(edge => edge.node);
-  const table = useDataTable<TenantRow>({ data: rows, columns: COLUMNS, getRowId, enableSorting: false });
+  const { edges, totalCount } = data.directoryConnections;
+  const rows = useMemo<TenantRow[]>(
+    () =>
+      edges.map(({ node }) => {
+        // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
+        const lastSyncAt: unknown = node.lastSyncAt;
+        return {
+          id: node.id,
+          name: node.name,
+          provider: node.provider,
+          domain: node.domain,
+          customer: {
+            name: node.organization.name,
+            imageUrl: getFullImageUrl(node.organization.image?.imageUrl, node.organization.image?.hash),
+          },
+          userCount: node.userCount,
+          accessState: node.access.state,
+          lastReadAt: lastReadAt({ lastSyncAt }),
+        };
+      }),
+    [edges],
+  );
 
   const showEmptyState = !search && !isPending && rows.length === 0;
   // Before paint: the view hides its search toolbar over the empty state, so it must not flash first.
@@ -150,32 +134,17 @@ export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOff
   };
 
   return (
-    // Dim, don't unmount, the stale rows while a deferred search refetches.
-    <div className={cn('transition-opacity duration-200', isPending && 'opacity-60')}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={data.directoryConnections.totalCount} />}
-        />
-        <DataTable.Body
-          skeletonRows={TENANTS_PAGE_SIZE}
-          emptyState={{
-            title: 'No tenants match',
-            description: `Nothing matches "${search}". Try a different name, domain or customer.`,
-          }}
-          rowClassName="mb-[var(--spacing-system-xxs)]"
-          rowHref={tenantRowHref}
-        />
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <TenantsTableView
+      rows={rows}
+      getHref={tenantRowHref}
+      search={search}
+      isPending={isPending}
+      totalCount={totalCount}
+      stickyHeaderOffset={stickyHeaderOffset}
+      skeletonRows={TENANTS_PAGE_SIZE}
+      hasNextPage={hasNext}
+      isFetchingNextPage={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
   );
 }

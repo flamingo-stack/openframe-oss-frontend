@@ -1,11 +1,12 @@
 'use client';
 
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { devicesPageRelayQuery as DevicesPageRelayQueryType } from '@/__generated__/devicesPageRelayQuery.graphql';
 import { devicesPageRelayQuery } from '@/graphql/devices/devices-page-relay';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
-import type { Device, DeviceFilterInput } from '../types/device.types';
+import type { Device } from '../types/device.types';
 import { useDeviceEpoch } from '../utils/device-refresh';
 import { readMachineEdges } from '../utils/read-machine';
 

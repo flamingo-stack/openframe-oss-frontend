@@ -1,8 +1,7 @@
+import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
-import { getDeviceStatusConfig } from '@/app/(app)/devices/utils/device-status';
 
 function statusLabel(device: Device): string {
   return getDeviceStatusConfig(device.status).label.toLowerCase();

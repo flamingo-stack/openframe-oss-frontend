@@ -1,6 +1,11 @@
 'use client';
 
-import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  DeviceTypeTile,
+  formatLastOnline,
+  getDeviceStatusConfig,
+  OSTypeBadge,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   BracketCurlyEllipsisVrIcon,
@@ -23,14 +28,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
-import { formatLastOnline } from '@/app/(app)/devices/utils/device-last-online';
-import { DeviceTypeTile } from '@/app/components/shared/device-type-tile';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { getDeviceStatusConfig } from '../../../devices/utils/device-status';
 import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';

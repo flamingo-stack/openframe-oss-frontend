@@ -1,11 +1,13 @@
 'use client';
 
+import {
+  DEFAULT_DEVICES_LIST_STATUSES,
+  getDeviceName,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
-import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
