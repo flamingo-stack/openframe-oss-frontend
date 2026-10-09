@@ -16,6 +16,8 @@ export interface DialogNode {
   title: string;
   status: string;
   streamState: DialogStreamState;
+  /** The approval request the dialog waits on; null when none is pending. */
+  pendingApproval?: { id: string; approvalType?: string } | null;
   /** DialogOwner union — ClientDialogOwner (machine fields) or AdminDialogOwner
    *  (userId/user fields), depending on the query's inline fragments. */
   owner?: {
