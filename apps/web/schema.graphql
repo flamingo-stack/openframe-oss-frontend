@@ -3411,7 +3411,7 @@ type RemoteSession {
   NONE: recording off, the session never connected (read by id; the list leaves these out), it started without recording (recordingSuppressed), or it ended
   more than a day ago with no file and was never checked. PROCESSING: recording on and nothing listed yet (ACTIVE, or
   ended less than 30 min ago). READY: at least one file that can still be played; a file that arrives late turns
-  FAILED into READY. FAILED: no file 30 min after the end. DELETED: every file was deleted by a technician.
+  FAILED into READY. KEPT: the session's recordings are kept (recordingHold is set); checked before READY. FAILED: no file 30 min after the end. DELETED: every file was deleted by a technician.
   EXPIRED: no playable file left and at least one expired.
   """
   recordingState: RemoteSessionRecordingState!
@@ -3456,6 +3456,7 @@ enum RemoteSessionRecordingState {
   NONE
   PROCESSING
   READY
+  KEPT
   FAILED
   EXPIRED
   DELETED

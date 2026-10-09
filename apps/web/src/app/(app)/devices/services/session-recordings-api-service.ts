@@ -127,15 +127,23 @@ const RECORDING_STATES: Record<RemoteSessionRecordingState, RecordingState> = {
   [RemoteSessionRecordingState.NONE]: 'none',
   [RemoteSessionRecordingState.PROCESSING]: 'processing',
   [RemoteSessionRecordingState.READY]: 'ready',
+  // A kept session plays like a ready one; `kept` carries the Keep.
+  [RemoteSessionRecordingState.KEPT]: 'ready',
   [RemoteSessionRecordingState.FAILED]: 'failed',
   [RemoteSessionRecordingState.EXPIRED]: 'expired',
   [RemoteSessionRecordingState.DELETED]: 'deleted',
 };
 
+const LIVE_FILE_STATUSES: ReadonlySet<string> = new Set([
+  RemoteSessionRecordingStatus.AVAILABLE,
+  RemoteSessionRecordingStatus.HELD,
+]);
+
 /** The wire session (the fragment's data) -> the tab's row. */
 export function fromWireSession(session: WireSession): RecordingSummary {
   const files = session.recordings;
-  const stored = files.filter(file => file.sizeBytes != null);
+  // An expired or deleted file keeps its original size as history; only the files still stored count.
+  const stored = files.filter(file => file.sizeBytes != null && LIVE_FILE_STATUSES.has(file.status));
   return {
     id: session.sessionId,
     deviceId: session.deviceId,
@@ -145,7 +153,9 @@ export function fromWireSession(session: WireSession): RecordingSummary {
     protocol: files[0]?.protocol === 1 ? 1 : 2,
     // A state this client does not know yet reads as "nothing to show", not as playable.
     recordingState: RECORDING_STATES[session.recordingState as RemoteSessionRecordingState] ?? 'none',
-    kept: files.some(file => file.status === RemoteSessionRecordingStatus.HELD),
+    kept:
+      session.recordingState === RemoteSessionRecordingState.KEPT ||
+      files.some(file => file.status === RemoteSessionRecordingStatus.HELD),
     expiresAt: session.recordingExpiresAt != null ? String(session.recordingExpiresAt) : null,
     recordingId: files[0]?.recordingId ?? null,
     employee: {

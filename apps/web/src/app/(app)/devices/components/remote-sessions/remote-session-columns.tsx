@@ -194,7 +194,7 @@ export function remoteSessionColumns({
     {
       id: REMOTE_SESSION_COLUMNS.expires.id,
       header: REMOTE_SESSION_COLUMNS.expires.header,
-      accessorFn: (row: RecordingSummary) => expiresFilterValue(row),
+      accessorFn: (row: RecordingSummary) => expiresFilterValue(row, now),
       cell: ({ row }: { row: Row<RecordingSummary> }) => <ExpiresCell row={row.original} now={now} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
