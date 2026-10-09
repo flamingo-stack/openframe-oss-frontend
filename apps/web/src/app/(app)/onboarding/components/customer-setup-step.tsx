@@ -6,11 +6,12 @@ import { ImageUploader } from '@flamingo-stack/openframe-frontend-core/component
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { routes } from '@/lib/routes';
 import { uploadWithAuth } from '@/lib/upload-with-auth';
 import { type CreateCustomerRequest, useCreateCustomer } from '../../customers/hooks/use-create-customer';
 import { dashboardQueryKeys } from '../../dashboard/utils/query-keys';
+import { usePendingLogo } from '../hooks/use-pending-logo';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 import { FullFormLink } from './full-form-link';
@@ -43,29 +44,7 @@ export function CustomerSetupStep({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // The logo is held in memory until the customer exists, then uploaded to it.
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | undefined>();
-  const previewUrlRef = useRef<string | undefined>(undefined);
-
-  useEffect(
-    () => () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    [],
-  );
-
-  const replacePreview = useCallback((file: File | null) => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    if (file) {
-      const next = URL.createObjectURL(file);
-      previewUrlRef.current = next;
-      setPreviewUrl(next);
-    } else {
-      previewUrlRef.current = undefined;
-      setPreviewUrl(undefined);
-    }
-    setPendingFile(file);
-  }, []);
+  const { pendingFile, previewUrl, replace: replacePreview } = usePendingLogo();
 
   const handleSave = useCallback(async () => {
     if (!name.trim() || isSubmitting) return;
