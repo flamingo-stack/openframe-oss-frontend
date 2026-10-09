@@ -7,6 +7,8 @@ import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import type { MingoDialogsPage } from '../utils/dialog-row-status';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
 // TODO(unread-from-entity): re-enable per-dialog unread highlighting once the backend exposes
@@ -72,10 +74,8 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: ['mingo-dialogs', { search, limit, scope }],
-    queryFn: async ({
-      pageParam,
-    }): Promise<{ dialogs: DialogNode[]; pageInfo: { hasNextPage: boolean; endCursor?: string } }> => {
+    queryKey: mingoDialogQueryKeys.list({ search, limit, scope }),
+    queryFn: async ({ pageParam }): Promise<MingoDialogsPage> => {
       const variables = {
         filter: {
           agentTypes: ['ADMIN'],
@@ -134,15 +134,16 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     placeholderData: keepPreviousData,
   });
 
-  const dialogsWithUnread = useMemo(() => {
-    if (!query.data?.pages) return [];
-
-    const allDialogs = query.data.pages.flatMap(page => page.dialogs);
-    return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0));
-  }, [query.data, unreadByDialog]);
+  const nodes = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data]);
+  const dialogsWithUnread = useMemo(
+    () => nodes.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0)),
+    [nodes, unreadByDialog],
+  );
 
   return {
     dialogs: dialogsWithUnread,
+    /** The same rows as the server sent them: what a row's status is read from. */
+    nodes,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error?.message,

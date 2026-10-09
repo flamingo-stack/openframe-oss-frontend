@@ -58,6 +58,11 @@ export const GET_MINGO_DIALOGS_QUERY = `
      id
      title
      status
+     streamState
+     pendingApproval {
+      id
+      approvalType
+     }
      createdAt
      statusUpdatedAt
      owner {
