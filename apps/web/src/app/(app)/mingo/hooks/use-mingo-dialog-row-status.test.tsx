@@ -108,7 +108,7 @@ describe('useMingoDialogRowStatus', () => {
 
   it('writes the open chat state onto its list row and leaves other caches alone', () => {
     const queryClient = new QueryClient();
-    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all' });
+    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all', withPendingApproval: true });
     queryClient.setQueryData(listKey, listData([node('d-1', { pendingApproval: { id: 'ar-2' } })]));
     const incidentKey = ['mingo-dialogs', 'insight', 'i-1'];
     const incidentData = [{ id: 'd-1' }];

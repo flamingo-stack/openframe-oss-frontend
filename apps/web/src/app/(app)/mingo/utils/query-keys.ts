@@ -6,7 +6,8 @@
  */
 export const mingoDialogQueryKeys = {
   lists: ['mingo-dialogs', 'list'] as const,
-  list: (params: { search?: string; limit: number; scope: string }) => ['mingo-dialogs', 'list', params] as const,
+  list: (params: { search?: string; limit: number; scope: string; withPendingApproval: boolean }) =>
+    ['mingo-dialogs', 'list', params] as const,
   detail: (dialogId: string | null) => ['mingo-dialog', dialogId] as const,
   messages: (dialogId: string | null) => ['mingo-dialog-messages', dialogId] as const,
 };

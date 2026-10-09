@@ -3,9 +3,10 @@
 import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
-import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
+import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
@@ -56,6 +57,9 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = 20, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
+  // Only the v2 list shows a chat waiting for approval, and only v2 asks for it (see
+  // the query). Both chat surfaces mount after the flags have answered.
+  const withPendingApproval = useFeatureFlag('mingo-v2');
 
   // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
   // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),
@@ -74,7 +78,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: mingoDialogQueryKeys.list({ search, limit, scope }),
+    queryKey: mingoDialogQueryKeys.list({ search, limit, scope, withPendingApproval }),
     queryFn: async ({ pageParam }): Promise<MingoDialogsPage> => {
       const variables = {
         filter: {
@@ -93,7 +97,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
       };
 
       const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
-        query: GET_MINGO_DIALOGS_QUERY,
+        query: withPendingApproval ? GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY : GET_MINGO_DIALOGS_QUERY,
         variables,
       });
 
