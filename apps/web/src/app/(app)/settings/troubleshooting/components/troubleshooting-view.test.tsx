@@ -25,6 +25,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEVICE_LOG_LIST_DEBOUNCE_MS } from '@/app/(app)/devices/hooks/use-deferred-log-list';
+import { DEVICE_LOG_SEARCH_DEBOUNCE_MS } from '@/app/(app)/devices/hooks/use-device-log-filters';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { TroubleshootingView } from './troubleshooting-view';
 
@@ -162,6 +163,18 @@ function refreshButton() {
   return Array.from(container.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Refresh');
 }
 
+function searchInput() {
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Search device logs"]');
+  if (!input) throw new Error('no search box');
+  return input;
+}
+
+/** A keystroke as React sees it: the native setter, then the event its onChange listens to. */
+function typeInto(input: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 /** What the list's live region says to a screen reader. */
 function listStatus() {
   return Array.from(container.querySelectorAll('[role="status"]'))
@@ -294,6 +307,38 @@ describe('TroubleshootingView', () => {
     // The first pick never became a request of its own; the second composed with it.
     expect(asked).not.toContainEqual(['DEBUG', 'INFO', 'WARN']);
     expect(asked.at(-1)).toEqual(['DEBUG', 'INFO']);
+  });
+
+  it('writes the search once the typing stops, not at a pause between words, and asks for it once', async () => {
+    await mount('');
+    const type = async (values: string[], gapMs: number) => {
+      for (const value of values) {
+        await act(async () => {
+          typeInto(searchInput(), value);
+          vi.advanceTimersByTime(gapMs);
+        });
+      }
+    };
+    // A word, then the kind of pause that comes before the next one.
+    await type(['d', 'di', 'dis', 'disk'], 100);
+    await act(async () => {
+      vi.advanceTimersByTime(300 - 100);
+    });
+    expect(searchInput().value).toBe('disk');
+    expect(spies.replace).not.toHaveBeenCalled();
+
+    await type(['disk ', 'disk f', 'disk fu', 'disk ful', 'disk full'], 100);
+    await act(async () => {
+      vi.advanceTimersByTime(DEVICE_LOG_SEARCH_DEBOUNCE_MS - 100);
+    });
+    expect(spies.replace).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '').get('logSearch')).toBe('disk full');
+
+    await settle();
+    const searched = spies.lazyLoadQuery.mock.calls
+      .map(([, variables]) => (variables.filter as { contains?: string[] }).contains)
+      .filter(contains => contains !== undefined);
+    expect(new Set(searched.map(contains => contains.join(' ')))).toEqual(new Set(['disk full']));
   });
 
   it('does not page the old list while the next one is on its way', async () => {
