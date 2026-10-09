@@ -85,6 +85,9 @@ export function useOrganizationOptions(search = '', enabled = true) {
     queryKey: ticketOptionsQueryKeys.organizations(search),
     queryFn: () => fetchCustomerOptions(search),
     enabled,
+    // `search` is part of the key, so every keystroke is a new query: without this the
+    // open list empties to "Loading…" between characters, as the device picker's did.
+    placeholderData: keepPreviousData,
   });
 
   return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
