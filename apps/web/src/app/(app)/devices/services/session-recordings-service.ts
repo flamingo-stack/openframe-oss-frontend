@@ -1,4 +1,4 @@
-import type { RecordingDetail, RecordingSegment, RecordingSummary } from '../types/session-recording';
+import type { RecordingDetail, RecordingSegment, RecordingStorage, RecordingSummary } from '../types/session-recording';
 
 /**
  * Thrown by `downloadSegment` when a file's bytes cannot be fetched - it has
@@ -17,12 +17,15 @@ export class RecordingUnavailableError extends Error {
  * client (session-recordings-api-service.ts).
  */
 export interface ISessionRecordingsService {
-  /** Whether a recording can be removed from the tab; the API keeps them until retention does. */
+  /** Whether recordings can be deleted at all; which ones, the row's own state says. */
   readonly canDelete: boolean;
   /** The device's remote sessions, newest first. */
   list(deviceId: string): Promise<RecordingSummary[]>;
   get(recordingId: string): Promise<RecordingDetail>;
   /** Fetch one file's raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
   downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer>;
-  delete(recordingId: string): Promise<void>;
+  /** Delete every file of an ended session. Throws the server's refusal (session active, a file kept). */
+  delete(sessionId: string): Promise<void>;
+  /** The tenant's recording storage: what the "Recording storage full" banner reads. */
+  storage(): Promise<RecordingStorage>;
 }
