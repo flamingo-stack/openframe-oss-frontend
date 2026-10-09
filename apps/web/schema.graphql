@@ -2902,11 +2902,22 @@ type Query {
   activeRemoteSession(deviceId: String!): RemoteSession
 
   """
-  Sessions on a device, newest first. from/to bound startedAt. first is clamped to 1..100, default 20.
+  The tenant's sessions, filtered and sorted server-side; no filter returns every device, newest first. first is clamped
+  to 1..100, default 20. Cursors are valid only under the sort they were issued for: another sort or direction reads
+  INVALID_CURSOR, start again without after. deviceId, from and to are the device tab's old arguments: each one fills the
+  matching filter field when the filter leaves it empty, the filter wins otherwise.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
   audit still return it.
   """
-  remoteSessions(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteSessionConnection!
+  remoteSessions(
+    deviceId: String @deprecated(reason: "use filter.deviceIds")
+    from: Instant @deprecated(reason: "use filter.from")
+    to: Instant @deprecated(reason: "use filter.to")
+    filter: RemoteSessionFilter
+    sort: RemoteSessionSort
+    first: Int
+    after: String
+  ): RemoteSessionConnection!
 
   """Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20."""
   remoteAccessRequests(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteAccessRequestConnection!
@@ -3540,6 +3551,66 @@ type RemoteSession {
   """Set while the session's recordings are kept."""
   recordingHold: RecordingHold
   lastRecordingRelease: RecordingRelease
+
+  """The row's device (id, machineId, displayName, hostname, organization); null when the device is gone."""
+  device: Machine
+
+  """The list's SIZE column: bytes of the session's stored files (AVAILABLE and HELD); null while no file is registered."""
+  recordingSizeBytes: Long
+}
+
+"""The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
+enum RemoteSessionListState {
+  """Recording on and no file yet: ACTIVE, or ended less than 30 min ago."""
+  PROCESSING
+
+  """No file 30 min after the end (inside the listing window, or stamped by the detector)."""
+  FAILED
+
+  """The session carries a Keep (recordingHold)."""
+  KEPT
+
+  """Not kept, playable, and a file expires within openframe.recordings.expiring-soon (7 days)."""
+  EXPIRING
+
+  """No playable file left and at least one expired."""
+  EXPIRED
+}
+
+enum RemoteSessionSortField {
+  """startedAt"""
+  DATE
+
+  """durationMs"""
+  DURATION
+
+  """bytes of the session's stored files"""
+  SIZE
+
+  """earliest expiry of the session's playable files"""
+  EXPIRY
+}
+
+"""Filters combine with AND. Absent or empty deviceIds means every device of the tenant."""
+input RemoteSessionFilter {
+  deviceIds: [String!]
+
+  """The customer: the session's organization."""
+  organizationId: String
+  technicianId: String
+  recordingState: RemoteSessionListState
+
+  """startedAt, inclusive"""
+  from: Instant
+
+  """startedAt, exclusive"""
+  to: Instant
+}
+
+"""Rows without a value for the key (e.g. no expiry) come last in both directions."""
+input RemoteSessionSort {
+  field: RemoteSessionSortField! = DATE
+  direction: SortDirection! = DESC
 }
 
 enum RemoteSessionEndReason {
