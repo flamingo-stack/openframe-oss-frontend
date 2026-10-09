@@ -50,12 +50,13 @@ export function normalizeAskMessageData<T>(messageData: T): T {
 }
 
 const dialogsQuery = (extraNodeFields: string) => `
-  query GetDialogs($filter: DialogFilterInput, $pagination: CursorPaginationInput, $search: String) {
-  dialogs(filter: $filter, pagination: $pagination, search: $search) {
+  query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String) {
+  dialogs(filter: $filter, first: $first, after: $after, search: $search) {
    edges {
     cursor
     node {
      id
+     dialogId
      title
      status
      streamState${extraNodeFields}
@@ -132,6 +133,7 @@ export const GET_MINGO_DIALOG_QUERY = `
   query GetDialog($id: ID!) {
     dialog(id: $id) {
     id
+    dialogId
     title
     status
     streamState
@@ -239,7 +241,8 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
       dialogId: $dialogId
-      pagination: { cursor: $cursor, limit: $limit }
+      first: $limit
+      after: $cursor
       sort: { field: $sortField, direction: $sortDirection }
     ) {
       edges {

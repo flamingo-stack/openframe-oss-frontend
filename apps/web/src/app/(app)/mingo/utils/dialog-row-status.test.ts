@@ -11,7 +11,16 @@ import {
 } from './dialog-row-status';
 
 function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
-  return { id, title: id, status: 'ACTIVE', streamState: 'IDLE', createdAt: '2026-10-09T09:00:00Z', ...fields };
+  // `id` is the Relay global id; rows are matched on the raw `dialogId`.
+  return {
+    id: `global-${id}`,
+    dialogId: id,
+    title: id,
+    status: 'ACTIVE',
+    streamState: 'IDLE',
+    createdAt: '2026-10-09T09:00:00Z',
+    ...fields,
+  };
 }
 
 function pages(...dialogPages: DialogNode[][]): InfiniteData<MingoDialogsPage> {

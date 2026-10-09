@@ -60,7 +60,7 @@ export function useMingoDialogRowStatus({
 
   return dialog => {
     if (live && dialog.id === activeDialogId) return dialogRowStatus(live);
-    const node = nodes.find(row => row.id === dialog.id);
+    const node = nodes.find(row => row.dialogId === dialog.id);
     return node ? dialogRowStatus(serverRowState(node)) : undefined;
   };
 }

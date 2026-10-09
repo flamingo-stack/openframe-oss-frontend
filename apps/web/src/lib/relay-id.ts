@@ -59,6 +59,16 @@ export function rawIdOf(value: string): string {
   return decodeGlobalId(value)?.rawId ?? value;
 }
 
+/**
+ * The raw id inside a `typename` global id; anything else comes back as is. Unlike
+ * `rawIdOf`, safe on a value that may already be raw: a 24-hex ObjectId is valid base64
+ * too, and the few that decode to something with a colon would otherwise be mangled.
+ */
+export function rawIdOfType(typename: string, value: string): string {
+  const decoded = decodeGlobalId(value);
+  return decoded?.typename === typename ? decoded.rawId : value;
+}
+
 export function notificationGlobalId(rawId: string): string {
   return ensureGlobalIdForType('Notification', rawId);
 }

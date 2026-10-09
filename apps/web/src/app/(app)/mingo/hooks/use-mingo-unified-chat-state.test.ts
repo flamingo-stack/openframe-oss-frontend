@@ -6,6 +6,7 @@ import {
   hasMingoDisplayCommand,
   mapMingoMessageToUnified,
   needsAllChatsScope,
+  rawDialogIdToAdopt,
 } from './use-mingo-unified-chat-state';
 
 const TIMESTAMP = new Date('2026-08-26T12:00:00Z');
@@ -199,5 +200,29 @@ describe('needsAllChatsScope', () => {
     // Guarding this is what stops every dialog looking like someone else's during the
     // window before `/me` answers.
     expect(needsAllChatsScope('user-b', undefined)).toBe(false);
+  });
+});
+
+/** One switch per legacy link: it must end, and never act on another dialog's record. */
+describe('rawDialogIdToAdopt', () => {
+  const RAW = '6ac4e3a3fb523d620947f238';
+  const GLOBAL = 'RGlhbG9nOjZhYzRlM2EzZmI1MjNkNjIwOTQ3ZjIzOA';
+  const dialog = { id: GLOBAL, dialogId: RAW };
+
+  it('switches a dialog opened by its global id to the raw id', () => {
+    expect(rawDialogIdToAdopt(GLOBAL, dialog)).toBe(RAW);
+  });
+
+  it('stays put once the raw id is active, so the switch cannot loop', () => {
+    expect(rawDialogIdToAdopt(RAW, dialog)).toBeNull();
+  });
+
+  it('ignores a record that belongs to another active id', () => {
+    expect(rawDialogIdToAdopt('another-dialog', dialog)).toBeNull();
+  });
+
+  it('does nothing before the dialog has loaded or with no active dialog', () => {
+    expect(rawDialogIdToAdopt(GLOBAL, null)).toBeNull();
+    expect(rawDialogIdToAdopt(null, dialog)).toBeNull();
   });
 });
