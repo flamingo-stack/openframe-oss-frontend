@@ -28,13 +28,14 @@ export type DesktopInputHandlers = {
   requestDisplayList?(): void;
   switchDisplay?(displayId: number): void;
   getDisplayList?(): DisplayInfo[];
-  onDisplayListChange?(callback: (displays: DisplayInfo[]) => void): void;
-  attachDisplayView?(displayId: number, canvas: HTMLCanvasElement): void;
-  detachDisplayView?(displayId: number): void;
+  onDisplayListChange?(callback: (displays: DisplayInfo[], currentDisplay: number | null) => void): void;
   onFirstFrame?(callback: () => void): void;
   beginStream?(): void;
   setClipboardInterceptor?(interceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null): void;
 };
+
+/** The agent's combined "all displays" view in cmd 11 / cmd 12. */
+const ALL_DISPLAYS = 0xffff;
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -72,12 +73,11 @@ export class MeshDesktop implements DesktopInputHandlers {
   private drawScheduled = false;
 
   private displayList: DisplayInfo[] = [];
-  private currentDisplay = 0;
-  private onDisplayListCallback: ((displays: DisplayInfo[]) => void) | null = null;
-  private displayViews = new Map<
-    number,
-    { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; cleanup: Array<() => void> }
-  >();
+  /** The display the agent streams, as far as this side knows; null until the agent says. */
+  private currentDisplay: number | null = null;
+  /** The technician's pick; null follows the primary display. Kept across relays. */
+  private requestedDisplay: number | null = null;
+  private onDisplayListCallback: ((displays: DisplayInfo[], currentDisplay: number | null) => void) | null = null;
   private firstFrameDrawn = false;
   private onFirstFrameCallback: (() => void) | null = null;
   private clipboardInterceptor: ((type: 'copy' | 'cut' | 'paste', sendKeys: () => void) => void) | null = null;
@@ -447,80 +447,10 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.accum = null;
     this.accumOffset = 0;
     this.firstFrameDrawn = false;
-    this.detachAllDisplayViews();
     for (const off of this.listeners) off();
     this.listeners = [];
     this.canvas = null;
     this.ctx = null;
-  }
-
-  /**
-   * Register a per-display viewer canvas for the "Show All" grid. The main
-   * canvas keeps receiving the combined virtual-desktop stream (display
-   * 0xFFFF); each registered view gets its display's rectangle (from cmd 82
-   * Display Location Info) blitted onto its own canvas after every tile
-   * batch, and its pointer input mapped back into virtual-desktop coords.
-   */
-  attachDisplayView(displayId: number, canvas: HTMLCanvasElement) {
-    this.detachDisplayView(displayId);
-    const cleanup = this.bindPointerInput(canvas, e => this.getDisplayViewXy(e, canvas, displayId));
-    this.displayViews.set(displayId, { canvas, ctx: canvas.getContext('2d'), cleanup });
-    this.blitDisplayView(displayId);
-  }
-
-  detachDisplayView(displayId: number) {
-    const view = this.displayViews.get(displayId);
-    if (!view) return;
-    for (const off of view.cleanup) off();
-    this.displayViews.delete(displayId);
-  }
-
-  detachAllDisplayViews() {
-    for (const id of [...this.displayViews.keys()]) this.detachDisplayView(id);
-  }
-
-  private getDisplayViewXy(e: MouseEvent, canvas: HTMLCanvasElement, displayId: number): { x: number; y: number } {
-    const display = this.displayList.find(d => d.id === displayId);
-    if (!display || display.w === 0 || display.h === 0) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return { x: display.x, y: display.y };
-
-    // Same object-contain math as getRemoteXy, but against the display rect.
-    const scale = Math.min(rect.width / display.w, rect.height / display.h);
-    const drawnW = display.w * scale;
-    const drawnH = display.h * scale;
-    const offsetX = (rect.width - drawnW) / 2;
-    const offsetY = (rect.height - drawnH) / 2;
-
-    const cx = (e.clientX - rect.left - offsetX) / Math.max(1, drawnW);
-    const cy = (e.clientY - rect.top - offsetY) / Math.max(1, drawnH);
-
-    const x = display.x + Math.round(cx * display.w);
-    const y = display.y + Math.round(cy * display.h);
-    return {
-      x: Math.max(display.x, Math.min(display.x + display.w - 1, x)),
-      y: Math.max(display.y, Math.min(display.y + display.h - 1, y)),
-    };
-  }
-
-  private blitDisplayView(displayId: number) {
-    const view = this.displayViews.get(displayId);
-    if (!view || !view.ctx || !this.canvas) return;
-    const display = this.displayList.find(d => d.id === displayId);
-    if (!display || display.w === 0 || display.h === 0) return;
-    if (view.canvas.width !== display.w || view.canvas.height !== display.h) {
-      view.canvas.width = display.w;
-      view.canvas.height = display.h;
-    }
-    try {
-      view.ctx.drawImage(this.canvas, display.x, display.y, display.w, display.h, 0, 0, display.w, display.h);
-    } catch {
-      // A blit can race a display-list update that shrinks the source canvas; dropping one frame is harmless.
-    }
-  }
-
-  private blitDisplayViews() {
-    for (const id of this.displayViews.keys()) this.blitDisplayView(id);
   }
 
   setViewOnly(viewOnly: boolean) {
@@ -763,6 +693,12 @@ export class MeshDesktop implements DesktopInputHandlers {
   }
 
   switchDisplay(displayId: number) {
+    this.requestedDisplay = displayId;
+    this.sendSwitchDisplay(displayId);
+    this.notifyDisplayList();
+  }
+
+  private sendSwitchDisplay(displayId: number) {
     // Pause the current stream
     const pauseBuffer = new Uint8Array(5);
     const pauseView = new DataView(pauseBuffer.buffer);
@@ -771,13 +707,11 @@ export class MeshDesktop implements DesktopInputHandlers {
     pauseView.setUint8(4, 1); // 1=pause
     this.send(pauseBuffer);
 
-    // Switch display. UI id 0 is the "all displays" entry (parseDisplayList
-    // maps the wire's 0xFFFF to 0), so translate it back for the agent.
     const switchBuffer = new Uint8Array(6);
     const switchView = new DataView(switchBuffer.buffer);
     switchView.setUint16(0, 0x000c, false); // Command: SWITCH_DISPLAY
     switchView.setUint16(2, 0x0006, false); // Size: 6 bytes
-    switchView.setUint16(4, displayId === 0 ? 0xffff : displayId, false); // Display ID
+    switchView.setUint16(4, displayId, false); // Display ID
     this.send(switchBuffer);
     this.currentDisplay = displayId;
 
@@ -797,8 +731,27 @@ export class MeshDesktop implements DesktopInputHandlers {
     return this.displayList;
   }
 
-  onDisplayListChange(callback: (displays: DisplayInfo[]) => void) {
+  onDisplayListChange(callback: (displays: DisplayInfo[], currentDisplay: number | null) => void) {
     this.onDisplayListCallback = callback;
+  }
+
+  private notifyDisplayList() {
+    this.onDisplayListCallback?.([...this.displayList], this.currentDisplay);
+  }
+
+  /**
+   * Streams one separate display, never the combined "all displays" view: the
+   * technician's pick while the agent still lists it, the primary otherwise.
+   * Runs on every list or location update, so a fresh relay (whose agent starts
+   * on its own default) is switched back to that display.
+   */
+  private applyTargetDisplay() {
+    const listed = (id: number | null) => id !== null && this.displayList.some(d => d.id === id);
+    const target = listed(this.requestedDisplay)
+      ? this.requestedDisplay
+      : (this.displayList.find(d => d.primary)?.id ?? this.displayList[0]?.id ?? null);
+    if (target === null || target === this.currentDisplay) return;
+    this.sendSwitchDisplay(target);
   }
 
   onFirstFrame(callback: () => void) {
@@ -816,6 +769,10 @@ export class MeshDesktop implements DesktopInputHandlers {
     this.accum = null;
     this.accumOffset = 0;
     this.firstFrameDrawn = false;
+    // The agent behind a fresh relay streams its own default display; its
+    // display list says which, and the answer switches it back to the target.
+    this.currentDisplay = null;
+    this.requestDisplayList();
   }
 
   sendKeyCombo(combo: string) {
@@ -1034,21 +991,18 @@ export class MeshDesktop implements DesktopInputHandlers {
           }
         }
       }
-      this.blitDisplayViews();
     });
   }
 
   private parseDisplayList(frame: Uint8Array) {
-    // Display List Response Format (from Command 11):
-    // Bytes 0-3: Standard header (cmd=11, size)
-    // Bytes 4-5: Number of displays (uint16, big-endian)
-    // Then variable format based on data size
+    // Display List Response (cmd 11): count at [4..5], then count uint16
+    // display ids, then an optional trailing uint16 for the display the agent
+    // streams now. 0xFFFF is the agent's combined "all displays" view, which is
+    // never offered: the technician picks one separate display. Geometry is not
+    // in this message - it arrives via cmd 82 (which the agent may send before
+    // this response), so known rects are merged in.
     if (frame.length < 6) return;
 
-    // Observed wire format (Windows agent): count at [4..5], then count uint16
-    // display ids, then an optional trailing uint16 "currently selected"
-    // display. Geometry is NOT in this message - it arrives via cmd 82 (which
-    // the agent may send BEFORE this response), so merge any known rects in.
     const displayCount = (frame[4] << 8) | frame[5];
     const idsEnd = 6 + displayCount * 2;
     if (frame.length < idsEnd) return;
@@ -1059,12 +1013,7 @@ export class MeshDesktop implements DesktopInputHandlers {
     for (let i = 0; i < displayCount; i++) {
       const offset = 6 + i * 2;
       const id = (frame[offset] << 8) | frame[offset + 1];
-
-      // 0xFFFF represents the "all displays" view - exposed as UI id 0.
-      if (id === 0xffff) {
-        displays.push({ id: 0, x: 0, y: 0, w: 0, h: 0, primary: false });
-        continue;
-      }
+      if (id === ALL_DISPLAYS) continue;
 
       const known = this.displayList.find(d => d.id === id);
       displays.push({
@@ -1073,58 +1022,57 @@ export class MeshDesktop implements DesktopInputHandlers {
         y: known?.y ?? 0,
         w: known?.w ?? 0,
         h: known?.h ?? 0,
-        // No primary flag on the wire here - treat the currently selected
-        // display as primary (it is what the agent streams by default).
-        primary: selected != null && selected !== 0xffff ? id === selected : i === 0,
+        primary: known?.primary ?? false,
       });
     }
 
-    this.displayList = displays;
-    if (this.onDisplayListCallback) {
-      this.onDisplayListCallback(displays);
+    // Until cmd 82 places the displays, the one the agent streams stands in
+    // for the primary (the first one while it streams all of them).
+    if (displays.length > 0 && !displays.some(d => d.primary)) {
+      const fallback = displays.find(d => d.id === selected) ?? displays[0];
+      fallback.primary = true;
     }
+
+    this.displayList = displays;
+    this.currentDisplay = selected === null || selected === ALL_DISPLAYS ? null : selected;
+    this.applyTargetDisplay();
+    this.notifyDisplayList();
   }
 
   private parseDisplayLocationInfo(frame: Uint8Array) {
-    // Display Location Info Format (from Command 82):
-    // Bytes 0-3: Standard header (cmd=82, size)
-    // Bytes 4-5: Display ID (uint16, big-endian)
-    // Bytes 6-7: X position (uint16, big-endian)
-    // Bytes 8-9: Y position (uint16, big-endian)
-    // Bytes 10-11: Width (uint16, big-endian)
-    // Bytes 12-13: Height (uint16, big-endian)
-    // Bytes 14-15: Flags (uint16, big-endian) - bit 0 = primary display.
-    // Real Windows agents send 14-byte frames (no flags) - observed live:
-    // [0,82,0,14, id, x, y, w, h]. Flags are read only when present.
-    if (frame.length < 14) return;
+    // Display Location Info (cmd 82): every display in one message, 10 bytes
+    // each after the 4-byte header - id (uint16), x, y (int16: a display left
+    // of or above the primary has negative coordinates), width, height (uint16).
+    // No primary flag on the wire: the primary display is the one at 0,0.
+    if (frame.length < 14 || (frame.length - 4) % 10 !== 0) return;
 
-    const displayId = (frame[4] << 8) | frame[5];
-    const x = (frame[6] << 8) | frame[7];
-    const y = (frame[8] << 8) | frame[9];
-    const width = (frame[10] << 8) | frame[11];
-    const height = (frame[12] << 8) | frame[13];
-    const hasFlags = frame.length >= 16;
-    const flags = hasFlags ? (frame[14] << 8) | frame[15] : 0;
-
-    const existingIndex = this.displayList.findIndex(d => d.id === displayId);
-    const displayInfo: DisplayInfo = {
-      id: displayId,
-      x,
-      y,
-      w: width,
-      h: height,
-      // Without flags, keep whatever primary-ness the display list assigned.
-      primary: hasFlags ? (flags & 1) === 1 : (this.displayList[existingIndex]?.primary ?? false),
-    };
-
-    if (existingIndex >= 0) {
-      this.displayList[existingIndex] = displayInfo;
-    } else {
-      this.displayList.push(displayInfo);
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+    const placed: DisplayInfo[] = [];
+    for (let offset = 4; offset < frame.length; offset += 10) {
+      const x = view.getInt16(offset + 2, false);
+      const y = view.getInt16(offset + 4, false);
+      placed.push({
+        id: view.getUint16(offset, false),
+        x,
+        y,
+        w: view.getUint16(offset + 6, false),
+        h: view.getUint16(offset + 8, false),
+        primary: x === 0 && y === 0,
+      });
     }
 
-    if (this.onDisplayListCallback) {
-      this.onDisplayListCallback([...this.displayList]);
+    const merged = this.displayList.map(d => placed.find(p => p.id === d.id) ?? d);
+    for (const display of placed) {
+      if (!merged.some(d => d.id === display.id)) merged.push(display);
     }
+    if (placed.some(d => d.primary)) {
+      for (const display of merged) display.primary = placed.some(p => p.id === display.id && p.primary);
+    }
+
+    this.displayList = merged;
+    // Before the display list says what the agent streams, a switch would only
+    // cross that answer; the list response switches instead.
+    if (this.currentDisplay !== null) this.applyTargetDisplay();
+    this.notifyDisplayList();
   }
 }

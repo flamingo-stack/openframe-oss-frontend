@@ -35,7 +35,12 @@ function endOf(session: RemoteSession): RemoteSessionEnd {
 /** The fields the page reacts to; a poll answer that changed none of them is not a new object. */
 function sameSession(a: RemoteSession, b: RemoteSession): boolean {
   return (
-    a.sessionId === b.sessionId && a.status === b.status && a.dialogId === b.dialogId && a.endReason === b.endReason
+    a.sessionId === b.sessionId &&
+    a.status === b.status &&
+    a.dialogId === b.dialogId &&
+    a.endReason === b.endReason &&
+    // A session first known from the STARTED push learns it was not recorded from the poll.
+    (a.recordingSuppressed ?? null) === (b.recordingSuppressed ?? null)
   );
 }
 

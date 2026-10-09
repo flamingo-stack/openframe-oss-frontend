@@ -49,7 +49,7 @@ export function normalizeAskMessageData<T>(messageData: T): T {
   return (changed ? normalized : messageData) as T;
 }
 
-export const GET_MINGO_DIALOGS_QUERY = `
+const dialogsQuery = (extraNodeFields: string) => `
   query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String) {
   dialogs(filter: $filter, first: $first, after: $after, search: $search) {
    edges {
@@ -59,6 +59,7 @@ export const GET_MINGO_DIALOGS_QUERY = `
      dialogId
      title
      status
+     streamState${extraNodeFields}
      createdAt
      statusUpdatedAt
      owner {
@@ -87,6 +88,19 @@ export const GET_MINGO_DIALOGS_QUERY = `
   }
  }
 `;
+
+export const GET_MINGO_DIALOGS_QUERY = dialogsQuery('');
+
+/**
+ * The Mingo v2 chat list: each chat's pending approval rides along, for the row
+ * status. Asked for only where v2 is on: a backend without the field rejects the
+ * whole query, and every other list (v1, the archive, incidents) must keep loading.
+ */
+export const GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY = dialogsQuery(`
+     pendingApproval {
+      id
+      approvalType
+     }`);
 
 export const RENAME_MINGO_DIALOG_MUTATION = `
   mutation RenameDialog($input: RenameDialogInput!) {
