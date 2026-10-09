@@ -22,6 +22,7 @@ export {
   TabBarSkeleton,
   TableSkeleton,
 } from './page-skeleton-primitives';
+export { QueryIsland } from './query-island';
 export { formatQueryInterval, QueriesTable, type QueriesTableProps } from './queries-table/queries-table';
 export type { QueryTableAction, QueryTableRow } from './queries-table/query-table-row';
 export { SectionLoadError, type SectionLoadErrorProps } from './section-load-error';

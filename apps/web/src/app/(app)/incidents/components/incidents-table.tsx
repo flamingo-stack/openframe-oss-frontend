@@ -21,7 +21,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   fetchQuery,
   readInlineData,
@@ -135,6 +135,8 @@ interface IncidentsTableContentProps {
   isPending: boolean;
   onFilterChange: (filters: Record<string, string[]>) => void;
   onEmptyChange: (isEmpty: boolean) => void;
+  /** The caller has hidden its toolbar for an empty list (`onEmptyChange(true)` has landed). */
+  toolbarHidden: boolean;
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
   stickyHeaderOffset: string;
@@ -163,6 +165,7 @@ function IncidentsTableContent({
   isPending,
   onFilterChange,
   onEmptyChange,
+  toolbarHidden,
   mobileFilterOpen,
   onMobileFilterClose,
   stickyHeaderOffset,
@@ -500,12 +503,15 @@ function IncidentsTableContent({
   const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0);
   const showEmptyState = !debouncedSearch && !hasActiveFilters && !isPending && rows.length === 0 && !hasAnyIncident;
 
-  useEffect(() => {
+  // Before paint, so the caller's toolbar goes in the same frame as the rows.
+  useLayoutEffect(() => {
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
   if (showEmptyState) {
-    return emptyState;
+    // The empty state fills the space below it, measured as it mounts: wait for the
+    // toolbar above to go, or it lays out lower, then jumps.
+    return toolbarHidden ? emptyState : null;
   }
 
   return (
@@ -725,6 +731,7 @@ function IncidentsList({
           isPending={isPending}
           onFilterChange={handleFilterChange}
           onEmptyChange={setIsEmpty}
+          toolbarHidden={isEmpty}
           mobileFilterOpen={mobileFilterOpen}
           onMobileFilterClose={() => setMobileFilterOpen(false)}
           stickyHeaderOffset={stickyHeaderOffset}

@@ -1,6 +1,6 @@
 'use client';
 
-import { getDeviceName, type KnowledgeBaseRow } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { type UseQueryResult, useQueries } from '@tanstack/react-query';
 import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app/(app)/customers/hooks/use-customers';
 import type { Device } from '@/app/(app)/devices/types/device.types';
@@ -9,6 +9,7 @@ import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
+import type { AssignedArticle } from './tables/knowledge-base-assigned-table';
 import {
   ASSIGNMENT_TARGET_TYPES,
   type AssignmentItemType,
@@ -56,15 +57,13 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
               organization { id organizationId name image { imageUrl hash } }
               machineTags: tags { id key description color values createdAt }
             }
+            # What KnowledgeBaseAssignedTable draws — see toAssignedArticle.
             ... on KnowledgeBaseItem {
               articleType: type
               name
-              parentId
               articleStatus: status
               summary
               createdAt
-              updatedAt
-              articleTags: tags { id key color }
             }
             ... on Ticket {
               ticketNumber
@@ -92,6 +91,9 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
 
 const PAGE_SIZE = 100;
 
+/** Every `assignedItems` read, of any item — what a write to assignments invalidates. */
+export const ASSIGNED_ITEMS_QUERY_KEY = ['assignments', 'assigned-items'] as const;
+
 interface AssignedTargetNode {
   // __typename is a GraphQL protocol field name
   __typename: 'Organization' | 'Machine' | 'Ticket' | 'KnowledgeBaseItem';
@@ -112,7 +114,7 @@ function unaliasFields(target: AssignedTargetNode): Record<string, unknown> {
     ...t,
     status: t.machineStatus ?? t.articleStatus ?? t.status,
     type: t.machineType ?? t.articleType ?? t.type,
-    tags: t.machineTags ?? t.articleTags ?? t.tags,
+    tags: t.machineTags ?? t.tags,
     organizationId: t.ticketOrganizationId ?? t.organizationId,
   };
 }
@@ -140,6 +142,24 @@ function toMachineRowFields(target: AssignedTargetNode): DeviceRowFields {
     type: t.type as DeviceRowFields['type'],
     organization: t.organization as DeviceRowFields['organization'],
     tags: t.tags as DeviceRowFields['tags'],
+  };
+}
+
+/**
+ * The article half of a target, in the shape the knowledge base's cells read.
+ * Built field by field for the same reason as `toMachineRowFields`: the row type
+ * is generated from those cells' fragments, so a field this query stops
+ * selecting fails to compile instead of drawing an empty column.
+ */
+function toAssignedArticle(target: AssignedTargetNode): AssignedArticle {
+  const t = unaliasFields(target);
+  return {
+    id: target.id,
+    type: t.type as AssignedArticle['type'],
+    name: t.name as string,
+    status: t.status as AssignedArticle['status'],
+    summary: t.summary as string | null,
+    createdAt: t.createdAt as AssignedArticle['createdAt'],
   };
 }
 
@@ -178,7 +198,7 @@ interface AssignedItemsPayload {
   refs: AssignmentRef[];
   customers?: Customer[];
   devices?: Device[];
-  articles?: KnowledgeBaseRow[];
+  articles?: AssignedArticle[];
   tickets?: Dialog[];
 }
 
@@ -195,7 +215,7 @@ async function fetchAssignedItems(
   const refs: AssignmentRef[] = [];
   const customers: Customer[] = [];
   const devices: Device[] = [];
-  const articles: KnowledgeBaseRow[] = [];
+  const articles: AssignedArticle[] = [];
   const tickets: Dialog[] = [];
 
   for (const { node } of data.assignedItems.edges) {
@@ -216,7 +236,7 @@ async function fetchAssignedItems(
         break;
       }
       case 'KnowledgeBaseItem':
-        articles.push(unaliasFields(target) as unknown as KnowledgeBaseRow);
+        articles.push(toAssignedArticle(target));
         break;
       case 'Ticket':
         tickets.push(toDialog(target));
@@ -254,7 +274,7 @@ export interface AssignedItemsResult {
   value: AssignmentsValue;
   customers?: Customer[];
   devices?: Device[];
-  articles?: KnowledgeBaseRow[];
+  articles?: AssignedArticle[];
   tickets?: Dialog[];
   isLoading: boolean;
   isReady: boolean;
@@ -301,7 +321,7 @@ export function useAssignedItems({ itemId, itemType, enabled = true }: UseAssign
 
   return useQueries({
     queries: ASSIGNMENT_TARGET_TYPES.map(targetType => ({
-      queryKey: ['assignments', 'assigned-items', itemType, normalizedItemId, targetType],
+      queryKey: [...ASSIGNED_ITEMS_QUERY_KEY, itemType, normalizedItemId, targetType],
       queryFn: () => fetchAssignedItems(normalizedItemId as string, targetType),
       enabled: isEnabled,
       staleTime: 30_000,

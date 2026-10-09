@@ -12,6 +12,8 @@ export const FEATURE_FLAG_NAMES = [
   // still reads and saves as one with the flag off, the picker is simply absent.
   'script-schedule-device-time',
   'cancel-subscription',
+  // Starting a paid subscription: the Activate Subscription button and the paywall checkout.
+  'billing-activation',
   'test-clock',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
@@ -52,6 +54,11 @@ export const FEATURE_FLAG_NAMES = [
   // instead of the overlay drawer, the page laying out by the room it leaves
   // (`content-md:` / `content-lg:`). Off = the overlay drawer.
   'mingo-v2',
+  // "Show All Customers" on Settings → Troubleshooting, over
+  // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
+  // report their customer, so the control stays hidden until the agents do. On
+  // for dev / qa, absent elsewhere, which reads as off.
+  'device-logs-customer-filter',
 ] as const;
 
 export type FeatureFlagName = (typeof FEATURE_FLAG_NAMES)[number];

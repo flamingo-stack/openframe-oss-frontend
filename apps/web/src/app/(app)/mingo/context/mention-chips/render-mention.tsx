@@ -25,9 +25,9 @@
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { KNOWLEDGE_BASE_ITEM_ICON } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
+import { KB_ITEM_ICON } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-icon';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
 import { MINGO_CONTEXT_ENTITY_TYPES } from '../context-sources';
@@ -37,7 +37,7 @@ import { MentionTag } from './mention-tag';
 import { GraphqlMentionChip } from './relay-mention-chips';
 import { RestMentionChip } from './rest-mention-chips';
 
-const KbFolderIcon = KNOWLEDGE_BASE_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
+const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 const KB_FOLDER_ICON = <KbFolderIcon size={24} />;
 const CHAT_REFERENCE_ICON = <ChatsIcon size={24} />;
 
