@@ -25,6 +25,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
+import { RecordingWarningAlert } from '@/app/(app)/devices/components/remote-sessions/recording-storage-banner';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
@@ -141,7 +142,13 @@ function RemoteDesktopSession() {
   // the first token of every relay id, so the gateway gate can match the
   // tunnel against the grant. Read once into a ref - the session is mounted
   // only after approval and never re-approved while mounted.
-  const { requestId: approvedRequestId, ended: remoteSessionEnd, endSession, requestAgain } = useRemoteAccessSession();
+  const {
+    requestId: approvedRequestId,
+    session: remoteSession,
+    ended: remoteSessionEnd,
+    endSession,
+    requestAgain,
+  } = useRemoteAccessSession();
   const relayIdPrefixRef = useRef(
     approvedRequestId ? buildRemoteAccessRelayIdPrefix(approvedRequestId, DESKTOP_PROTOCOL) : undefined,
   );
@@ -872,6 +879,13 @@ function RemoteDesktopSession() {
           />
         ) : (
           controlsBar
+        )}
+        {/* Figma 2328-20570: the session started while recording storage was full. Windowed only, as drawn. */}
+        {!isFullscreen && remoteSession?.recordingSuppressed === 'storage_full' && (
+          <RecordingWarningAlert className="flex-shrink-0">
+            This session isn&apos;t being recorded. Recording storage is full. New sessions aren&apos;t recorded until
+            space is freed.
+          </RecordingWarningAlert>
         )}
         {/* One wrapper in both modes: the canvas must keep its DOM node across
             the fullscreen toggle (MeshDesktop is attached to it once), so the

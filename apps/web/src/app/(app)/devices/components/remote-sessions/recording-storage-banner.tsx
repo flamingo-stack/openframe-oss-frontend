@@ -3,19 +3,12 @@
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Alert } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { useRecordingStorage } from '../../hooks/use-session-recordings';
 import { formatBytes } from './format';
 
-/**
- * "Recording storage full" on the device page (Figma 2328-20598): the tenant's
- * pool of recordings that are not kept is used up, so new sessions run without
- * recording. The limit is the server's, never a hardcoded size. Renders nothing
- * while storage has room, while it is loading, or where it cannot be read.
- */
-export function RecordingStorageBanner({ className }: { className?: string }) {
-  const { data: storage } = useRecordingStorage();
-  if (!storage?.full) return null;
-
+/** The recording warning strip (Figma 2328-20598 / 2328-20570): warning colours, a triangle, one bold line. */
+export function RecordingWarningAlert({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <Alert
       variant="warning"
@@ -28,10 +21,25 @@ export function RecordingStorageBanner({ className }: { className?: string }) {
       <span className="shrink-0">
         <AlertTriangleIcon className="h-6 w-6" />
       </span>
-      <p className="min-w-0 flex-1 text-h3">
-        Recording storage full. New sessions aren&apos;t recorded. All {formatBytes(storage.limitBytes)} of recording
-        storage is used.
-      </p>
+      <p className="min-w-0 flex-1 text-h3">{children}</p>
     </Alert>
+  );
+}
+
+/**
+ * "Recording storage full" on the device page (Figma 2328-20598): the tenant's
+ * pool of recordings that are not kept is used up, so new sessions run without
+ * recording. The limit is the server's, never a hardcoded size. Renders nothing
+ * while storage has room, while it is loading, or where it cannot be read.
+ */
+export function RecordingStorageBanner({ className }: { className?: string }) {
+  const { data: storage } = useRecordingStorage();
+  if (!storage?.full) return null;
+
+  return (
+    <RecordingWarningAlert className={className}>
+      Recording storage full. New sessions aren&apos;t recorded. All {formatBytes(storage.limitBytes)} of recording
+      storage is used.
+    </RecordingWarningAlert>
   );
 }
