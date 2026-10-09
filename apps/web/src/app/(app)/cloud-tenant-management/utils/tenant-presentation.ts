@@ -7,13 +7,13 @@
 // ahead of the SDL is a runtime possibility, not a forgotten branch.
 
 import {
-  CodingForkIcon,
-  GoogleLogoIcon,
-  Office365LogoIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ComponentType, SVGProps } from 'react';
+  accessStateTag,
+  type ProviderLogo,
+  providerMark,
+  type TenantAccessState,
+  type TenantProvider,
+  type TenantStatusTag,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   DirectoryAccessState,
   DirectoryCapability,
@@ -21,34 +21,18 @@ import {
   DirectoryConsentOutcome,
   DirectoryProvider,
 } from '@/generated/schema-enums';
-import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 
-type TagVariant = NonNullable<TagProps['variant']>;
-
-export interface StatusTag {
-  label: string;
-  variant: TagVariant;
-}
-
-// Colours read off the Figma list (node 1699-8249): red for the two states that
-// need the customer's admin, grey for read-only, outline for write-available,
-// green for write-enabled. NOT_AUTHORISED has no frame of its own
-// and follows CONSENT_REVOKED — it is the other "the directory refused us" state.
-const ACCESS_STATE_PRESENTATION = {
-  [DirectoryAccessState.DISCONNECTED]: { label: 'Disconnected', variant: 'error' },
-  [DirectoryAccessState.NOT_AUTHORISED]: { label: 'Not authorised', variant: 'error' },
-  [DirectoryAccessState.CONSENT_REVOKED]: { label: 'Consent revoked', variant: 'error' },
-  [DirectoryAccessState.READ_ONLY]: { label: 'Read only', variant: 'grey' },
-  [DirectoryAccessState.WRITE_AVAILABLE]: { label: 'Write available', variant: 'outline' },
-  [DirectoryAccessState.WRITE_ENABLED]: { label: 'Write enabled', variant: 'success' },
-} satisfies Record<DirectoryAccessState, StatusTag>;
-
-/** Tag props for an access state; an unknown value renders as itself in grey. */
-export function accessStateTag(state: string | null | undefined): StatusTag {
-  return presentationFor(ACCESS_STATE_PRESENTATION, state) ?? { label: state || EMPTY_VALUE, variant: 'grey' };
-}
+// The list's own tables (access state tag, provider name and mark, "Last read", user count) live in
+// the core library beside the list view, over unions that restate these schema enums. This is where
+// the two are held together: a schema enum widened by `generate-enums` fails to type-check here
+// until the library's table answers for the new value.
+type CoveredBy<Schema extends Library, Library extends string> = Schema;
+export type ListTablesCoverSchema = [
+  CoveredBy<DirectoryAccessState, TenantAccessState>,
+  CoveredBy<DirectoryProvider, TenantProvider>,
+];
 
 const READABLE_STATES = [
   DirectoryAccessState.READ_ONLY,
@@ -82,7 +66,7 @@ export function accessStateHint(state: string | null | undefined): string {
 }
 
 /** The tag beside "Check Connection" once a probe has answered (Figma 2097-122274). */
-export function checkResultTag(access: { readonly state: string }): StatusTag {
+export function checkResultTag(access: { readonly state: string }): TenantStatusTag {
   return isReadable(access.state)
     ? { label: 'Connected and readable', variant: 'success' }
     : accessStateTag(access.state);
@@ -170,10 +154,10 @@ const CONSENT_ISSUE_TAG = {
     variant: 'error',
   }),
   [DirectoryConsentIssueKind.PERMISSIONS_PENDING]: () => ({ label: 'Pending', variant: 'grey' }),
-} satisfies Record<DirectoryConsentIssueKind, (providerLabel: string) => StatusTag>;
+} satisfies Record<DirectoryConsentIssueKind, (providerLabel: string) => TenantStatusTag>;
 
 /** Tag for a consent issue's kind; an unknown kind renders as itself in grey. */
-export function consentIssueTag(kind: string, provider: string): StatusTag {
+export function consentIssueTag(kind: string, provider: string): TenantStatusTag {
   const tag = presentationFor(CONSENT_ISSUE_TAG, kind);
   return tag ? tag(providerPresentation(provider).label) : { label: kind, variant: 'grey' };
 }
@@ -224,11 +208,6 @@ export function consentIssueReport(report: ConsentIssueReport): string {
     .join('\n');
 }
 
-/** An icons-v2 brand mark: sized by `size`, labelled for assistive tech where it stands alone. */
-export type ProviderLogo = ComponentType<
-  { className?: string; size?: number } & Pick<SVGProps<SVGSVGElement>, 'role' | 'aria-label'>
->;
-
 export interface ProviderPresentation {
   label: string;
   Logo: ProviderLogo;
@@ -250,10 +229,8 @@ export interface ProviderPresentation {
 // its own (the Phase 1 doc calls it "the only screen that cannot be drawn"), so
 // its consent copy mirrors Microsoft's with the Super Admin wording — a data gap
 // one string each to replace when the copy is written.
-const PROVIDER_PRESENTATION = {
+const PROVIDER_COPY = {
   [DirectoryProvider.MICROSOFT_365]: {
-    label: 'Microsoft 365',
-    Logo: Office365LogoIcon,
     radioDescription: 'One approval from a Global Administrator. No CSP relationship, no GDAP.',
     consentInstruction:
       "Open the link below and sign in as a Global Administrator of the customer's tenant, then approve the requested permissions. No CSP or GDAP relationship is required.",
@@ -264,8 +241,6 @@ const PROVIDER_PRESENTATION = {
     authorisedBy: 'Entra admin consent · one action, no CSP or GDAP relationship',
   },
   [DirectoryProvider.GOOGLE_WORKSPACE]: {
-    label: 'Google Workspace',
-    Logo: GoogleLogoIcon,
     radioDescription: 'Two actions from a Super Admin, then a verification read. No reseller agreement.',
     consentInstruction:
       "Open the link below and sign in as a Super Admin of the customer's Google Workspace, then approve the requested permissions.",
@@ -275,10 +250,11 @@ const PROVIDER_PRESENTATION = {
     directoryIdLabel: 'Google customer ID',
     authorisedBy: "Google OAuth admin consent · one link, trusted from the customer's service account",
   },
-} satisfies Record<DirectoryProvider, ProviderPresentation>;
+} satisfies Record<DirectoryProvider, ProviderCopy>;
 
-const UNKNOWN_PROVIDER: Omit<ProviderPresentation, 'label'> = {
-  Logo: CodingForkIcon,
+type ProviderCopy = Omit<ProviderPresentation, 'label' | 'Logo'>;
+
+const UNKNOWN_PROVIDER: ProviderCopy = {
   radioDescription: '',
   consentInstruction: 'Open the link below and approve the requested permissions in the provider admin console.',
   reapproveInstruction: 'Open the link below and re-approve the requested permissions in the provider admin console.',
@@ -289,9 +265,8 @@ const UNKNOWN_PROVIDER: Omit<ProviderPresentation, 'label'> = {
 
 /** Presentation for a provider; an unknown value keeps its raw name and a neutral mark. */
 export function providerPresentation(provider: string | null | undefined): ProviderPresentation {
-  return (
-    presentationFor(PROVIDER_PRESENTATION, provider) ?? { ...UNKNOWN_PROVIDER, label: provider || 'Unknown provider' }
-  );
+  // Name and mark are the library's (the list draws them too); the copy is this module's.
+  return { ...providerMark(provider), ...(presentationFor(PROVIDER_COPY, provider) ?? UNKNOWN_PROVIDER) };
 }
 
 /** The providers the picker offers, in Figma order (Microsoft first). */
@@ -316,36 +291,8 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
   return capabilities.map(capability => presentationFor(CAPABILITY_LABELS, capability) ?? capability);
 }
 
-/**
- * The instant "Last read" reports: the directory sync, not the access probe — a probe proves the
- * link, a sync is when the data was read. `Instant` arrives untyped, so anything but text is absent.
- */
-export function lastReadAt(connection: { readonly lastSyncAt?: unknown }): string | null {
-  return typeof connection.lastSyncAt === 'string' && connection.lastSyncAt !== '' ? connection.lastSyncAt : null;
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * "41m ago" while fresh, the calendar date once a day old (the design shows
- * "Last read: 10/10/2016" on a stale row), the empty mark when there was never a read.
- * `formatRelativeTime` is guarded because it answers "Unknown time" for an
- * invalid instant and warns on the console.
- */
-export function formatLastRead(iso: string | null | undefined, now: Date = new Date()): string {
-  const date = toValidDate(iso);
-  if (!date) return EMPTY_VALUE;
-  return now.getTime() - date.getTime() < DAY_MS ? formatRelativeTime(date) : formatDate(date);
-}
-
 /** The two-tone "11/12/24 09:43:00" of the details card; `null` = never connected. */
 export function formatConnectedAt(iso: string | null | undefined): { date: string; time: string } | null {
   const date = toValidDate(iso);
   return date ? { date: formatDate(date), time: formatTimeWithSeconds(date) } : null;
-}
-
-/** "227 Users" under the customer, the empty mark before the first read. */
-export function usersCountLabel(count: number | null | undefined): string {
-  if (count == null) return EMPTY_VALUE;
-  return `${count} ${count === 1 ? 'User' : 'Users'}`;
 }

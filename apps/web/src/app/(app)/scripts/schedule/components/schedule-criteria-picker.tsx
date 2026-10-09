@@ -1,5 +1,6 @@
 'use client';
 
+import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
@@ -9,7 +10,6 @@ import type {
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';

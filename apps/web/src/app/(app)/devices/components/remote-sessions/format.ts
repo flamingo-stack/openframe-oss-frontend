@@ -30,6 +30,7 @@ export function formatBytes(bytes: number): string {
     unit = next;
   }
   // `>= 99.95`, not `>= 100`: `toFixed(1)` rounds 99.96 up to "100.0", which
-  // would sit next to a rounded "100" - same number, two formats.
-  return `${value >= 99.95 ? Math.round(value) : value.toFixed(1)} ${unit}`;
+  // would sit next to a rounded "100" - same number, two formats. A whole
+  // number drops its ".0" ("50 GB", "612 MB"), as the mockups write them.
+  return `${value >= 99.95 ? Math.round(value) : Number(value.toFixed(1))} ${unit}`;
 }

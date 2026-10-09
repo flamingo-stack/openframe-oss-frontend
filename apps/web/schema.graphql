@@ -1852,6 +1852,32 @@ type Mutation {
   """
   setDeviceRemoteAccessMode(machineId: String!, mode: RemoteAccessMode): Machine!
 
+  """
+  Deletes every file of an ended session for any technician who can see it, recording who and when. Idempotent:
+  a second call succeeds and changes nothing. Refusals as userErrors: REMOTE_SESSION_NOT_FOUND,
+  RECORDING_SESSION_ACTIVE, RECORDING_HELD, REMOTE_ACCESS_DISABLED, RECORDING_STORAGE_UNAVAILABLE (files deleted
+  before the failure stay deleted; call again to finish).
+  """
+  deleteRecording(sessionId: String!): RemoteSessionPayload!
+
+  """
+  Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
+  each row, the Keep on the session. A file listed later for a kept session is held too. Calling it again after
+  RECORDING_STORAGE_UNAVAILABLE finishes the files left. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  RECORDING_KEEP_NOTE_REQUIRED, RECORDING_KEEP_NOTE_TOO_LONG, REMOTE_SESSION_NOT_FOUND, RECORDING_SESSION_ACTIVE,
+  RECORDING_PROCESSING, RECORDING_NOTHING_TO_KEEP, RECORDING_ALREADY_KEPT, RECORDING_KEPT_LIMIT (the 50 GB kept
+  allowance), RECORDING_STORAGE_UNAVAILABLE.
+  """
+  keepRecording(input: KeepRecordingInput!): RemoteSessionPayload!
+
+  """
+  Releases the Keep: every file expires no earlier than the release grace (3 days) from now; nothing is deleted on
+  the spot. Never refused for a full recording pool. Calling it again after RECORDING_STORAGE_UNAVAILABLE finishes
+  it. Refusals as userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND, RECORDING_NOT_KEPT,
+  RECORDING_STORAGE_UNAVAILABLE.
+  """
+  releaseRecording(sessionId: String!): RemoteSessionPayload!
+
   """Create a Stripe checkout session for subscribing to selected products."""
   createCheckoutSession(input: CheckoutInput!): CheckoutResult!
 
@@ -2875,8 +2901,23 @@ type Query {
   """
   activeRemoteSession(deviceId: String!): RemoteSession
 
-  """Sessions on a device, newest first. from/to bound startedAt. first is clamped to 1..100, default 20."""
-  remoteSessions(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteSessionConnection!
+  """
+  The tenant's sessions, filtered and sorted server-side; no filter returns every device, newest first. first is clamped
+  to 1..100, default 20. Cursors are valid only under the sort they were issued for: another sort or direction reads
+  INVALID_CURSOR, start again without after. deviceId, from and to are the device tab's old arguments: each one fills the
+  matching filter field when the filter leaves it empty, the filter wins otherwise.
+  A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
+  audit still return it.
+  """
+  remoteSessions(
+    deviceId: String @deprecated(reason: "use filter.deviceIds")
+    from: Instant @deprecated(reason: "use filter.from")
+    to: Instant @deprecated(reason: "use filter.to")
+    filter: RemoteSessionFilter
+    sort: RemoteSessionSort
+    first: Int
+    after: String
+  ): RemoteSessionConnection!
 
   """Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20."""
   remoteAccessRequests(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteAccessRequestConnection!
@@ -2886,6 +2927,12 @@ type Query {
   REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code.
   """
   remoteSessionRecording(recordingId: String!): RemoteSessionRecording!
+
+  """
+  Same permission as reading recordings. Errors as GraphQL errors with extensions.code: REMOTE_ACCESS_DISABLED,
+  RECORDING_STORAGE_UNAVAILABLE.
+  """
+  recordingStorage: RecordingStorage!
 
   """
   Cursor-paginated insights for the calling tenant (newest first unless sorted otherwise).
@@ -3484,10 +3531,86 @@ type RemoteSession {
   durationMs: Long
 
   """
-  NONE: recording off for the session, or nothing arrived within a day of its end. PROCESSING: recording on and
-  nothing listed yet (ACTIVE, or ended less than 24 h ago). READY: at least one file.
+  NONE: recording off, the session never connected (read by id; the list leaves these out), it started without recording (recordingSuppressed), or it ended
+  more than a day ago with no file and was never checked. PROCESSING: recording on and nothing listed yet (ACTIVE, or
+  ended less than 30 min ago). READY: at least one file that can still be played; a file that arrives late turns
+  FAILED into READY. KEPT: the session's recordings are kept (recordingHold is set); checked before READY. FAILED: no file 30 min after the end. DELETED: every file was deleted by a technician.
+  EXPIRED: no playable file left and at least one expired.
   """
   recordingState: RemoteSessionRecordingState!
+
+  """When the failure detection found no file after the end; cleared if a file is listed later. Drives the notice."""
+  recordingFailedAt: Instant
+
+  """Set when the session started without recording although the policy asked for it."""
+  recordingSuppressed: RecordingSuppression
+
+  """The earliest expiresAt of the session's AVAILABLE files; null when none is left or none expires."""
+  recordingExpiresAt: Instant
+
+  """Set while the session's recordings are kept."""
+  recordingHold: RecordingHold
+  lastRecordingRelease: RecordingRelease
+
+  """The row's device (id, machineId, displayName, hostname, organization); null when the device is gone."""
+  device: Machine
+
+  """The list's SIZE column: bytes of the session's stored files (AVAILABLE and HELD); null while no file is registered."""
+  recordingSizeBytes: Long
+}
+
+"""The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
+enum RemoteSessionListState {
+  """Recording on and no file yet: ACTIVE, or ended less than 30 min ago."""
+  PROCESSING
+
+  """No file 30 min after the end (inside the listing window, or stamped by the detector)."""
+  FAILED
+
+  """The session carries a Keep (recordingHold)."""
+  KEPT
+
+  """Not kept, playable, and a file expires within openframe.recordings.expiring-soon (7 days)."""
+  EXPIRING
+
+  """No playable file left and at least one expired."""
+  EXPIRED
+}
+
+enum RemoteSessionSortField {
+  """startedAt"""
+  DATE
+
+  """durationMs"""
+  DURATION
+
+  """bytes of the session's stored files"""
+  SIZE
+
+  """earliest expiry of the session's playable files"""
+  EXPIRY
+}
+
+"""Filters combine with AND. Absent or empty deviceIds means every device of the tenant."""
+input RemoteSessionFilter {
+  deviceIds: [String!]
+
+  """The customer: the session's organization."""
+  organizationId: String
+  technicianId: String
+  recordingState: RemoteSessionListState
+
+  """startedAt, inclusive"""
+  from: Instant
+
+  """startedAt, exclusive"""
+  to: Instant
+}
+
+"""Rows without a value for the key (e.g. no expiry) come last in both directions."""
+input RemoteSessionSort {
+  field: RemoteSessionSortField! = DATE
+  direction: SortDirection! = DESC
 }
 
 enum RemoteSessionEndReason {
@@ -3520,6 +3643,100 @@ enum RemoteSessionRecordingState {
   NONE
   PROCESSING
   READY
+  KEPT
+  FAILED
+  EXPIRED
+  DELETED
+}
+
+"""Why a session that asked for recording was started without it."""
+enum RecordingSuppression {
+  STORAGE_FULL
+}
+
+"""
+AVAILABLE: stored and playable. HELD: kept, never expires or is deleted until released. EXPIRED: removed by the
+retention sweep. DELETED: removed by a technician. The row stays in every state.
+"""
+enum RemoteSessionRecordingStatus {
+  AVAILABLE
+  HELD
+  EXPIRED
+  DELETED
+}
+
+"""Why a technician kept a session's recordings; OTHER needs a note."""
+enum RecordingHoldReason {
+  CLIENT_DISPUTE
+  INTERNAL_REVIEW
+  LEGAL_COMPLIANCE
+  OTHER
+}
+
+"""
+A Keep on a session's recordings. It has no end date: it lasts until someone releases it. dueAt and
+expiresAtOnRelease are filled on the current Keep only (RemoteSession.recordingHold), null on a past one.
+"""
+type RecordingHold {
+  heldBy: RemoteAccessTechnician!
+  heldAt: Instant!
+  reason: RecordingHoldReason!
+  note: String
+  ticketId: String
+
+  """The ticket number as it was when the Keep was placed."""
+  ticketNumber: String
+
+  """The Release modal's "It was due to expire on": the earliest expiresAt of the held files."""
+  dueAt: Instant
+
+  """The Release modal's "It will expire on": the later of dueAt and now plus the release grace."""
+  expiresAtOnRelease: Instant
+
+  """openframe.recordings.release-grace in whole days, 3 by default."""
+  releaseGraceDays: Int!
+}
+
+"""The last Release of a session's Keep, kept on the session until the timeline carries it."""
+type RecordingRelease {
+  releasedBy: RemoteAccessTechnician!
+  releasedAt: Instant!
+  hold: RecordingHold!
+}
+
+input KeepRecordingInput {
+  sessionId: String!
+  reason: RecordingHoldReason!
+
+  """Required when reason is OTHER; at most 500 characters."""
+  note: String
+  ticketId: String
+}
+
+"""
+The tenant's recording storage, two separate pools. Recomputed after every upload, delete, Keep and Release and on
+the daily sweep.
+full is the one source of truth: new sessions stop recording from it, and the device page shows the "Recording storage
+full" banner from it. A full kept pool refuses Keep and never sets full.
+"""
+type RecordingStorage {
+  """Files that are not kept. Keep moves a session's bytes to keptBytes, Release moves them back."""
+  usedBytes: Long!
+
+  """openframe.recordings.storage.limit, 300 GiB by default."""
+  limitBytes: Long!
+
+  """Kept (HELD) files; the Keep modal's "X of 50 GB"."""
+  keptBytes: Long!
+
+  """openframe.recordings.storage.kept-limit, 50 GiB by default."""
+  keptLimitBytes: Long!
+
+  """usedBytes >= limitBytes, the not-kept pool only."""
+  full: Boolean!
+
+  """When the storage became full; null while it is not."""
+  fullSince: Instant
 }
 
 enum RemoteAccessFallback {
@@ -3640,13 +3857,23 @@ type RemoteSessionRecording {
   sizeBytes: Long
   protocol: Int!
 
-  """
-  The download endpoint (302 to a short-lived signed GET); set on every file, in RemoteSession.recordings too.
-  """
+  """The download endpoint (302 to a short-lived signed GET); null once the file is EXPIRED or DELETED."""
   downloadUrl: String
 
   """The session this file belongs to, for the detail page's meta card and transcript (dialogId)."""
   session: RemoteSession!
+  status: RemoteSessionRecordingStatus!
+
+  """When the file was held; null unless status is HELD."""
+  heldAt: Instant
+
+  """Upload time plus the retention; the sweep removes the file after it."""
+  expiresAt: Instant
+  expiredAt: Instant
+  deletedAt: Instant
+
+  """A copy taken when the file was deleted."""
+  deletedBy: RemoteAccessTechnician
 }
 
 type RemoteSessionEdge {

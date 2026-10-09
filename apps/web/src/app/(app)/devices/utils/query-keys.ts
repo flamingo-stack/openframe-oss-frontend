@@ -1,8 +1,8 @@
 'use client';
 
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { QueryClient } from '@tanstack/react-query';
 import { dashboardQueryKeys } from '@/app/(app)/dashboard/utils/query-keys';
-import type { DeviceFilterInput } from '../types/device.types';
 import { bumpDeviceEpoch } from './device-refresh';
 
 /**
@@ -34,6 +34,8 @@ export const deviceQueryKeys = {
   /** One recording's detail (the player page). */
   sessionRecording: (recordingId: string) =>
     [...deviceQueryKeys.all, 'session-recordings', 'detail', recordingId] as const,
+  /** The tenant's recording storage (the device page's "storage full" banner). */
+  recordingStorage: () => [...deviceQueryKeys.all, 'session-recordings', 'storage'] as const,
 
   counts: () => [...deviceQueryKeys.all, 'counts'] as const,
   countsBy: (filter: DeviceFilterInput) => [...deviceQueryKeys.counts(), filter] as const,

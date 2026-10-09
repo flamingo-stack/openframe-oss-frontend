@@ -17,6 +17,7 @@ import { QueryClientProvider } from '../lib/query-client-provider';
 import { RelayProvider } from '../lib/relay';
 import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
+import { DevicesViewConfig } from './components/devices-view-config';
 import { EmbedShimRegistration } from './components/embed-shim-registration';
 import { GoogleTagManager } from './components/google-tag-manager';
 import { NativeShellInitializer } from './components/native-shell-initializer';
@@ -158,7 +159,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           along with the page. The boundary inside `<main>` catches
                           that in the content area instead, and each root-layout
                           component that reads search params carries its own. */}
-                      <div className="relative flex min-h-screen flex-col">{children}</div>
+                      <DevicesViewConfig>
+                        <div className="relative flex min-h-screen flex-col">{children}</div>
+                      </DevicesViewConfig>
                     </RouteGuard>
                   </NotificationsDataProvider>
                 </FeatureFlagsLoader>

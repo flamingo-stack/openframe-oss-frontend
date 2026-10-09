@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  DevicesList,
+  type DevicesListNarrowing,
+  EMPTY_DEVICES_NARROWING,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, Suspense, useCallback, useMemo, useState } from 'react';
@@ -10,7 +15,7 @@ import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPagina
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
-import { DevicesList, type DevicesListNarrowing, EMPTY_DEVICES_NARROWING, useRetryKey } from '@/app/components/shared';
+import { useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
