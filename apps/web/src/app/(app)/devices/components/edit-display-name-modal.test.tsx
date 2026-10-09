@@ -92,10 +92,24 @@ let container: HTMLDivElement;
 let root: Root;
 const onClose = vi.fn();
 
+const trigger = () => document.querySelector('[data-trigger]')?.textContent;
+const option = (value: string) => document.querySelector<HTMLButtonElement>(`[data-option="${value}"]`);
+const saveButton = () =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(b => b.textContent?.includes('Save Device'));
+
 async function settle() {
   await act(async () => {
     await new Promise(resolve => setTimeout(resolve, 0));
   });
+}
+
+/**
+ * Lets the queries and the mutation run until `done` holds. The label needs
+ * two reads in a row (the device, then its customer or the tenant), so a fixed
+ * number of ticks is a race.
+ */
+async function waitFor(done: () => boolean) {
+  for (let tick = 0; tick < 50 && !done(); tick++) await settle();
 }
 
 /** Mounts the modal closed, then opens it - the open transition is what seeds the name field. */
@@ -109,14 +123,12 @@ async function render(target: Device) {
     );
   act(() => show(false));
   act(() => show(true));
-  await settle();
-  await settle();
+  // The device's own policy is in once the select shows a choice.
+  await waitFor(() => !!trigger());
 }
 
-const trigger = () => document.querySelector('[data-trigger]')?.textContent;
-const option = (value: string) => document.querySelector<HTMLButtonElement>(`[data-option="${value}"]`);
-const saveButton = () =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(b => b.textContent?.includes('Save Device'));
+/** The Customer Default item once it names the mode it resolves to. */
+const customerDefaultResolved = () => option('CUSTOMER_DEFAULT')?.textContent?.includes('Customer Default (') ?? false;
 
 async function click(element: HTMLElement | null | undefined) {
   if (!element) throw new Error('Nothing to click');
@@ -160,6 +172,7 @@ describe('EditDisplayNameModal - Customer Default', () => {
       effectiveScope: 'ORGANIZATION',
     });
     await render(device('org-1'));
+    await waitFor(customerDefaultResolved);
 
     expect(trigger()).toBe('Deny Access');
     expect(service.getOrganizationPolicy).toHaveBeenCalledWith('org-1');
@@ -168,6 +181,7 @@ describe('EditDisplayNameModal - Customer Default', () => {
     await click(option('CUSTOMER_DEFAULT'));
     expect(trigger()).toBe('Customer Default (Approval Required)');
     await click(saveButton());
+    await waitFor(() => onClose.mock.calls.length > 0);
 
     expect(service.setDeviceMode).toHaveBeenCalledWith('machine-1', null);
     expect(spies.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'success' }));
@@ -177,6 +191,7 @@ describe('EditDisplayNameModal - Customer Default', () => {
   it('labels Customer Default with the tenant default for a device without a customer', async () => {
     service.getDevicePolicy.mockResolvedValue(OVERRIDDEN);
     await render(device());
+    await waitFor(customerDefaultResolved);
 
     expect(option('CUSTOMER_DEFAULT')?.textContent).toContain('Customer Default (Silent Access)');
     expect(service.getOrganizationPolicy).not.toHaveBeenCalled();
@@ -189,6 +204,7 @@ describe('EditDisplayNameModal - Customer Default', () => {
 
     await click(option('DENY_ACCESS'));
     await click(saveButton());
+    await waitFor(() => service.setDeviceMode.mock.calls.length > 0);
 
     expect(service.setDeviceMode).toHaveBeenCalledWith('machine-1', 'DENY_ACCESS');
   });
