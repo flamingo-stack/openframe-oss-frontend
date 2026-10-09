@@ -3,7 +3,7 @@
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
-import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
+import { useDeferredLogList } from '../../../hooks/use-deferred-log-list';
 import { DEVICE_LOG_PARAM_SCHEMA, useDeviceLogFilters } from '../../../hooks/use-device-log-filters';
 import type { Device } from '../../../types/device.types';
 import { DeviceLogDrawer } from './device-log-drawer';
@@ -27,7 +27,7 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
     () => ({ key: `${machineId}|${anchor}|${JSON.stringify(filter)}`, machineIds: [machineId], filter }),
     [machineId, anchor, filter],
   );
-  const { deferredFilters: deferredList, isPending } = useDeferredQuery(list, '');
+  const { deferredList, isPending } = useDeferredLogList(list);
 
   const [autoUpdate, setAutoUpdate] = useState(true);
   // Kept here, above the list: the list remounts per filter, and an open drawer should not close with it.
