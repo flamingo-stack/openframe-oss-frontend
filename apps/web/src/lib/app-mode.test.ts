@@ -57,16 +57,16 @@ describe('mobile auth UI switch', () => {
 });
 
 /**
- * `/mobile` (the install QR code's address) has no page: `proxy.ts` redirects it before
- * the app renders, so the app-side allowlist carries no exemption for it. In saas-shared
- * mode it is as closed as every other route but `/auth`.
+ * `/mobile` was the mobile-app install page. It is gone (the website's download page
+ * replaced it), so the allowlist carries no exemption for it: in saas-shared mode it is
+ * as closed as every other route but `/auth`.
  */
 describe('the mode allowlist in saas-shared mode', () => {
   afterEach(() => {
     setEnv('NEXT_PUBLIC_APP_MODE', undefined);
   });
 
-  it('allows the auth routes and nothing the proxy answers on its own', () => {
+  it('allows the auth routes and gives the removed /mobile path no exemption', () => {
     setEnv('NEXT_PUBLIC_APP_MODE', 'saas-shared');
     expect(isRouteAllowedInCurrentMode('/auth')).toBe(true);
     expect(isRouteAllowedInCurrentMode('/mobile')).toBe(false);
