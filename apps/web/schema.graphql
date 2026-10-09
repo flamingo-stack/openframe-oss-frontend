@@ -577,7 +577,6 @@ type DeviceLogEntry {
   organizationId: String
   hostname: String
   count: Long
-  machineId: String
 }
 
 input DeviceLogFilterInput {
