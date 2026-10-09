@@ -10,12 +10,14 @@ import { renderAvatarOption } from './avatar-autocomplete';
 interface OrganizationFilterProps {
   value: string[];
   onChange: (value: string[]) => void;
+  /** Most customers that can be picked at once, for a consumer whose API caps the list. */
+  maxItems?: number;
   className?: string;
 }
 
 const renderOption = renderAvatarOption('square');
 
-export function OrganizationFilter({ value, onChange, className }: OrganizationFilterProps) {
+export function OrganizationFilter({ value, onChange, maxItems, className }: OrganizationFilterProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { options, isLoading } = useOrganizationOptions(debouncedSearch);
@@ -30,6 +32,7 @@ export function OrganizationFilter({ value, onChange, className }: OrganizationF
       disableClientFilter
       placeholder="Show All Customers"
       loading={isLoading}
+      maxItems={maxItems}
       startAdornment={<Filter02Icon className="size-6 text-ods-text-secondary" />}
       renderOption={renderOption}
       className={className}

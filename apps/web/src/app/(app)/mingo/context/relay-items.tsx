@@ -2,8 +2,8 @@
 
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
- * (`/api/graphql`): Device, Organization, Knowledge Article, Script, Script
- * Schedule, Incident, Software, Vulnerability.
+ * (`/api/graphql`): Device, Organization, Knowledge Article, Knowledge Folder,
+ * Script, Script Schedule, Incident, Software, Vulnerability.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
  * `@connection` + `useLazyLoadQuery` (suspends on initial load → the picker's
@@ -21,6 +21,9 @@ import type { relayItemsIncidents_query$key } from '@/__generated__/relayItemsIn
 import type { relayItemsIncidentsListQuery } from '@/__generated__/relayItemsIncidentsListQuery.graphql';
 import type { relayItemsIncidentsPaginationQuery } from '@/__generated__/relayItemsIncidentsPaginationQuery.graphql';
 import type { relayItemsKb_query$key } from '@/__generated__/relayItemsKb_query.graphql';
+import type { relayItemsKbFolders_query$key } from '@/__generated__/relayItemsKbFolders_query.graphql';
+import type { relayItemsKbFoldersListQuery } from '@/__generated__/relayItemsKbFoldersListQuery.graphql';
+import type { relayItemsKbFoldersPaginationQuery } from '@/__generated__/relayItemsKbFoldersPaginationQuery.graphql';
 import type { relayItemsKbListQuery } from '@/__generated__/relayItemsKbListQuery.graphql';
 import type { relayItemsKbPaginationQuery } from '@/__generated__/relayItemsKbPaginationQuery.graphql';
 import type { relayItemsOrgs_query$key } from '@/__generated__/relayItemsOrgs_query.graphql';
@@ -41,6 +44,7 @@ import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/r
 import { DEFAULT_DEVICES_LIST_STATUSES } from '@/app/(app)/devices/constants/device-statuses';
 import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
+import { ROOT_FOLDER } from '@/app/(app)/knowledge-base/components/shared/folder-tree';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
@@ -210,6 +214,10 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
 
 // ─────────────────────────── Knowledge Article ──────────────────────────────
 
+// Every article in the knowledge base, whatever folder it is filed in. The scope
+// is what says so: without one a listing that carries no search stops at the root
+// level, and an article inside a folder could only be found by typing its name.
+// Archived articles are never in this connection.
 const KB_FRAGMENT = graphql`
   fragment relayItemsKb_query on Query
   @refetchable(queryName: "relayItemsKbPaginationQuery")
@@ -218,13 +226,15 @@ const KB_FRAGMENT = graphql`
     first: { type: "Int", defaultValue: 10 }
     after: { type: "String" }
   ) {
-    knowledgeBaseItems(filter: { type: ARTICLE }, search: $search, first: $first, after: $after)
+    knowledgeBaseItems(filter: { type: ARTICLE, scope: DESCENDANTS }, search: $search, first: $first, after: $after)
       @connection(key: "relayItemsKb_knowledgeBaseItems") {
       edges {
         node {
           id
           name
-          type
+          parent {
+            name
+          }
         }
       }
     }
@@ -257,7 +267,8 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
                 // (`base64("KnowledgeBaseItem:<rawId>")`); the chip re-encodes it.
                 id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
-                description: e.node.type ?? undefined,
+                // The folder it is in — what tells two articles of one name apart.
+                description: e.node.parent?.name ?? ROOT_FOLDER.name,
               },
             ]
           : [],
@@ -274,6 +285,83 @@ export function KnowledgeBaseItems({ query, selectedKeys, onToggle, atLimit }: C
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No knowledge articles"
+    />
+  );
+}
+
+// ─────────────────────────── Knowledge Folder ───────────────────────────────
+
+// Every folder in the knowledge base, at any depth — the same connection as the
+// articles above with the other `type`, under the same scope. The agent resolves
+// a folder to its contents (`KnowledgeBaseFolderContextResolver`), so a folder is
+// how a whole topic is handed to Mingo at once.
+const KB_FOLDERS_FRAGMENT = graphql`
+  fragment relayItemsKbFolders_query on Query
+  @refetchable(queryName: "relayItemsKbFoldersPaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    knowledgeBaseItems(filter: { type: FOLDER, scope: DESCENDANTS }, search: $search, first: $first, after: $after)
+      @connection(key: "relayItemsKbFolders_knowledgeBaseItems") {
+      edges {
+        node {
+          id
+          name
+          parent {
+            name
+          }
+        }
+      }
+    }
+  }
+`;
+
+const KB_FOLDERS_LIST_QUERY = graphql`
+  query relayItemsKbFoldersListQuery($search: String, $first: Int) {
+    ...relayItemsKbFolders_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function KnowledgeBaseFolderItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsKbFoldersListQuery>(KB_FOLDERS_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsKbFoldersPaginationQuery,
+    relayItemsKbFolders_query$key
+  >(KB_FOLDERS_FRAGMENT, root as relayItemsKbFolders_query$key);
+  const items = useMemo(
+    () =>
+      (data.knowledgeBaseItems?.edges ?? []).flatMap(e =>
+        e?.node
+          ? [
+              {
+                type: CONTEXT_ENTITY_KIND.KB_FOLDER,
+                // Raw db id, as for an article: the `@kbFolder:<id>` marker and the
+                // folder resolver take it, and the chip re-encodes it.
+                id: rawIdOf(e.node.id),
+                label: e.node.name || e.node.id,
+                // The folder it sits in — what tells two folders of one name apart.
+                description: e.node.parent?.name ?? ROOT_FOLDER.name,
+              },
+            ]
+          : [],
+      ),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No knowledge folders"
     />
   );
 }

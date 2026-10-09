@@ -24,24 +24,46 @@ const PAGE_SIZE = 100;
 
 export type DeviceLogsFilter = NonNullable<deviceLogsListQuery$variables['filter']>;
 
+// `machineIds` / `organizationIds` omitted (null) is every device / every customer
+// in the tenant; an empty list is a request the API rejects, so callers hand over
+// undefined instead of [].
 const deviceLogsListQueryNode = graphql`
-  query deviceLogsListQuery($machineId: String!, $filter: DeviceLogFilterInput, $first: Int!, $after: String) {
-    ...deviceLogsList_query @arguments(machineId: $machineId, filter: $filter, first: $first, after: $after)
+  query deviceLogsListQuery(
+    $machineIds: [String!]
+    $organizationIds: [String!]
+    $filter: DeviceLogFilterInput
+    $first: Int!
+    $after: String
+  ) {
+    ...deviceLogsList_query
+      @arguments(
+        machineIds: $machineIds
+        organizationIds: $organizationIds
+        filter: $filter
+        first: $first
+        after: $after
+      )
   }
 `;
 
-// Keyed on the machine and the filter: cursors belong to the filter that made them.
+// Keyed on the devices, the customers and the filter: cursors belong to the filter that made them.
 const deviceLogsListFragment = graphql`
   fragment deviceLogsList_query on Query
   @refetchable(queryName: "deviceLogsListPaginationQuery")
   @argumentDefinitions(
-    machineId: { type: "String!" }
+    machineIds: { type: "[String!]" }
+    organizationIds: { type: "[String!]" }
     filter: { type: "DeviceLogFilterInput" }
     first: { type: "Int!" }
     after: { type: "String" }
   ) {
-    deviceLogs(machineId: $machineId, filter: $filter, first: $first, after: $after)
-      @connection(key: "deviceLogsList_deviceLogs", filters: ["machineId", "filter"]) {
+    deviceLogs(
+      machineIds: $machineIds
+      organizationIds: $organizationIds
+      filter: $filter
+      first: $first
+      after: $after
+    ) @connection(key: "deviceLogsList_deviceLogs", filters: ["machineIds", "organizationIds", "filter"]) {
       edges {
         cursor
         node {
@@ -54,14 +76,20 @@ const deviceLogsListFragment = graphql`
 `;
 
 interface DeviceLogsListProps {
-  machineId: string;
+  /** The devices to read, 1-50; omitted = every device in the tenant. Never an empty list. */
+  machineIds?: readonly string[];
+  /** The customers to read, 1-50, intersected with `machineIds`; omitted = every customer. Never an empty list. */
+  organizationIds?: readonly string[];
   filter: DeviceLogsFilter;
-  deviceHostname: string;
+  /** The one device the list belongs to; omitted on a multi-device list — see `DeviceLogRow`. */
+  deviceHostname?: string;
   /** The rows lag the controls while a filter change is in flight. */
   isPending: boolean;
   autoUpdate: boolean;
   hasFilters: boolean;
   onResetFilters: () => void;
+  /** The empty state's second line; the default speaks of the range and filters. */
+  emptyDescription?: string;
   /** The row open in the Log Details drawer, by its cursor. */
   selectedKey: string | null;
   onSelect: (key: string, entry: DeviceLogEntry) => void;
@@ -69,20 +97,31 @@ interface DeviceLogsListProps {
 
 /** The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted per filter. */
 export function DeviceLogsList({
-  machineId,
+  machineIds,
+  organizationIds,
   filter,
   deviceHostname,
   isPending,
   autoUpdate,
   hasFilters,
   onResetFilters,
+  emptyDescription = 'Nothing matched the current range and filters.',
   selectedKey,
   onSelect,
 }: DeviceLogsListProps) {
   const environment = useRelayEnvironment();
   const { toast } = useToast();
   const retryKey = useRetryKey();
-  const variables = useMemo(() => ({ machineId, filter, first: PAGE_SIZE, after: null }), [machineId, filter]);
+  const variables = useMemo(
+    () => ({
+      machineIds: machineIds ?? null,
+      organizationIds: organizationIds ?? null,
+      filter,
+      first: PAGE_SIZE,
+      after: null,
+    }),
+    [machineIds, organizationIds, filter],
+  );
   const queryData = useLazyLoadQuery<deviceLogsListQuery>(deviceLogsListQueryNode, variables, {
     fetchPolicy: 'store-and-network',
     fetchKey: retryKey,
@@ -146,7 +185,7 @@ export function DeviceLogsList({
           <TabEmptyState
             icon={<ClipboardListIcon />}
             title="No logs in this range"
-            description="Nothing matched the current range and filters."
+            description={emptyDescription}
             buttonLabel={hasFilters ? 'Reset filters' : undefined}
             onButtonClick={hasFilters ? onResetFilters : undefined}
           />
