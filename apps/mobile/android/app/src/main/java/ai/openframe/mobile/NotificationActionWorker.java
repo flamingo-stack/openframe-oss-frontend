@@ -3,6 +3,7 @@ package ai.openframe.mobile;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 
 import androidx.annotation.NonNull;
 import androidx.work.ForegroundInfo;
@@ -52,6 +53,8 @@ public class NotificationActionWorker extends Worker {
     private static final long LEDGER_TTL_MS = 24L * 60 * 60 * 1000;
     private static final int GATEWAY_MESSAGE_LIMIT = 200;
     private static final String REASON_UNREACHABLE = "OpenFrame could not be reached";
+    /** The published listing, for a 426 whose body named none. Same as the web app's GOOGLE_PLAY_URL (mobile-app-links.ts). */
+    private static final String FALLBACK_STORE_URL = "https://play.google.com/store/apps/details?id=ai.openframe.mobile";
 
     /** One client for every press: a Worker is instantiated per run. */
     private static final OkHttpClient client = TokenLifecycle.credentialFreeClient(REQUEST_TIMEOUT_MS);
@@ -156,7 +159,7 @@ public class NotificationActionWorker extends Worker {
                 true, action.reply);
             return;
         }
-        Request request = request(action, extras, base, access);
+        Request request = request(context, action, extras, base, access);
         if (request == null) {
             ShellLog.notifications.notice("the notification carries no id the action needs");
             PushNotifications.replace(context, notificationId, extras, extras.get(PushNotifications.KEY_TITLE),
@@ -217,7 +220,7 @@ public class NotificationActionWorker extends Worker {
     // ─── Requests ────────────────────────────────────────────────────────────
 
     /** Built on the learned origin, never from payload text: the id is an opaque path segment of a fixed base. */
-    private static Request request(Action action, Map<String, String> extras, String base, String bearer) {
+    private static Request request(Context context, Action action, Map<String, String> extras, String base, String bearer) {
         String path;
         JSONObject body = new JSONObject();
         try {
@@ -244,6 +247,7 @@ public class NotificationActionWorker extends Worker {
         return new Request.Builder()
             .url(base + path)
             .header("Authorization", "Bearer " + bearer)
+            .header("X-OpenFrame-Client", TokenLifecycle.get(context).clientIdentity())
             .header("Accept", "application/json")
             .post(TokenLifecycle.jsonBody(body.toString()))
             .build();
@@ -271,6 +275,10 @@ public class NotificationActionWorker extends Worker {
             PushNotifications.replace(context, notificationId, extras, action.done(), body, false, null);
         } else if (status == 401) {
             signInFeedback(context, action, notificationId, extras);
+        } else if (status == 426) {
+            PushNotifications.replaceWithStoreLink(context, notificationId, extras, "Update OpenFrame to continue",
+                "This version of OpenFrame is no longer supported. Update the app, then try again." + action.echo(),
+                storeUrl(gateway.storeUrl));
         } else if (status == 404) {
             PushNotifications.replace(context, notificationId, extras, "No longer available",
                 "This " + (action.isReply() ? "conversation" : "request") + " no longer exists.", false, null);
@@ -332,19 +340,38 @@ public class NotificationActionWorker extends Worker {
             JSONObject json = new JSONObject(text);
             String message = json.optString("message", "").trim();
             return new GatewayError(json.optString("code", null),
-                message.isEmpty() ? null : PushNotifications.clip(message, GATEWAY_MESSAGE_LIMIT));
+                message.isEmpty() ? null : PushNotifications.clip(message, GATEWAY_MESSAGE_LIMIT),
+                json.optString("storeUrl", null));
         } catch (IOException | JSONException e) {
             return new GatewayError(null, null);
         }
     }
 
+    /** Server-supplied and launched as an intent: only a store listing's schemes, else the published listing. */
+    private static String storeUrl(String raw) {
+        if (raw != null) {
+            String scheme = Uri.parse(raw).getScheme();
+            if ("https".equalsIgnoreCase(scheme) || "market".equalsIgnoreCase(scheme)) {
+                return raw;
+            }
+        }
+        return FALLBACK_STORE_URL;
+    }
+
     private static final class GatewayError {
         final String code;
         final String message;
+        /** On a 426: the store listing for this platform. */
+        final String storeUrl;
 
         GatewayError(String code, String message) {
+            this(code, message, null);
+        }
+
+        GatewayError(String code, String message, String storeUrl) {
             this.code = code;
             this.message = message;
+            this.storeUrl = storeUrl;
         }
     }
 

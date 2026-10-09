@@ -405,11 +405,15 @@ public class NativeAuthPlugin: CAPPlugin, CAPBridgedPlugin {
      * the shared auth host the web view refreshes against — the refresher's
      * base when the build carries no plist host. Never the other way round: see
      * `TokenLifecycle.setSharedHost` for why the tenant host must not refresh.
+     * `clientBundleVersion` rides along for the actions' `X-OpenFrame-Client`.
      */
     @objc func setTenantHost(_ call: CAPPluginCall) {
         guard let origin = call.getString("origin"), TokenLifecycle.shared.setTenantHost(origin) else {
             call.reject("Refusing a tenant host that is not an https origin", "URL_NOT_ALLOWED")
             return
+        }
+        if let bundleVersion = call.getString("clientBundleVersion"), !bundleVersion.isEmpty {
+            TokenLifecycle.shared.setClientBundleVersion(bundleVersion)
         }
         if let shared = call.getString("sharedOrigin"), !shared.isEmpty, !TokenLifecycle.shared.setSharedHost(shared) {
             call.reject("Refusing a shared host that is not an https origin", "URL_NOT_ALLOWED")

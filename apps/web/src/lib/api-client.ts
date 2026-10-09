@@ -64,6 +64,21 @@ import { waitForSessionReady } from './session-ready';
 import { waitForSubscriptionGate } from './subscription-gate';
 import { refreshTokens } from './token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode } from './token-store';
+import {
+  isUpdateRequired,
+  noteUpgradeRequired,
+  UPDATE_REQUIRED_MESSAGE,
+  UPGRADE_REQUIRED_STATUS,
+} from './version-check';
+
+/**
+ * The 426 as every caller sees it. Answered locally once the gateway has said it
+ * once, so no retry policy — react-query's, or a caller's own loop — can put the
+ * request on the wire again: it cannot succeed until the app is updated.
+ */
+function updateRequiredResponse<T>(): ApiResponse<T> {
+  return { error: UPDATE_REQUIRED_MESSAGE, status: UPGRADE_REQUIRED_STATUS, ok: false };
+}
 
 class ApiClient {
   /**
@@ -124,6 +139,8 @@ class ApiClient {
       ...fetchOptions
     } = options;
 
+    if (isUpdateRequired()) return updateRequiredResponse<T>();
+
     // App data waits for the session; the bootstrap pair opts out. Retries keep
     // whatever the first attempt decided (the latch is already open by then).
     if (!skipSessionGate && !isRetry) {
@@ -134,6 +151,8 @@ class ApiClient {
       // network layer left the larger half of the requests firing into a locked
       // workspace. See `subscription-gate.ts`.
       await waitForSubscriptionGate();
+      // A 426 may have landed while this request was parked on the gates.
+      if (isUpdateRequired()) return updateRequiredResponse<T>();
     }
 
     // Build headers
@@ -185,6 +204,10 @@ class ApiClient {
         credentials: 'include', // Always include cookies for cookie-based auth
         signal: timeoutController?.signal ?? fetchOptions.signal,
       });
+
+      // Before the 401 branch on principle: a too-old bundle says nothing about
+      // the session, and must never reach refresh or logout.
+      if (await noteUpgradeRequired(response)) return updateRequiredResponse<T>();
 
       // Handle 401 Unauthorized - attempt token refresh ONLY ONCE
       if (response.status === 401 && !skipAuth && !isRetry) {
