@@ -119,9 +119,9 @@ describe('fromWireSession', () => {
     ).toMatchObject({ recordingState: 'ready', kept: true, recordingId: 'rec-1', expiresAt: null, sizeBytes: 150 });
   });
 
-  it('leaves the size of deleted and expired files out', () => {
+  it('keeps the original size of expired and deleted files', () => {
     const [first, second] = session().recordings;
-    expect(fromWireSession(session({ recordings: [{ ...first, status: 'DELETED' }, second] })).sizeBytes).toBe(50);
+    expect(fromWireSession(session({ recordings: [{ ...first, status: 'DELETED' }, second] })).sizeBytes).toBe(150);
     expect(
       fromWireSession(
         session({
@@ -132,7 +132,7 @@ describe('fromWireSession', () => {
           ],
         }),
       ).sizeBytes,
-    ).toBeNull();
+    ).toBe(150);
   });
 });
 

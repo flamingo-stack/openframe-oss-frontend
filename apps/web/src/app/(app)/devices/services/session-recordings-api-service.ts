@@ -134,16 +134,11 @@ const RECORDING_STATES: Record<RemoteSessionRecordingState, RecordingState> = {
   [RemoteSessionRecordingState.DELETED]: 'deleted',
 };
 
-const LIVE_FILE_STATUSES: ReadonlySet<string> = new Set([
-  RemoteSessionRecordingStatus.AVAILABLE,
-  RemoteSessionRecordingStatus.HELD,
-]);
-
 /** The wire session (the fragment's data) -> the tab's row. */
 export function fromWireSession(session: WireSession): RecordingSummary {
   const files = session.recordings;
-  // An expired or deleted file keeps its original size as history; only the files still stored count.
-  const stored = files.filter(file => file.sizeBytes != null && LIVE_FILE_STATUSES.has(file.status));
+  // An expired or deleted file keeps its original size, and the row shows it as the design does.
+  const stored = files.filter(file => file.sizeBytes != null);
   return {
     id: session.sessionId,
     deviceId: session.deviceId,
