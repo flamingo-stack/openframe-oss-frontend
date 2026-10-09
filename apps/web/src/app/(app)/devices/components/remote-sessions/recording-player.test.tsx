@@ -49,17 +49,18 @@ const playButton = () => container.querySelector<HTMLButtonElement>('button[aria
 describe('RecordingPlayer preview', () => {
   it('shows a Play button over a loaded recording until playback starts', () => {
     const ready = player('ready');
-    act(() => root.render(<RecordingPlayer player={ready} unavailable={false} />));
+    act(() => root.render(<RecordingPlayer player={ready} unavailableNote={null} />));
     act(() => playButton()?.click());
     expect(ready.togglePlay).toHaveBeenCalledTimes(1);
 
-    act(() => root.render(<RecordingPlayer player={player('paused')} unavailable={false} />));
+    act(() => root.render(<RecordingPlayer player={player('paused')} unavailableNote={null} />));
     expect(playButton()).toBeNull();
   });
 
-  it('keeps the processing state instead of a preview when nothing loaded', () => {
-    act(() => root.render(<RecordingPlayer player={player('empty')} unavailable />));
+  it('shows why there is nothing to play instead of a preview when nothing loaded', () => {
+    act(() => root.render(<RecordingPlayer player={player('empty')} unavailableNote="This recording was deleted" />));
     expect(playButton()).toBeNull();
     expect(container.textContent).toContain('Session recording unavailable');
+    expect(container.textContent).toContain('This recording was deleted');
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import { PoliciesTable } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   DataTable,
@@ -7,7 +8,7 @@ import {
   PageLayout,
   Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { PoliciesTable, QueriesTable, SearchBarSkeleton, TabBarSkeleton } from '@/app/components/shared';
+import { QueriesTable, SearchBarSkeleton, TabBarSkeleton } from '@/app/components/shared';
 
 /**
  * Route-level skeleton for `/monitoring` — the tab bar plus the active tab's

@@ -10,6 +10,7 @@ import {
   TimingStat,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
+import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   FlaskVialIcon,
@@ -21,8 +22,6 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../devices/utils/device-action-utils';
-import { getDeviceName } from '../../devices/utils/device-name';
-import { getDeviceStatusConfig } from '../../devices/utils/device-status';
 import { useQueryTestRun } from './query-test-run';
 
 export interface TestQuerySectionProps {

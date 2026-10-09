@@ -1,30 +1,25 @@
 'use client';
 
-import { PageLayout, TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
-import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
-import {
-  DevicesTableBody,
-  getDeviceActionsColumn,
-  getDeviceFilterColumns,
-} from '@/app/(app)/devices/components/devices-table-columns';
-// Direct import, not the `@/app/components/shared` barrel: that barrel re-exports
-// `DevicesPanel`, which imports this file, and the cycle only resolves by luck.
-import { DevicesFilterToolbar } from '../devices-filter-toolbar';
 import {
   buildDevicePanelActions,
-  DEVICE_VIEW_MODE_ITEMS,
   type DevicePanelActionsOptions,
-} from './devices-panel-header';
+  DevicesPanelView,
+  getDeviceActionsColumn,
+  getDeviceFilterColumns,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { Device } from '@/app/(app)/devices/types/device.types';
+import { routes } from '@/lib/routes';
 
-const NO_DEVICES: never[] = [];
-const NO_FILTER_GROUPS: never[] = [];
-const NO_TAGS: never[] = [];
-const NO_FILTERS: Record<string, string[]> = {};
-const noop = () => {};
-/** The loaded table's actions column, minus the actions — see `getDeviceActionsColumn`. */
-const SKELETON_ACTIONS_COLUMN = getDeviceActionsColumn();
+const NO_DEVICES: Device[] = [];
+/** The loaded table's actions column, minus the actions: see `getDeviceActionsColumn`. */
+const SKELETON_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
+/**
+ * The grid's filter row while the facets are out. `getDeviceFilterColumns`
+ * takes the facets, and with none it still yields every column with its static
+ * label, which is all the row needs to hold its height.
+ */
+const SKELETON_FILTER_COLUMNS = getDeviceFilterColumns(null);
 
 export interface DevicesPanelChrome {
   title: string;
@@ -36,8 +31,8 @@ export interface DevicesPanelChrome {
 export interface DevicesPanelSkeletonProps extends DevicesPanelChrome, DevicePanelActionsOptions {
   /**
    * Which half the loaded panel will render, straight from the `viewMode` URL
-   * param. Table and grid are different SHAPES — a header row over full-width
-   * rows versus a card grid — so a fallback that always drew the table replaced
+   * param. Table and grid are different SHAPES (a header row over full-width
+   * rows versus a card grid), so a fallback that always drew the table replaced
    * itself wholesale whenever the user's saved view was the grid.
    */
   viewMode: 'table' | 'grid';
@@ -50,21 +45,15 @@ export interface DevicesPanelSkeletonProps extends DevicesPanelChrome, DevicePan
 /**
  * Suspense fallback for `DevicesPanel`.
  *
- * The panel's own chrome, drawn from the real components and locked — the same
- * approach the scripts pages take (`SchedulePickerSkeleton`):
- * a loading state made of the REAL controls cannot drift from the thing it stands
- * in for, because it IS that thing with its data missing.
+ * The panel's own view in its `loading` state: a loading state made of the REAL
+ * controls cannot drift from the thing it stands in for, because it IS that
+ * thing with its data missing.
  *
- * Concretely, everything here is a prop or a URL value, none of it the device
- * query: the header buttons come from the one declaration the loaded panel also
- * reads (`devices-panel-header`), the view switch reflects `?viewMode`, and the
+ * Everything here is a prop or a URL value, none of it the device query: the
+ * header buttons come from the one declaration the loaded panel also reads
+ * (`buildDevicePanelActions`), the view switch reflects `?viewMode`, and the
  * filter toolbar is the actual toolbar with empty tags. What is skeletoned is
- * only what the request answers — the rows.
- *
- * This replaced a fallback that omitted the header actions and the view switch
- * entirely and stood a plain grey bar in for the toolbar. All three moved the
- * page when the data landed: two controls appearing in the header, and a bar
- * whose height and margins were nothing like the sticky toolbar's.
+ * only what the request answers: the rows.
  */
 export function DevicesPanelSkeleton({
   title,
@@ -77,79 +66,25 @@ export function DevicesPanelSkeleton({
   ...actionOptions
 }: DevicesPanelSkeletonProps) {
   return (
-    <PageLayout
+    <DevicesPanelView<Device>
+      loading
       title={title}
       backButton={backButton}
-      actionsVariant="icon-buttons"
-      selector={<TabSelector value={viewMode} onValueChange={noop} items={DEVICE_VIEW_MODE_ITEMS} disabled />}
-      actions={buildDevicePanelActions({ ...actionOptions, disabled: true })}
       className={cn(offsetClassName, className)}
-      contentClassName="flex flex-col"
-    >
-      <span role="status" className="sr-only">
-        Loading devices…
-      </span>
-      {/* `inert` rather than per-control `disabled`: the toolbar's search field
-          and tag chips have no disabled state of their own, and a focusable
-          input that silently drops what is typed into it is worse than one that
-          cannot be reached at all. */}
-      <div inert>
-        <DevicesFilterToolbar
-          searchValue=""
-          onSearchChange={noop}
-          tags={NO_TAGS}
-          onTagRemove={noop}
-          onClearAll={noop}
-          onSubmit={noop}
-          onOpenFilterModal={noop}
-          isFilterModalOpen={false}
-          onCloseFilterModal={noop}
-          filterGroups={NO_FILTER_GROUPS}
-          onFilterChange={noop}
-          tagFilterKeys={NO_TAGS}
-          selectedTags={NO_TAGS}
-          onTagsChange={noop}
-          isLoading
-        />
-        {viewMode === 'table' ? (
-          <DevicesTableBody
-            devices={NO_DEVICES}
-            isLoading
-            emptyMessage=""
-            skeletonRows={10}
-            // Matches the loaded table: without it the header sticks at a
-            // different offset and jumps the moment the rows arrive.
-            stickyHeaderOffset="top-[96px]"
-            deviceFilters={null}
-            // The facets have not answered, which is NOT the same as "this list
-            // has no facets". Without it `getDeviceTableColumns` reads the empty
-            // options as final and hides each column's funnel, so the header
-            // grew three of them the moment the query landed.
-            filtersPending
-            // The loaded table always carries a row-actions column, and it takes
-            // real width from the others. Rendering the header without it put
-            // every column at the wrong width.
-            actionsColumn={SKELETON_ACTIONS_COLUMN}
-            hideColumns={hideColumns}
-            disableColumnFilters={hideFilters}
-          />
-        ) : (
-          <>
-            {/* Same filter row the grid loads with. `getDeviceFilterColumns`
-                takes the facets, and with none it still yields every column with
-                its static label — which is all this row needs to hold its
-                height. `totalCount` is left off: it is the query's answer, and
-                its tail is absolutely positioned, so omitting it moves nothing. */}
-            <DevicesGridFilters
-              filterColumns={getDeviceFilterColumns(null)}
-              currentFilters={NO_FILTERS}
-              onFilterChange={noop}
-              isLoading
-            />
-            <DevicesGrid devices={NO_DEVICES} isLoading emptyMessage="" />
-          </>
-        )}
-      </div>
-    </PageLayout>
+      viewMode={viewMode}
+      actions={buildDevicePanelActions({
+        ...actionOptions,
+        addCustomerHref: routes.customers.new,
+        disabled: true,
+      })}
+      devices={NO_DEVICES}
+      filterColumns={SKELETON_FILTER_COLUMNS}
+      // The loaded table always carries a row-actions column, and it takes real
+      // width from the others. Rendering the header without it put every column
+      // at the wrong width.
+      actionsColumn={SKELETON_ACTIONS_COLUMN}
+      hideColumns={hideColumns}
+      hideFilters={hideFilters}
+    />
   );
 }

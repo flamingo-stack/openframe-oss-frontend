@@ -1,4 +1,5 @@
 import { SubscriptionStatus } from '@/generated/schema-enums';
+import { pluralize } from '@/lib/pluralize';
 
 /**
  * The plan picker's header copy (web / desktop).
@@ -52,3 +53,19 @@ const DEFAULT_COPY: PaywallCopy = {
 export function getPaywallCopy(status: SubscriptionStatus): PaywallCopy {
   return PAYWALL_COPY[status] ?? DEFAULT_COPY;
 }
+
+/**
+ * The line under the paywall's title: the fleet the plan is for once billing
+ * has counted it, and `copy.description` until then. One sentence either way,
+ * not a number appearing into a gap left for it.
+ */
+export function paywallDescription(copy: PaywallCopy, deviceCount: number | null): string {
+  if (deviceCount == null) return copy.description;
+  return `We've detected ${pluralize(deviceCount, 'active device')} in your OpenFrame instance that ${deviceCount === 1 ? 'requires' : 'require'} a subscription to continue management.`;
+}
+
+/** Shown in place of the plans when their catalog cannot be loaded at all. */
+export const PLANS_UNAVAILABLE_COPY = {
+  title: "We couldn't load the plans.",
+  description: 'Something went wrong on our side. Try again in a moment, or contact support if it keeps happening.',
+};

@@ -1,5 +1,6 @@
 'use client';
 
+import type { DeviceFilters } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption, InfoCardData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
@@ -19,7 +20,6 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { useDeviceOrganizations } from '@/app/(app)/devices/hooks/use-device-organizations';
-import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
 import { OrgAvatar } from '@/app/components/shared';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
 

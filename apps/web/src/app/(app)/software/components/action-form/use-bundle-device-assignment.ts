@@ -1,5 +1,6 @@
 'use client';
 
+import { type DeviceFilterInput, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useRef } from 'react';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
@@ -7,8 +8,7 @@ import type { useBundleDeviceAssignmentAddAllMutation as AddAllMutationType } fr
 import type { useBundleDeviceAssignmentAddMutation as AddMutationType } from '@/__generated__/useBundleDeviceAssignmentAddMutation.graphql';
 import type { useBundleDeviceAssignmentRemoveAllMutation as RemoveAllMutationType } from '@/__generated__/useBundleDeviceAssignmentRemoveAllMutation.graphql';
 import type { useBundleDeviceAssignmentRemoveMutation as RemoveMutationType } from '@/__generated__/useBundleDeviceAssignmentRemoveMutation.graphql';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import {
   assignmentUpdaters,
   type ConnectionNarrowing,

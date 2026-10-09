@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { FitAddon } from '@xterm/addon-fit';
@@ -8,7 +9,6 @@ import type { Terminal } from '@xterm/xterm';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';

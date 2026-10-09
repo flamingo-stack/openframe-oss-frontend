@@ -1,6 +1,6 @@
+import type { DeviceFilters, TagFilterOption } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { graphql, readInlineData } from 'react-relay';
 import type { deviceFacetsFields_filters$key } from '@/__generated__/deviceFacetsFields_filters.graphql';
-import type { DeviceFilters, TagFilterOption } from '@/app/(app)/devices/types/device.types';
 
 /**
  * The facet shape of a scoped `DeviceFilters` field — a schedule's or a
