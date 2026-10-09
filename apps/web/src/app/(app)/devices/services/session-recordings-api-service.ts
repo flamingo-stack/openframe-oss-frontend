@@ -231,7 +231,8 @@ export function fromWireSession(session: WireSession): RecordingSummary {
   };
 }
 
-function readSession(ref: WireSessionKey): WireSession {
+/** A session row's selection, read from wherever it was spread - the device list, the detail, the tenant-wide list. */
+export function readSession(ref: WireSessionKey): WireSession {
   return readInlineData(sessionFragment, ref);
 }
 
