@@ -285,6 +285,8 @@ export const routes = {
   devices: {
     list: '/devices',
     archive: '/devices/archive',
+    /** The tenant's remote sessions on every device - a page tab beside the Devices list. */
+    remoteSessions: '/devices/remote-sessions',
     new: (o?: { organizationId?: string }) => withQuery('/devices/new', { organizationId: o?.organizationId }),
     details: (id: string | number, o?: { tab?: DeviceDetailTab; action?: 'runScript' }) =>
       withQuery('/devices/details', { id, tab: o?.tab, action: o?.action }),
