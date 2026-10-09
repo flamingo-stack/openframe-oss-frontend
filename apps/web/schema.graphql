@@ -1860,6 +1860,24 @@ type Mutation {
   """
   deleteRecording(sessionId: String!): RemoteSessionPayload!
 
+  """
+  Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
+  each row, the Keep on the session. A file listed later for a kept session is held too. Calling it again after
+  RECORDING_STORAGE_UNAVAILABLE finishes the files left. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  RECORDING_KEEP_NOTE_REQUIRED, RECORDING_KEEP_NOTE_TOO_LONG, REMOTE_SESSION_NOT_FOUND, RECORDING_SESSION_ACTIVE,
+  RECORDING_PROCESSING, RECORDING_NOTHING_TO_KEEP, RECORDING_ALREADY_KEPT, RECORDING_KEPT_LIMIT (the 50 GB kept
+  allowance), RECORDING_STORAGE_UNAVAILABLE.
+  """
+  keepRecording(input: KeepRecordingInput!): RemoteSessionPayload!
+
+  """
+  Releases the Keep: every file expires no earlier than the release grace (3 days) from now; nothing is deleted on
+  the spot. Never refused for a full recording pool. Calling it again after RECORDING_STORAGE_UNAVAILABLE finishes
+  it. Refusals as userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND, RECORDING_NOT_KEPT,
+  RECORDING_STORAGE_UNAVAILABLE.
+  """
+  releaseRecording(sessionId: String!): RemoteSessionPayload!
+
   """Create a Stripe checkout session for subscribing to selected products."""
   createCheckoutSession(input: CheckoutInput!): CheckoutResult!
 
@@ -3518,6 +3536,10 @@ type RemoteSession {
 
   """The earliest expiresAt of the session's AVAILABLE files; null when none is left or none expires."""
   recordingExpiresAt: Instant
+
+  """Set while the session's recordings are kept."""
+  recordingHold: RecordingHold
+  lastRecordingRelease: RecordingRelease
 }
 
 enum RemoteSessionEndReason {
@@ -3572,8 +3594,57 @@ enum RemoteSessionRecordingStatus {
   DELETED
 }
 
+"""Why a technician kept a session's recordings; OTHER needs a note."""
+enum RecordingHoldReason {
+  CLIENT_DISPUTE
+  INTERNAL_REVIEW
+  LEGAL_COMPLIANCE
+  OTHER
+}
+
 """
-The tenant's recording storage, two separate pools. Recomputed after every upload and delete and on the daily sweep.
+A Keep on a session's recordings. It has no end date: it lasts until someone releases it. dueAt and
+expiresAtOnRelease are filled on the current Keep only (RemoteSession.recordingHold), null on a past one.
+"""
+type RecordingHold {
+  heldBy: RemoteAccessTechnician!
+  heldAt: Instant!
+  reason: RecordingHoldReason!
+  note: String
+  ticketId: String
+
+  """The ticket number as it was when the Keep was placed."""
+  ticketNumber: String
+
+  """The Release modal's "It was due to expire on": the earliest expiresAt of the held files."""
+  dueAt: Instant
+
+  """The Release modal's "It will expire on": the later of dueAt and now plus the release grace."""
+  expiresAtOnRelease: Instant
+
+  """openframe.recordings.release-grace in whole days, 3 by default."""
+  releaseGraceDays: Int!
+}
+
+"""The last Release of a session's Keep, kept on the session until the timeline carries it."""
+type RecordingRelease {
+  releasedBy: RemoteAccessTechnician!
+  releasedAt: Instant!
+  hold: RecordingHold!
+}
+
+input KeepRecordingInput {
+  sessionId: String!
+  reason: RecordingHoldReason!
+
+  """Required when reason is OTHER; at most 500 characters."""
+  note: String
+  ticketId: String
+}
+
+"""
+The tenant's recording storage, two separate pools. Recomputed after every upload, delete, Keep and Release and on
+the daily sweep.
 full is the one source of truth: new sessions stop recording from it, and the device page shows the "Recording storage
 full" banner from it. A full kept pool refuses Keep and never sets full.
 """
@@ -3721,6 +3792,9 @@ type RemoteSessionRecording {
   """The session this file belongs to, for the detail page's meta card and transcript (dialogId)."""
   session: RemoteSession!
   status: RemoteSessionRecordingStatus!
+
+  """When the file was held; null unless status is HELD."""
+  heldAt: Instant
 
   """Upload time plus the retention; the sweep removes the file after it."""
   expiresAt: Instant

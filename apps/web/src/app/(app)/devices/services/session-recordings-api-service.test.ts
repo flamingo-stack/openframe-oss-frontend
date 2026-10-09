@@ -29,6 +29,7 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
     durationMs: 3_600_000,
     recordingState: 'READY',
     recordingExpiresAt: '2026-12-24T10:49:27Z',
+    recordingHold: null,
     dialogId: 'dialog-1',
     technician: { name: 'Roman Smith', avatarUrl: null },
     organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
@@ -119,6 +120,32 @@ describe('fromWireSession', () => {
     ).toMatchObject({ recordingState: 'ready', kept: true, recordingId: 'rec-1', expiresAt: null, sizeBytes: 150 });
   });
 
+  it('reads the Keep, naming the legal reason as the Keep dialog does', () => {
+    const row = fromWireSession(
+      session({
+        recordingState: 'KEPT',
+        recordingExpiresAt: null,
+        recordingHold: {
+          heldBy: { name: 'Dana Whitfield' },
+          heldAt: '2026-10-08T10:00:00Z',
+          reason: 'LEGAL_COMPLIANCE',
+          note: null,
+          dueAt: '2026-12-24T10:49:27Z',
+          expiresAtOnRelease: '2026-12-24T10:49:27Z',
+        },
+      }),
+    );
+    expect(row.keep).toEqual({
+      keptBy: 'Dana Whitfield',
+      keptAt: '2026-10-08T10:00:00Z',
+      reason: 'LEGAL_OR_COMPLIANCE',
+      note: null,
+      dueAt: '2026-12-24T10:49:27Z',
+      expiresAtOnRelease: '2026-12-24T10:49:27Z',
+    });
+    expect(fromWireSession(session()).keep).toBeNull();
+  });
+
   it('keeps the original size of expired and deleted files', () => {
     const [first, second] = session().recordings;
     expect(fromWireSession(session({ recordings: [{ ...first, status: 'DELETED' }, second] })).sizeBytes).toBe(150);
@@ -137,6 +164,38 @@ describe('fromWireSession', () => {
 });
 
 describe('SessionRecordingsApiService', () => {
+  it("keeps with the server's reason and the note, and throws the refusal", async () => {
+    relay.commitMutation.mockResolvedValueOnce({ keepRecording: { userErrors: [] } });
+    await service.keep('session-1', { reason: 'LEGAL_OR_COMPLIANCE', description: null });
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), {
+      input: { sessionId: 'session-1', reason: 'LEGAL_COMPLIANCE', note: null },
+    });
+
+    relay.commitMutation.mockResolvedValueOnce({ keepRecording: { userErrors: [] } });
+    await service.keep('session-1', { reason: 'OTHER', description: 'Customer asked' });
+    expect(relay.commitMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      input: { sessionId: 'session-1', reason: 'OTHER', note: 'Customer asked' },
+    });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      keepRecording: { userErrors: [{ code: 'RECORDING_KEPT_LIMIT', message: 'The kept allowance is full' }] },
+    });
+    await expect(service.keep('session-1', { reason: 'CLIENT_DISPUTE', description: null })).rejects.toThrow(
+      'The kept allowance is full',
+    );
+  });
+
+  it('releases by session id and throws the refusal', async () => {
+    relay.commitMutation.mockResolvedValueOnce({ releaseRecording: { userErrors: [] } });
+    await service.release('session-1');
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), { sessionId: 'session-1' });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      releaseRecording: { userErrors: [{ code: 'RECORDING_NOT_KEPT', message: 'The recording is not kept' }] },
+    });
+    await expect(service.release('session-1')).rejects.toThrow('The recording is not kept');
+  });
+
   it('deletes by session id and throws the server refusal', async () => {
     relay.commitMutation.mockResolvedValueOnce({ deleteRecording: { userErrors: [] } });
     await service.delete('session-1');

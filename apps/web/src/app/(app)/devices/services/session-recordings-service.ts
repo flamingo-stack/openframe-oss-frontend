@@ -1,3 +1,4 @@
+import type { KeepRecordingSelection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { RecordingDetail, RecordingSegment, RecordingStorage, RecordingSummary } from '../types/session-recording';
 
 /**
@@ -26,6 +27,10 @@ export interface ISessionRecordingsService {
   downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer>;
   /** Delete every file of an ended session. Throws the server's refusal (session active, a file kept). */
   delete(sessionId: string): Promise<void>;
+  /** Keep every file of an ended session from automatic deletion. Throws the server's refusal (e.g. the kept allowance is full). */
+  keep(sessionId: string, selection: KeepRecordingSelection): Promise<void>;
+  /** Release the Keep: the files expire again, no earlier than the grace period from now. Throws the server's refusal. */
+  release(sessionId: string): Promise<void>;
   /** The tenant's recording storage: what the "Recording storage full" banner reads. */
   storage(): Promise<RecordingStorage>;
 }

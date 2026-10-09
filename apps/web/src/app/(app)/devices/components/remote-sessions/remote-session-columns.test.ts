@@ -21,6 +21,7 @@ const row = (overrides: Partial<RecordingSummary> = {}): RecordingSummary => ({
   protocol: 2,
   recordingState: 'ready',
   kept: false,
+  keep: null,
   expiresAt: new Date(NOW + 3 * DAY_MS).toISOString(),
   recordingId: 'rec-1',
   employee: { name: 'Roman Smith' },
