@@ -74,5 +74,13 @@ function LoadedModelTokenRates({ autoTopUpEnabled }: Pick<ModelTokenRatesPopover
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
     },
   );
-  return <ModelTokenRates rates={data.aiModelRates} autoTopUpEnabled={autoTopUpEnabled} />;
+  // Field by field: the table takes its own shape, and each field the query asks for is read here.
+  const rates = data.aiModelRates.map(rate => ({
+    modelName: rate.modelName,
+    displayName: rate.displayName,
+    providerType: rate.providerType,
+    inputTokenRate: rate.inputTokenRate,
+    outputTokenRate: rate.outputTokenRate,
+  }));
+  return <ModelTokenRates rates={rates} autoTopUpEnabled={autoTopUpEnabled} />;
 }
