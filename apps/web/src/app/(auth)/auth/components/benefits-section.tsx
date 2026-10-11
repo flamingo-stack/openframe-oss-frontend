@@ -10,7 +10,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { BenefitCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useState } from 'react';
 import { HUB_PUBLIC_API } from '@/lib/hub-public-api';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
@@ -90,7 +89,7 @@ export function AuthBenefitsSection() {
           {/* OpenFrame Logo */}
           <div className="flex items-center justify-center">
             <OpenframeLogoIcon
-              style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+              secondaryColor="var(--color-accent-primary)"
               className="mr-5 h-10 w-auto"
               color="var(--color-text-primary)"
             />
@@ -135,7 +134,7 @@ export function AuthBenefitsSection() {
         {/* OpenFrame Logo */}
         <div className="flex items-center justify-center">
           <OpenframeLogoIcon
-            style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+            secondaryColor="var(--color-accent-primary)"
             className="h-10 w-auto"
             color="var(--color-text-primary)"
           />

@@ -6,7 +6,6 @@ import {
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, SkeletonText } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { routes } from '@/lib/routes';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
@@ -28,7 +27,7 @@ export default function AuthErrorPage() {
       {/* Logo */}
       <div className="flex items-center gap-2">
         <OpenframeLogoIcon
-          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

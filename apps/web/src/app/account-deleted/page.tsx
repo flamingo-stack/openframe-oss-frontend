@@ -6,7 +6,6 @@ import {
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -107,7 +106,7 @@ export default function AccountDeletedPage() {
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenframeLogoIcon
-          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

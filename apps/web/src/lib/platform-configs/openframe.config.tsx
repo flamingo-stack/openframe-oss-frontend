@@ -5,7 +5,6 @@ import {
   XSmallIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import type React from 'react';
 import type { AppConfig } from '../app-config';
 import { getAppUrl } from '../utils';
@@ -56,7 +55,11 @@ export const openframeConfig: AppConfig = {
       icon: 'openframe',
       getElement: () => (
         <span className="flex items-center gap-3">
-          <OpenframeLogoIcon color="#1A1A1A" style={iconColors({ secondary: '#ffffff' })} className="h-8 w-8" />
+          <OpenframeLogoIcon
+            color="var(--color-text-on-accent)"
+            secondaryColor="var(--color-text-primary)"
+            className="h-8 w-8"
+          />
           <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>
         </span>
       ),
@@ -122,8 +125,8 @@ export const openframeConfig: AppConfig = {
     logo: {
       getElement: () => (
         <OpenframeLogoIcon
-          color="#1A1A1A"
-          style={iconColors({ secondary: '#ffffff' })}
+          color="var(--color-text-on-accent)"
+          secondaryColor="var(--color-text-primary)"
           size={32}
           className="h-8 w-8 flex-shrink-0"
         />

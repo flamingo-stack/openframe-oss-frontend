@@ -6,7 +6,6 @@ import {
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { StoreBadgeLinks } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect } from 'react';
 import { useIsDesktopShell } from '@/app/hooks/use-is-desktop-shell';
 import { MobileAppQr } from '@/components/mobile-app-qr';
@@ -57,7 +56,7 @@ export default function MobileAppPage() {
     <div className="of-standalone-shell flex min-h-screen flex-col items-center gap-[var(--spacing-system-xlf)] bg-ods-bg p-[var(--spacing-system-xlf)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
         <OpenframeLogoIcon
-          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

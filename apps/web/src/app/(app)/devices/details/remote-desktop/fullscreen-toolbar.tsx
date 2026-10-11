@@ -10,7 +10,6 @@ import {
   MonitorIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 
 interface FullscreenToolbarProps {
   deviceName: string;
@@ -44,8 +43,8 @@ export function FullscreenToolbar({
   return (
     <>
       <OpenframeLogoIcon
-        color="#1A1A1A"
-        style={iconColors({ secondary: '#ffffff' })}
+        color="var(--color-text-on-accent)"
+        secondaryColor="var(--color-text-primary)"
         className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50"
       />
       <div

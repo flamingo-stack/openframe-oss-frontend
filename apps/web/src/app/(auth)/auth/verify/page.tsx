@@ -5,7 +5,6 @@ import {
   OpenframeLogoIcon,
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { routes } from '@/lib/routes';
@@ -43,7 +42,7 @@ export default function VerifyEmailPage() {
     <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       <div className="flex items-center gap-2">
         <OpenframeLogoIcon
-          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />
