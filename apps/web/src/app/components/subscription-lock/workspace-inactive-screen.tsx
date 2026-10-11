@@ -1,9 +1,13 @@
 'use client';
 
-import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+  Refresh01RightIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback } from 'react';
 import { LockScreenActions } from './lock-screen-actions';
 
@@ -59,7 +63,8 @@ export function WorkspaceInactiveScreen({ title, description, action }: Workspac
   return (
     <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+        <OpenframeLogoIcon
+          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

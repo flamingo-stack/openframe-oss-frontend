@@ -1,6 +1,5 @@
 'use client';
 
-import { InfoCircleClassicIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   SearchableSelect,
@@ -13,6 +12,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  InfoCircleClassicIcon,
   FlaskVialIcon,
   Refresh01LeftIcon,
   StopIcon,

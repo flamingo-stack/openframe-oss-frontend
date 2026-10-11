@@ -10,9 +10,7 @@ import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ReactNode } from 'react';
 
 export const MEET_MINGO_META: { icon: ReactNode; title: string; description: string } = {
-  icon: (
-    <AgentMark agent="mingo" className="size-6 text-ods-text-secondary" />
-  ),
+  icon: <AgentMark agent="mingo" className="size-6 text-ods-text-secondary" />,
   title: 'Meet Mingo',
   description: 'Your AI co-pilot for the OpenFrame workspace. Ask questions, get summaries, or delegate tasks.',
 };

@@ -11,7 +11,12 @@ import { WorkTimeTableSkeleton } from '@/app/components/shared/work-time-table';
  */
 
 const ACTIONS: PageActionButton[] = [
-  { label: 'Add Work Time', variant: 'outline', disabled: true, icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} /> },
+  {
+    label: 'Add Work Time',
+    variant: 'outline',
+    disabled: true,
+    icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
+  },
 ];
 
 export function WorktimePageSkeleton() {

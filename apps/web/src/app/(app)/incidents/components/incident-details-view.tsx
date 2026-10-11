@@ -1,7 +1,7 @@
 'use client';
 
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
@@ -61,9 +61,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.
   const ticketAssignee = incident.assignee && !incident.assignee.deleted ? incident.assignee : undefined;
 
-  const mingoIcon = (
-    <AgentMark agent="mingo" className="size-5" />
-  );
+  const mingoIcon = <AgentMark agent="mingo" className="size-5" />;
   const mingoAction: PageActionButton = {
     ...mingoActionFor(incident, mingoSession, mingoControls),
     variant: 'outline',

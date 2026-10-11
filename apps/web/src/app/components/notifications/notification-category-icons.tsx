@@ -1,5 +1,5 @@
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   AlertTriangleIcon,
   BracketCurlyIcon,
@@ -29,9 +29,7 @@ const iconByCategory: Record<string, ReactNode> = {
   LOGS: <ClipboardListIcon size={16} />,
   TICKETS: <TagIcon size={16} />,
   INSIGHTS: <AlertTriangleIcon size={16} />,
-  MINGO: (
-    <AgentMark agent="mingo" className="size-4" />
-  ),
+  MINGO: <AgentMark agent="mingo" className="size-4" />,
 };
 
 export function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {

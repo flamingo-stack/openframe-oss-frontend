@@ -1,6 +1,5 @@
-import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { InfoCardFooterData } from '@flamingo-stack/openframe-frontend-core';
-import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { FlamingoMarkIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ToolType } from '../types/device.types';
 
 /** External repository links per tool type; agents without an entry get no footer */

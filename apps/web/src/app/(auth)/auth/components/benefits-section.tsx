@@ -1,10 +1,16 @@
 'use client';
 
-import { AutomateEverythingIcon, CutVendorCostsIcon, OpenframeLogoIcon, OpenframeTextIcon, ReclaimProfitsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { WaitlistForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  AutomateEverythingIcon,
+  CutVendorCostsIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+  ReclaimProfitsIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { BenefitCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useState } from 'react';
 import { HUB_PUBLIC_API } from '@/lib/hub-public-api';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
@@ -83,7 +89,8 @@ export function AuthBenefitsSection() {
         <div className="flex w-full max-w-lg flex-col items-center justify-center gap-10">
           {/* OpenFrame Logo */}
           <div className="flex items-center justify-center">
-            <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+            <OpenframeLogoIcon
+              style={iconColors({ secondary: 'var(--color-accent-primary)' })}
               className="mr-5 h-10 w-auto"
               color="var(--color-text-primary)"
             />
@@ -127,7 +134,8 @@ export function AuthBenefitsSection() {
       <div className="flex w-full max-w-lg flex-col items-center justify-center gap-10">
         {/* OpenFrame Logo */}
         <div className="flex items-center justify-center">
-          <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+          <OpenframeLogoIcon
+            style={iconColors({ secondary: 'var(--color-accent-primary)' })}
             className="h-10 w-auto"
             color="var(--color-text-primary)"
           />

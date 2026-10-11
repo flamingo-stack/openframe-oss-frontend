@@ -1,7 +1,10 @@
 'use client';
 
-import { AlertTriangleClassicIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  AlertTriangleClassicIcon,
+  CheckIcon,
+  Copy02Icon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Alert,
   AlertDescription,

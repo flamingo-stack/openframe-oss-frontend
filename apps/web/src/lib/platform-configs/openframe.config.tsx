@@ -1,6 +1,11 @@
-import { HamburgerIcon, OpenframeLogoIcon, UserClassicIcon, XSmallIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
+import {
+  HamburgerIcon,
+  OpenframeLogoIcon,
+  UserClassicIcon,
+  XSmallIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import type React from 'react';
 import type { AppConfig } from '../app-config';
 import { getAppUrl } from '../utils';
@@ -115,7 +120,14 @@ export const openframeConfig: AppConfig = {
   footer: {
     showWaitlist: false,
     logo: {
-      getElement: () => <OpenframeLogoIcon color="#1A1A1A" style={iconColors({ secondary: '#ffffff' })} size={32} className="h-8 w-8 flex-shrink-0" />,
+      getElement: () => (
+        <OpenframeLogoIcon
+          color="#1A1A1A"
+          style={iconColors({ secondary: '#ffffff' })}
+          size={32}
+          className="h-8 w-8 flex-shrink-0"
+        />
+      ),
     },
     name: {
       getElement: () => <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>,

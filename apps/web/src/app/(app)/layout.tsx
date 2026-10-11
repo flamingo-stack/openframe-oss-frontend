@@ -2,10 +2,10 @@
 
 import { AgentIdentityProvider } from '@flamingo-stack/openframe-frontend-core/components';
 import { usePathname } from 'next/navigation';
-import { CONTENT_ORIGIN } from './help-center/endpoints';
 import { AppLayout } from '../components/app-layout';
 import { APP_MAIN_CLASS_NAME, getMainClassNameOverride } from '../components/app-shell-chrome';
 import { OpenframeChatRuntimeProvider } from '../components/openframe-chat-runtime-provider';
+import { CONTENT_ORIGIN } from './help-center/endpoints';
 
 const AGENT_IDENTITIES_URL = `${CONTENT_ORIGIN}/content/api/ai-agents`;
 

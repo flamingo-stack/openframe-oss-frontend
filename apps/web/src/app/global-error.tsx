@@ -1,8 +1,12 @@
 'use client';
 
-import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useRef } from 'react';
 import { hideSplashScreen } from '@/lib/native-shell';
 import './globals.css';
@@ -39,7 +43,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body className="min-h-screen font-body antialiased" data-app-type="openframe">
         <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
           <div className="flex items-center gap-2">
-            <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+            <OpenframeLogoIcon
+              style={iconColors({ secondary: 'var(--color-accent-primary)' })}
               className="h-10 w-auto"
               color="var(--color-text-primary)"
             />

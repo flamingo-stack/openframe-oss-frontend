@@ -412,9 +412,7 @@ function IncidentsTableContent({
                 onClick={onClick}
                 variant="outline"
                 size="icon"
-                leftIcon={
-                  <AgentMark agent="mingo" className="size-5" />
-                }
+                leftIcon={<AgentMark agent="mingo" className="size-5" />}
                 aria-label={label}
                 title={label}
                 disabled={disabled}

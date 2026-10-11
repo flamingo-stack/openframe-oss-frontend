@@ -1,8 +1,12 @@
 'use client';
 
-import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, SkeletonText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { routes } from '@/lib/routes';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
@@ -23,7 +27,8 @@ export default function AuthErrorPage() {
     <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+        <OpenframeLogoIcon
+          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

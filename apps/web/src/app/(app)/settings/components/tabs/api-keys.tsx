@@ -1,7 +1,8 @@
 'use client';
 
-import { DocumentIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  DocumentIcon,
+  PlusCircleIcon,
   BannedIcon,
   CheckCircleIcon,
   EyeIcon,

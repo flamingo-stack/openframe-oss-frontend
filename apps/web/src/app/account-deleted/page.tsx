@@ -1,8 +1,12 @@
 'use client';
 
-import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -102,7 +106,8 @@ export default function AccountDeletedPage() {
     <div className="of-standalone-shell flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-xlf)]">
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+        <OpenframeLogoIcon
+          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

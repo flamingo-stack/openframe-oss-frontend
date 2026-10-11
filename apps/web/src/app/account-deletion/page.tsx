@@ -1,6 +1,10 @@
 'use client';
 
-import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { routes } from '@/lib/routes';
 
@@ -28,7 +32,8 @@ export default function AccountDeletionPage() {
   return (
     <div className="of-standalone-shell flex min-h-screen flex-col items-center gap-[var(--spacing-system-xlf)] bg-ods-bg p-[var(--spacing-system-xlf)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
+        <OpenframeLogoIcon
+          style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
           color="var(--color-text-primary)"
         />

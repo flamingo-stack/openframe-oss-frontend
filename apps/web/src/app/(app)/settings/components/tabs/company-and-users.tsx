@@ -1,8 +1,11 @@
 'use client';
 
-import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  PlusCircleIcon,
+  ArrowRightUpIcon,
+  SearchIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,

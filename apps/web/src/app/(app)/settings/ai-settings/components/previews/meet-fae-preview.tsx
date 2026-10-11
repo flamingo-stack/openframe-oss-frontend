@@ -1,11 +1,11 @@
 'use client';
 
-import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   MspOrganizationCard,
   MspOrganizationCardSkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
+  FlamingoMarkIcon,
   ClockCheckIcon,
   SignalBroadcast02Icon,
   WrenchScrewdiverIcon,

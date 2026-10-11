@@ -1,11 +1,11 @@
 'use client';
 
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChatsIcon,
   MonitorShieldIcon,
   ShieldCheckIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
