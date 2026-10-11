@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AlertTriangleClassicIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Alert,
@@ -66,7 +66,7 @@ export function ApiKeyCreatedModal({ isOpen, fullKey, onClose }: ApiKeyCreatedMo
       }
     >
       <Alert className="border-ods-warning bg-ods-warning text-ods-text-on-accent">
-        <AlertTriangleIcon className="h-5 w-5" />
+        <AlertTriangleClassicIcon className="h-5 w-5" />
         <AlertDescription>
           This is the only time you'll see the complete API key. Please copy it and store it securely.
         </AlertDescription>

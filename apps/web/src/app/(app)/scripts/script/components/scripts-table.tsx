@@ -1,7 +1,7 @@
 'use client';
 
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ArrowRightUpIcon,
   BoxArchiveIcon,
@@ -578,11 +578,7 @@ function ScriptsTableContent({
           { icon: <TerminalIcon />, label: 'Write in PowerShell, Bash, Python, or Batch' },
           {
             icon: (
-              <MingoIcon
-                className="size-5"
-                eyesColor="var(--ods-flamingo-cyan-base)"
-                cornerColor="var(--ods-flamingo-cyan-base)"
-              />
+              <AgentMark agent="mingo" className="size-5" />
             ),
             label: 'Let Mingo suggest or generate scripts for you',
           },

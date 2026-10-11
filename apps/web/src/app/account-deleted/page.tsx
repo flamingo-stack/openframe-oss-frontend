@@ -1,6 +1,7 @@
 'use client';
 
-import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -101,12 +102,11 @@ export default function AccountDeletedPage() {
     <div className="of-standalone-shell flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-xlf)]">
       {/* Logo */}
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenFrameLogo
+        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
-          lowerPathColor="var(--color-accent-primary)"
-          upperPathColor="var(--color-text-primary)"
+          color="var(--color-text-primary)"
         />
-        <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
       {/* Content */}
@@ -129,7 +129,7 @@ export default function AccountDeletedPage() {
         className="flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
         <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>

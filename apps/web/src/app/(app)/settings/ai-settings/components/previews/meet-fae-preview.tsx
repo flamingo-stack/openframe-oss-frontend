@@ -1,10 +1,10 @@
 'use client';
 
+import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   MspOrganizationCard,
   MspOrganizationCardSkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { FlamingoLogo } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ClockCheckIcon,
   SignalBroadcast02Icon,
@@ -154,7 +154,7 @@ export function MeetFaePreview({
 
       <div className="flex shrink-0 items-center justify-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
         <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-auto" fill="currentColor" />
+        <FlamingoMarkIcon className="h-5 w-auto" color="currentColor" />
         <span className="font-heading font-semibold text-h6">Flamingo</span>
       </div>
     </div>

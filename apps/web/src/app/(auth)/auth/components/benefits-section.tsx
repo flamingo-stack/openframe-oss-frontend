@@ -1,13 +1,8 @@
 'use client';
 
+import { AutomateEverythingIcon, CutVendorCostsIcon, OpenframeLogoIcon, OpenframeTextIcon, ReclaimProfitsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { WaitlistForm } from '@flamingo-stack/openframe-frontend-core/components/features';
-import {
-  AutomateEverythingIcon,
-  CutVendorCostsIcon,
-  OpenFrameLogo,
-  OpenFrameText,
-  ReclaimProfitsIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { BenefitCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useState } from 'react';
@@ -88,12 +83,11 @@ export function AuthBenefitsSection() {
         <div className="flex w-full max-w-lg flex-col items-center justify-center gap-10">
           {/* OpenFrame Logo */}
           <div className="flex items-center justify-center">
-            <OpenFrameLogo
+            <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
               className="mr-5 h-10 w-auto"
-              lowerPathColor="var(--color-accent-primary)"
-              upperPathColor="var(--color-text-primary)"
+              color="var(--color-text-primary)"
             />
-            <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '174px', height: '30px' }} />
+            <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '174px', height: '30px' }} />
           </div>
 
           {/* Waitlist Form Container */}
@@ -133,10 +127,9 @@ export function AuthBenefitsSection() {
       <div className="flex w-full max-w-lg flex-col items-center justify-center gap-10">
         {/* OpenFrame Logo */}
         <div className="flex items-center justify-center">
-          <OpenFrameLogo
+          <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
             className="h-10 w-auto"
-            lowerPathColor="var(--color-accent-primary)"
-            upperPathColor="var(--color-text-primary)"
+            color="var(--color-text-primary)"
           />
           <span className="p-4 text-ods-text-primary text-h2">OpenFrame </span>
         </div>

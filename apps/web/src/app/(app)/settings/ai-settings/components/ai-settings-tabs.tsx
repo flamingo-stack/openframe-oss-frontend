@@ -2,10 +2,10 @@
 
 import {
   ChatsIcon,
-  MingoMonochromeIcon,
   MonitorShieldIcon,
   ShieldCheckIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
@@ -13,8 +13,13 @@ import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remot
 export const AI_SETTINGS_TAB_IDS = ['mingo', 'customer', 'guardrails', 'device-guardrails'] as const;
 export type AiSettingsTabId = (typeof AI_SETTINGS_TAB_IDS)[number];
 
+/** Mingo's tab is marked by Mingo's own identity icon, like every Mingo mark in the app. */
+function MingoTabIcon({ className }: { className?: string }) {
+  return <AgentMark agent="mingo" className={className} />;
+}
+
 export const AI_SETTINGS_TABS: TabItem[] = [
-  { id: 'mingo', label: 'Mingo AI Chat', icon: MingoMonochromeIcon },
+  { id: 'mingo', label: 'Mingo AI Chat', icon: MingoTabIcon },
   { id: 'customer', label: 'Default Customer AI Configuration', icon: ChatsIcon },
   { id: 'guardrails', label: 'Default Customer AI Guardrails', icon: ShieldCheckIcon },
   { id: 'device-guardrails', label: 'Device Guardrails', icon: MonitorShieldIcon },

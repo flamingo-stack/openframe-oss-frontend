@@ -1,5 +1,5 @@
+import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { InfoCardFooterData } from '@flamingo-stack/openframe-frontend-core';
-import { FlamingoLogo } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ToolType } from '../types/device.types';
 
@@ -21,7 +21,7 @@ export function getAgentFooter(toolType: string): InfoCardFooterData | undefined
   return {
     icon: <ShieldCheckIcon size={24} className="text-ods-success" />,
     text: 'Signed by Flamingo',
-    logo: <FlamingoLogo width={24} height={24} />,
+    logo: <FlamingoMarkIcon color="var(--ods-flamingo-pink-base)" size={24} />,
     link: { href },
   };
 }

@@ -1,4 +1,4 @@
-import { ClaudeIcon, GoogleGeminiIcon, OpenAiIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { ClaudeIcon, GoogleGeminiIcon, OpenaiIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ComponentType, SVGProps } from 'react';
 import type { AIProvider, AnswerStyle, ApplicationTheme } from '../types/ai-settings';
 
@@ -12,7 +12,7 @@ export const LLM_PROVIDER_LABEL: Record<AIProvider, string> = {
 
 export const LLM_PROVIDER_ICON: Record<AIProvider, IconComponent> = {
   ANTHROPIC: ClaudeIcon as unknown as IconComponent,
-  OPENAI: OpenAiIcon as unknown as IconComponent,
+  OPENAI: OpenaiIcon as unknown as IconComponent,
   GOOGLE_GEMINI: GoogleGeminiIcon as unknown as IconComponent,
 };
 

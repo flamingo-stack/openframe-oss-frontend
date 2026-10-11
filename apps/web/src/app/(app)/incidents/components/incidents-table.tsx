@@ -1,7 +1,7 @@
 'use client';
 
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ArrowRightUpIcon,
   Filter02Icon,
@@ -413,11 +413,7 @@ function IncidentsTableContent({
                 variant="outline"
                 size="icon"
                 leftIcon={
-                  <MingoIcon
-                    className="size-5"
-                    eyesColor="var(--ods-flamingo-cyan-base)"
-                    cornerColor="var(--ods-flamingo-cyan-base)"
-                  />
+                  <AgentMark agent="mingo" className="size-5" />
                 }
                 aria-label={label}
                 title={label}

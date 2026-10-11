@@ -1,6 +1,7 @@
 'use client';
 
-import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { FlamingoMarkIcon, OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { iconColors } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { routes } from '@/lib/routes';
@@ -37,12 +38,11 @@ export default function VerifyEmailPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       <div className="flex items-center gap-2">
-        <OpenFrameLogo
+        <OpenframeLogoIcon style={iconColors({ secondary: 'var(--color-accent-primary)' })}
           className="h-10 w-auto"
-          lowerPathColor="var(--color-accent-primary)"
-          upperPathColor="var(--color-text-primary)"
+          color="var(--color-text-primary)"
         />
-        <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
       <div className="flex size-6 items-center justify-center gap-[6px]">
@@ -58,7 +58,7 @@ export default function VerifyEmailPage() {
         className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
         <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>
