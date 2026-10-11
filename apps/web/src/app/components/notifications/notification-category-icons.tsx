@@ -1,39 +1,34 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  AlertTriangleIcon,
-  BracketCurlyIcon,
-  ChartDonutIcon,
-  ClipboardListIcon,
-  IdCardIcon,
-  MonitorIcon,
-  PackageIcon,
-  RadarIcon,
-  TagIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AgentMark, NamedIcon, type IconRef } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ReactNode } from 'react';
 
 /**
  * Backend `NotificationCategory` → icon, mirroring the app navigation mapping
- * (`src/lib/navigation-config.tsx`). GENERIC and unknown categories resolve to
- * undefined. Icons inherit the host's text color via `currentColor`, except the
- * Mingo mark which keeps its canonical brand colors (white + cyan).
+ * (`src/lib/navigation-config.tsx`). A table of icon NAMES: the icon of a
+ * category is loaded when a notification of that category is drawn. GENERIC and
+ * unknown categories resolve to undefined. Icons take the host's text colour.
  */
-const iconByCategory: Record<string, ReactNode> = {
-  DASHBOARD: <ChartDonutIcon size={16} />,
-  CUSTOMERS: <IdCardIcon size={16} />,
-  DEVICES: <MonitorIcon size={16} />,
-  SCRIPTS: <BracketCurlyIcon size={16} />,
-  MONITORING: <RadarIcon size={16} />,
-  SOFTWARE: <PackageIcon size={16} />,
-  LOGS: <ClipboardListIcon size={16} />,
-  TICKETS: <TagIcon size={16} />,
-  INSIGHTS: <AlertTriangleIcon size={16} />,
-  MINGO: <AgentMark agent="mingo" className="size-4" />,
+const ICON_BY_CATEGORY: Readonly<Record<string, IconRef>> = {
+  DASHBOARD: { set: 'ChartDonutIcon' },
+  CUSTOMERS: { set: 'IdCardIcon' },
+  DEVICES: { set: 'MonitorIcon' },
+  SCRIPTS: { set: 'BracketCurlyIcon' },
+  MONITORING: { set: 'RadarIcon' },
+  SOFTWARE: { set: 'PackageIcon' },
+  LOGS: { set: 'ClipboardListIcon' },
+  TICKETS: { set: 'TagIcon' },
+  INSIGHTS: { set: 'AlertTriangleIcon' },
 };
 
+/** The category whose notifications carry the assistant's own mark, drawn from its identity. */
+const ASSISTANT_CATEGORY = 'MINGO';
+
 export function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {
-  return category ? iconByCategory[category.toUpperCase()] : undefined;
+  const key = category?.toUpperCase();
+  if (!key) return undefined;
+  if (key === ASSISTANT_CATEGORY) return <AgentMark agent="mingo" className="size-4" />;
+  const icon = Object.prototype.hasOwnProperty.call(ICON_BY_CATEGORY, key) ? ICON_BY_CATEGORY[key] : undefined;
+  return icon ? <NamedIcon icon={icon} size={16} /> : undefined;
 }
 
 /** Attach the category icon for tile rendering; explicit `icon`/`imageUrl` win. */

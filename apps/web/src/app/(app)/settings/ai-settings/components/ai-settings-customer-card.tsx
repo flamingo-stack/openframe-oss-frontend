@@ -1,6 +1,6 @@
 'use client';
 
-import { useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
+import { NamedIcon, useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
@@ -25,7 +25,6 @@ interface AiSettingsCustomerCardProps {
 const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-md:px-4 py-3 content-md:py-4';
 
 export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: AiSettingsCustomerCardProps) {
-  const ProviderIcon = LLM_PROVIDER_ICON[aiConfig.llmProvider];
   const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
   const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
@@ -49,7 +48,7 @@ export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: A
       key="llm-provider"
       value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
       label="LLM Provider"
-      icon={<ProviderIcon className="h-6 w-6 text-ods-text-secondary" />}
+      icon={<NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />}
     />,
     <InfoCell
       key="provider-model"

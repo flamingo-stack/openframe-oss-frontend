@@ -1,8 +1,5 @@
-import { ClaudeIcon, GoogleGeminiIcon, OpenaiIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { ComponentType, SVGProps } from 'react';
+import type { IconRef } from '@flamingo-stack/openframe-frontend-core/components';
 import type { AIProvider, AnswerStyle, ApplicationTheme } from '../types/ai-settings';
-
-type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
 export const LLM_PROVIDER_LABEL: Record<AIProvider, string> = {
   ANTHROPIC: 'Anthropic',
@@ -10,10 +7,11 @@ export const LLM_PROVIDER_LABEL: Record<AIProvider, string> = {
   GOOGLE_GEMINI: 'Google Gemini',
 };
 
-export const LLM_PROVIDER_ICON: Record<AIProvider, IconComponent> = {
-  ANTHROPIC: ClaudeIcon as unknown as IconComponent,
-  OPENAI: OpenaiIcon as unknown as IconComponent,
-  GOOGLE_GEMINI: GoogleGeminiIcon as unknown as IconComponent,
+/** Each provider's mark, by name: drawn with `<NamedIcon>`, loaded when it is shown. */
+export const LLM_PROVIDER_ICON: Record<AIProvider, IconRef> = {
+  ANTHROPIC: { set: 'ClaudeIcon' },
+  OPENAI: { set: 'OpenaiIcon' },
+  GOOGLE_GEMINI: { set: 'GoogleGeminiIcon' },
 };
 
 export const LLM_PROVIDER_OPTIONS: AIProvider[] = ['ANTHROPIC', 'OPENAI', 'GOOGLE_GEMINI'];
