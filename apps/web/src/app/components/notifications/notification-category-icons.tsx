@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
  * Backend `NotificationCategory` → icon, mirroring the app navigation mapping
  * (`src/lib/navigation-config.tsx`). A table of icon NAMES: the icon of a
  * category is loaded when a notification of that category is drawn. GENERIC and
- * unknown categories resolve to undefined. Icons take the host's text colour.
+ * unknown categories resolve to undefined. Every icon, the assistant's mark
+ * included, takes the host's text colour, so a row of them is one colour.
  */
 const ICON_BY_CATEGORY: Readonly<Record<string, IconRef>> = {
   DASHBOARD: { set: 'ChartDonutIcon' },
@@ -26,7 +27,7 @@ const ASSISTANT_CATEGORY = 'MINGO';
 export function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {
   const key = category?.toUpperCase();
   if (!key) return undefined;
-  if (key === ASSISTANT_CATEGORY) return <AgentMark agent="mingo" className="size-4" />;
+  if (key === ASSISTANT_CATEGORY) return <AgentMark agent="mingo" className="size-4" color="currentColor" />;
   const icon = Object.prototype.hasOwnProperty.call(ICON_BY_CATEGORY, key) ? ICON_BY_CATEGORY[key] : undefined;
   return icon ? <NamedIcon icon={icon} size={16} /> : undefined;
 }
