@@ -10,20 +10,26 @@ import type { Device } from '@/app/(app)/devices/types/device.types';
 interface DevicesAssignedTableProps {
   devices: Device[];
   isLoading?: boolean;
+  onSearchChange?: (search: string) => void;
 }
 
-export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTableProps) {
+export function DevicesAssignedTable({ devices, isLoading, onSearchChange }: DevicesAssignedTableProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
+  useMemo(() => {
+    onSearchChange?.(debouncedSearch.trim());
+  }, [debouncedSearch, onSearchChange]);
+
   const filtered = useMemo(() => {
+    if (onSearchChange) return devices;
     const needle = debouncedSearch.trim().toLowerCase();
     if (!needle) return devices;
     return devices.filter(d => {
       const org = (d.organization || '').toLowerCase();
       return matchesDeviceName(d, needle) || org.includes(needle);
     });
-  }, [devices, debouncedSearch]);
+  }, [devices, debouncedSearch, onSearchChange]);
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-mf)]">
@@ -37,3 +43,4 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
     </div>
   );
 }
+
