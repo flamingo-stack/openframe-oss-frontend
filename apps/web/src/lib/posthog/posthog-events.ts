@@ -43,9 +43,12 @@ export function pushSignupCompleted(userId: string, email?: string): void {
   pushDataLayer({ event: FUNNEL_EVENTS.SIGNUP_COMPLETED, user_id: userId, ...(email ? { email } : {}) });
 }
 
-/** Tie the anonymous session to the identified user (GTM → posthog.identify). */
-export function pushIdentify(userId: string, email?: string): void {
-  pushDataLayer({ event: FUNNEL_EVENTS.IDENTIFY, user_id: userId, ...(email ? { email } : {}) });
+/**
+ * Tie the anonymous session to the person (GTM → PostHog + HubSpot identify, both keyed on `email`).
+ * No `userId` on the auth host: the account does not exist there yet.
+ */
+export function pushIdentify({ userId, email }: { userId?: string; email?: string }): void {
+  pushDataLayer({ event: FUNNEL_EVENTS.IDENTIFY, ...(userId ? { user_id: userId } : {}), ...(email ? { email } : {}) });
 }
 
 const PENDING_SIGNUP_KEY = 'posthog:pending_signup';
