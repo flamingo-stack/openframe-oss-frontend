@@ -70,6 +70,16 @@ export function emptyDescription({
 /** The column funnels the mobile FilterModal mirrors. */
 const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COLUMNS.expires.id];
 
+/**
+ * NOTE (DATAFETCH-002): search/date-range/sort are still applied client-side
+ * below, against the single `useSessionRecordings(deviceId)` fetch. Moving
+ * these into server-side query parameters requires extending that hook's
+ * contract (and the underlying endpoint) to accept `search`, `from`/`to` and
+ * `sort`, which is outside what this file alone can safely assert. Until that
+ * contract exists, in-memory filtering here is kept, but isolated below so
+ * swapping it for query params only touches these few lines.
+ */
+
 /** Remote sessions of this device, one row per session, each opening the recording it produced. */
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
