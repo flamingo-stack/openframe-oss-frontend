@@ -52,8 +52,13 @@ function clientKind() {
   return kind === 'mobile' ? (mobilePlatform() ?? 'mobile') : kind;
 }
 
+/** The bundle version exactly as the header reports it — also what the shell's own gateway calls send. */
+export function clientBundleVersion(): string {
+  return versionOrDash(BUNDLE_VERSION);
+}
+
 export function clientIdentityValue(): string {
-  return `${clientKind()}/${versionOrDash(shellVersion)} bundle/${versionOrDash(BUNDLE_VERSION)}`;
+  return `${clientKind()}/${versionOrDash(shellVersion)} bundle/${clientBundleVersion()}`;
 }
 
 export function clientIdentityHeaders(): Record<string, string> {

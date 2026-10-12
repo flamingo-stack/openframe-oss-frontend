@@ -147,9 +147,12 @@ export interface NativeAuthPlugin {
    * auth host THIS side refreshes against, and is what iOS refreshes against
    * when the build carries no plist host — never the tenant host, whose gateway
    * may answer a header-based refresh without the rotated pair. Desktop ignores
-   * `sharedOrigin`. Optional; both shells. Rejects a non-https origin.
+   * `sharedOrigin`. `clientBundleVersion` is this bundle's version as
+   * `X-OpenFrame-Client` reports it, so the mobile shell's own gateway calls
+   * (notification actions) send the same header; older shells ignore it.
+   * Optional; both shells. Rejects a non-https origin.
    */
-  setTenantHost?(options: { origin: string; sharedOrigin?: string }): Promise<void>;
+  setTenantHost?(options: { origin: string; sharedOrigin?: string; clientBundleVersion?: string }): Promise<void>;
   /**
    * Shell-pushed token changes — the MOBILE transport (Capacitor's generated
    * per-plugin `addListener`; desktop delivers the same payload as a Tauri
@@ -380,6 +383,40 @@ export function statusBarPlugin(): StatusBarPlugin | null {
 /** Mobile-only. Also null until @capacitor/app is present in the shell — callers no-op. */
 export function appPlugin(): AppPlugin | null {
   return isMobileShell() ? ((capacitorPlugins()?.App as AppPlugin | undefined) ?? null) : null;
+}
+
+/**
+ * Runs `callback` every time the mobile app comes back to the foreground, and
+ * returns the unsubscribe. `appStateChange`, not `visibilitychange`: WKWebView
+ * does not reliably flip `visibilityState` when the app is backgrounded. No-op
+ * off mobile.
+ *
+ * The injected plugin proxy returns a bare handle from `addListener`, not the
+ * Promise its type suggests (see native-back.ts), so both shapes are absorbed —
+ * and an unsubscribe that lands before the handle does still removes it.
+ */
+export function onAppResume(callback: () => void, logTag: string): () => void {
+  const app = appPlugin();
+  if (!app) return () => {};
+  let disposed = false;
+  let remove: (() => void) | undefined;
+  try {
+    const registration = app.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) callback();
+    });
+    void Promise.resolve(registration)
+      .then(handle => {
+        remove = () => void handle.remove();
+        if (disposed) remove();
+      })
+      .catch(error => console.error(`[${logTag}] appStateChange registration failed:`, error));
+  } catch (error) {
+    console.error(`[${logTag}] appStateChange registration threw:`, error);
+  }
+  return () => {
+    disposed = true;
+    remove?.();
+  };
 }
 
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
