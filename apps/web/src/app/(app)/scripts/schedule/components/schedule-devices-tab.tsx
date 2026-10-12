@@ -196,6 +196,11 @@ export function ScheduleDevicesTabSkeleton() {
  * page's, so switching to it draws this skeleton and leaves the header, the
  * timing bar and the tab strip untouched.
  *
+ * Structurally mirrors `ScheduleScriptsTab` (own Suspense boundary + skeleton
+ * fallback wrapping a content component) because each tab owns a distinct
+ * Relay query/fragment pair and a distinct empty state; the wrapper itself has
+ * no shared logic to extract beyond this shape.
+ *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
