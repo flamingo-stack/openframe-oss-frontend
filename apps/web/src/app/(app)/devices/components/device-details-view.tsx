@@ -15,7 +15,6 @@ import {
   getDeviceStatusConfig,
   WarningBlock,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -26,6 +25,7 @@ import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
 import { DeviceDetailsSkeleton } from './device-details-skeleton';
+import { DeviceRelativeTimeSubtitle } from './device-relative-time-subtitle';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { useDeviceTabs } from './tabs/device-tabs';
@@ -81,16 +81,6 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   const { deviceDetails, isLoading, error } = useDeviceDetails(deviceId);
 
   const [isScriptsModalOpen, setIsScriptsModalOpen] = useState(false);
-  const [, forceUpdate] = useState({});
-
-  // Force re-render every second to update relative time display
-  useEffect(() => {
-    const interval = setInterval(() => {
-      forceUpdate({});
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle action params from URL (e.g., from table dropdown navigation). Opening
   // the modal is derived state and happens during render — an effect draws the
@@ -187,7 +177,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
 
   const title = getDeviceName(normalizedDevice) || 'Unknown Device';
   const lastUpdated = normalizedDevice.updatedAt || normalizedDevice.lastSeen;
-  const subtitle = lastUpdated ? `Updated ${formatRelativeTime(lastUpdated)}` : undefined;
+  const subtitle = lastUpdated ? <DeviceRelativeTimeSubtitle lastUpdated={lastUpdated} /> : undefined;
   const statusConfig = getDeviceStatusConfig(normalizedDevice.status);
 
   return (
