@@ -54,6 +54,7 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { ScheduleRunsSkeleton } from '../../schedule/components/schedule-runs-columns';
 import {
   executionOutput,
   executionStatusLabel,
@@ -177,6 +178,15 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
 /**
  * Narrows already-loaded rows by a typed term — for a list whose server-side
  * `search` argument is already spoken for (see `clientSearch` on the shell).
+ *
+ * IMPORTANT: this only ever sees rows already fetched into memory. The table
+ * is paginated server-side (`EXECUTIONS_PAGE_SIZE`, `hasNext`/`onLoadMore`), so
+ * a match further down the list will not surface until those pages have been
+ * loaded — see `ExecutionsTable`'s "Looking through the remaining
+ * executions…" empty state, which exists specifically to cover this gap while
+ * `onLoadMore` keeps pulling pages in. Callers that CAN route the term through
+ * the server's `search` argument should prefer `querySearch` on
+ * `ExecutionsTabState` instead of this function.
  *
  * Matches the same things the server's search does plus what the row shows, so
  * the box behaves the way it does on the other execution lists. An empty term
@@ -638,43 +648,13 @@ export function ExecutionsTable({
 // Skeleton
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: UiExecution[] = [];
-
-export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
-  // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
-  // into a filter with no options yet — the header then draws the real control,
-  // funnel included, instead of growing one when the facets land. The Execution
-  // header gets the same treatment by hand: its calendar needs no data, so
-  // drawing it inert here is what keeps the label from shifting when the rows
-  // arrive and the real popover replaces it.
-  const columns = useMemo<ColumnDef<UiExecution>[]>(
-    () =>
-      EXECUTION_COLUMN_ORDER.map(column => {
-        const label = column.header;
-        return {
-          id: column.id,
-          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
-          enableSorting: false,
-          meta: skeletonColumnMeta(column),
-        };
-      }),
-    [],
-  );
-
-  const table = useDataTable<UiExecution>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiExecution) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={EXECUTIONS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
+/**
+ * Re-exported for callers that previously imported `ExecutionsSkeleton` from
+ * this module — the table shape (same columns, same skeleton semantics) is
+ * identical to `ScheduleRunsSkeleton`, so that single implementation is now
+ * the shared one instead of keeping a second copy here.
+ */
+export const ExecutionsSkeleton = ScheduleRunsSkeleton;
 
 // ----------------------------------------------------------------
 // Outer shell — URL filter state + Suspense boundary
