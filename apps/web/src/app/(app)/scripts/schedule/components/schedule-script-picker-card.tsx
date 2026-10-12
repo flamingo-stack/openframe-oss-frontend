@@ -80,7 +80,10 @@ function ScriptPlatformIcons({ platforms }: { platforms: string[] }) {
  * ⚠ **Timeout is still editable but not persisted**: the override input carries
  * args and env vars only. It is
  * seeded from the script's own default, which is what the run actually uses, so
- * the card shows the truth — it just cannot be changed per schedule yet.
+ * the card shows the truth — it just cannot be changed per schedule yet. The
+ * field is therefore rendered read-only (not a plain disabled control, so its
+ * value still posts/copies normally) with helper copy explaining why, so an
+ * edit here is never silently discarded without the user knowing.
  */
 export function ScheduleScriptPickerCard({
   index,
@@ -264,17 +267,32 @@ export function ScheduleScriptPickerCard({
                 // sentinel is a "nothing here yet" marker, and rendering it as
                 // a literal 0 would read as a real (and invalid) timeout.
                 // Picking a script writes its own timeout in.
-                <Input
-                  type="number"
-                  min={1}
-                  className="w-full"
-                  value={field.value ? String(field.value) : ''}
-                  onChange={e => field.onChange(e.target.value ? Number(e.target.value) : UNSET_TIMEOUT)}
-                  disabled={runParamsLocked}
-                  endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
-                  error={showErrors ? fieldState.error?.message : undefined}
-                  invalid={showErrors && !!fieldState.error}
-                />
+                //
+                // `readOnly` (not `disabled`) once a script is picked: this value
+                // is NOT persisted per schedule — it is purely a display of the
+                // script's own default — so edits must be visibly blocked rather
+                // than silently accepted and then dropped on submit.
+                <>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="w-full"
+                    value={field.value ? String(field.value) : ''}
+                    onChange={e => field.onChange(e.target.value ? Number(e.target.value) : UNSET_TIMEOUT)}
+                    disabled={!selected?.scriptId}
+                    readOnly={!runParamsLocked}
+                    aria-readonly={!runParamsLocked}
+                    title={!runParamsLocked ? "Timeout follows the script's own default and can't be changed per schedule yet" : undefined}
+                    endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+                    error={showErrors ? fieldState.error?.message : undefined}
+                    invalid={showErrors && !!fieldState.error}
+                  />
+                  {!runParamsLocked && (
+                    <p className="mt-[var(--spacing-system-xxs)] text-ods-text-secondary text-caption">
+                      Timeout follows the script&apos;s own default and can&apos;t be changed per schedule yet.
+                    </p>
+                  )}
+                </>
               )}
             />
           </div>
