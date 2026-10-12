@@ -10,7 +10,6 @@ import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/component
 import {
   AppLayoutDrawer,
   AppLayoutDrawerContent,
-  AppLayoutDrawerTitle,
   AppLayout as CoreAppLayout,
   SIDE_PANEL_FRAME_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
@@ -556,16 +555,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             defaultSize={920}
             storageKey="openframe:mingo-chat-width-v2"
             panelClassName="!bg-ods-bg"
+            // No `AppLayoutDrawerTitle` is rendered (see below), so Radix's
+            // `aria-labelledby` points at an id that doesn't exist and the dialog has
+            // no accessible name. That was survivable while the drawer only ever
+            // opened from a click; a deep link opens it with no user gesture, moving
+            // focus into an unnamed dialog.
+            aria-label="Mingo AI chat"
             // See WALKTHROUGH_OVERLAP_Z: the z-index belongs on Content (which
             // owns the stacking context), not on the panel inside it.
             style={WALKTHROUGH_OVERLAP_Z.content}
             overlayClassName={WALKTHROUGH_OVERLAP_Z.overlay}
           >
-            {/* The dialog's name, for screen readers only: EmbeddableChat draws its own
-              header + X button, so a visible wrapper header would double it up. A deep
-              link opens this drawer with no user gesture, moving focus into it, so it
-              must be named; Radix reads the name from this title. */}
-            <AppLayoutDrawerTitle className="sr-only">Mingo AI chat</AppLayoutDrawerTitle>
+            {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
+              header + X button; a wrapper header would double it up. */}
             <ChatDrawerErrorBoundary>
               <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} />
             </ChatDrawerErrorBoundary>
