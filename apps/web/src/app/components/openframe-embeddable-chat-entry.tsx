@@ -272,10 +272,10 @@ export function OpenframeEmbeddableChatEntry({
         id: action.id,
         label: action.name,
         variant: 'outline',
-        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps);
-        // render it into the chip node. Tenant customs have none → undefined →
-        // no icon. `mingo` accent tints registry glyphs unless the hub icon
-        // sets its own color. The settings editor deliberately omits this.
+        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps) and
+        // tenant customs the `iconName` picked in AI Settings; render it into
+        // the chip node. No icon → undefined → a text-only chip. `mingo` accent
+        // tints registry glyphs unless the hub icon sets its own color.
         icon: renderQuickActionIcon({
           name: action.iconName ?? undefined,
           url: action.iconUrl ?? undefined,

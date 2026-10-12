@@ -150,6 +150,7 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
         title="Assistant Quick Actions"
         agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
         defaultActions={hubDefaults.actions}
+        accent={accentColor || view.accentColor}
         className="mt-8"
       />
     </form>
