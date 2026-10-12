@@ -6,37 +6,34 @@ import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 import type { QueryDeviceRow } from '../types/query-device-row';
 
-const QUERY_HOSTS_PAGE_SIZE = 100;
-
-/** Fetch all hosts assigned to a query, following Fleet's page-based pagination. */
-async function fetchQueryHosts(queryId: number): Promise<Array<{ id: number; hostname: string }>> {
-  const allHosts: Array<{ id: number; hostname: string }> = [];
-  let page = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const res = await fleetApiClient.getQueryHosts(queryId, { page, per_page: QUERY_HOSTS_PAGE_SIZE });
-    if (!res.ok) {
-      throw new Error(res.error || `Failed to load assigned devices (${res.status})`);
-    }
-    const hosts = res.data?.hosts ?? [];
-    allHosts.push(...hosts);
-    // Guard against an infinite loop if the API reports more pages but returns none.
-    hasMore = (res.data?.meta?.has_next_results ?? false) && hosts.length > 0;
-    page += 1;
+/** Fetch a single page of hosts assigned to a query, using Fleet's page-based pagination. */
+async function fetchQueryHostsPage(
+  queryId: number,
+  page: number,
+  pageSize: number
+): Promise<{ hosts: Array<{ id: number; hostname: string }>; hasNext: boolean }> {
+  const res = await fleetApiClient.getQueryHosts(queryId, { page, per_page: pageSize });
+  if (!res.ok) {
+    throw new Error(res.error || `Failed to load assigned devices (${res.status})`);
   }
-  return allHosts;
+  const hosts = res.data?.hosts ?? [];
+  const hasNext = (res.data?.meta?.has_next_results ?? false) && hosts.length > 0;
+  return { hosts, hasNext };
 }
 
 /**
  * Builds the rows for the Query "Assigned Devices" table by merging the query's
  * assigned Fleet hosts with the device registry (deduplicated by Fleet host id,
  * preferring the most recently seen device). Sorted by display name.
+ *
+ * Pages through Fleet's host list using the table's own page/pageSize, rather
+ * than loading the entire assigned-hosts collection into memory.
  */
-export function useQueryDevicesTable(queryId: number | null) {
-  // The Fleet hosts assigned to this query (id + hostname only).
+export function useQueryDevicesTable(queryId: number | null, page: number = 0, pageSize: number = 100) {
+  // The Fleet hosts assigned to this query (id + hostname only), for the current page.
   const hostsQuery = useQuery({
-    queryKey: ['query-assigned-hosts', queryId],
-    queryFn: queryId === null ? skipToken : () => fetchQueryHosts(queryId),
+    queryKey: ['query-assigned-hosts', queryId, page, pageSize],
+    queryFn: queryId === null ? skipToken : () => fetchQueryHostsPage(queryId, page, pageSize),
   });
 
   // The full device registry, used to enrich each assigned host with display,
@@ -48,7 +45,7 @@ export function useQueryDevicesTable(queryId: number | null) {
   } = useAllDevices({ filter: DEVICE_ENRICHMENT_FILTER, enabled: queryId !== null });
 
   const rows = useMemo<QueryDeviceRow[]>(() => {
-    const hosts = hostsQuery.data;
+    const hosts = hostsQuery.data?.hosts;
     if (!hosts) return [];
 
     const deviceByFleetId = indexDevicesByFleetHostId(devices);
@@ -80,6 +77,7 @@ export function useQueryDevicesTable(queryId: number | null) {
 
   return {
     rows,
+    hasNextPage: hostsQuery.data?.hasNext ?? false,
     isLoading: hostsQuery.isLoading || isLoadingDevices,
     error: hostsQuery.error?.message ?? devicesError,
   };
