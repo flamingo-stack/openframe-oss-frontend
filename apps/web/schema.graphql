@@ -1853,11 +1853,11 @@ type Mutation {
   setDeviceRemoteAccessMode(machineId: String!, mode: RemoteAccessMode): Machine!
 
   """
-  Deletes an ended session for any technician who can see it: every file of it, then the session itself (status
-  DELETED), which then drops out of remoteSessions and its count and reads as not found. No restore. Idempotent: a
-  second call succeeds and changes nothing. Never-connected and expired sessions are accepted. Refusals as
-  userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND, RECORDING_SESSION_ACTIVE, RECORDING_PROCESSING,
-  RECORDING_HELD, RECORDING_STORAGE_UNAVAILABLE (files deleted before the failure stay deleted; call again to finish).
+  Deletes an ended session for any technician: every recording file is deleted, the session and its access request are
+  marked deleted and leave every list and single read. There is no restore. Idempotent: a second call succeeds and
+  changes nothing. Refusals as userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND, RECORDING_SESSION_ACTIVE,
+  RECORDING_HELD, RECORDING_PROCESSING, RECORDING_STORAGE_UNAVAILABLE (files deleted before the failure stay deleted;
+  call again to finish).
   """
   deleteRemoteSession(sessionId: String!): RemoteSessionPayload!
 
@@ -2891,7 +2891,8 @@ type Query {
   remoteAccessRequest(requestId: String!): RemoteAccessRequest!
 
   """
-  The caller's own session, the read the Back / leave flow needs before ending it.
+  The caller's own session, the read the Back / leave flow needs before ending it. A deleted session reads
+  REMOTE_SESSION_NOT_FOUND.
   """
   remoteSession(sessionId: String!): RemoteSession!
 
@@ -2908,7 +2909,7 @@ type Query {
   INVALID_CURSOR, start again without after. deviceId, from and to are the device tab's old arguments: each one fills the
   matching filter field when the filter leaves it empty, the filter wins otherwise.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
-  audit still return it.
+  audit still return it. A deleted session is not listed and not counted.
   """
   remoteSessions(
     deviceId: String @deprecated(reason: "use filter.deviceIds")
@@ -2920,13 +2921,16 @@ type Query {
     after: String
   ): RemoteSessionConnection!
 
-  """Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20."""
+  """
+  Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20.
+  The request of a deleted session is not listed and not counted.
+  """
   remoteAccessRequests(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteAccessRequestConnection!
 
   """
   One recording by id, with its session. The detail route keys on the recording id. INVALID_CURSOR and
-  REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code; not found also covers a deleted
-  session and an EXPIRED or DELETED file.
+  REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code. An EXPIRED or DELETED recording
+  and every recording of a deleted session read REMOTE_SESSION_RECORDING_NOT_FOUND.
   """
   remoteSessionRecording(recordingId: String!): RemoteSessionRecording!
 
