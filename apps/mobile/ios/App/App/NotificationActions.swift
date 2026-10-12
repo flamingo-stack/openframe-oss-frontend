@@ -45,6 +45,12 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
     private static let replyAction = "of.reply"
     /// Marks, in userInfo, the outcome notifications this class posts.
     private static let feedbackKey = "ofFeedback"
+    /// On the "update to continue" outcome: a tap opens this store listing
+    /// instead of the app, which could do nothing but say the same thing.
+    private static let updateStoreURLKey = "ofUpdateStoreURL"
+    /// The published listing, for a 426 whose body named none. Same as the web
+    /// app's `APP_STORE_URL` (apps/web/src/lib/mobile-app-links.ts).
+    private static let fallbackStoreURL = "https://apps.apple.com/us/app/openframe-console/id6801064262"
 
     /// iOS terminates a handler that has not called its completion after
     /// roughly 30s; call it by then whatever the request is doing, and let the
@@ -154,6 +160,16 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        // Only the shell's own (local) 426 notification may name a URL to open: a
+        // remote push carrying the key is server content, not ours to follow.
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+           !(response.notification.request.trigger is UNPushNotificationTrigger),
+           let raw = response.notification.request.content.userInfo[Self.updateStoreURLKey] as? String,
+           let url = Self.storeURL(raw) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            completionHandler()
+            return
+        }
         let userText = (response as? UNTextInputNotificationResponse)?.userText
         guard let action = Self.action(identifier: response.actionIdentifier, userText: userText) else {
             forward(response, completion: completionHandler)
@@ -378,6 +394,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        request.setValue(TokenLifecycle.shared.clientIdentity(), forHTTPHeaderField: "X-OpenFrame-Client")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = payload
@@ -416,6 +433,13 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
             post(title: action.done, body: body, original: content, retry: false)
         case 401:
             signInFeedback(for: action, content: content)
+        case 426:
+            // The gateway refuses this app's bundle: no retry button, nothing a
+            // second press could change. The tap goes to the store.
+            post(title: "Update OpenFrame to continue",
+                 body: "This version of OpenFrame is no longer supported. Update the app, then try again.\(action.echo)",
+                 original: content, retry: false,
+                 extra: [Self.updateStoreURLKey: Self.storeURL(gateway.storeURL ?? "")?.absoluteString ?? Self.fallbackStoreURL])
         case 404:
             post(title: "No longer available",
                  body: "This \(action.isReply ? "conversation" : "request") no longer exists.",
@@ -466,21 +490,33 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         return exp > Date()
     }
 
-    /// The gateway's `ErrorResponse`: a machine `code` and a human `message`.
-    private static func gatewayError(_ data: Data?) -> (code: String?, message: String?) {
+    /// The gateway's `ErrorResponse`: a machine `code` and a human `message` —
+    /// and on a 426, the `storeUrl` for this platform.
+    private static func gatewayError(_ data: Data?) -> (code: String?, message: String?, storeURL: String?) {
         guard let data, !data.isEmpty,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return (nil, nil)
+            return (nil, nil, nil)
         }
         let message = (object["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (object["code"] as? String, message.flatMap { $0.isEmpty ? nil : String($0.prefix(feedbackBodyLimit)) })
+        return (object["code"] as? String,
+                message.flatMap { $0.isEmpty ? nil : String($0.prefix(feedbackBodyLimit)) },
+                object["storeUrl"] as? String)
+    }
+
+    /// Server-supplied and handed to `UIApplication.open`: only a store listing's schemes.
+    private static func storeURL(_ raw: String) -> URL? {
+        guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "itms-apps" else {
+            return nil
+        }
+        return url
     }
 
     /// The only place an outcome reaches the user: there is no window to report
     /// into. The original userInfo rides along so a tap on this opens the same
     /// item the push would have; `retry` keeps the original category, so a
     /// failed decision is still there to make.
-    private func post(title: String, body: String, original: UNNotificationContent, retry: Bool) {
+    private func post(title: String, body: String, original: UNNotificationContent, retry: Bool, extra: [AnyHashable: Any] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = String(body.prefix(Self.feedbackBodyLimit * 2))
@@ -488,6 +524,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         content.threadIdentifier = original.threadIdentifier
         var info = original.userInfo
         info[Self.feedbackKey] = true
+        info.merge(extra) { _, new in new }
         content.userInfo = info
         if retry {
             content.categoryIdentifier = original.categoryIdentifier

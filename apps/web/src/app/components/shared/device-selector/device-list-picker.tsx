@@ -1,16 +1,19 @@
 'use client';
 
 import { LoadError } from '@flamingo-stack/openframe-frontend-core';
-import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  type DeviceFilterInput,
+  DeviceSelector,
+  type DeviceSelectorProps,
+  DeviceSelectorSkeleton,
+  ErrorBoundary,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { DeviceSelector } from './device-selector';
-import { DeviceSelectorSkeleton } from './device-selector-skeleton';
-import type { DeviceSelectorProps } from './device-selector.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 
 export type DeviceListPickerProps = Omit<
-  DeviceSelectorProps,
+  DeviceSelectorProps<Device>,
   'devices' | 'loading' | 'selectedIds' | 'onSelectionChange' | 'getDeviceKey'
 > & {
   filter?: DeviceFilterInput;

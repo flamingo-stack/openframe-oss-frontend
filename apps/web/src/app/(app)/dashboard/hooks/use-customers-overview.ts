@@ -1,10 +1,10 @@
 'use client';
 
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
-import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { fetchDeviceOrganizationCounts } from '../../devices/queries/devices-api';
 import type { GraphQlResponse } from '../../devices/types/device.types';
 import { dashboardQueryKeys } from '../utils/query-keys';

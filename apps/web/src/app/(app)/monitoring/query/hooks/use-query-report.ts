@@ -1,15 +1,14 @@
 'use client';
 
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core';
+import { DEVICE_ENRICHMENT_FILTER, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { skipToken, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { formatDateTime } from '@/lib/format-date';
-import { DEVICE_ENRICHMENT_FILTER } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
 import type { Device } from '../../../devices/types/device.types';
 import { indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
-import { getDeviceName } from '../../../devices/utils/device-name';
 import { queriesQueryKeys } from '../../hooks/use-queries';
 import type { QueryReportResponse } from '../../types/queries.types';
 

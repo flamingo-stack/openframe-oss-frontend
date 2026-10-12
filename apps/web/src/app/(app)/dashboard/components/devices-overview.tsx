@@ -1,11 +1,11 @@
 'use client';
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SectionLoadError } from '@/app/components/shared';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
-import { DEVICE_STATUS } from '../../devices/constants/device-statuses';
 import { useDevicesOverview } from '../hooks/use-dashboard-stats';
 import { DevicesOverviewSkeleton } from './dashboard-skeletons';
 

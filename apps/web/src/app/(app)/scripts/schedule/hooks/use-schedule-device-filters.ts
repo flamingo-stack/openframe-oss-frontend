@@ -1,10 +1,10 @@
 'use client';
 
+import type { DeviceFilters } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleDeviceFiltersRelayQuery as ScheduleDeviceFiltersQueryType } from '@/__generated__/scheduleDeviceFiltersRelayQuery.graphql';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
-import type { DeviceFilters } from '@/app/(app)/devices/types/device.types';
 import { useRetryKey } from '@/app/components/shared';
 import { toDeviceFilters } from '@/graphql/devices/device-facets-fields';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';

@@ -1,4 +1,4 @@
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { ClientDialogOwner, Dialog, DialogOwner } from '../types/dialog.types';
 
 /**

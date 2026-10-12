@@ -40,6 +40,8 @@ export function useRecordingStorage() {
 export interface DeleteSessionRecordingTarget {
   sessionId: string;
   recordingId: string | null;
+  /** The session's device, when the list it was deleted from spans every device; the hook's device otherwise. */
+  deviceId?: string;
 }
 
 export function useDeleteSessionRecording(deviceId: string) {
@@ -48,8 +50,8 @@ export function useDeleteSessionRecording(deviceId: string) {
 
   return useMutation({
     mutationFn: ({ sessionId }: DeleteSessionRecordingTarget) => service.delete(sessionId),
-    onSuccess: (_data, { recordingId }) => {
-      void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(deviceId) });
+    onSuccess: (_data, { recordingId, deviceId: targetDeviceId }) => {
+      void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(targetDeviceId ?? deviceId) });
       // Deleting frees storage, so the "storage full" banner may go.
       void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.recordingStorage() });
       // The files are gone - drop the cached detail instead of invalidating,

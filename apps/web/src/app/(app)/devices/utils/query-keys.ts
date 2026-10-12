@@ -1,8 +1,8 @@
 'use client';
 
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { QueryClient } from '@tanstack/react-query';
 import { dashboardQueryKeys } from '@/app/(app)/dashboard/utils/query-keys';
-import type { DeviceFilterInput } from '../types/device.types';
 import { bumpDeviceEpoch } from './device-refresh';
 
 /**

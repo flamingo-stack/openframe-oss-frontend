@@ -6,6 +6,7 @@ import {
   PageLayout,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
+import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   BracketCurlyIcon,
@@ -17,7 +18,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components/incidents-table-columns';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
-import { PoliciesTable, type PolicyTableRow, QueriesTable, type QueryTableRow } from '@/app/components/shared';
+import { QueriesTable, type QueryTableRow } from '@/app/components/shared';
 import { DeviceAddedByCellSkeleton } from './device-added-by-cell';
 import { DeviceLogsTabSkeleton } from './tabs/device-logs/device-logs-skeleton';
 import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';

@@ -1,19 +1,20 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import {
+  type DeviceSelectionMode,
+  DeviceSelectionModeRadio,
+  type DeviceSelectorNarrowing,
+  EMPTY_NARROWING,
+  narrowingToFilter,
+  type SubTab,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
-import { DeviceSelectionModeRadio } from '@/app/components/shared/device-selector';
-import type {
-  DeviceSelectionMode,
-  DeviceSelectorNarrowing,
-  SubTab,
-} from '@/app/components/shared/device-selector/device-selector.types';
-import { EMPTY_NARROWING, narrowingToFilter } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';

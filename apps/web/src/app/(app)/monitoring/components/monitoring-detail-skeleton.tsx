@@ -1,5 +1,6 @@
 'use client';
 
+import { DeviceSelectorSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ActionsMenuGroup,
@@ -16,7 +17,6 @@ import {
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { InlineSkeleton, TabBarSkeleton, TableSkeleton } from '@/app/components/shared';
-import { DeviceSelectorSkeleton } from '@/app/components/shared/device-selector';
 import type { QueryDetailTab } from '@/lib/routes';
 import { ScriptEditor } from '../../scripts/shared/components/script-editor';
 import { POLICY_DEVICES_TABLE_COLUMNS, QUERY_DEVICES_TABLE_COLUMNS } from './monitoring-table-columns';

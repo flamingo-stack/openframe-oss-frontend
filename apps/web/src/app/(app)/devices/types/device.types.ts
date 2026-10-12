@@ -1,3 +1,4 @@
+import type { DeviceTag } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { Instant } from '@/lib/graphql-scalars';
 
 /**
@@ -79,18 +80,6 @@ export interface User {
 export interface DeviceGeolocation {
   city?: string;
   country?: string;
-}
-
-/**
- * Device Tag type
- */
-export interface DeviceTag {
-  tagId: string;
-  key: string;
-  description?: string;
-  color?: string;
-  values: string[];
-  createdAt?: string;
 }
 
 /**
@@ -286,42 +275,6 @@ export interface Device {
   logged_username?: string; // Alias for logged_in_username
   make_model?: string; // Make and model combined
   version?: string; // Agent version (alias)
-}
-
-// Additional types for device filtering
-export interface DeviceFilterValue {
-  value: string;
-  count: number;
-}
-
-export interface DeviceFilterTag {
-  value: string;
-  label: string;
-  count: number;
-}
-
-export interface TagFilterOption {
-  key: string;
-  value: string;
-  count: number;
-}
-
-export interface DeviceFilters {
-  statuses: DeviceFilterValue[];
-  deviceTypes: DeviceFilterValue[];
-  osTypes: DeviceFilterValue[];
-  organizationIds: DeviceFilterTag[];
-  tagKeys: TagFilterOption[];
-  filteredCount: number;
-}
-
-export interface DeviceFilterInput {
-  statuses?: string[];
-  deviceTypes?: string[];
-  osTypes?: string[];
-  organizationIds?: string[];
-  tagKeys?: string[];
-  tagValues?: string[];
 }
 
 export interface GraphQlResponse<T> {

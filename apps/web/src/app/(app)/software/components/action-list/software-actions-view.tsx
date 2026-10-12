@@ -1,5 +1,6 @@
 'use client';
 
+import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -10,7 +11,6 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
 import { SoftwareSearchToolbar } from '../shared/software-search-toolbar';
 import { SOFTWARE_SECTIONS } from '../shared/software-sections';
 import { SOFTWARE_ACTION_TABLE_COLUMNS, SOFTWARE_ACTIONS_PAGE_SIZE } from './software-actions-columns';
