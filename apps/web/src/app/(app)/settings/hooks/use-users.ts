@@ -1,20 +1,13 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import type { UserStatus } from '@/generated/schema-enums';
 import { apiClient } from '@/lib/api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 
 // ============ Types ============
-
-export enum UserStatus {
-  Active = 'ACTIVE',
-  /** Deleted by an admin — personal data is kept, the account can be revived by re-invite. */
-  Deleted = 'DELETED',
-  /** Self-deleted by the user — personal data is anonymized server-side. */
-  SelfDeleted = 'SELF_DELETED',
-}
 
 export type UserImage = {
   imageUrl: string;
@@ -42,8 +35,6 @@ export type PagedUsersResponse = {
   hasNext: boolean;
   hasPrevious: boolean;
 };
-
-const EMPTY_USERS: UserRecord[] = [];
 
 // ============ Query Keys ============
 
@@ -130,34 +121,4 @@ export function useUpdateProfile() {
     },
     onError: err => handleApiError(err, toast, 'Failed to update profile'),
   });
-}
-
-export function useUsers(page: number = 0, size: number = 20) {
-  const usersQuery = useQuery({
-    queryKey: usersQueryKeys.list(page, size),
-    queryFn: () => fetchUsers(page, size),
-  });
-
-  return {
-    // Data
-    users: usersQuery.data?.items ?? EMPTY_USERS,
-
-    // Loading & error states
-    isLoading: usersQuery.isLoading,
-    error: usersQuery.error?.message ?? null,
-
-    // Pagination info
-    page: usersQuery.data?.page ?? page,
-    size: usersQuery.data?.size ?? size,
-    totalPages: usersQuery.data?.totalPages ?? 0,
-    totalElements: usersQuery.data?.totalElements ?? 0,
-    hasNext: usersQuery.data?.hasNext ?? false,
-    hasPrevious: usersQuery.data?.hasPrevious ?? false,
-
-    // Refetch
-    refetch: usersQuery.refetch,
-
-    // Raw query for advanced use cases
-    usersQuery,
-  };
 }

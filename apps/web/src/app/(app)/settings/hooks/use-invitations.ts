@@ -1,54 +1,9 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { handleApiError } from '@/lib/handle-api-error';
-
-// ============ Types ============
-
-export enum InvitationStatus {
-  Pending = 'PENDING',
-  Expired = 'EXPIRED',
-}
-
-export type InvitationRecord = {
-  id: string;
-  email: string;
-  roles: string[];
-  createdAt: string;
-  expiresAt: string;
-  status: InvitationStatus;
-};
-
-export type PagedInvitationsResponse = {
-  items: InvitationRecord[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
-};
-
-const EMPTY_INVITATIONS: InvitationRecord[] = [];
-
-// ============ Query Keys ============
-
-export const invitationsQueryKeys = {
-  all: ['invitations'] as const,
-  list: (page: number, size: number) => [...invitationsQueryKeys.all, 'list', { page, size }] as const,
-};
-
-// ============ API Functions ============
-
-async function fetchInvitations(page: number, size: number): Promise<PagedInvitationsResponse> {
-  const res = await apiClient.get<PagedInvitationsResponse>(`api/invitations?page=${page}&size=${size}`);
-  if (!res.ok || !res.data) {
-    throw new Error(res.error || `Failed to load invitations (${res.status})`);
-  }
-  return res.data;
-}
 
 async function revokeInvitationApi(invitationId: string): Promise<void> {
   const res = await apiClient.delete(`/api/invitations/${encodeURIComponent(invitationId)}`);
@@ -78,98 +33,25 @@ async function inviteUsersApi(emails: string[]): Promise<void> {
   }
 }
 
-// ============ Hook ============
-
-export function useInvitations(page: number = 0, size: number = 20) {
-  const queryClient = useQueryClient();
+/** Takes the raw invitation id (not the Relay one). */
+export function useRevokeInvitation() {
   const { toast } = useToast();
-
-  const invitationsQuery = useQuery({
-    queryKey: invitationsQueryKeys.list(page, size),
-    queryFn: () => fetchInvitations(page, size),
-  });
-
-  const revokeInvitationMutation = useMutation({
+  return useMutation({
     mutationFn: revokeInvitationApi,
+    onError: error => handleApiError(error, toast, 'Failed to revoke invitation'),
   });
+}
 
-  const resendInvitationMutation = useMutation({
+/** Takes the raw invitation id (not the Relay one). */
+export function useResendInvitation() {
+  const { toast } = useToast();
+  return useMutation({
     mutationFn: resendInvitationApi,
+    onError: error => handleApiError(error, toast, 'Failed to resend invitation'),
   });
+}
 
-  const revokeInvitation = (
-    invitationId: string,
-    options?: {
-      onSuccess?: () => void;
-      onError?: (error: Error) => void;
-    },
-  ) => {
-    revokeInvitationMutation.mutate(invitationId, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: invitationsQueryKeys.all });
-        options?.onSuccess?.();
-      },
-      onError: error => {
-        handleApiError(error, toast, 'Failed to revoke invitation');
-        options?.onError?.(error as Error);
-      },
-    });
-  };
-
-  const resendInvitation = (
-    invitationId: string,
-    options?: {
-      onSuccess?: () => void;
-      onError?: (error: Error) => void;
-    },
-  ) => {
-    resendInvitationMutation.mutate(invitationId, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: invitationsQueryKeys.all });
-        options?.onSuccess?.();
-      },
-      onError: error => {
-        handleApiError(error, toast, 'Failed to resend invitation');
-        options?.onError?.(error as Error);
-      },
-    });
-  };
-
-  const inviteUsersMutation = useMutation({
-    mutationFn: inviteUsersApi,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invitationsQueryKeys.all });
-    },
-  });
-
-  return {
-    // Data
-    invitations: invitationsQuery.data?.items ?? EMPTY_INVITATIONS,
-
-    // Loading & error states
-    isLoading: invitationsQuery.isLoading,
-    error: invitationsQuery.error?.message ?? null,
-
-    // Pagination info
-    page: invitationsQuery.data?.page ?? page,
-    size: invitationsQuery.data?.size ?? size,
-    totalPages: invitationsQuery.data?.totalPages ?? 0,
-    totalElements: invitationsQuery.data?.totalElements ?? 0,
-    hasNext: invitationsQuery.data?.hasNext ?? false,
-    hasPrevious: invitationsQuery.data?.hasPrevious ?? false,
-
-    // Refetch
-    refetch: invitationsQuery.refetch,
-
-    // Mutations
-    revokeInvitation,
-    revokeInvitationMutation,
-    resendInvitation,
-    resendInvitationMutation,
-    inviteUsers: inviteUsersMutation.mutateAsync,
-    inviteUsersMutation,
-
-    // Raw query for advanced use cases
-    invitationsQuery,
-  };
+/** The caller toasts: it knows how many it sent. */
+export function useInviteUsers() {
+  return useMutation({ mutationFn: inviteUsersApi });
 }

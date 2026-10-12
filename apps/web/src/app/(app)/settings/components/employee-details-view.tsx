@@ -10,13 +10,14 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { UserStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useUser } from '../hooks/use-user';
-import { UserStatus, useDeleteUser, useUpdateProfile } from '../hooks/use-users';
+import { useDeleteUser, useUpdateProfile } from '../hooks/use-users';
 import { ConfirmDeleteUserModal } from './confirm-delete-user-modal';
 import { DeleteAccountModal } from './delete-account-modal';
 import { EditProfileModal } from './edit-profile-modal';
@@ -103,7 +104,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
       : user.email
     : ' ';
   const role = user ? (user.roles || []).join(', ') || EMPTY_VALUE : '';
-  const isActive = user?.status === UserStatus.Active;
+  const isActive = user?.status === UserStatus.ACTIVE;
   const isDeleted = isDeletedUserStatus(user?.status);
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');

@@ -7,7 +7,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
  * the Relay chips. Resolvers never throw — they degrade to `{ label: id }` on a
  * failed response — so the chip always renders (id when the name can't load).
  *
- * id semantics + routes (per the picker in `rest-items.tsx` / `batch-items.tsx`):
+ * id semantics + routes (per the picker in `rest-items.tsx` / `relay-items.tsx`):
  *   - policy → fleet `getPolicy(policyId)`        → /monitoring/policy/{id}
  *   - query  → fleet `getQuery(queryId)`          → /monitoring/query/{id}
  *   - user   → REST `/api/users/{userId}`         → (no detail route)

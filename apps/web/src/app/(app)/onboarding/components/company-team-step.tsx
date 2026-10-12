@@ -20,7 +20,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import Link from 'next/link';
 import { type ChangeEvent, useMemo, useState } from 'react';
 import { routes } from '@/lib/routes';
-import { useInvitations } from '../../settings/hooks/use-invitations';
+import { useInviteUsers } from '../../settings/hooks/use-invitations';
 import { useStepActionState } from '../use-step-action-state';
 
 type InviteRow = { email: string; role: string };
@@ -32,7 +32,7 @@ const newRow = (): InviteRow => ({ email: '', role: 'ADMIN' });
 /**
  * Inner body of the "Company & Team" onboarding step. Reuses the team-invite building
  * blocks from settings ({@link ../../settings/components/add-users-modal}) — the same
- * row model and the `useInvitations().inviteUsers` mutation.
+ * row model and the `useInviteUsers` mutation.
  */
 /**
  * NOTE: currently UNREFERENCED. The design replaced "Company & Team" with "Meet
@@ -51,7 +51,7 @@ export function CompanyTeamStep({
   completing?: boolean;
 }) {
   const { toast } = useToast();
-  const { inviteUsers } = useInvitations();
+  const { mutateAsync: inviteUsers } = useInviteUsers();
 
   const [rows, setRows] = useState<InviteRow[]>([newRow()]);
   const [isSubmitting, setIsSubmitting] = useState(false);

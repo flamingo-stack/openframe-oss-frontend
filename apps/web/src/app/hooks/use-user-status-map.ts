@@ -2,8 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { fetchUsers, type UserStatus, usersQueryKeys } from '@/app/(app)/settings/hooks/use-users';
+import { fetchUsers, usersQueryKeys } from '@/app/(app)/settings/hooks/use-users';
 import { isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import type { UserStatus } from '@/generated/schema-enums';
 import { decodeGlobalId } from '@/lib/relay-id';
 
 type UsersPage = Awaited<ReturnType<typeof fetchUsers>>;
@@ -56,7 +57,6 @@ function statusMapFor(data: UsersPage | undefined): Map<string, UserStatus> {
  */
 export function useUserStatusMap() {
   const query = useQuery({
-    // Same key as the employees page's full-list query, so the two share cache.
     queryKey: usersQueryKeys.list(0, 1000),
     queryFn: () => fetchUsers(0, 1000),
     staleTime: 5 * 60 * 1000,

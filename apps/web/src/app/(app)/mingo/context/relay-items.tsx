@@ -3,7 +3,7 @@
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
- * (`/api/graphql`): Device, Organization, Knowledge Article, Knowledge Folder,
+ * (`/api/graphql`): Device, Organization, User, Knowledge Article, Knowledge Folder,
  * Script, Script Schedule, Incident, Software, Vulnerability.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
@@ -41,6 +41,9 @@ import type { relayItemsScriptsPaginationQuery } from '@/__generated__/relayItem
 import type { relayItemsSoftware_query$key } from '@/__generated__/relayItemsSoftware_query.graphql';
 import type { relayItemsSoftwareListQuery } from '@/__generated__/relayItemsSoftwareListQuery.graphql';
 import type { relayItemsSoftwarePaginationQuery } from '@/__generated__/relayItemsSoftwarePaginationQuery.graphql';
+import type { relayItemsUsers_query$key } from '@/__generated__/relayItemsUsers_query.graphql';
+import type { relayItemsUsersListQuery } from '@/__generated__/relayItemsUsersListQuery.graphql';
+import type { relayItemsUsersPaginationQuery } from '@/__generated__/relayItemsUsersPaginationQuery.graphql';
 import type { relayItemsVulnerabilities_query$key } from '@/__generated__/relayItemsVulnerabilities_query.graphql';
 import type { relayItemsVulnerabilitiesListQuery } from '@/__generated__/relayItemsVulnerabilitiesListQuery.graphql';
 import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/relayItemsVulnerabilitiesPaginationQuery.graphql';
@@ -209,6 +212,75 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No customers"
+    />
+  );
+}
+
+// ───────────────────────────── User ─────────────────────────────────────────
+
+const USERS_FRAGMENT = graphql`
+  fragment relayItemsUsers_query on Query
+  @refetchable(queryName: "relayItemsUsersPaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    users(search: $search, first: $first, after: $after) @connection(key: "relayItemsUsers_users") {
+      edges {
+        node {
+          id
+          firstName
+          lastName
+          email
+          status
+        }
+      }
+    }
+  }
+`;
+
+const USERS_LIST_QUERY = graphql`
+  query relayItemsUsersListQuery($search: String, $first: Int) {
+    ...relayItemsUsers_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsUsersListQuery>(USERS_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsUsersPaginationQuery,
+    relayItemsUsers_query$key
+  >(USERS_FRAGMENT, root as relayItemsUsers_query$key);
+  const items = useMemo(
+    () =>
+      data.users.edges.map(({ node }) => {
+        const fullName = [node.firstName, node.lastName].filter(Boolean).join(' ');
+        // Raw db id: the USER context resolver, the `@user:<id>` marker and the
+        // REST mention chip all take it.
+        const id = rawIdOf(node.id);
+        return {
+          type: CONTEXT_ENTITY_KIND.USER,
+          id,
+          label: fullName || node.email || id,
+          description: (fullName ? node.email : node.status) ?? undefined,
+        };
+      }),
+    [data],
+  );
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No users"
     />
   );
 }
