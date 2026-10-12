@@ -153,11 +153,11 @@ class AuthApiClient {
 
   devExchange(ticket: string): Promise<Response> {
     const base = runtimeEnv.sharedHostUrl() || '';
-    const url = `${base}/oauth/dev-exchange?ticket=${encodeURIComponent(ticket)}`;
+    const url = `${base}/oauth/dev-exchange`;
     return fetch(url, {
-      method: 'GET',
+      method: 'POST',
       credentials: 'include',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'X-Ticket': ticket },
     });
   }
 
