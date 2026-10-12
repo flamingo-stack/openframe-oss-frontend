@@ -5,14 +5,15 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { newOwnerCandidatesQuery } from '@/__generated__/newOwnerCandidatesQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
+import { toGlobalId } from '@/lib/relay-id';
 import { NewOwnerField } from './new-owner-field';
 
 const newOwnerCandidatesQueryNode = graphql`
-  query newOwnerCandidatesQuery($search: String, $first: Int!) {
-    members: users(filter: { statuses: [ACTIVE] }, first: 1) {
+  query newOwnerCandidatesQuery($self: ID!, $search: String, $first: Int!) {
+    others: users(filter: { statuses: [ACTIVE], excludeIds: [$self] }, first: 1) {
       filteredCount
     }
-    candidates: users(filter: { statuses: [ACTIVE] }, search: $search, first: $first) {
+    candidates: users(filter: { statuses: [ACTIVE], excludeIds: [$self] }, search: $search, first: $first) {
       edges {
         node {
           id
@@ -62,14 +63,13 @@ export function NewOwnerCandidates({
   disabled,
 }: NewOwnerCandidatesProps) {
   const retryKey = useRetryKey();
-  const { members, candidates } = useLazyLoadQuery<newOwnerCandidatesQuery>(
+  const { others, candidates } = useLazyLoadQuery<newOwnerCandidatesQuery>(
     newOwnerCandidatesQueryNode,
-    { search: search || null, first: CANDIDATES_LIMIT },
+    { self: toGlobalId('User', currentUserId), search: search || null, first: CANDIDATES_LIMIT },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
-  // The caller is one of the active members.
-  if (members.filteredCount <= 1) {
+  if (others.filteredCount === 0) {
     return (
       <p className="text-ods-text-primary text-h4">
         You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
@@ -82,16 +82,13 @@ export function NewOwnerCandidates({
     );
   }
 
-  const options: AutocompleteOption[] = candidates.edges.flatMap(({ node }) => {
-    const { rawId, name, avatarUrl } = toUserSummary(node);
-    if (rawId === currentUserId) return [];
-    return [
-      {
-        value: node.id,
-        label: name || rawId,
-        icon: <SquareAvatar src={avatarUrl} fallback={name} size="sm" variant="round" />,
-      },
-    ];
+  const options: AutocompleteOption[] = candidates.edges.map(({ node }) => {
+    const { name, avatarUrl } = toUserSummary(node);
+    return {
+      value: node.id,
+      label: name,
+      icon: <SquareAvatar src={avatarUrl} fallback={name} size="sm" variant="round" />,
+    };
   });
   if (picked && !options.some(option => option.value === picked.value)) {
     options.unshift(picked);

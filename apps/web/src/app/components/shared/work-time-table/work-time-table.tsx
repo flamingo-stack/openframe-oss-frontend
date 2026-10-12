@@ -35,7 +35,7 @@ import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWo
 import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
-import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
+import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
 import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -542,7 +542,11 @@ export function WorkTimeTable({
 
   // The header filter has no search box: the filtered-by employees are asked for by id, so a selection past
   // the first page keeps its row.
-  const { options: employeeOptionsRaw } = useAssigneeOptions({ enabled: showEmployee, selectedIds: employeeFilterIds });
+  const { options: employeeOptionsRaw } = useAssigneeOptions({
+    enabled: showEmployee,
+    selectedIds: employeeFilterIds,
+    pageSize: ASSIGNEE_FILTER_PAGE_SIZE,
+  });
   const { options: customerOptionsRaw } = useOrganizationOptions('', showCustomer);
 
   const employeeFilterOptions = useMemo<DataTableFilterOption[]>(

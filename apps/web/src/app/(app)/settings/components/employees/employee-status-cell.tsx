@@ -13,5 +13,5 @@ const employeeStatusCellFragment = graphql`
 /** STATUS column of the users table. */
 export function EmployeeStatusCell({ user }: { user: employeeStatusCell_user$key }) {
   const { status } = useFragment(employeeStatusCellFragment, user);
-  return status ? <EmployeeStatusTag status={status} /> : null;
+  return <EmployeeStatusTag status={status} />;
 }

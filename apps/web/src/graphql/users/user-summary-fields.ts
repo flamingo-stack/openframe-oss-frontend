@@ -27,7 +27,7 @@ export const userSummaryFieldsFragment = graphql`
 export interface UserSummary {
   /** The id inside the global handle — what the ticket, worktime and auth APIs speak. */
   rawId: string;
-  /** The full name, else the email; empty when the record has neither. */
+  /** The full name, else the email. */
   name: string;
   /** Null for a self-deleted account, whose email is a placeholder. */
   email: string | null;
@@ -42,8 +42,8 @@ export function toUserSummary(ref: userSummaryFields_user$key): UserSummary {
   const selfDeleted = isSelfDeletedUserStatus(status);
   return {
     rawId: rawIdOf(id),
-    name: [firstName, lastName].filter(Boolean).join(' ') || email || '',
-    email: selfDeleted ? null : (email ?? null),
+    name: [firstName, lastName].filter(Boolean).join(' ') || email,
+    email: selfDeleted ? null : email,
     avatarUrl: getFullImageUrl(image?.imageUrl, image?.hash),
     deleted: isDeletedUserStatus(status),
     selfDeleted,

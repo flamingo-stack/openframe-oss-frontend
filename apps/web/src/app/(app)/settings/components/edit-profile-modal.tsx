@@ -17,6 +17,7 @@ import { deleteWithAuth, uploadWithAuth } from '@/lib/upload-with-auth';
 const editProfileModalMutationNode = graphql`
   mutation editProfileModalMutation($input: UpdateUserInput!) {
     updateUser(input: $input) {
+      # All this mutation changes: every surface reads the name from the same User record.
       user {
         id
         firstName

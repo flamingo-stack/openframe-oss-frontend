@@ -4,6 +4,11 @@ interface InviteRefusal {
   readonly message: string;
 }
 
+/** The submitted emails `inviteUsers` refused, by their index in the submitted list. */
+export function refusedEmailIndexes(refusals: readonly InviteRefusal[]): Set<number> {
+  return new Set(refusals.map(({ field }) => Number(field?.[1])).filter(Number.isInteger));
+}
+
 /**
  * The toast text for the emails `inviteUsers` refused — each one by address with
  * its reason — or null when every invitation was sent.
@@ -14,5 +19,5 @@ export function describeInviteRefusals(emails: readonly string[], refusals: read
     const email = emails[Number(field?.[1])];
     return email ? `${email}: ${message}` : message;
   });
-  return `Failed to invite ${lines.join('; ')}`;
+  return `Not sent: ${lines.join('; ')}`;
 }

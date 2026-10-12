@@ -13,9 +13,9 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { AddUsersModal } from '../add-users-modal';
 import { USERS_TABLE_COLUMNS } from '../employees/employees-columns';
-import { invitationsListingId } from '../employees/invitations-listing';
-import { InvitationsTable } from '../employees/invitations-table';
-import { UsersTable } from '../employees/users-table';
+import { InvitationsListTable } from '../employees/invitations-list-table';
+import { affectedInvitationsListings, invitationsListingId } from '../employees/invitations-listing';
+import { UsersListTable } from '../employees/users-list-table';
 
 const NO_FILTERS = {};
 
@@ -64,19 +64,19 @@ export function CompanyAndUsersTab() {
         <ContentErrorBoundary label="Invitations" message="Couldn't load invitations." resetKey={deferredSearch}>
           {/* Optional block: no placeholder, it appears with its rows or not at all. */}
           <Suspense fallback={null}>
-            <InvitationsTable search={deferredSearch} isPending={isPending} />
+            <InvitationsListTable search={deferredSearch} isPending={isPending} />
           </Suspense>
         </ContentErrorBoundary>
         <ContentErrorBoundary label="Employees" message="Couldn't load users." resetKey={deferredSearch}>
           <Suspense fallback={<TableSkeleton columns={USERS_TABLE_COLUMNS} stickyHeaderOffset={stickyHeaderOffset} />}>
-            <UsersTable search={deferredSearch} isPending={isPending} stickyHeaderOffset={stickyHeaderOffset} />
+            <UsersListTable search={deferredSearch} isPending={isPending} stickyHeaderOffset={stickyHeaderOffset} />
           </Suspense>
         </ContentErrorBoundary>
       </div>
       <AddUsersModal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
-        listingIds={[invitationsListingId(''), invitationsListingId(deferredSearch)]}
+        listingIds={affectedInvitationsListings(invitationsListingId(deferredSearch))}
       />
     </PageLayout>
   );

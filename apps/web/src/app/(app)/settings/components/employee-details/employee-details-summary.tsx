@@ -28,7 +28,7 @@ const employeeDetailsSummaryFragment = graphql`
 export function EmployeeDetailsSummary({ user }: { user: employeeDetailsSummary_user$key }) {
   const data = useFragment(employeeDetailsSummaryFragment, user);
   const { name, email, avatarUrl, deleted } = toUserSummary(data);
-  const status = data.status ? <EmployeeStatusTag status={data.status} /> : EMPTY_VALUE;
+  const status = <EmployeeStatusTag status={data.status} />;
 
   if (deleted) {
     return (

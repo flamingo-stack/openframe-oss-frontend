@@ -1,67 +1,43 @@
 'use client';
 
 import {
-  Button,
   type ColumnDef,
   DataTable,
   type Row,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import {
-  fetchQuery,
-  graphql,
-  useLazyLoadQuery,
-  usePaginationFragment,
-  useRelayEnvironment,
-  useSubscribeToInvalidationState,
-} from 'react-relay';
+import type { ReactNode } from 'react';
+import { graphql, useFragment } from 'react-relay';
 import type {
-  invitationsTable_query$data,
-  invitationsTable_query$key,
-} from '@/__generated__/invitationsTable_query.graphql';
-import type { invitationsTablePaginationQuery } from '@/__generated__/invitationsTablePaginationQuery.graphql';
-import type { invitationsTableQuery } from '@/__generated__/invitationsTableQuery.graphql';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+  invitationsTable_invitation$data,
+  invitationsTable_invitation$key,
+} from '@/__generated__/invitationsTable_invitation.graphql';
+import { liveColumnMeta } from '@/app/components/shared';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
-import { EMPLOYEES_COLUMNS, INVITATIONS_PAGE_SIZE } from './employees-columns';
+import { EMPLOYEES_COLUMNS } from './employees-columns';
 import { type InvitationAction, InvitationActionsCell } from './invitation-actions-cell';
 import { InvitationDialog } from './invitation-dialog';
 import { InvitationEmailCell } from './invitation-email-cell';
 import { InvitationRolesCell } from './invitation-roles-cell';
 import { InvitationStatusCell } from './invitation-status-cell';
 
-const invitationsTableQueryNode = graphql`
-  query invitationsTableQuery($search: String, $first: Int!) {
-    ...invitationsTable_query @arguments(search: $search, first: $first)
-  }
-`;
-
+/**
+ * The invitations block — one row per `Invitation`, and the dialog its actions
+ * open. Plural: the listing hands over the nodes it has fetched and owns the
+ * query and the paging; this module owns what a row looks like and does.
+ */
 const invitationsTableFragment = graphql`
-  fragment invitationsTable_query on Query
-  @refetchable(queryName: "invitationsTablePaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 5 }, after: { type: "String" }) {
-    invitations(search: $search, first: $first, after: $after) @connection(key: "invitationsTable_invitations") {
-      # Invite and resend mark the listing stale (see invitations-listing.ts); it is refetched below.
-      __id
-      filteredCount
-      edges {
-        node {
-          id
-          ...invitationEmailCell_invitation
-          ...invitationRolesCell_invitation
-          ...invitationStatusCell_invitation
-          ...invitationActionsCell_invitation
-          ...invitationDialog_invitation
-        }
-      }
-    }
+  fragment invitationsTable_invitation on Invitation @relay(plural: true) {
+    id
+    ...invitationEmailCell_invitation
+    ...invitationRolesCell_invitation
+    ...invitationStatusCell_invitation
+    ...invitationActionsCell_invitation
+    ...invitationDialog_invitation
   }
 `;
 
-type InvitationRow = invitationsTable_query$data['invitations']['edges'][number]['node'];
-
-/** "Show more" grows the block by this many. */
-const SHOW_MORE_SIZE = 20;
+type InvitationRow = invitationsTable_invitation$data[number];
 
 const getRowId = (row: InvitationRow) => row.id;
 
@@ -96,38 +72,32 @@ function buildColumns(onAction: (row: InvitationRow, action: InvitationAction) =
 }
 
 interface InvitationsTableProps {
-  search: string;
-  /** A deferred search is in flight: the rows on screen are the previous result. */
+  /** The pages fetched so far. */
+  rows: invitationsTable_invitation$key;
+  /** The server's total for the current search, not the rows fetched so far. */
+  totalCount: number;
+  /** The listings the dialogs' mutations update, the one the rows came from first. */
+  listingIds: readonly string[];
+  /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;
+  /** Under the rows, e.g. "Show more". */
+  children?: ReactNode;
 }
 
-/**
- * Open invitations above the users: a few newest first, more on request, so a
- * pile of unanswered invites never pushes the people off the page. Hidden when
- * nothing matches.
- */
-export function InvitationsTable({ search, isPending }: InvitationsTableProps) {
-  const environment = useRelayEnvironment();
-  const retryKey = useRetryKey();
-  const variables = { search: search || null, first: INVITATIONS_PAGE_SIZE };
-  const queryData = useLazyLoadQuery<invitationsTableQuery>(invitationsTableQueryNode, variables, {
-    fetchPolicy: 'store-and-network',
-    fetchKey: retryKey,
-  });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    invitationsTablePaginationQuery,
-    invitationsTable_query$key
-  >(invitationsTableFragment, queryData);
-  const { invitations } = data;
-
-  useSubscribeToInvalidationState([invitations.__id], () => {
-    fetchQuery(environment, invitationsTableQueryNode, variables, { fetchPolicy: 'network-only' }).subscribe({});
-  });
-
+/** Hidden when nothing matches; the dialog stays, so revoking the last row still animates out. */
+export function InvitationsTable({
+  rows: rowRefs,
+  totalCount,
+  listingIds,
+  isPending,
+  children,
+}: InvitationsTableProps) {
+  const rows = useFragment(invitationsTableFragment, rowRefs);
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<InvitationRow, InvitationAction>();
 
   const table = useDataTable<InvitationRow>({
-    data: invitations.edges.map(edge => edge.node),
+    // The fragment reads back a readonly page; the table only ever reads it too.
+    data: rows as InvitationRow[],
     columns: buildColumns(openDialog),
     getRowId,
     enableSorting: false,
@@ -135,37 +105,25 @@ export function InvitationsTable({ search, isPending }: InvitationsTableProps) {
 
   return (
     <>
-      {invitations.filteredCount > 0 && (
+      {totalCount > 0 && (
         <section
           aria-label="Invitations"
           className={`mb-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-s)] transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}
         >
           <DataTable table={table}>
-            <DataTable.Header
-              rightSlot={<DataTable.RowCount itemName="invitation" totalCount={invitations.filteredCount} />}
-            />
+            <DataTable.Header rightSlot={<DataTable.RowCount itemName="invitation" totalCount={totalCount} />} />
             <DataTable.Body />
           </DataTable>
-          {hasNext && (
-            <Button
-              variant="outline"
-              className="self-center"
-              loading={isLoadingNext}
-              onClick={() => loadNext(SHOW_MORE_SIZE)}
-            >
-              Show more invitations
-            </Button>
-          )}
+          {children}
         </section>
       )}
-      {/* Outside the block: revoking the last invitation hides it mid-dialog. */}
       {dialog && (
         <InvitationDialog
           invitation={dialog.row}
           kind={dialog.kind}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingId={invitations.__id}
+          listingIds={listingIds}
         />
       )}
     </>

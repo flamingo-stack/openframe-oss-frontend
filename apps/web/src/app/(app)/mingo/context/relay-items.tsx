@@ -259,7 +259,7 @@ export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextIte
     return {
       type: CONTEXT_ENTITY_KIND.USER,
       id: rawId,
-      label: name || rawId,
+      label: name,
       description: email && email !== name ? email : undefined,
     };
   });

@@ -33,11 +33,6 @@ import { useStepActionState } from '../use-step-action-state';
 const companyTeamStepInviteMutationNode = graphql`
   mutation companyTeamStepInviteMutation($emails: [String!]!) {
     inviteUsers(input: { emails: $emails }) {
-      invitationEdges {
-        node {
-          id
-        }
-      }
       userErrors {
         field
         message

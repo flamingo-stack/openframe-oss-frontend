@@ -80,7 +80,7 @@ export function EmployeeDetailsHeader({ user }: { user: employeeDetailsHeader_us
 
   return (
     <>
-      <TitleBlock title={name || EMPLOYEE_DETAILS_TITLE} backButton={backButton} menuActions={menuActions} />
+      <TitleBlock title={name} backButton={backButton} menuActions={menuActions} />
       {isSelf ? (
         <>
           <EditProfileModal isOpen={dialog === 'edit'} onClose={closeDialog} user={currentUser} />

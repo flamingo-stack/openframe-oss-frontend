@@ -44,9 +44,7 @@ export function EmployeeDetailsContent({ userId }: { userId: string }) {
   const summary = user ? toUserSummary(user) : null;
 
   // The Mingo "open view": the USER resolver and the `@user:id` marker take the raw id.
-  useTrackOpenView(
-    summary ? { type: CONTEXT_ENTITY_KIND.USER, id: summary.rawId, label: summary.name || summary.rawId } : null,
-  );
+  useTrackOpenView(summary ? { type: CONTEXT_ENTITY_KIND.USER, id: summary.rawId, label: summary.name } : null);
 
   return (
     <>

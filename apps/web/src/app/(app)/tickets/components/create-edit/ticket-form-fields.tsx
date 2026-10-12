@@ -83,16 +83,18 @@ export function TicketFormFields({
   // `useForm` owner (the whole page) on every change of the field.
   const selectedOrgId = useWatch({ control, name: 'organizationId' });
   const selectedDeviceId = useWatch({ control, name: 'deviceId' });
+  const selectedAssigneeId = useWatch({ control, name: 'assignedTo' });
   const lockOrgAndDevice = isEditMode && !!selectedDeviceId;
   const organizationOptions = useOrganizationOptions(debouncedOrgSearch);
   const deviceOptions = useDeviceOptions(selectedOrgId ?? undefined, debouncedDeviceSearch);
-  const assigneeOptions = useAssigneeOptions({ selfFirst: true });
+  // The picked assignee is asked for by id, so it keeps its label when a search
+  // moves it off the page.
+  const assigneeOptions = useAssigneeOptions({ selfFirst: true, selectedIds: [selectedAssigneeId] });
 
   // See `withOption`: the ticket's own selections, and the ones picked through a
   // search, pinned into the page each list fetched.
   const [pickedOrg, setPickedOrg] = useState<AvatarOption | null>(null);
   const [pickedDevice, setPickedDevice] = useState<AutocompleteOption | null>(null);
-  const [pickedAssignee, setPickedAssignee] = useState<AvatarOption | null>(null);
   const ticketOrg = useMemo<AvatarOption | null>(() => {
     if (ticket?.organizationId) {
       return {
@@ -132,9 +134,10 @@ export function TicketFormFields({
     () => withOption(withOption(deviceOptions.options, pickedDevice), ticketDevice),
     [deviceOptions.options, pickedDevice, ticketDevice],
   );
+  // The ticket's own assignee from its snapshot: a label before the lookup answers.
   const assigneeOptionsList = useMemo(
-    () => withOption(withOption(assigneeOptions.options, pickedAssignee), ticketAssignee),
-    [assigneeOptions.options, pickedAssignee, ticketAssignee],
+    () => withOption(assigneeOptions.options, ticketAssignee),
+    [assigneeOptions.options, ticketAssignee],
   );
 
   const statusesQuery = useTicketStatusesQuery({ enabled: true });
@@ -292,10 +295,7 @@ export function TicketFormFields({
                 label="Assigned"
                 options={assigneeOptionsList}
                 value={field.value ?? null}
-                onChange={val => {
-                  setPickedAssignee(assigneeOptionsList.find(o => o.value === val) ?? null);
-                  field.onChange(val);
-                }}
+                onChange={field.onChange}
                 onInputChange={assigneeOptions.onSearchChange}
                 placeholder="Select Assignee"
                 loading={assigneeOptions.isLoading}

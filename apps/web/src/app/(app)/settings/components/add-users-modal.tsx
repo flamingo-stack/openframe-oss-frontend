@@ -13,22 +13,17 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { graphql, useMutation } from 'react-relay';
 import type { addUsersModalMutation } from '@/__generated__/addUsersModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { invalidateInvitationsListings } from './employees/invitations-listing';
-import { describeInviteRefusals } from './employees/invite-refusals';
+import { describeInviteRefusals, refusedEmailIndexes } from './employees/invite-refusals';
 
 const addUsersModalMutationNode = graphql`
   mutation addUsersModalMutation($emails: [String!]!) {
     inviteUsers(input: { emails: $emails }) {
-      invitationEdges {
-        node {
-          id
-        }
-      }
       userErrors {
         field
         message
@@ -38,6 +33,10 @@ const addUsersModalMutationNode = graphql`
 `;
 
 type InviteRow = { email: string; role: string };
+
+/** A first pass so an obvious typo never leaves the form; the server's check is the one that counts. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ROLE_OPTIONS = [{ value: 'ADMIN', label: 'Admin' }];
 
 interface AddUsersModalProps {
   isOpen: boolean;
@@ -51,9 +50,7 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
   const [commit, isSubmitting] = useMutation<addUsersModalMutation>(addUsersModalMutationNode);
   const { toast } = useToast();
 
-  const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
-  const canSubmit = useMemo(() => rows.some(r => emailRegex.test(r.email.trim())), [rows, emailRegex]);
-  const roleOptions = useMemo(() => [{ value: 'ADMIN', label: 'Admin' }], []);
+  const canSubmit = rows.some(r => EMAIL_PATTERN.test(r.email.trim()));
 
   // Cleared on the close transition, during render rather than in an effect: an
   // effect leaves the old values on screen for a frame of the closing animation.
@@ -74,20 +71,29 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    const emails = rows.map(r => r.email.trim()).filter(email => emailRegex.test(email));
+    const emails = rows.map(r => r.email.trim()).filter(email => EMAIL_PATTERN.test(email));
     if (emails.length === 0) return;
     commit({
       variables: { emails },
       // A partial failure still sent the rest, so the listings refetch either way.
       updater: store => invalidateInvitationsListings(store, listingIds),
-      onCompleted: ({ inviteUsers }) => {
-        const refused = describeInviteRefusals(emails, inviteUsers.userErrors);
-        if (refused) {
-          toast({ title: 'Invite failed', description: refused, variant: 'destructive' });
+      onCompleted: ({ inviteUsers: { userErrors } }) => {
+        const refused = describeInviteRefusals(emails, userErrors);
+        if (!refused) {
+          toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
+          onClose();
           return;
         }
-        toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
-        onClose();
+        // The sent ones leave the form, so fixing a refused row and sending again
+        // does not invite the rest a second time.
+        const refusedIndexes = refusedEmailIndexes(userErrors);
+        const sent = new Set(emails.filter((_, index) => !refusedIndexes.has(index)));
+        setRows(prev => prev.filter(row => !sent.has(row.email.trim())));
+        toast({
+          title: sent.size > 0 ? `${sent.size} of ${emails.length} invites sent` : 'Invite failed',
+          description: refused,
+          variant: 'destructive',
+        });
       },
       onError: error => {
         toast({
@@ -138,7 +144,7 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
               placeholder="Enter Email Here"
               value={row.email}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRow(idx, { email: e.target.value })}
-              invalid={row.email.length > 0 && !emailRegex.test(row.email)}
+              invalid={row.email.length > 0 && !EMAIL_PATTERN.test(row.email)}
             />
             <div className="flex items-center gap-2">
               <Select value={row.role} onValueChange={v => setRow(idx, { role: v })}>
@@ -146,7 +152,7 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roleOptions.map(opt => (
+                  {ROLE_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>

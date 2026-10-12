@@ -13,7 +13,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useAssigneeOptions } from '../hooks/use-assignee-options';
+import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '../hooks/use-assignee-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { useTicketsQuery } from '../hooks/use-tickets-query';
 import type { TicketListSort } from '../services/ticket-service.types';
@@ -146,6 +146,7 @@ export function TicketsTable({
     enabled: !isArchived,
     selectedIds: assigneeIds,
     selfFirst: true,
+    pageSize: ASSIGNEE_FILTER_PAGE_SIZE,
   });
   const assigneeOptions = useMemo<StatusFilterOption[] | undefined>(() => {
     if (isArchived) return undefined;

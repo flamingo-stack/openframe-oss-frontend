@@ -1,22 +1,17 @@
 'use client';
 
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useDeferredValue, useState } from 'react';
-import { graphql, useLazyLoadQuery } from 'react-relay';
+import { useState } from 'react';
+import { graphql } from 'react-relay';
 import type { useAssigneeOptionsQuery } from '@/__generated__/useAssigneeOptionsQuery.graphql';
-import type { userSummaryFields_user$key } from '@/__generated__/userSummaryFields_user.graphql';
-import { toUserSummary } from '@/graphql/users/user-summary-fields';
-import { rawIdOf, toGlobalId } from '@/lib/relay-id';
+import { useNonSuspendingQuery } from '@/app/hooks/use-non-suspending-query';
+import { useUsersById } from '@/app/hooks/use-users-by-id';
+import { toUserSummary, type UserSummary } from '@/graphql/users/user-summary-fields';
 import { useAuthStore } from '@/stores';
 import type { AutocompleteOption, AvatarOption } from './use-ticket-options';
 
-/**
- * `@include(if: $list)` is off for the first render only: read `store-only`, that
- * paints the picker without a request, and the listing arrives in the deferred
- * re-render — the same shape as the software package search.
- */
 const assigneeOptionsQuery = graphql`
-  query useAssigneeOptionsQuery($search: String, $first: Int!, $selectedIds: [ID!]!, $list: Boolean!) {
+  query useAssigneeOptionsQuery($search: String, $first: Int!, $list: Boolean!) {
     users(filter: { statuses: [ACTIVE] }, search: $search, first: $first) @include(if: $list) {
       edges {
         node {
@@ -24,20 +19,18 @@ const assigneeOptionsQuery = graphql`
         }
       }
     }
-    selected: nodes(ids: $selectedIds) @include(if: $list) {
-      __typename
-      ...userSummaryFields_user
-    }
   }
 `;
 
 /** One page of matches: a picker narrows by typing, it never scrolls the whole tenant. */
-const ASSIGNEE_OPTIONS_PAGE_SIZE = 50;
-/** The deferred request's first-render value: nothing asked yet, not even the empty search. */
-const NOT_YET = null;
+export const ASSIGNEE_OPTIONS_PAGE_SIZE = 50;
+/**
+ * A column header filter has no search box, so it lists the most the API pages at
+ * once (`first` is capped at 100) — a searchable header filter needs a lib change.
+ */
+export const ASSIGNEE_FILTER_PAGE_SIZE = 100;
 
-function toOption(ref: userSummaryFields_user$key): AvatarOption {
-  const { name, rawId, avatarUrl } = toUserSummary(ref);
+function toOption({ name, rawId, avatarUrl }: UserSummary): AvatarOption {
   return { label: name, value: rawId, imageUrl: avatarUrl };
 }
 
@@ -51,12 +44,14 @@ export function sortSelfFirst<T extends AutocompleteOption>(options: T[], curren
 interface AssigneeOptionsArgs {
   /**
    * Users already selected (raw or global ids): listed even when the page or the
-   * search does not contain them, so a selection never loses its label.
+   * search does not contain them, so a selection never loses its label. Asked for
+   * apart from the page, so changing the selection does not ask for the page again.
    */
   selectedIds?: readonly (string | null | undefined)[];
   enabled?: boolean;
   /** Puts the signed-in user first when the page contains them (self-assign shortcut). */
   selfFirst?: boolean;
+  pageSize?: number;
 }
 
 /**
@@ -64,41 +59,41 @@ interface AssigneeOptionsArgs {
  * assignable; an existing assignment still renders, marked, via useUserStatusMap.
  * The value is the raw user id the ticket and worktime APIs take.
  *
- * Hand `onSearchChange` to the picker's search input. The request is deferred, so
- * a search never suspends the picker: the previous options stay on screen, with
- * `isLoading`, until the next answer lands.
+ * Hand `onSearchChange` to the picker's search input. Never suspends or throws
+ * (see useNonSuspendingQuery): the previous options stay on screen, with
+ * `isLoading`, until the next answer lands, and a failed request leaves them.
  */
-export function useAssigneeOptions({ selectedIds = [], enabled = true, selfFirst = false }: AssigneeOptionsArgs = {}) {
+export function useAssigneeOptions({
+  selectedIds = [],
+  enabled = true,
+  selfFirst = false,
+  pageSize = ASSIGNEE_OPTIONS_PAGE_SIZE,
+}: AssigneeOptionsArgs = {}) {
   const currentUserId = useAuthStore(state => state.user?.id);
   const [input, setInput] = useState('');
   const search = useDebounce(input, 300).trim();
-  const selected = [...new Set(selectedIds.filter((id): id is string => !!id).map(rawIdOf))].sort().join(',');
-  // A string, not an object: a deferred value is compared by identity.
-  const request = enabled ? `${search}\n${selected}` : NOT_YET;
-  const deferred = useDeferredValue<string | null>(request, NOT_YET);
-  const list = deferred !== NOT_YET;
-  const [deferredSearch = '', deferredSelected = ''] = deferred?.split('\n') ?? [];
 
-  const data = useLazyLoadQuery<useAssigneeOptionsQuery>(
+  const page = useNonSuspendingQuery<useAssigneeOptionsQuery>(
     assigneeOptionsQuery,
-    {
-      search: deferredSearch || null,
-      first: ASSIGNEE_OPTIONS_PAGE_SIZE,
-      selectedIds: deferredSelected ? deferredSelected.split(',').map(id => toGlobalId('User', id)) : [],
-      list,
-    },
-    { fetchPolicy: list ? 'store-or-network' : 'store-only' },
+    { search: search || null, first: pageSize, list: true },
+    enabled,
   );
+  const selected = useUsersById(enabled ? selectedIds : []);
 
-  const page = (data.users?.edges ?? []).map(({ node }) => toOption(node));
-  const missing = (data.selected ?? [])
-    .flatMap(node => (node?.__typename === 'User' ? [toOption(node)] : []))
-    .filter(option => !page.some(o => o.value === option.value));
-  const options = [...missing, ...page];
+  const pageOptions = (page.data.users?.edges ?? [])
+    .map(({ node }) => toUserSummary(node))
+    // The page was ACTIVE when it was fetched; a user deleted since (the delete
+    // mutation updates the same record) is no longer assignable.
+    .filter(user => !user.deleted)
+    .map(toOption);
+  const missing = [...selected.users.values()]
+    .map(toOption)
+    .filter(option => !pageOptions.some(o => o.value === option.value));
+  const options = [...missing, ...pageOptions];
 
   return {
     options: selfFirst ? sortSelfFirst(options, currentUserId) : options,
-    isLoading: enabled && (deferred !== request || input.trim() !== search),
+    isLoading: enabled && (page.isLoading || selected.isLoading || input.trim() !== search),
     onSearchChange: setInput,
   };
 }

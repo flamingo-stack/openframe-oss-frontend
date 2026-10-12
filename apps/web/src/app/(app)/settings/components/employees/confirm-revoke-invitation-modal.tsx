@@ -23,36 +23,55 @@ const confirmRevokeInvitationModalMutationNode = graphql`
   }
 `;
 
+/** Revoking a pending invitation and removing an expired one are the same call, worded for each. */
+const WORDING = {
+  revoke: {
+    title: 'Revoke Invitation',
+    before: 'This will permanently delete the invitation for',
+    after: '. The user will no longer be able to register using this invite.',
+    failure: 'Failed to revoke invitation',
+  },
+  remove: {
+    title: 'Remove Invitation',
+    before: 'This will permanently delete the expired invitation for',
+    after: ' from your list.',
+    failure: 'Failed to remove invitation',
+  },
+};
+
 interface ConfirmRevokeInvitationModalProps {
   invitation: confirmRevokeInvitationModal_invitation$key;
+  kind: keyof typeof WORDING;
   isOpen: boolean;
   onClose: () => void;
-  /** The block's connection on screen. */
-  listingId: string;
+  /** The invitations listings in the store: the row leaves each, and its count goes down. */
+  listingIds: readonly string[];
 }
 
-/** Revokes a pending invitation; its row leaves the block at once. */
+/** Revokes an invitation; its row leaves the block at once. */
 export function ConfirmRevokeInvitationModal({
   invitation,
+  kind,
   isOpen,
   onClose,
-  listingId,
+  listingIds,
 }: ConfirmRevokeInvitationModalProps) {
   const { toast } = useToast();
   const { id, email } = useFragment(confirmRevokeInvitationModalFragment, invitation);
   const [commit, isInFlight] = useMutation<confirmRevokeInvitationModalMutation>(
     confirmRevokeInvitationModalMutationNode,
   );
+  const wording = WORDING[kind];
 
   const handleConfirm = () => {
     commit({
-      variables: { id, connections: [listingId] },
-      updater: store => decrementInvitationsCount(store, listingId),
+      variables: { id, connections: [...listingIds] },
+      updater: store => decrementInvitationsCount(store, listingIds),
       onCompleted: onClose,
       onError: error => {
         toast({
           title: 'Error',
-          description: getRelayErrorMessage(error, 'Failed to revoke invitation'),
+          description: getRelayErrorMessage(error, wording.failure),
           variant: 'destructive',
         });
       },
@@ -65,14 +84,14 @@ export function ConfirmRevokeInvitationModal({
       onOpenChange={open => {
         if (!open) onClose();
       }}
-      title="Revoke Invitation"
+      title={wording.title}
       description={
         <>
-          This will permanently delete the invitation for <span className="text-ods-error">{email}</span>. The user will
-          no longer be able to register using this invite.
+          {wording.before} <span className="text-ods-error">{email}</span>
+          {wording.after}
         </>
       }
-      confirmLabel="Revoke Invitation"
+      confirmLabel={wording.title}
       isPending={isInFlight}
       onConfirm={handleConfirm}
     />

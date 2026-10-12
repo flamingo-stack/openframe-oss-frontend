@@ -91,7 +91,7 @@ export interface IncidentUser {
 export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | null | undefined): IncidentUser {
   if (!ref) return { id: rawId, name: DELETED_EMPLOYEE_LABEL, deleted: true };
   const { name, avatarUrl, deleted } = toUserSummary(ref);
-  return { id: rawId, name: name || rawId, avatarUrl, deleted };
+  return { id: rawId, name, avatarUrl, deleted };
 }
 
 /** The detail page's incident: the row plus what only it draws. */

@@ -51,7 +51,7 @@ export function NewOwnerSelect({ currentUserId, organizationName, value, onChang
           currentUserId={currentUserId}
           organizationName={organizationName}
           search={search}
-          isSearching={search !== debouncedInput}
+          isSearching={search !== input}
           onSearch={setInput}
           value={value}
           picked={picked}

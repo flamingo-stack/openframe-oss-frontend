@@ -19,11 +19,6 @@ const confirmResendInvitationModalMutationNode = graphql`
   mutation confirmResendInvitationModalMutation($id: ID!, $connections: [ID!]!) {
     resendInvitation(input: { id: $id }) {
       revokedInvitationId @deleteEdge(connections: $connections)
-      invitationEdge {
-        node {
-          id
-        }
-      }
     }
   }
 `;
@@ -32,19 +27,19 @@ interface ConfirmResendInvitationModalProps {
   invitation: confirmResendInvitationModal_invitation$key;
   isOpen: boolean;
   onClose: () => void;
-  /** The block's connection on screen. */
-  listingId: string;
+  /** The invitations listings in the store: the old row leaves each, and each is read again for the new one. */
+  listingIds: readonly string[];
 }
 
 /**
  * Replaces an expired invitation with a new one. The old row leaves at once; the
- * block refetches for the new one, which the server sorts.
+ * block is read again for the new one, which the server sorts.
  */
 export function ConfirmResendInvitationModal({
   invitation,
   isOpen,
   onClose,
-  listingId,
+  listingIds,
 }: ConfirmResendInvitationModalProps) {
   const { toast } = useToast();
   const { id, email } = useFragment(confirmResendInvitationModalFragment, invitation);
@@ -54,8 +49,8 @@ export function ConfirmResendInvitationModal({
 
   const handleConfirm = () => {
     commit({
-      variables: { id, connections: [listingId] },
-      updater: store => invalidateInvitationsListings(store, [listingId]),
+      variables: { id, connections: [...listingIds] },
+      updater: store => invalidateInvitationsListings(store, listingIds),
       onCompleted: onClose,
       onError: error => {
         toast({

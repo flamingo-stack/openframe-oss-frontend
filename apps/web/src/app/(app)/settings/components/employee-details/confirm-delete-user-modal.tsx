@@ -20,6 +20,7 @@ const confirmDeleteUserModalFragment = graphql`
 const confirmDeleteUserModalMutationNode = graphql`
   mutation confirmDeleteUserModalMutation($id: ID!) {
     deleteUser(input: { id: $id }) {
+      # All an admin's delete changes: every surface reads the status from the same User record.
       user {
         id
         status
