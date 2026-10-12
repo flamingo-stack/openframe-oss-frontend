@@ -287,6 +287,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 actions={inheritedQuickActions}
                 isDefault={inheritedQuickActionsAreDefault}
                 agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
+                accent={fallbackDefault.accentColor}
               />
             </div>
           </>
@@ -373,6 +374,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
               control={form.control}
               agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
               defaultActions={inheritedQuickActions}
+              accent={accentColor || effectiveView.accentColor}
               defaultActionsCopy={{
                 title: 'Use default quick actions',
                 description: 'Inherits the quick actions from your global AI-Assistant configuration.',

@@ -2,11 +2,14 @@ import { useCallback, useState } from 'react';
 import { clientIdentityHeaders } from './client-identity';
 import { runtimeEnv } from './runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from './token-store';
+import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from './version-check';
 
 /**
  * Upload a file with authentication (cookies + optional auth headers)
  */
 export async function uploadWithAuth(endpoint: string, file: File, fieldName: string = 'file'): Promise<string> {
+  if (isUpdateRequired()) throw new UpdateRequiredError();
+
   const formData = new FormData();
   formData.append(fieldName, file);
 
@@ -31,6 +34,8 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
     credentials: 'include',
     headers,
   });
+
+  if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
@@ -58,6 +63,8 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
  * Delete a file with authentication (cookies + optional auth headers)
  */
 export async function deleteWithAuth(endpoint: string): Promise<void> {
+  if (isUpdateRequired()) throw new UpdateRequiredError();
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...clientIdentityHeaders(),
@@ -81,6 +88,8 @@ export async function deleteWithAuth(endpoint: string): Promise<void> {
     credentials: 'include',
     headers,
   });
+
+  if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
