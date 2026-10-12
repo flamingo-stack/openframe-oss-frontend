@@ -17,14 +17,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { startTransition, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import { useRetryKey } from '@/app/components/shared';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { skeletonColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -35,11 +34,11 @@ import {
   tenantRemoteSessionsRelayQuery,
 } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
-import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
-import { useDeleteSessionRecording } from '../../hooks/use-session-recordings';
+import { useDeleteRemoteSession } from '../../hooks/use-session-recordings';
 import { useTenantSessionFilterOptions } from '../../hooks/use-tenant-session-filter-options';
 import { emptyDescription } from '../tabs/remote-sessions-tab';
+import { DeleteSessionDialog } from './delete-session-dialog';
 import { canOpenSession, EXPIRES_FILTER_OPTIONS } from './session-status';
 import {
   keepLastPick,
@@ -105,7 +104,7 @@ function TenantSessionsTable({
   // The "Expires in N hours" countdown keeps moving while the page is open.
   const now = useNow(60_000);
   const { deviceOptions, customerOptions, pending: optionsPending } = useTenantSessionFilterOptions();
-  const deleteRecording = useDeleteSessionRecording('');
+  const deleteSession = useDeleteRemoteSession('');
   const [deleteTarget, setDeleteTarget] = useState<TenantSessionRow | null>(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
@@ -212,37 +211,25 @@ function TenantSessionsTable({
         }}
       />
 
-      <ConfirmDialog
+      <DeleteSessionDialog
         open={deleteTarget !== null}
         onOpenChange={open => {
           if (!open) setDeleteTarget(null);
         }}
-        title="Delete Recording"
-        description={
-          <>
-            Are you sure you want to delete the session recording from{' '}
-            <span className="font-medium text-ods-accent">
-              {deleteTarget ? formatDateTime(deleteTarget.startedAt) : ''}
-            </span>
-            ? This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete Recording"
-        variant="destructive"
-        isPending={deleteRecording.isPending}
+        startedAt={deleteTarget?.startedAt ?? null}
+        isPending={deleteSession.isPending}
         onConfirm={() => {
           if (!deleteTarget) return;
-          deleteRecording.mutate(
+          // A refusal is toasted and the row stays as it was.
+          deleteSession.mutate(
             {
               sessionId: deleteTarget.id,
               recordingId: deleteTarget.recordingId,
               deviceId: deleteTarget.deviceId,
             },
             {
-              onSuccess: () => {
-                setDeleteTarget(null);
-                onDeleted();
-              },
+              onSuccess: onDeleted,
+              onSettled: () => setDeleteTarget(null),
             },
           );
         }}
@@ -303,7 +290,7 @@ function TenantSessionsContent({ variables, refreshKey, ...tableProps }: TenantS
   const queryData = useLazyLoadQuery<TenantSessionsQuery>(
     tenantRemoteSessionsRelayQuery,
     { ...variables, first: PAGE_SIZE, after: null },
-    // A delete refetches the list: the row turns "Deleted" on the server's word.
+    // A delete refetches the list: the row goes on the server's word.
     { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${refreshKey}` },
   );
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -424,7 +411,10 @@ export function TenantSessionsShell() {
           tableFilters={tableFilters}
           onFilterChange={handleFilterChange}
           dateFilter={dateFilter}
-          onDeleted={() => setRefreshKey(key => key + 1)}
+          // The delete marked the session stale in the store, so the refetch
+          // suspends; as a transition it keeps the rows on screen meanwhile
+          // instead of dropping the table to its skeleton.
+          onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
         />
       </Suspense>
     </div>

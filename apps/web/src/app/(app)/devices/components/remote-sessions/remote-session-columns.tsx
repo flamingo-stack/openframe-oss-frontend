@@ -225,7 +225,7 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
               leftIcon={
                 <TrashIcon className={cn('h-6 w-6', deletable ? 'text-ods-error' : 'text-ods-error-secondary')} />
               }
-              aria-label="Delete recording"
+              aria-label="Delete session"
               disabled={!deletable}
               onClick={() => onDelete(row.original)}
             />

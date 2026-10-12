@@ -17,16 +17,16 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
-import { useDeleteSessionRecording, useSessionRecordings } from '../../hooks/use-session-recordings';
+import { useDeleteRemoteSession, useSessionRecordings } from '../../hooks/use-session-recordings';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
+import { DeleteSessionDialog } from '../remote-sessions/delete-session-dialog';
 import { remoteSessionColumns } from '../remote-sessions/remote-session-columns';
 import { canOpenSession, EXPIRES_FILTER_OPTIONS } from '../remote-sessions/session-status';
 import { REMOTE_SESSION_COLUMNS } from './device-tab-columns';
@@ -75,7 +75,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
   const { data, isLoading } = useSessionRecordings(deviceId);
-  const deleteRecording = useDeleteSessionRecording(deviceId ?? '');
+  const deleteSession = useDeleteRemoteSession(deviceId ?? '');
   // The "Expires in N hours" countdown keeps moving while the tab is open.
   const now = useNow(60_000);
 
@@ -322,29 +322,19 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         }}
       />
 
-      <ConfirmDialog
+      <DeleteSessionDialog
         open={deleteTarget !== null}
         onOpenChange={open => {
           if (!open) setDeleteTarget(null);
         }}
-        title="Delete Recording"
-        description={
-          <>
-            Are you sure you want to delete the session recording from{' '}
-            <span className="font-medium text-ods-accent">
-              {deleteTarget ? formatDateTime(deleteTarget.startedAt) : ''}
-            </span>
-            ? This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete Recording"
-        variant="destructive"
-        isPending={deleteRecording.isPending}
+        startedAt={deleteTarget?.startedAt ?? null}
+        isPending={deleteSession.isPending}
         onConfirm={() => {
           if (!deleteTarget) return;
-          deleteRecording.mutate(
+          // A refusal is toasted and the row stays as it was.
+          deleteSession.mutate(
             { sessionId: deleteTarget.id, recordingId: deleteTarget.recordingId },
-            { onSuccess: () => setDeleteTarget(null) },
+            { onSettled: () => setDeleteTarget(null) },
           );
         }}
       />
