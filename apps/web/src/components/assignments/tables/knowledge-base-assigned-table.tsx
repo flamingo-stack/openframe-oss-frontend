@@ -9,7 +9,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { knowledgeBaseItemCreatedCell_item$data } from '@/__generated__/knowledgeBaseItemCreatedCell_item.graphql';
 import { ItemTimestamp } from '@/app/(app)/knowledge-base/components/shared/item-timestamp';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-columns';
@@ -68,23 +68,27 @@ const COLUMNS: ColumnDef<AssignedArticle>[] = [
 interface KnowledgeBaseAssignedTableProps {
   articles: AssignedArticle[];
   isLoading?: boolean;
+  /**
+   * Called with the debounced search term so the caller can forward it to the
+   * server-side query that produced `articles`. When omitted, this table has
+   * no way to request a server-filtered result and search is disabled.
+   */
+  onSearchChange?: (search: string) => void;
 }
 
-export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBaseAssignedTableProps) {
+export function KnowledgeBaseAssignedTable({ articles, isLoading, onSearchChange }: KnowledgeBaseAssignedTableProps) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
 
-  // The whole list is already here, so the search narrows it in place.
-  const needle = debouncedSearch.trim().toLowerCase();
-  const rows = needle
-    ? articles.filter(
-        article =>
-          article.name.toLowerCase().includes(needle) || (article.summary ?? '').toLowerCase().includes(needle),
-      )
-    : articles;
+  // The search term is forwarded to the caller (which owns the server query);
+  // `articles` is rendered as-is since it is expected to already reflect the
+  // debounced search once the caller re-fetches with it.
+  useMemo(() => {
+    onSearchChange?.(debouncedSearch.trim());
+  }, [debouncedSearch, onSearchChange]);
 
   const table = useDataTable<AssignedArticle>({
-    data: rows,
+    data: articles,
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
