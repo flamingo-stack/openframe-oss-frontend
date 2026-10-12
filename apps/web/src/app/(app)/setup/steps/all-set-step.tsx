@@ -1,6 +1,6 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BookBookmarkIcon,
   BracketCurlyIcon,
@@ -46,7 +46,7 @@ export function AllSetStep({ onStart, starting }: { onStart: () => void; startin
       />
       <Button
         variant="outline"
-        leftIcon={<MingoIcon className="size-5" />}
+        leftIcon={<AgentMark agent="mingo" className="size-5" />}
         onClick={onStart}
         loading={starting}
         disabled={starting}

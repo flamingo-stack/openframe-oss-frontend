@@ -1,4 +1,4 @@
-import { FlamingoLogo } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
@@ -18,7 +18,7 @@ export function PoweredByFlamingo({ className }: { className?: string }) {
       )}
     >
       <span className="text-h6">Powered by</span>
-      <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+      <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
       <span className="font-semibold text-code">Flamingo</span>
     </a>
   );

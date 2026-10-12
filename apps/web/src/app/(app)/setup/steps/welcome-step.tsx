@@ -1,6 +1,6 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { AppleLogoIcon, Globe01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, DropdownButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DESKTOP_RELEASES_URL, useDesktopInstallers } from '@/app/(app)/settings/hooks/use-desktop-installers';
@@ -35,7 +35,7 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
           <>
             Install your first device with a single command.
             <br />
-            Then just ask <MingoIcon className="inline-block size-4 align-text-bottom" />{' '}
+            Then just ask <AgentMark agent="mingo" className="inline-block size-4 align-text-bottom" />{' '}
             <span className="text-ods-flamingo-cyan">Mingo</span> anything about the machine and it runs the work.
           </>
         }

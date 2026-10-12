@@ -1,6 +1,6 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { ChatFaceIcon, CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SetupHeading } from '../components/setup-heading';
@@ -60,7 +60,7 @@ export function ReadyStep({
       </div>
       <Button
         variant="outline"
-        leftIcon={<MingoIcon className="size-5" />}
+        leftIcon={<AgentMark agent="mingo" className="size-5" />}
         onClick={onStart}
         loading={starting}
         disabled={starting}
