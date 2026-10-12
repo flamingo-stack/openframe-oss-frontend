@@ -20,7 +20,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import Link from 'next/link';
 import { type ChangeEvent, useMemo, useState } from 'react';
 import { routes } from '@/lib/routes';
-import { useInviteUsers } from '../../settings/hooks/use-invitations';
+import { useInviteUsers } from '../../settings/hooks/use-invite-users';
 import { useStepActionState } from '../use-step-action-state';
 
 type InviteRow = { email: string; role: string };
@@ -51,7 +51,7 @@ export function CompanyTeamStep({
   completing?: boolean;
 }) {
   const { toast } = useToast();
-  const { mutateAsync: inviteUsers } = useInviteUsers();
+  const { inviteUsers } = useInviteUsers();
 
   const [rows, setRows] = useState<InviteRow[]>([newRow()]);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -2332,6 +2332,26 @@ type Mutation {
   first, then buy.
   """
   purchaseTokens(amountUsd: Float!): TokenPurchase!
+
+  " One invitation per email, 1-100 emails. An email that cannot be invited (malformed, listed twice,\n an existing user, a blocked domain) is a userError with field [\"emails\", \"<index>\"]; the rest are sent."
+  inviteUsers(input: InviteUsersInput!): InviteUsersPayload!
+
+  """ Only a pending invitation can be revoked."""
+  revokeInvitation(input: RevokeInvitationInput!): RevokeInvitationPayload!
+
+  """ Only an expired invitation can be resent: a new invitation replaces it and the old one is revoked.
+  """
+  resendInvitation(input: ResendInvitationInput!): ResendInvitationPayload!
+
+  """ A null name is kept."""
+  updateUser(input: UpdateUserInput!): UpdateUserPayload!
+
+  " Soft delete: DELETED, or SELF_DELETED (anonymized) for your own account. The owner cannot be deleted;\n transfer ownership first. Deleting a user who is not ACTIVE changes nothing."
+  deleteUser(input: DeleteUserInput!): DeleteUserPayload!
+
+  """ Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
+  """
+  transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
 }
 
 input MutationDeleteInput {
@@ -3412,9 +3432,9 @@ type Query {
   users(
     filter: UserFilterInput
     search: String
-    first: Int
 
     """ 1-100, default 20"""
+    first: Int
     after: String
   ): UserConnection!
 
@@ -3423,9 +3443,9 @@ type Query {
   invitations(
     filter: InvitationFilterInput
     search: String
-    first: Int
 
     """ 1-100, default 20"""
+    first: Int
     after: String
   ): InvitationConnection!
 }
@@ -5648,6 +5668,7 @@ type User implements Node {
   firstName: String
   lastName: String
   email: String
+  emailVerified: Boolean!
   status: UserStatus
 
   """ Effective roles: an OWNER is an ADMIN too."""
@@ -5672,6 +5693,7 @@ enum UserRole {
 }
 
 input UserFilterInput {
+  """ Omit or leave empty for every status."""
   statuses: [UserStatus!]
 }
 
@@ -5703,6 +5725,7 @@ enum InvitationStatus {
 }
 
 input InvitationFilterInput {
+  """ Omit or leave empty for both."""
   statuses: [InvitationStatus!]
 }
 
@@ -5715,6 +5738,65 @@ type InvitationConnection {
 type InvitationEdge {
   node: Invitation!
   cursor: String!
+}
+
+input InviteUsersInput {
+  emails: [String!]!
+}
+
+type InviteUsersPayload {
+  """ The invitations sent, in input order."""
+  invitationEdges: [InvitationEdge!]!
+  userErrors: [MutationError!]!
+}
+
+input RevokeInvitationInput {
+  id: ID!
+}
+
+type RevokeInvitationPayload {
+  revokedInvitationId: ID!
+}
+
+input ResendInvitationInput {
+  id: ID!
+}
+
+type ResendInvitationPayload {
+  """ The replacement, with a new id."""
+  invitationEdge: InvitationEdge!
+  revokedInvitationId: ID!
+}
+
+input UpdateUserInput {
+  id: ID!
+
+  """ Up to 128 characters."""
+  firstName: String
+
+  """ Up to 128 characters."""
+  lastName: String
+}
+
+type UpdateUserPayload {
+  user: User!
+}
+
+input DeleteUserInput {
+  id: ID!
+}
+
+type DeleteUserPayload {
+  user: User!
+}
+
+input TransferOwnershipInput {
+  newOwnerId: ID!
+}
+
+type TransferOwnershipPayload {
+  previousOwner: User!
+  newOwner: User!
 }
 
 """

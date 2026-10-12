@@ -57,7 +57,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, which `DeviceDetailsSkeleton` reads
   // too — the page-level skeleton, the tab's own loading skeleton and the loaded table then
   // share one declaration (no header jump between loading phases).
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
     const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));

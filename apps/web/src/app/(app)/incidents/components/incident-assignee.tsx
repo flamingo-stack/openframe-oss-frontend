@@ -9,7 +9,7 @@ import { InfoCell } from '@/app/components/shared/info-cell';
 import { assignInsightMutation } from '@/graphql/insights/assign-insight-mutation';
 import { unassignInsightMutation } from '@/graphql/insights/unassign-insight-mutation';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { useAssigneeOptions } from '../../tickets/hooks/use-ticket-options';
+import { useAssigneeOptions } from '../../tickets/hooks/use-assignee-options';
 import type { IncidentRow } from '../utils/incident-transform';
 
 /**
@@ -20,7 +20,7 @@ import type { IncidentRow } from '../utils/incident-transform';
  */
 export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
   const { toast } = useToast();
-  const { options, isLoading } = useAssigneeOptions();
+  const { options, isLoading, onSearchChange } = useAssigneeOptions();
   const [commitAssign, isAssigning] = useMutation<AssignInsightMutationType>(assignInsightMutation);
   const [commitUnassign, isUnassigning] = useMutation<UnassignInsightMutationType>(unassignInsightMutation);
 
@@ -72,6 +72,7 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
           }
           options={options}
           isLoading={isLoading}
+          onSearchChange={onSearchChange}
           isPending={isAssigning || isUnassigning}
           onAssign={handleAssign}
         />

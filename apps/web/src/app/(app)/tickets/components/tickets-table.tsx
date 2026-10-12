@@ -13,7 +13,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
+import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
 import { useTicketsQuery } from '../hooks/use-tickets-query';
 import type { TicketListSort } from '../services/ticket-service.types';
@@ -140,7 +140,7 @@ export function TicketsTable({
 
   // Assignee filter options (value = user id) for the ASSIGNEE column header —
   // the same list the board's Assignee autocomplete shows, flattened.
-  const assigneeOptionsQuery = useSelfFirstAssigneeOptions(!isArchived);
+  const assigneeOptionsQuery = useAssigneeOptions({ enabled: !isArchived, selfFirst: true });
   const assigneeOptions = useMemo<StatusFilterOption[] | undefined>(() => {
     if (isArchived) return undefined;
     return assigneeOptionsQuery.options.map(option => ({

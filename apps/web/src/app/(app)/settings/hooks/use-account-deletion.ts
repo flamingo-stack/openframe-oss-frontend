@@ -1,19 +1,22 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { graphql } from 'react-relay';
+import type { useAccountDeletionDeleteUserMutation } from '@/__generated__/useAccountDeletionDeleteUserMutation.graphql';
+import type { useAccountDeletionTransferOwnershipMutation } from '@/__generated__/useAccountDeletionTransferOwnershipMutation.graphql';
 import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
 import { forceLogout } from '@/lib/force-logout';
-import { handleApiError } from '@/lib/handle-api-error';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isMobileShell } from '@/lib/platform';
+import { toGlobalId } from '@/lib/relay-id';
+import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { routes } from '@/lib/routes';
-import { deleteUserApi } from './use-users';
 
 /**
  * The `/account-deleted` page renders after the session is gone, so the one
@@ -34,12 +37,31 @@ export const DELETED_ACCOUNT_ORG_STORAGE_KEY = 'of-deleted-account-org';
  */
 export const ACCOUNT_DELETED_PENDING_STORAGE_KEY = 'of-account-deleted-pending';
 
-async function transferOwnershipApi(newOwnerId: string): Promise<void> {
-  const res = await apiClient.post(`/api/users/${encodeURIComponent(newOwnerId)}/transfer-ownership`);
-  if (!res.ok) {
-    throw new Error(res.error || `Failed to transfer ownership (${res.status})`);
+const transferOwnershipMutation = graphql`
+  mutation useAccountDeletionTransferOwnershipMutation($newOwnerId: ID!) {
+    transferOwnership(input: { newOwnerId: $newOwnerId }) {
+      previousOwner {
+        id
+        roles
+      }
+      newOwner {
+        id
+        roles
+      }
+    }
   }
-}
+`;
+
+const deleteUserMutation = graphql`
+  mutation useAccountDeletionDeleteUserMutation($id: ID!) {
+    deleteUser(input: { id: $id }) {
+      user {
+        id
+        status
+      }
+    }
+  }
+`;
 
 /**
  * Self-deletion of the signed-in user's account.
@@ -71,16 +93,22 @@ export function useDeleteOwnAccount() {
   // skip straight to the delete, and the session invalidation in the error
   // path refreshes the owner gate so the modal drops its owner-only UI.
   const transferDoneRef = useRef(false);
+  const [isPending, setIsPending] = useState(false);
 
-  return useMutation({
-    mutationFn: async ({ newOwnerId }: { newOwnerId?: string }) => {
-      if (!user?.id) throw new Error('No authenticated user');
-      if (newOwnerId && !transferDoneRef.current) {
-        await transferOwnershipApi(newOwnerId);
-        transferDoneRef.current = true;
-      }
-      await deleteUserApi(user.id);
-    },
+  const deleteAccount = async (newOwnerId: string | undefined) => {
+    if (!user?.id) throw new Error('No authenticated user');
+    if (newOwnerId && !transferDoneRef.current) {
+      await commitMutationPromise<useAccountDeletionTransferOwnershipMutation>(transferOwnershipMutation, {
+        newOwnerId,
+      });
+      transferDoneRef.current = true;
+    }
+    await commitMutationPromise<useAccountDeletionDeleteUserMutation>(deleteUserMutation, {
+      id: toGlobalId('User', user.id),
+    });
+  };
+
+  const handlers = {
     onSuccess: async () => {
       let handoffStored = true;
       try {
@@ -124,13 +152,31 @@ export function useDeleteOwnAccount() {
       // on mount (see ACCOUNT_DELETED_PENDING_STORAGE_KEY).
       router.replace(routes.accountDeleted);
     },
-    onError: err => {
-      handleApiError(err, toast, 'Failed to delete account');
+    onError: (err: unknown) => {
+      toast({
+        title: 'Error',
+        description: getRelayErrorMessage(err, 'Failed to delete account'),
+        variant: 'destructive',
+      });
       if (transferDoneRef.current) {
         // Ownership already moved: re-ask /me so the owner gate (and the
         // modal's owner-only UI) reflects the caller's new ADMIN role.
         queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
       }
     },
-  });
+  };
+
+  const mutate = ({ newOwnerId }: { newOwnerId?: string }) => {
+    setIsPending(true);
+    deleteAccount(newOwnerId).then(
+      // Stays pending: the success path navigates away.
+      () => handlers.onSuccess(),
+      err => {
+        setIsPending(false);
+        handlers.onError(err);
+      },
+    );
+  };
+
+  return { mutate, isPending };
 }

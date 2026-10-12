@@ -18,13 +18,13 @@ import { AssignmentsField } from '@/components/assignments';
 import { getFullImageUrl } from '@/lib/image-url';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import type { TicketPrefill } from '@/lib/routes';
+import { useAssigneeOptions } from '../../hooks/use-assignee-options';
 import type { useTempAttachments } from '../../hooks/use-temp-attachments';
 import {
   type AutocompleteOption,
   type AvatarOption,
   useDeviceOptions,
   useOrganizationOptions,
-  useSelfFirstAssigneeOptions,
 } from '../../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../../statuses/hooks/use-ticket-statuses-query';
 import type { CreateTicketFormData } from '../../types/create-ticket.types';
@@ -86,12 +86,13 @@ export function TicketFormFields({
   const lockOrgAndDevice = isEditMode && !!selectedDeviceId;
   const organizationOptions = useOrganizationOptions(debouncedOrgSearch);
   const deviceOptions = useDeviceOptions(selectedOrgId ?? undefined, debouncedDeviceSearch);
-  const assigneeOptions = useSelfFirstAssigneeOptions();
+  const assigneeOptions = useAssigneeOptions({ selfFirst: true });
 
   // See `withOption`: the ticket's own selections, and the ones picked through a
   // search, pinned into the page each list fetched.
   const [pickedOrg, setPickedOrg] = useState<AvatarOption | null>(null);
   const [pickedDevice, setPickedDevice] = useState<AutocompleteOption | null>(null);
+  const [pickedAssignee, setPickedAssignee] = useState<AvatarOption | null>(null);
   const ticketOrg = useMemo<AvatarOption | null>(() => {
     if (ticket?.organizationId) {
       return {
@@ -132,8 +133,8 @@ export function TicketFormFields({
     [deviceOptions.options, pickedDevice, ticketDevice],
   );
   const assigneeOptionsList = useMemo(
-    () => withOption(assigneeOptions.options, ticketAssignee),
-    [assigneeOptions.options, ticketAssignee],
+    () => withOption(withOption(assigneeOptions.options, pickedAssignee), ticketAssignee),
+    [assigneeOptions.options, pickedAssignee, ticketAssignee],
   );
 
   const statusesQuery = useTicketStatusesQuery({ enabled: true });
@@ -291,9 +292,14 @@ export function TicketFormFields({
                 label="Assigned"
                 options={assigneeOptionsList}
                 value={field.value ?? null}
-                onChange={val => field.onChange(val)}
+                onChange={val => {
+                  setPickedAssignee(assigneeOptionsList.find(o => o.value === val) ?? null);
+                  field.onChange(val);
+                }}
+                onInputChange={assigneeOptions.onSearchChange}
                 placeholder="Select Assignee"
                 loading={assigneeOptions.isLoading}
+                disableClientFilter
                 startAdornment={avatarStartAdornment(selectedAssignee, 'round')}
                 renderOption={renderAssigneeOption}
               />

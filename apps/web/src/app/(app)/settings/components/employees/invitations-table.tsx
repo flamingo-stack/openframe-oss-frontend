@@ -7,16 +7,20 @@ import {
   type Row,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
-import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
+import { graphql, useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
+import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type {
   invitationsTable_query$data,
   invitationsTable_query$key,
 } from '@/__generated__/invitationsTable_query.graphql';
 import type { invitationsTablePaginationQuery } from '@/__generated__/invitationsTablePaginationQuery.graphql';
 import type { invitationsTableQuery } from '@/__generated__/invitationsTableQuery.graphql';
+import type { invitationsTableResendMutation } from '@/__generated__/invitationsTableResendMutation.graphql';
+import type { invitationsTableRevokeMutation } from '@/__generated__/invitationsTableRevokeMutation.graphql';
 import { liveColumnMeta } from '@/app/components/shared';
-import { useResendInvitation, useRevokeInvitation } from '../../hooks/use-invitations';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { ConfirmRemoveInvitationModal } from '../confirm-remove-invitation-modal';
 import { ConfirmResendInvitationModal } from '../confirm-resend-invitation-modal';
 import { ConfirmRevokeInvitationModal } from '../confirm-revoke-invitation-modal';
@@ -37,6 +41,7 @@ const invitationsTableFragment = graphql`
   @refetchable(queryName: "invitationsTablePaginationQuery")
   @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 5 }, after: { type: "String" }) {
     invitations(search: $search, first: $first, after: $after) @connection(key: "invitationsTable_invitations") {
+      __id
       filteredCount
       edges {
         node {
@@ -51,7 +56,42 @@ const invitationsTableFragment = graphql`
   }
 `;
 
+const revokeInvitationMutation = graphql`
+  mutation invitationsTableRevokeMutation($id: ID!, $connections: [ID!]!) {
+    revokeInvitation(input: { id: $id }) {
+      revokedInvitationId @deleteEdge(connections: $connections)
+    }
+  }
+`;
+
+const resendInvitationMutation = graphql`
+  mutation invitationsTableResendMutation($id: ID!, $connections: [ID!]!) {
+    resendInvitation(input: { id: $id }) {
+      revokedInvitationId @deleteEdge(connections: $connections)
+      invitationEdge @prependEdge(connections: $connections) {
+        cursor
+        node {
+          id
+          ...invitationEmailCell_invitation
+          ...invitationRolesCell_invitation
+          ...invitationStatusCell_invitation
+          ...invitationActionsCell_invitation
+        }
+      }
+    }
+  }
+`;
+
 type InvitationRow = invitationsTable_query$data['invitations']['edges'][number]['node'];
+
+/** A revoke takes one invitation out of the block's count; a resend swaps one for another. */
+function decrementFilteredCount(store: RecordSourceSelectorProxy, connectionId: string) {
+  const connection = store.get(connectionId);
+  const count = connection?.getValue('filteredCount');
+  if (connection && typeof count === 'number') {
+    connection.setValue(Math.max(count - 1, 0), 'filteredCount');
+  }
+}
 
 /** "Show more" grows the block by this many. */
 const SHOW_MORE_SIZE = 20;
@@ -61,9 +101,8 @@ const getRowId = (row: InvitationRow) => row.id;
 interface InvitationsTableProps {
   search: string;
   isPending: boolean;
-  /** Bumped by the page after it sends invites, and by this block after a revoke or resend. */
+  /** Bumped by the page after it sends invites. A revoke or resend updates the block in the store. */
   fetchKey: number;
-  onChanged: () => void;
 }
 
 /**
@@ -71,7 +110,7 @@ interface InvitationsTableProps {
  * pile of unanswered invites never pushes the people off the page. Hidden when
  * nothing matches.
  */
-export function InvitationsTable({ search, isPending, fetchKey, onChanged }: InvitationsTableProps) {
+export function InvitationsTable({ search, isPending, fetchKey }: InvitationsTableProps) {
   const queryData = useLazyLoadQuery<invitationsTableQuery>(
     invitationsTableQueryNode,
     { search: search || null, first: INVITATIONS_PAGE_SIZE },
@@ -82,8 +121,9 @@ export function InvitationsTable({ search, isPending, fetchKey, onChanged }: Inv
     invitationsTable_query$key
   >(invitationsTableFragment, queryData);
 
-  const revoke = useRevokeInvitation();
-  const resend = useResendInvitation();
+  const { toast } = useToast();
+  const [commitRevoke, isRevoking] = useMutation<invitationsTableRevokeMutation>(revokeInvitationMutation);
+  const [commitResend, isResending] = useMutation<invitationsTableResendMutation>(resendInvitationMutation);
   const [pending, setPending] = useState<{ action: InvitationAction; target: InvitationTarget } | null>(null);
 
   const closeDialog = (open: boolean) => {
@@ -91,11 +131,33 @@ export function InvitationsTable({ search, isPending, fetchKey, onChanged }: Inv
   };
   const confirm = () => {
     if (!pending) return;
-    const mutation = pending.action === 'resend' ? resend : revoke;
-    mutation.mutate(pending.target.id, {
-      onSuccess: () => {
-        setPending(null);
-        onChanged();
+    const connectionId = data.invitations.__id;
+    const variables = { id: pending.target.id, connections: [connectionId] };
+    const onCompleted = () => setPending(null);
+    if (pending.action === 'resend') {
+      commitResend({
+        variables,
+        onCompleted,
+        onError: error => {
+          toast({
+            title: 'Error',
+            description: getRelayErrorMessage(error, 'Failed to resend invitation'),
+            variant: 'destructive',
+          });
+        },
+      });
+      return;
+    }
+    commitRevoke({
+      variables,
+      updater: store => decrementFilteredCount(store, connectionId),
+      onCompleted,
+      onError: error => {
+        toast({
+          title: 'Error',
+          description: getRelayErrorMessage(error, 'Failed to revoke invitation'),
+          variant: 'destructive',
+        });
       },
     });
   };
@@ -143,7 +205,7 @@ export function InvitationsTable({ search, isPending, fetchKey, onChanged }: Inv
     return null;
   }
 
-  const busy = isPending || revoke.isPending || resend.isPending;
+  const busy = isPending || isRevoking || isResending;
   const email = pending?.target.email ?? '';
 
   return (

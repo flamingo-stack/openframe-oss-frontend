@@ -50,7 +50,7 @@ export interface AuthState {
   setError: (error: string | null) => void;
   clearError: () => void;
   setTenantId: (tenantId: string | null) => void;
-  fetchFullProfile: () => Promise<User | null>;
+  fetchFullProfile: () => Promise<Partial<User> | null>;
 }
 
 const initialState = {
@@ -63,14 +63,10 @@ const initialState = {
 };
 
 // Helper to fetch full user profile
-async function fetchUserProfile(userId: string): Promise<User | null> {
+async function fetchUserProfile(userId: string): Promise<Partial<User> | null> {
   try {
-    const { apiClient } = await import('@/lib/api-client');
-    const res = await apiClient.get<User>(`api/users/${encodeURIComponent(userId)}`);
-    if (res.ok && res.data) {
-      return res.data;
-    }
-    return null;
+    const { fetchProfile } = await import('./auth-store-profile');
+    return await fetchProfile(userId);
   } catch (error) {
     console.error('[AuthStore] Failed to fetch user profile:', error);
     return null;

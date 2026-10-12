@@ -35,7 +35,8 @@ import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWo
 import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
-import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
+import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
+import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
@@ -539,7 +540,7 @@ export function WorkTimeTable({
   const employeeFilterIds = params.employeeIds;
   const customerFilterIds = params.organizationIds;
 
-  const { options: employeeOptionsRaw } = useAssigneeOptions(showEmployee);
+  const { options: employeeOptionsRaw } = useAssigneeOptions({ enabled: showEmployee });
   const { options: customerOptionsRaw } = useOrganizationOptions('', showCustomer);
 
   const employeeFilterOptions = useMemo<DataTableFilterOption[]>(

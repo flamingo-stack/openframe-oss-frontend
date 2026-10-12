@@ -4,7 +4,6 @@ import { MoreActionsMenu } from '@flamingo-stack/openframe-frontend-core/compone
 import { graphql, useFragment } from 'react-relay';
 import type { invitationActionsCell_invitation$key } from '@/__generated__/invitationActionsCell_invitation.graphql';
 import { InvitationStatus } from '@/generated/schema-enums';
-import { rawIdOf } from '@/lib/relay-id';
 
 const invitationActionsCellFragment = graphql`
   fragment invitationActionsCell_invitation on Invitation {
@@ -14,7 +13,7 @@ const invitationActionsCellFragment = graphql`
   }
 `;
 
-/** What a confirmation needs: REST takes the raw id, the dialog names the email. */
+/** What a confirmation needs: the mutation takes the global id, the dialog names the email. */
 export interface InvitationTarget {
   id: string;
   email: string;
@@ -30,7 +29,7 @@ interface InvitationActionsCellProps {
 /** A pending invitation can be revoked; an expired one resent or removed. */
 export function InvitationActionsCell({ invitation, onAction }: InvitationActionsCellProps) {
   const { id, email, status } = useFragment(invitationActionsCellFragment, invitation);
-  const target = { id: rawIdOf(id), email };
+  const target = { id, email };
   const items =
     status === InvitationStatus.EXPIRED
       ? [

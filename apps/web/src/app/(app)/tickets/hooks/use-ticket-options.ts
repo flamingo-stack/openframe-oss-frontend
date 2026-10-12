@@ -9,11 +9,9 @@ import { useMemo } from 'react';
 import { GET_ORGANIZATIONS_MIN_QUERY } from '@/app/(app)/customers/queries/customers-queries';
 import { fetchDevicesPage } from '@/app/(app)/devices/queries/devices-api';
 import { deviceQueryKeys } from '@/app/(app)/devices/utils/query-keys';
-import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import type { Tag } from '@/app/components/shared/tags';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useAuthStore } from '@/stores';
 import { API_ENDPOINTS } from '../constants';
 import { GET_TICKET_TAGS_QUERY, GET_TICKETS_QUERY, TICKETS_DEFAULT_SORT } from '../queries/ticket-queries';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
@@ -37,7 +35,6 @@ const EMPTY_AVATAR_OPTIONS: AvatarOption[] = [];
 // invalidate these caches imports the exact same shape.
 export const ticketOptionsQueryKeys = {
   organizations: (search: string) => ['ticket-options', 'organizations', search] as const,
-  assignees: () => ['ticket-options', 'assignees'] as const,
   tickets: (search: string, organizationId?: string, nonArchivedStatusIds?: string[]) =>
     ['ticket-options', 'tickets', search, organizationId ?? null, nonArchivedStatusIds ?? null] as const,
 };
@@ -51,15 +48,6 @@ interface OptionImage {
 interface OrganizationOptionNode {
   name: string;
   organizationId: string;
-  image?: OptionImage | null;
-}
-
-interface UserOption {
-  id: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  email: string;
-  status?: string | null;
   image?: OptionImage | null;
 }
 
@@ -143,50 +131,6 @@ export function useDeviceOptions(organizationId?: string, search = '') {
   );
 
   return { options, isLoading: query.isLoading };
-}
-
-// --- Users / Assignees (REST via /api/users) ---
-
-async function fetchAssigneeOptions(): Promise<AvatarOption[]> {
-  const response = await apiClient.get<{ items?: UserOption[] }>('/api/users?page=0&size=100');
-  if (!response.ok) throw new Error(response.error || 'Failed to fetch users');
-
-  const items = response.data?.items ?? [];
-  // Deleted (DELETED / SELF_DELETED) users are not assignable and are kept out
-  // of assignee pickers/filters; existing assignments still render (marked as
-  // deleted) via useUserStatusMap on the display side.
-  return items
-    .filter(user => !isDeletedUserStatus(user.status))
-    .map(user => ({
-      label: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email,
-      value: user.id,
-      imageUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
-    }));
-}
-
-export function useAssigneeOptions(enabled = true) {
-  const query = useQuery({
-    queryKey: ticketOptionsQueryKeys.assignees(),
-    queryFn: fetchAssigneeOptions,
-    enabled,
-  });
-
-  return { options: query.data ?? EMPTY_AVATAR_OPTIONS, isLoading: query.isLoading };
-}
-
-/** Move the signed-in user to the top of an assignee option list (self-assign shortcut). */
-export function sortSelfFirst<T extends AutocompleteOption>(options: T[], currentUserId: string | undefined): T[] {
-  const idx = currentUserId ? options.findIndex(o => o.value === currentUserId) : -1;
-  if (idx <= 0) return options;
-  return [options[idx], ...options.slice(0, idx), ...options.slice(idx + 1)];
-}
-
-/** Assignee options with the signed-in user surfaced first. */
-export function useSelfFirstAssigneeOptions(enabled = true) {
-  const { options, isLoading } = useAssigneeOptions(enabled);
-  const currentUserId = useAuthStore(state => state.user?.id);
-  const sortedOptions = useMemo(() => sortSelfFirst(options, currentUserId), [options, currentUserId]);
-  return { options: sortedOptions, isLoading };
 }
 
 // --- Tags (ticket-specific, via /chat/graphql) ---

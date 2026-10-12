@@ -11,7 +11,7 @@ import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { useInviteUsers } from '../../hooks/use-invitations';
+import { useInviteUsers } from '../../hooks/use-invite-users';
 import { AddUsersModal } from '../add-users-modal';
 import { USERS_TABLE_COLUMNS } from '../employees/employees-columns';
 import { InvitationsTable } from '../employees/invitations-table';
@@ -25,7 +25,7 @@ export function CompanyAndUsersTab() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [invitationsFetchKey, setInvitationsFetchKey] = useState(0);
   const refreshInvitations = () => setInvitationsFetchKey(key => key + 1);
-  const invite = useInviteUsers();
+  const { inviteUsers } = useInviteUsers();
 
   const { params, setParam } = useApiParams({
     search: { type: 'string', default: '' },
@@ -41,8 +41,12 @@ export function CompanyAndUsersTab() {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const handleInviteUsers = async (rows: { email: string }[]) => {
-    await invite.mutateAsync(rows.map(r => r.email));
-    refreshInvitations();
+    try {
+      await inviteUsers(rows.map(r => r.email));
+    } finally {
+      // A partial failure still sent the rest.
+      refreshInvitations();
+    }
   };
 
   const actions = [
@@ -72,12 +76,7 @@ export function CompanyAndUsersTab() {
         <ContentErrorBoundary label="Invitations" message="Couldn't load invitations." resetKey={deferredSearch}>
           {/* Optional block: no placeholder, it appears with its rows or not at all. */}
           <Suspense fallback={null}>
-            <InvitationsTable
-              search={deferredSearch}
-              isPending={isPending}
-              fetchKey={invitationsFetchKey}
-              onChanged={refreshInvitations}
-            />
+            <InvitationsTable search={deferredSearch} isPending={isPending} fetchKey={invitationsFetchKey} />
           </Suspense>
         </ContentErrorBoundary>
         <ContentErrorBoundary label="Employees" message="Couldn't load users." resetKey={deferredSearch}>

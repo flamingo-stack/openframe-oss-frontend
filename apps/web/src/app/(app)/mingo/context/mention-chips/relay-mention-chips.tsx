@@ -16,9 +16,9 @@ import { type ReactNode, Suspense } from 'react';
  *
  * Three fetch paths, because the backend `node(id:)` resolver only knows the
  * types in its `NodeType` enum:
- *   - device + organization → `node(id:)` (Machine / Organization ARE in the
- *     enum). Detail-page href uses the RAW id (the route segment those pages
- *     expect).
+ *   - device, organization, user → `node(id:)` (Machine / Organization / User
+ *     ARE in the enum). Detail-page href uses the RAW id (the route segment those
+ *     pages expect); a user has no detail route.
  *   - kb article + folder   → `knowledgeBaseItem(id:)` (KnowledgeBaseItem is NOT
  *     in `NodeType` → `node(id:)` throws "Unknown Node type"). This query takes a
  *     GLOBAL id (server decodes it), and the KB detail + folder routes ALSO key on
@@ -46,7 +46,7 @@ import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } f
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 
 interface GraphqlMentionChipProps {
-  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
+  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
    *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
   kind: ContextEntityKind;
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
@@ -58,7 +58,7 @@ interface GraphqlMentionChipProps {
   fallbackLabel?: string;
 }
 
-/** device + organization — both are in the backend `NodeType` enum.
+/** device, organization and user — all in the backend `NodeType` enum.
  *  The Machine selection is exactly what `getDeviceName` reads, so a chip shows
  *  the same name as the device page (nickname → displayName → hostname). */
 const NODE_QUERY = graphql`
@@ -72,6 +72,11 @@ const NODE_QUERY = graphql`
       }
       ... on Organization {
         name
+      }
+      ... on User {
+        firstName
+        lastName
+        email
       }
     }
   }
@@ -172,6 +177,9 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         break;
       case 'Organization':
         label = node.name || label;
+        break;
+      case 'User':
+        label = [node.firstName, node.lastName].filter(Boolean).join(' ') || node.email || label;
         break;
     }
   }
