@@ -26,7 +26,6 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { handleApiError } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { useUpdateOwnProfile } from '../hooks/use-update-own-profile';
 import { AccountSettingsCard } from './account-settings-card';
 import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
@@ -150,8 +149,6 @@ export function SettingsHub() {
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
 
-  const { updateProfile, isUpdating } = useUpdateOwnProfile();
-
   const handleResendVerification = async () => {
     setIsSendingVerification(true);
     try {
@@ -234,13 +231,7 @@ export function SettingsHub() {
       {/* Modals */}
       {user && (
         <>
-          <EditProfileModal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            user={user}
-            onSave={updateProfile}
-            isSaving={isUpdating}
-          />
+          <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} />
           <EmailVerificationModal
             open={isVerificationModalOpen}
             onOpenChange={setIsVerificationModalOpen}

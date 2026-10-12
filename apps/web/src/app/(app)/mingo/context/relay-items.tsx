@@ -50,6 +50,7 @@ import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/r
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { ROOT_FOLDER } from '@/app/(app)/knowledge-base/components/shared/folder-tree';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
@@ -229,11 +230,7 @@ const USERS_FRAGMENT = graphql`
     users(search: $search, first: $first, after: $after) @connection(key: "relayItemsUsers_users") {
       edges {
         node {
-          id
-          firstName
-          lastName
-          email
-          status
+          ...userSummaryFields_user
         }
       }
     }
@@ -255,22 +252,17 @@ export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextIte
     relayItemsUsersPaginationQuery,
     relayItemsUsers_query$key
   >(USERS_FRAGMENT, root as relayItemsUsers_query$key);
-  const items = useMemo(
-    () =>
-      data.users.edges.map(({ node }) => {
-        const fullName = [node.firstName, node.lastName].filter(Boolean).join(' ');
-        // Raw db id: the USER context resolver, the `@user:<id>` marker and the
-        // REST mention chip all take it.
-        const id = rawIdOf(node.id);
-        return {
-          type: CONTEXT_ENTITY_KIND.USER,
-          id,
-          label: fullName || node.email || id,
-          description: (fullName ? node.email : node.status) ?? undefined,
-        };
-      }),
-    [data],
-  );
+  // Raw db id: the USER context resolver, the `@user:<id>` marker and the
+  // mention chip all take it.
+  const items = data.users.edges.map(({ node }) => {
+    const { rawId, name, email } = toUserSummary(node);
+    return {
+      type: CONTEXT_ENTITY_KIND.USER,
+      id: rawId,
+      label: name || rawId,
+      description: email && email !== name ? email : undefined,
+    };
+  });
   return (
     <ContextItemsList
       items={items}

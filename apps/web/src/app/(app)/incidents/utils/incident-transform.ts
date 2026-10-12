@@ -7,13 +7,13 @@ import type {
   insightRowFields_insight$key,
 } from '@/__generated__/insightRowFields_insight.graphql';
 import type { insightTransitions_query$key } from '@/__generated__/insightTransitions_query.graphql';
-import type { insightUserFields_user$key } from '@/__generated__/insightUserFields_user.graphql';
-import { DELETED_EMPLOYEE_LABEL, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import type { userSummaryFields_user$key } from '@/__generated__/userSummaryFields_user.graphql';
+import { DELETED_EMPLOYEE_LABEL } from '@/app/components/shared/deleted-user';
 import { InsightStatus } from '@/generated/schema-enums';
 import { insightFieldsFragment } from '@/graphql/insights/insight-fields';
 import { insightRowFieldsFragment } from '@/graphql/insights/insight-row-fields';
 import { insightTransitionsFragment } from '@/graphql/insights/insight-transitions';
-import { insightUserFieldsFragment } from '@/graphql/insights/insight-user-fields';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOf } from '@/lib/relay-id';
 import { enumMembers } from './incident-labels';
@@ -88,15 +88,10 @@ export interface IncidentUser {
  * mutations and the auth store speak. A null `ref` is a user the loader could
  * not resolve any more: shown as deleted rather than as an opaque id.
  */
-export function toIncidentUser(rawId: string, ref: insightUserFields_user$key | null | undefined): IncidentUser {
+export function toIncidentUser(rawId: string, ref: userSummaryFields_user$key | null | undefined): IncidentUser {
   if (!ref) return { id: rawId, name: DELETED_EMPLOYEE_LABEL, deleted: true };
-  const user = readInlineData(insightUserFieldsFragment, ref);
-  return {
-    id: rawId,
-    name: [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || rawId,
-    avatarUrl: getFullImageUrl(user.image?.imageUrl, user.image?.hash),
-    deleted: isDeletedUserStatus(user.status),
-  };
+  const { name, avatarUrl, deleted } = toUserSummary(ref);
+  return { id: rawId, name: name || rawId, avatarUrl, deleted };
 }
 
 /** The detail page's incident: the row plus what only it draws. */

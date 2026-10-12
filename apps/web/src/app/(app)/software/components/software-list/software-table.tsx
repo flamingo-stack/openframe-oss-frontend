@@ -13,10 +13,10 @@ import type {
   softwareTable_software$key,
 } from '@/__generated__/softwareTable_software.graphql';
 import { liveColumnMeta } from '@/app/components/shared';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
-import { OpenRowButton } from '../shared/open-row-button';
 import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';

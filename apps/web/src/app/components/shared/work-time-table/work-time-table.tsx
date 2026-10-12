@@ -540,7 +540,9 @@ export function WorkTimeTable({
   const employeeFilterIds = params.employeeIds;
   const customerFilterIds = params.organizationIds;
 
-  const { options: employeeOptionsRaw } = useAssigneeOptions({ enabled: showEmployee });
+  // The header filter has no search box: the filtered-by employees are asked for by id, so a selection past
+  // the first page keeps its row.
+  const { options: employeeOptionsRaw } = useAssigneeOptions({ enabled: showEmployee, selectedIds: employeeFilterIds });
   const { options: customerOptionsRaw } = useOrganizationOptions('', showCustomer);
 
   const employeeFilterOptions = useMemo<DataTableFilterOption[]>(

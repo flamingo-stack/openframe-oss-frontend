@@ -3,8 +3,8 @@
 import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { deviceAddedByUserQuery } from '@/__generated__/deviceAddedByUserQuery.graphql';
-import { DELETED_EMPLOYEE_LABEL, DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { getFullImageUrl } from '@/lib/image-url';
+import { DELETED_EMPLOYEE_LABEL, DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { AddedByFrame } from './device-added-by-frame';
 
@@ -13,14 +13,7 @@ const deviceAddedByUserQueryNode = graphql`
     node(id: $id) {
       __typename
       ... on User {
-        firstName
-        lastName
-        email
-        status
-        image {
-          imageUrl
-          hash
-        }
+        ...userSummaryFields_user
       }
     }
   }
@@ -38,9 +31,7 @@ export function DeviceAddedByUser({ userId }: { userId: string }) {
     { id: ensureGlobalIdForType('User', userId) },
     { fetchPolicy: 'store-or-network' },
   );
-  const user = data.node?.__typename === 'User' ? data.node : null;
-
-  if (!user) {
+  if (data.node?.__typename !== 'User') {
     return (
       <AddedByFrame avatar={<DeletedUserAvatar size="sm" />}>
         <TruncateText>{DELETED_EMPLOYEE_LABEL}</TruncateText>
@@ -48,16 +39,11 @@ export function DeviceAddedByUser({ userId }: { userId: string }) {
     );
   }
 
-  const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || (user.email ?? '');
-  const avatar = isDeletedUserStatus(user.status) ? (
+  const { name, avatarUrl, deleted } = toUserSummary(data.node);
+  const avatar = deleted ? (
     <DeletedUserAvatar size="sm" accessibleLabel={`Deleted user: ${name}`} />
   ) : (
-    <SquareAvatar
-      src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
-      fallback={name}
-      size="sm"
-      variant="round"
-    />
+    <SquareAvatar src={avatarUrl} fallback={name} size="sm" variant="round" />
   );
 
   return (

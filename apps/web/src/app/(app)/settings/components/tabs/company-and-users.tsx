@@ -4,16 +4,16 @@ import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useState } from 'react';
-import { SoftwareSearchToolbar } from '@/app/(app)/software/components/shared/software-search-toolbar';
 import { ContentErrorBoundary, TableSkeleton } from '@/app/components/shared';
+import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { useInviteUsers } from '../../hooks/use-invite-users';
 import { AddUsersModal } from '../add-users-modal';
 import { USERS_TABLE_COLUMNS } from '../employees/employees-columns';
+import { invitationsListingId } from '../employees/invitations-listing';
 import { InvitationsTable } from '../employees/invitations-table';
 import { UsersTable } from '../employees/users-table';
 
@@ -23,9 +23,6 @@ const NO_FILTERS = {};
 export function CompanyAndUsersTab() {
   const handleBack = useSafeBack(routes.settings.root());
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [invitationsFetchKey, setInvitationsFetchKey] = useState(0);
-  const refreshInvitations = () => setInvitationsFetchKey(key => key + 1);
-  const { inviteUsers } = useInviteUsers();
 
   const { params, setParam } = useApiParams({
     search: { type: 'string', default: '' },
@@ -39,15 +36,6 @@ export function CompanyAndUsersTab() {
   } = useSearchParam(params.search, value => setParam('search', value));
   const { deferredSearch, isPending } = useDeferredQuery(NO_FILTERS, debouncedSearch);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
-
-  const handleInviteUsers = async (rows: { email: string }[]) => {
-    try {
-      await inviteUsers(rows.map(r => r.email));
-    } finally {
-      // A partial failure still sent the rest.
-      refreshInvitations();
-    }
-  };
 
   const actions = [
     {
@@ -67,7 +55,7 @@ export function CompanyAndUsersTab() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div style={containerStyle}>
-        <SoftwareSearchToolbar
+        <SearchToolbar
           toolbarRef={toolbarRef}
           placeholder="Search for Users"
           value={searchInput}
@@ -76,7 +64,7 @@ export function CompanyAndUsersTab() {
         <ContentErrorBoundary label="Invitations" message="Couldn't load invitations." resetKey={deferredSearch}>
           {/* Optional block: no placeholder, it appears with its rows or not at all. */}
           <Suspense fallback={null}>
-            <InvitationsTable search={deferredSearch} isPending={isPending} fetchKey={invitationsFetchKey} />
+            <InvitationsTable search={deferredSearch} isPending={isPending} />
           </Suspense>
         </ContentErrorBoundary>
         <ContentErrorBoundary label="Employees" message="Couldn't load users." resetKey={deferredSearch}>
@@ -85,7 +73,11 @@ export function CompanyAndUsersTab() {
           </Suspense>
         </ContentErrorBoundary>
       </div>
-      <AddUsersModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} invite={handleInviteUsers} />
+      <AddUsersModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        listingIds={[invitationsListingId(''), invitationsListingId(deferredSearch)]}
+      />
     </PageLayout>
   );
 }

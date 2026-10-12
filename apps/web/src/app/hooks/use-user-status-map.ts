@@ -1,14 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import { useDeferredValue } from 'react';
+import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { useUserStatusMapQuery } from '@/__generated__/useUserStatusMapQuery.graphql';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { rawIdOf, toGlobalId } from '@/lib/relay-id';
 
+/**
+ * `@include(if: $list)` is off until there are ids, and for the first render: read
+ * `store-only`, that draws the surface without a request, and the statuses arrive
+ * in the deferred re-render.
+ */
 const userStatusMapQuery = graphql`
-  query useUserStatusMapQuery($ids: [ID!]!) {
-    nodes(ids: $ids) {
+  query useUserStatusMapQuery($ids: [ID!]!, $list: Boolean!) {
+    nodes(ids: $ids) @include(if: $list) {
       __typename
       ... on User {
         id
@@ -18,48 +23,37 @@ const userStatusMapQuery = graphql`
   }
 `;
 
-const EMPTY_STATUS_MAP = new Map<string, string>();
+/** The deferred ids' first-render value: nothing asked yet. */
+const NOT_YET = null;
 
 /**
  * Whether the users a surface shows are deleted, for payloads that carry a user id
  * but no status: the tickets domain, where `/chat/graphql` (saas-ai-agent)
  * denormalizes the assignee to an id + name snapshot.
  *
- * Asks `nodes(ids:)` for exactly the ids passed — the distinct users on screen —
- * and refetches when that set changes. It does not suspend: the mark is
- * decorative, and a Suspense boundary would blank a board for it. Until the
- * answer for a new id lands, the previous answer stays and the new id reads as
- * not deleted.
+ * Asks `nodes(ids:)` for exactly the ids passed — the distinct users on screen.
+ * The ids are deferred, so it never suspends the surface: until the answer for a
+ * new id lands, the previous answer stays and the new id reads as not deleted.
  *
  * Lookup accepts both raw ids and Relay global ids. Deliberately fail-open: an id
- * the API does not know (a REMOVED, purged user, who arrives already anonymized),
- * or a failed read, answers "not deleted" — no toast, the feature is decorative.
+ * the API does not know (a REMOVED, purged user, who arrives already anonymized)
+ * answers "not deleted".
  */
 export function useUserStatusMap(userIds: readonly (string | null | undefined)[]) {
-  const environment = useRelayEnvironment();
   const key = [...new Set(userIds.filter((id): id is string => !!id).map(rawIdOf))].sort().join(',');
-  const [statusById, setStatusById] = useState(EMPTY_STATUS_MAP);
+  const deferred = useDeferredValue<string | null>(key, NOT_YET);
+  const ids = deferred ? deferred.split(',').map(id => toGlobalId('User', id)) : [];
 
-  useEffect(() => {
-    if (!key) return undefined;
-    const ids = key.split(',').map(id => toGlobalId('User', id));
-    const subscription = fetchQuery<useUserStatusMapQuery>(
-      environment,
-      userStatusMapQuery,
-      { ids },
-      { fetchPolicy: 'store-or-network' },
-    ).subscribe({
-      next: data => {
-        const next = new Map<string, string>();
-        for (const node of data.nodes) {
-          if (node?.__typename === 'User' && node.status) next.set(rawIdOf(node.id), node.status);
-        }
-        setStatusById(next);
-      },
-      error: () => {},
-    });
-    return () => subscription.unsubscribe();
-  }, [environment, key]);
+  const data = useLazyLoadQuery<useUserStatusMapQuery>(
+    userStatusMapQuery,
+    { ids, list: ids.length > 0 },
+    { fetchPolicy: ids.length > 0 ? 'store-or-network' : 'store-only' },
+  );
+
+  const statusById = new Map<string, string>();
+  for (const node of data.nodes ?? []) {
+    if (node?.__typename === 'User' && node.status) statusById.set(rawIdOf(node.id), node.status);
+  }
 
   const isUserDeleted = (id?: string | null): boolean => !!id && isDeletedUserStatus(statusById.get(rawIdOf(id)));
 

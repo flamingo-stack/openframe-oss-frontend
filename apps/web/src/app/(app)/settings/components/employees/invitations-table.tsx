@@ -7,25 +7,25 @@ import {
   type Row,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useState } from 'react';
-import { graphql, useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
-import type { RecordSourceSelectorProxy } from 'relay-runtime';
+import {
+  fetchQuery,
+  graphql,
+  useLazyLoadQuery,
+  usePaginationFragment,
+  useRelayEnvironment,
+  useSubscribeToInvalidationState,
+} from 'react-relay';
 import type {
   invitationsTable_query$data,
   invitationsTable_query$key,
 } from '@/__generated__/invitationsTable_query.graphql';
 import type { invitationsTablePaginationQuery } from '@/__generated__/invitationsTablePaginationQuery.graphql';
 import type { invitationsTableQuery } from '@/__generated__/invitationsTableQuery.graphql';
-import type { invitationsTableResendMutation } from '@/__generated__/invitationsTableResendMutation.graphql';
-import type { invitationsTableRevokeMutation } from '@/__generated__/invitationsTableRevokeMutation.graphql';
-import { liveColumnMeta } from '@/app/components/shared';
-import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { ConfirmRemoveInvitationModal } from '../confirm-remove-invitation-modal';
-import { ConfirmResendInvitationModal } from '../confirm-resend-invitation-modal';
-import { ConfirmRevokeInvitationModal } from '../confirm-revoke-invitation-modal';
+import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { EMPLOYEES_COLUMNS, INVITATIONS_PAGE_SIZE } from './employees-columns';
-import { type InvitationAction, InvitationActionsCell, type InvitationTarget } from './invitation-actions-cell';
+import { type InvitationAction, InvitationActionsCell } from './invitation-actions-cell';
+import { InvitationDialog } from './invitation-dialog';
 import { InvitationEmailCell } from './invitation-email-cell';
 import { InvitationRolesCell } from './invitation-roles-cell';
 import { InvitationStatusCell } from './invitation-status-cell';
@@ -41,6 +41,7 @@ const invitationsTableFragment = graphql`
   @refetchable(queryName: "invitationsTablePaginationQuery")
   @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 5 }, after: { type: "String" }) {
     invitations(search: $search, first: $first, after: $after) @connection(key: "invitationsTable_invitations") {
+      # Invite and resend mark the listing stale (see invitations-listing.ts); it is refetched below.
       __id
       filteredCount
       edges {
@@ -50,32 +51,7 @@ const invitationsTableFragment = graphql`
           ...invitationRolesCell_invitation
           ...invitationStatusCell_invitation
           ...invitationActionsCell_invitation
-        }
-      }
-    }
-  }
-`;
-
-const revokeInvitationMutation = graphql`
-  mutation invitationsTableRevokeMutation($id: ID!, $connections: [ID!]!) {
-    revokeInvitation(input: { id: $id }) {
-      revokedInvitationId @deleteEdge(connections: $connections)
-    }
-  }
-`;
-
-const resendInvitationMutation = graphql`
-  mutation invitationsTableResendMutation($id: ID!, $connections: [ID!]!) {
-    resendInvitation(input: { id: $id }) {
-      revokedInvitationId @deleteEdge(connections: $connections)
-      invitationEdge @prependEdge(connections: $connections) {
-        cursor
-        node {
-          id
-          ...invitationEmailCell_invitation
-          ...invitationRolesCell_invitation
-          ...invitationStatusCell_invitation
-          ...invitationActionsCell_invitation
+          ...invitationDialog_invitation
         }
       }
     }
@@ -84,85 +60,13 @@ const resendInvitationMutation = graphql`
 
 type InvitationRow = invitationsTable_query$data['invitations']['edges'][number]['node'];
 
-/** A revoke takes one invitation out of the block's count; a resend swaps one for another. */
-function decrementFilteredCount(store: RecordSourceSelectorProxy, connectionId: string) {
-  const connection = store.get(connectionId);
-  const count = connection?.getValue('filteredCount');
-  if (connection && typeof count === 'number') {
-    connection.setValue(Math.max(count - 1, 0), 'filteredCount');
-  }
-}
-
 /** "Show more" grows the block by this many. */
 const SHOW_MORE_SIZE = 20;
 
 const getRowId = (row: InvitationRow) => row.id;
 
-interface InvitationsTableProps {
-  search: string;
-  isPending: boolean;
-  /** Bumped by the page after it sends invites. A revoke or resend updates the block in the store. */
-  fetchKey: number;
-}
-
-/**
- * Open invitations above the users: a few newest first, more on request, so a
- * pile of unanswered invites never pushes the people off the page. Hidden when
- * nothing matches.
- */
-export function InvitationsTable({ search, isPending, fetchKey }: InvitationsTableProps) {
-  const queryData = useLazyLoadQuery<invitationsTableQuery>(
-    invitationsTableQueryNode,
-    { search: search || null, first: INVITATIONS_PAGE_SIZE },
-    { fetchPolicy: 'store-and-network', fetchKey },
-  );
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
-    invitationsTablePaginationQuery,
-    invitationsTable_query$key
-  >(invitationsTableFragment, queryData);
-
-  const { toast } = useToast();
-  const [commitRevoke, isRevoking] = useMutation<invitationsTableRevokeMutation>(revokeInvitationMutation);
-  const [commitResend, isResending] = useMutation<invitationsTableResendMutation>(resendInvitationMutation);
-  const [pending, setPending] = useState<{ action: InvitationAction; target: InvitationTarget } | null>(null);
-
-  const closeDialog = (open: boolean) => {
-    if (!open) setPending(null);
-  };
-  const confirm = () => {
-    if (!pending) return;
-    const connectionId = data.invitations.__id;
-    const variables = { id: pending.target.id, connections: [connectionId] };
-    const onCompleted = () => setPending(null);
-    if (pending.action === 'resend') {
-      commitResend({
-        variables,
-        onCompleted,
-        onError: error => {
-          toast({
-            title: 'Error',
-            description: getRelayErrorMessage(error, 'Failed to resend invitation'),
-            variant: 'destructive',
-          });
-        },
-      });
-      return;
-    }
-    commitRevoke({
-      variables,
-      updater: store => decrementFilteredCount(store, connectionId),
-      onCompleted,
-      onError: error => {
-        toast({
-          title: 'Error',
-          description: getRelayErrorMessage(error, 'Failed to revoke invitation'),
-          variant: 'destructive',
-        });
-      },
-    });
-  };
-
-  const columns: ColumnDef<InvitationRow>[] = [
+function buildColumns(onAction: (row: InvitationRow, action: InvitationAction) => void): ColumnDef<InvitationRow>[] {
+  return [
     {
       id: EMPLOYEES_COLUMNS.user.id,
       header: EMPLOYEES_COLUMNS.user.header,
@@ -184,69 +88,86 @@ export function InvitationsTable({ search, isPending, fetchKey }: InvitationsTab
     {
       id: EMPLOYEES_COLUMNS.actions.id,
       cell: ({ row }: { row: Row<InvitationRow> }) => (
-        <InvitationActionsCell
-          invitation={row.original}
-          onAction={(action, target) => setPending({ action, target })}
-        />
+        <InvitationActionsCell invitation={row.original} onAction={action => onAction(row.original, action)} />
       ),
       meta: liveColumnMeta(EMPLOYEES_COLUMNS.actions),
     },
   ];
+}
 
-  const rows = data.invitations.edges.map(edge => edge.node);
+interface InvitationsTableProps {
+  search: string;
+  /** A deferred search is in flight: the rows on screen are the previous result. */
+  isPending: boolean;
+}
+
+/**
+ * Open invitations above the users: a few newest first, more on request, so a
+ * pile of unanswered invites never pushes the people off the page. Hidden when
+ * nothing matches.
+ */
+export function InvitationsTable({ search, isPending }: InvitationsTableProps) {
+  const environment = useRelayEnvironment();
+  const retryKey = useRetryKey();
+  const variables = { search: search || null, first: INVITATIONS_PAGE_SIZE };
+  const queryData = useLazyLoadQuery<invitationsTableQuery>(invitationsTableQueryNode, variables, {
+    fetchPolicy: 'store-and-network',
+    fetchKey: retryKey,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    invitationsTablePaginationQuery,
+    invitationsTable_query$key
+  >(invitationsTableFragment, queryData);
+  const { invitations } = data;
+
+  useSubscribeToInvalidationState([invitations.__id], () => {
+    fetchQuery(environment, invitationsTableQueryNode, variables, { fetchPolicy: 'network-only' }).subscribe({});
+  });
+
+  const { dialog, open: openDialog, close: closeDialog } = useRowDialog<InvitationRow, InvitationAction>();
+
   const table = useDataTable<InvitationRow>({
-    data: rows as InvitationRow[],
-    columns,
+    data: invitations.edges.map(edge => edge.node),
+    columns: buildColumns(openDialog),
     getRowId,
     enableSorting: false,
   });
 
-  if (data.invitations.filteredCount === 0) {
-    return null;
-  }
-
-  const busy = isPending || isRevoking || isResending;
-  const email = pending?.target.email ?? '';
-
   return (
-    <section
-      aria-label="Invitations"
-      className={`mb-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-s)] transition-opacity duration-200 ${busy ? 'opacity-60' : ''}`}
-    >
-      <DataTable table={table}>
-        <DataTable.Header
-          rightSlot={<DataTable.RowCount itemName="invitation" totalCount={data.invitations.filteredCount} />}
-        />
-        <DataTable.Body />
-      </DataTable>
-      {hasNext && (
-        <Button
-          variant="outline"
-          className="self-center"
-          loading={isLoadingNext}
-          onClick={() => loadNext(SHOW_MORE_SIZE)}
+    <>
+      {invitations.filteredCount > 0 && (
+        <section
+          aria-label="Invitations"
+          className={`mb-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-s)] transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}
         >
-          Show more invitations
-        </Button>
+          <DataTable table={table}>
+            <DataTable.Header
+              rightSlot={<DataTable.RowCount itemName="invitation" totalCount={invitations.filteredCount} />}
+            />
+            <DataTable.Body />
+          </DataTable>
+          {hasNext && (
+            <Button
+              variant="outline"
+              className="self-center"
+              loading={isLoadingNext}
+              onClick={() => loadNext(SHOW_MORE_SIZE)}
+            >
+              Show more invitations
+            </Button>
+          )}
+        </section>
       )}
-      <ConfirmRevokeInvitationModal
-        open={pending?.action === 'revoke'}
-        onOpenChange={closeDialog}
-        userEmail={email}
-        onConfirm={confirm}
-      />
-      <ConfirmRemoveInvitationModal
-        open={pending?.action === 'remove'}
-        onOpenChange={closeDialog}
-        userEmail={email}
-        onConfirm={confirm}
-      />
-      <ConfirmResendInvitationModal
-        open={pending?.action === 'resend'}
-        onOpenChange={closeDialog}
-        userEmail={email}
-        onConfirm={confirm}
-      />
-    </section>
+      {/* Outside the block: revoking the last invitation hides it mid-dialog. */}
+      {dialog && (
+        <InvitationDialog
+          invitation={dialog.row}
+          kind={dialog.kind}
+          isOpen={dialog.isOpen}
+          onClose={closeDialog}
+          listingId={invitations.__id}
+        />
+      )}
+    </>
   );
 }

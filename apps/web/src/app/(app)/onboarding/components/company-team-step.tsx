@@ -19,9 +19,32 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import Link from 'next/link';
 import { type ChangeEvent, useMemo, useState } from 'react';
+import { graphql, useMutation } from 'react-relay';
+import type { companyTeamStepInviteMutation } from '@/__generated__/companyTeamStepInviteMutation.graphql';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { useInviteUsers } from '../../settings/hooks/use-invite-users';
+import {
+  invalidateInvitationsListings,
+  invitationsListingId,
+} from '../../settings/components/employees/invitations-listing';
+import { describeInviteRefusals } from '../../settings/components/employees/invite-refusals';
 import { useStepActionState } from '../use-step-action-state';
+
+const companyTeamStepInviteMutationNode = graphql`
+  mutation companyTeamStepInviteMutation($emails: [String!]!) {
+    inviteUsers(input: { emails: $emails }) {
+      invitationEdges {
+        node {
+          id
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 type InviteRow = { email: string; role: string };
 
@@ -32,7 +55,7 @@ const newRow = (): InviteRow => ({ email: '', role: 'ADMIN' });
 /**
  * Inner body of the "Company & Team" onboarding step. Reuses the team-invite building
  * blocks from settings ({@link ../../settings/components/add-users-modal}) — the same
- * row model and the `useInviteUsers` mutation.
+ * row model and the same `inviteUsers` mutation.
  */
 /**
  * NOTE: currently UNREFERENCED. The design replaced "Company & Team" with "Meet
@@ -51,10 +74,9 @@ export function CompanyTeamStep({
   completing?: boolean;
 }) {
   const { toast } = useToast();
-  const { inviteUsers } = useInviteUsers();
+  const [commit, isSubmitting] = useMutation<companyTeamStepInviteMutation>(companyTeamStepInviteMutationNode);
 
   const [rows, setRows] = useState<InviteRow[]>([newRow()]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const actions = useStepActionState({ completing, primaryBusy: isSubmitting });
 
   const canSubmit = useMemo(() => rows.some(r => EMAIL_REGEX.test(r.email.trim())), [rows]);
@@ -65,26 +87,33 @@ export function CompanyTeamStep({
   const addRow = () => setRows(prev => [...prev, newRow()]);
   const removeRow = (idx: number) => setRows(prev => prev.filter((_, i) => i !== idx));
 
-  const handleSendInvites = async () => {
+  const handleSendInvites = () => {
     const emails = rows.map(r => r.email.trim()).filter(email => EMAIL_REGEX.test(email));
     if (emails.length === 0) return;
-    setIsSubmitting(true);
-    try {
-      await inviteUsers(emails);
-      toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
-      setRows([newRow()]);
-      // Sending invites completes the onboarding step — but only the first time, so
-      // inviting more people on an already-complete step doesn't re-fire it.
-      if (!completed) onComplete?.();
-    } catch (err) {
-      toast({
-        title: 'Invite failed',
-        description: err instanceof Error ? err.message : 'Failed to send invites',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    commit({
+      variables: { emails },
+      // The employees page, if visited, refetches the invitations it holds.
+      updater: store => invalidateInvitationsListings(store, [invitationsListingId('')]),
+      onCompleted: ({ inviteUsers }) => {
+        const refused = describeInviteRefusals(emails, inviteUsers.userErrors);
+        if (refused) {
+          toast({ title: 'Invite failed', description: refused, variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
+        setRows([newRow()]);
+        // Sending invites completes the onboarding step — but only the first time, so
+        // inviting more people on an already-complete step doesn't re-fire it.
+        if (!completed) onComplete?.();
+      },
+      onError: error => {
+        toast({
+          title: 'Invite failed',
+          description: getRelayErrorMessage(error, 'Failed to send invites'),
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   return (

@@ -27,7 +27,12 @@ const { answer, useLazyLoadQuery } = vi.hoisted(() => {
   };
 });
 
-vi.mock('react-relay', () => ({ graphql: () => ({}), useLazyLoadQuery }));
+// `readInlineData` hands the node back: the mock answers carry the user summary's fields flat.
+vi.mock('react-relay', () => ({
+  graphql: () => ({}),
+  useLazyLoadQuery,
+  readInlineData: (_fragment: unknown, ref: unknown) => ref,
+}));
 
 // The lib measures text for truncation tooltips; jsdom has no ResizeObserver.
 class ResizeObserverStub {
@@ -39,6 +44,7 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 
 const JANE = {
   __typename: 'User',
+  id: 'user-1',
   email: 'jane@acme.com',
   firstName: 'Jane',
   lastName: 'Doe',

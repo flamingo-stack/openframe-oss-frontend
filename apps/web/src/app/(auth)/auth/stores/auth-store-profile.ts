@@ -26,8 +26,12 @@ const authStoreProfileQueryNode = graphql`
 /**
  * The signed-in user's full profile, as the auth store merges it over `/me`: only
  * the fields the API answered, so a missing one never blanks what the store has.
- * Null when the API does not know the id. Its own module, loaded on demand, so the
- * store (imported everywhere) does not pull Relay in with it.
+ * Null when the API does not know the id.
+ *
+ * Imperative on purpose: it hydrates the Zustand auth store — a second source of
+ * truth that lives outside any Relay page — at session start. Components read the
+ * user through their own fragments; do not add readers of this. Its own module,
+ * loaded on demand, so the store (imported everywhere) does not pull Relay in.
  */
 export async function fetchProfile(userId: string) {
   const data = await fetchQuery<authStoreProfileQuery>(

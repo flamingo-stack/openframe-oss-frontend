@@ -18,7 +18,7 @@ import { type ReactNode, Suspense } from 'react';
  * types in its `NodeType` enum:
  *   - device, organization, user → `node(id:)` (Machine / Organization / User
  *     ARE in the enum). Detail-page href uses the RAW id (the route segment those
- *     pages expect); a user has no detail route.
+ *     pages expect).
  *   - kb article + folder   → `knowledgeBaseItem(id:)` (KnowledgeBaseItem is NOT
  *     in `NodeType` → `node(id:)` throws "Unknown Node type"). This query takes a
  *     GLOBAL id (server decodes it), and the KB detail + folder routes ALSO key on
@@ -40,6 +40,7 @@ import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChi
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentionChipsSoftwareQuery.graphql';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
@@ -74,9 +75,7 @@ const NODE_QUERY = graphql`
         name
       }
       ... on User {
-        firstName
-        lastName
-        email
+        ...userSummaryFields_user
       }
     }
   }
@@ -143,6 +142,8 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
       return routes.customers.details(rawId);
     case CONTEXT_ENTITY_KIND.SOFTWARE:
       return routes.software.details(rawId);
+    case CONTEXT_ENTITY_KIND.USER:
+      return routes.settings.employeeDetails(rawId);
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.KB_FOLDER:
@@ -179,7 +180,7 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         label = node.name || label;
         break;
       case 'User':
-        label = [node.firstName, node.lastName].filter(Boolean).join(' ') || node.email || label;
+        label = toUserSummary(node).name || label;
         break;
     }
   }

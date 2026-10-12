@@ -9,10 +9,11 @@ interface NewOwnerFieldProps {
   onSearch: (search: string) => void;
   loading?: boolean;
   disabled?: boolean;
+  error?: string;
 }
 
 /** The "New Owner" control — the same while the candidates load (locked) and once they are there. */
-export function NewOwnerField({ options, value, onChange, onSearch, loading, disabled }: NewOwnerFieldProps) {
+export function NewOwnerField({ options, value, onChange, onSearch, loading, disabled, error }: NewOwnerFieldProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xs)]">
       <Label htmlFor="new-owner-select">New Owner</Label>
@@ -27,6 +28,8 @@ export function NewOwnerField({ options, value, onChange, onSearch, loading, dis
         placeholder={loading ? 'Loading users...' : 'Select new owner'}
         loading={loading}
         disabled={disabled}
+        error={error}
+        invalid={!!error}
         noOptionsText="No active users found"
       />
     </div>

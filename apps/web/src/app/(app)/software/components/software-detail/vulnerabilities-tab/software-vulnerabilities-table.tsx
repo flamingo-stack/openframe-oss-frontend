@@ -21,10 +21,10 @@ import type {
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
-import { OpenRowButton } from '../../shared/open-row-button';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
 import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-version-cell';

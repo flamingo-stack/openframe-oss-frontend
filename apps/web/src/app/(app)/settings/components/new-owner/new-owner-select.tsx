@@ -3,6 +3,7 @@
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useDeferredValue, useState } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { NewOwnerCandidates } from './new-owner-candidates';
 import { NewOwnerField } from './new-owner-field';
 
@@ -11,7 +12,7 @@ const NO_OPTIONS: AutocompleteOption[] = [];
 interface NewOwnerSelectProps {
   currentUserId: string;
   organizationName: string;
-  /** The raw id of the picked user. */
+  /** The picked user's node id. */
   value: string;
   onChange: (id: string) => void;
   disabled: boolean;
@@ -29,25 +30,38 @@ export function NewOwnerSelect({ currentUserId, organizationName, value, onChang
   const [picked, setPicked] = useState<AutocompleteOption | null>(null);
 
   return (
-    <Suspense
-      fallback={
-        <NewOwnerField options={NO_OPTIONS} value={null} onChange={() => {}} onSearch={setInput} loading disabled />
-      }
+    <ContentErrorBoundary
+      fallback={() => (
+        <NewOwnerField
+          options={NO_OPTIONS}
+          value={null}
+          onChange={() => {}}
+          onSearch={() => {}}
+          disabled
+          error="Couldn't load the members. Close and reopen to try again."
+        />
+      )}
     >
-      <NewOwnerCandidates
-        currentUserId={currentUserId}
-        organizationName={organizationName}
-        search={search}
-        isSearching={search !== debouncedInput}
-        onSearch={setInput}
-        value={value}
-        picked={picked}
-        onChange={option => {
-          setPicked(option);
-          onChange(option?.value ?? '');
-        }}
-        disabled={disabled}
-      />
-    </Suspense>
+      <Suspense
+        fallback={
+          <NewOwnerField options={NO_OPTIONS} value={null} onChange={() => {}} onSearch={setInput} loading disabled />
+        }
+      >
+        <NewOwnerCandidates
+          currentUserId={currentUserId}
+          organizationName={organizationName}
+          search={search}
+          isSearching={search !== debouncedInput}
+          onSearch={setInput}
+          value={value}
+          picked={picked}
+          onChange={option => {
+            setPicked(option);
+            onChange(option?.value ?? '');
+          }}
+          disabled={disabled}
+        />
+      </Suspense>
+    </ContentErrorBoundary>
   );
 }

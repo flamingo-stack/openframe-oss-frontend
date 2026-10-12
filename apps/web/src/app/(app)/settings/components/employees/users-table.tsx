@@ -11,8 +11,8 @@ import type { usersTable_query$data, usersTable_query$key } from '@/__generated_
 import type { usersTablePaginationQuery } from '@/__generated__/usersTablePaginationQuery.graphql';
 import type { usersTableQuery } from '@/__generated__/usersTableQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { OpenRowButton } from '@/app/(app)/software/components/shared/open-row-button';
 import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { rawIdOf } from '@/lib/relay-id';
 import { EmployeeRolesCell } from './employee-roles-cell';

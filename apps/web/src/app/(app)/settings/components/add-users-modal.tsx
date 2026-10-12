@@ -14,20 +14,41 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { graphql, useMutation } from 'react-relay';
+import type { addUsersModalMutation } from '@/__generated__/addUsersModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { invalidateInvitationsListings } from './employees/invitations-listing';
+import { describeInviteRefusals } from './employees/invite-refusals';
+
+const addUsersModalMutationNode = graphql`
+  mutation addUsersModalMutation($emails: [String!]!) {
+    inviteUsers(input: { emails: $emails }) {
+      invitationEdges {
+        node {
+          id
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 type InviteRow = { email: string; role: string };
 
 interface AddUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInvited?: () => Promise<void> | void;
-  invite: (rows: InviteRow[]) => Promise<void>;
+  /** The invitations listings on screen, refetched with the new invitations. */
+  listingIds: readonly string[];
 }
 
-export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersModalProps) {
+export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProps) {
   const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: 'ADMIN' }]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [commit, isSubmitting] = useMutation<addUsersModalMutation>(addUsersModalMutationNode);
   const { toast } = useToast();
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
@@ -41,7 +62,6 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
     setWasOpen(isOpen);
     if (!isOpen) {
       setRows([{ email: '', role: 'ADMIN' }]);
-      setIsSubmitting(false);
     }
   }
 
@@ -52,25 +72,31 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
   const addRow = () => setRows(prev => [...prev, { email: '', role: 'ADMIN' }]);
   const removeRow = (idx: number) => setRows(prev => prev.filter((_, i) => i !== idx));
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!canSubmit) return;
-    const payload = rows.map(r => ({ email: r.email.trim(), role: r.role })).filter(r => emailRegex.test(r.email));
-    if (payload.length === 0) return;
-    setIsSubmitting(true);
-    try {
-      await invite(payload);
-      toast({ title: 'Invites sent', description: `${payload.length} user(s) invited`, variant: 'success' });
-      onClose();
-      await onInvited?.();
-    } catch (err) {
-      toast({
-        title: 'Invite failed',
-        description: err instanceof Error ? err.message : 'Failed to send invites',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    const emails = rows.map(r => r.email.trim()).filter(email => emailRegex.test(email));
+    if (emails.length === 0) return;
+    commit({
+      variables: { emails },
+      // A partial failure still sent the rest, so the listings refetch either way.
+      updater: store => invalidateInvitationsListings(store, listingIds),
+      onCompleted: ({ inviteUsers }) => {
+        const refused = describeInviteRefusals(emails, inviteUsers.userErrors);
+        if (refused) {
+          toast({ title: 'Invite failed', description: refused, variant: 'destructive' });
+          return;
+        }
+        toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
+        onClose();
+      },
+      onError: error => {
+        toast({
+          title: 'Invite failed',
+          description: getRelayErrorMessage(error, 'Failed to send invites'),
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   return (

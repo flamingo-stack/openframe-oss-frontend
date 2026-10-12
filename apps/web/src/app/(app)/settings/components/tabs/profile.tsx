@@ -10,7 +10,6 @@ import { authApiClient } from '@/lib/auth-api-client';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { handleApiError } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useUpdateOwnProfile } from '../../hooks/use-update-own-profile';
 import { EditProfileModal } from '../edit-profile-modal';
 import { EmailVerificationModal } from '../email-verification-modal';
 
@@ -23,8 +22,6 @@ export function ProfileTab() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-
-  const { updateProfile, isUpdating } = useUpdateOwnProfile();
 
   const handleResendVerification = async () => {
     setIsSendingVerification(true);
@@ -145,13 +142,7 @@ export function ProfileTab() {
       </div>
 
       {/* Edit Profile Modal */}
-      <EditProfileModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        user={user}
-        onSave={updateProfile}
-        isSaving={isUpdating}
-      />
+      <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} />
 
       {/* Email Verification Modal */}
       <EmailVerificationModal

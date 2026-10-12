@@ -139,8 +139,14 @@ export function TicketsTable({
   }, [isArchived, statusesQuery.data]);
 
   // Assignee filter options (value = user id) for the ASSIGNEE column header —
-  // the same list the board's Assignee autocomplete shows, flattened.
-  const assigneeOptionsQuery = useAssigneeOptions({ enabled: !isArchived, selfFirst: true });
+  // the same list the board's Assignee autocomplete shows, flattened. The header
+  // filter has no search box, so the filtered-by users are asked for by id: a
+  // selection past the first page keeps its row.
+  const assigneeOptionsQuery = useAssigneeOptions({
+    enabled: !isArchived,
+    selectedIds: assigneeIds,
+    selfFirst: true,
+  });
   const assigneeOptions = useMemo<StatusFilterOption[] | undefined>(() => {
     if (isArchived) return undefined;
     return assigneeOptionsQuery.options.map(option => ({

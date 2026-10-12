@@ -3,8 +3,8 @@
 import { type AutocompleteOption, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { newOwnerCandidatesQuery } from '@/__generated__/newOwnerCandidatesQuery.graphql';
-import { getFullImageUrl } from '@/lib/image-url';
-import { rawIdOf } from '@/lib/relay-id';
+import { useRetryKey } from '@/app/components/shared';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { NewOwnerField } from './new-owner-field';
 
 const newOwnerCandidatesQueryNode = graphql`
@@ -16,13 +16,7 @@ const newOwnerCandidatesQueryNode = graphql`
       edges {
         node {
           id
-          firstName
-          lastName
-          email
-          image {
-            imageUrl
-            hash
-          }
+          ...userSummaryFields_user
         }
       }
     }
@@ -39,7 +33,7 @@ interface NewOwnerCandidatesProps {
   /** The deferred search lags the box: the options shown are the previous answer. */
   isSearching: boolean;
   onSearch: (search: string) => void;
-  /** The raw id of the picked user, which the transfer endpoint takes. */
+  /** The picked user's node id, which `transferOwnership` takes. */
   value: string;
   /** The option it was picked from, so it keeps its name after the search moves on. */
   picked: AutocompleteOption | null;
@@ -67,10 +61,11 @@ export function NewOwnerCandidates({
   onChange,
   disabled,
 }: NewOwnerCandidatesProps) {
+  const retryKey = useRetryKey();
   const { members, candidates } = useLazyLoadQuery<newOwnerCandidatesQuery>(
     newOwnerCandidatesQueryNode,
     { search: search || null, first: CANDIDATES_LIMIT },
-    { fetchPolicy: 'store-and-network' },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   // The caller is one of the active members.
@@ -88,21 +83,13 @@ export function NewOwnerCandidates({
   }
 
   const options: AutocompleteOption[] = candidates.edges.flatMap(({ node }) => {
-    const id = rawIdOf(node.id);
-    if (id === currentUserId) return [];
-    const name = [node.firstName, node.lastName].filter(Boolean).join(' ') || node.email || id;
+    const { rawId, name, avatarUrl } = toUserSummary(node);
+    if (rawId === currentUserId) return [];
     return [
       {
-        value: id,
-        label: name,
-        icon: (
-          <SquareAvatar
-            src={getFullImageUrl(node.image?.imageUrl, node.image?.hash)}
-            fallback={name}
-            size="sm"
-            variant="round"
-          />
-        ),
+        value: node.id,
+        label: name || rawId,
+        icon: <SquareAvatar src={avatarUrl} fallback={name} size="sm" variant="round" />,
       },
     ];
   });
