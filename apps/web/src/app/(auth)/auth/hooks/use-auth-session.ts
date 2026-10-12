@@ -5,6 +5,7 @@ import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { isSaasSharedMode } from '@/lib/app-mode';
+import { isDevTicketExchangePending } from '@/lib/dev-ticket-pending';
 import { forceLogout } from '@/lib/force-logout';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
@@ -113,6 +114,12 @@ export function useAuthSession() {
         if (!hasTokensSync()) {
           return null;
         }
+      }
+      // Dev-ticket landing: the bearer does not exist until the ticket in the
+      // URL is exchanged, and the exchange re-asks this query when it answers
+      // (success or failure). Asking before that is a guaranteed 401.
+      if (runtimeEnv.enableDevTicketObserver() && !hasTokensSync() && isDevTicketExchangePending()) {
+        return null;
       }
       const response = await apiClient.me<MeResponse>();
       if (response.ok && response.data?.authenticated) {

@@ -1,7 +1,8 @@
 'use client';
 
-import { DocumentIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
+  DocumentIcon,
+  PlusCircleIcon,
   BannedIcon,
   CheckCircleIcon,
   EyeIcon,
@@ -230,7 +231,7 @@ export function ApiKeysTab() {
     },
     {
       label: 'Create API Key',
-      icon: <PlusCircleIcon iconSize={20} whiteOverlay />,
+      icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
       variant: 'outline',
       onClick: () => setIsCreateOpen(true),
     },

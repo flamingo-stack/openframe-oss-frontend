@@ -1,8 +1,8 @@
 'use client';
 
 import { ActionsMenuDropdown, type ActionsMenuGroup, Button } from '@flamingo-stack/openframe-frontend-core';
-import { OpenFrameLogo } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
+  OpenframeLogoIcon,
   ChatBlankIcon,
   Chevron02DownIcon,
   Collapse02Icon,
@@ -42,7 +42,11 @@ export function FullscreenToolbar({
 }: FullscreenToolbarProps) {
   return (
     <>
-      <OpenFrameLogo className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50" />
+      <OpenframeLogoIcon
+        color="var(--color-text-on-accent)"
+        secondaryColor="var(--color-text-primary)"
+        className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50"
+      />
       <div
         className={
           'absolute left-1/2 top-0 z-10 w-[calc(100%-7rem)] -translate-x-1/2 ' +
