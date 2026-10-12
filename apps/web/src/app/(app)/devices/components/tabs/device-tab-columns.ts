@@ -68,7 +68,7 @@ const REMOTE_SESSION_COLUMNS = {
   session: { id: 'session', header: 'SESSION', width: 'flex-1 min-w-0', dateFilterable: true },
   employee: { id: 'employee', header: 'EMPLOYEE', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
   duration: { id: 'duration', header: 'DURATION', width: 'flex-1 min-w-0', hideAt: 'md', sortable: true },
-  expires: { id: 'expires', header: 'EXPIRES', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
+  expires: { id: 'expires', header: 'RECORDING EXPIRES', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

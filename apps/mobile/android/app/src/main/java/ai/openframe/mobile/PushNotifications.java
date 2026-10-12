@@ -156,6 +156,25 @@ final class PushNotifications {
         post(context, notificationId, builder.build());
     }
 
+    /**
+     * An outcome whose tap opens a store listing instead of the app: the gateway
+     * refused this app's bundle (426), so the app could only say the same thing.
+     * No buttons — nothing a second press could change. {@code storeUrl} must
+     * already be a vetted store URL.
+     */
+    static void replaceWithStoreLink(Context context, String notificationId, Map<String, String> extras,
+                                     String title, String body, String storeUrl) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(storeUrl))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent store = PendingIntent.getActivity(context, requestCode(notificationId, 4), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder builder = base(context, CHANNEL_OUTCOMES, title, body, extras.get(KEY_GROUP))
+            .setContentIntent(store)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true);
+        post(context, notificationId, builder.build());
+    }
+
     /** Cancel every banner the payload names: the retraction's own id, and the ids resent with every push. */
     static void retract(Context context, Map<String, String> data) {
         NotificationManagerCompat manager = NotificationManagerCompat.from(context);

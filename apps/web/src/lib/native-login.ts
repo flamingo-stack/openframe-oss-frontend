@@ -11,6 +11,7 @@
  */
 import { MOBILE_AUTH_ERROR_PARAM, mobileAuthErrorMessage } from '@/lib/mobile-auth-return';
 import { authApiClient } from './auth-api-client';
+import { clientBundleVersion } from './client-identity';
 import { type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
 import { mobilePlatform } from './platform';
 import { runtimeEnv } from './runtime-config';
@@ -210,7 +211,11 @@ function tenantOrigin(domain: string): string {
 async function persistTenantHost(plugin: NativeAuthPlugin, origin: string): Promise<void> {
   storeTenantHost(origin);
   try {
-    await plugin.setTenantHost?.({ origin, sharedOrigin: runtimeEnv.sharedHostUrl() || undefined });
+    await plugin.setTenantHost?.({
+      origin,
+      sharedOrigin: runtimeEnv.sharedHostUrl() || undefined,
+      clientBundleVersion: clientBundleVersion(),
+    });
   } catch {
     // Optional capability — older shells don't implement it.
   }
