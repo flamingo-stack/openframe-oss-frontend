@@ -59,6 +59,7 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
 /**
@@ -421,9 +422,16 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // identity an admin set in chat config (`emptyStateUrl`, the request the chat
   // panel makes), else the Mingo agent's published one (`aiAgentConfigUrl`),
   // read only once the platform is known to have none.
-  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl);
+  // Read once the session is in place, like everything else the shell reads:
+  // before it the request is refused (a dev-ticket landing mounts this provider
+  // before the ticket is exchanged).
+  const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
+  const sessionReady = sessionResolved && isAuthenticated;
+  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl, {
+    enabled: sessionReady,
+  });
   const agentConfigUrl = runtime.endpoints.aiAgentConfigUrl?.(ASSISTANT_AGENT_SLUG);
-  const needsAgent = platformLoaded && (!platformConfig.name || !platformConfig.icon);
+  const needsAgent = sessionReady && platformLoaded && (!platformConfig.name || !platformConfig.icon);
   const { config: agentConfig } = useEmptyStateConfig(agentConfigUrl, {
     enabled: needsAgent && Boolean(agentConfigUrl),
   });
