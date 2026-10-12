@@ -1,5 +1,10 @@
 'use client';
 
+import type {
+  DeviceFilterInput,
+  DeviceSelectorNarrowing,
+  SubTab,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   scheduleDevicePickerRelay_available$data as AvailableFragmentData,
@@ -13,8 +18,7 @@ import type { scheduleDevicePickerRelayAssignedPaginationQuery as AssignedPagina
 import type { scheduleDevicePickerRelayAssignedQuery as AssignedQueryType } from '@/__generated__/scheduleDevicePickerRelayAssignedQuery.graphql';
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import type { DeviceSelectorNarrowing, SubTab } from '@/app/components/shared/device-selector/device-selector.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';

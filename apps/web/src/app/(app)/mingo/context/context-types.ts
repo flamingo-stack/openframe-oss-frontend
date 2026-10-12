@@ -16,8 +16,8 @@
  * `ScheduledScriptContextResolver`; `InsightContextResolver` is a placeholder
  * today — it answers "not available in this build" until the insight lookup
  * lands; SOFTWARE and VULNERABILITY are the two the backend enum still has to
- * grow — see their entries). KB_FOLDER is mention-only: the agent emits
- * `@kbFolder:id`, the picker doesn't offer it.
+ * grow — see their entries). KB_FOLDER is both picked and mentioned: the picker
+ * lists every folder, and the agent emits `@kbFolder:id` on its own.
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
  * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →

@@ -10,6 +10,12 @@ set -eu
 # limits each diff to that directory and prints paths relative to it, which is
 # what tsc's diagnostics carry. The native shells (apps/desktop, apps/mobile)
 # have no JS/TS gate here.
+#
+# In a linked worktree git exports GIT_DIR to the hook without a work tree, so
+# after the cd git would take apps/web for the repository root and report every
+# tracked file as deleted. Unset, git finds the repository from the directory
+# again; GIT_INDEX_FILE is absolute and still names the index being committed.
+unset GIT_DIR
 cd apps/web
 
 # NUL-delimited, and the extension filter lives in a git pathspec rather than a

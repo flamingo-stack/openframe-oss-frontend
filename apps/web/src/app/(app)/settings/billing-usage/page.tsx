@@ -4,9 +4,9 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { BillingRestrictedScreen } from './components/billing-restricted-screen';
-import { BillingUsageSkeleton } from './components/billing-usage-skeleton';
-import { BillingUsageView } from './components/billing-usage-view';
+import { BillingRestrictedScreen } from './components/billing/billing-restricted-screen';
+import { BillingUsageSkeleton } from './components/billing/billing-usage-skeleton';
+import { BillingUsageView } from './components/billing/billing-usage-view';
 
 export default function BillingUsagePage() {
   // Only a definitive "off" 404s: `notFound()` throws, so firing it while the flag

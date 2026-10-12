@@ -1,10 +1,10 @@
 'use client';
 
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { type ReactNode, useCallback, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import type { Device } from '../types/device.types';
 import { getDeviceActionAvailability } from '../utils/device-action-utils';
-import { getDeviceName } from '../utils/device-name';
 import { useDeviceActions } from './use-device-actions';
 import { useRebootDevice } from './use-reboot-device';
 

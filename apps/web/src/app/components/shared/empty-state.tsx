@@ -1,20 +1,22 @@
 'use client';
 
 import { NoData, type NoDataProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 export type EmptyStateProps = NoDataProps;
 
 /**
  * App-wide empty state: centers `NoData`, filling the area down to the bottom of
  * the scroll container (`<main>`) with a `60vh` floor. The fill height is
- * measured because it can't propagate down the nested page layouts via CSS.
+ * measured because it can't propagate down the nested page layouts via CSS, and
+ * measured before paint: a page that mounts its empty state fresh (a tab switch)
+ * would otherwise show one frame at the floor and then jump to the fill.
  */
 export function EmptyState(props: EmptyStateProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [fillHeight, setFillHeight] = useState<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
 

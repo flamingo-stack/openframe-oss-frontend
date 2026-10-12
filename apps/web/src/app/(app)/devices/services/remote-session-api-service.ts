@@ -46,6 +46,7 @@ const sessionFragment = graphql`
     ticketId
     ticketNumber
     recordingEnabled
+    recordingSuppressed
     dialogId
   }
 `;
@@ -82,7 +83,14 @@ const endMutation = graphql`
 
 const STATUSES: ReadonlySet<string> = new Set(['ACTIVE', 'ENDED']);
 const MODES: ReadonlySet<string> = new Set(REMOTE_ACCESS_MODES);
-const END_REASONS: ReadonlySet<string> = new Set(['admin', 'client', 'timeout', 'connection_lost', 'policy']);
+const END_REASONS: ReadonlySet<string> = new Set([
+  'admin',
+  'client',
+  'timeout',
+  'connection_lost',
+  'never_connected',
+  'policy',
+]);
 /** An end of an already ended session: the outcome is the same, nothing left to end. */
 const END_ALREADY_ENDED_CODE = 'REMOTE_SESSION_ENDED';
 
@@ -112,6 +120,8 @@ export function fromWireRemoteSession(data: WireSession): RemoteSession {
     ticketId: data.ticketId ?? undefined,
     ticketNumber: data.ticketNumber ?? undefined,
     recordingEnabled: data.recordingEnabled === true,
+    // The only reason there is; an unknown one is not shown as storage being full.
+    recordingSuppressed: data.recordingSuppressed === 'STORAGE_FULL' ? 'storage_full' : null,
     dialogId: data.dialogId ?? null,
   };
 }

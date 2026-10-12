@@ -1,23 +1,34 @@
 'use client';
 
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { type ActionsMenuGroup, PageLayout, type PageActionButton } from '@flamingo-stack/openframe-frontend-core';
+import { KeepRecordingModal, ReleaseKeepingModal } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LockIcon, TrashIcon, UnlockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useEffectEvent, useState } from 'react';
+import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { formatDateTime } from '@/lib/format-date';
+import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
-import { useSessionRecording } from '../../hooks/use-session-recordings';
+import {
+  useDeleteSessionRecording,
+  useKeepSessionRecording,
+  useRecordingStorage,
+  useReleaseSessionRecording,
+  useSessionRecording,
+} from '../../hooks/use-session-recordings';
 import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
+import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
+import { canDeleteSession, canKeepSession, isRecordingGone, recordingUnavailableNote } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
@@ -25,9 +36,9 @@ interface RemoteSessionViewProps {
 }
 
 /**
- * The "Remote Session Recording" page (Figma 758-46350). This first iteration
- * carries the player itself - metadata card and session-chat transcript land
- * with the Remote Sessions tab (follow-up PR).
+ * The "Remote Session Recording" page (Figma 1728-42383 with the session chat,
+ * 2164-113294 without it): the metadata card, then the player with the chat
+ * transcript in a column beside it when the session had a chat.
  *
  * Fullscreen lives here rather than in the player so the canvas never
  * remounts: the wrapper swaps to `fixed inset-0` and PageLayout hides its
@@ -51,6 +62,57 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isKeepOpen, setIsKeepOpen] = useState(false);
+  const [isReleaseOpen, setIsReleaseOpen] = useState(false);
+  const router = useRouter();
+  const deleteRecording = useDeleteSessionRecording(recording?.deviceId ?? '');
+  const keepRecording = useKeepSessionRecording(recording?.deviceId ?? '');
+  const releaseRecording = useReleaseSessionRecording(recording?.deviceId ?? '');
+  const storage = useRecordingStorage();
+  const keep = recording?.keep ?? null;
+
+  const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
+  // A deleted or expired recording has no files left to fetch: the page says
+  // so from the session's state instead of waiting on downloads that 410.
+  const gone = !!recording && isRecordingGone(recording);
+  const unavailableNote = recording ? recordingUnavailableNote(recording, unavailable) : null;
+  // Delete lives in the "..." menu, for a recording the server would let go (not kept).
+  const menuActions: ActionsMenuGroup[] =
+    sessionRecordingsApiService.canDelete && recording && canDeleteSession(recording)
+      ? [
+          {
+            items: [
+              {
+                id: 'delete-recording',
+                label: 'Delete',
+                // Per the design only the glyph is red; `danger` would colour the label too.
+                icon: <TrashIcon className="h-full w-full text-ods-error" />,
+                onClick: () => setIsDeleteOpen(true),
+              },
+            ],
+          },
+        ]
+      : [];
+
+  // Keep Recording, or Release Keeping once kept (Figma 1755-93683 / 1755-94111);
+  // outline per the design, where `menu-primary` would default to accent.
+  const actions: PageActionButton[] = [];
+  if (keep) {
+    actions.push({
+      label: 'Release Keeping',
+      icon: <UnlockIcon size={24} />,
+      variant: 'outline',
+      onClick: () => setIsReleaseOpen(true),
+    });
+  } else if (recording && canKeepSession(recording)) {
+    actions.push({
+      label: 'Keep Recording',
+      icon: <LockIcon size={24} />,
+      variant: 'outline',
+      onClick: () => setIsKeepOpen(true),
+    });
+  }
 
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -78,7 +140,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // refetch hands back an equal detail as a new object, and reloading the same
   // files into the player restarts playback for nothing. The player's own
   // callbacks are not stable across renders either, hence the effect event.
-  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const segmentsKey =
+    recording && !gone ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
   const loadFiles = useEffectEvent(async () => {
     if (!recording) return { failed: 0, total: 0 };
     const { failed } = await player.loadSegments(
@@ -89,7 +152,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   useEffect(() => {
     if (!segmentsKey) return undefined;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const { failed, total } = await loadFiles();
         if (!cancelled && failed > 0) {
@@ -117,6 +180,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       loading={isLoading}
       subtitleRow="while-loading"
       showHeader={!isFullscreen}
+      actionsVariant="menu-primary"
+      actions={actions}
+      menuActions={menuActions}
     >
       {/* Outside the player wrapper so it stays usable when the recording itself
           failed to load - local files are how that case gets tested. */}
@@ -142,42 +208,113 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       >
         {!isFullscreen &&
           (isLoading ? <RecordingMetaCardSkeleton /> : recording && <RecordingMetaCard recording={recording} />)}
-        {/* The player is ONE element per the mockup: the playback screen and
-            the controls strip share a single bordered container. */}
+        {/* With a chat the player and the transcript are two columns on
+            desktop, each under its own label; without one the player spans
+            the page. */}
         <div
           className={cn(
-            'flex flex-col',
-            isFullscreen ? 'min-h-0 flex-1' : 'overflow-hidden rounded-[6px] border border-ods-border',
+            showChat ? 'grid gap-[var(--spacing-system-l)] content-lg:grid-cols-[minmax(0,1fr)_400px]' : 'contents',
           )}
         >
-          <RecordingPlayer
-            player={player}
-            unavailable={unavailable}
-            className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
-          />
-          {/* No controls until a recording is actually loaded - the
+          <div className={cn(showChat ? 'flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]' : 'contents')}>
+            {showChat && <span className="text-ods-text-secondary text-h5">Video Session Recording</span>}
+            {/* The player is ONE element per the mockup: the playback screen and
+                the controls strip share a single bordered container. */}
+            <div
+              className={cn(
+                'flex flex-col',
+                isFullscreen ? 'min-h-0 flex-1' : 'overflow-hidden rounded-[6px] border border-ods-border',
+              )}
+            >
+              <RecordingPlayer
+                player={player}
+                unavailableNote={unavailableNote}
+                className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
+              />
+              {/* No controls until a recording is actually loaded - the
               unavailable/processing screen (Figma 775-50606) is just the
               empty state on black. */}
-          {player.state !== 'empty' && (
-            <div className="bg-ods-card px-[var(--spacing-system-sf)] pb-[var(--spacing-system-xs)] pt-[var(--spacing-system-s)]">
-              <PlayerControls
-                state={player.state}
-                currentMs={player.currentMs}
-                durationMs={player.durationMs}
-                speed={player.speed}
-                isFullscreen={isFullscreen}
-                onTogglePlay={player.togglePlay}
-                onSeek={player.seek}
-                onStepBack={player.stepBack}
-                onStepForward={player.stepForward}
-                onSetSpeed={player.setSpeed}
-                onToggleFullscreen={() => void toggleFullscreen()}
-              />
+              {player.state !== 'empty' && (
+                <div className="bg-ods-card px-[var(--spacing-system-sf)] pb-[var(--spacing-system-xs)] pt-[var(--spacing-system-s)]">
+                  <PlayerControls
+                    state={player.state}
+                    currentMs={player.currentMs}
+                    durationMs={player.durationMs}
+                    speed={player.speed}
+                    isFullscreen={isFullscreen}
+                    onTogglePlay={player.togglePlay}
+                    onSeek={player.seek}
+                    onStepBack={player.stepBack}
+                    onStepForward={player.stepForward}
+                    onSetSpeed={player.setSpeed}
+                    onToggleFullscreen={() => void toggleFullscreen()}
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </div>
+          {showChat && <SessionChat messages={recording.chat} employee={recording.employee} />}
         </div>
-        {!isFullscreen && recording && <SessionChat messages={recording.chat} employee={recording.employee} />}
       </div>
+      <KeepRecordingModal
+        isOpen={isKeepOpen}
+        onClose={() => setIsKeepOpen(false)}
+        keptUsage={keptUsageText(storage.data)}
+        isPending={keepRecording.isPending}
+        onConfirm={selection => {
+          if (!recording) return;
+          keepRecording.mutate(
+            { sessionId: recording.id, recordingId, selection },
+            { onSuccess: () => setIsKeepOpen(false) },
+          );
+        }}
+      />
+      {keep && (
+        <ReleaseKeepingModal
+          isOpen={isReleaseOpen}
+          onClose={() => setIsReleaseOpen(false)}
+          keptBy={keep.keptBy}
+          keptOn={formatDate(keep.keptAt)}
+          reason={keepReasonText(keep)}
+          expiresOn={formatDate(keep.expiresAtOnRelease)}
+          dueOn={releaseDueOn(keep)}
+          isPending={releaseRecording.isPending}
+          onConfirm={() => {
+            if (!recording) return;
+            releaseRecording.mutate(
+              { sessionId: recording.id, recordingId },
+              { onSuccess: () => setIsReleaseOpen(false) },
+            );
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete Recording"
+        description={
+          <>
+            Are you sure you want to delete the session recording from{' '}
+            <span className="font-medium text-ods-accent">{recording ? formatDateTime(recording.startedAt) : ''}</span>?
+            This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete Recording"
+        variant="destructive"
+        isPending={deleteRecording.isPending}
+        onConfirm={() => {
+          if (!recording) return;
+          deleteRecording.mutate(
+            { sessionId: recording.id, recordingId },
+            {
+              onSuccess: () => {
+                setIsDeleteOpen(false);
+                router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
+              },
+            },
+          );
+        }}
+      />
     </PageLayout>
   );
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import { ContentErrorBoundary } from '@/app/components/shared';
-import { KnowledgeBaseView } from './components/knowledge-base-view';
+import { KnowledgeBaseView } from './components/item-list/knowledge-base-view';
+import { KnowledgeBasePageShell } from './components/shared/knowledge-base-page-shell';
 
 export default function KnowledgeBasePage() {
   return (
-    <ContentErrorBoundary title="Knowledge Base" message="Couldn't load the knowledge base.">
+    <KnowledgeBasePageShell errorMessage="Couldn't load the knowledge base.">
       <KnowledgeBaseView folderId={null} />
-    </ContentErrorBoundary>
+    </KnowledgeBasePageShell>
   );
 }

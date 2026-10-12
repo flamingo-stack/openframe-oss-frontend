@@ -3,10 +3,13 @@
 import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
-import { GET_MINGO_DIALOGS_QUERY } from '../queries/dialogs-queries';
+import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import type { MingoDialogsPage } from '../utils/dialog-row-status';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
 // TODO(unread-from-entity): re-enable per-dialog unread highlighting once the backend exposes
@@ -21,13 +24,21 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  */
 export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
 
-function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
-  // Admin owner → trailing avatar in the chat-history rows (Figma 113:63224).
+/**
+ * A dialog as the lib's list rows and header read it. Also the open conversation's
+ * own record (`UnifiedChatState.activeDialog`), which is where the lib learns that a
+ * conversation reached by link, notification or reload is archived.
+ */
+export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): DialogItem {
+  // Admin owner → trailing avatar in the chat-history rows.
   // Client-owned dialogs (machine) carry no admin user — no avatar.
   const ownerUser = dialog.owner?.user;
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
     id: dialog.id,
+    // Read-only in the chat until restored. Never true for a row of the active
+    // list (`ACTIVE_DIALOG_STATUSES`); it matters for the open conversation.
+    archived: dialog.status === 'ARCHIVED',
     // The backend generates the title asynchronously after the first message;
     // until it lands the dialog has no title — show a provisional name, not an
     // error-looking "Untitled Dialog".
@@ -46,6 +57,9 @@ function transformToDialogItem(dialog: DialogNode, unreadCount: number = 0): Dia
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = 20, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
+  // Only the v2 list shows a chat waiting for approval, and only v2 asks for it (see
+  // the query). Both chat surfaces mount after the flags have answered.
+  const withPendingApproval = useFeatureFlag('mingo-v2');
 
   // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
   // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),
@@ -64,10 +78,8 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: ['mingo-dialogs', { search, limit, scope }],
-    queryFn: async ({
-      pageParam,
-    }): Promise<{ dialogs: DialogNode[]; pageInfo: { hasNextPage: boolean; endCursor?: string } }> => {
+    queryKey: mingoDialogQueryKeys.list({ search, limit, scope, withPendingApproval }),
+    queryFn: async ({ pageParam }): Promise<MingoDialogsPage> => {
       const variables = {
         filter: {
           agentTypes: ['ADMIN'],
@@ -85,7 +97,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
       };
 
       const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
-        query: GET_MINGO_DIALOGS_QUERY,
+        query: withPendingApproval ? GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY : GET_MINGO_DIALOGS_QUERY,
         variables,
       });
 
@@ -126,15 +138,16 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     placeholderData: keepPreviousData,
   });
 
-  const dialogsWithUnread = useMemo(() => {
-    if (!query.data?.pages) return [];
-
-    const allDialogs = query.data.pages.flatMap(page => page.dialogs);
-    return allDialogs.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0));
-  }, [query.data, unreadByDialog]);
+  const nodes = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data]);
+  const dialogsWithUnread = useMemo(
+    () => nodes.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0)),
+    [nodes, unreadByDialog],
+  );
 
   return {
     dialogs: dialogsWithUnread,
+    /** The same rows as the server sent them: what a row's status is read from. */
+    nodes,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error?.message,

@@ -1,10 +1,13 @@
 'use client';
 
+import {
+  SOFTWARE_ACTION_DETAIL_TITLE,
+  softwareActionCopy,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { graphql, useFragment } from 'react-relay';
 import type { actionDetailHeader_action$key } from '@/__generated__/actionDetailHeader_action.graphql';
 import { routes } from '@/lib/routes';
 import { DetailTitle } from '../shared/detail-title';
-import { SOFTWARE_ACTION_DETAIL_TITLE, softwareActionCopy } from '../shared/software-action-copy';
 
 const actionDetailHeaderFragment = graphql`
   fragment actionDetailHeader_action on SoftwareActionRun {

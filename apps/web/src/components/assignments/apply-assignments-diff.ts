@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
 import { ASSIGNMENT_TARGET_TYPES, type AssignmentItemType, type AssignmentsValue } from './types';
+import { ASSIGNED_ITEMS_QUERY_KEY } from './use-assigned-items';
 
 const ASSIGN_ITEM_MUTATION = `#graphql
   mutation AssignmentsAssignItem(
@@ -72,7 +73,7 @@ export function useApplyAssignmentsDiff() {
   return useMutation({
     mutationFn: applyAssignmentsDiff,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assignments', 'assigned-items'] });
+      queryClient.invalidateQueries({ queryKey: ASSIGNED_ITEMS_QUERY_KEY });
     },
     // The forms that await this catch to keep the rejection from going unhandled
     // and rely on each mutation to report itself — without this the assignments

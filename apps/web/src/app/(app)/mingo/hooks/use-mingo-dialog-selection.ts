@@ -19,14 +19,11 @@ import { featureFlags } from '@/lib/feature-flags';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import {
-  GET_MINGO_DIALOG_QUERY,
-  getMingoDialogMessagesQuery,
-  normalizeAskMessageData,
-} from '../queries/dialogs-queries';
+import { GET_MINGO_DIALOG_QUERY, normalizeAskMessageData } from '../queries/dialogs-queries';
+import { fetchMingoDialogMessages } from '../queries/fetch-dialog-messages';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogResponse, Message, MessagePage, MessagesResponse } from '../types';
+import type { DialogResponse, Message, MessagePage } from '../types';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /**
@@ -237,15 +234,12 @@ export function useMingoDialogSelection() {
     queryFn: async ({ pageParam }: { pageParam: string | undefined }): Promise<MessagePage> => {
       if (!activeDialogId) return { messages: [], pageInfo: { hasNextPage: false, hasPreviousPage: false } };
 
-      const response = await apiClient.post<MessagesResponse>('/chat/graphql', {
-        query: getMingoDialogMessagesQuery(),
-        variables: {
-          dialogId: activeDialogId,
-          cursor: pageParam,
-          limit: 50,
-          sortField: 'createdAt',
-          sortDirection: 'DESC',
-        },
+      const response = await fetchMingoDialogMessages({
+        dialogId: activeDialogId,
+        cursor: pageParam,
+        limit: 50,
+        sortField: 'createdAt',
+        sortDirection: 'DESC',
       });
 
       if (!response.ok || !response.data?.data?.messages) {

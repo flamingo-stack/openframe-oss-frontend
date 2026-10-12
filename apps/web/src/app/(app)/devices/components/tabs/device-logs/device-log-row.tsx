@@ -17,6 +17,7 @@ const deviceLogRowFragment = graphql`
     agentTimestamp
     level
     message
+    machineId
     hostname
     count
   }
@@ -28,14 +29,21 @@ export interface DeviceLogEntry {
   agentTimestamp: Instant | null | undefined;
   level: string;
   message: string;
+  /** The device the line came from; null on lines written before the agent reported one. */
+  machineId: string | null | undefined;
   hostname: string | null | undefined;
   count: number | null | undefined;
 }
 
 interface DeviceLogRowProps {
   entry: deviceLogRow_entry$key;
-  /** The device's own hostname; the line's is shown only when it differs. */
-  deviceHostname: string;
+  /**
+   * The device the list belongs to: its own hostname is implied, so the line's is
+   * shown only when it differs, and only from `content-md` up. Omitted on a list
+   * spanning several devices, where the hostname is what tells the lines apart
+   * and stays on at every width.
+   */
+  deviceHostname?: string;
   /** This line is the one open in the drawer. */
   selected: boolean;
   onSelect: (entry: DeviceLogEntry) => void;
@@ -45,6 +53,7 @@ interface DeviceLogRowProps {
 export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: DeviceLogRowProps) {
   const data = useFragment(deviceLogRowFragment, entry);
   const level = data.level.trim().toUpperCase();
+  const multiDevice = deviceHostname === undefined;
 
   return (
     <li
@@ -65,6 +74,7 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
             agentTimestamp: data.agentTimestamp,
             level,
             message: data.message,
+            machineId: data.machineId,
             hostname: data.hostname,
             count: data.count,
           })
@@ -83,7 +93,8 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
             as="span"
             variant="outline"
             label={<span>{data.hostname}</span>}
-            className="hidden shrink-0 content-md:inline-flex"
+            labelClassName="truncate"
+            className={cn('shrink-0', multiDevice ? 'max-w-[12rem]' : 'hidden content-md:inline-flex')}
           />
         )}
         {data.count != null && data.count > 1 && (

@@ -16,7 +16,7 @@ import {
   toUnifiedMessage,
 } from '@/lib/chat-stream-thread';
 import { useAuthStore } from '@/stores';
-import type { DialogNode, Message } from '../types';
+import type { Message } from '../types';
 
 /**
  * Phase 4 of the chat unification: message ACCUMULATION lives in the lib's
@@ -146,7 +146,6 @@ interface MingoMessagesStore {
 
   // Dialog state
   activeDialogId: string | null;
-  dialogs: DialogNode[];
 
   unreadCounts: Map<string, number>;
   // Highest JetStream streamSeq observed per dialog. Persists across
@@ -169,7 +168,6 @@ interface MingoMessagesStore {
 
   // Core Actions
   setActiveDialogId: (dialogId: string | null) => void;
-  setDialogs: (dialogs: DialogNode[]) => void;
 
   // Thread commands (delegate to the lib reducer)
   setMessages: (dialogId: string, messages: Message[]) => void;
@@ -241,7 +239,6 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
       streamingIdByDialog: new Map(),
       tokenUsageByDialog: new Map(),
       activeDialogId: null,
-      dialogs: [],
       unreadCounts: new Map(),
       highestStreamSeqByDialog: new Map(),
 
@@ -307,10 +304,6 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
             highestStreamSeqByDialog: cursors,
           };
         });
-      },
-
-      setDialogs: (dialogs: DialogNode[]) => {
-        set({ dialogs });
       },
 
       // Thread commands — the lib reducer owns the mutation semantics
@@ -467,7 +460,6 @@ export const useMingoMessagesStore = create<MingoMessagesStore>()(
           streamingIdByDialog: new Map(),
           tokenUsageByDialog: new Map(),
           activeDialogId: null,
-          dialogs: [],
           unreadCounts: new Map(),
           highestStreamSeqByDialog: new Map(),
           isLoadingDialog: false,

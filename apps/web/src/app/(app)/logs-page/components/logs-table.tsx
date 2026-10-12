@@ -2,29 +2,16 @@
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
 import {
-  ArrowRightUpIcon,
-  ClipboardListIcon,
-  EyeAltIcon,
-  EyeIcon,
-  Filter01ListIcon,
-  Filter02Icon,
-  Refresh02HrIcon,
-  SearchIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Button,
-  type ColumnDef,
-  DataTable,
-  type DateFilterResult,
-  type DateRange,
-  FilterModal,
-  Input,
-  PageLayout,
-  type Row,
-  Tag,
-  TruncateText,
-  useDataTable,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+  getDeviceName,
+  LogDrawer,
+  logSeverityVariant,
+  logSourceLabels,
+  LogsPageView,
+  type LogsTableFacets,
+  LogsTableView,
+  type UiLogEntry,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import type { DateFilterResult, DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import {
@@ -45,16 +32,16 @@ import type {
 } from '@/__generated__/logsTableRelay_query.graphql';
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import {
   DateColumnHeader,
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
-  LogDrawer,
+  type EmptyStateProps,
   onboardingGuideButton,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
+import { logDrawerDeviceCard } from '@/app/components/shared/log-drawer-device-card';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { LogSortField, SortDirection } from '@/generated/schema-enums';
@@ -62,13 +49,9 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { multiSelectFilterFn } from '@/lib/table-filters';
-import { logSourceLabels } from '../utils/log-source-labels';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
-import { LOG_COLUMN_WIDTHS } from './logs-table-columns';
 import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
@@ -88,7 +71,6 @@ const logsTableRelayQuery = graphql`
     ...logsTableRelay_query @arguments(filter: $filter, first: $first, after: $after, search: $search, sort: $sort)
     logFilters(filter: $filter) {
       toolTypes
-      eventTypes
       severities
       organizations {
         id
@@ -148,42 +130,16 @@ type LogSortInput = NonNullable<LogsQueryType['variables']['sort']>;
 /** A row of the connection as the fragment above selects it. */
 type LogNode = LogsFragmentData['logs']['edges'][number]['node'];
 
-interface UiLogEntry {
-  id: string;
-  logId: string;
-  timestamp: string;
-  status: {
-    label: string;
-    variant?: 'success' | 'warning' | 'error' | 'grey' | 'critical';
-  };
-  source: {
-    name: string;
-    toolType: string;
-    icon?: React.ReactNode;
-  };
-  device: {
-    name: string;
-    organization?: string;
-  };
-  description: {
-    title: string;
-    details?: string;
-  };
+/** A table row plus the API row it was built from. */
+interface LogRow extends UiLogEntry {
   /**
-   * The API row this table row was built from. The row shape drops what the
-   * details link still needs (the composite key `ingestDay`/`toolType`/
-   * `eventType`/`timestamp`, and the device id), and the copy button and the
-   * drawer read their own fragments off it, so the source row rides along.
+   * The row shape drops what the details link still needs (the composite key
+   * `ingestDay`/`toolType`/`eventType`/`timestamp`, and the device id), and the
+   * copy button and the drawer read their own fragments off it, so the source
+   * row rides along.
    */
   originalLogEntry: LogNode;
 }
-
-/**
- * TanStack's column-filter state as `useDataTable` hands it back. Declared
- * structurally rather than imported: @tanstack/react-table is the core library's
- * dependency, not this app's, so importing it here would be an undeclared one.
- */
-type ColumnFilterState = { id: string; value: unknown }[];
 
 interface LogsTableProps {
   deviceId?: string;
@@ -221,6 +177,12 @@ interface LogsTableContentProps {
   onMobileFilterClose: () => void;
 }
 
+const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
+
+const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
+
+const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} />;
+
 // ----------------------------------------------------------------
 // Inner content — uses Relay hooks, must be inside Suspense
 // ----------------------------------------------------------------
@@ -241,7 +203,7 @@ function LogsTableContent({
 }: LogsTableContentProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [selectedLog, setSelectedLog] = useState<UiLogEntry | null>(null);
+  const [selectedLog, setSelectedLog] = useState<LogRow | null>(null);
 
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<LogsQueryType>(
@@ -261,17 +223,15 @@ function LogsTableContent({
     LogsFragmentKey
   >(logsTableRelayFragment, queryData);
 
-  const logFilters = useMemo(
+  const facets = useMemo<LogsTableFacets | null>(
     () =>
       queryData.logFilters
         ? {
-            toolTypes: [...queryData.logFilters.toolTypes],
-            eventTypes: [...queryData.logFilters.eventTypes],
-            severities: [...queryData.logFilters.severities],
-            organizations: queryData.logFilters.organizations.map(org => ({
-              id: org.id,
-              name: org.name,
-            })),
+            toolTypes: queryData.logFilters.toolTypes,
+            severities: queryData.logFilters.severities,
+            organizations: transformOrganizationFilters(
+              queryData.logFilters.organizations.map(org => ({ id: org.id, name: org.name })),
+            ),
           }
         : null,
     [queryData.logFilters],
@@ -337,24 +297,12 @@ function LogsTableContent({
     onRefreshRef.current = resetToFirstPage;
   });
 
-  const transformedLogs: UiLogEntry[] = useMemo(() => {
+  const transformedLogs: LogRow[] = useMemo(() => {
     return logs.map(log => ({
       id: log.toolEventId,
       logId: log.toolEventId,
       timestamp: formatDateTime(log.timestamp),
-      status: {
-        label: log.severity,
-        variant:
-          log.severity === 'ERROR'
-            ? ('error' as const)
-            : log.severity === 'WARNING'
-              ? ('warning' as const)
-              : log.severity === 'INFO'
-                ? ('grey' as const)
-                : log.severity === 'CRITICAL'
-                  ? ('critical' as const)
-                  : ('success' as const),
-      },
+      status: { label: log.severity, variant: logSeverityVariant(log.severity) },
       source: {
         name: toToolLabel(log.toolType),
         toolType: normalizeToolTypeWithFallback(log.toolType),
@@ -370,7 +318,7 @@ function LogsTableContent({
     }));
   }, [logs]);
 
-  const getLogDetailsUrl = useCallback((log: UiLogEntry): string => {
+  const getLogDetailsUrl = useCallback((log: LogRow): string => {
     const original = log.originalLogEntry;
     const id = log.id || log.logId;
     return routes.logs.details(id, {
@@ -381,312 +329,38 @@ function LogsTableContent({
     });
   }, []);
 
-  const columns = useMemo<ColumnDef<UiLogEntry>[]>(
-    () => [
-      {
-        accessorKey: 'logId',
-        // Custom header: label + calendar popover with timestamp sort + date-range
-        // filter — the same control every other date-filtered list renders.
-        header: () => <DateColumnHeader label="Log ID" filter={dateFilter} />,
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div className="flex shrink-0 flex-col justify-center">
-            <TruncateText>{row.original.timestamp}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.logId}
-            </TruncateText>
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: LOG_COLUMN_WIDTHS.logId, alwaysShowHeader: true },
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div className="shrink-0">
-            <Tag label={row.original.status.label} variant={row.original.status.variant} />
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: {
-          width: LOG_COLUMN_WIDTHS.status,
-          filter: {
-            options:
-              logFilters?.severities?.map((severity: string) => ({
-                id: severity,
-                label: severity.charAt(0).toUpperCase() + severity.slice(1).toLowerCase(),
-                value: severity,
-              })) || [],
-          },
-        },
-      },
-      {
-        accessorKey: 'tool',
-        header: 'Tool',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <ToolBadge
-            toolType={normalizeToolTypeWithFallback(row.original.source.toolType)}
-            iconClassName="h-4 w-4 content-md:h-6 content-md:w-6"
-          />
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: {
-          width: LOG_COLUMN_WIDTHS.tool,
-          hideAt: 'md',
-          filter: {
-            options:
-              logFilters?.toolTypes?.map((toolType: string) => ({
-                id: toolType,
-                label: toToolLabel(toolType),
-                value: toolType,
-              })) || [],
-          },
-        },
-      },
-      {
-        accessorKey: 'source',
-        header: 'SOURCE',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => {
-          const { deviceName, organization } = logSourceLabels(row.original.device);
-          return (
-            <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
-              {deviceName && <TruncateText>{deviceName}</TruncateText>}
-              {organization && (
-                <TruncateText variant="h6" tone="secondary">
-                  {organization}
-                </TruncateText>
-              )}
-            </div>
-          );
-        },
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: {
-          width: LOG_COLUMN_WIDTHS.source,
-          hideAt: 'md',
-          filter: organizationLocked
-            ? undefined
-            : {
-                options: transformOrganizationFilters(logFilters?.organizations),
-              },
-        },
-      },
-      {
-        accessorKey: 'description',
-        header: 'Log Details',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <TruncateText lines={3} className="text-ods-text-secondary text-h6">
-            {row.original.description.title}
-          </TruncateText>
-        ),
-        enableSorting: false,
-        meta: { width: LOG_COLUMN_WIDTHS.description, hideAt: 'lg' },
-      },
-      {
-        id: 'copy',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <LogCopyButton log={row.original.originalLogEntry} />
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: `${LOG_COLUMN_WIDTHS.action} ml-auto`, align: 'right' },
-      },
-      {
-        id: 'quickView',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={() => setSelectedLog(row.original)}
-              variant="outline"
-              size="icon"
-              leftIcon={<EyeIcon className="h-5 w-5" />}
-              aria-label="Quick view"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: LOG_COLUMN_WIDTHS.action, align: 'right' },
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<UiLogEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(getLogDetailsUrl(row.original))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: LOG_COLUMN_WIDTHS.action, hideAt: 'md', align: 'right' },
-      },
-    ],
-    [logFilters, getLogDetailsUrl, organizationLocked, dateFilter],
-  );
-
-  // Mobile filter groups reuse the same column filter options (built from
-  // logFilters) as the desktop column headers, so the modal isn't empty.
-  const filterGroups = useMemo(
-    () =>
-      columns
-        .filter(column => column.meta?.filter?.options)
-        .map(column => ({
-          id: String(column.id ?? (column as { accessorKey?: string }).accessorKey ?? ''),
-          title: typeof column.header === 'string' ? column.header : '',
-          options: column.meta?.filter?.options || [],
-        })),
-    [columns],
-  );
-
-  const columnFilters = useMemo(
-    () =>
-      Object.entries(tableFilters)
-        .filter(([, value]) => value && value.length > 0)
-        .map(([id, value]) => ({ id, value })),
-    [tableFilters],
-  );
-
-  const handleColumnFiltersChange = useCallback(
-    // TanStack's updater signature: either the next state or a reducer over it.
-    (updater: ColumnFilterState | ((prev: ColumnFilterState) => ColumnFilterState)) => {
-      const next = typeof updater === 'function' ? updater(columnFilters) : updater;
-      const nextFilters: Record<string, string[]> = {};
-      for (const f of next) {
-        nextFilters[f.id] = Array.isArray(f.value) ? (f.value as string[]) : [String(f.value)];
-      }
-      onFilterChange(nextFilters);
-    },
-    [columnFilters, onFilterChange],
-  );
-
-  const table = useDataTable<UiLogEntry>({
-    data: transformedLogs,
-    columns,
-    getRowId: (row: UiLogEntry) => row.id,
-    enableSorting: false,
-    state: { columnFilters },
-    onColumnFiltersChange: handleColumnFiltersChange,
-  });
+  // Log ID header: label + calendar popover with timestamp sort + date-range
+  // filter, the same control every other date-filtered list renders.
+  const logIdHeader = useMemo(() => <DateColumnHeader label="Log ID" filter={dateFilter} />, [dateFilter]);
 
   const handleCloseModal = useCallback(() => {
     setSelectedLog(null);
   }, []);
 
-  const hasActiveFilters = Object.values(tableFilters).some(values => values.length > 0);
-  // The applied date range counts as a query too — an empty result must keep
-  // the table header so the date filter stays reachable to pick another period.
-  const hasQuery = Boolean(debouncedSearch) || hasActiveFilters || Boolean(dateFilter.range);
-  const noRows = !isPending && transformedLogs.length === 0;
-
-  // Standalone Logs page and the device Overview tab share the same rich onboarding
-  // EmptyState when there is genuinely no data (no query). An empty result under an
-  // active query keeps the table chrome below.
-  const showEmptyState = !organizationLocked && !hasQuery && noRows;
-
-  // Embedded (device/customer-scoped) tabs: mirror the other detail-page tabs —
-  // when the table is empty, hide the column header and render the unified
-  // `DataTable.Body emptyState` (icon + title + description) instead of an inline
-  // message. (Below, the search input is also hidden unless a query is active.)
-  const scoped = Boolean(deviceId) || Boolean(organizationLocked);
-  const scopedEmpty = scoped && noRows;
-
-  // Search lives in the outer layout (outside this Suspense boundary, to keep
-  // focus across re-queries), so push the "hide search" flag up. Hide it for the
-  // onboarding empty state and for a genuinely-empty scoped tab — but keep it when
-  // a query is active so the user can clear it.
-  const hideSearch = showEmptyState || (scopedEmpty && !hasQuery);
-  useEffect(() => {
-    onEmptyChange(hideSearch);
-  }, [hideSearch, onEmptyChange]);
-
-  const guideButton = onboardingGuideButton('logs');
-
-  if (showEmptyState) {
-    // Device-scoped tab: icon + title + description only —
-    // the onboarding action rows and guide button belong to the standalone page.
-    if (deviceId) {
-      return (
-        <EmptyState
-          icon={<ClipboardListIcon />}
-          title="No logs yet"
-          description="A timeline of every action taken across the platform (scripts run, policies applied, devices connected, tickets updated) will be displayed here."
-        />
-      );
-    }
-    return (
-      <EmptyState
-        icon={<ClipboardListIcon />}
-        title="No logs yet"
-        description="A timeline of every action taken across the platform (scripts run, policies applied, devices connected, tickets updated) will be displayed here."
-        actions={[
-          { icon: <EyeAltIcon />, label: 'Track who did what, when, and on which device' },
-          { icon: <Filter01ListIcon />, label: 'Filter by user, action type, Customer, or date range' },
-          { icon: <SearchIcon />, label: 'Investigate incidents and audit security events' },
-        ]}
-        {...guideButton}
-      />
-    );
-  }
-
   return (
     <>
-      <DataTable table={table}>
-        {/* Keep the header while a query (search/filters/date range) is active,
-            even with zero rows — its controls are the only way to change it. */}
-        {!(scopedEmpty && !hasQuery) && (
-          <DataTable.Header stickyHeader stickyHeaderOffset="top-[96px]" rightSlot={<DataTable.RowCount />} />
-        )}
-        <DataTable.Body
-          loading={isPending}
-          skeletonRows={10}
-          // Embedded tabs get the unified empty state (matches every other device/
-          // customer tab); the standalone page keeps its inline message.
-          {...(scoped
-            ? {
-                emptyState: {
-                  icon: <ClipboardListIcon />,
-                  title: 'No logs found',
-                  description: hasQuery
-                    ? 'No results. Try adjusting your search or filters.'
-                    : deviceId
-                      ? 'Logs for this device will appear here.'
-                      : 'Logs for this customer will appear here.',
-                },
-              }
-            : { emptyMessage: 'No logs found. Try adjusting your search or filters.' })}
-          rowHref={getLogDetailsUrl}
-          rowClassName="mb-1"
-        />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNext}
-          isFetchingNextPage={isLoadingNext}
-          onLoadMore={fetchNextPage}
-          skeletonRows={2}
-        />
-      </DataTable>
-
-      <FilterModal
-        isOpen={mobileFilterOpen}
-        onClose={onMobileFilterClose}
-        filterGroups={filterGroups}
+      <LogsTableView<LogRow>
+        logs={transformedLogs}
+        loading={isPending}
+        facets={facets}
+        filters={tableFilters}
         onFilterChange={onFilterChange}
-        currentFilters={tableFilters}
-        // Date sort + range — last section, committed together with the group
-        // filters (the outer handler merges both into a single URL write).
-        dateFilter={{
-          title: 'Date',
-          sort: dateFilter.sortDirection,
-          range: dateFilter.range,
-          onChange: dateFilter.onApply,
-        }}
+        search={debouncedSearch}
+        dateFilter={dateFilter}
+        logIdHeader={logIdHeader}
+        deviceScoped={Boolean(deviceId)}
+        organizationLocked={organizationLocked}
+        getLogHref={getLogDetailsUrl}
+        renderCopyAction={renderCopyAction}
+        onQuickView={setSelectedLog}
+        hasNextPage={hasNext}
+        isFetchingNextPage={isLoadingNext}
+        onLoadMore={fetchNextPage}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={onMobileFilterClose}
+        onHideSearchChange={onEmptyChange}
+        renderEmptyState={renderEmptyState}
+        guideButton={LOGS_GUIDE_BUTTON}
       />
 
       <LogDrawer
@@ -701,7 +375,11 @@ function LogsTableContent({
         }
         statusTag={selectedLog?.status}
         timestamp={selectedLog?.timestamp}
-        deviceId={selectedLog?.originalLogEntry.deviceId ?? undefined}
+        // The card's Details button closes the drawer on the way out: this
+        // table is embedded in the device detail page itself (overview tab),
+        // where the button's target is the very URL already open. On mobile the
+        // drawer is full-bleed, so it would hide the page it just went to.
+        deviceCard={logDrawerDeviceCard(selectedLog?.originalLogEntry.deviceId ?? undefined, handleCloseModal)}
         infoFields={
           selectedLog
             ? [
@@ -839,47 +517,18 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
-  const actions = useMemo(
-    () => [
-      {
-        label: 'Refresh',
-        variant: 'outline' as const,
-        icon: <Refresh02HrIcon size={24} className="text-ods-text-secondary" />,
-        onClick: handleRefresh,
-      },
-    ],
-    [handleRefresh],
-  );
-
   return (
-    <PageLayout
-      title="Logs"
-      actions={actions}
+    <LogsPageView
+      onRefresh={handleRefresh}
       showHeader={showHeader}
       className={embedded ? EMBEDDED_PAGE_OFFSET : undefined}
+      // The search toolbar sits outside the Suspense boundary so it keeps focus
+      // across re-queries, and hides while the empty state is shown.
+      search={searchInput}
+      onSearchChange={setSearchInput}
+      hideSearch={isEmpty}
+      onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      {/* Search toolbar - outside the Suspense boundary so it keeps focus across
-          re-queries, and hidden while the empty state is shown. */}
-      {!isEmpty && (
-        <div className="sticky top-0 z-20 -my-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg py-[var(--spacing-system-l)]">
-          <Input
-            placeholder="Search for Logs"
-            value={searchInput}
-            onChange={e => setSearchInput(e.target.value)}
-            className="flex-1"
-            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            className="content-md:hidden"
-            onClick={() => setMobileFilterOpen(true)}
-            aria-label="Open filters"
-            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-          />
-        </div>
-      )}
-
       <Suspense fallback={<LogsTableSkeleton />}>
         <LogsTableContent
           deviceId={deviceId}
@@ -896,7 +545,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
           onMobileFilterClose={() => setMobileFilterOpen(false)}
         />
       </Suspense>
-    </PageLayout>
+    </LogsPageView>
   );
 });
 LogsTable.displayName = 'LogsTable';

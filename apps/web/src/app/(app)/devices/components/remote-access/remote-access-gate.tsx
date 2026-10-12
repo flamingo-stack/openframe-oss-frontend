@@ -82,22 +82,28 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
     return () => clearInterval(timer);
   }, [awaiting]);
 
+  // Back to idle, and the auto-request above sends a new request. Also the
+  // Retry of a session that never connected: a new request, a new session.
+  const handleRetry = () => {
+    suppressAutoRef.current = false;
+    approval.reset();
+  };
+
   if (gate === 'off') return <>{children}</>;
   if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') {
     return (
-      <ApprovedSessionScope deviceId={deviceId} requestId={approval.request?.requestId ?? null}>
+      <ApprovedSessionScope
+        deviceId={deviceId}
+        requestId={approval.request?.requestId ?? null}
+        onRequestAgain={handleRetry}
+      >
         {children}
       </ApprovedSessionScope>
     );
   }
 
   const target = deviceName || 'this device';
-
-  const handleRetry = () => {
-    suppressAutoRef.current = false;
-    approval.reset();
-  };
 
   let body: ReactNode;
   if (policyDenied) {
@@ -244,13 +250,18 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
 function ApprovedSessionScope({
   deviceId,
   requestId,
+  onRequestAgain,
   children,
 }: {
   deviceId: string;
   requestId: string | null;
+  onRequestAgain: () => void;
   children: ReactNode;
 }) {
   const { session, ended, endSession } = useRemoteSession(deviceId, requestId);
-  const value = useMemo(() => ({ requestId, session, ended, endSession }), [requestId, session, ended, endSession]);
+  const value = useMemo(
+    () => ({ requestId, session, ended, endSession, requestAgain: onRequestAgain }),
+    [requestId, session, ended, endSession, onRequestAgain],
+  );
   return <RemoteAccessSessionProvider value={value}>{children}</RemoteAccessSessionProvider>;
 }

@@ -3,7 +3,7 @@
 import {
   SubscriptionSettingsLoading,
   SubscriptionSettingsView,
-} from '@/app/(app)/settings/billing-usage/subscription/components/subscription-settings-view';
+} from '@/app/(app)/settings/billing-usage/components/plan/subscription-settings-view';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { noAccessCopy } from './no-access-copy';

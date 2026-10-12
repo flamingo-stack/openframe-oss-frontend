@@ -1,8 +1,9 @@
 'use client';
 
+import { LogDrawer, type LogDrawerInfoField } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { LogDrawer, type LogDrawerInfoField } from '@/app/components/shared/log-drawer';
+import { logDrawerDeviceCard } from '@/app/components/shared/log-drawer-device-card';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatDateTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
@@ -13,8 +14,12 @@ interface DeviceLogDrawerProps {
   /** The line open in the drawer; null closes it. */
   entry: DeviceLogEntry | null;
   onClose: () => void;
-  /** The device the tab belongs to — the drawer's device card, as on the Logs page. */
-  deviceId: string;
+  /**
+   * The device the list belongs to — the drawer's device card, as on the Logs page.
+   * A line that names its own device wins over it; a tenant-wide list passes nothing
+   * and the card follows the line, or stays away when the line has no device.
+   */
+  deviceId?: string;
 }
 
 function infoFields(entry: DeviceLogEntry): LogDrawerInfoField[] {
@@ -38,7 +43,7 @@ export function DeviceLogDrawer({ entry, onClose, deviceId }: DeviceLogDrawerPro
       statusTag={entry ? { label: entry.level, variant: deviceLogLevelVariant(entry.level) } : undefined}
       timestamp={entry ? formatDateTime(entry.timestamp) : undefined}
       infoFields={entry ? infoFields(entry) : []}
-      deviceId={deviceId}
+      deviceCard={logDrawerDeviceCard(entry?.machineId ?? deviceId, onClose)}
     >
       {entry && (
         <div>

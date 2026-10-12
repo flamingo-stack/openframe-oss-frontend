@@ -8,7 +8,7 @@ import { type Instant, parseInstant, toInstant } from '@/lib/graphql-scalars';
 
 export const DEVICE_LOG_RANGES = ['1h', '24h', '7d', 'custom'] as const;
 export type DeviceLogRange = (typeof DEVICE_LOG_RANGES)[number];
-type DeviceLogPreset = Exclude<DeviceLogRange, 'custom'>;
+export type DeviceLogPreset = Exclude<DeviceLogRange, 'custom'>;
 
 export const DEVICE_LOG_RANGE_LABELS: Record<DeviceLogRange, string> = {
   '1h': 'Last hour',
@@ -35,15 +35,18 @@ export function isDeviceLogRange(value: string): value is DeviceLogRange {
   return (DEVICE_LOG_RANGES as readonly string[]).includes(value);
 }
 
-/** `from`/`to` for the filter: a preset counts back from the anchor; custom covers the picked local days. */
+/**
+ * `from`/`to` for the filter: a preset counts back from the anchor; custom covers the picked local
+ * days, and custom with no days picked yet reads as `fallback`, the surface's default preset.
+ */
 export function deviceLogRangeBounds(
   range: DeviceLogRange,
   custom: DateRange | undefined,
   anchorMs: number,
+  fallback: DeviceLogPreset = DEFAULT_DEVICE_LOG_RANGE,
 ): InstantBounds {
   if (range !== 'custom') return presetBounds(range, anchorMs);
-  // Custom with no days picked yet reads as the default preset.
-  return custom ? clampToMaxRange(dateRangeToInstantBounds(custom)) : presetBounds(DEFAULT_DEVICE_LOG_RANGE, anchorMs);
+  return custom ? clampToMaxRange(dateRangeToInstantBounds(custom)) : presetBounds(fallback, anchorMs);
 }
 
 type InstantBounds = { from?: Instant; to?: Instant };

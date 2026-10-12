@@ -1,9 +1,9 @@
 'use client';
 
+import { SOFTWARE_ACTION_DETAIL_TITLE } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { SoftwareActionDetailView } from '../../components/action-detail/software-action-detail-view';
-import { SOFTWARE_ACTION_DETAIL_TITLE } from '../../components/shared/software-action-copy';
 import { SoftwarePageShell } from '../../components/shared/software-page-shell';
 import { useSoftwareManagementGate } from '../../components/shared/use-software-management-gate';
 

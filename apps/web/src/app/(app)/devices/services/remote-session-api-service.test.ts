@@ -150,10 +150,27 @@ describe('fromWireRemoteSession', () => {
     expect(session.recordingEnabled).toBe(true);
   });
 
+  it('tells a desktop that never connected from a lost connection', () => {
+    expect(fromWireRemoteSession(wireSession({ status: 'ENDED', endReason: 'NEVER_CONNECTED' })).endReason).toBe(
+      'never_connected',
+    );
+    expect(fromWireRemoteSession(wireSession({ status: 'ENDED', endReason: 'CONNECTION_LOST' })).endReason).toBe(
+      'connection_lost',
+    );
+  });
+
   it('keeps the dialog id and drops an unknown end reason', () => {
     const session = fromWireRemoteSession(wireSession({ dialogId: 'dlg-1', endReason: 'WHATEVER' }));
     expect(session.dialogId).toBe('dlg-1');
     expect(session.endReason).toBeNull();
+  });
+
+  it('reads a session started without recording because storage was full', () => {
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: 'STORAGE_FULL' })).recordingSuppressed).toBe(
+      'storage_full',
+    );
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: null })).recordingSuppressed).toBeNull();
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: 'QUOTA' })).recordingSuppressed).toBeNull();
   });
 
   it('rejects a body without id or status', () => {
@@ -196,6 +213,10 @@ describe('remote session events', () => {
     expect(
       parseRemoteSessionEvent({ type: 'REMOTE_SESSION_ENDED', sessionId: SESSION_ID, endReason: 'TIMEOUT' })?.endReason,
     ).toBe('timeout');
+    expect(
+      parseRemoteSessionEvent({ type: 'REMOTE_SESSION_ENDED', sessionId: SESSION_ID, endReason: 'never_connected' })
+        ?.endReason,
+    ).toBe('never_connected');
   });
 
   it('builds the session from STARTED when none is known and settles it on ENDED', () => {

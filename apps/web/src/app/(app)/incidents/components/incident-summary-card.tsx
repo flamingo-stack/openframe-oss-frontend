@@ -1,9 +1,9 @@
 'use client';
 
+import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { EntityImage, Skeleton, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';

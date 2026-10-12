@@ -1,13 +1,13 @@
 'use client';
 
 import { PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   CheckboxBlock,
   Input,
   Label,
   type PageActionButton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from './script-summary-card';

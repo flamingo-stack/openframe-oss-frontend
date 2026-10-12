@@ -3,12 +3,13 @@ import type { sessionRecordingsApiService_session$data as WireSession } from '@/
 import { fromWireSession, SessionRecordingsApiService } from './session-recordings-api-service';
 import { RecordingUnavailableError } from './session-recordings-service';
 
-const relay = vi.hoisted(() => ({ fetchQuery: vi.fn() }));
+const relay = vi.hoisted(() => ({ fetchQuery: vi.fn(), commitMutation: vi.fn() }));
 const chat = vi.hoisted(() => ({ history: vi.fn() }));
 const auth = vi.hoisted(() => ({ bearer: null as string | null }));
 
 vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: relay.fetchQuery }));
 vi.mock('@/lib/relay', () => ({ getRelayEnvironment: () => ({}) }));
+vi.mock('@/lib/relay/commit-mutation', () => ({ commitMutationPromise: relay.commitMutation }));
 // `@inline` fragments are read with `readInlineData`; the wire objects below stand in for the ref.
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 vi.mock('./remote-session-chat-api-service', () => ({ remoteSessionChatApiService: chat }));
@@ -27,6 +28,8 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
     startedAt: '2026-09-25T10:49:27Z',
     durationMs: 3_600_000,
     recordingState: 'READY',
+    recordingExpiresAt: '2026-12-24T10:49:27Z',
+    recordingHold: null,
     dialogId: 'dialog-1',
     technician: { name: 'Roman Smith', avatarUrl: null },
     organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
@@ -36,12 +39,14 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
         sizeBytes: 100,
         protocol: 2,
         downloadUrl: '/api/v1/remote-access/recordings/rec-1/download',
+        status: 'AVAILABLE',
       },
       {
         recordingId: 'rec-2',
         sizeBytes: 50,
         protocol: 2,
         downloadUrl: '/api/v1/remote-access/recordings/rec-2/download',
+        status: 'AVAILABLE',
       },
     ],
     ...overrides,
@@ -59,6 +64,7 @@ const fetchMock = vi.fn();
 
 beforeEach(() => {
   relay.fetchQuery.mockReset();
+  relay.commitMutation.mockReset();
   chat.history.mockReset();
   fetchMock.mockReset();
   auth.bearer = null;
@@ -77,26 +83,149 @@ describe('fromWireSession', () => {
       durationMs: 3_600_000,
       sizeBytes: 150,
       protocol: 2,
-      processing: false,
+      recordingState: 'ready',
+      kept: false,
+      expiresAt: '2026-12-24T10:49:27Z',
       recordingId: 'rec-1',
       employee: { name: 'Roman Smith' },
     });
   });
 
   it('has nothing to open while processing or when nothing was recorded', () => {
-    expect(fromWireSession(session({ recordingState: 'PROCESSING', recordings: [] }))).toMatchObject({
-      processing: true,
-      recordingId: null,
-      sizeBytes: null,
-    });
+    expect(
+      fromWireSession(session({ recordingState: 'PROCESSING', recordingExpiresAt: null, recordings: [] })),
+    ).toMatchObject({ recordingState: 'processing', recordingId: null, sizeBytes: null, expiresAt: null });
     expect(fromWireSession(session({ recordingState: 'NONE', recordings: [] }))).toMatchObject({
-      processing: false,
+      recordingState: 'none',
       recordingId: null,
     });
+  });
+
+  it('reads the failed, expired and deleted states, and an unknown one as nothing recorded', () => {
+    expect(fromWireSession(session({ recordingState: 'FAILED', recordings: [] })).recordingState).toBe('failed');
+    expect(fromWireSession(session({ recordingState: 'EXPIRED' })).recordingState).toBe('expired');
+    expect(fromWireSession(session({ recordingState: 'DELETED' })).recordingState).toBe('deleted');
+    expect(fromWireSession(session({ recordingState: 'ARCHIVED' })).recordingState).toBe('none');
+  });
+
+  it('marks a session kept when any of its files is held', () => {
+    const files = session().recordings;
+    expect(fromWireSession(session({ recordings: [files[0], { ...files[1], status: 'HELD' }] })).kept).toBe(true);
+  });
+
+  it('reads a kept session as a playable one that is kept', () => {
+    const files = session().recordings.map(file => ({ ...file, status: 'HELD' }));
+    expect(
+      fromWireSession(session({ recordingState: 'KEPT', recordingExpiresAt: null, recordings: files })),
+    ).toMatchObject({ recordingState: 'ready', kept: true, recordingId: 'rec-1', expiresAt: null, sizeBytes: 150 });
+  });
+
+  it('reads the Keep, naming the legal reason as the Keep dialog does', () => {
+    const row = fromWireSession(
+      session({
+        recordingState: 'KEPT',
+        recordingExpiresAt: null,
+        recordingHold: {
+          heldBy: { name: 'Dana Whitfield' },
+          heldAt: '2026-10-08T10:00:00Z',
+          reason: 'LEGAL_COMPLIANCE',
+          note: null,
+          dueAt: '2026-12-24T10:49:27Z',
+          expiresAtOnRelease: '2026-12-24T10:49:27Z',
+        },
+      }),
+    );
+    expect(row.keep).toEqual({
+      keptBy: 'Dana Whitfield',
+      keptAt: '2026-10-08T10:00:00Z',
+      reason: 'LEGAL_OR_COMPLIANCE',
+      note: null,
+      dueAt: '2026-12-24T10:49:27Z',
+      expiresAtOnRelease: '2026-12-24T10:49:27Z',
+    });
+    expect(fromWireSession(session()).keep).toBeNull();
+  });
+
+  it('keeps the original size of expired and deleted files', () => {
+    const [first, second] = session().recordings;
+    expect(fromWireSession(session({ recordings: [{ ...first, status: 'DELETED' }, second] })).sizeBytes).toBe(150);
+    expect(
+      fromWireSession(
+        session({
+          recordingState: 'EXPIRED',
+          recordings: [
+            { ...first, status: 'EXPIRED', downloadUrl: null },
+            { ...second, status: 'EXPIRED', downloadUrl: null },
+          ],
+        }),
+      ).sizeBytes,
+    ).toBe(150);
   });
 });
 
 describe('SessionRecordingsApiService', () => {
+  it("keeps with the server's reason and the note, and throws the refusal", async () => {
+    relay.commitMutation.mockResolvedValueOnce({ keepRecording: { userErrors: [] } });
+    await service.keep('session-1', { reason: 'LEGAL_OR_COMPLIANCE', description: null });
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), {
+      input: { sessionId: 'session-1', reason: 'LEGAL_COMPLIANCE', note: null },
+    });
+
+    relay.commitMutation.mockResolvedValueOnce({ keepRecording: { userErrors: [] } });
+    await service.keep('session-1', { reason: 'OTHER', description: 'Customer asked' });
+    expect(relay.commitMutation).toHaveBeenLastCalledWith(expect.anything(), {
+      input: { sessionId: 'session-1', reason: 'OTHER', note: 'Customer asked' },
+    });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      keepRecording: { userErrors: [{ code: 'RECORDING_KEPT_LIMIT', message: 'The kept allowance is full' }] },
+    });
+    await expect(service.keep('session-1', { reason: 'CLIENT_DISPUTE', description: null })).rejects.toThrow(
+      'The kept allowance is full',
+    );
+  });
+
+  it('releases by session id and throws the refusal', async () => {
+    relay.commitMutation.mockResolvedValueOnce({ releaseRecording: { userErrors: [] } });
+    await service.release('session-1');
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), { sessionId: 'session-1' });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      releaseRecording: { userErrors: [{ code: 'RECORDING_NOT_KEPT', message: 'The recording is not kept' }] },
+    });
+    await expect(service.release('session-1')).rejects.toThrow('The recording is not kept');
+  });
+
+  it('deletes by session id and throws the server refusal', async () => {
+    relay.commitMutation.mockResolvedValueOnce({ deleteRecording: { userErrors: [] } });
+    await service.delete('session-1');
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), { sessionId: 'session-1' });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      deleteRecording: { userErrors: [{ code: 'RECORDING_HELD', message: 'The recording is kept' }] },
+    });
+    await expect(service.delete('session-1')).rejects.toThrow('The recording is kept');
+  });
+
+  it('reads the recording storage, Long fields as numbers', async () => {
+    queriesAnswer({
+      recordingStorage: {
+        usedBytes: '322122547200',
+        limitBytes: '322122547200',
+        keptBytes: 0,
+        keptLimitBytes: '53687091200',
+        full: true,
+      },
+    });
+    await expect(service.storage()).resolves.toEqual({
+      usedBytes: 322_122_547_200,
+      limitBytes: 322_122_547_200,
+      keptBytes: 0,
+      keptLimitBytes: 53_687_091_200,
+      full: true,
+    });
+  });
+
   it('reads every page of the device history', async () => {
     queriesAnswer(
       { remoteSessions: { edges: [{ node: session() }], pageInfo: { hasNextPage: true, endCursor: 'c1' } } },

@@ -1,5 +1,5 @@
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { ScheduleDeviceCriteriaInput } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
-import type { DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
 import { criteriaToInput, type ScheduleCriteria } from './schedule-criteria';
 
 /**
