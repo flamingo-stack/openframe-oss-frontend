@@ -582,6 +582,12 @@ swapped.
   Variants. The CLI (`assembleDevDebug`) is unaffected.
 - **Generated files** — `capacitor.config.json`, `config.xml`, `CapApp-SPM/Package.swift`.
   Edit `capacitor.config.ts` instead; never hand-edit `Package.swift` (CLI-managed).
+- **`DisableDeploy` stays on** (`cordova.preferences` in `capacitor.config.ts`, written into
+  both `config.xml` by `cap sync`). Without it Capacitor boots the `serverBasePath` that its
+  `WebView` plugin lets any page script persist (Android: any existing directory; iOS: one
+  under `ionic_built_snapshots/`), so an XSS survives restarts — reproduced on the simulator
+  2026-10-12. A future OTA updater boots bundles through its own launch hook (vault
+  `OpenFrame/Mobile - OTA Web Bundle Updates (plan)`), never this path.
 
 ## Debugging on the simulator (autonomous loop)
 
