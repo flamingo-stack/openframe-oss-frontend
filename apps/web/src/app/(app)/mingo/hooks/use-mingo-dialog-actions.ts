@@ -62,13 +62,15 @@ export function useMingoDialogActions() {
     void queryClient.invalidateQueries({ queryKey: ['mingo-archived-dialogs'] });
   }, [queryClient]);
 
+  // `silent`: no success toast - for a title the app sets itself (the Getting
+  // Started tour naming its conversation), which the user did not ask for.
   const renameDialog = useCallback(
-    async (id: string, title: string) => {
+    async (id: string, title: string, options?: { silent?: boolean }) => {
       try {
         await runDialogMutation(RENAME_MINGO_DIALOG_MUTATION, { input: { id, title } }, 'renameDialog');
         invalidateDialogs();
         void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(id) });
-        toast({ title: 'Chat renamed', variant: 'success' });
+        if (!options?.silent) toast({ title: 'Chat renamed', variant: 'success' });
       } catch (err) {
         toast({
           title: 'Error',

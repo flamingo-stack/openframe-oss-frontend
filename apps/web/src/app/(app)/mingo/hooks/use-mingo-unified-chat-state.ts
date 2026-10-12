@@ -112,6 +112,13 @@ export interface MingoUnifiedChat {
    * about X" EmptyState buttons) that always want a fresh conversation.
    */
   sendInNewDialog: (text: string) => Promise<void>;
+  /**
+   * Create an EMPTY dialog titled `title` and open it - nothing is sent. For a
+   * conversation the app starts on the user's behalf (the Getting Started
+   * tour) and names up front, so the chat list never shows it as "New Chat".
+   * Resolves to the dialog id, or null when it could not be created.
+   */
+  createNamedDialog: (title: string) => Promise<string | null>;
   /** Current server-side dialog-search term. */
   searchQuery: string;
   /** Set the dialog-search term (already debounced by the chat's search bar). */
@@ -478,6 +485,22 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [createDialog, addMessage, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut, sendMingoMessage],
   );
 
+  const createNamedDialog = useCallback(
+    async (title: string): Promise<string | null> => {
+      const newId = await createDialog();
+      if (!newId) return null;
+      // The title is the app's, not the user's: no "Chat renamed" toast. A
+      // rename that fails leaves the dialog on its generated title and toasts.
+      await renameDialog(newId, title, { silent: true });
+      setActiveDialogId(newId);
+      resetUnread(newId);
+      subscribeToDialog(newId);
+      selectDialogMut(newId);
+      return newId;
+    },
+    [createDialog, renameDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
+  );
+
   // Snapshot the live navigation context (open view + recent views) from the
   // store and fold in the picker selection from the lib's send options. Read
   // imperatively (`getState`) so `sendMessage` doesn't re-create on every
@@ -737,6 +760,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     pendingApprovals,
     dialogStatusOf,
     sendInNewDialog,
+    createNamedDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,

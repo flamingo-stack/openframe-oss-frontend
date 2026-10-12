@@ -2,7 +2,7 @@
 
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useOnboardingStore } from '@/stores/onboarding-store';
-import { useTourStarted } from '../lib/tour-start';
+import { useTourStarted } from '../lib/tour-state';
 
 /**
  * Whether the setup wizard (`/setup`) is where this session belongs.

@@ -9,6 +9,7 @@ import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
+import { MingoIntroBanner } from './mingo-intro-banner';
 import { TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
@@ -37,6 +38,13 @@ export default function DashboardContent() {
 
   return (
     <>
+      {/* Onboarding v2: the welcome banner in the setup card's place, until the
+          user closes it. Same wrapper, so a dismissed banner collapses the gap. */}
+      {onboardingV2 === 'on' && (
+        <div className={ONBOARDING_WRAPPER_CLASS}>
+          <MingoIntroBanner />
+        </div>
+      )}
       {/* Onboarding — deliberately OUTSIDE the PageLayout below.
           Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
           `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of

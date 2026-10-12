@@ -10,7 +10,7 @@ import type { completeUserOnboardingMutation as CompleteUserType } from '@/__gen
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
-import { clearTourStarted } from '@/app/(app)/setup/lib/tour-start';
+import { clearTourStarted } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 import type { Instant } from '@/lib/graphql-scalars';

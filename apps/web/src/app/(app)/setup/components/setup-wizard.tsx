@@ -11,7 +11,7 @@ import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import type { FirstDevice } from '../hooks/use-first-device-enrollment';
-import { markTourStarted } from '../lib/tour-start';
+import { markTourStarted } from '../lib/tour-state';
 import { nextSetupScreen, type SetupStep, TENANT_STEP_OF } from '../setup-steps';
 import { AllSetStep } from '../steps/all-set-step';
 import { CustomerStep } from '../steps/customer-step';
@@ -80,8 +80,10 @@ export function SetupWizard() {
   const leave = useCallback(() => {
     router.replace(routes.dashboard);
     // The tour lives in the Mingo panel, a SaaS-tenant surface; elsewhere the
-    // dashboard is the destination on its own.
-    if (isSaasTenantMode()) useMingoLauncherStore.getState().startNewChat();
+    // dashboard is the destination on its own. Opening the panel is enough:
+    // it creates the tour's conversation itself once it sees the tour started
+    // (`useMingoTour`), and a docked panel is on screen regardless.
+    if (isSaasTenantMode()) useMingoLauncherStore.getState().setOpen(true);
   }, [router]);
 
   const handleStart = useCallback(() => {
