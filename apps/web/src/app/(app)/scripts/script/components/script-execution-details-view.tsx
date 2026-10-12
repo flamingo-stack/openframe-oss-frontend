@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -8,7 +9,6 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { useRetryKey, ValueText } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';

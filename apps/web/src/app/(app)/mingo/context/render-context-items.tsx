@@ -19,6 +19,7 @@ import type { ContextItemsProps } from './items-shared';
 import {
   DeviceItems,
   IncidentItems,
+  KnowledgeBaseFolderItems,
   KnowledgeBaseItems,
   OrganizationItems,
   ScheduleItems,
@@ -32,6 +33,7 @@ const COMPONENTS: Record<string, (p: ContextItemsProps) => ReactNode> = {
   [CONTEXT_ENTITY_KIND.DEVICE]: DeviceItems,
   [CONTEXT_ENTITY_KIND.ORGANIZATION]: OrganizationItems,
   [CONTEXT_ENTITY_KIND.KB_ARTICLE]: KnowledgeBaseItems,
+  [CONTEXT_ENTITY_KIND.KB_FOLDER]: KnowledgeBaseFolderItems,
   [CONTEXT_ENTITY_KIND.TICKET]: TicketItems,
   [CONTEXT_ENTITY_KIND.POLICY]: PolicyItems,
   [CONTEXT_ENTITY_KIND.QUERY]: QueryItems,

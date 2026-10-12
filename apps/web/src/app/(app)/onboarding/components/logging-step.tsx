@@ -1,6 +1,11 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import {
+  getDeviceName,
+  LOG_COLUMN_WIDTHS,
+  logSourceLabels,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -18,11 +23,8 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { getDeviceName } from '../../devices/utils/device-name';
-import { LOG_COLUMN_WIDTHS } from '../../logs-page/components/logs-table-columns';
 import { useLogs } from '../../logs-page/hooks/use-logs';
 import type { LogEntry } from '../../logs-page/types/log.types';
-import { logSourceLabels } from '../../logs-page/utils/log-source-labels';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 
 interface LogRow {

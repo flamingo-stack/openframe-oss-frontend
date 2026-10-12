@@ -6,18 +6,12 @@
  * drift. The step body is shared the same way: `./components/mingo-step`.
  */
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ReactNode } from 'react';
 
 export const MEET_MINGO_META: { icon: ReactNode; title: string; description: string } = {
-  icon: (
-    <MingoIcon
-      className="size-6"
-      color="var(--color-text-secondary)"
-      eyesColor="var(--ods-flamingo-cyan-base)"
-      cornerColor="var(--ods-flamingo-cyan-base)"
-    />
-  ),
+  // The row's own grey, like every other step icon beside it.
+  icon: <AgentMark agent="mingo" className="size-6 text-ods-text-secondary" color="currentColor" />,
   title: 'Meet Mingo',
   description: 'Your AI co-pilot for the OpenFrame workspace. Ask questions, get summaries, or delegate tasks.',
 };

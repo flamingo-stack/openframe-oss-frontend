@@ -1,9 +1,12 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import {
+  type DeviceSelectionMode,
+  DeviceSelectionModeRadio,
+  DeviceSelector,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DeviceSelectionModeRadio, DeviceSelector } from '@/app/components/shared/device-selector';
-import type { DeviceSelectionMode } from '@/app/components/shared/device-selector/device-selector.types';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ScheduleCriteriaFieldsSkeleton } from './schedule-criteria-fields';

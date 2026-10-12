@@ -46,6 +46,7 @@ const sessionFragment = graphql`
     ticketId
     ticketNumber
     recordingEnabled
+    recordingSuppressed
     dialogId
   }
 `;
@@ -119,6 +120,8 @@ export function fromWireRemoteSession(data: WireSession): RemoteSession {
     ticketId: data.ticketId ?? undefined,
     ticketNumber: data.ticketNumber ?? undefined,
     recordingEnabled: data.recordingEnabled === true,
+    // The only reason there is; an unknown one is not shown as storage being full.
+    recordingSuppressed: data.recordingSuppressed === 'STORAGE_FULL' ? 'storage_full' : null,
     dialogId: data.dialogId ?? null,
   };
 }

@@ -10,26 +10,48 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ASK_INTRO_ALIAS, getMingoDialogMessagesQuery, normalizeAskMessageData } from './dialogs-queries';
+import {
+  ASK_INTRO_ALIAS,
+  GET_MINGO_DIALOGS_QUERY,
+  GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
+  getMingoDialogMessagesQuery,
+  normalizeAskMessageData,
+} from './dialogs-queries';
 
-/** The body of `... on <TypeName> { … }` in the messages query. */
+/** The body of `... on <TypeName> { … }` in the messages query, nested selections included. */
 function fragmentBody(query: string, typeName: string): string {
   const start = query.indexOf(`... on ${typeName} {`);
   expect(start, `no fragment for ${typeName}`).toBeGreaterThan(-1);
-  return query.slice(start, query.indexOf('}', start));
+  let depth = 0;
+  for (let index = query.indexOf('{', start); index < query.length; index++) {
+    if (query[index] === '{') depth++;
+    if (query[index] === '}' && --depth === 0) return query.slice(start, index);
+  }
+  return query.slice(start);
 }
 
 describe('getMingoDialogMessagesQuery', () => {
   const query = getMingoDialogMessagesQuery();
+  const legacyQuery = getMingoDialogMessagesQuery({ legacyGuide: true });
 
-  it('fetches the Guide Mode V3 source metadata through the GuideData payload', () => {
-    expect(fragmentBody(query, 'GuideData')).toContain('payload');
+  it('fetches an answer’s sources, grouped rows, videos and cards', () => {
+    const attachments = fragmentBody(query, 'AttachmentsData');
+    for (const selection of ['sources {', 'items {', 'videos {', 'metadata {', 'cards {']) {
+      expect(attachments).toContain(selection);
+    }
+  });
+
+  it('never asks one schema for both attachment types', () => {
+    // A fragment on a type the schema lacks fails the whole query.
+    expect(query).not.toContain('GuideData');
+    expect(legacyQuery).not.toContain('AttachmentsData');
+    expect(fragmentBody(legacyQuery, 'GuideData')).toContain('payload');
   });
 
   it('does not select GuideData.text', () => {
     // Payload-only records persist `text` as an empty non-null string, which
     // would replay as an empty text segment above the answer.
-    expect(fragmentBody(query, 'GuideData')).not.toMatch(/^\s*text\s*$/m);
+    expect(fragmentBody(legacyQuery, 'GuideData')).not.toMatch(/^\s*text\s*$/m);
   });
 
   it('fetches the ask intro under the alias, never as a bare `text`', () => {
@@ -74,16 +96,36 @@ describe('normalizeAskMessageData', () => {
   });
 
   it('passes other rows through by reference', () => {
-    const guide = { type: 'GUIDE', payload: { sources: [] } };
-    const input = [guide];
+    const attachments = { type: 'ATTACHMENTS', sources: [], videos: [], cards: [] };
+    const input = [attachments];
     const output = normalizeAskMessageData(input);
 
     expect(output).toBe(input);
-    expect(output[0]).toBe(guide);
+    expect(output[0]).toBe(attachments);
   });
 
   it('tolerates a missing payload', () => {
     expect(normalizeAskMessageData(undefined)).toBeUndefined();
     expect(normalizeAskMessageData(null)).toBeNull();
+  });
+});
+
+/**
+ * A backend without `Dialog.pendingApproval` rejects any query that names it, so
+ * only the Mingo v2 list asks: the base query feeds v1, the archive and incidents.
+ */
+describe('the chat list queries', () => {
+  it('leave pendingApproval out of the base query', () => {
+    expect(GET_MINGO_DIALOGS_QUERY).not.toContain('pendingApproval');
+    expect(GET_MINGO_DIALOGS_QUERY).toContain('streamState');
+  });
+
+  it('add it to the v2 list query and nothing else', () => {
+    const withoutField = GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY.replace(
+      /\s*pendingApproval \{\s*id\s*approvalType\s*\}/,
+      '',
+    );
+    expect(GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY).toContain('pendingApproval');
+    expect(withoutField.replace(/\s+/g, ' ')).toBe(GET_MINGO_DIALOGS_QUERY.replace(/\s+/g, ' '));
   });
 });

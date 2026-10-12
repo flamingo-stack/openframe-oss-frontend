@@ -1,3 +1,4 @@
+import type { DeviceTag } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { readInlineData } from 'relay-runtime';
 import type { deviceFields_machine$data, deviceFields_machine$key } from '@/__generated__/deviceFields_machine.graphql';
 import type {
@@ -9,7 +10,7 @@ import { customerContactEmail } from '@/app/(app)/customers/utils/customer-conta
 import { deviceFieldsFragment } from '@/graphql/devices/device-fields';
 import { deviceRowFieldsFragment } from '@/graphql/devices/device-row-fields';
 import { deviceSelectorFieldsFragment } from '@/graphql/devices/device-selector-fields';
-import type { Device, DeviceTag, ToolConnection, ToolType } from '../types/device.types';
+import type { Device, ToolConnection, ToolType } from '../types/device.types';
 
 /**
  * A `Machine` flattened to the `Device` the shared device tables, cards and

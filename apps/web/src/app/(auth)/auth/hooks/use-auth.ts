@@ -56,6 +56,23 @@ function isUserCanceled(error: unknown): boolean {
 }
 
 /**
+ * Where a web login lands, pre-encoded for the `redirectTo` query param. Carries the PostHog
+ * distinct_id + session_id across the (SaaS) auth-host → tenant-dashboard-host hop so the session
+ * recording stays continuous: encoded here, the `#…` handoff rides through the OAuth roundtrip and
+ * becomes a live fragment only when the gateway redirects to the dashboard.
+ */
+function dashboardReturnUrl(): string {
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  const port = window.location.port ? `:${window.location.port}` : '';
+  const returnUrl =
+    hostname === 'localhost' || hostname === '127.0.0.1'
+      ? `${protocol}//${hostname}${port}${routes.dashboard}`
+      : `${window.location.origin}${routes.dashboard}`;
+  return encodeURIComponent(appendPosthogHandoff(returnUrl));
+}
+
+/**
  * Auth actions hook - provides login, registration, and logout functions.
  * Does NOT perform auth checking. Use `useAuthSession` for that.
  */
@@ -148,6 +165,41 @@ export function useAuth() {
     }
   };
 
+  /** Runs the shell's native sign-in and lands on the dashboard; rejects as `nativeLogin` does. */
+  const nativeLoginToDashboard = async (options: Parameters<typeof nativeLogin>[0]) => {
+    const { tenantHostChanged } = await nativeLogin(options);
+    if (tenantHostChanged) {
+      // replace, not assign: keep /auth out of the history stack so
+      // native/browser back can't return to the login screen post-login.
+      // Small delay so a just-fired signup_completed (dataLayer/PostHog)
+      // flushes before this hard navigation tears down the page context.
+      setTimeout(() => window.location.replace(routes.dashboard), 100);
+      return;
+    }
+    // Refetch /me BEFORE leaving the auth screen (its spinner covers the
+    // round trip). A fire-and-forget invalidation left the stale
+    // signed-out session in cache, so the dashboard mounted into a brief
+    // "Sign in required" overlay until the refetch resolved.
+    await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
+    router.replace(routes.dashboard);
+    setIsLoading(false);
+  };
+
+  /**
+   * The organization exists but the sign-in that should follow it did not happen. Say so before
+   * showing the login screen: otherwise the obvious next move is a second registration, which
+   * fails on the address already being taken.
+   */
+  const signInToContinue = () => {
+    toast({
+      title: 'Organization Created',
+      description: 'Sign in with your email and password to continue.',
+      variant: 'success',
+    });
+    setIsLoading(false);
+    router.replace(routes.auth.login);
+  };
+
   const registerOrganization = async (data: RegisterRequest) => {
     setIsLoading(true);
 
@@ -188,39 +240,61 @@ export function useAuth() {
         throw new Error(userMessage);
       }
 
-      toast({
-        title: 'Success!',
-        description: 'Organization created successfully. Check your email to verify your account.',
-        variant: 'success',
-      });
+      const tenant = response.data as { id?: string; domain?: string } | undefined;
 
       // Funnel: registration is server-confirmed. `signup_completed` (with the
       // OpenFrame user.id + email) fires once the authenticated session resolves
-      // — see PostHogAnalyticsBridge — since no user id exists yet here (the flow
-      // goes to the email-verify step next). Mark the pending signup so it fires.
+      // — see PostHogAnalyticsBridge — since no user id exists yet here.
+      // Set BEFORE the branches below on purpose: the account exists from this point on, so
+      // whichever sign-in lands first - the continue hop, the shell's native login, or a manual
+      // login after a dismissed sheet - is this user's first session, which is exactly when the
+      // event belongs. The check-email flow relied on the same carry-over until its login.
       markPendingSignup();
 
-      // The verify screen shows the address the link went to, and reads it from here. It used to
-      // be written by the two-step signup's first screen; that handoff went away when the steps
-      // merged, and without this the screen finds nothing and bounces straight back to /auth.
-      // sessionStorage, not the URL: the address is not something to put in a shareable link.
-      try {
-        sessionStorage.setItem('auth:email', data.email);
-      } catch {
-        // Best-effort. Losing it costs the address on the verify screen, which bounces to /auth —
-        // it must not surface as "Registration Failed" for an account the server already created.
+      if (!tenant?.id) {
+        // The account exists, only the tenant to continue into is missing from the answer.
+        signInToContinue();
+        return;
       }
 
-      // Client-side replace (not window.location.href) so the success toast
-      // survives the transition; replace keeps signup out of the back stack.
-      router.replace(routes.auth.checkEmail);
+      if (isAppShell()) {
+        // The shell's session is not this WebView's cookie jar, so the sign-in the server just
+        // started is out of reach: run the regular native login for the new tenant instead.
+        try {
+          await nativeLoginToDashboard({
+            tenantId: tenant.id,
+            provider: 'openframe',
+            // 'localhost' is the request's stand-in for "no domain" (see above), not a host.
+            tenantDomain: tenant.domain && tenant.domain !== 'localhost' ? tenant.domain : undefined,
+          });
+        } catch (error) {
+          if (isUserCanceled(error)) {
+            // Dismissing the sign-in sheet is deliberate, but the organization is already there.
+            signInToContinue();
+            return;
+          }
+          toast({
+            title: 'Login Failed',
+            description: error instanceof Error ? error.message : 'Unable to sign in',
+            variant: 'destructive',
+          });
+          setIsLoading(false);
+          router.replace(routes.auth.login);
+        }
+        return;
+      }
+
+      // The server signed the new owner into its session with the registration, so the
+      // continue hop lands in the new tenant without asking for the password again — the
+      // same landing as an SSO signup. A top-level navigation: the chain sets the auth cookies.
+      // Loading stays on while the page unloads, so the form cannot submit a second time.
+      window.location.replace(authApiClient.continueUrl(tenant.id, dashboardReturnUrl()));
     } catch (error) {
       toast({
         title: 'Registration Failed',
         description: error instanceof Error ? error.message : 'Unable to create organization',
         variant: 'destructive',
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -240,7 +314,7 @@ export function useAuth() {
       }
 
       if (isAppShell()) {
-        const { tenantHostChanged } = await nativeLogin(
+        await nativeLoginToDashboard(
           discovered?.tenantId
             ? {
                 tenantId: discovered.tenantId,
@@ -253,21 +327,6 @@ export function useAuth() {
               // looked up before the tenant is known.
               { provider },
         );
-        if (tenantHostChanged) {
-          // replace, not assign: keep /auth out of the history stack so
-          // native/browser back can't return to the login screen post-login.
-          // Small delay so a just-fired signup_completed (dataLayer/PostHog)
-          // flushes before this hard navigation tears down the page context.
-          setTimeout(() => window.location.replace(routes.dashboard), 100);
-          return;
-        }
-        // Refetch /me BEFORE leaving the auth screen (its spinner covers the
-        // round trip). A fire-and-forget invalidation left the stale
-        // signed-out session in cache, so the dashboard mounted into a brief
-        // "Sign in required" overlay until the refetch resolved.
-        await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
-        router.replace(routes.dashboard);
-        setIsLoading(false);
         return;
       }
 
@@ -280,22 +339,7 @@ export function useAuth() {
         return;
       }
 
-      const getReturnUrl = () => {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-        const port = window.location.port ? `:${window.location.port}` : '';
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return `${protocol}//${hostname}${port}/dashboard`;
-        }
-        return `${window.location.origin}/dashboard`;
-      };
-
-      // Carry the PostHog distinct_id + session_id across the (SaaS) auth-host
-      // → tenant-dashboard-host hop so the session recording stays continuous.
-      // Encoded here, so the `#…` handoff rides through the OAuth roundtrip and
-      // becomes a live fragment only when the gateway redirects to the dashboard.
-      const returnUrl = encodeURIComponent(appendPosthogHandoff(getReturnUrl()));
-      window.location.href = authApiClient.loginUrl(discovered.tenantId, returnUrl, provider);
+      window.location.href = authApiClient.loginUrl(discovered.tenantId, dashboardReturnUrl(), provider);
     } catch (error) {
       // A verified Apple identity with no account is not a failure — the caller renders the
       // organization form and finishes with the credential this carries. Rethrow so the screen

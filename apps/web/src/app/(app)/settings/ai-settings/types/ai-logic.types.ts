@@ -36,7 +36,12 @@ export function getAiLogicDefaults(config: AgentAiConfig): AiLogicFormValues {
     // actions are shown read-only and only become editable rows on uncheck.
     quickActions: config.quickActionsIsDefault
       ? []
-      : (config.quickActions ?? []).map(q => ({ id: q.id, name: q.name, instructions: q.instructions })),
+      : (config.quickActions ?? []).map(q => ({
+          id: q.id,
+          name: q.name,
+          instructions: q.instructions,
+          iconName: q.iconName ?? null,
+        })),
   };
 }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { TENANTS_TABLE_COLUMNS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -10,8 +11,7 @@ import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { ConsentAnnouncementBanner } from './consent-announcement-banner';
-import { TenantsTable } from './tenants-table';
-import { TENANTS_PAGE_SIZE, TENANTS_TABLE_COLUMNS } from './tenants-table-columns';
+import { TENANTS_PAGE_SIZE, TenantsTable } from './tenants-table';
 
 /**
  * The "Connect Tenant" split button (Figma 1699-8249): the label opens the connect page in place,

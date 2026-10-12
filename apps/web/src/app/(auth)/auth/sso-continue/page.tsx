@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ssoProviderLabel } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
 import { authApiClient, type PendingSsoIdentity } from '@/lib/auth-api-client';
-import { markPendingSignup } from '@/lib/posthog/posthog-events';
+import { markPendingSignup, pushIdentify } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 
 /**
@@ -44,6 +44,9 @@ export default function SsoContinuePage() {
       if (!active) return;
 
       if (res.ok && res.data?.email) {
+        // GTM's identify on /auth reads a typed address on a button click; Enter submits without one.
+        // This is the address the tenant identifies the person by.
+        pushIdentify({ email: res.data.email });
         setIdentity(res.data);
         setLoadState('ready');
         return;

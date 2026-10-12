@@ -1,7 +1,7 @@
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { graphql, readInlineData } from 'react-relay';
 import type { softwareLogSearch_execution$key } from '@/__generated__/softwareLogSearch_execution.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { executionOutput } from '@/app/(app)/scripts/shared/utils/execution-helpers';
 import { softwareRunStatusLabel } from './software-run-status';
 

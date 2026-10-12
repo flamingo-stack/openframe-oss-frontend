@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  SOFTWARE_ACTION_COPY,
+  type SoftwareRow,
+  type SoftwareRunMode,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -16,8 +21,7 @@ import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-e
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
-import { SOFTWARE_ACTION_COPY } from '../shared/software-action-copy';
-import { type PackageInput, type SoftwareRow, toPackageInputs } from './software-row';
+import { type PackageInput, toPackageInputs } from './software-row';
 
 /**
  * Runs the draft now (`schedule: null`) or creates a software schedule from it,
@@ -53,15 +57,13 @@ const actionQuery = graphql`
   }
 `;
 
-export type RunMode = 'now' | 'schedule';
-
 export interface SoftwareActionForm {
   rows: SoftwareRow[];
   /** The draft behind the page — null until the first device is assigned. */
   bundleId: string | null;
   /** How many devices the draft holds; the server refuses an empty one too. */
   deviceCount: number;
-  mode: RunMode;
+  mode: SoftwareRunMode;
   date: Date | null;
   time: string;
   timeReference: ScheduleTimeReference;

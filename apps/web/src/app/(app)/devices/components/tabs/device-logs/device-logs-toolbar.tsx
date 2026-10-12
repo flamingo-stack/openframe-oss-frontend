@@ -1,24 +1,11 @@
 'use client';
 
 import { Refresh01RightIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Button,
-  CheckboxBlock,
-  DatePicker,
-  type DateRange,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Tag,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { KeyboardEvent } from 'react';
+import { Button, CheckboxBlock, type DateRange, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { DeviceLogLevel } from '@/generated/schema-enums';
-import { DEVICE_LOG_LEVELS, deviceLogLevelVariant } from '../../../utils/device-log-level';
-import { DEVICE_LOG_RANGE_LABELS, DEVICE_LOG_RANGES, type DeviceLogRange } from '../../../utils/device-log-time';
+import type { DeviceLogRange } from '../../../utils/device-log-time';
+import { DeviceLogLevelChips } from './device-log-level-chips';
+import { DeviceLogRangeSelect } from './device-log-range-select';
 
 interface DeviceLogsToolbarProps {
   search: string;
@@ -41,7 +28,7 @@ interface DeviceLogsToolbarProps {
   disabled?: boolean;
 }
 
-/** Figma 696:38908: search + Auto-Update, then level chips, the range and Refresh. Outside the list's Suspense so the search box keeps focus. */
+/** Search + Auto-Update, then level chips, the range and Refresh. Outside the list's Suspense so the search box keeps focus. */
 export function DeviceLogsToolbar({
   search,
   onSearchChange,
@@ -59,13 +46,6 @@ export function DeviceLogsToolbar({
   isRefreshing,
   disabled = false,
 }: DeviceLogsToolbarProps) {
-  const chipKeyDown = (level: DeviceLogLevel) => (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onToggleLevel(level);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
       <div className="flex flex-col gap-[var(--spacing-system-mf)] content-md:flex-row content-md:items-start">
@@ -92,54 +72,19 @@ export function DeviceLogsToolbar({
       </div>
 
       <div className="flex flex-col gap-[var(--spacing-system-s)] content-md:flex-row content-md:items-center content-md:justify-between">
-        <div role="group" aria-label="Log levels" className="flex flex-wrap gap-[var(--spacing-system-xxs)]">
-          {DEVICE_LOG_LEVELS.map(level => {
-            const on = selectedLevels.length === 0 || selectedLevels.includes(level);
-            return (
-              <Tag
-                key={level}
-                role="button"
-                tabIndex={disabled ? -1 : 0}
-                aria-pressed={on}
-                label={<span>{level}</span>}
-                variant={on ? deviceLogLevelVariant(level) : 'outline'}
-                disabled={disabled}
-                onClick={disabled ? undefined : () => onToggleLevel(level)}
-                onKeyDown={disabled ? undefined : chipKeyDown(level)}
-                className={cn(!disabled && 'cursor-pointer', !on && 'opacity-50')}
-              />
-            );
-          })}
-        </div>
+        <DeviceLogLevelChips selectedLevels={selectedLevels} onToggleLevel={onToggleLevel} disabled={disabled} />
 
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
-          <Select value={range} onValueChange={value => onRangeChange(value as DeviceLogRange)} disabled={disabled}>
-            <SelectTrigger
-              aria-label="Time range"
-              className="min-w-[180px] flex-1 content-md:w-[200px] content-md:flex-none"
-            >
-              <SelectValue>{DEVICE_LOG_RANGE_LABELS[range]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {DEVICE_LOG_RANGES.map(preset => (
-                <SelectItem key={preset} value={preset}>
-                  {DEVICE_LOG_RANGE_LABELS[preset]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {range === 'custom' && (
-            <DatePicker
-              mode="range"
-              value={customRange}
-              onChange={onCustomRangeChange}
-              fromDate={pickerBounds.fromDate}
-              toDate={pickerBounds.toDate}
-              placeholder="Select dates"
-              disabled={disabled}
-              className="min-w-[220px] flex-1 content-md:w-[290px] content-md:flex-none"
-            />
-          )}
+          <DeviceLogRangeSelect
+            range={range}
+            onRangeChange={onRangeChange}
+            customRange={customRange}
+            onCustomRangeChange={onCustomRangeChange}
+            pickerBounds={pickerBounds}
+            disabled={disabled}
+            triggerClassName="min-w-[180px] flex-1 content-md:w-[200px] content-md:flex-none"
+            pickerClassName="min-w-[220px] flex-1 content-md:w-[290px] content-md:flex-none"
+          />
           <Button
             variant="outline"
             size="icon"

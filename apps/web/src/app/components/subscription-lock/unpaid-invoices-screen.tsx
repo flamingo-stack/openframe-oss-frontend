@@ -6,9 +6,13 @@ import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/
 import { type ReactNode, Suspense, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
-import { formatCurrency } from '@/app/(app)/settings/billing-usage/lib/format';
-import { InvoiceStatus } from '@/generated/schema-enums';
+import {
+  type InvoiceRow,
+  isOutstandingInvoice,
+  toInvoiceRow,
+} from '@/app/(app)/settings/billing-usage/components/shared/invoice-row';
 import { EMPTY_VALUE } from '@/lib/empty-value';
+import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
 import { LockScreenActions } from './lock-screen-actions';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
@@ -18,26 +22,19 @@ import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
  *
  * `pendingInvoices` is the tenant's full Stripe history, so the screen filters
  * it down itself (see `isOutstanding`) rather than asking for a subset the
- * schema does not offer.
+ * schema does not offer. The row is the one the billing page's table reads
+ * (`invoice-row.ts`), so the two lists select one shape.
  */
 const unpaidInvoicesScreenQuery = graphql`
   query unpaidInvoicesScreenQuery {
     subscription {
       id
       pendingInvoices {
-        id
-        invoiceNumber
-        status
-        amountDue
-        dueDate
-        createdAt
-        hostedInvoiceUrl
+        ...invoiceRow_invoice
       }
     }
   }
 `;
-
-type PendingInvoice = NonNullable<UnpaidInvoicesScreenQueryType['response']['subscription']>['pendingInvoices'][number];
 
 const TITLE = 'Your Organization Has Been Suspended';
 
@@ -127,50 +124,71 @@ function UnpaidInvoicesContent() {
     },
   );
 
-  const invoices = useMemo(() => {
-    const all = data.subscription?.pendingInvoices ?? [];
-    return all.filter(isOutstanding).slice().sort(byOldestFirst);
-  }, [data]);
+  // `null` when the subscription answered without its invoices (Stripe could
+  // not be reached): the workspace is still suspended, but there is nothing to
+  // list and nothing to open — which is a different screen from "none owed".
+  const pendingInvoices = data.subscription?.pendingInvoices ?? null;
+  const invoices = useMemo(
+    () => (pendingInvoices ? pendingInvoices.map(toInvoiceRow).filter(isOutstandingInvoice).sort(byOldestFirst) : null),
+    [pendingInvoices],
+  );
 
+  if (invoices == null) return <SuspendedWorkspaceMain invoices={null} unavailable />;
   return <SuspendedWorkspaceMain invoices={invoices} />;
 }
 
-/**
- * `null` while the invoices are on their way — the copy is already true then,
- * and the CTA renders as itself, disabled. Reusing the real controls rather than
- * grey bars is the app-wide loading convention.
- */
-function SuspendedWorkspaceMain({ invoices }: { invoices: readonly PendingInvoice[] | null }) {
-  const loading = invoices == null;
-  // The oldest outstanding invoice — the one the suspension counts from, and so
-  // the one the single big CTA opens. Every other one is still reachable from
-  // its own row.
-  const oldest = invoices?.[0] ?? null;
-  const nothingOutstanding = !loading && invoices.length === 0;
+interface SuspendedWorkspaceMainProps {
+  /**
+   * `null` while the invoices are on their way — the copy is already true then,
+   * and the CTA renders as itself, disabled. Reusing the real controls rather
+   * than grey bars is the app-wide loading convention.
+   */
+  invoices: readonly InvoiceRow[] | null;
+  /** The invoices could not be loaded at all: say so, and offer the support form the shell carries. */
+  unavailable?: boolean;
+}
+
+function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWorkspaceMainProps) {
+  const loading = invoices == null && !unavailable;
+  // The oldest outstanding invoice with a payment link — the suspension counts
+  // from the oldest, and an invoice Stripe has not finalized has no link yet,
+  // so the single big CTA opens the oldest one that can actually be paid. Every
+  // other one is still reachable from its own row.
+  const payUrl = invoices?.find(invoice => invoice.hostedInvoiceUrl)?.hostedInvoiceUrl ?? null;
+  const nothingOutstanding = invoices != null && invoices.length === 0;
+  const nothingPayable = invoices != null && invoices.length > 0 && payUrl == null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[var(--spacing-system-xl)]">
       <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)] text-center">
         <h1 className="text-ods-text-primary text-h2">{TITLE}</h1>
         <p className="text-ods-text-secondary text-h4">
-          {nothingOutstanding
-            ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
-            : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
+          {unavailable
+            ? INVOICES_UNAVAILABLE_COPY.description
+            : nothingOutstanding
+              ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
+              : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
         </p>
       </div>
 
-      {!nothingOutstanding && (
+      {!unavailable && !nothingOutstanding && (
         <>
           <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)]">
-            {loading ? (
-              <InvoiceRowPlaceholder />
+            {loading || invoices == null ? (
+              <OutstandingInvoiceRowPlaceholder />
             ) : (
-              invoices.map(invoice => <InvoiceRow key={invoice.id} invoice={invoice} />)
+              invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)
             )}
           </div>
 
+          {nothingPayable && (
+            <p className="text-ods-error text-h6">
+              These invoices have no payment link yet. Contact support to settle them.
+            </p>
+          )}
+
           <Button
-            {...(oldest ? { href: oldest.hostedInvoiceUrl, openInNewTab: true } : { disabled: true })}
+            {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
             rightIcon={<ExternalLinkIcon />}
           >
             Pay Invoice
@@ -181,8 +199,9 @@ function SuspendedWorkspaceMain({ invoices }: { invoices: readonly PendingInvoic
   );
 }
 
-function InvoiceRow({ invoice }: { invoice: PendingInvoice }) {
+function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
   const overdue = isOverdue(invoice);
+  const name = invoice.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
 
   return (
     <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0">
@@ -194,12 +213,12 @@ function InvoiceRow({ invoice }: { invoice: PendingInvoice }) {
       <InvoiceCell caption="Status">
         <Tag variant={overdue ? 'error' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />
       </InvoiceCell>
+      {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the row keeps its shape. */}
       <Button
         variant="outline"
         size="icon"
-        href={invoice.hostedInvoiceUrl}
-        openInNewTab
-        aria-label={`Open invoice ${invoice.invoiceNumber ?? ''}`.trim()}
+        {...(invoice.hostedInvoiceUrl ? { href: invoice.hostedInvoiceUrl, openInNewTab: true } : { disabled: true })}
+        aria-label={invoice.hostedInvoiceUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
       >
         <ExternalLinkIcon />
       </Button>
@@ -208,7 +227,7 @@ function InvoiceRow({ invoice }: { invoice: PendingInvoice }) {
 }
 
 /** The row's shape with nothing in it — one row, because at least one is why we are here. */
-function InvoiceRowPlaceholder() {
+function OutstandingInvoiceRowPlaceholder() {
   return <div className="h-20 w-full animate-pulse rounded-md border border-ods-border bg-ods-skeleton" />;
 }
 
@@ -225,18 +244,8 @@ function InvoiceCell({ caption, children }: { caption: string; children: ReactNo
   );
 }
 
-/**
- * Still owed. `OPEN` is Stripe's own "finalized and awaiting payment"; `null` is
- * a legacy entry not yet reconciled, which the Invoices History table also reads
- * as unpaid. Everything else — DRAFT, PAID, VOID, UNCOLLECTIBLE — is either not
- * payable or already settled, and offering to pay it would be a dead link.
- */
-function isOutstanding(invoice: PendingInvoice): boolean {
-  return invoice.status == null || invoice.status === InvoiceStatus.OPEN;
-}
-
 /** Past its due date. An invoice Stripe auto-charges carries no due date, so it is simply unpaid. */
-function isOverdue(invoice: PendingInvoice): boolean {
+function isOverdue(invoice: InvoiceRow): boolean {
   if (!invoice.dueDate) return false;
   const due = new Date(invoice.dueDate).getTime();
   return Number.isFinite(due) && due < Date.now();
@@ -249,7 +258,7 @@ function isOverdue(invoice: PendingInvoice): boolean {
  * other thing known about it — never last, because "Stripe charges this one
  * automatically" does not make it less overdue than one with a printed date.
  */
-function byOldestFirst(a: PendingInvoice, b: PendingInvoice): number {
+function byOldestFirst(a: InvoiceRow, b: InvoiceRow): number {
   return dateValue(a.dueDate ?? a.createdAt) - dateValue(b.dueDate ?? b.createdAt);
 }
 

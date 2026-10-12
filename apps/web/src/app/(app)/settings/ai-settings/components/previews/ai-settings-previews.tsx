@@ -1,6 +1,6 @@
 'use client';
 
-import { FAE_AVATAR_DATA_URI } from '@flamingo-stack/openframe-frontend-core/assets';
+import { useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExpandSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -66,10 +66,10 @@ export function AiSettingsPreviews({
   // stays uncovered — which is why the header carries a close button regardless.
   useNativeBackDismissible(isPreviewOpen, closePreview);
 
-  // Fall back to the library's packaged default Fae avatar when no custom image
-  // is uploaded — same behavior as the chat, which never renders an empty/broken
-  // avatar. Keeps both previews (and their MSP/chat cards) looking complete.
-  const resolvedAvatarUrl = avatarUrl || FAE_AVATAR_DATA_URI;
+  // With no custom image uploaded, Fae's own picture: the one her server identity
+  // holds (the lib packages none), so both previews show what the chat shows.
+  const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
+  const resolvedAvatarUrl = avatarUrl || faeAvatar;
 
   // Scope the theme to each card, not the wrapper: `.theme-light` flips
   // `--ods-system-greys-background`, so applying it to the container would turn

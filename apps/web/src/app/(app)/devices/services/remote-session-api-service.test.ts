@@ -165,6 +165,14 @@ describe('fromWireRemoteSession', () => {
     expect(session.endReason).toBeNull();
   });
 
+  it('reads a session started without recording because storage was full', () => {
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: 'STORAGE_FULL' })).recordingSuppressed).toBe(
+      'storage_full',
+    );
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: null })).recordingSuppressed).toBeNull();
+    expect(fromWireRemoteSession(wireSession({ recordingSuppressed: 'QUOTA' })).recordingSuppressed).toBeNull();
+  });
+
   it('rejects a body without id or status', () => {
     expect(() => fromWireRemoteSession(wireSession({ sessionId: '' }))).toThrow();
     expect(() => fromWireRemoteSession(wireSession({ status: 'PARKED' }))).toThrow();

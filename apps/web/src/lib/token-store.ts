@@ -8,6 +8,7 @@
  * WebSocket URL builders) need synchronous reads.
  */
 import { clearAuthedImageCache } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { clientBundleVersion } from './client-identity';
 import { BIOMETRIC_ERROR, isBiometricLoginEnabled } from './native-biometrics';
 import { getStoredTenantHost, nativeAuthPlugin, nativeErrorCode, onNativeTokenUpdate } from './native-shell';
 import { isAppShell } from './platform';
@@ -209,6 +210,7 @@ export function initTokenStore(): Promise<void> {
           await nativeAuthPlugin()?.setTenantHost?.({
             origin: storedHost,
             sharedOrigin: runtimeEnv.sharedHostUrl() || undefined,
+            clientBundleVersion: clientBundleVersion(),
           });
         } catch (error) {
           console.error('[Token Store] tenant host push failed:', error);

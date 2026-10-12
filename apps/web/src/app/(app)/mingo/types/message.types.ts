@@ -50,6 +50,7 @@ export interface MessagesResponse {
   data: {
     messages: MessageConnection;
   };
+  errors?: Array<{ message: string }>;
 }
 
 export interface MessagePage {

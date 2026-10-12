@@ -1,12 +1,12 @@
 'use client';
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { useSearchParams } from 'next/navigation';
 import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
