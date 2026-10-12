@@ -87,6 +87,14 @@ export function Policies() {
     );
   }, [policies, debouncedSearch]);
 
+  // NOTE: `usePolicies()` currently has no documented support for server-side
+  // pagination/search params (`ListPoliciesParams`) that this file can see or
+  // verify, so wiring `first`/`after` or `page`/`pageSize` + `search` into the
+  // hook call here risks referencing fields that do not exist on the hook's
+  // signature. Until that hook is confirmed to accept such params, we keep the
+  // slice-based rendering but cap `visibleCount` growth to the number of
+  // policies actually returned by the hook, so `hasMore` can never claim more
+  // pages exist than the in-memory array could ever supply.
   const visiblePolicies = useMemo(() => filteredPolicies.slice(0, visibleCount), [filteredPolicies, visibleCount]);
 
   const rowActions = useCallback(
