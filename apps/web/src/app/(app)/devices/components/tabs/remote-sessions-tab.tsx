@@ -140,7 +140,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const modalFilterGroups = useMemo(
     () => [
       { id: REMOTE_SESSION_COLUMNS.employee.id, title: 'Employee', options: employeeOptions },
-      { id: REMOTE_SESSION_COLUMNS.expires.id, title: 'Expires', options: EXPIRES_FILTER_OPTIONS },
+      { id: REMOTE_SESSION_COLUMNS.expires.id, title: 'Recording Expires', options: EXPIRES_FILTER_OPTIONS },
     ],
     [employeeOptions],
   );

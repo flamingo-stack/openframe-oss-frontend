@@ -1,7 +1,6 @@
 'use client';
 
-import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LogCopyIconButton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useState } from 'react';
 import { fetchQuery, graphql, useFragment, useRelayEnvironment } from 'react-relay';
@@ -80,15 +79,5 @@ export function LogCopyButton({ log }: { log: logCopyButton_log$key }) {
     }
   };
 
-  return (
-    <Button
-      onClick={handleCopy}
-      disabled={isLoading}
-      variant="outline"
-      size="icon"
-      leftIcon={copied ? <CheckIcon className="h-5 w-5 text-ods-success" /> : <Copy02Icon className="h-5 w-5" />}
-      aria-label="Copy log details"
-      className="bg-ods-card"
-    />
-  );
+  return <LogCopyIconButton onClick={handleCopy} disabled={isLoading} copied={copied} />;
 }

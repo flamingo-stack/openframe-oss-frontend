@@ -162,7 +162,8 @@ export function DeviceLogsList({
     });
   };
   const bottomRef = useGridInfiniteScroll({
-    enabled: edges.length > 0 && !loadMoreFailed,
+    // Not while the next list is on its way: an older page of these rows is a Loki scan nobody will see.
+    enabled: edges.length > 0 && !loadMoreFailed && !isPending,
     hasNextPage: hasNext,
     isFetchingNextPage: isLoadingNext,
     fetchNextPage,
@@ -177,6 +178,10 @@ export function DeviceLogsList({
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <div ref={topRef} aria-hidden="true" className="h-px" />
+      {/* Always mounted, so a screen reader hears the text change; the rows below are dimmed or aria-hidden. */}
+      <span role="status" className="sr-only">
+        {isPending ? 'Loading logs…' : ''}
+      </span>
       {tailFailed && <SectionLoadError message="Auto-update failed. Retrying in 30 seconds." />}
       {edges.length === 0 ? (
         isPending ? (
@@ -195,7 +200,8 @@ export function DeviceLogsList({
           aria-busy={isPending || isLoadingNext}
           className={cn(
             'flex flex-col gap-[var(--spacing-system-xxs)] transition-opacity motion-reduce:transition-none',
-            isPending && 'opacity-60',
+            // The dim waits half a second, and lifts at once: a fast answer swaps the rows without a flash.
+            isPending && 'opacity-60 delay-500',
           )}
         >
           {days.map(day => (

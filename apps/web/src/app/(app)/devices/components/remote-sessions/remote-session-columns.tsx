@@ -34,15 +34,15 @@ interface FilterOption {
   label: string;
 }
 
-export interface RemoteSessionColumnsOptions {
+export interface RemoteSessionColumnsOptions<T extends RecordingSummary = RecordingSummary> {
   /** The SESSION header's calendar: session-date sort + range. */
   dateFilter: TableDateFilter;
   /** The EMPLOYEE header funnel's options. */
   employeeOptions: FilterOption[];
   /** The clock the "Expires in N hours" countdown reads; ticks in the caller. */
   now: number;
-  onOpen: (row: RecordingSummary) => void;
-  onDelete: (row: RecordingSummary) => void;
+  onOpen: (row: T) => void;
+  onDelete: (row: T) => void;
 }
 
 function employeeInitials(name: string): string {
@@ -106,20 +106,20 @@ function ExpiresCell({ row, now }: { row: RecordingSummary; now: number }) {
  * A row whose recording is gone reads greyed out. The tenant-wide sessions page
  * builds on the same columns, adding its device and customer columns.
  */
-export function remoteSessionColumns({
+export function remoteSessionColumns<T extends RecordingSummary = RecordingSummary>({
   dateFilter,
   employeeOptions,
   now,
   onOpen,
   onDelete,
-}: RemoteSessionColumnsOptions): ColumnDef<RecordingSummary>[] {
+}: RemoteSessionColumnsOptions<T>): ColumnDef<T>[] {
   return [
     {
       id: REMOTE_SESSION_COLUMNS.session.id,
       header: () => <DateColumnHeader label={REMOTE_SESSION_COLUMNS.session.header} filter={dateFilter} />,
       // ISO timestamps sort correctly as strings.
-      accessorFn: (row: RecordingSummary) => row.startedAt,
-      cell: ({ row }: { row: Row<RecordingSummary> }) => {
+      accessorFn: (row: T) => row.startedAt,
+      cell: ({ row }: { row: Row<T> }) => {
         const tag = STATE_TAGS[row.original.recordingState];
         return (
           <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
@@ -141,8 +141,8 @@ export function remoteSessionColumns({
     {
       id: REMOTE_SESSION_COLUMNS.employee.id,
       header: REMOTE_SESSION_COLUMNS.employee.header,
-      accessorFn: (row: RecordingSummary) => row.employee.name,
-      cell: ({ row }: { row: Row<RecordingSummary> }) => {
+      accessorFn: (row: T) => row.employee.name,
+      cell: ({ row }: { row: Row<T> }) => {
         const { name, role, avatarUrl } = row.original.employee;
         return (
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
@@ -173,8 +173,8 @@ export function remoteSessionColumns({
       id: REMOTE_SESSION_COLUMNS.duration.id,
       header: REMOTE_SESSION_COLUMNS.duration.header,
       // Still-running sessions have no duration yet - sort them last.
-      accessorFn: (row: RecordingSummary) => row.durationMs ?? -1,
-      cell: ({ row }: { row: Row<RecordingSummary> }) => {
+      accessorFn: (row: T) => row.durationMs ?? -1,
+      cell: ({ row }: { row: Row<T> }) => {
         const { durationMs, sizeBytes } = row.original;
         if (durationMs == null) {
           return (
@@ -202,15 +202,15 @@ export function remoteSessionColumns({
     {
       id: REMOTE_SESSION_COLUMNS.expires.id,
       header: REMOTE_SESSION_COLUMNS.expires.header,
-      accessorFn: (row: RecordingSummary) => expiresFilterValue(row, now),
-      cell: ({ row }: { row: Row<RecordingSummary> }) => <ExpiresCell row={row.original} now={now} />,
+      accessorFn: (row: T) => expiresFilterValue(row, now),
+      cell: ({ row }: { row: Row<T> }) => <ExpiresCell row={row.original} now={now} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.expires, { filter: { options: EXPIRES_FILTER_OPTIONS } }),
     },
     {
       id: REMOTE_SESSION_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<RecordingSummary> }) => {
+      cell: ({ row }: { row: Row<T> }) => {
         const deletable = canDeleteSession(row.original);
         return (
           <div

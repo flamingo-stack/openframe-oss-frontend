@@ -389,6 +389,27 @@ For regular client components, import directly from the core library.
 - **Feature Components** — AuthProvidersList, Terminal, ToolBadge
 - **Navigation** — AppLayout, sidebar config types
 
+### Product Screens Are Core-Lib Views
+
+Five screens render their markup from props-only views in the core library, so the OpenFrame
+product page on the hub shows the same components on fixture data (the lib's
+`components/product-demo`): the devices list/panel and `DeviceSelector`, logs (`LogsPageView`,
+`LogDrawer`), policies (`PoliciesTable`, `PolicySummaryCards`), software actions
+(`SoftwareActionForm`) and cloud tenants (`TenantsTableView`). The lib owns the markup; this app owns
+the containers around it: the Relay fragments, the mapping to view props, and what the views cannot
+know themselves (`DevicesViewConfig` in the root layout: device URLs, image URLs, the mobile shell).
+
+- **A UI change to one of these screens goes lib-first.** Change the view in the lib (and its fixture
+  in `product-demo` when the props change), pin that lib PR's pkg.pr.new build here, then adapt the
+  container. Markup written here instead forks the screen from the product page.
+- **Fragments stay in the containers, and the views never see them.** The lib has no schema, so
+  `relay/unused-fields` cannot tell that a view stopped reading a field: drop it from the fragment in
+  the same change. Where a lib union restates a schema enum, keep a compile-time check that the two
+  match (`ListTablesCoverSchema` in `cloud-tenant-management/utils/tenant-presentation.ts`).
+- **Remote desktop, the session chat and the knowledge base still render the app's own markup.** The
+  lib's `RemoteDesktopView` predates #578's header and #581's recording banner, and its knowledge-base
+  views predate #547. Bring the lib view up to date before switching one of these screens to it.
+
 ### Embedded Page Components (standalone + tab reuse)
 
 Some page components render their own `PageLayout` and are used **both** as a standalone route
@@ -895,7 +916,9 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
             <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
               <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
                 <RouteGuard>         <!-- App mode route filtering -->
-                  {children}         <!-- Page content -->
+                  <DevicesViewConfig>  <!-- device href / image URL / mobile shell for the core lib's device views -->
+                    {children}       <!-- Page content -->
+                  </DevicesViewConfig>
                 </RouteGuard>
               </NotificationsDataProvider>
             </FeatureFlagsLoader>

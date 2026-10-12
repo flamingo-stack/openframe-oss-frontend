@@ -10,6 +10,7 @@ import {
   StackedRowsPanel,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { getPolicyStatus, POLICY_STATUS_CONFIG } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -23,7 +24,6 @@ import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-ske
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
-import { getPolicyStatus, POLICY_STATUS_CONFIG } from '../../utils/compute-policy-summary';
 import { usePolicyDetails } from '../hooks/use-policy-details';
 import { usePolicyDevices } from '../hooks/use-policy-devices';
 import { PolicyDevicesTable } from './policy-devices-table';

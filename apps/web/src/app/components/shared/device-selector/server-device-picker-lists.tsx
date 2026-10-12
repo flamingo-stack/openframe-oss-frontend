@@ -1,11 +1,15 @@
 'use client';
 
+import {
+  type DeviceFilters,
+  DeviceSelector,
+  type DeviceSelectorNarrowing,
+  DeviceSelectorSkeleton,
+  type SubTab,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback, useMemo } from 'react';
 import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
-import type { Device, DeviceFilters } from '@/app/(app)/devices/types/device.types';
-import { DeviceSelector } from './device-selector';
-import { DeviceSelectorSkeleton } from './device-selector-skeleton';
-import type { DeviceSelectorNarrowing, SubTab } from './device-selector.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices } from './picker-narrowing';
 
 /**

@@ -1,7 +1,7 @@
+import { DEVICE_STATUS, type DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
-import { DEVICE_STATUS } from '../../../devices/constants/device-statuses';
 import { useAllDevices } from '../../../devices/hooks/use-all-devices';
-import type { Device, DeviceFilterInput } from '../../../devices/types/device.types';
+import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../../devices/utils/device-action-utils';
 
 const POLICY_DEVICE_FILTER: DeviceFilterInput = { statuses: [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] };
