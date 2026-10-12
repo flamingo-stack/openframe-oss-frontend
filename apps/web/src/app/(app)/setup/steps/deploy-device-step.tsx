@@ -14,9 +14,12 @@ import { useInstallCommand } from '@/app/(app)/devices/hooks/use-install-command
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
+import type { AgentInstallError } from '@/lib/native-shell';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
+import { InstallLog } from '../components/install-log';
 import { SetupHeading } from '../components/setup-heading';
 import { type FirstDevice, useFirstDeviceEnrollment } from '../hooks/use-first-device-enrollment';
+import { useLocalAgentInstall } from '../hooks/use-local-agent-install';
 
 /** How long the finished checklist stays up before the wizard moves on. */
 const ADVANCE_DELAY_MS = 1_200;
@@ -41,14 +44,32 @@ function checklistLines(handedOver: boolean, device: FirstDevice | null): string
   return lines;
 }
 
+/** The toast for a local install that did not go through. */
+function installFailureCopy(error: AgentInstallError | null): { title: string; description: string } {
+  switch (error?.kind) {
+    case 'cancelled':
+      return {
+        title: 'Deployment cancelled',
+        description: 'Approve the administrator prompt to deploy on this device.',
+      };
+    case 'busy':
+      return { title: 'Deployment already running', description: 'Wait for the current one to finish.' };
+    case 'failed':
+      return { title: 'Deployment failed', description: 'The installer reported a problem - see its output below.' };
+    default:
+      return { title: 'Deployment failed', description: error?.message ?? 'The installer could not be started.' };
+  }
+}
+
 /**
  * "Deploy First Device": the install command for the customer created a step
  * earlier (else the default organization), and under it the enrollment
  * checklist that fills in as the agent comes up. Done when the assistant is
  * live on the machine - the wizard then shows "You are ready to go".
  *
- * "Deploy on this Device" is absent until the desktop shell can run the
- * installer locally; the web has nothing to run it with.
+ * In the desktop shell "Deploy on this Device" runs that same command on this
+ * machine behind the OS's administrator prompt and shows what the installer
+ * prints; the web has nothing to run it with and offers the copy alone.
  */
 export function DeployDeviceStep({
   organizationId,
@@ -68,9 +89,11 @@ export function DeployDeviceStep({
     organizations[0]?.organizationId ??
     '';
 
-  const [platform, setPlatform] = useState<OSPlatformId>(detectPlatform);
+  const [hostPlatform] = useState<OSPlatformId>(detectPlatform);
+  const [platform, setPlatform] = useState<OSPlatformId>(hostPlatform);
   const [expanded, setExpanded] = useState(false);
   const [handedOver, setHandedOver] = useState(false);
+  const local = useLocalAgentInstall();
   const { command, initialKey } = useInstallCommand({ organizationId: effectiveOrganizationId, platform });
   const { copy } = useCopyToClipboard({
     successDescription: 'Installer command copied to clipboard',
@@ -90,18 +113,43 @@ export function DeployDeviceStep({
     return () => clearTimeout(timer);
   }, [enrolled, device, onEnrolled]);
 
-  const handleCopy = () => {
+  // A failed local run says so once, when it settles; the log keeps the detail.
+  const reportedFailureRef = useRef<AgentInstallError | null>(null);
+  useEffect(() => {
+    if (local.status !== 'failed' || reportedFailureRef.current === local.error) return;
+    reportedFailureRef.current = local.error;
+    toast({ ...installFailureCopy(local.error), variant: 'destructive' });
+  }, [local.status, local.error, toast]);
+
+  /** The command is ready to hand over; says why not otherwise. */
+  const commandReady = (): boolean => {
     if (!effectiveOrganizationId) {
       toast({ title: 'No customer', description: 'Add a customer before enrolling a device', variant: 'destructive' });
-      return;
+      return false;
     }
     if (!initialKey) {
       toast({ title: 'Secret unavailable', description: 'Registration secret not loaded yet', variant: 'destructive' });
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const handleCopy = () => {
+    if (!commandReady()) return;
     trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
     void copy(command);
     setHandedOver(true);
+  };
+
+  // The shell runs the command for the OS it is on; the selector may be
+  // showing another platform's command for copying elsewhere.
+  const canDeployHere = local.supported && platform === hostPlatform;
+  const deploying = local.status === 'running';
+  const handleDeploy = () => {
+    if (!canDeployHere || deploying || !commandReady()) return;
+    trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
+    setHandedOver(true);
+    void local.start(command);
   };
 
   return (
@@ -132,11 +180,29 @@ export function DeployDeviceStep({
           </button>
         </div>
         <div className="flex flex-col items-center gap-[var(--spacing-system-xs)]">
-          <Button variant="accent" leftIcon={<Copy01Icon />} onClick={handleCopy} className="w-full">
-            Copy Command
-          </Button>
+          {local.supported ? (
+            <div className="grid w-full grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
+              <Button variant="outline" leftIcon={<Copy01Icon />} onClick={handleCopy}>
+                Copy Command
+              </Button>
+              <Button
+                variant="accent"
+                onClick={handleDeploy}
+                disabled={!canDeployHere || deploying}
+                loading={deploying}
+                title={canDeployHere ? undefined : 'Pick the platform this device runs on'}
+              >
+                Deploy on this Device
+              </Button>
+            </div>
+          ) : (
+            <Button variant="accent" leftIcon={<Copy01Icon />} onClick={handleCopy} className="w-full">
+              Copy Command
+            </Button>
+          )}
           <p className="text-ods-text-secondary text-h6">Deployment may take 2-3 minutes to install all agents</p>
         </div>
+        {local.status !== 'idle' && <InstallLog lines={local.lines} running={deploying} />}
       </div>
       {lines.length > 0 && (
         <ol className="flex flex-col items-center gap-[var(--spacing-system-xxs)]" aria-label="Deployment progress">
