@@ -551,8 +551,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [displayName, userEmail, avatarUrl, userRole, handleLogout],
   );
 
+  // The chat reads its content (empty state, identity, commands) the moment it
+  // mounts. Before the session is in place those reads are refused, and each
+  // refusal starts a token refresh that is refused too (a dev-ticket landing
+  // mounts the shell before the ticket is exchanged).
+  const chatMounted = chatEnabled && sessionReady;
+
   const chatDrawer =
-    chatEnabled && mingoV2 === 'off' ? (
+    chatMounted && mingoV2 === 'off' ? (
       // ChatIdentityProvider wraps the drawer (not the remounting panel content)
       // so chat identity resolves ONCE for the session and survives the drawer
       // closing/reopening. Without it, EmbeddableChat self-fetches identity on
@@ -602,7 +608,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // watchers stay in the `drawer` slot: they must outlive the panel, which
   // unmounts while hidden.
   const chatSidePanel: AppLayoutSidePanelConfig | undefined =
-    chatEnabled && mingoV2 === 'on'
+    chatMounted && mingoV2 === 'on'
       ? {
           label: 'Mingo AI chat',
           minWidth: MINGO_V2_RAIL_WIDTH,
@@ -745,8 +751,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           platform ships, mounted ONCE for the whole app next to the chat
           drawer. Which bottom corner it pins to is content-managed (the hub
           admin sets it per platform). Left out behind the subscription lock for
-          the same reason the Mingo launcher is: that screen is not the app. */}
-      {!isLocked && !bareChrome && <WalkthroughVideo />}
+          the same reason the Mingo launcher is: that screen is not the app.
+          After the session is in place, like the chat: its read is refused before.
+          Not on the bare setup wizard either: it offers the clip from its own menu. */}
+      {sessionReady && !isLocked && !bareChrome && <WalkthroughVideo />}
     </>
   );
 }

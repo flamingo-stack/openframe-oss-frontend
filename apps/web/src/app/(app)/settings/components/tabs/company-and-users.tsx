@@ -1,8 +1,11 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  PlusCircleIcon,
+  ArrowRightUpIcon,
+  SearchIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
@@ -304,7 +307,7 @@ export function CompanyAndUsersTab() {
   const actions = [
     {
       label: 'Add Users',
-      icon: <PlusCircleIcon iconSize={20} whiteOverlay />,
+      icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
       onClick: () => setIsAddOpen(true),
       variant: 'outline' as const,
     },
