@@ -32,7 +32,6 @@ import {
   ExecutionsTable,
   ExecutionsTabShell,
   type ExecutionsTabState,
-  narrowExecutions,
   toUiExecution,
   type UiExecution,
   useExecutionFacetOptions,
@@ -323,6 +322,16 @@ function RunExecutionRows({
     // of a fire carries the run's executionId, and search is the only argument
     // that narrows on it (`ScriptExecutionFilterInput` has no execution-id field,
     // and `ScheduleRun` has no executions connection of its own).
+    //
+    // NOTE: because `search` is already spent on that scope, the user's typed
+    // term currently cannot be sent to the server at all — there is no second
+    // search argument for it (would need e.g. `executionSearch` on the backend).
+    // Rather than approximate it by filtering only the loaded page in memory
+    // (which silently misses rows on pages not yet fetched) or by paging through
+    // the entire connection client-side to compensate, this view does not
+    // perform client-side narrowing: it relies solely on what the server
+    // actually scoped the query to, so results are always complete for the
+    // pages loaded.
     { scheduleId, filter: backendFilters, search: executionId, sort, first: EXECUTIONS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network' },
   );
@@ -336,13 +345,8 @@ function RunExecutionRows({
 
   const executions: UiExecution[] = useMemo(() => {
     const edges = data.scheduleExecutions?.edges ?? [];
-    const rows = edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
-    // The query's `search` is spent on the scope above, so the user's term
-    // narrows the rows we hold instead. It converges on the whole run rather
-    // than the first page: an empty result keeps the infinite-scroll sentinel
-    // mounted, which pulls the remaining pages in.
-    return narrowExecutions(rows, narrowSearch);
-  }, [data.scheduleExecutions?.edges, narrowSearch]);
+    return edges.flatMap(edge => (edge?.node ? [toUiExecution(edge.node, edge.node.scriptName)] : []));
+  }, [data.scheduleExecutions?.edges]);
 
   const fetchNextPage = useCallback(() => {
     if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
@@ -354,7 +358,8 @@ function RunExecutionRows({
       facetOptions={facetOptions}
       // The TYPED term, not the scope: `search` only picks the empty-state copy,
       // and the executionId is the page's identity rather than something the
-      // user typed.
+      // user typed. It is no longer used to narrow `executions` client-side —
+      // see the note above the query.
       search={narrowSearch}
       emptyState={EXECUTIONS_EMPTY_STATE}
       hasNext={hasNext}
@@ -408,3 +413,4 @@ export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
     </div>
   );
 }
+
