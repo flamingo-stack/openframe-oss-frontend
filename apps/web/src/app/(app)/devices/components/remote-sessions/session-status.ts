@@ -4,7 +4,7 @@ import type { RecordingSummary } from '../../types/session-recording';
 // state. Shared by the device tab and the tenant-wide sessions page, so the
 // two lists never disagree about which rows open or delete.
 
-type SessionRow = Pick<RecordingSummary, 'recordingState' | 'kept' | 'expiresAt' | 'recordingId'>;
+type SessionRow = Pick<RecordingSummary, 'recordingState' | 'live' | 'kept' | 'expiresAt' | 'recordingId'>;
 
 /** The EXPIRES column's filter values (Figma 1695-88210). */
 export type ExpiresFilterValue = 'kept' | 'expiring' | 'expired';
@@ -45,30 +45,18 @@ export function canKeepSession(row: SessionRow): boolean {
 }
 
 /**
- * The server refuses a running session and a kept file, and a session that
- * recorded nothing has nothing to delete. Failed and expired rows can still be
- * deleted, per the design.
+ * A delete takes the whole session, so a session that recorded nothing can go
+ * too, and so can one whose recording failed, expired or was deleted before.
+ * The server refuses a running session, a recording still being processed and
+ * a kept one.
  */
 export function canDeleteSession(row: SessionRow): boolean {
-  if (row.kept) return false;
-  return row.recordingState === 'ready' || row.recordingState === 'failed' || row.recordingState === 'expired';
+  return !row.live && !row.kept && row.recordingState !== 'processing';
 }
 
 /** A row whose recording is gone reads greyed out. */
 export function isRecordingGone(row: SessionRow): boolean {
   return row.recordingState === 'expired' || row.recordingState === 'deleted';
-}
-
-/**
- * Why the recording page has nothing to play, under "Session recording
- * unavailable": a deleted or expired recording says so from its state, and
- * "processing" is left for files that could not be fetched. Null while the
- * recording may still play.
- */
-export function recordingUnavailableNote(row: Pick<SessionRow, 'recordingState'>, fetchFailed: boolean): string | null {
-  if (row.recordingState === 'deleted') return 'This recording was deleted';
-  if (row.recordingState === 'expired') return 'This recording has expired';
-  return fetchFailed ? 'The video is still being processed, check back in a moment' : null;
 }
 
 /**
