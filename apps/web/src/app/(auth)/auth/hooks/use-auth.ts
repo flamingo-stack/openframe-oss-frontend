@@ -28,7 +28,13 @@ export interface TenantDiscoveryResponse {
   email: string;
   has_existing_accounts: boolean;
   tenant_id?: string | null;
+  tenant_name?: string | null;
+  /** The tenant's own providers plus the platform defaults and 'openframe', undistinguished. */
   auth_providers?: string[] | null;
+  /** Whether the tenant's built-in OpenFrame login is on. */
+  openframe_login?: boolean | null;
+  /** Providers the tenant configured with its OWN credentials; platform defaults are never true. */
+  providers?: { google?: boolean; microsoft?: boolean } | null;
   domain?: string | null;
 }
 

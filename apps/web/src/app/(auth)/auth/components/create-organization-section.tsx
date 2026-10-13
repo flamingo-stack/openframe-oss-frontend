@@ -42,7 +42,7 @@ interface CreateOrganizationSectionProps {
     password: string;
     prNumber?: number;
   }) => void;
-  /** Provider buttons, rendered above the email field on step one where they need nothing typed. */
+  /** Provider buttons, rendered under the email field on step one; they need nothing typed. */
   ssoProviders?: AuthSsoProvider[];
   /**
    * Provider sign-up with nothing filled in. Runs the shared SSO login: the server resolves the
@@ -54,8 +54,8 @@ interface CreateOrganizationSectionProps {
 }
 
 /**
- * Wires the shared forms to the sign-up flow, in two steps on one screen: providers and the email
- * that unlocks the rest, then the organization and account details.
+ * Wires the shared forms to the sign-up flow, in two steps on one screen: the email that unlocks the
+ * rest and the providers, then the organization and account details.
  *
  * Owns the email, organization-name and credential state plus live email availability. The whole
  * subdomain concern — sanitizing, live and submit-time availability, and the tenant-registration
@@ -138,8 +138,8 @@ export function CreateOrganizationSection({
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
-  // Step one: providers, then the email that unlocks the rest. Reuses the login shape so both tabs
-  // present the same thing on arrival — providers first, email second.
+  // Step one: the email that unlocks the rest, then the providers. Reuses the login shape so both
+  // tabs present the same thing on arrival — email first, providers under it.
   if (step === 'email') {
     return (
       <LoginForm
@@ -151,7 +151,6 @@ export function CreateOrganizationSection({
         emailStatus={emailStatusMessage}
         ssoProviders={ssoProviders ?? []}
         onSsoClick={provider => onSsoLogin?.(provider)}
-        dividerLabel="or enter email to continue with OpenFrame SSO"
         onSubmitClick={() => {
           if (!signupStartedFired.current) {
             signupStartedFired.current = true;
