@@ -12,17 +12,6 @@ export interface MutationPayloadGql {
   userErrors: { message: string }[];
 }
 
-/** Throws on transport failures and GraphQL errors; resolves to the query's `data`. */
-export function queryDataOrThrow<T>(
-  response: { ok: boolean; error?: string; data?: GraphqlResponse<T> },
-  fallbackMessage: string,
-): T {
-  if (!response.ok || !response.data) throw new Error(response.error || fallbackMessage);
-  if (response.data.errors?.length) throw new Error(response.data.errors.map(e => e.message).join(', '));
-  if (!response.data.data) throw new Error(fallbackMessage);
-  return response.data.data;
-}
-
 /**
  * Throws on transport failures, GraphQL errors, and the payload's
  * `userErrors` (checked on the first root field of the mutation response).

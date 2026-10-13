@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
-import { COMPACT_DIALOG_MUTATION } from '../(app)/mingo/queries/dialogs-queries';
+import { COMPACT_MINGO_DIALOG_MUTATION } from '../(app)/mingo/queries/dialogs-queries';
 import { fetchMingoDialogMessages } from '../(app)/mingo/queries/fetch-dialog-messages';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
@@ -42,7 +42,7 @@ interface CompactDialogPayload {
 
 async function requestCompaction(dialogId: string): Promise<CompactionRequestResult> {
   const response = await apiClient.post<GraphQlResponse<{ compactDialog: CompactDialogPayload }>>('/chat/graphql', {
-    query: COMPACT_DIALOG_MUTATION,
+    query: COMPACT_MINGO_DIALOG_MUTATION,
     variables: { input: { id: dialogId } },
   });
   // No answer (timeout, dropped connection): the request may have reached the

@@ -4,8 +4,8 @@
  * Mingo navigation-context store — tracks the entity the user is currently
  * viewing (`openView`) and the up-to-5 entities they viewed before it
  * (`recentViews`). Both ride out on every Mingo message so the agent has the
- * user's working context (`sendMessage` → `currentView` / `recentViews`, see
- * `mingo-api-service.ts`).
+ * user's working context (`openView` goes out as `currentView`, in
+ * `use-mingo-chat.ts`; the payload is built by `ticketService.sendMessage`).
  *
  * `openView` is set by `useTrackOpenView` from each entity detail page and
  * cleared on unmount; when an open view is replaced or cleared it rolls into

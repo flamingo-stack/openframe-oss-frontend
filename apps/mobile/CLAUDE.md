@@ -277,9 +277,10 @@ every button opens the app instead (decided per notification at build time).
   category kept so the button is still there; `NOT_FOUND` → "No longer available" (codes from
   `userErrors[].code`, or the gateway's `ErrorResponse.code` on a non-2xx — same values);
   HTTP 401 or no session → "Sign in to OpenFrame"; `recipientUserId` ≠ the token's `userId`
-  → "different account"; no host yet → open the app once. Failures keep the category (retry); the original `userInfo` rides
-  along so tapping the outcome deep-links like the push would. The handler's completion is
-  called by 25s regardless; refresh + POST run under one `beginBackgroundTask`.
+  → "different account"; no host yet → open the app once. Failures keep the category
+  (retry); the original `userInfo` rides along so tapping the outcome deep-links like the
+  push would. The handler's completion is called by 25s regardless; refresh + POST run
+  under one `beginBackgroundTask`.
 - **Consent caveat (product decision 2026-08-26):** an approval push describes the FIRST
   tool call; one tap resolves the whole request. Honest only once approvals are one-per-tool.
 - **Try it on the simulator:** `npm run push:approval` / `push:reply` with the app

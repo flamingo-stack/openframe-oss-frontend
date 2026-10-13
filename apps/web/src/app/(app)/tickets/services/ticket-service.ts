@@ -150,6 +150,23 @@ interface MarkDialogMessagesReadPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
+async function runCommand<P extends CommandPayload = CommandPayload>(
+  field: string,
+  query: string,
+  input: object,
+): Promise<P> {
+  const response = await apiClient.post<GraphQlResponse<Record<string, P>>>(API_ENDPOINTS.GRAPHQL, {
+    query,
+    variables: { input },
+  });
+
+  const payload = extractGraphQlData(response)[field];
+  if (payload.userErrors?.length) {
+    throw new Error(payload.userErrors[0].message);
+  }
+  return payload;
+}
+
 /**
  * `id` is the raw `ticketId`, not the Relay global `Ticket.id`, and `dialogId` the
  * raw `Dialog.dialogId`: routes, cache keys, NATS subjects and every comparison with
@@ -407,11 +424,7 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async createDialog(params: CreateDialogParams): Promise<string> {
-    const { dialog } = await this.runCommand<'createDialog', CreateDialogPayload>(
-      'createDialog',
-      CREATE_DIALOG_MUTATION,
-      params,
-    );
+    const { dialog } = await runCommand<CreateDialogPayload>('createDialog', CREATE_DIALOG_MUTATION, params);
     if (!dialog?.dialogId) {
       throw new Error('Invalid response: dialog id not found');
     }
@@ -419,11 +432,11 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async updateDialogMode(dialogId: string, mode: DialogModeValue): Promise<void> {
-    await this.runCommand('updateDialogMode', UPDATE_DIALOG_MODE_MUTATION, { id: dialogId, mode });
+    await runCommand('updateDialogMode', UPDATE_DIALOG_MODE_MUTATION, { id: dialogId, mode });
   }
 
   async stopDialogGeneration(dialogId: string, chatType: ChatType): Promise<void> {
-    await this.runCommand('stopDialogGeneration', STOP_DIALOG_GENERATION_MUTATION, { id: dialogId, chatType });
+    await runCommand('stopDialogGeneration', STOP_DIALOG_GENERATION_MUTATION, { id: dialogId, chatType });
   }
 
   async sendMessage(
@@ -433,7 +446,7 @@ export class TicketService implements TicketServiceInterface {
     context?: SendMessageContext,
   ): Promise<void> {
     const { contextItems, currentView, recentViews } = context ?? {};
-    await this.runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
+    await runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
       dialogId,
       content,
       chatType,
@@ -444,23 +457,6 @@ export class TicketService implements TicketServiceInterface {
   }
 
   async resolveApprovalRequest(requestId: string, approve: boolean): Promise<void> {
-    await this.runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
-  }
-
-  private async runCommand<K extends string, P extends CommandPayload = CommandPayload>(
-    key: K,
-    query: string,
-    input: object,
-  ): Promise<P> {
-    const response = await apiClient.post<GraphQlResponse<Record<K, P>>>(API_ENDPOINTS.GRAPHQL, {
-      query,
-      variables: { input },
-    });
-
-    const payload = extractGraphQlData(response)[key];
-    if (payload.userErrors?.length) {
-      throw new Error(payload.userErrors[0].message);
-    }
-    return payload;
+    await runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
   }
 }

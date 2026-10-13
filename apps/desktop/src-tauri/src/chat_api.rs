@@ -20,11 +20,11 @@ const HTTP_TIMEOUT: Duration = Duration::from_secs(15);
 
 const GRAPHQL_PATH: &str = "/chat/graphql";
 
-const RESOLVE_APPROVAL_REQUEST: &str =
+const RESOLVE_APPROVAL_REQUEST_MUTATION: &str =
     "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) \
     { resolveApprovalRequest(input: $input) { userErrors { message code } } }";
 
-const SEND_MESSAGE: &str = "mutation SendMessage($input: SendMessageInput!) \
+const SEND_MESSAGE_MUTATION: &str = "mutation SendMessage($input: SendMessageInput!) \
     { sendMessage(input: $input) { userErrors { message code } } }";
 
 /// A live signed-in session: a usable bearer and the user it belongs to.
@@ -62,8 +62,8 @@ pub(crate) enum ApprovalOutcome {
     AlreadyResolved,
 }
 
-/// Resolve a Mingo tool-approval request. One endpoint for both outcomes, same
-/// as the frontend's approve/reject mutations.
+/// Resolve a Mingo tool-approval request. One mutation for both outcomes, same
+/// as the frontend's `ticketService.resolveApprovalRequest`.
 pub(crate) async fn resolve_approval(
     app: &AppHandle,
     session: &Session,
@@ -74,18 +74,21 @@ pub(crate) async fn resolve_approval(
         app,
         session,
         "resolveApprovalRequest",
-        RESOLVE_APPROVAL_REQUEST,
+        RESOLVE_APPROVAL_REQUEST_MUTATION,
         serde_json::json!({ "id": request_id, "approve": approve }),
     )
     .await
     {
         Ok(()) => Ok(ApprovalOutcome::Resolved),
-        // `ILLEGAL_STATE` is a request that is no longer pending — decided from
-        // the web UI, from another device, by another admin, or from a banner
-        // this shell had not yet caught up with — and, rarer, a dialog that no
-        // longer takes approvals. None of those is a failed press: the tool call
-        // already carries the verdict the user was asked for, so reporting it as
-        // an error would put a red banner on a decision that stands.
+        // `ILLEGAL_STATE` is mostly a request that is no longer pending —
+        // decided from the web UI, from another device, by another admin, or
+        // from a banner this shell had not yet caught up with. That is not a
+        // failed press: the tool call already carries the verdict the user was
+        // asked for, so reporting it as an error would put a red banner on a
+        // decision that stands. The code also covers a dialog that no longer
+        // takes approvals and, on approve, a request that is no longer
+        // executable (the server asks for a Reject instead); those land here
+        // too until the backend gives them a code of their own.
         // `DIALOG_LOCKED` (Mingo mid-turn) is not among them: it fails, and the
         // re-posted banner keeps the buttons to try again.
         Err(err) if err.code.as_deref() == Some("ILLEGAL_STATE") => {
@@ -107,7 +110,7 @@ pub(crate) async fn send_message(
         app,
         session,
         "sendMessage",
-        SEND_MESSAGE,
+        SEND_MESSAGE_MUTATION,
         serde_json::json!({
             "dialogId": dialog_id,
             "content": content,
@@ -122,8 +125,7 @@ pub(crate) async fn send_message(
 /// notification — while the `code` is the mutation's `userErrors[].code` (the
 /// same value the REST `ErrorResponse.code` carried), for callers that read a
 /// particular one as something other than a failure; it is `None` when the
-/// request never got that far.
-#[derive(Debug)]
+/// answer carried no `userErrors` code.
 struct CommandError {
     code: Option<String>,
     reason: String,

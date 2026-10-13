@@ -58,10 +58,10 @@ public class NotificationActionWorker extends Worker {
     /** The published listing, for a 426 whose body named none. Same as the web app's GOOGLE_PLAY_URL (mobile-app-links.ts). */
     private static final String FALLBACK_STORE_URL = "https://play.google.com/store/apps/details?id=ai.openframe.mobile";
     private static final String GRAPHQL_PATH = "/chat/graphql";
-    private static final String SEND_MESSAGE =
+    private static final String SEND_MESSAGE_MUTATION =
         "mutation SendMessage($input: SendMessageInput!) "
             + "{ sendMessage(input: $input) { userErrors { message code } } }";
-    private static final String RESOLVE_APPROVAL_REQUEST =
+    private static final String RESOLVE_APPROVAL_REQUEST_MUTATION =
         "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) "
             + "{ resolveApprovalRequest(input: $input) { userErrors { message code } } }";
 
@@ -241,16 +241,14 @@ public class NotificationActionWorker extends Worker {
                 // Static, not inferred: both specs behind MINGO_REPLY sit behind
                 // the same `chatType == ADMIN_AI_CHAT` guard server-side.
                 input.put("dialogId", id).put("content", action.reply).put("chatType", "ADMIN_AI_CHAT");
-                body.put("query", SEND_MESSAGE);
             } else {
                 String id = validId(extras.get(PushNotifications.KEY_APPROVAL_REQUEST_ID));
                 if (id == null) {
                     return null;
                 }
                 input.put("id", id).put("approve", action.isApprove());
-                body.put("query", RESOLVE_APPROVAL_REQUEST);
             }
-            body.put("variables", new JSONObject().put("input", input));
+            body.put("query", action.mutation()).put("variables", new JSONObject().put("input", input));
         } catch (JSONException e) {
             return null;
         }
@@ -273,13 +271,13 @@ public class NotificationActionWorker extends Worker {
      * GraphQL answers a refused command with HTTP 200, so a 2xx is read for its
      * verdict; any other status carries the gateway's own ErrorResponse. Both
      * name a failure with the same codes ({@code userErrors[].code} mirrors the
-     * REST {@code ErrorResponse.code}), so one switch reads either.
+     * REST {@code ErrorResponse.code}), so one chain of checks reads either.
      */
     private static void report(Context context, Action action, String notificationId, Map<String, String> extras,
                                Response response) {
         int status = response.code();
         String text = bodyText(response.body());
-        Verdict verdict = response.isSuccessful() ? commandVerdict(text, action.mutation()) : gatewayVerdict(text);
+        Verdict verdict = response.isSuccessful() ? commandVerdict(text, action.field()) : gatewayVerdict(text);
         ShellLog.notifications.notice(action.verb() + ": HTTP " + status + " "
             + (verdict == null || verdict.code == null ? "" : verdict.code));
         if (verdict == null) {
@@ -304,9 +302,11 @@ public class NotificationActionWorker extends Worker {
             PushNotifications.replace(context, notificationId, extras, "Mingo is busy",
                 "Mingo is still working on this conversation. Try again in a moment." + action.echo(), true, action.reply);
         } else if ("ILLEGAL_STATE".equals(verdict.code) && !action.isReply()) {
-            // `ILLEGAL_STATE` covers already-processed, a non-writable dialog and
-            // direct mode alike; the gateway's own message names which. Not a
-            // failed press: the decision it asked for has been made.
+            // `ILLEGAL_STATE` is mostly an already-processed request: not a
+            // failed press, the decision it asked for has been made. A
+            // non-writable dialog, direct mode and, on approve, a request no
+            // longer executable land here too until the backend gives them a
+            // code of their own; the gateway's message names which.
             PushNotifications.replace(context, notificationId, extras, "Already handled",
                 verdict.message != null ? verdict.message : "This request was already resolved or is no longer open.", false, null);
         } else {
@@ -381,12 +381,13 @@ public class NotificationActionWorker extends Worker {
      */
     private static Verdict commandVerdict(String text, String field) {
         Verdict unreadable = new Verdict(null, "the gateway sent an answer the app could not read");
+        String refused = "the request was refused";
         try {
             JSONObject json = new JSONObject(text);
             JSONArray errors = json.optJSONArray("errors");
             if (errors != null && errors.length() > 0) {
                 Verdict error = verdictOf(errors.optJSONObject(0));
-                return new Verdict(null, error.message != null ? error.message : "the request was refused");
+                return new Verdict(null, error.message != null ? error.message : refused);
             }
             JSONObject data = json.optJSONObject("data");
             JSONObject payload = data == null ? null : data.optJSONObject(field);
@@ -398,7 +399,7 @@ public class NotificationActionWorker extends Worker {
                 return null;
             }
             Verdict userError = verdictOf(userErrors.optJSONObject(0));
-            return new Verdict(userError.code, userError.message != null ? userError.message : "the request was refused");
+            return new Verdict(userError.code, userError.message != null ? userError.message : refused);
         } catch (JSONException e) {
             return unreadable;
         }
@@ -461,8 +462,12 @@ public class NotificationActionWorker extends Worker {
             return PushNotifications.ACTION_APPROVE.equals(id);
         }
 
-        /** The mutation's response field, where its {@code userErrors} are. */
         String mutation() {
+            return isReply() ? SEND_MESSAGE_MUTATION : RESOLVE_APPROVAL_REQUEST_MUTATION;
+        }
+
+        /** The mutation's response field, where its {@code userErrors} are. */
+        String field() {
             return isReply() ? "sendMessage" : "resolveApprovalRequest";
         }
 

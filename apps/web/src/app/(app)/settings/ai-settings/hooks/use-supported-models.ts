@@ -1,11 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { extractGraphQlData } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
 import type { AIProvider } from '../types/ai-settings';
-import { type GraphqlResponse, queryDataOrThrow } from './chat-graphql';
+import type { GraphqlResponse } from './chat-graphql';
 
-const SUPPORTED_AI_MODELS_QUERY = `
+const GET_SUPPORTED_AI_MODELS_QUERY = `
   query SupportedAiModels {
     supportedAiModels {
       provider
@@ -35,9 +36,9 @@ export function useSupportedModels() {
     queryFn: async (): Promise<SupportedModelsByProvider> => {
       const response = await apiClient.post<GraphqlResponse<{ supportedAiModels: SupportedAiModelGroupGql[] }>>(
         '/chat/graphql',
-        { query: SUPPORTED_AI_MODELS_QUERY },
+        { query: GET_SUPPORTED_AI_MODELS_QUERY },
       );
-      const { supportedAiModels } = queryDataOrThrow(response, 'Failed to fetch supported models');
+      const { supportedAiModels } = extractGraphQlData(response);
 
       const byProvider: SupportedModelsByProvider = {};
       for (const group of supportedAiModels) {

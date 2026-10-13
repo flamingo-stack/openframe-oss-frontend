@@ -61,9 +61,9 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
     private static let maxReplyLength = 10_000
     private static let feedbackBodyLimit = 200
     private static let graphqlPath = "/chat/graphql"
-    private static let sendMessage = "mutation SendMessage($input: SendMessageInput!) "
+    private static let sendMessageMutation = "mutation SendMessage($input: SendMessageInput!) "
         + "{ sendMessage(input: $input) { userErrors { message code } } }"
-    private static let resolveApprovalRequest = "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) "
+    private static let resolveApprovalRequestMutation = "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) "
         + "{ resolveApprovalRequest(input: $input) { userErrors { message code } } }"
 
     private weak var bridge: CAPBridgeProtocol?
@@ -236,8 +236,12 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
             return false
         }
 
-        /// The mutation's response field, where its `userErrors` are.
         var mutation: String {
+            isReply ? NotificationActions.sendMessageMutation : NotificationActions.resolveApprovalRequestMutation
+        }
+
+        /// The mutation's response field, where its `userErrors` are.
+        var field: String {
             isReply ? "sendMessage" : "resolveApprovalRequest"
         }
     }
@@ -381,21 +385,18 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
 
     private static func request(for action: Action, content: UNNotificationContent, base: URL, bearer: String) -> URLRequest? {
         let info = content.userInfo
-        let query: String
         let input: [String: Any]
         switch action {
         case .approve, .reject:
             guard let id = validId(info["approvalRequestId"]) else { return nil }
-            query = resolveApprovalRequest
             if case .approve = action { input = ["id": id, "approve": true] } else { input = ["id": id, "approve": false] }
         case .reply(let text):
             guard let id = validId(info["dialogId"]) else { return nil }
-            query = sendMessage
             // Static, not inferred: both specs behind MINGO_REPLY sit behind the
             // same `chatType == ADMIN_AI_CHAT` guard server-side.
             input = ["dialogId": id, "content": text, "chatType": "ADMIN_AI_CHAT"]
         }
-        let body: [String: Any] = ["query": query, "variables": ["input": input]]
+        let body: [String: Any] = ["query": action.mutation, "variables": ["input": input]]
         // Built on the learned origin, never from payload text: the payload only
         // names ids.
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
@@ -440,7 +441,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         // Both name a failure with the same codes (`userErrors[].code` mirrors
         // the REST `ErrorResponse.code`), so one switch reads either.
         let verdict: Verdict? = (200..<300).contains(status)
-            ? Self.commandVerdict(data, field: action.mutation)
+            ? Self.commandVerdict(data, field: action.field)
             : Self.gatewayVerdict(data)
         ShellLog.notifications.notice("\(action.verb): HTTP \(status) \(verdict?.code ?? "")")
         guard let verdict else {
@@ -472,9 +473,11 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
                  body: "Mingo is still working on this conversation. Try again in a moment.\(action.echo)",
                  original: content, retry: true)
         case "ILLEGAL_STATE"? where !action.isReply:
-            // `ILLEGAL_STATE` covers already-processed, a non-writable dialog and
-            // direct mode alike; the gateway's own message names which. Not a
-            // failed press: the decision it asked for has been made.
+            // `ILLEGAL_STATE` is mostly an already-processed request: not a
+            // failed press, the decision it asked for has been made. A
+            // non-writable dialog, direct mode and, on approve, a request no
+            // longer executable land here too until the backend gives them a
+            // code of their own; the gateway's message names which.
             post(title: "Already handled",
                  body: verdict.message ?? "This request was already resolved or is no longer open.",
                  original: content, retry: false)
@@ -532,12 +535,13 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
     /// command ran.
     private static func commandVerdict(_ data: Data?, field: String) -> Verdict? {
         let unreadable: Verdict = (nil, "the gateway sent an answer the app could not read", nil)
+        let refused = "the request was refused"
         guard let data, !data.isEmpty,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return unreadable
         }
         if let errors = object["errors"] as? [[String: Any]], let error = errors.first {
-            return (nil, verdict(of: error).message ?? "the request was refused", nil)
+            return (nil, verdict(of: error).message ?? refused, nil)
         }
         guard let payload = (object["data"] as? [String: Any])?[field] as? [String: Any],
               let userErrors = payload["userErrors"] as? [[String: Any]] else {
@@ -545,7 +549,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         }
         guard let userError = userErrors.first else { return nil }
         let found = verdict(of: userError)
-        return (found.code, found.message ?? "the request was refused", nil)
+        return (found.code, found.message ?? refused, nil)
     }
 
     private static func verdict(of object: [String: Any]) -> Verdict {

@@ -4,13 +4,9 @@ import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { extractGraphQlData } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
-import {
-  type GraphqlResponse,
-  type MutationPayloadGql,
-  queryDataOrThrow,
-  throwOnErrors,
-} from '../../hooks/chat-graphql';
+import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '../../hooks/chat-graphql';
 import {
   CUSTOM_POLICY_TYPE,
   type CustomPolicyRequest,
@@ -116,7 +112,7 @@ export function useGuardrailsTemplates() {
         '/chat/graphql',
         { query: GET_GUARDRAIL_POLICIES_QUERY },
       );
-      const { guardrailPolicies } = queryDataOrThrow(response, 'Failed to fetch policy templates');
+      const { guardrailPolicies } = extractGraphQlData(response);
       const templates: PolicyTemplateSummary[] = guardrailPolicies.map(policy => ({
         id: policy.policyId,
         displayName: policy.displayName ?? '',
@@ -156,7 +152,7 @@ export function useGuardrailsTemplate(templateId: string | null) {
         '/chat/graphql',
         { query: GET_GUARDRAIL_POLICY_QUERY, variables: { id: templateId } },
       );
-      const { guardrailPolicy: policy } = queryDataOrThrow(response, 'Failed to fetch policy template');
+      const { guardrailPolicy: policy } = extractGraphQlData(response);
       if (!policy) throw new Error('Policy template not found');
       return {
         id: policy.policyId,
