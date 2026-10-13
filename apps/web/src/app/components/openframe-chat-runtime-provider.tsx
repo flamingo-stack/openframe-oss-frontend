@@ -447,7 +447,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       available: chatCanOpen,
       name: assistantName,
       icon: assistantIconNode,
-      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/quick-actions/questions`,
+      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/faqs/questions`,
       open: openMingo,
     }),
     [chatCanOpen, assistantName, assistantIconNode],

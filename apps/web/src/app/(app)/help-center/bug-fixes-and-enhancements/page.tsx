@@ -1,7 +1,7 @@
 'use client';
 
 import { DeliveryPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
-import { EP, HELP_CENTER_BASE } from '../endpoints';
+import { EP, HELP_CENTER_BASE, pageFaq } from '../endpoints';
 
 /**
  * Bug-fixes & Enhancements (delivery) — one-line mount of the lib's ready-made
@@ -15,6 +15,7 @@ export default function BugFixesAndEnhancementsRoute() {
       completedEndpoint={EP.deliveryCompleted}
       inProgressEndpoint={EP.deliveryInProgress}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
+      faq={pageFaq('bug-fixes-and-enhancements')}
     />
   );
 }
