@@ -62,11 +62,11 @@ export function ReadyStep({
       </div>
       <Button
         variant="outline"
-        leftIcon={<AgentMark agent="mingo" className="size-5" />}
+        leftIcon={<AgentMark agent="mingo" className="size-5 text-ods-flamingo-cyan" color="currentColor" />}
         onClick={onStart}
         loading={starting}
         disabled={starting}
-        className="w-full md:w-auto md:min-w-[216px]"
+        className="w-full sm:w-auto sm:min-w-[204px]"
       >
         Start with Mingo
       </Button>

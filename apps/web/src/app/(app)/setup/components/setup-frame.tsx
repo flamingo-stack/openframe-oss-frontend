@@ -54,10 +54,10 @@ export function SetupFrame({ step, children }: { step: SetupStep; children: Reac
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <SetupProgress step={step} />
-      <main className="flex flex-1 flex-col items-center justify-start px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)] sm:justify-center">
+      <main className="flex flex-1 flex-col items-center justify-start px-[var(--spacing-system-l)] py-[var(--spacing-system-mf)] sm:justify-center sm:py-[var(--spacing-system-xl)]">
         <div className="flex w-full max-w-[990px] flex-col items-center gap-[var(--spacing-system-xl)]">{children}</div>
       </main>
-      <footer className="relative flex h-24 shrink-0 items-center justify-center px-[var(--spacing-system-l)]">
+      <footer className="relative flex h-14 shrink-0 items-center justify-center px-[var(--spacing-system-l)] sm:h-24">
         <div className="absolute left-[var(--spacing-system-l)]">
           <NeedHelpMenu />
         </div>

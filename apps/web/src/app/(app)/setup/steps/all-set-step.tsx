@@ -32,7 +32,7 @@ export function AllSetStep({ onStart, starting }: { onStart: () => void; startin
       <SetupHeading
         title="Everything is set up"
         subtitle={
-          <span className="inline-flex flex-wrap items-center justify-center gap-x-[var(--spacing-system-xxs)] gap-y-[var(--spacing-system-xs)]">
+          <span className="inline-flex max-w-[640px] flex-wrap items-center justify-center gap-x-[var(--spacing-system-xxs)] gap-y-[var(--spacing-system-xxs)]">
             Mingo can help you with
             {AREAS.map((area, index) => (
               <span key={area.label} className="inline-flex items-center gap-[var(--spacing-system-xxs)]">
@@ -46,11 +46,11 @@ export function AllSetStep({ onStart, starting }: { onStart: () => void; startin
       />
       <Button
         variant="outline"
-        leftIcon={<AgentMark agent="mingo" className="size-5" />}
+        leftIcon={<AgentMark agent="mingo" className="size-5 text-ods-flamingo-cyan" color="currentColor" />}
         onClick={onStart}
         loading={starting}
         disabled={starting}
-        className="w-full md:w-auto md:min-w-[216px]"
+        className="w-full sm:w-auto sm:min-w-[204px]"
       >
         Start with Mingo
       </Button>

@@ -35,13 +35,18 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
           <>
             Install your first device with a single command.
             <br />
-            Then just ask <AgentMark agent="mingo" className="inline-block size-6 align-bottom" />{' '}
+            Then just ask{' '}
+            <AgentMark
+              agent="mingo"
+              className="inline-block size-6 align-bottom text-ods-flamingo-cyan"
+              color="currentColor"
+            />{' '}
             <span className="text-ods-flamingo-cyan">Mingo</span> anything about the machine and it runs the work.
           </>
         }
       />
       {desktopShell ? (
-        <Button variant="outline" onClick={onContinue} className="w-full md:w-auto md:min-w-[216px]">
+        <Button variant="outline" onClick={onContinue} className="w-full sm:w-auto sm:min-w-[204px]">
           Continue
         </Button>
       ) : (

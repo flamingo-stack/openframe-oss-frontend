@@ -6,7 +6,12 @@ import {
   PlayIcon,
   QuestionCircleIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type ActionsMenuItem, DropdownButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type ActionsMenuItem,
+  ActionsMenuDropdown,
+  Button,
+  DropdownButton,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { useOnboardingMeetingLink } from '@/app/(app)/onboarding/components/book-call/use-onboarding-meeting-link';
 import { ContactSupportModal } from '@/app/components/shared/contact-support-modal';
@@ -23,6 +28,9 @@ type HelpSurface = 'intro' | 'call' | 'support' | null;
  *
  * The menu rows carry no second line (the design's "45 min, set up together")
  * because the lib's `ActionsMenuItem` has no description slot.
+ *
+ * On a phone the trigger is the question glyph alone, no button chrome and no
+ * chevron, as the design draws it; the menu behind it is the same.
  */
 export function NeedHelpMenu() {
   const [open, setOpen] = useState<HelpSurface>(null);
@@ -43,18 +51,32 @@ export function NeedHelpMenu() {
 
   return (
     <>
-      <DropdownButton
-        variant="outline"
-        icon={<QuestionCircleIcon />}
-        // The phone draws the trigger as the glyph alone.
-        label={<span className="hidden md:inline">Need Help?</span>}
-        ariaLabel="Need help?"
-        items={items}
-        side="top"
-        align="start"
-        // Every item opens a modal: keep the menu from pulling focus back out of it.
-        onCloseAutoFocus={event => event.preventDefault()}
-      />
+      <div className="sm:hidden">
+        <ActionsMenuDropdown
+          groups={[{ items }]}
+          customTrigger={
+            <Button variant="glyph" size="icon" aria-label="Need help?">
+              <QuestionCircleIcon className="size-6" />
+            </Button>
+          }
+          side="top"
+          align="start"
+          // Every item opens a modal: keep the menu from pulling focus back out of it.
+          onCloseAutoFocus={event => event.preventDefault()}
+        />
+      </div>
+      <div className="hidden sm:block">
+        <DropdownButton
+          variant="outline"
+          size="default"
+          icon={<QuestionCircleIcon />}
+          label="Need Help?"
+          items={items}
+          side="top"
+          align="start"
+          onCloseAutoFocus={event => event.preventDefault()}
+        />
+      </div>
       <IntroVideoModal open={open === 'intro'} onClose={close} />
       <BookCallModal open={open === 'call'} onClose={close} />
       <ContactSupportModal
