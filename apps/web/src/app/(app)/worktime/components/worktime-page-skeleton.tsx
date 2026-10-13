@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { WorkTimeTableSkeleton } from '@/app/components/shared/work-time-table';
 
@@ -11,7 +11,12 @@ import { WorkTimeTableSkeleton } from '@/app/components/shared/work-time-table';
  */
 
 const ACTIONS: PageActionButton[] = [
-  { label: 'Add Work Time', variant: 'outline', disabled: true, icon: <PlusCircleIcon iconSize={20} whiteOverlay /> },
+  {
+    label: 'Add Work Time',
+    variant: 'outline',
+    disabled: true,
+    icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
+  },
 ];
 
 export function WorktimePageSkeleton() {

@@ -32,13 +32,21 @@
  * URLs, still opens in a new tab on the hub.
  */
 
+import { EntityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   isCrossOriginUrl,
   decideNewTab as libDecideNewTab,
   stripSameOriginToPath,
+  useEmptyStateConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useDocNavigation } from '@flamingo-stack/openframe-frontend-core/components/docs';
-import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
+import {
+  type AssistantOpenRequest,
+  type AssistantRuntime,
+  AssistantRuntimeContext,
+  type ChatRuntime,
+  ChatRuntimeContext,
+} from '@flamingo-stack/openframe-frontend-core/contexts';
 import {
   buildListUrl as buildEntityCardListUrl,
   clearEmbedProxyAuth,
@@ -51,9 +59,9 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
-import { refreshAccessToken } from '@/lib/token-refresh-manager';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -65,6 +73,8 @@ import { refreshAccessToken } from '@/lib/token-refresh-manager';
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
+import { runtimeEnv } from '@/lib/runtime-config';
+import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 
 /** Stable source identifier used for localStorage namespacing inside the
@@ -89,6 +99,27 @@ const CHAT_SOURCE = 'openframe' as const;
  * refresh, today's behavior), never a retry with a genuinely dead token.
  */
 let lastChatSendEpoch = 0;
+
+/**
+ * The tenant gateway's origin, whenever auth rides in a header instead of a
+ * cookie: the native shell and dev-ticket web (`isBearerAuthMode`). Both call
+ * the gateway ABSOLUTE and cross-origin, so `embedAuthedFetch`'s guard has to
+ * sanction exactly that origin, and `needsBearerAssetFetch` reads the same list
+ * to decide that a gateway image (`/api/images/...`, built by
+ * `getFullImageUrl`) is fetched with the bearer rather than loaded by a plain
+ * `<img>`, which carries no header and gets a 401.
+ *
+ * It was the shell's `CONTENT_ORIGIN` alone, so on dev-ticket web every
+ * organization logo and avatar answered 401.
+ */
+function bearerGatewayOrigins(): string[] {
+  if (!isBearerAuthMode()) return [];
+  try {
+    return [new URL(runtimeEnv.tenantHostUrl()).origin];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Auth adapter the lib's `embedAuthedFetch` consults on every embedded-chat
@@ -128,12 +159,10 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // rotation (which, with rotating refresh tokens, invalidates the credential
   // just obtained).
   refresh: () => refreshAccessToken(lastChatSendEpoch),
-  // Native shell only: the page origin (`capacitor://localhost`) has no server
-  // behind it, so every `/content` call goes ABSOLUTE to the tenant gateway
-  // (see `help-center/endpoints.ts`) — sanction exactly that origin for
-  // `embedAuthedFetch`'s cross-origin guard. Empty on the web, where the
+  // The one origin the bearer belongs to, in bearer mode only (see
+  // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
   // same-origin rule stays absolute.
-  allowedOrigins: CONTENT_ORIGIN ? [CONTENT_ORIGIN] : [],
+  allowedOrigins: bearerGatewayOrigins(),
   // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
   // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
   // token (a refresh it could not run). Native-only: the web branch never emits.
@@ -166,6 +195,21 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
 if (typeof window !== 'undefined') {
   clearEmbedProxyAuth();
   setEmbedAuthAdapter(CHAT_AUTH_ADAPTER);
+}
+
+/** The agent this app's chat talks to: its public slug on the hub (chat-admin source `agent-mingo`). */
+const ASSISTANT_AGENT_SLUG = 'mingo';
+
+/**
+ * How an "ask" surface opens this app's chat: the launcher store every other
+ * entry point uses. A question is queued with `sendToMingo` (the chat entry
+ * drains it into a fresh dialog, in the drawer and in the docked panel alike);
+ * the launcher alone lands on a new chat, never on the conversation list.
+ */
+function openMingo({ prompt }: AssistantOpenRequest): void {
+  const launcher = useMingoLauncherStore.getState();
+  if (prompt) launcher.sendToMingo(prompt);
+  else launcher.startNewChat();
 }
 
 export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode }) {
@@ -361,5 +405,57 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
     // often as never.
   }, [navigate, decideNewTab, openExternal]);
 
-  return <ChatRuntimeContext.Provider value={runtime}>{children}</ChatRuntimeContext.Provider>;
+  // The lib's "ask" surfaces (the "Ask Mingo" card beside a FAQ) read the SAME
+  // runtime configuration through its assistant context: whether this app's chat
+  // can open, who the assistant is, where its questions come from and how the
+  // chat is opened. Nothing is typed:
+  //   - `available`: the launcher store's `canOpen` (an unlocked workspace with
+  //     the chat mounted), so a card never offers a chat that cannot open;
+  //   - name and glyph: the server's (see below; both requests are the ones the
+  //     chat panel and the "Meet Mingo" step make, cached per URL). With no name
+  //     the lib renders no card;
+  //   - `askPromptsUrl`: the hub's general questions, picked by the topic each
+  //     FAQ passes;
+  //   - `open`: `openMingo` below, this app's own launcher.
+  const chatCanOpen = useMingoLauncherStore(state => state.canOpen);
+  // Identity, from the SERVER, in the hub's own order: the platform's chat
+  // identity an admin set in chat config (`emptyStateUrl`, the request the chat
+  // panel makes), else the Mingo agent's published one (`aiAgentConfigUrl`),
+  // read only once the platform is known to have none.
+  // Read once the session is in place, like everything else the shell reads:
+  // before it the request is refused (a dev-ticket landing mounts this provider
+  // before the ticket is exchanged).
+  const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
+  const sessionReady = sessionResolved && isAuthenticated;
+  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl, {
+    enabled: sessionReady,
+  });
+  const agentConfigUrl = runtime.endpoints.aiAgentConfigUrl?.(ASSISTANT_AGENT_SLUG);
+  const needsAgent = sessionReady && platformLoaded && (!platformConfig.name || !platformConfig.icon);
+  const { config: agentConfig } = useEmptyStateConfig(agentConfigUrl, {
+    enabled: needsAgent && Boolean(agentConfigUrl),
+  });
+  const assistantName = platformConfig.name ?? agentConfig.name ?? null;
+  const assistantIcon = platformConfig.icon ?? agentConfig.icon ?? null;
+  // One element per glyph, so the assistant runtime keeps one identity between renders.
+  const assistantIconNode = useMemo(
+    () => (assistantIcon ? <EntityIcon icon={assistantIcon} size={32} className="size-full" /> : undefined),
+    [assistantIcon],
+  );
+  const assistant = useMemo<AssistantRuntime>(
+    () => ({
+      available: chatCanOpen,
+      name: assistantName,
+      icon: assistantIconNode,
+      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/faqs/questions`,
+      open: openMingo,
+    }),
+    [chatCanOpen, assistantName, assistantIconNode],
+  );
+
+  return (
+    <ChatRuntimeContext.Provider value={runtime}>
+      <AssistantRuntimeContext.Provider value={assistant}>{children}</AssistantRuntimeContext.Provider>
+    </ChatRuntimeContext.Provider>
+  );
 }

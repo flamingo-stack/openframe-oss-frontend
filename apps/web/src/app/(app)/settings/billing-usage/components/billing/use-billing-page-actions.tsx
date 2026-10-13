@@ -12,7 +12,6 @@ import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { openBillingInBrowser } from '@/lib/billing-visibility';
 import { openExternalTab } from '../shared/stripe-window';
-import { useBillingPortalSession } from './use-billing-portal-session';
 import { useResumeSubscription } from './use-resume-subscription';
 
 /** What the header decides on: the state the workspace is in, and the invoice "Pay Overage" opens. */
@@ -76,7 +75,6 @@ export function useBillingPageActions({
 }: BillingPageActionsArgs): BillingPageActions {
   const data = useFragment(useBillingPageActionsFragment, subscription);
   const resumeSubscription = useResumeSubscription();
-  const billingPortal = useBillingPortalSession();
   const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
 
   if (readOnly) {
@@ -143,15 +141,6 @@ export function useBillingPageActions({
               },
             ]
           : []),
-        {
-          id: 'customer-portal',
-          // Stripe mints the portal session per click, so this runs a mutation
-          // and then navigates — there is no stable URL to hang a link on.
-          label: 'Customer Portal',
-          icon: <ExternalLinkIcon className="h-6 w-6 text-ods-text-secondary" />,
-          onClick: () => billingPortal.mutate(),
-          disabled: billingPortal.isPending,
-        },
         ...(status === SubscriptionStatus.ACTIVE && cancelSubscriptionEnabled
           ? [
               {

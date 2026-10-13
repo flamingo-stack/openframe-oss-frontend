@@ -11,6 +11,9 @@ const AGENT_AI_CONFIG_FIELDS = `
     id
     name
     instructions
+    iconName
+    iconUrl
+    iconProps
   }
   createdAt
   updatedAt

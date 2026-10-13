@@ -1,4 +1,4 @@
-import type { DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import type { DeviceFilterInput } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceStatus, DeviceType } from '@/generated/schema-enums';
 
 /** The enum-typed shape the generated Relay operations expect for `DeviceFilterInput`. */

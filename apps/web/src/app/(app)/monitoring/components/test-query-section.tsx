@@ -10,8 +10,9 @@ import {
   TimingStat,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
-import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { getDeviceName, getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  InfoCircleClassicIcon,
   FlaskVialIcon,
   Refresh01LeftIcon,
   StopIcon,
@@ -21,8 +22,6 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '../../devices/types/device.types';
 import { getFleetHostId, indexDevicesByFleetHostId } from '../../devices/utils/device-action-utils';
-import { getDeviceName } from '../../devices/utils/device-name';
-import { getDeviceStatusConfig } from '../../devices/utils/device-status';
 import { useQueryTestRun } from './query-test-run';
 
 export interface TestQuerySectionProps {
@@ -129,7 +128,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
           rel="noopener noreferrer"
           className="inline-flex items-center gap-[var(--spacing-system-xxs)] text-ods-text-secondary transition-colors text-h6 hover:text-ods-text-primary"
         >
-          <InfoCircleIcon size={16} />
+          <InfoCircleClassicIcon size={16} />
           Osquery Documentation
         </a>
       </div>

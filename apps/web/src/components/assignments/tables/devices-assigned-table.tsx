@@ -1,12 +1,11 @@
 'use client';
 
+import { DevicesTableBody, matchesDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
-import { DevicesTableBody } from '@/app/(app)/devices/components/devices-table-columns';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { matchesDeviceName } from '@/app/(app)/devices/utils/device-name';
 
 interface DevicesAssignedTableProps {
   devices: Device[];

@@ -21,7 +21,7 @@ export function PostHogAnalyticsBridge() {
       const id = user?.id;
       if (id && id !== lastId) {
         lastId = id;
-        pushIdentify(id, user?.email);
+        pushIdentify({ userId: id, email: user?.email });
         // Funnel event: the just-registered user's session resolved (the marker
         // was set on the signup path). Fires once — never on a plain login.
         if (consumePendingSignup()) {

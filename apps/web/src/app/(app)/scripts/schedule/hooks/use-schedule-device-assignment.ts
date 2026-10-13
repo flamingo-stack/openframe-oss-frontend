@@ -1,5 +1,6 @@
 'use client';
 
+import { type DeviceFilterInput, getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useRef } from 'react';
 import { fetchQuery, useMutation, useRelayEnvironment } from 'react-relay';
@@ -8,8 +9,7 @@ import type { addDevicesToScheduleMutation as AddDevicesMutationType } from '@/_
 import type { removeAllDevicesFromScheduleMutation as RemoveAllDevicesMutationType } from '@/__generated__/removeAllDevicesFromScheduleMutation.graphql';
 import type { removeDevicesFromScheduleMutation as RemoveDevicesMutationType } from '@/__generated__/removeDevicesFromScheduleMutation.graphql';
 import type { setScheduleDeviceCriteriaMutation as SetCriteriaMutationType } from '@/__generated__/setScheduleDeviceCriteriaMutation.graphql';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
-import { getDeviceName } from '@/app/(app)/devices/utils/device-name';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import {
   assignmentUpdaters,
   type ConnectionNarrowing,

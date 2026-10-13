@@ -1,5 +1,6 @@
 'use client';
 
+import { SOFTWARE_ACTION_DETAIL_TITLE } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Suspense } from 'react';
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
@@ -7,7 +8,6 @@ import { EXECUTIONS_PAGE_SIZE, ExecutionsTabShell } from '@/app/(app)/scripts/sh
 import { TableSkeleton, QueryIsland } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { DetailTitle } from '../shared/detail-title';
-import { SOFTWARE_ACTION_DETAIL_TITLE } from '../shared/software-action-copy';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';

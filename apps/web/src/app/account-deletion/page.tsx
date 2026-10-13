@@ -1,6 +1,10 @@
 'use client';
 
-import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { routes } from '@/lib/routes';
 
 /**
@@ -27,12 +31,12 @@ export default function AccountDeletionPage() {
   return (
     <div className="of-standalone-shell flex min-h-screen flex-col items-center gap-[var(--spacing-system-xlf)] bg-ods-bg p-[var(--spacing-system-xlf)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenFrameLogo
+        <OpenframeLogoIcon
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
-          lowerPathColor="var(--color-accent-primary)"
-          upperPathColor="var(--color-text-primary)"
+          color="var(--color-text-primary)"
         />
-        <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
       <main className="flex w-full max-w-[640px] flex-col gap-[var(--spacing-system-lf)]">
@@ -118,7 +122,7 @@ export default function AccountDeletionPage() {
         className="mt-auto flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
         <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>

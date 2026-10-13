@@ -1,10 +1,10 @@
 'use client';
 
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useEffect, useMemo, useRef } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { FetchPolicy } from 'relay-runtime';
 import type { tenantOnboardingAutoDetectRelayQuery as AutoDetectQuery } from '@/__generated__/tenantOnboardingAutoDetectRelayQuery.graphql';
-import { DEVICE_STATUS } from '@/app/(app)/devices/constants/device-statuses';
 import { TENANT_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { tenantOnboardingAutoDetectRelayQuery } from '@/graphql/onboarding/tenant-onboarding-auto-detect-relay';

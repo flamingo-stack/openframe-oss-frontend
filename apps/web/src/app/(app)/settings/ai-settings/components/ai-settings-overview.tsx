@@ -60,6 +60,9 @@ export function AiSettingsOverview({
           actions={quickActions}
           isDefault={aiConfig.quickActionsIsDefault}
           agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
+          // The assistant's glyphs take its configured accent (the chat tints
+          // them the same way); pink is only the fallback.
+          accent={view?.accentColor}
           bannerCopy={quickActionsBanner}
         />
       )}

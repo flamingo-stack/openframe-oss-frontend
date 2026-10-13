@@ -1,6 +1,7 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   Filter02Icon,
@@ -39,7 +40,6 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -412,13 +412,7 @@ function IncidentsTableContent({
                 onClick={onClick}
                 variant="outline"
                 size="icon"
-                leftIcon={
-                  <MingoIcon
-                    className="size-5"
-                    eyesColor="var(--ods-flamingo-cyan-base)"
-                    cornerColor="var(--ods-flamingo-cyan-base)"
-                  />
-                }
+                leftIcon={<AgentMark agent="mingo" className="size-5" />}
                 aria-label={label}
                 title={label}
                 disabled={disabled}

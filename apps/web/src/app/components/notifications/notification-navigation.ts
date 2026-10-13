@@ -4,6 +4,7 @@ import {
   INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isIncidentNotificationType,
+  NEW_PERMISSIONS_REQUIRED_TYPE,
   NOTIFICATION_ATTR,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
@@ -138,6 +139,11 @@ function resolveAction(
   // incident, so they all open it.
   if (isIncidentNotificationType(type) && insightId) {
     return incidentAction(insightId);
+  }
+
+  // Names no entity: the tenant list is where each connection re-authorizes.
+  if (type === NEW_PERMISSIONS_REQUIRED_TYPE) {
+    return { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
   }
 
   // Unknown type. The contract requires new types to reach users without a client release —

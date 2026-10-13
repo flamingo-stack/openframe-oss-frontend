@@ -8,13 +8,13 @@ import {
   EXPIRING_WINDOW_MS,
   expiresSoonLabel,
   isRecordingGone,
-  recordingUnavailableNote,
 } from './session-status';
 
-type Row = Pick<RecordingSummary, 'recordingState' | 'kept' | 'expiresAt' | 'recordingId'>;
+type Row = Pick<RecordingSummary, 'recordingState' | 'live' | 'kept' | 'expiresAt' | 'recordingId'>;
 
 const row = (overrides: Partial<Row> = {}): Row => ({
   recordingState: 'ready',
+  live: false,
   kept: false,
   expiresAt: '2026-12-24T10:00:00Z',
   recordingId: 'rec-1',
@@ -39,14 +39,13 @@ describe('session row status', () => {
     }
   });
 
-  it('deletes ready, failed and expired recordings, never a kept or processing one', () => {
-    expect(canDeleteSession(row())).toBe(true);
-    expect(canDeleteSession(row({ recordingState: 'failed', recordingId: null }))).toBe(true);
-    expect(canDeleteSession(row({ recordingState: 'expired' }))).toBe(true);
-    expect(canDeleteSession(row({ kept: true }))).toBe(false);
-    for (const recordingState of ['processing', 'deleted', 'none'] as const) {
-      expect(canDeleteSession(row({ recordingState }))).toBe(false);
+  it('deletes any ended session, never a live, processing or kept one', () => {
+    for (const recordingState of ['ready', 'failed', 'expired', 'deleted', 'none'] as const) {
+      expect(canDeleteSession(row({ recordingState, recordingId: null }))).toBe(true);
     }
+    expect(canDeleteSession(row({ recordingState: 'processing' }))).toBe(false);
+    expect(canDeleteSession(row({ kept: true }))).toBe(false);
+    expect(canDeleteSession(row({ recordingState: 'none', live: true }))).toBe(false);
   });
 
   it('files a row under Kept, Expiring (within a week) or Expired, and nothing else under any of them', () => {
@@ -67,13 +66,6 @@ describe('session row status', () => {
     expect(isRecordingGone(row({ recordingState: 'expired' }))).toBe(true);
     expect(isRecordingGone(row({ recordingState: 'deleted' }))).toBe(true);
     expect(isRecordingGone(row())).toBe(false);
-  });
-
-  it('says a gone recording was deleted or expired, and processing only when its files could not be fetched', () => {
-    expect(recordingUnavailableNote(row({ recordingState: 'deleted' }), true)).toBe('This recording was deleted');
-    expect(recordingUnavailableNote(row({ recordingState: 'expired' }), false)).toBe('This recording has expired');
-    expect(recordingUnavailableNote(row(), true)).toContain('still being processed');
-    expect(recordingUnavailableNote(row(), false)).toBeNull();
   });
 
   it('counts down only on the last day, never below one hour', () => {

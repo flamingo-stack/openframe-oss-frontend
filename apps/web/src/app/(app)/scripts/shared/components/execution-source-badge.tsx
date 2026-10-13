@@ -1,6 +1,6 @@
 'use client';
 
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { ExecutionSource } from '@/generated/schema-enums';
@@ -38,11 +38,7 @@ export function ExecutionSourceBadge({
         icon={
           // White body with cyan eyes and corner — the logo's own two-tone
           // treatment, same as everywhere else Mingo is stamped in the app.
-          <MingoIcon
-            className="size-4"
-            eyesColor="var(--ods-flamingo-cyan-base)"
-            cornerColor="var(--ods-flamingo-cyan-base)"
-          />
+          <AgentMark agent="mingo" className="size-4" />
         }
       />
     );

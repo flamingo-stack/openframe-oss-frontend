@@ -389,6 +389,27 @@ For regular client components, import directly from the core library.
 - **Feature Components** — AuthProvidersList, Terminal, ToolBadge
 - **Navigation** — AppLayout, sidebar config types
 
+### Product Screens Are Core-Lib Views
+
+Five screens render their markup from props-only views in the core library, so the OpenFrame
+product page on the hub shows the same components on fixture data (the lib's
+`components/product-demo`): the devices list/panel and `DeviceSelector`, logs (`LogsPageView`,
+`LogDrawer`), policies (`PoliciesTable`, `PolicySummaryCards`), software actions
+(`SoftwareActionForm`) and cloud tenants (`TenantsTableView`). The lib owns the markup; this app owns
+the containers around it: the Relay fragments, the mapping to view props, and what the views cannot
+know themselves (`DevicesViewConfig` in the root layout: device URLs, image URLs, the mobile shell).
+
+- **A UI change to one of these screens goes lib-first.** Change the view in the lib (and its fixture
+  in `product-demo` when the props change), pin that lib PR's pkg.pr.new build here, then adapt the
+  container. Markup written here instead forks the screen from the product page.
+- **Fragments stay in the containers, and the views never see them.** The lib has no schema, so
+  `relay/unused-fields` cannot tell that a view stopped reading a field: drop it from the fragment in
+  the same change. Where a lib union restates a schema enum, keep a compile-time check that the two
+  match (`ListTablesCoverSchema` in `cloud-tenant-management/utils/tenant-presentation.ts`).
+- **Remote desktop, the session chat and the knowledge base still render the app's own markup.** The
+  lib's `RemoteDesktopView` predates #578's header and #581's recording banner, and its knowledge-base
+  views predate #547. Bring the lib view up to date before switching one of these screens to it.
+
 ### Embedded Page Components (standalone + tab reuse)
 
 Some page components render their own `PageLayout` and are used **both** as a standalone route
@@ -518,6 +539,10 @@ live before a schema field is removed. `apiClient`, Relay, the upload helpers an
 new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
 make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined
 at build time from `OPENFRAME_BUNDLE_VERSION` (`next.config.mjs`) — the Docker build gets it as a build-arg.
+The gateway answers a mobile bundle below the policy's `minBundleVersion` with **426**, and every place that sends the
+header handles it (`src/lib/version-check.ts`): bail out with `UpdateRequiredError` while `isUpdateRequired()`, and run
+`noteUpgradeRequired(response)` *before* any 401 → refresh → logout branch. That flips the app into the blocking
+"Update required" screen (`AppUpdateGate` in the root layout) and keeps the request off every retry path.
 
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 
@@ -895,7 +920,9 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
             <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
               <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
                 <RouteGuard>         <!-- App mode route filtering -->
-                  {children}         <!-- Page content -->
+                  <DevicesViewConfig>  <!-- device href / image URL / mobile shell for the core lib's device views -->
+                    {children}       <!-- Page content -->
+                  </DevicesViewConfig>
                 </RouteGuard>
               </NotificationsDataProvider>
             </FeatureFlagsLoader>
@@ -1137,3 +1164,13 @@ if (response.ok) {
    `eslint-disable`; keep the files you touch clean
 8. **Normalize multi-source device data** — Fleet-first priority; merge logic in `use-device-details.ts` `createDevice()`
 9. **Build internal URLs via `routes.*` from `src/lib/routes.ts`** — no raw path strings; new pages/tabs must be added to the registry (see `src/lib/ROUTES.md`)
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

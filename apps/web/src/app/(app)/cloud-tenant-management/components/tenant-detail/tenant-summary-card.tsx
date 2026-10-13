@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  accessStateTag,
+  formatLastRead,
+  lastReadAt,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
@@ -9,14 +14,7 @@ import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSumma
 import { InlineSkeleton } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
-import {
-  accessStateTag,
-  formatConnectedAt,
-  formatLastRead,
-  isReadable,
-  lastReadAt,
-  providerPresentation,
-} from '../../utils/tenant-presentation';
+import { formatConnectedAt, isReadable, providerPresentation } from '../../utils/tenant-presentation';
 
 // The two-row identity card of the details page (Figma 2097-140910 / 2097-119207) and its one-row cut
 // on Edit / Reconnect (2097-123264). Own row classes: the employee card's `content-md:contents` folds into one row.

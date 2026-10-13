@@ -1,18 +1,20 @@
 'use client';
 
-import { OSTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  getDeviceName,
+  OSTypeIcon,
+  renderDeviceTypeIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type React from 'react';
-import { renderDeviceTypeIcon } from '@/app/components/shared/device-type-icon';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import type { Device } from '../types/device.types';
-import { getDeviceName } from '../utils/device-name';
 import { DeviceAddedByCell } from './device-added-by-cell';
 
 function formatDateWithTime(iso?: string): React.ReactNode {

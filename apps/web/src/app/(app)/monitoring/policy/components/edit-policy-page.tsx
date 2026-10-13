@@ -2,13 +2,13 @@
 'use no memo';
 
 import { Input, Label, LoadError, NotFoundError, PageLayout, Textarea } from '@flamingo-stack/openframe-frontend-core';
+import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { DeviceSelector } from '@/app/components/shared/device-selector';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';

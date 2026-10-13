@@ -1,12 +1,11 @@
 'use client';
 
+import { PACKAGE_MANAGER_LABEL, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { DataTableFilterOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { useSoftwareActionFiltersQuery as SoftwareActionFiltersQueryType } from '@/__generated__/useSoftwareActionFiltersQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { presentationFor } from '@/lib/exhaustive-map';
-import { PACKAGE_MANAGER_LABEL } from '../shared/package-managers';
-import { softwareActionCopy } from '../shared/software-action-copy';
 import { softwareActionStatusLabel } from './software-action-status-tag';
 
 /**

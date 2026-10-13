@@ -1,5 +1,6 @@
 'use client';
 
+import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { AgentAiConfig } from '../types/ai-settings';
@@ -19,7 +20,6 @@ const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-
  * appearance fields; this one carries only the AI-logic columns per the design.
  */
 export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettingsAdminCardProps) {
-  const ProviderIcon = LLM_PROVIDER_ICON[aiConfig.llmProvider];
   const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
   return (
@@ -28,7 +28,9 @@ export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettings
         <InfoCell
           value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
           label="Mingo LLM Provider"
-          icon={<ProviderIcon className="h-6 w-6 text-ods-text-secondary" />}
+          icon={
+            <NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />
+          }
         />
       </div>
       <div className={CELL}>

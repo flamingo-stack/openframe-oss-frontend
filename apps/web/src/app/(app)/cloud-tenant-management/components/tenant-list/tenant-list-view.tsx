@@ -1,5 +1,6 @@
 'use client';
 
+import { TENANTS_TABLE_COLUMNS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -9,8 +10,8 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { TenantsTable } from './tenants-table';
-import { TENANTS_PAGE_SIZE, TENANTS_TABLE_COLUMNS } from './tenants-table-columns';
+import { ConsentAnnouncementBanner } from './consent-announcement-banner';
+import { TENANTS_PAGE_SIZE, TenantsTable } from './tenants-table';
 
 /**
  * The "Connect Tenant" split button (Figma 1699-8249): the label opens the connect page in place,
@@ -61,6 +62,7 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
+        {!loading && <ConsentAnnouncementBanner />}
         {!isEmpty && (
           <div
             ref={toolbarRef}

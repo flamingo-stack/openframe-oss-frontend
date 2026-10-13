@@ -2,7 +2,7 @@ import type {
   KeepRecordingSelection,
   RemoteSessionKeepReason,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { fetchQuery, graphql } from 'react-relay';
+import { commitLocalUpdate, fetchQuery, graphql } from 'react-relay';
 import { readInlineData } from 'relay-runtime';
 import type {
   sessionRecordingsApiService_session$data as WireSession,
@@ -19,7 +19,9 @@ import {
   RecordingHoldReason,
   RemoteSessionRecordingState,
   RemoteSessionRecordingStatus,
+  RemoteSessionStatus,
 } from '@/generated/schema-enums';
+import { getRelayErrorCodes } from '@/lib/handle-api-error';
 import { getRelayEnvironment } from '@/lib/relay';
 import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -34,7 +36,11 @@ import type {
   RecordingSummary,
 } from '../types/session-recording';
 import { remoteSessionChatApiService } from './remote-session-chat-api-service';
-import { type ISessionRecordingsService, RecordingUnavailableError } from './session-recordings-service';
+import {
+  type ISessionRecordingsService,
+  RecordingNotFoundError,
+  RecordingUnavailableError,
+} from './session-recordings-service';
 
 /**
  * The Remote Sessions tab and the recording page on openframe-saas-api: one
@@ -47,6 +53,7 @@ const sessionFragment = graphql`
   fragment sessionRecordingsApiService_session on RemoteSession @inline {
     sessionId
     deviceId
+    status
     startedAt
     durationMs
     recordingState
@@ -122,7 +129,7 @@ const storageQuery = graphql`
 
 const deleteMutation = graphql`
   mutation sessionRecordingsApiServiceDeleteMutation($sessionId: String!) {
-    deleteRecording(sessionId: $sessionId) {
+    deleteRemoteSession(sessionId: $sessionId) {
       userErrors {
         code
         message
@@ -160,6 +167,15 @@ const deviceQuery = graphql`
     }
   }
 `;
+
+/**
+ * How the server says a recording page has nothing to show: an unknown id, a
+ * deleted session, an expired or deleted file.
+ */
+const NOT_FOUND_CODES: ReadonlySet<string> = new Set([
+  'REMOTE_SESSION_RECORDING_NOT_FOUND',
+  'REMOTE_SESSION_NOT_FOUND',
+]);
 
 /** The server's page ceiling; the tab filters and sorts on the client, so it reads the device's whole history. */
 const PAGE_SIZE = 100;
@@ -218,6 +234,7 @@ export function fromWireSession(session: WireSession): RecordingSummary {
     protocol: files[0]?.protocol === 1 ? 1 : 2,
     // A state this client does not know yet reads as "nothing to show", not as playable.
     recordingState: RECORDING_STATES[session.recordingState as RemoteSessionRecordingState] ?? 'none',
+    live: session.status === RemoteSessionStatus.ACTIVE,
     kept:
       session.recordingState === RemoteSessionRecordingState.KEPT ||
       files.some(file => file.status === RemoteSessionRecordingStatus.HELD),
@@ -231,7 +248,8 @@ export function fromWireSession(session: WireSession): RecordingSummary {
   };
 }
 
-function readSession(ref: WireSessionKey): WireSession {
+/** A session row's selection, read from wherever it was spread - the device list, the detail, the tenant-wide list. */
+export function readSession(ref: WireSessionKey): WireSession {
   return readInlineData(sessionFragment, ref);
 }
 
@@ -293,6 +311,26 @@ async function fetchRecordingBytes(downloadUrl: string): Promise<ArrayBuffer> {
   return response.arrayBuffer();
 }
 
+/**
+ * A deleted session leaves every list, but the Relay store still holds it in
+ * the tenant-wide list it was read from - which is what that page would paint
+ * first on the way back from the recording page. Marking the session's
+ * records stale makes any query holding them fetch again before rendering.
+ * The session has no global id, so its records are found by `sessionId`.
+ */
+function forgetSession(sessionId: string): void {
+  const environment = getRelayEnvironment();
+  const source = environment.getStore().getSource();
+  const recordIds = source.getRecordIDs().filter(id => {
+    const record = source.get(id);
+    return record?.__typename === 'RemoteSession' && record.sessionId === sessionId;
+  });
+  if (recordIds.length === 0) return;
+  commitLocalUpdate(environment, store => {
+    for (const id of recordIds) store.get(id)?.invalidateRecord();
+  });
+}
+
 export class SessionRecordingsApiService implements ISessionRecordingsService {
   readonly canDelete = true;
 
@@ -316,13 +354,19 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
   }
 
   async get(recordingId: string): Promise<RecordingDetail> {
-    const data = await fetchQuery<DetailQuery>(
-      getRelayEnvironment(),
-      detailQuery,
-      { recordingId },
-      { fetchPolicy: 'network-only' },
-    ).toPromise();
-    if (!data?.remoteSessionRecording) throw new Error('Recording not found');
+    let data: DetailQuery['response'] | undefined;
+    try {
+      data = await fetchQuery<DetailQuery>(
+        getRelayEnvironment(),
+        detailQuery,
+        { recordingId },
+        { fetchPolicy: 'network-only' },
+      ).toPromise();
+    } catch (error) {
+      if (getRelayErrorCodes(error).some(code => NOT_FOUND_CODES.has(code))) throw new RecordingNotFoundError();
+      throw error;
+    }
+    if (!data?.remoteSessionRecording) throw new RecordingNotFoundError();
     const session = readSession(data.remoteSessionRecording.session);
     const [hostname, chat] = await Promise.all([readHostname(session.deviceId), readTranscript(session.dialogId)]);
     return {
@@ -357,8 +401,9 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
 
   async delete(sessionId: string): Promise<void> {
     const payload = await commitMutationPromise<DeleteMutation>(deleteMutation, { sessionId });
-    const [refusal] = payload.deleteRecording.userErrors;
-    if (refusal) throw new Error(refusal.message || 'Could not delete the recording');
+    const [refusal] = payload.deleteRemoteSession.userErrors;
+    if (refusal) throw new Error(refusal.message || 'Could not delete the session');
+    forgetSession(sessionId);
   }
 
   async keep(sessionId: string, { reason, description }: KeepRecordingSelection): Promise<void> {

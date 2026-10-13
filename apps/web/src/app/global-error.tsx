@@ -1,6 +1,10 @@
 'use client';
 
-import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef } from 'react';
 import { hideSplashScreen } from '@/lib/native-shell';
@@ -38,12 +42,12 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body className="min-h-screen font-body antialiased" data-app-type="openframe">
         <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
           <div className="flex items-center gap-2">
-            <OpenFrameLogo
+            <OpenframeLogoIcon
+              secondaryColor="var(--color-accent-primary)"
               className="h-10 w-auto"
-              lowerPathColor="var(--color-accent-primary)"
-              upperPathColor="var(--color-text-primary)"
+              color="var(--color-text-primary)"
             />
-            <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+            <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
           </div>
 
           <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
@@ -68,7 +72,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
           <div className="flex items-center gap-2 p-4 text-ods-text-secondary">
             <span className="text-h6">Powered by</span>
-            <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+            <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
             <span className="font-semibold text-code">Flamingo</span>
           </div>
         </div>

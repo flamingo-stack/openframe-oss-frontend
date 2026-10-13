@@ -2,14 +2,19 @@
 
 import { InfoCard, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
+import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
 import { getAgentFooter } from '../../utils/agent-footer';
-import { getDeviceStatusConfig } from '../../utils/device-status';
-import { getToolConnectionDisplayStatus, type ToolConnectionDisplayStatus } from '../../utils/tool-connection-status';
+import {
+  getExpectedAgentTypes,
+  getToolConnectionDisplayStatus,
+  type ToolConnectionDisplayStatus,
+} from '../../utils/tool-connection-status';
 import { TabEmptyState } from './tab-empty-state';
 
 interface AgentsTabProps {
@@ -71,6 +76,7 @@ export function AgentsTab({ device }: AgentsTabProps) {
       toolType,
       agentToolId: connection?.agentToolId,
       hasConnection: !!connection,
+      isPlaceholder: false,
       status: getAgentDisplayStatus(toolType, connection),
       lastSeen: connection?.lastSeen,
       lastFetched: connection?.lastFetched,
@@ -90,6 +96,7 @@ export function AgentsTab({ device }: AgentsTabProps) {
         toolType: tc.toolType,
         agentToolId: tc.agentToolId,
         hasConnection: true,
+        isPlaceholder: false,
         status: getAgentDisplayStatus(tc.toolType, tc),
         lastSeen: tc.lastSeen,
         lastFetched: tc.lastFetched,
@@ -98,6 +105,26 @@ export function AgentsTab({ device }: AgentsTabProps) {
         updatedAt: undefined,
       });
     }
+  });
+
+  // An expected agent that has not reported yet keeps its slot as a pending card,
+  // rather than being absent until its first installed-agent / tool-connection row lands.
+  getExpectedAgentTypes(device, isSaasTenantMode()).forEach(agentType => {
+    const toolType = agentTypeToToolType[agentType];
+    if (combinedAgents.some(agent => agent.toolType === toolType)) return;
+
+    combinedAgents.push({
+      agentType,
+      version: undefined,
+      toolType,
+      agentToolId: undefined,
+      hasConnection: false,
+      isPlaceholder: true,
+      status: 'pending',
+      lastSeen: undefined,
+      lastFetched: undefined,
+      updatedAt: undefined,
+    });
   });
 
   // Sort agents alphabetically by agentType for a stable, predictable order across reloads.
@@ -125,9 +152,12 @@ export function AgentsTab({ device }: AgentsTabProps) {
         {combinedAgents.map((agent, idx) => {
           const toolType = normalizeToolTypeWithFallback(agent.toolType);
           const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
+          // A placeholder shows its pending status whatever the agent: openframe-chat
+          // has no live status once installed, but it is still installing here.
           const showStatusBlock =
-            AGENT_TYPES_WITH_STATUS.has(agent.toolType) &&
-            (agent.status != null || agent.lastSeen != null || agent.lastFetched != null);
+            agent.isPlaceholder ||
+            (AGENT_TYPES_WITH_STATUS.has(agent.toolType) &&
+              (agent.status != null || agent.lastSeen != null || agent.lastFetched != null));
 
           // `value` carries ReactNodes (Tag, ToolBadge); InfoCard's typings only model strings, so
           // the items array stays loosely typed (matching the prior implementation) and renders inline.

@@ -1,3 +1,4 @@
+import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { QueryResultRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { readInlineData } from 'react-relay';
 import type { insightFields_insight$key } from '@/__generated__/insightFields_insight.graphql';
@@ -15,7 +16,6 @@ import { insightTransitionsFragment } from '@/graphql/insights/insight-transitio
 import { insightUserFieldsFragment } from '@/graphql/insights/insight-user-fields';
 import { getFullImageUrl } from '@/lib/image-url';
 import { rawIdOf } from '@/lib/relay-id';
-import { getDeviceName } from '../../devices/utils/device-name';
 import { enumMembers } from './incident-labels';
 
 /**

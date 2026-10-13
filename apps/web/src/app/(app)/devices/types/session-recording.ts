@@ -46,6 +46,8 @@ export interface RecordingSummary {
   /** 1 = terminal, 2 = desktop/KVM. */
   protocol: 1 | 2;
   recordingState: RecordingState;
+  /** The session is still running: nothing of it can be deleted yet. */
+  live: boolean;
   /** A file of the session is kept: exempt from retention, and it cannot be deleted. */
   kept: boolean;
   /** The Keep itself, while the session is kept. */

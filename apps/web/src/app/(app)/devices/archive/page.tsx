@@ -1,10 +1,10 @@
 'use client';
 
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BoxArchiveIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { DevicesPanel, EmptyState } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { DEVICE_STATUS } from '../constants/device-statuses';
 
 // The archive is the read-only history of deleted devices. DELETED is the
 // terminal status a delete ends in; ARCHIVED is kept for legacy records created

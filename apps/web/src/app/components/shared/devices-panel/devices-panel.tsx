@@ -1,44 +1,43 @@
 'use client';
 
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Alert,
+  buildDevicePanelActions,
+  type DeviceFilterInput,
+  DevicesPanelView,
+  getDeviceActionsColumn,
+  getDeviceFilterColumns,
+  useTagFilterModal,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
   type ColumnDef,
   type ColumnFiltersState,
-  DataTable,
   type OnChangeFn,
   type PageActionButton,
   PageError,
   PageLayout,
-  TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo } from 'react';
-import { DevicesGrid } from '@/app/(app)/devices/components/devices-grid';
-import { DevicesGridFilters } from '@/app/(app)/devices/components/devices-grid-filters';
-import {
-  DevicesTableBody,
-  getDeviceActionsColumn,
-  getDeviceFilterColumns,
-  getDeviceTableRowActions,
-} from '@/app/(app)/devices/components/devices-table-columns';
+import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
-import { useTagFilterModal } from '@/app/(app)/devices/hooks/use-tag-filter-modal';
-import type { Device, DeviceFilterInput } from '@/app/(app)/devices/types/device.types';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
-import { DevicesFilterToolbar } from '../devices-filter-toolbar';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { DevicesPanelSkeleton } from './devices-panel-boundaries';
-import { buildDevicePanelActions, DEVICE_VIEW_MODE_ITEMS } from './devices-panel-header';
+
+/** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
+function renderDeviceRowActions(device: Device): ReactNode {
+  return <DeviceActionsDropdown device={device} context="table" />;
+}
 
 export interface DevicesPanelProps {
   /** Page title shown in the PageLayout header. */
@@ -178,7 +177,6 @@ function DevicesPanelContent({
   }, [deviceFilters, hideFilters]);
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
-  const renderRowActions = useMemo(() => getDeviceTableRowActions(), []);
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
   useRowRemoteAccessPolicies(readOnlyRows || params.viewMode !== 'table' ? [] : devices);
 
@@ -204,8 +202,8 @@ function DevicesPanelContent({
   // Read-only lists keep the column (width parity with the skeleton) but render
   // nothing in it — rows offer only the open-in-new-tab arrow.
   const actionsColumn = useMemo<ColumnDef<Device>>(
-    () => getDeviceActionsColumn(readOnlyRows ? undefined : renderRowActions),
-    [readOnlyRows, renderRowActions],
+    () => getDeviceActionsColumn<Device>(readOnlyRows ? undefined : renderDeviceRowActions),
+    [readOnlyRows],
   );
 
   const {
@@ -246,6 +244,7 @@ function DevicesPanelContent({
         archiveHref,
         showAddDevice,
         noOrganizations,
+        addCustomerHref: routes.customers.new,
         isCheckingOrganizations,
         accent: showEmptyState && !noOrganizations,
         onAddDevice: () => router.push(addDeviceHref),
@@ -263,106 +262,52 @@ function DevicesPanelContent({
   });
 
   return (
-    <>
-      <PageLayout
-        title={title}
-        backButton={backButton}
-        actionsVariant="icon-buttons"
-        className={cn(embedded && EMBEDDED_PAGE_OFFSET, className)}
-        selector={
-          <TabSelector
-            value={params.viewMode}
-            onValueChange={v => setParam('viewMode', v as 'table' | 'grid')}
-            items={DEVICE_VIEW_MODE_ITEMS}
-          />
-        }
-        actions={actions}
-        contentClassName="flex flex-col"
-      >
-        {noOrganizations && (
-          // Core Alert restyled to the ODS warning tokens. The icon is wrapped in a
-          // span so Alert's `[&>svg]` absolute-positioning rules don't apply.
-          <Alert className="mb-[var(--spacing-system-l)] flex items-start gap-[var(--spacing-system-m)] rounded-[6px] border-0 bg-ods-warning-secondary text-ods-warning">
-            <span className="shrink-0">
-              <AlertTriangleIcon className="h-6 w-6" />
-            </span>
-            <p className="text-h3">Add a customer to connect a new device</p>
-          </Alert>
-        )}
-        {showEmptyState ? (
-          emptyState
-        ) : (
-          // Dimmed, not skeletoned, while a filter/search change resolves: the
-          // rows on screen are the previous answer and stay readable until the
-          // next one arrives (see the deferred variables above).
-          <div className={cn(isNarrowing && 'opacity-60 transition-opacity')}>
-            <DevicesFilterToolbar
-              searchValue={localSearch}
-              onSearchChange={setLocalSearch}
-              tags={tagOptions}
-              onTagRemove={handleTagRemove}
-              onClearAll={handleClearAll}
-              onSubmit={handleTagSubmit}
-              onOpenFilterModal={openFilterModal}
-              isFilterModalOpen={filterModalOpen}
-              onCloseFilterModal={closeFilterModal}
-              filterGroups={filterGroups}
-              onFilterChange={handleModalFilterChange}
-              currentFilters={isMdUp === false ? tableFilters : undefined}
-              tagFilterKeys={tagFilterKeys}
-              selectedTags={selectedTags}
-              onTagsChange={handleModalTagsChange}
-              isLoading={false}
-            />
-            {params.viewMode === 'table' ? (
-              <DevicesTableBody
-                devices={devices}
-                isLoading={false}
-                emptyMessage={emptyMessage}
-                skeletonRows={10}
-                stickyHeaderOffset="top-[96px]"
-                deviceFilters={deviceFilters}
-                // No `filtersPending`: the facet query suspends alongside the
-                // list, so by the time this renders the facets are already in
-                // hand. The "isLoading false before the request started" race it
-                // guards against is a react-query behaviour, not a Relay one.
-                columnFilters={columnFilters}
-                onColumnFiltersChange={onColumnFiltersChange}
-                actionsColumn={actionsColumn}
-                hideColumns={hideColumns}
-                disableColumnFilters={hideFilters}
-                totalCount={filteredCount}
-                footerSlot={
-                  <DataTable.InfiniteFooter
-                    hasNextPage={hasNextPage}
-                    isFetchingNextPage={isFetchingNextPage}
-                    onLoadMore={handleLoadMore}
-                    skeletonRows={2}
-                  />
-                }
-              />
-            ) : (
-              <>
-                <DevicesGridFilters
-                  filterColumns={filterColumns}
-                  currentFilters={tableFilters}
-                  onFilterChange={handleFilterChange}
-                  totalCount={filteredCount}
-                />
-                <DevicesGrid
-                  devices={devices}
-                  isLoading={false}
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  sentinelRef={gridSentinelRef}
-                  emptyMessage={emptyMessage}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </PageLayout>
-    </>
+    <DevicesPanelView<Device>
+      title={title}
+      backButton={backButton}
+      className={cn(embedded && EMBEDDED_PAGE_OFFSET, className)}
+      viewMode={params.viewMode === 'table' ? 'table' : 'grid'}
+      onViewModeChange={mode => setParam('viewMode', mode)}
+      actions={actions}
+      noOrganizations={noOrganizations}
+      emptyState={showEmptyState ? emptyState : undefined}
+      isNarrowing={isNarrowing}
+      devices={devices}
+      totalCount={filteredCount}
+      // The facet query suspends alongside the list, so by the time this renders
+      // the facets are already in hand: nothing is pending on the loaded panel.
+      deviceFilters={deviceFilters}
+      filterColumns={filterColumns}
+      toolbar={{
+        searchValue: localSearch,
+        onSearchChange: setLocalSearch,
+        tags: tagOptions,
+        onTagRemove: handleTagRemove,
+        onClearAll: handleClearAll,
+        onSubmit: handleTagSubmit,
+        onOpenFilterModal: openFilterModal,
+        isFilterModalOpen: filterModalOpen,
+        onCloseFilterModal: closeFilterModal,
+        filterGroups,
+        onFilterChange: handleModalFilterChange,
+        currentFilters: isMdUp === false ? tableFilters : undefined,
+        tagFilterKeys,
+        selectedTags,
+        onTagsChange: handleModalTagsChange,
+      }}
+      columnFilters={columnFilters}
+      onColumnFiltersChange={onColumnFiltersChange}
+      gridFilters={tableFilters}
+      onGridFiltersChange={handleFilterChange}
+      actionsColumn={actionsColumn}
+      hideColumns={hideColumns}
+      hideFilters={hideFilters}
+      emptyMessage={emptyMessage}
+      hasNextPage={hasNextPage}
+      isFetchingNextPage={isFetchingNextPage}
+      onLoadMore={handleLoadMore}
+      gridSentinelRef={gridSentinelRef}
+    />
   );
 }
 

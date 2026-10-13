@@ -515,6 +515,15 @@ input DeleteFolderInput {
   moveTargetFolderId: ID
 }
 
+"""
+The deleted session's id and status (DELETED); both null when userErrors explains a refusal.
+"""
+type DeleteRemoteSessionPayload {
+  sessionId: String
+  status: RemoteSessionStatus
+  userErrors: [UserError!]!
+}
+
 type DeviceConnection {
   edges: [DeviceEdge!]!
   pageInfo: PageInfo!
@@ -796,6 +805,17 @@ type DirectoryConnectionOptions {
   is a constant of the provider and lives in the client.
   """
   providers: [DirectoryProvider!]!
+}
+
+type DirectoryConsentAnnouncement {
+  """Providers with permissions this tenant has not been told about, Microsoft 365 first."""
+  providers: [DirectoryProvider!]!
+
+  """Banner labels of the newly requested permissions, in release order, without duplicates."""
+  features: [String!]!
+
+  """Ready-to-show banner text: at most three features, then "and more"."""
+  message: String!
 }
 
 type DirectoryConnectionPayload {
@@ -1853,12 +1873,13 @@ type Mutation {
   setDeviceRemoteAccessMode(machineId: String!, mode: RemoteAccessMode): Machine!
 
   """
-  Deletes every file of an ended session for any technician who can see it, recording who and when. Idempotent:
-  a second call succeeds and changes nothing. Refusals as userErrors: REMOTE_SESSION_NOT_FOUND,
-  RECORDING_SESSION_ACTIVE, RECORDING_HELD, REMOTE_ACCESS_DISABLED, RECORDING_STORAGE_UNAVAILABLE (files deleted
-  before the failure stay deleted; call again to finish).
+  Deletes an ended session for any technician: every recording file is deleted, the session and its access request are
+  marked deleted and leave every list and single read. There is no restore. Idempotent: a second call succeeds and
+  changes nothing. Refusals as userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND, RECORDING_SESSION_ACTIVE,
+  RECORDING_HELD, RECORDING_PROCESSING, RECORDING_STORAGE_UNAVAILABLE (files deleted before the failure stay deleted;
+  call again to finish).
   """
-  deleteRecording(sessionId: String!): RemoteSessionPayload!
+  deleteRemoteSession(sessionId: String!): DeleteRemoteSessionPayload!
 
   """
   Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
@@ -2283,6 +2304,13 @@ type Mutation {
   before deletion.
   """
   deleteDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
+  """
+  Hide the current re-consent banner for the whole tenant: acknowledges every provider it names up to its
+  latest revision. A later release that requests more permissions shows a new banner. Idempotent; true
+  also when there was nothing to dismiss.
+  """
+  dismissDirectoryConsentAnnouncement: Boolean!
 
   """Create a manually-managed user (source is always OPENFRAME)."""
   createOrgUser(organizationId: ID!, input: CreateOrgUserInput!): OrgUserPayload!
@@ -2890,7 +2918,8 @@ type Query {
   remoteAccessRequest(requestId: String!): RemoteAccessRequest!
 
   """
-  The caller's own session, the read the Back / leave flow needs before ending it.
+  The caller's own session, the read the Back / leave flow needs before ending it. A deleted session reads
+  REMOTE_SESSION_NOT_FOUND.
   """
   remoteSession(sessionId: String!): RemoteSession!
 
@@ -2902,18 +2931,33 @@ type Query {
   activeRemoteSession(deviceId: String!): RemoteSession
 
   """
-  Sessions on a device, newest first. from/to bound startedAt. first is clamped to 1..100, default 20.
+  The tenant's sessions, filtered and sorted server-side; no filter returns every device, newest first. first is clamped
+  to 1..100, default 20. Cursors are valid only under the sort they were issued for: another sort or direction reads
+  INVALID_CURSOR, start again without after. deviceId, from and to are the device tab's old arguments: each one fills the
+  matching filter field when the filter leaves it empty, the filter wins otherwise.
   A session that ended as never connected is not listed and not counted; remoteSession(sessionId) and the request
-  audit still return it.
+  audit still return it. A deleted session is not listed and not counted.
   """
-  remoteSessions(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteSessionConnection!
+  remoteSessions(
+    deviceId: String @deprecated(reason: "use filter.deviceIds")
+    from: Instant @deprecated(reason: "use filter.from")
+    to: Instant @deprecated(reason: "use filter.to")
+    filter: RemoteSessionFilter
+    sort: RemoteSessionSort
+    first: Int
+    after: String
+  ): RemoteSessionConnection!
 
-  """Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20."""
+  """
+  Connect attempts on a device, newest first. from/to bound createdAt. first is clamped to 1..100, default 20.
+  The request of a deleted session is not listed and not counted.
+  """
   remoteAccessRequests(deviceId: String!, from: Instant, to: Instant, first: Int, after: String): RemoteAccessRequestConnection!
 
   """
   One recording by id, with its session. The detail route keys on the recording id. INVALID_CURSOR and
-  REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code.
+  REMOTE_SESSION_RECORDING_NOT_FOUND surface as GraphQL errors with extensions.code. An EXPIRED or DELETED recording
+  and every recording of a deleted session read REMOTE_SESSION_RECORDING_NOT_FOUND.
   """
   remoteSessionRecording(recordingId: String!): RemoteSessionRecording!
 
@@ -3379,6 +3423,14 @@ type Query {
   directoryConnection(connectionId: ID!): DirectoryConnection
 
   """
+  The tenant-wide re-consent banner for the connection list: OpenFrame now requests permissions that
+  connections consented earlier lack. Null when there is nothing to announce. Tenant-level only — it never
+  reflects what an individual connection was granted. A provider leaves it once any one of its connections
+  completes consent again, or when dismissDirectoryConsentAnnouncement hides it.
+  """
+  directoryConsentAnnouncement: DirectoryConsentAnnouncement
+
+  """
   All users of the organization across sources; source filters to one origin.
   """
   orgUsers(organizationId: ID!, source: OrgUserSource, connectionId: ID, pagination: CursorPaginationInput, search: String): OrgUserConnection!
@@ -3540,6 +3592,66 @@ type RemoteSession {
   """Set while the session's recordings are kept."""
   recordingHold: RecordingHold
   lastRecordingRelease: RecordingRelease
+
+  """The row's device (id, machineId, displayName, hostname, organization); null when the device is gone."""
+  device: Machine
+
+  """The list's SIZE column: bytes of the session's stored files (AVAILABLE and HELD); null while no file is registered."""
+  recordingSizeBytes: Long
+}
+
+"""The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
+enum RemoteSessionListState {
+  """Recording on and no file yet: ACTIVE, or ended less than 30 min ago."""
+  PROCESSING
+
+  """No file 30 min after the end (inside the listing window, or stamped by the detector)."""
+  FAILED
+
+  """The session carries a Keep (recordingHold)."""
+  KEPT
+
+  """Not kept, playable, and a file expires within openframe.recordings.expiring-soon (7 days)."""
+  EXPIRING
+
+  """No playable file left and at least one expired."""
+  EXPIRED
+}
+
+enum RemoteSessionSortField {
+  """startedAt"""
+  DATE
+
+  """durationMs"""
+  DURATION
+
+  """bytes of the session's stored files"""
+  SIZE
+
+  """earliest expiry of the session's playable files"""
+  EXPIRY
+}
+
+"""Filters combine with AND. Absent or empty deviceIds means every device of the tenant."""
+input RemoteSessionFilter {
+  deviceIds: [String!]
+
+  """The customer: the session's organization."""
+  organizationId: String
+  technicianId: String
+  recordingState: RemoteSessionListState
+
+  """startedAt, inclusive"""
+  from: Instant
+
+  """startedAt, exclusive"""
+  to: Instant
+}
+
+"""Rows without a value for the key (e.g. no expiry) come last in both directions."""
+input RemoteSessionSort {
+  field: RemoteSessionSortField! = DATE
+  direction: SortDirection! = DESC
 }
 
 enum RemoteSessionEndReason {
@@ -3856,6 +3968,7 @@ type RemoteAccessRequestConnection {
 enum RemoteSessionStatus {
   ACTIVE
   ENDED
+  DELETED
 }
 
 input RunCommandInput {

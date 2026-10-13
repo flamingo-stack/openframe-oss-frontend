@@ -2,6 +2,7 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { type ProductCheckoutInput, useCreateCheckoutSession } from './use-create-checkout-session';
 import { type PackageUpdateInput, useUpdateSubscription } from './use-update-subscription';
 
@@ -55,7 +56,8 @@ interface SubscriptionSubmitButtonProps {
  *   Disabled only while there is nothing to buy yet — the picker has not
  *   reported (catalog still loading), or the catalog has no device product —
  *   because a button that looks live and does nothing on click is a dead end
- *   with no spinner, toast or redirect to say so.
+ *   with no spinner, toast or redirect to say so, and while the
+ *   `billing-activation` flag is off: the form stays readable, the purchase is paused.
  * - active paid subscription → `updateSubscription`, a mutation that applies the
  *   plan change in place and does NOT redirect to a payment page (an upgrade may
  *   raise an invoice afterwards). Disabled when the selection equals the current
@@ -83,6 +85,7 @@ export function SubscriptionSubmitButton({
   const { toast } = useToast();
 
   const isPending = updateSubscription.isPending || createCheckout.isPending;
+  const activationEnabled = useFeatureFlag('billing-activation');
 
   const rejectInvalidAmount = () => {
     toast({
@@ -119,7 +122,7 @@ export function SubscriptionSubmitButton({
         className={className}
         onClick={handleCheckout}
         loading={isPending}
-        disabled={isPending || checkoutProducts.length === 0}
+        disabled={isPending || checkoutProducts.length === 0 || !activationEnabled}
       >
         {SUBMIT_LABEL}
       </Button>
