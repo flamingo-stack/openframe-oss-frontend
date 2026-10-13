@@ -1,8 +1,15 @@
-import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
-import type { ChatType } from '../constants';
+import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { GET_DIALOG_MESSAGES_QUERY, normalizeMessageDataAliases } from '../queries/dialogs-queries';
+import {
+  CREATE_DIALOG_MUTATION,
+  GET_DIALOG_MESSAGES_QUERY,
+  normalizeMessageDataAliases,
+  RESOLVE_APPROVAL_REQUEST_MUTATION,
+  SEND_MESSAGE_MUTATION,
+  STOP_DIALOG_GENERATION_MUTATION,
+  UPDATE_DIALOG_MODE_MUTATION,
+} from '../queries/dialogs-queries';
 import {
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
@@ -17,11 +24,13 @@ import type { Dialog, DialogOwnerEnum, Message, TicketActivityState } from '../t
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
+  CreateDialogParams,
   FetchBoardColumnByStatusIdParams,
   FetchMessagesParams,
   FetchTicketsParams,
   MessagePage,
   ReorderTicketParams,
+  SendMessageContext,
   TicketService as TicketServiceInterface,
   TicketStatusTransitionRule,
   TicketsPage,
@@ -126,6 +135,14 @@ interface TicketsResponse {
 interface StatusMutationPayload {
   ticket: { id: string } | null;
   userErrors: Array<{ field?: string[]; message: string }>;
+}
+
+interface CommandPayload {
+  userErrors: Array<{ field?: string[]; message: string }>;
+}
+
+interface CreateDialogPayload extends CommandPayload {
+  dialog: { dialogId: string } | null;
 }
 
 interface MarkDialogMessagesReadPayload {
@@ -389,51 +406,61 @@ export class TicketService implements TicketServiceInterface {
     return payload.dialog?.unreadMessageCount ?? 0;
   }
 
-  async sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void> {
-    const response = await apiClient.post(API_ENDPOINTS.SEND_MESSAGE, {
+  async createDialog(params: CreateDialogParams): Promise<string> {
+    const { dialog } = await this.runCommand<'createDialog', CreateDialogPayload>(
+      'createDialog',
+      CREATE_DIALOG_MUTATION,
+      params,
+    );
+    if (!dialog?.dialogId) {
+      throw new Error('Invalid response: dialog id not found');
+    }
+    return dialog.dialogId;
+  }
+
+  async updateDialogMode(dialogId: string, mode: DialogModeValue): Promise<void> {
+    await this.runCommand('updateDialogMode', UPDATE_DIALOG_MODE_MUTATION, { id: dialogId, mode });
+  }
+
+  async stopDialogGeneration(dialogId: string, chatType: ChatType): Promise<void> {
+    await this.runCommand('stopDialogGeneration', STOP_DIALOG_GENERATION_MUTATION, { id: dialogId, chatType });
+  }
+
+  async sendMessage(
+    dialogId: string,
+    content: string,
+    chatType: ChatType,
+    context?: SendMessageContext,
+  ): Promise<void> {
+    const { contextItems, currentView, recentViews } = context ?? {};
+    await this.runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
       dialogId,
       content,
       chatType,
+      ...(contextItems?.length ? { contextItems } : {}),
+      ...(currentView ? { currentView } : {}),
+      ...(recentViews?.length ? { recentViews } : {}),
     });
-
-    if (!response.ok) {
-      throw new Error(response.error || 'Failed to send message');
-    }
   }
 
-  async approveRequest(requestId: string): Promise<void> {
-    const response = await apiClient.post(`${API_ENDPOINTS.APPROVAL_REQUEST}/${requestId}/approve`, {
-      approve: true,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error || `Failed to approve request (${response.status})`);
-    }
+  async resolveApprovalRequest(requestId: string, approve: boolean): Promise<void> {
+    await this.runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
   }
 
-  async rejectRequest(requestId: string): Promise<void> {
-    const response = await apiClient.post(`${API_ENDPOINTS.APPROVAL_REQUEST}/${requestId}/approve`, {
-      approve: false,
+  private async runCommand<K extends string, P extends CommandPayload = CommandPayload>(
+    key: K,
+    query: string,
+    input: object,
+  ): Promise<P> {
+    const response = await apiClient.post<GraphQlResponse<Record<K, P>>>(API_ENDPOINTS.GRAPHQL, {
+      query,
+      variables: { input },
     });
 
-    if (!response.ok) {
-      throw new Error(response.error || `Failed to reject request (${response.status})`);
+    const payload = extractGraphQlData(response)[key];
+    if (payload.userErrors?.length) {
+      throw new Error(payload.userErrors[0].message);
     }
-  }
-
-  async fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]> {
-    let url = `${API_ENDPOINTS.DIALOG_CHUNKS}/${dialogId}/chunks?chatType=${chatType}`;
-    if (fromSequenceId !== null && fromSequenceId !== undefined) {
-      url += `&fromSequenceId=${fromSequenceId}`;
-    }
-
-    const response = await apiClient.get<ChunkData[]>(url);
-
-    if (!response.ok) {
-      console.error(`Failed to fetch ${chatType} chunks:`, response.status);
-      return [];
-    }
-
-    return response.data || [];
+    return payload;
   }
 }

@@ -129,6 +129,16 @@ export const UNARCHIVE_MINGO_DIALOG_MUTATION = `
   }
 `;
 
+// Refusals come back as userErrors with code DIALOG_LOCKED (the AI is mid-turn)
+// or NOTHING_TO_COMPACT; an accepted compaction reports only on the chunk stream.
+export const COMPACT_DIALOG_MUTATION = `
+  mutation CompactDialog($input: DialogIdInput!) {
+    compactDialog(input: $input) {
+      userErrors { field message code }
+    }
+  }
+`;
+
 export const GET_MINGO_DIALOG_QUERY = `
   query GetDialog($id: ID!) {
     dialog(id: $id) {

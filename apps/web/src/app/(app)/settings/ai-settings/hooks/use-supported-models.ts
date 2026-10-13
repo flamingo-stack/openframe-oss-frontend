@@ -3,16 +3,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import type { AIProvider } from '../types/ai-settings';
+import { type GraphqlResponse, queryDataOrThrow } from './chat-graphql';
 
-interface ModelInfo {
-  modelName: string;
-  displayName: string;
-}
+const SUPPORTED_AI_MODELS_QUERY = `
+  query SupportedAiModels {
+    supportedAiModels {
+      provider
+      models { modelName displayName }
+    }
+  }
+`;
 
-interface SupportedModelsResponse {
-  anthropic?: ModelInfo[];
-  openai?: ModelInfo[];
-  'google-gemini'?: ModelInfo[];
+interface SupportedAiModelGroupGql {
+  provider: AIProvider;
+  models: { modelName: string; displayName: string | null }[];
 }
 
 export interface ProviderModelOption {
@@ -22,12 +26,6 @@ export interface ProviderModelOption {
 
 export type SupportedModelsByProvider = Partial<Record<AIProvider, ProviderModelOption[]>>;
 
-const RESPONSE_KEY_BY_PROVIDER: Record<AIProvider, keyof SupportedModelsResponse> = {
-  ANTHROPIC: 'anthropic',
-  OPENAI: 'openai',
-  GOOGLE_GEMINI: 'google-gemini',
-};
-
 export const supportedModelsQueryKey = ['ai-configuration', 'supported-models'] as const;
 
 /** Model options per provider from the chat backend's configuration. */
@@ -35,15 +33,18 @@ export function useSupportedModels() {
   const query = useQuery({
     queryKey: supportedModelsQueryKey,
     queryFn: async (): Promise<SupportedModelsByProvider> => {
-      const response = await apiClient.get<SupportedModelsResponse>('/chat/api/v1/ai-configuration/supported-models');
-      if (!response.ok || !response.data) {
-        throw new Error(response.error || 'Failed to fetch supported models');
-      }
+      const response = await apiClient.post<GraphqlResponse<{ supportedAiModels: SupportedAiModelGroupGql[] }>>(
+        '/chat/graphql',
+        { query: SUPPORTED_AI_MODELS_QUERY },
+      );
+      const { supportedAiModels } = queryDataOrThrow(response, 'Failed to fetch supported models');
 
       const byProvider: SupportedModelsByProvider = {};
-      for (const provider of Object.keys(RESPONSE_KEY_BY_PROVIDER) as AIProvider[]) {
-        const models = response.data[RESPONSE_KEY_BY_PROVIDER[provider]] ?? [];
-        byProvider[provider] = models.map(model => ({ value: model.modelName, label: model.displayName }));
+      for (const group of supportedAiModels) {
+        byProvider[group.provider] = group.models.map(model => ({
+          value: model.modelName,
+          label: model.displayName ?? model.modelName,
+        }));
       }
       return byProvider;
     },

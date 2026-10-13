@@ -2,8 +2,8 @@
  * Pins the manual-compaction contract: the request goes out only once the
  * dialog's live-tail consumer exists, the result toast comes from the stream
  * (CONTEXT_COMPACTION_END, an ERROR chunk, or MESSAGE_END) rather than from the
- * request's 202, and chunks from the turn the dialog was finishing when the
- * request went out do not count.
+ * mutation's acceptance, and chunks from the turn the dialog was finishing when
+ * the request went out do not count.
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -32,7 +32,7 @@ const { streams, toast, dismiss, post, fetchMessages } = vi.hoisted(() => {
     streams: new Map<string, StreamOptions>(),
     toast: vi.fn((_options: Record<string, unknown>) => `toast-${++toastCount}`),
     dismiss: vi.fn(),
-    /** The compact request. */
+    /** The compactDialog mutation. */
     post: vi.fn(),
     /** The latest-messages fetch the watcher takes its start sequence from. */
     fetchMessages: vi.fn(),
@@ -54,10 +54,14 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal =>
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
-    post: (path: string, ...rest: unknown[]) =>
-      path === '/chat/graphql' ? fetchMessages(...rest) : post(path, ...rest),
+    post: (path: string, body: { query: string }) =>
+      body.query.includes('compactDialog') ? post(path, body) : fetchMessages(body),
   },
 }));
+
+function compactAnswer(userErrors: Array<{ message: string; code: string }> = []) {
+  return { ok: true, status: 200, data: { data: { compactDialog: { userErrors } } } };
+}
 
 function messagesWithSeqs(...seqs: number[]) {
   return {
@@ -131,7 +135,7 @@ describe('MingoCompactionWatchers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     streams.clear();
-    post.mockResolvedValue({ ok: true, status: 202 });
+    post.mockResolvedValue(compactAnswer());
     fetchMessages.mockResolvedValue(messagesWithSeqs(40, 42, 41));
     useMingoMessagesStore.setState({ highestStreamSeqByDialog: new Map() });
     container = document.createElement('div');
@@ -189,10 +193,13 @@ describe('MingoCompactionWatchers', () => {
     await subscribe('d-1');
 
     expect(post).toHaveBeenCalledTimes(1);
-    expect(post).toHaveBeenCalledWith('/chat/api/v1/dialogs/d-1/compact');
+    expect(post).toHaveBeenCalledWith(
+      '/chat/graphql',
+      expect.objectContaining({ variables: { input: { id: 'd-1' } } }),
+    );
   });
 
-  it('reports success on MESSAGE_END after CONTEXT_COMPACTION_END, not on the 202', async () => {
+  it('reports success on MESSAGE_END after CONTEXT_COMPACTION_END, not on the acceptance', async () => {
     await start('d-1');
     await subscribe('d-1');
     expect(lastToast()?.title).toBe('Compacting chat memory…');
@@ -232,8 +239,10 @@ describe('MingoCompactionWatchers', () => {
     expect(lastToast()).toMatchObject({ description: 'Failed to compact chat memory', variant: 'destructive' });
   });
 
-  it('says there is nothing to compact when the backend refuses with 422', async () => {
-    post.mockResolvedValue({ ok: false, status: 422, error: 'Dialog context has no assistant messages to compact' });
+  it('says there is nothing to compact when the backend refuses with NOTHING_TO_COMPACT', async () => {
+    post.mockResolvedValue(
+      compactAnswer([{ message: 'Dialog context has no assistant messages to compact', code: 'NOTHING_TO_COMPACT' }]),
+    );
     await start('d-1');
     await subscribe('d-1');
 
@@ -243,7 +252,7 @@ describe('MingoCompactionWatchers', () => {
     expect(compacting()).toEqual([]);
   });
 
-  it('does not take a MESSAGE_END without a START as the end of the compaction, even after the 202', async () => {
+  it('does not take a MESSAGE_END without a START as the end of the compaction, even after the acceptance', async () => {
     await start('d-1');
     await subscribe('d-1');
 
@@ -258,7 +267,7 @@ describe('MingoCompactionWatchers', () => {
   });
 
   it('ends at once when the backend refuses a dialog that is mid-turn', async () => {
-    post.mockResolvedValue({ ok: false, status: 409, error: 'Conflict' });
+    post.mockResolvedValue(compactAnswer([{ message: 'Dialog is locked', code: 'DIALOG_LOCKED' }]));
     await start('d-1');
     await subscribe('d-1');
 
@@ -269,7 +278,7 @@ describe('MingoCompactionWatchers', () => {
     expect(compacting()).toEqual([]);
   });
 
-  it("ignores the finishing turn's ERROR and MESSAGE_END that arrive before the 409", async () => {
+  it("ignores the finishing turn's ERROR and MESSAGE_END that arrive before the DIALOG_LOCKED refusal", async () => {
     const answer = deferPost();
     await start('d-1');
     await subscribe('d-1');
@@ -278,7 +287,7 @@ describe('MingoCompactionWatchers', () => {
     emit('d-1', { type: 'MESSAGE_END' });
     expect(compacting()).toEqual(['d-1']);
 
-    await answer({ ok: false, status: 409, error: 'Conflict' });
+    await answer(compactAnswer([{ message: 'Dialog is locked', code: 'DIALOG_LOCKED' }]));
 
     expect(lastToast()?.description).toBe('Mingo is still working on this chat. Try again once it finishes.');
   });
@@ -289,7 +298,7 @@ describe('MingoCompactionWatchers', () => {
     await subscribe('d-1');
 
     emit('d-1', { type: 'MESSAGE_END' });
-    await answer({ ok: true, status: 202 });
+    await answer(compactAnswer());
     expect(compacting()).toEqual(['d-1']);
 
     emit('d-1', { type: 'CONTEXT_COMPACTION_START' });
@@ -313,6 +322,24 @@ describe('MingoCompactionWatchers', () => {
     expect(lastToast()?.title).toBe('Chat memory compacted');
   });
 
+  it('reports any other refusal with its message', async () => {
+    post.mockResolvedValue(compactAnswer([{ message: 'Dialog not found', code: 'NOT_FOUND' }]));
+    await start('d-1');
+    await subscribe('d-1');
+
+    expect(lastToast()).toMatchObject({ description: 'Dialog not found', variant: 'destructive' });
+    expect(compacting()).toEqual([]);
+  });
+
+  it('reports a GraphQL error as a failure', async () => {
+    post.mockResolvedValue({ ok: true, status: 200, data: { errors: [{ message: 'Access denied' }] } });
+    await start('d-1');
+    await subscribe('d-1');
+
+    expect(lastToast()).toMatchObject({ description: 'Access denied', variant: 'destructive' });
+    expect(compacting()).toEqual([]);
+  });
+
   it('reports a request that throws as a failure', async () => {
     post.mockRejectedValue(new Error('boom'));
     await start('d-1');
@@ -329,7 +356,7 @@ describe('MingoCompactionWatchers', () => {
 
     act(() => root.unmount());
     const toastsBeforeAnswer = toast.mock.calls.length;
-    await answer({ ok: false, status: 409, error: 'Conflict' });
+    await answer(compactAnswer([{ message: 'Dialog is locked', code: 'DIALOG_LOCKED' }]));
 
     expect(dismiss).toHaveBeenCalledWith(progressToastId());
     expect(toast).toHaveBeenCalledTimes(toastsBeforeAnswer);

@@ -11,7 +11,7 @@ import type { PolicyRule } from './guardrails.types';
  * raw-POST by design — the saas-ai-agent schema is not in `schema.graphql`).
  * The query returns the EFFECTIVE view: when `inheritDefault` is true the
  * rules are the tenant defaults; otherwise the org's own materialized policy.
- * Tenant-level templates stay on the REST hooks (`use-guardrails-policies.ts`).
+ * Tenant-level templates live in `use-guardrails-policies.ts`.
  */
 
 export const organizationGuardrailsQueryKeys = {
@@ -19,7 +19,7 @@ export const organizationGuardrailsQueryKeys = {
   detail: (organizationId: string) => [...organizationGuardrailsQueryKeys.all, { organizationId }] as const,
 };
 
-const GUARDRAIL_RULE_FIELDS = `
+export const GUARDRAIL_RULE_FIELDS = `
   tool
   function
   policyGroup
@@ -48,7 +48,7 @@ const GET_ORGANIZATION_GUARDRAILS_QUERY = `
   }
 `;
 
-interface GuardrailRuleGql {
+export interface GuardrailRuleGql {
   tool: string;
   function: string | null;
   policyGroup: string | null;
@@ -73,8 +73,8 @@ export interface OrganizationGuardrails extends Omit<OrganizationGuardrailsGql, 
 }
 
 // GuardrailRule has nullable descriptive fields; PolicyRule (shared with the
-// tenant REST hooks and buildPolicyGroups) uses empty strings instead.
-function toPolicyRule(rule: GuardrailRuleGql): PolicyRule {
+// tenant policy hooks and buildPolicyGroups) uses empty strings instead.
+export function toPolicyRule(rule: GuardrailRuleGql): PolicyRule {
   return {
     tool: rule.tool,
     function: rule.function ?? '',
