@@ -2,7 +2,7 @@
 
 import { LegalDocumentPage } from '@flamingo-stack/openframe-frontend-core/components';
 import { useParams } from 'next/navigation';
-import { EP, HELP_CENTER_BASE } from '../../endpoints';
+import { EP, HELP_CENTER_BASE, pageFaq } from '../../endpoints';
 
 // LegalDocumentPage is one parameterized surface (it replaced the hub's separate
 // Privacy/Terms pages), so the host supplies the per-doc copy strings.
@@ -15,6 +15,8 @@ const COPY: Record<
     errorContactPrompt: string;
     errorTitle: string;
     emptyStateMessage: string;
+    /** The topic of the document's FAQ block (the hub's FAQs written for it). */
+    faqTopic: string;
   }
 > = {
   privacy: {
@@ -24,6 +26,7 @@ const COPY: Record<
     errorContactPrompt: 'For privacy-related questions, please contact:',
     errorTitle: 'Unable to load privacy policy',
     emptyStateMessage: 'Privacy policy content is not available at this time.',
+    faqTopic: 'privacy-policy',
   },
   terms: {
     title: 'Terms of Service',
@@ -32,18 +35,20 @@ const COPY: Record<
     errorContactPrompt: 'For terms-related questions, please contact:',
     errorTitle: 'Unable to load terms of service',
     emptyStateMessage: 'Terms of service content is not available at this time.',
+    faqTopic: 'terms-of-service',
   },
 };
 
 export function LegalPageClient() {
   const { docType = 'privacy' } = useParams<{ docType: string }>();
-  const copy = COPY[docType] ?? COPY.privacy;
+  const { faqTopic, ...copy } = COPY[docType] ?? COPY.privacy;
   return (
     <LegalDocumentPage
       shell={false}
       docType={docType}
       apiEndpoint={EP.legal(docType)}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
+      faq={pageFaq(faqTopic)}
       {...copy}
     />
   );
