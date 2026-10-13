@@ -17,8 +17,11 @@ vi.mock('@/app/hooks/use-login-only-mobile-shell', () => ({ useLoginOnlyMobileSh
 
 const GENERIC: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
 
+const ACME_TENANT = { tenantId: 't-1', tenantDomain: 'acme.openframe.ai' };
+
 const ACME_CUSTOM: LoginDiscoveryResult = {
   found: true,
+  tenant: ACME_TENANT,
   tenantName: 'Acme',
   openframe: true,
   customProviders: ['microsoft'],
@@ -82,11 +85,18 @@ describe('toLoginDiscoveryResult', () => {
         has_existing_accounts: true,
         tenant_id: 't-1',
         tenant_name: 'Acme',
+        domain: 'acme.openframe.ai',
         auth_providers: ['google', 'microsoft', 'openframe'],
         openframe_login: false,
         providers: { microsoft: true, google: false },
       }),
-    ).toEqual({ found: true, tenantName: 'Acme', openframe: false, customProviders: ['microsoft'] });
+    ).toEqual({
+      found: true,
+      tenant: ACME_TENANT,
+      tenantName: 'Acme',
+      openframe: false,
+      customProviders: ['microsoft'],
+    });
   });
 
   it("treats an older server's auth_providers as no custom SSO, since it mixes in the platform defaults", () => {
@@ -96,7 +106,7 @@ describe('toLoginDiscoveryResult', () => {
         has_existing_accounts: true,
         auth_providers: ['google', 'microsoft', 'openframe-sso'],
       }),
-    ).toEqual({ found: true, tenantName: undefined, openframe: true, customProviders: [] });
+    ).toEqual({ found: true, tenant: null, tenantName: undefined, openframe: true, customProviders: [] });
     expect(
       toLoginDiscoveryResult({ email: 'kate@acme.com', has_existing_accounts: true, auth_providers: ['google'] })
         .openframe,
@@ -124,11 +134,11 @@ describe('LoginSection', () => {
     expect(enabledNames()).toEqual(['Continue with OpenFrame', 'Continue with MicrosoftAcme']);
 
     act(() => buttons()[1].click());
-    expect(onSso).toHaveBeenCalledWith('microsoft');
+    expect(onSso).toHaveBeenCalledWith('microsoft', ACME_TENANT);
   });
 
-  it('keeps the generic providers after OpenFrame when the tenant has no custom SSO', async () => {
-    renderSection(vi.fn().mockResolvedValue({ ...ACME_CUSTOM, customProviders: [] }));
+  it('keeps the generic providers after OpenFrame when the tenant has no custom SSO, signing in to it', async () => {
+    const onSso = renderSection(vi.fn().mockResolvedValue({ ...ACME_CUSTOM, customProviders: [] }));
 
     type('kate@acme.com');
     pressEnter();
@@ -140,6 +150,9 @@ describe('LoginSection', () => {
       'Continue with Microsoft',
       'Continue with Apple',
     ]);
+
+    act(() => buttons()[1].click());
+    expect(onSso).toHaveBeenCalledWith('google', ACME_TENANT);
   });
 
   it('leaves OpenFrame out when the tenant turned it off', async () => {
@@ -195,8 +208,21 @@ describe('LoginSection', () => {
     expect(buttonNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
   });
 
+  it('signs in to no tenant once a recognized address is cleared', async () => {
+    const onSso = renderSection(vi.fn().mockResolvedValue(ACME_CUSTOM));
+
+    type('kate@acme.com');
+    pressEnter();
+    await settle();
+    type('');
+
+    expect(enabledNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
+    act(() => buttons()[0].click());
+    expect(onSso).toHaveBeenCalledWith('google', null);
+  });
+
   it('keeps the generic providers and says so when no account matches', async () => {
-    renderSection(vi.fn().mockResolvedValue({ found: false, openframe: false, customProviders: [] }));
+    renderSection(vi.fn().mockResolvedValue({ found: false, tenant: null, openframe: false, customProviders: [] }));
 
     type('dan@gmail.com');
     pressEnter();
@@ -208,7 +234,7 @@ describe('LoginSection', () => {
 
   it('shows the invitation notice instead on the login-only mobile build', async () => {
     shell.loginOnly = true;
-    renderSection(vi.fn().mockResolvedValue({ found: false, openframe: false, customProviders: [] }));
+    renderSection(vi.fn().mockResolvedValue({ found: false, tenant: null, openframe: false, customProviders: [] }));
 
     type('dan@gmail.com');
     pressEnter();

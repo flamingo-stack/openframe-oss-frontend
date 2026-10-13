@@ -7,13 +7,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useEffect, useRef, useState } from 'react';
 import { EMAIL_REGEX, INVALID_EMAIL_ERROR } from '@/app/(auth)/auth/constants/registration-validation';
-import type { TenantDiscoveryResponse } from '@/app/(auth)/auth/hooks/use-auth';
+import type { SsoLoginTenant, TenantDiscoveryResponse } from '@/app/(auth)/auth/hooks/use-auth';
 import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 
 /** Result of a tenant discovery for one email. */
 export interface LoginDiscoveryResult {
   found: boolean;
+  /** The tenant the email resolved to; null when it resolved none. */
+  tenant: SsoLoginTenant | null;
   tenantName?: string;
   /** The tenant's built-in OpenFrame login is on. */
   openframe: boolean;
@@ -29,6 +31,7 @@ const OPENFRAME_IDS = ['openframe', 'openframe-sso'];
 export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): LoginDiscoveryResult {
   return {
     found: response.has_existing_accounts,
+    tenant: response.tenant_id ? { tenantId: response.tenant_id, tenantDomain: response.domain || undefined } : null,
     tenantName: response.tenant_name || undefined,
     // An authorization server older than `openframe_login` reports the built-in login in
     // `auth_providers` instead, and has no `providers` — no custom SSO it could tell apart.
@@ -41,7 +44,8 @@ export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): Login
 interface LoginSectionProps {
   /** Runs tenant discovery for a syntactically valid email; null = request failed. */
   onDiscover: (email: string) => Promise<LoginDiscoveryResult | null>;
-  onSso: (provider: AuthSsoProvider) => void;
+  /** `tenant` is the one whose methods the card shows at the click; null while it shows the generic set. */
+  onSso: (provider: AuthSsoProvider, tenant: SsoLoginTenant | null) => void;
   /** The generic providers this build offers. They need no tenant: the server resolves it from the identity. */
   genericProviders: AuthSsoProvider[];
   isLoading?: boolean;
@@ -142,14 +146,16 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
             ? { message: 'Failed to check your account. Please try again.', variant: 'error' as const }
             : undefined;
 
-  const tenant = showStatus && status === 'found' ? result : null;
-  const tenantMethods: LoginFormTenantMethods | undefined = tenant
+  // The one source for both what the card shows and where a click goes: a tenant's methods are on
+  // screen exactly when a click signs in to that tenant.
+  const discovered = showStatus && status === 'found' && result?.tenant ? result : null;
+  const tenantMethods: LoginFormTenantMethods | undefined = discovered
     ? {
-        name: tenant.tenantName,
-        providers: [...(tenant.openframe ? (['openframe'] as const) : []), ...tenant.customProviders],
+        name: discovered.tenantName,
+        providers: [...(discovered.openframe ? (['openframe'] as const) : []), ...discovered.customProviders],
       }
     : undefined;
-  const ssoProviders = tenant && tenant.customProviders.length > 0 ? [] : genericProviders;
+  const ssoProviders = discovered && discovered.customProviders.length > 0 ? [] : genericProviders;
 
   // A typed address the lookup has not answered yet may belong to a tenant with its own SSO, and a
   // generic button clicked in that window takes the platform's credentials there — the sign-in that
@@ -163,7 +169,7 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
       onEmailEnter={() => setLookupEmail(email.trim())}
       loading={isLoading}
       ssoProviders={ssoProviders}
-      onSsoClick={onSso}
+      onSsoClick={provider => onSso(provider, discovered?.tenant ?? null)}
       ssoDisabled={lookupPending}
       tenantMethods={tenantMethods}
       notice={showInvitationNotice ? NO_ACCOUNT_INVITATION_NOTICE : undefined}

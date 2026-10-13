@@ -8,7 +8,7 @@ import {
   toLoginDiscoveryResult,
 } from '@/app/(auth)/auth/components/login-form-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
-import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
+import { type SsoLoginTenant, useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 
@@ -33,10 +33,10 @@ export default function LoginPage() {
     return result ? toLoginDiscoveryResult(result) : null;
   };
 
-  const handleSso = async (provider: AuthSsoProvider) => {
+  const handleSso = async (provider: AuthSsoProvider, tenant: SsoLoginTenant | null) => {
     setSsoLoading(true);
     try {
-      await loginWithSso(provider);
+      await loginWithSso(provider, tenant);
     } catch (error) {
       // Not a failure: the Apple identity verified but has no account, so the organization form
       // takes over in place. Every other error was already surfaced inside loginWithSso.

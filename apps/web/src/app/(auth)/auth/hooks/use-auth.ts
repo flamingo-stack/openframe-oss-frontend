@@ -38,6 +38,13 @@ export interface TenantDiscoveryResponse {
   domain?: string | null;
 }
 
+/** The tenant a provider sign-in goes to. Without one the flow is identity-first. */
+export interface SsoLoginTenant {
+  tenantId: string;
+  /** Discovery's `domain`: the tenant's gateway host. */
+  tenantDomain?: string;
+}
+
 interface RegisterRequest {
   tenantName: string;
   tenantDomain: string;
@@ -97,7 +104,6 @@ export function useAuth() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [discoveryAttempted, setDiscoveryAttempted] = useState(false);
   /** The address of the most recent discovery request, so a stale response cannot overwrite it. */
   const latestDiscovery = useRef<string | null>(null);
 
@@ -109,13 +115,11 @@ export function useAuth() {
   const discoverTenants = async (userEmail: string): Promise<TenantDiscoveryResponse | null> => {
     setIsLoading(true);
     // Two lookups can be in flight while the user keeps typing, and they can resolve out of order.
-    // The caller's own cancelled-flag protects only its display; this shared state is what
-    // `loginWithSso` reads to decide between the per-tenant and identity-first paths, so a late
-    // answer for an abandoned address must not be the one that lands.
+    // The caller's own cancelled-flag protects only its display, not the tenant written below, so
+    // a late answer for an abandoned address must not be the one that lands.
     latestDiscovery.current = userEmail;
 
     if (userEmail !== email) {
-      setDiscoveryAttempted(false);
       setHasDiscoveredTenants(false);
       setTenantInfo(null);
       setAvailableProviders([]);
@@ -148,14 +152,12 @@ export function useAuth() {
         setHasDiscoveredTenants(true);
         setTenantId(data.tenant_id);
       } else {
-        // No account for this address — drop any tenant a previous lookup left behind, so an
-        // ungated provider click cannot take the per-tenant path with a stale one.
+        // No account for this address — drop any tenant a previous lookup left behind.
         setHasDiscoveredTenants(false);
         setTenantInfo(null);
         setAvailableProviders([]);
       }
 
-      setDiscoveryAttempted(true);
       return data;
     } catch (error) {
       toast({
@@ -164,7 +166,6 @@ export function useAuth() {
         variant: 'destructive',
       });
       setHasDiscoveredTenants(false);
-      setDiscoveryAttempted(true);
       return null;
     } finally {
       setIsLoading(false);
@@ -305,27 +306,27 @@ export function useAuth() {
     }
   };
 
-  const loginWithSso = async (provider: string) => {
+  /**
+   * Signs in through `provider`, into `tenant` when the caller names one. The caller passes the
+   * tenant its screen is showing, never one remembered from an earlier lookup: what the button
+   * looked like when it was clicked is what it does.
+   */
+  const loginWithSso = async (provider: string, tenant?: SsoLoginTenant | null) => {
     setIsLoading(true);
 
     try {
-      // Only trust a discovered tenant when discovery actually ran on this screen. `tenantInfo` is
-      // persisted in localStorage, so without this a provider click on a freshly-opened screen —
-      // they are no longer gated behind a filled-in email — would route down the per-tenant path
-      // with a previous session's tenant, which the identity being asserted may have nothing to do
-      // with. `discoveryAttempted` is session state, so it is false exactly when that is the case.
-      const discovered = discoveryAttempted ? tenantInfo : null;
-      if (discovered?.tenantId) {
-        setTenantId(discovered.tenantId);
+      if (tenant) {
+        setTenantId(tenant.tenantId);
       }
 
       if (isAppShell()) {
         await nativeLoginToDashboard(
-          discovered?.tenantId
+          tenant
             ? {
-                tenantId: discovered.tenantId,
+                tenantId: tenant.tenantId,
                 provider,
-                tenantDomain: discovered.tenantDomain !== 'localhost' ? discovered.tenantDomain : undefined,
+                // 'localhost' is discovery's answer for a single-tenant dev backend, not a host.
+                tenantDomain: tenant.tenantDomain !== 'localhost' ? tenant.tenantDomain : undefined,
               }
             : // No tenant: the authorization server runs the flow against its onboarding
               // pseudo-tenant and resolves the real one from the identity the provider asserts.
@@ -336,7 +337,7 @@ export function useAuth() {
         return;
       }
 
-      if (!discovered?.tenantId) {
+      if (!tenant) {
         // A relative `/sas/...` here is not a misconfiguration: an unset shared host is the
         // same-origin deployment shape, and every other `/sas` call — discovery, email
         // availability, the pending-identity read — already resolves that way through
@@ -345,7 +346,7 @@ export function useAuth() {
         return;
       }
 
-      window.location.href = authApiClient.loginUrl(discovered.tenantId, dashboardReturnUrl(), provider);
+      window.location.href = authApiClient.loginUrl(tenant.tenantId, dashboardReturnUrl(), provider);
     } catch (error) {
       // A verified Apple identity with no account is not a failure — the caller renders the
       // organization form and finishes with the credential this carries. Rethrow so the screen
@@ -402,7 +403,6 @@ export function useAuth() {
     setEmail('');
     setTenantInfo(null);
     setHasDiscoveredTenants(false);
-    setDiscoveryAttempted(false);
     setAvailableProviders([]);
     setIsLoading(false);
 
@@ -425,7 +425,6 @@ export function useAuth() {
     setEmail('');
     setTenantInfo(null);
     setHasDiscoveredTenants(false);
-    setDiscoveryAttempted(false);
     setIsLoading(false);
   };
 
@@ -433,7 +432,6 @@ export function useAuth() {
     email,
     tenantInfo,
     hasDiscoveredTenants,
-    discoveryAttempted,
     availableProviders,
     isLoading,
     isInitialized,
