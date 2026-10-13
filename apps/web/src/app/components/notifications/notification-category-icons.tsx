@@ -1,50 +1,58 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import {
-  AlertTriangleIcon,
-  BracketCurlyIcon,
-  ChartDonutIcon,
-  ClipboardListIcon,
-  IdCardIcon,
-  MonitorIcon,
-  PackageIcon,
-  RadarIcon,
-  TagIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AgentMark, NamedIcon, type IconRef } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ReactNode } from 'react';
+import { NEW_PERMISSIONS_REQUIRED_TYPE } from '@/graphql/notifications/notification-attributes';
+
+/** Backend `type` → icon, for the types whose category (GENERIC) carries none. */
+const ICON_BY_TYPE: Readonly<Record<string, IconRef>> = {
+  [NEW_PERMISSIONS_REQUIRED_TYPE]: { set: 'CloudIcon' },
+};
 
 /**
  * Backend `NotificationCategory` → icon, mirroring the app navigation mapping
- * (`src/lib/navigation-config.tsx`). GENERIC and unknown categories resolve to
- * undefined. Icons inherit the host's text color via `currentColor`, except the
- * Mingo mark which keeps its canonical brand colors (white + cyan).
+ * (`src/lib/navigation-config.tsx`). A table of icon NAMES: the icon of a
+ * category is loaded when a notification of that category is drawn. GENERIC and
+ * unknown categories resolve to undefined. Every icon, the assistant's mark
+ * included, takes the host's text colour, so a row of them is one colour.
  */
-const iconByCategory: Record<string, ReactNode> = {
-  DASHBOARD: <ChartDonutIcon size={16} />,
-  CUSTOMERS: <IdCardIcon size={16} />,
-  DEVICES: <MonitorIcon size={16} />,
-  SCRIPTS: <BracketCurlyIcon size={16} />,
-  MONITORING: <RadarIcon size={16} />,
-  SOFTWARE: <PackageIcon size={16} />,
-  LOGS: <ClipboardListIcon size={16} />,
-  TICKETS: <TagIcon size={16} />,
-  INSIGHTS: <AlertTriangleIcon size={16} />,
-  MINGO: (
-    <MingoIcon
-      className="size-4"
-      eyesColor="var(--ods-flamingo-cyan-base)"
-      cornerColor="var(--ods-flamingo-cyan-base)"
-    />
-  ),
+const ICON_BY_CATEGORY: Readonly<Record<string, IconRef>> = {
+  DASHBOARD: { set: 'ChartDonutIcon' },
+  CUSTOMERS: { set: 'IdCardIcon' },
+  DEVICES: { set: 'MonitorIcon' },
+  SCRIPTS: { set: 'BracketCurlyIcon' },
+  MONITORING: { set: 'RadarIcon' },
+  SOFTWARE: { set: 'PackageIcon' },
+  LOGS: { set: 'ClipboardListIcon' },
+  TICKETS: { set: 'TagIcon' },
+  INSIGHTS: { set: 'AlertTriangleIcon' },
 };
 
-export function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {
-  return category ? iconByCategory[category.toUpperCase()] : undefined;
+/** The category whose notifications carry the assistant's own mark, drawn from its identity. */
+const ASSISTANT_CATEGORY = 'MINGO';
+
+/** A table's own entry only: a backend string never resolves to `Object.prototype` (`constructor`, `toString`). */
+function ownIcon(table: Readonly<Record<string, IconRef>>, key: string): IconRef | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
 }
 
-/** Attach the category icon for tile rendering; explicit `icon`/`imageUrl` win. */
-export function withCategoryIcon(notification: Notification): Notification {
+function getNotificationCategoryIcon(category: string | null | undefined): ReactNode | undefined {
+  const key = category?.toUpperCase();
+  if (!key) return undefined;
+  if (key === ASSISTANT_CATEGORY) return <AgentMark agent="mingo" className="size-4" color="currentColor" />;
+  const icon = ownIcon(ICON_BY_CATEGORY, key);
+  return icon ? <NamedIcon icon={icon} size={16} /> : undefined;
+}
+
+/** The tile icon: the type's own when it has one, else the category's, else none (the severity dot). */
+export function getNotificationIcon(notification: Notification): ReactNode | undefined {
+  const type = notification.meta?.notificationType;
+  const byType = typeof type === 'string' ? ownIcon(ICON_BY_TYPE, type) : undefined;
+  return byType ? <NamedIcon icon={byType} size={16} /> : getNotificationCategoryIcon(notification.category);
+}
+
+/** Attach the icon for tile rendering; explicit `icon`/`imageUrl` win. */
+export function withNotificationIcon(notification: Notification): Notification {
   if (notification.icon || notification.imageUrl) return notification;
-  const icon = getNotificationCategoryIcon(notification.category);
+  const icon = getNotificationIcon(notification);
   return icon ? { ...notification, icon } : notification;
 }

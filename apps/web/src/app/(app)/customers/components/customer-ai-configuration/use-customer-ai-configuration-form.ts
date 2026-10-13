@@ -42,7 +42,12 @@ function getCustomerAiConfigurationDefaults(
     // customer's customs; the editor seeds the rows on uncheck.
     quickActions: quickActionsIsDefault
       ? []
-      : (config?.quickActions ?? []).map(q => ({ id: q.id, name: q.name, instructions: q.instructions })),
+      : (config?.quickActions ?? []).map(q => ({
+          id: q.id,
+          name: q.name,
+          instructions: q.instructions,
+          iconName: q.iconName ?? null,
+        })),
   };
 }
 

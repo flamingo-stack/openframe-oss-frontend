@@ -15,6 +15,8 @@ full history from `openframe-saas-desktop` / `openframe-saas-mobile`.
 
 Node is declared once, in the root `.nvmrc`: every `setup-node` step reads it, and the major in
 `apps/web/Dockerfile` (a literal, so Renovate can pin its digest) is bumped with it.
+npm is held at ≥ 11.11 by `devEngines` in each app's `package.json`: older npm rewrites the
+lockfile without its `libc` fields.
 
 ## Shells and the web bundle
 

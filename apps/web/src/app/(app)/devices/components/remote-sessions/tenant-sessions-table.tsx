@@ -144,7 +144,7 @@ function TenantSessionsTable({
     () => [
       { id: TENANT_SESSION_COLUMNS.device.id, title: 'Device', options: deviceOptions },
       { id: TENANT_SESSION_COLUMNS.customer.id, title: 'Customer', options: customerOptions },
-      { id: TENANT_SESSION_COLUMNS.expires.id, title: 'Expires', options: EXPIRES_FILTER_OPTIONS },
+      { id: TENANT_SESSION_COLUMNS.expires.id, title: 'Recording Expires', options: EXPIRES_FILTER_OPTIONS },
     ],
     [deviceOptions, customerOptions],
   );

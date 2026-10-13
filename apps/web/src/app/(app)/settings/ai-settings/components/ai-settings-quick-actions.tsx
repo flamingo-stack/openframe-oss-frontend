@@ -1,9 +1,15 @@
 'use client';
 
+import {
+  getAgentAccent,
+  type QuickActionAccent,
+  renderQuickActionIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
   DataTable,
+  IconTile,
   type Row,
   StackedRowsPanel,
   TruncateText,
@@ -17,8 +23,20 @@ import type { AiQuickAction } from '../types/ai-settings';
 export interface QuickActionsAgentConfig {
   /** Woven into the list header: "OpenFrame {agentLabel} Quick Actions". */
   agentLabel: string;
-  /** Core-lib agent slug (checkbox ids; will drive glyph accents once icons ship). */
+  /** Core-lib agent slug: checkbox ids, and the fallback glyph accent (`getAgentAccent`). */
   agentSlug: string;
+}
+
+/**
+ * Glyph tint for an agent's quick actions, resolved the way the chat chips
+ * do it: an explicit `accent` (the customer assistant's configured accent
+ * color) wins, else the built-in agent accent (Mingo cyan, Fae pink).
+ */
+export function resolveQuickActionAccent(
+  agentConfig: QuickActionsAgentConfig,
+  accent?: QuickActionAccent,
+): QuickActionAccent | undefined {
+  return accent || getAgentAccent(agentConfig.agentSlug);
 }
 
 export const MINGO_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'Mingo', agentSlug: 'mingo' };
@@ -68,12 +86,15 @@ export function AiSettingsQuickActionsSection({
   actions,
   isDefault,
   agentConfig,
+  accent,
   bannerCopy,
 }: {
   title: string;
   actions: AiQuickAction[];
   isDefault: boolean;
   agentConfig: QuickActionsAgentConfig;
+  /** Glyph tint override - see `resolveQuickActionAccent`. */
+  accent?: QuickActionAccent;
   /** Overrides the source banner copy (leaves the list header on `isDefault`). */
   bannerCopy?: QuickActionsBannerCopy;
 }) {
@@ -81,7 +102,7 @@ export function AiSettingsQuickActionsSection({
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <span className="text-ods-text-primary text-h2">{title}</span>
       <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
-      <AiSettingsQuickActions actions={actions} isDefault={isDefault} agentConfig={agentConfig} />
+      <AiSettingsQuickActions actions={actions} isDefault={isDefault} agentConfig={agentConfig} accent={accent} />
     </div>
   );
 }
@@ -91,6 +112,8 @@ interface AiSettingsQuickActionsProps {
   /** True → OpenFrame (Product Hub) defaults; false → the organization's customs. */
   isDefault: boolean;
   agentConfig: QuickActionsAgentConfig;
+  /** Glyph tint override - see `resolveQuickActionAccent`. */
+  accent?: QuickActionAccent;
   className?: string;
 }
 
@@ -98,26 +121,47 @@ interface AiSettingsQuickActionsProps {
  * Read-only Quick Actions list (view mode, and the dimmed preview in edit
  * mode). Single-column `DataTable`: the column header carries the source label
  * ("OpenFrame Mingo Quick Actions" / "Organization ... "), the right slot the
- * row count, and each row a name + instructions (icon tiles ship with the
- * SVG-icons follow-up task).
+ * row count, and each row an icon tile (when the action has a glyph - the
+ * same `renderQuickActionIcon` resolution as the chat chip, so url / hub
+ * props / picked name all render) beside the name + instructions.
  */
-export function AiSettingsQuickActions({ actions, isDefault, agentConfig, className }: AiSettingsQuickActionsProps) {
+export function AiSettingsQuickActions({
+  actions,
+  isDefault,
+  agentConfig,
+  accent,
+  className,
+}: AiSettingsQuickActionsProps) {
+  const glyphAccent = resolveQuickActionAccent(agentConfig, accent);
   const columns = useMemo<ColumnDef<AiQuickAction>[]>(
     () => [
       {
         accessorKey: 'name',
         header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
-        cell: ({ row }: { row: Row<AiQuickAction> }) => (
-          <div className="flex min-h-[60px] flex-col justify-center">
-            <TruncateText>{row.original.name}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.instructions}
-            </TruncateText>
-          </div>
-        ),
+        cell: ({ row }: { row: Row<AiQuickAction> }) => {
+          const icon = renderQuickActionIcon({
+            name: row.original.iconName ?? undefined,
+            url: row.original.iconUrl ?? undefined,
+            props: row.original.iconProps ?? undefined,
+            accent: glyphAccent,
+            size: 16,
+          });
+          // Figma row (openframe---settings 534-16835): a 32px tile, 16px before the text.
+          return (
+            <div className="flex min-h-[60px] items-center gap-[var(--spacing-system-s)]">
+              {icon && <IconTile className="size-8">{icon}</IconTile>}
+              <div className="flex min-w-0 flex-col justify-center">
+                <TruncateText>{row.original.name}</TruncateText>
+                <TruncateText variant="h6" tone="secondary">
+                  {row.original.instructions}
+                </TruncateText>
+              </div>
+            </div>
+          );
+        },
       },
     ],
-    [isDefault, agentConfig.agentLabel],
+    [isDefault, agentConfig.agentLabel, glyphAccent],
   );
 
   const table = useDataTable<AiQuickAction>({
