@@ -1,10 +1,14 @@
 'use client';
 
-import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  BuildingsIcon,
+  MonitorOffIcon,
+  Refresh01RightIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useMemo, useState } from 'react';
 import { DeviceLogDrawer } from '@/app/(app)/devices/components/tabs/device-logs/device-log-drawer';
 import type { DeviceLogEntry } from '@/app/(app)/devices/components/tabs/device-logs/device-log-row';
 import { DeviceLogsList } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-list';
@@ -16,11 +20,17 @@ import {
   useDeviceLogFilters,
 } from '@/app/(app)/devices/hooks/use-device-log-filters';
 import type { DeviceLogPreset } from '@/app/(app)/devices/utils/device-log-time';
-import { ContentErrorBoundary } from '@/app/components/shared';
+import { ContentErrorBoundary, EmptyState } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { getRelayGraphqlErrors } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
-import { pickedIdsFromParams } from '../utils/troubleshooting-params';
+import {
+  pickedIdsFromParams,
+  picksWithoutUnknown,
+  type UnknownPickParam,
+  unknownPickFromErrors,
+} from '../utils/troubleshooting-params';
 import { TroubleshootingToolbar } from './troubleshooting-toolbar';
 
 /**
@@ -39,6 +49,20 @@ const PARAM_SCHEMA = defineParamSchema({
 /** Under a customer filter the API skips lines whose agent does not report its customer yet. */
 const CUSTOMER_EMPTY_DESCRIPTION =
   'Nothing from these customers matched the current range and filters. Lines from agents that do not report their customer yet are not included.';
+
+/** A picked id the API does not know: a wrong, deleted or foreign id, typically from a link. */
+const UNKNOWN_PICK_COPY: Record<UnknownPickParam, { icon: ReactNode; title: string; description: string }> = {
+  customer: {
+    icon: <BuildingsIcon />,
+    title: 'Customer not found',
+    description: 'The customer in this filter does not exist or was deleted. Clear it to see the logs.',
+  },
+  device: {
+    icon: <MonitorOffIcon />,
+    title: 'Device not found',
+    description: 'The device in this filter does not exist or was deleted. Clear it to see the logs.',
+  },
+};
 
 /**
  * Settings → Troubleshooting: every device's logs in one list, narrowed to the
@@ -84,6 +108,24 @@ export function TroubleshootingView() {
     setParams({ ...deviceLogParamReset(DEFAULT_RANGE), customer: [], device: [] });
   };
 
+  // Retrying an id the API refused sends it again; dropping it from the URL is what recovers the list.
+  const unknownPickFallback = (_retry: () => void, { isOffline, error }: { isOffline: boolean; error: unknown }) => {
+    const unknown = isOffline ? null : unknownPickFromErrors(getRelayGraphqlErrors(error));
+    if (!unknown) return null;
+    const { icon, title, description } = UNKNOWN_PICK_COPY[unknown.param];
+    return (
+      <EmptyState
+        icon={icon}
+        title={title}
+        description={description}
+        buttonLabel="Clear filter"
+        onButtonClick={() =>
+          setParam(unknown.param, picksWithoutUnknown(pendingParams[unknown.param], unknown.message))
+        }
+      />
+    );
+  };
+
   const actions: PageActionButton[] = [
     {
       label: 'Refresh',
@@ -112,7 +154,12 @@ export function TroubleshootingView() {
         onAutoUpdateChange={setAutoUpdate}
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
-      <ContentErrorBoundary label="Troubleshooting" message="Couldn't load device logs." resetKey={deferredList.key}>
+      <ContentErrorBoundary
+        label="Troubleshooting"
+        message="Couldn't load device logs."
+        resetKey={deferredList.key}
+        fallback={unknownPickFallback}
+      >
         <Suspense fallback={<DeviceLogsListSkeleton />}>
           <DeviceLogsList
             key={deferredList.key}
