@@ -16,6 +16,9 @@ import { TicketsOverviewSection } from './tickets-overview';
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
  *  renders `null` (dismissed walkthrough / completed setup). */
 const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden';
+/** The v2 banner's wrapper: below it the same gap the PageLayout keeps between its
+ *  sections, so the banner reads as one of them. */
+const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-system-l)]`;
 
 /**
  * Dashboard content component - extracted for dynamic import with loading skeleton
@@ -41,7 +44,7 @@ export default function DashboardContent() {
       {/* Onboarding v2: the welcome banner in the setup card's place, until the
           user closes it. Same wrapper, so a dismissed banner collapses the gap. */}
       {onboardingV2 === 'on' && (
-        <div className={ONBOARDING_WRAPPER_CLASS}>
+        <div className={BANNER_WRAPPER_CLASS}>
           <MingoIntroBanner />
         </div>
       )}

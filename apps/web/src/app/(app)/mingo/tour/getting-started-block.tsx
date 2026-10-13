@@ -13,8 +13,11 @@ import type { TourAction, TourStep, TourStepId } from './tour-steps';
 export interface GettingStartedBlockProps {
   steps: readonly TourStep[];
   doneStepIds: ReadonlySet<TourStepId>;
-  /** A "try asking" chip: send its prompt and open its section. */
-  onAction: (step: TourStep, action: TourAction) => void;
+  /**
+   * A "try asking" chip: send its prompt and open its section. False when
+   * the chip was refused (the chat is busy): the step stays open.
+   */
+  onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
 }
@@ -46,7 +49,7 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
   };
 
   const handleAction = (step: TourStep, action: TourAction) => {
-    onAction(step, action);
+    if (!onAction(step, action)) return;
     setOpenId(null);
     setFolded(true);
   };
@@ -56,8 +59,8 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
       aria-label="Getting started"
       className="flex max-h-[60vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
     >
-      <header className="flex shrink-0 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-sf)] py-[var(--spacing-system-xsf)]">
-        <h2 className="text-ods-text-primary text-h5">Getting started</h2>
+      <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)]">
+        <h2 className="text-ods-text-secondary text-h5">Getting started</h2>
         <p className="text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
@@ -74,17 +77,19 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
       </header>
 
       {folded ? (
-        <ul className="grid grid-cols-2 gap-[var(--spacing-system-sf)] p-[var(--spacing-system-sf)]">
-          {steps.map((step, index) => {
+        <ul
+          data-testid="getting-started-grid"
+          className="flex flex-wrap gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]"
+        >
+          {steps.map(step => {
             const isDone = doneStepIds.has(step.id);
-            // An odd count leaves the last chip alone on its row: it spans both columns.
-            const spans = index === total - 1 && total % 2 === 1;
+            // The chips wrap two to a row; an odd last one takes the whole row.
             return (
-              <li key={step.id} className={cn('min-w-0', spans && 'col-span-2')}>
+              <li key={step.id} className="min-w-[160px] flex-1">
                 <button
                   type="button"
                   onClick={() => openStep(step.id)}
-                  className="flex h-12 w-full items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-bg px-[var(--spacing-system-sf)] text-left hover:border-ods-border-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+                  className="flex h-12 w-full items-center gap-[var(--spacing-system-sf)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-sf)] text-left hover:border-ods-border-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
                 >
                   <StepGlyph step={step} done={isDone} size={24} />
                   <span className="truncate text-ods-text-primary text-h4">{step.title}</span>
@@ -109,12 +114,7 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
                   onClick={() => setOpenId(isOpen ? null : step.id)}
                   className="flex w-full items-center gap-[var(--spacing-system-sf)] p-[var(--spacing-system-sf)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-accent"
                 >
-                  <span
-                    className={cn(
-                      'flex size-10 shrink-0 items-center justify-center rounded-md border bg-ods-card',
-                      isDone ? 'border-ods-success text-ods-success' : 'border-ods-border text-ods-text-primary',
-                    )}
-                  >
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg text-ods-text-primary">
                     <StepGlyph step={step} done={isDone} size={24} />
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">

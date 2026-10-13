@@ -1,6 +1,7 @@
 'use client';
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTourState } from '@/app/(app)/setup/lib/tour-state';
@@ -47,6 +48,7 @@ export interface MingoTour {
  */
 export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
   const router = useRouter();
+  const { toast } = useToast();
   const handoff = useTourState();
   const firstName = useAuthStore(s => s.user?.firstName);
   const user = useOnboardingStore(s => s.user);
@@ -61,7 +63,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const inProgress = user !== null && !user.completed && !user.skipped;
   const recordedDialogId = inProgress ? user.tourDialogId : null;
   const active = inProgress && (recordedDialogId !== null || handoff !== null);
-  const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages } = state;
+  const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages, isLoading } = state;
 
   // The conversation this panel created, known before the server has recorded
   // it: creating it moves the chat state, which re-runs the effect below while
@@ -97,13 +99,28 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const doneStepIds = useMemo(() => doneTourStepIds(serverSteps), [serverSteps]);
 
   const handleAction = useCallback(
-    (step: TourStep, action: TourAction) => {
+    (step: TourStep, action: TourAction): boolean => {
+      // While Mingo is answering, the chat refuses a send; the step is not
+      // done then, and the block stays where it is.
+      if (isLoading) {
+        toast({
+          title: 'Mingo is busy',
+          description: 'Wait for the current operation to finish, then try again',
+          duration: 4000,
+        });
+        return false;
+      }
       // The block shows in the tour's conversation only, so this lands there.
-      void sendMessage(action.prompt);
+      // The step is done once the prompt is in the conversation: a refused
+      // or failed send leaves it to try again.
+      void sendMessage(action.prompt).then(sent => {
+        if (sent === false) return;
+        if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);
+      });
       router.push(action.href);
-      if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);
+      return true;
     },
-    [sendMessage, router, serverSteps, completeUserStepInBackground],
+    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground],
   );
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);

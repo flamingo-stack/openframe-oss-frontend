@@ -33,7 +33,7 @@ afterEach(() => {
   container.remove();
 });
 
-const onAction = vi.fn();
+const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
 
 function render(done: TourStepId[] = []) {
@@ -79,7 +79,7 @@ describe('GettingStartedBlock', () => {
 
     expect(onAction).toHaveBeenCalledWith(TOUR_STEPS[0], TOUR_STEPS[0].actions[0]);
     expect(container.textContent).not.toContain('Try asking:');
-    expect(container.querySelector('ul.grid')).not.toBeNull();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).not.toBeNull();
     // Every step is a chip of the grid.
     for (const step of TOUR_STEPS) expect(button(step.title)).toBeTruthy();
   });
@@ -90,14 +90,24 @@ describe('GettingStartedBlock', () => {
     click(button('Check device'));
 
     click(container.querySelector('button[aria-label="Show the steps"]') as Element);
-    expect(container.querySelector('ul.grid')).toBeNull();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
 
     click(button('LogsDevice and platform activity'));
     click(button('What changed today'));
     click(button('Logs'));
-    expect(container.querySelector('ul.grid')).toBeNull();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     expect(container.textContent).toContain('Everything that happened on your devices');
+  });
+
+  it('a refused chip leaves the step open', () => {
+    onAction.mockReturnValueOnce(false);
+    render();
+    click(button('DevicesMachines running the agent'));
+    click(button('Check device'));
+
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+    expect(container.textContent).toContain('Try asking:');
   });
 
   it('counts the done steps and offers to finish on the last one', () => {

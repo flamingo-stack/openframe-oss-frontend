@@ -523,10 +523,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // ─── Send: create-on-first-send when no dialog is active (draft) ──────────
   // `options.contextItems` carries the composer's picker selection; the open
   // view + recent views come from the navigation store via `buildSendContext`.
+  // Resolves to whether the message went out, for programmatic senders (the
+  // onboarding tour's chips): false when the chat refused it (busy) or the
+  // send failed. The composer ignores the result.
   const sendMessage = useCallback(
-    async (text: string, options?: UnifiedSendMessageOptions) => {
+    async (text: string, options?: UnifiedSendMessageOptions): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
 
       const context = buildSendContext(options);
 
@@ -534,13 +537,14 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
         // The draft branch delegates to `sendInNewDialog`, which already fires
         // SEND_MINGO_MESSAGE on success — don't double-track here.
         await sendInNewDialog(trimmed, context);
-        return;
+        return true;
       }
 
       // Existing-dialog send: track on success, same as the /mingo page's
       // active-dialog branch.
       const sent = await sendMingoMessage(trimmed, undefined, context);
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
+      return sent;
     },
     [activeDialogId, sendInNewDialog, sendMingoMessage, buildSendContext],
   );
