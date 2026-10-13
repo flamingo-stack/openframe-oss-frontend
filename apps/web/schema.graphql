@@ -515,6 +515,15 @@ input DeleteFolderInput {
   moveTargetFolderId: ID
 }
 
+"""
+The deleted session's id and status (DELETED); both null when userErrors explains a refusal.
+"""
+type DeleteRemoteSessionPayload {
+  sessionId: String
+  status: RemoteSessionStatus
+  userErrors: [UserError!]!
+}
+
 type DeviceConnection {
   edges: [DeviceEdge!]!
   pageInfo: PageInfo!
@@ -1859,7 +1868,7 @@ type Mutation {
   RECORDING_HELD, RECORDING_PROCESSING, RECORDING_STORAGE_UNAVAILABLE (files deleted before the failure stay deleted;
   call again to finish).
   """
-  deleteRemoteSession(sessionId: String!): RemoteSessionPayload!
+  deleteRemoteSession(sessionId: String!): DeleteRemoteSessionPayload!
 
   """
   Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
