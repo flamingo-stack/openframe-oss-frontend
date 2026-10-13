@@ -6,7 +6,7 @@ import type { UseRecordingPlayerResult } from './use-recording-player';
 
 interface RecordingPlayerProps {
   player: UseRecordingPlayerResult;
-  /** Why there is nothing to play (still processing, deleted, expired); null while there may be. */
+  /** Why there is nothing to play (still processing); null while there may be. */
   unavailableNote: string | null;
   className?: string;
 }

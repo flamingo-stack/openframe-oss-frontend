@@ -61,6 +61,19 @@ export function getRelayErrorMessage(error: unknown, fallback = 'Something went 
 }
 
 /**
+ * The `extensions.code` values of a Relay query/mutation error - the GraphQL
+ * errors relay-runtime attaches on `error.source.errors` when an operation
+ * answers with errors and no data. Empty for any other error.
+ */
+export function getRelayErrorCodes(error: unknown): string[] {
+  const source = (error as { source?: { errors?: ReadonlyArray<{ extensions?: { code?: unknown } } | null> } } | null)
+    ?.source;
+  return (source?.errors ?? [])
+    .map(e => e?.extensions?.code)
+    .filter((code): code is string => typeof code === 'string');
+}
+
+/**
  * Handles API errors and shows toast notification
  * Use this in React Query mutation onError callbacks
  */
