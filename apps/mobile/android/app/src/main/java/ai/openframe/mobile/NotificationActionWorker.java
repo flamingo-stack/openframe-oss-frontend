@@ -10,6 +10,7 @@ import androidx.work.ForegroundInfo;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -30,24 +31,25 @@ import okhttp3.ResponseBody;
 /**
  * Completes one tray action with no web view: the credential from
  * {@link TokenLifecycle#ensureFresh} (the pair the process holds, refreshed
- * first if stale, never a prompt), one POST to the TENANT host, and exactly one
- * outcome written back over the notification. The mapping — which HTTP status
- * says what, which failures keep the buttons — is NotificationActions.swift's
- * {@code act} and {@code report}, copied, not re-derived.
+ * first if stale, never a prompt), one ai-agent GraphQL mutation on the TENANT
+ * host, and exactly one outcome written back over the notification. The
+ * mapping — which error code says what, which failures keep the buttons — is
+ * NotificationActions.swift's {@code act} and {@code report}, copied, not
+ * re-derived.
  */
 public class NotificationActionWorker extends Worker {
 
     private static final long SESSION_WAIT_SECONDS = 45;
     private static final long REQUEST_TIMEOUT_MS = 10_000;
-    /** An id goes into a URL path: nothing but an identifier may. */
+    /** An id comes from the push payload: nothing but an identifier is sent on. */
     private static final Pattern ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,128}$");
     /**
      * WorkManager is at-least-once: a run the system stops after the POST went
      * out is run again, and a reply sent twice starts a second Mingo turn (an
-     * approval re-run is absorbed by the gateway's 409). So a reply records
-     * that it was attempted before it goes out, and a re-run finding the record
-     * reports instead of re-sending. Ids are unique per push; entries older
-     * than a day are pruned on write.
+     * approval re-run is absorbed: ILLEGAL_STATE, already processed). So a
+     * reply records that it was attempted before it goes out, and a re-run
+     * finding the record reports instead of re-sending. Ids are unique per
+     * push; entries older than a day are pruned on write.
      */
     private static final String LEDGER_PREFS = "ai.openframe.mobile.actions";
     private static final long LEDGER_TTL_MS = 24L * 60 * 60 * 1000;
@@ -55,6 +57,13 @@ public class NotificationActionWorker extends Worker {
     private static final String REASON_UNREACHABLE = "OpenFrame could not be reached";
     /** The published listing, for a 426 whose body named none. Same as the web app's GOOGLE_PLAY_URL (mobile-app-links.ts). */
     private static final String FALLBACK_STORE_URL = "https://play.google.com/store/apps/details?id=ai.openframe.mobile";
+    private static final String GRAPHQL_PATH = "/chat/graphql";
+    private static final String SEND_MESSAGE =
+        "mutation SendMessage($input: SendMessageInput!) "
+            + "{ sendMessage(input: $input) { userErrors { message code } } }";
+    private static final String RESOLVE_APPROVAL_REQUEST =
+        "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) "
+            + "{ resolveApprovalRequest(input: $input) { userErrors { message code } } }";
 
     /** One client for every press: a Worker is instantiated per run. */
     private static final OkHttpClient client = TokenLifecycle.credentialFreeClient(REQUEST_TIMEOUT_MS);
@@ -219,33 +228,34 @@ public class NotificationActionWorker extends Worker {
 
     // ─── Requests ────────────────────────────────────────────────────────────
 
-    /** Built on the learned origin, never from payload text: the id is an opaque path segment of a fixed base. */
+    /** Built on the learned origin, never from payload text: the payload only names ids. */
     private static Request request(Context context, Action action, Map<String, String> extras, String base, String bearer) {
-        String path;
         JSONObject body = new JSONObject();
         try {
+            JSONObject input = new JSONObject();
             if (action.isReply()) {
                 String id = validId(extras.get(PushNotifications.KEY_DIALOG_ID));
                 if (id == null) {
                     return null;
                 }
-                path = "/chat/api/v1/messages";
                 // Static, not inferred: both specs behind MINGO_REPLY sit behind
                 // the same `chatType == ADMIN_AI_CHAT` guard server-side.
-                body.put("dialogId", id).put("content", action.reply).put("chatType", "ADMIN_AI_CHAT");
+                input.put("dialogId", id).put("content", action.reply).put("chatType", "ADMIN_AI_CHAT");
+                body.put("query", SEND_MESSAGE);
             } else {
                 String id = validId(extras.get(PushNotifications.KEY_APPROVAL_REQUEST_ID));
                 if (id == null) {
                     return null;
                 }
-                path = "/chat/api/v1/approval-requests/" + id + "/approve";
-                body.put("approve", action.isApprove());
+                input.put("id", id).put("approve", action.isApprove());
+                body.put("query", RESOLVE_APPROVAL_REQUEST);
             }
+            body.put("variables", new JSONObject().put("input", input));
         } catch (JSONException e) {
             return null;
         }
         return new Request.Builder()
-            .url(base + path)
+            .url(base + GRAPHQL_PATH)
             .header("Authorization", "Bearer " + bearer)
             .header("X-OpenFrame-Client", TokenLifecycle.get(context).clientIdentity())
             .header("Accept", "application/json")
@@ -259,12 +269,20 @@ public class NotificationActionWorker extends Worker {
 
     // ─── Outcomes ────────────────────────────────────────────────────────────
 
+    /**
+     * GraphQL answers a refused command with HTTP 200, so a 2xx is read for its
+     * verdict; any other status carries the gateway's own ErrorResponse. Both
+     * name a failure with the same codes ({@code userErrors[].code} mirrors the
+     * REST {@code ErrorResponse.code}), so one switch reads either.
+     */
     private static void report(Context context, Action action, String notificationId, Map<String, String> extras,
                                Response response) {
         int status = response.code();
-        GatewayError gateway = gatewayError(response.body());
-        ShellLog.notifications.notice(action.verb() + ": HTTP " + status + " " + (gateway.code == null ? "" : gateway.code));
-        if (response.isSuccessful()) {
+        String text = bodyText(response.body());
+        Verdict verdict = response.isSuccessful() ? commandVerdict(text, action.mutation()) : gatewayVerdict(text);
+        ShellLog.notifications.notice(action.verb() + ": HTTP " + status + " "
+            + (verdict == null || verdict.code == null ? "" : verdict.code));
+        if (verdict == null) {
             String body;
             if (action.isReply()) {
                 body = action.reply;
@@ -278,21 +296,21 @@ public class NotificationActionWorker extends Worker {
         } else if (status == 426) {
             PushNotifications.replaceWithStoreLink(context, notificationId, extras, "Update OpenFrame to continue",
                 "This version of OpenFrame is no longer supported. Update the app, then try again." + action.echo(),
-                storeUrl(gateway.storeUrl));
-        } else if (status == 404) {
+                storeUrl(verdict.storeUrl));
+        } else if ("NOT_FOUND".equals(verdict.code)) {
             PushNotifications.replace(context, notificationId, extras, "No longer available",
                 "This " + (action.isReply() ? "conversation" : "request") + " no longer exists.", false, null);
-        } else if (status == 409 && "DIALOG_LOCKED".equals(gateway.code)) {
+        } else if ("DIALOG_LOCKED".equals(verdict.code)) {
             PushNotifications.replace(context, notificationId, extras, "Mingo is busy",
                 "Mingo is still working on this conversation. Try again in a moment." + action.echo(), true, action.reply);
-        } else if (status == 409 && !action.isReply()) {
+        } else if ("ILLEGAL_STATE".equals(verdict.code) && !action.isReply()) {
             // `ILLEGAL_STATE` covers already-processed, a non-writable dialog and
             // direct mode alike; the gateway's own message names which. Not a
             // failed press: the decision it asked for has been made.
             PushNotifications.replace(context, notificationId, extras, "Already handled",
-                gateway.message != null ? gateway.message : "This request was already resolved or is no longer open.", false, null);
+                verdict.message != null ? verdict.message : "This request was already resolved or is no longer open.", false, null);
         } else {
-            failure(context, action, notificationId, extras, gateway.message != null ? gateway.message : "HTTP " + status);
+            failure(context, action, notificationId, extras, verdict.message != null ? verdict.message : "HTTP " + status);
         }
     }
 
@@ -327,24 +345,73 @@ public class NotificationActionWorker extends Worker {
         return exp == null || exp > System.currentTimeMillis();
     }
 
-    /** The gateway's ErrorResponse: a machine {@code code} and a human {@code message}. */
-    private static GatewayError gatewayError(ResponseBody body) {
+    private static String bodyText(ResponseBody body) {
         if (body == null) {
-            return new GatewayError(null, null);
+            return "";
         }
         try {
-            String text = body.string();
+            return body.string();
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /**
+     * The gateway's ErrorResponse on a non-2xx: a machine {@code code}, a human {@code message} and,
+     * on a 426, the {@code storeUrl} for this platform.
+     */
+    private static Verdict gatewayVerdict(String text) {
+        try {
             if (text.isEmpty()) {
-                return new GatewayError(null, null);
+                return new Verdict(null, null);
             }
             JSONObject json = new JSONObject(text);
-            String message = json.optString("message", "").trim();
-            return new GatewayError(json.optString("code", null),
-                message.isEmpty() ? null : PushNotifications.clip(message, GATEWAY_MESSAGE_LIMIT),
-                json.optString("storeUrl", null));
-        } catch (IOException | JSONException e) {
-            return new GatewayError(null, null);
+            Verdict verdict = verdictOf(json);
+            return new Verdict(verdict.code, verdict.message, json.isNull("storeUrl") ? null : json.optString("storeUrl", null));
+        } catch (JSONException e) {
+            return new Verdict(null, null);
         }
+    }
+
+    /**
+     * A 2xx mutation answer: {@code null} when it ran, else the first top-level
+     * {@code errors} entry (validation, authorization — no code) or the first
+     * {@code userErrors} entry. A body that is neither is not a success either:
+     * nothing says the command ran.
+     */
+    private static Verdict commandVerdict(String text, String field) {
+        Verdict unreadable = new Verdict(null, "the gateway sent an answer the app could not read");
+        try {
+            JSONObject json = new JSONObject(text);
+            JSONArray errors = json.optJSONArray("errors");
+            if (errors != null && errors.length() > 0) {
+                Verdict error = verdictOf(errors.optJSONObject(0));
+                return new Verdict(null, error.message != null ? error.message : "the request was refused");
+            }
+            JSONObject data = json.optJSONObject("data");
+            JSONObject payload = data == null ? null : data.optJSONObject(field);
+            JSONArray userErrors = payload == null ? null : payload.optJSONArray("userErrors");
+            if (userErrors == null) {
+                return unreadable;
+            }
+            if (userErrors.length() == 0) {
+                return null;
+            }
+            Verdict userError = verdictOf(userErrors.optJSONObject(0));
+            return new Verdict(userError.code, userError.message != null ? userError.message : "the request was refused");
+        } catch (JSONException e) {
+            return unreadable;
+        }
+    }
+
+    private static Verdict verdictOf(JSONObject json) {
+        if (json == null) {
+            return new Verdict(null, null);
+        }
+        // optString turns a JSON null into "null"; a missing code is no code.
+        String code = json.isNull("code") ? null : json.optString("code", null);
+        String message = json.isNull("message") ? "" : json.optString("message", "").trim();
+        return new Verdict(code, message.isEmpty() ? null : PushNotifications.clip(message, GATEWAY_MESSAGE_LIMIT));
     }
 
     /** Server-supplied and launched as an intent: only a store listing's schemes, else the published listing. */
@@ -358,17 +425,18 @@ public class NotificationActionWorker extends Worker {
         return FALLBACK_STORE_URL;
     }
 
-    private static final class GatewayError {
+    /** Why a press did not go through: a machine {@code code} (may be null) and a human {@code message}. */
+    private static final class Verdict {
         final String code;
         final String message;
         /** On a 426: the store listing for this platform. */
         final String storeUrl;
 
-        GatewayError(String code, String message) {
+        Verdict(String code, String message) {
             this(code, message, null);
         }
 
-        GatewayError(String code, String message, String storeUrl) {
+        Verdict(String code, String message, String storeUrl) {
             this.code = code;
             this.message = message;
             this.storeUrl = storeUrl;
@@ -391,6 +459,11 @@ public class NotificationActionWorker extends Worker {
 
         boolean isApprove() {
             return PushNotifications.ACTION_APPROVE.equals(id);
+        }
+
+        /** The mutation's response field, where its {@code userErrors} are. */
+        String mutation() {
+            return isReply() ? "sendMessage" : "resolveApprovalRequest";
         }
 
         String done() {
