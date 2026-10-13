@@ -60,6 +60,36 @@ export function getRelayErrorMessage(error: unknown, fallback = 'Something went 
   return message && message !== 'An unexpected error occurred' ? message : fallback;
 }
 
+/** One GraphQL error behind a Relay throw: the backend's message and its `extensions.code`. */
+export interface RelayGraphqlError {
+  message: string;
+  code: string | null;
+}
+
+/**
+ * The GraphQL errors relay-runtime attached to a thrown query/mutation error
+ * (`error.source.errors`, see {@link getRelayErrorMessage}), with the backend's
+ * `extensions.code` — the part a surface can branch on. Empty for anything
+ * else: a network failure, a timeout, a non-Relay error.
+ */
+export function getRelayGraphqlErrors(error: unknown): RelayGraphqlError[] {
+  const source = (
+    error as {
+      source?: { errors?: ReadonlyArray<{ message?: unknown; extensions?: { code?: unknown } | null } | null> };
+    } | null
+  )?.source;
+  return (source?.errors ?? []).flatMap(entry => {
+    if (!entry) return [];
+    const code = entry.extensions?.code;
+    return [
+      {
+        message: typeof entry.message === 'string' ? entry.message.trim() : '',
+        code: typeof code === 'string' ? code : null,
+      },
+    ];
+  });
+}
+
 /**
  * The `extensions.code` values of a Relay query/mutation error - the GraphQL
  * errors relay-runtime attaches on `error.source.errors` when an operation
