@@ -222,9 +222,14 @@ actions natively, no WebView: Approve/Reject on an approval push, inline Reply o
 message. The server names the category (`aps.category` on iOS, the `pushCategory` data key
 on Android = `APPROVAL_REQUEST` | `MINGO_REPLY`, `ApplePushCategories.java`) and flattens the
 ids into top-level payload keys (`approvalRequestId`, `dialogId`, `type`); the shell
-registers or renders the button sets under those identifiers and POSTs to the **tenant**
-host: `/chat/api/v1/approval-requests/{id}/approve` `{"approve": bool}` and
-`/chat/api/v1/messages` `{dialogId, content, chatType: "ADMIN_AI_CHAT"}`.
+registers or renders the button sets under those identifiers and POSTs an ai-agent GraphQL
+mutation to the **tenant** host's `/chat/graphql`: `resolveApprovalRequest` `{id, approve}`
+and `sendMessage` `{dialogId, content, chatType: "ADMIN_AI_CHAT"}`, each selecting
+`userErrors { message code }`. A refused mutation answers **HTTP 200** — the verdict is the
+first top-level `errors` entry or `userErrors` entry, and a 2xx body that is neither is a
+failure, not a success. Until 2026-10 these were REST
+(`/chat/api/v1/approval-requests/{id}/approve`, `/chat/api/v1/messages`); store builds from
+before keep calling REST, so the backend keeps it.
 
 **Android renders the notification itself.** The backend's `PushFormatterRegistry` picks
 the payload per device: a `PushDevice` whose `appVersion` (sent by the frontend from
@@ -267,13 +272,15 @@ every button opens the app instead (decided per notification at build time).
   `.authenticationRequired` on all three regardless: an unlock on the phone's lock screen,
   wrist detection on the Watch.
 - **Every action ends in exactly one local outcome notification** (there is no window):
-  Approved / Rejected / Reply sent; 409 `ILLEGAL_STATE` → "Already handled" (not a failure);
-  409 `DIALOG_LOCKED` → "Mingo is busy" with the typed text echoed and the original category
-  kept so the button is still there; 404 → "No longer available"; 401 or no session → "Sign
-  in to OpenFrame"; `recipientUserId` ≠ the token's `userId` → "different account"; no host
-  yet → open the app once. Failures keep the category (retry); the original `userInfo` rides
-  along so tapping the outcome deep-links like the push would. The handler's completion is
-  called by 25s regardless; refresh + POST run under one `beginBackgroundTask`.
+  Approved / Rejected / Reply sent; `ILLEGAL_STATE` on an approval → "Already handled" (not
+  a failure); `DIALOG_LOCKED` → "Mingo is busy" with the typed text echoed and the original
+  category kept so the button is still there; `NOT_FOUND` → "No longer available" (codes from
+  `userErrors[].code`, or the gateway's `ErrorResponse.code` on a non-2xx — same values);
+  HTTP 401 or no session → "Sign in to OpenFrame"; `recipientUserId` ≠ the token's `userId`
+  → "different account"; no host yet → open the app once. Failures keep the category
+  (retry); the original `userInfo` rides along so tapping the outcome deep-links like the
+  push would. The handler's completion is called by 25s regardless; refresh + POST run
+  under one `beginBackgroundTask`.
 - **Consent caveat (product decision 2026-08-26):** an approval push describes the FIRST
   tool call; one tap resolves the whole request. Honest only once approvals are one-per-tool.
 - **Try it on the simulator:** `npm run push:approval` / `push:reply` with the app

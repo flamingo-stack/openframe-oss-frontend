@@ -224,10 +224,10 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       try {
         setCreatingDialog(true);
 
-        const result = await createDialogMutation.mutateAsync({ insightId });
+        const newDialogId = await createDialogMutation.mutateAsync({ insightId });
         queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
 
-        return result.id;
+        return newDialogId;
       } catch (error) {
         console.error('[MingoChat] Failed to create dialog:', error);
         // Surface the failure: callers (quick actions, launcher, draft send) only

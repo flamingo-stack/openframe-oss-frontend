@@ -62,10 +62,6 @@ export type CreationSource = (typeof CREATION_SOURCE)[keyof typeof CREATION_SOUR
 
 export const API_ENDPOINTS = {
   GRAPHQL: '/chat/graphql',
-  APPROVAL_REQUEST: '/chat/api/v1/approval-requests',
-  SEND_MESSAGE: '/chat/api/v1/messages',
-  DIALOG_CHUNKS: '/chat/api/v1/dialogs',
-  DIALOGS: '/chat/api/v1/dialogs',
 } as const;
 
 export const NATS_TOPICS = {

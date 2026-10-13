@@ -12,10 +12,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { CHAT_CHUNKS_STREAM, MINGO_JETSTREAM_TOPIC } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
+import { COMPACT_MINGO_DIALOG_MUTATION } from '../(app)/mingo/queries/dialogs-queries';
 import { fetchMingoDialogMessages } from '../(app)/mingo/queries/fetch-dialog-messages';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoMessagesStore } from '../(app)/mingo/stores/mingo-messages-store';
 import { mingoDialogQueryKeys } from '../(app)/mingo/utils/query-keys';
+import type { GraphQlResponse } from '../(app)/tickets/utils/graphql';
 
 // Nothing has been sent while the stream is not live, so this bound can be short.
 export const COMPACTION_STREAM_START_TIMEOUT_MS = 30_000;
@@ -34,17 +36,32 @@ type CompactionRequestResult =
   | { kind: 'nothing-to-compact' }
   | { kind: 'refused'; message: string };
 
+interface CompactDialogPayload {
+  userErrors: Array<{ message: string; code?: string | null }>;
+}
+
 async function requestCompaction(dialogId: string): Promise<CompactionRequestResult> {
-  const response = await apiClient.post(`/chat/api/v1/dialogs/${dialogId}/compact`);
-  if (response.ok) return { kind: 'accepted' };
+  const response = await apiClient.post<GraphQlResponse<{ compactDialog: CompactDialogPayload }>>('/chat/graphql', {
+    query: COMPACT_MINGO_DIALOG_MUTATION,
+    variables: { input: { id: dialogId } },
+  });
   // No answer (timeout, dropped connection): the request may have reached the
   // server, which then compacts regardless.
   if (response.status === 0) return { kind: 'unconfirmed' };
-  if (response.status === 422) return { kind: 'nothing-to-compact' };
-  if (response.status === 409) {
+  const payload = response.ok ? response.data?.data?.compactDialog : undefined;
+  if (!payload) {
+    return {
+      kind: 'refused',
+      message: response.error || response.data?.errors?.[0]?.message || COMPACTION_FAILED_MESSAGE,
+    };
+  }
+  const [userError] = payload.userErrors;
+  if (!userError) return { kind: 'accepted' };
+  if (userError.code === 'NOTHING_TO_COMPACT') return { kind: 'nothing-to-compact' };
+  if (userError.code === 'DIALOG_LOCKED') {
     return { kind: 'refused', message: 'Mingo is still working on this chat. Try again once it finishes.' };
   }
-  return { kind: 'refused', message: response.error || COMPACTION_FAILED_MESSAGE };
+  return { kind: 'refused', message: userError.message || COMPACTION_FAILED_MESSAGE };
 }
 
 // Enough of the newest history to hold the highest persisted stream sequence.
@@ -76,10 +93,11 @@ const stringField = (value: unknown) => (typeof value === 'string' && value ? va
 
 /**
  * One manual compaction, from request to result. The backend refuses up front
- * a dialog that is mid-turn (409) or has nothing to compact (422); otherwise it
- * answers 202 and runs the compaction afterwards, reporting it only on the
- * dialog's chunk stream: CONTEXT_COMPACTION_START, then CONTEXT_COMPACTION_END
- * or an ERROR chunk, then MESSAGE_END in every case.
+ * a dialog that is mid-turn (DIALOG_LOCKED) or has nothing to compact
+ * (NOTHING_TO_COMPACT); otherwise it accepts and runs the compaction
+ * afterwards, reporting it only on the dialog's chunk stream:
+ * CONTEXT_COMPACTION_START, then CONTEXT_COMPACTION_END or an ERROR chunk, then
+ * MESSAGE_END in every case.
  *
  * The request waits for the stream: the consumer resumes after the dialog's
  * newest known sequence (see `latestStreamSeq`), and the request goes out once
@@ -87,13 +105,13 @@ const stringField = (value: unknown) => (typeof value === 'string' && value ? va
  *
  * The stream can still carry the tail of the turn the dialog was busy with when
  * the request went out, and the lock that orders publishing does not order
- * delivery against the HTTP answer — that tail can arrive after the 202. So a
- * chunk counts only after a CONTEXT_COMPACTION_START. START is not unique to
- * this compaction (an ordinary turn publishes one when it auto-compacts), but
- * one landing between the consumer going live and the 409 or 202 would need a
- * summary to finish inside a request's round trip. Anything that never shows a
- * START — a failure before it, a context emptied since the 422 check — falls to
- * the watch timeout instead.
+ * delivery against the mutation's answer — that tail can arrive after the
+ * acceptance. So a chunk counts only after a CONTEXT_COMPACTION_START. START is
+ * not unique to this compaction (an ordinary turn publishes one when it
+ * auto-compacts), but one landing between the consumer going live and the
+ * answer would need a summary to finish inside a request's round trip.
+ * Anything that never shows a START — a failure before it, a context emptied
+ * since the NOTHING_TO_COMPACT check — falls to the watch timeout instead.
  */
 function CompactionWatcher({ dialogId }: { dialogId: string }) {
   const { toast, dismiss } = useToast();

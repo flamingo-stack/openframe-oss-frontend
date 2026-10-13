@@ -129,6 +129,14 @@ export const UNARCHIVE_MINGO_DIALOG_MUTATION = `
   }
 `;
 
+export const COMPACT_MINGO_DIALOG_MUTATION = `
+  mutation CompactDialog($input: DialogIdInput!) {
+    compactDialog(input: $input) {
+      userErrors { field message code }
+    }
+  }
+`;
+
 export const GET_MINGO_DIALOG_QUERY = `
   query GetDialog($id: ID!) {
     dialog(id: $id) {
