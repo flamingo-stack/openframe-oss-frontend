@@ -903,7 +903,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         onReconnected={handleNatsReconnected}
       />
       <TicketNotificationsAutoReader
-        ticketId={ticketId}
+        ticketId={dialog.id}
         dialogId={messageDialogId}
         clientChatOnScreen={clientChatOnScreen}
         lastClientMessageId={newestClientMessageId}

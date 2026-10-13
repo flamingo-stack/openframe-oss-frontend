@@ -20,7 +20,16 @@ type StatusOf = ReturnType<typeof useMingoDialogRowStatus>;
 let root: Root | null = null;
 
 function node(id: string, fields: Partial<DialogNode> = {}): DialogNode {
-  return { id, title: id, status: 'ACTIVE', streamState: 'IDLE', createdAt: '2026-10-09T09:00:00Z', ...fields };
+  // `id` is the Relay global id; rows are matched on the raw `dialogId`.
+  return {
+    id: `global-${id}`,
+    dialogId: id,
+    title: id,
+    status: 'ACTIVE',
+    streamState: 'IDLE',
+    createdAt: '2026-10-09T09:00:00Z',
+    ...fields,
+  };
 }
 
 function row(id: string): DialogItem {

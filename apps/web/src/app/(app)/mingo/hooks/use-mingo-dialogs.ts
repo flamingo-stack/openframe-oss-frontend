@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
+import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
@@ -35,7 +36,9 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
   const ownerUser = dialog.owner?.user;
   const ownerName = [ownerUser?.firstName, ownerUser?.lastName].filter(Boolean).join(' ');
   return {
-    id: dialog.id,
+    // Raw, not the global `id`: the lib uses `DialogItem.id` for selection, the
+    // active-dialog check and the NATS subscription, all of which see raw ids.
+    id: dialog.dialogId,
     // Read-only in the chat until restored. Never true for a row of the active
     // list (`ACTIVE_DIALOG_STATUSES`); it matters for the open conversation.
     archived: dialog.status === 'ARCHIVED',
@@ -89,10 +92,8 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
           // client-side re-filtering needed.
           scope: scope === 'my' ? 'MY' : 'ALL',
         },
-        pagination: {
-          limit,
-          cursor: pageParam,
-        },
+        first: limit,
+        after: pageParam,
         search,
       };
 
@@ -101,11 +102,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         variables,
       });
 
-      if (!response.ok || !response.data) {
-        throw new Error(response.error || 'Failed to fetch dialogs');
-      }
-
-      const { edges, pageInfo } = response.data.data.dialogs;
+      const { edges, pageInfo } = extractGraphQlData(response).dialogs;
       return {
         dialogs: edges.map(edge => edge.node),
         pageInfo,
@@ -140,7 +137,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
 
   const nodes = useMemo(() => query.data?.pages.flatMap(page => page.dialogs) ?? [], [query.data]);
   const dialogsWithUnread = useMemo(
-    () => nodes.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.id) ?? 0)),
+    () => nodes.map(dialog => transformToDialogItem(dialog, unreadByDialog.get(dialog.dialogId) ?? 0)),
     [nodes, unreadByDialog],
   );
 

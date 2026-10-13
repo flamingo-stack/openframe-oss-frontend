@@ -29,6 +29,7 @@ import type {
 
 interface TicketNode {
   id: string;
+  ticketId: string;
   ticketNumber: number;
   title: string;
   statusDefinition?: { id: string; name: string; color: string; kind?: string } | null;
@@ -92,6 +93,7 @@ interface TicketNode {
   }>;
   dialog?: {
     id: string;
+    dialogId: string;
     currentMode?: string;
     tokenUsage?: Array<{
       chatType: string;
@@ -131,9 +133,14 @@ interface MarkDialogMessagesReadPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
+/**
+ * `id` is the raw `ticketId`, not the Relay global `Ticket.id`, and `dialogId` the
+ * raw `Dialog.dialogId`: routes, cache keys, NATS subjects and every comparison with
+ * ids from notifications, push and REST work on raw ids. ai-agent inputs accept both.
+ */
 function normalizeTicketToDialog(ticket: TicketNode): Dialog {
   return {
-    id: ticket.id,
+    id: ticket.ticketId,
     title: ticket.title,
     statusId: ticket.statusDefinition?.id,
     statusName: ticket.statusDefinition?.name,
@@ -158,7 +165,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     currentMode: ticket.dialog?.currentMode,
     ticketNumber: ticket.ticketNumber,
     order: ticket.order,
-    dialogId: ticket.dialog?.id,
+    dialogId: ticket.dialog?.dialogId,
     description: ticket.description,
     creationSource: ticket.creationSource,
     deviceId: ticket.deviceId,
@@ -195,11 +202,6 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
 
 export class TicketService implements TicketServiceInterface {
   async fetchDialogs(params: FetchTicketsParams): Promise<TicketsPage> {
-    const paginationVars: Record<string, unknown> = { limit: params.limit };
-    if (params.cursor) {
-      paginationVars.cursor = params.cursor;
-    }
-
     const filter: Record<string, unknown> = {};
     if (params.statusIds.length) {
       filter.statusIds = params.statusIds;
@@ -224,7 +226,8 @@ export class TicketService implements TicketServiceInterface {
       query: GET_TICKETS_QUERY,
       variables: {
         filter,
-        pagination: paginationVars,
+        first: params.limit,
+        after: params.cursor || undefined,
         search: params.search || undefined,
         sort: params.sort ?? TICKETS_DEFAULT_SORT,
       },

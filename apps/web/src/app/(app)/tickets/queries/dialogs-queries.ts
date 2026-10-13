@@ -50,7 +50,8 @@ export const GET_DIALOG_MESSAGES_QUERY = `
     messages(
       dialogId: $dialogId
       chatType: $chatType
-      pagination: { cursor: $cursor, limit: $limit }
+      first: $limit
+      after: $cursor
       sort: { field: $sortField, direction: $sortDirection }
     ) {
       edges {
