@@ -2,8 +2,8 @@
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
-import { markTourStepDone, setTourDialog, useTourState } from '@/app/(app)/setup/lib/tour-state';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -37,75 +37,89 @@ export interface MingoTour {
  *
  * "Start with Mingo" on the setup wizard starts the tour; the first time the
  * panel then shows, it creates the "Welcome to OpenFrame" conversation, opens
- * it and remembers it. In that conversation Mingo's greeting heads the thread
- * (a local message, re-added on every load) and the Getting Started block sits
- * above the composer. A chip sends its prompt there, opens its section beside
- * the chat and marks its step done: on the server for the steps
- * `UserOnboardingStep` knows, on this device for the rest. "Finish tour"
- * completes the user's onboarding, which takes the block away.
+ * it and records it on the server (`userOnboardingProgress.tourDialogId`), so
+ * every device of this user finds the same conversation. In it Mingo's
+ * greeting heads the thread (a local message, re-added on every load) and the
+ * Getting Started block sits above the composer. A chip sends its prompt
+ * there, opens its section beside the chat and marks its step done on the
+ * server. "Finish tour" completes the user's onboarding, which takes the block
+ * away.
  */
 export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
   const router = useRouter();
-  const tour = useTourState();
-  const userId = useAuthStore(s => s.user?.id);
+  const handoff = useTourState();
   const firstName = useAuthStore(s => s.user?.firstName);
   const user = useOnboardingStore(s => s.user);
-  const { completeUserStepInBackground, completeUserInBackground } = useOnboardingMutations();
+  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground } =
+    useOnboardingMutations();
 
-  // The tour is on: started from the wizard, and the user's onboarding neither
-  // finished nor skipped. The progress record is what "Reset Onboarding" and
-  // "Finish tour" both move.
-  const active = tour !== null && user !== null && !user.completed && !user.skipped;
-  const dialogId = active ? tour.dialogId : null;
-  const startedAt = tour?.startedAt;
+  // The tour is on while the user's onboarding is neither finished nor skipped
+  // (the progress record is what "Reset Onboarding" and "Finish tour" both
+  // move) and it has begun: the server knows its conversation, or "Start with
+  // Mingo" was just pressed on this device and the conversation is still to
+  // be created.
+  const inProgress = user !== null && !user.completed && !user.skipped;
+  const recordedDialogId = inProgress ? user.tourDialogId : null;
+  const active = inProgress && (recordedDialogId !== null || handoff !== null);
   const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages } = state;
 
-  // The tour's conversation, created once. The record is written only on
-  // success, so a failed creation is retried on the next mount, not in a loop.
+  // The conversation this panel created, known before the server has recorded
+  // it: creating it moves the chat state, which re-runs the effect below while
+  // the record is still in flight, and a second conversation would follow.
+  const [createdDialogId, setCreatedDialogId] = useState<string | null>(null);
+  const candidateDialogId = createdDialogId ?? recordedDialogId;
+
+  // The remembered conversation is gone (deleted, or another workspace's
+  // record): treat it as none, so the pass below creates a new one and records
+  // that in its place.
+  const gone =
+    candidateDialogId !== null && activeDialogId === candidateDialogId && dialogError === MINGO_DIALOG_NOT_FOUND;
+  const dialogId = gone || !active ? null : candidateDialogId;
+
+  // The tour's conversation, created once and recorded on success; a failed
+  // creation is retried on the next mount, not in a loop.
   const creatingRef = useRef(false);
   useEffect(() => {
     if (!active || dialogId || creatingRef.current) return;
     creatingRef.current = true;
     void createNamedDialog(TOUR_DIALOG_TITLE)
-      .then(id => setTourDialog(userId, id))
+      .then(id => {
+        if (!id) return;
+        setCreatedDialogId(id);
+        setTourDialogInBackground(id);
+      })
       .finally(() => {
         creatingRef.current = false;
       });
-  }, [active, dialogId, createNamedDialog, userId]);
+  }, [active, dialogId, createNamedDialog, setTourDialogInBackground]);
 
-  // The remembered conversation is gone (deleted, or another workspace's
-  // record on a shared browser): forget it, so the next pass creates a new one.
-  useEffect(() => {
-    if (dialogId && activeDialogId === dialogId && dialogError === MINGO_DIALOG_NOT_FOUND) {
-      setTourDialog(userId, null);
-    }
-  }, [dialogId, activeDialogId, dialogError, userId]);
-
-  const localSteps = tour?.steps;
   const serverSteps = user?.completedSteps;
-  const doneStepIds = useMemo(() => doneTourStepIds(localSteps, serverSteps), [localSteps, serverSteps]);
+  const doneStepIds = useMemo(() => doneTourStepIds(serverSteps), [serverSteps]);
 
   const handleAction = useCallback(
     (step: TourStep, action: TourAction) => {
       // The block shows in the tour's conversation only, so this lands there.
       void sendMessage(action.prompt);
       router.push(action.href);
-      markTourStepDone(userId, step.id);
-      if (step.userStep !== null && !(serverSteps?.includes(step.userStep) ?? false)) {
-        completeUserStepInBackground(step.userStep);
-      }
+      if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);
     },
-    [sendMessage, router, userId, serverSteps, completeUserStepInBackground],
+    [sendMessage, router, serverSteps, completeUserStepInBackground],
   );
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);
 
   const showing = dialogId !== null && activeDialogId === dialogId;
 
+  // When the tour began, for the greeting's timestamp: the handoff marker on
+  // the device that pressed "Start with Mingo"; elsewhere the first time this
+  // panel showed the conversation.
+  const [openedAt] = useState(() => new Date().toISOString());
+  const startedAt = handoff?.startedAt ?? openedAt;
+
   // The greeting heads the thread once all of it is loaded: with older pages
   // still to come it would land mid-conversation.
   const greeting = useMemo<ChatMessage | null>(() => {
-    if (!showing || hasMoreMessages || !startedAt) return null;
+    if (!showing || hasMoreMessages) return null;
     return {
       id: `tour-greeting-${dialogId}`,
       role: 'assistant',

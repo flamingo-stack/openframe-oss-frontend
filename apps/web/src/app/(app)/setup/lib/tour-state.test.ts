@@ -1,10 +1,10 @@
 /**
- * The tour record: started by the wizard, given its conversation by the panel,
- * extended with the steps done on this device, cleared by "Reset Onboarding".
+ * The handoff marker: written by the wizard's "Start with Mingo", cleared by
+ * "Reset Onboarding".
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearTourStarted, markTourStarted, markTourStepDone, setTourDialog } from './tour-state';
+import { clearTourStarted, markTourStarted } from './tour-state';
 
 const USER = 'u-1';
 const KEY = `openframe:onboarding-tour:${USER}`;
@@ -42,35 +42,14 @@ afterEach(() => {
 });
 
 describe('tour state', () => {
-  it('starts once, with no conversation and no steps', () => {
+  it('starts once', () => {
     markTourStarted(USER);
-    const first = stored() as { startedAt: string; dialogId: null; steps: string[] };
-    expect(first.dialogId).toBeNull();
-    expect(first.steps).toEqual([]);
+    const first = stored() as { startedAt: string };
     expect(typeof first.startedAt).toBe('string');
 
     // A second "Start with Mingo" (the wizard shown again) keeps the record.
     markTourStarted(USER);
     expect(stored()).toEqual(first);
-  });
-
-  it('remembers the conversation and the steps done here', () => {
-    markTourStarted(USER);
-    setTourDialog(USER, 'd-1');
-    markTourStepDone(USER, 'devices');
-    markTourStepDone(USER, 'devices');
-    markTourStepDone(USER, 'logs');
-    expect(stored()).toMatchObject({ dialogId: 'd-1', steps: ['devices', 'logs'] });
-
-    // The conversation is gone: the next pass creates a new one.
-    setTourDialog(USER, null);
-    expect(stored()).toMatchObject({ dialogId: null, steps: ['devices', 'logs'] });
-  });
-
-  it('records nothing before the tour has started', () => {
-    setTourDialog(USER, 'd-1');
-    markTourStepDone(USER, 'devices');
-    expect(stored()).toBeNull();
   });
 
   it('is cleared with the rest of the progress, and ignores an unknown user', () => {

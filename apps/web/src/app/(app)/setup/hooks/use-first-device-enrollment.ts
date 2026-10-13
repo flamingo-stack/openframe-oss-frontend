@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { FetchPolicy } from 'relay-runtime';
 import type { firstDeviceEnrollmentRelayQuery as EnrollmentQuery } from '@/__generated__/firstDeviceEnrollmentRelayQuery.graphql';
-import { ConnectionStatus, DeviceStatus, ToolType } from '@/generated/schema-enums';
+import { DeviceStatus, SortDirection } from '@/generated/schema-enums';
 import { firstDeviceEnrollmentRelayQuery } from '@/graphql/onboarding/first-device-enrollment-relay';
 
 /** How often the checklist asks again while the agent installs (2-3 minutes end to end). */
@@ -23,6 +23,7 @@ const ENROLLMENT_VARIABLES = {
       DeviceStatus.OFFLINE,
     ],
   },
+  sort: { field: 'lastSeen', direction: SortDirection.DESC },
 };
 
 // `store-and-network`: the mount reads whatever the store already holds and asks
@@ -31,13 +32,13 @@ const ENROLLMENT_VARIABLES = {
 const ENROLLMENT_OPTIONS = { fetchPolicy: 'store-and-network' as FetchPolicy };
 
 /**
- * The checklist's stages, each a fact about the machine the backend already
- * reports. Derived here until the backend exposes them as one field (see the
- * BE spec on first-device enrollment progress):
- * - `enrolled`          - the machine registered (any status).
- * - `inventoryReceived` - Fleet has its inventory (the FLEET_MDM connection is up).
- * - `aiReady`           - the agent Mingo acts through is up as well, so the
- *                         assistant can work the machine.
+ * The checklist's stages, each a stamp of the machine's `enrollment`:
+ * - `enrolled`          - the machine registered (the node exists).
+ * - `inventoryReceived` - Fleet confirmed the host: inventory is queryable.
+ * - `aiReady`           - the agent is connected as well, so Mingo can work the
+ *                         machine (`enrollment.ready`).
+ * A null `enrollment` is a transient read error: the stages stay as they were
+ * and the next poll answers.
  */
 export interface EnrollmentStages {
   enrolled: boolean;
@@ -48,6 +49,8 @@ export interface EnrollmentStages {
 export interface FirstDevice {
   /** What the device page would call it: display name, else hostname. */
   name: string;
+  /** The agent is connected right now - the "LIVE" tag. */
+  online: boolean;
   stages: EnrollmentStages;
 }
 
@@ -55,18 +58,14 @@ type DeviceNode = NonNullable<NonNullable<EnrollmentQuery['response']['devices']
 
 function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null {
   if (!node) return null;
-  const connections = (node.toolConnections ?? []).filter(connection => connection != null);
-  const connected = (toolType: ToolType) =>
-    connections.some(
-      connection => connection.toolType === toolType && connection.status === ConnectionStatus.CONNECTED,
-    );
-  const inventoryReceived = connected(ToolType.FLEET_MDM);
+  const enrollment = node.enrollment;
   return {
     name: node.displayName?.trim() || node.hostname?.trim() || 'your device',
+    online: node.status === DeviceStatus.ONLINE,
     stages: {
       enrolled: true,
-      inventoryReceived,
-      aiReady: inventoryReceived && (connected(ToolType.OPENFRAME_RMM) || connected(ToolType.MESHCENTRAL)),
+      inventoryReceived: enrollment?.inventoryConnectedAt != null,
+      aiReady: enrollment?.ready ?? false,
     },
   };
 }

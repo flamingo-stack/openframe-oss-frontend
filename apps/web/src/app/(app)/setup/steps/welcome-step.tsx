@@ -35,7 +35,7 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
           <>
             Install your first device with a single command.
             <br />
-            Then just ask <AgentMark agent="mingo" className="inline-block size-4 align-text-bottom" />{' '}
+            Then just ask <AgentMark agent="mingo" className="inline-block size-6 align-bottom" />{' '}
             <span className="text-ods-flamingo-cyan">Mingo</span> anything about the machine and it runs the work.
           </>
         }
@@ -45,17 +45,19 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
           Continue
         </Button>
       ) : (
-        <div className="flex w-full flex-col gap-[var(--spacing-system-m)] md:w-auto md:flex-row">
-          <Button variant="outline" leftIcon={<Globe01Icon />} onClick={onContinue} className="w-full md:w-auto">
+        <div className="flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-lf)] md:flex-row">
+          <Button variant="outline" leftIcon={<Globe01Icon />} onClick={onContinue} className="w-full md:flex-1">
             Continue on Web
           </Button>
           <DropdownButton
             variant="outline"
+            size="default"
             icon={<AppleLogoIcon className="text-ods-text-secondary" />}
             label="Download for macOS"
             items={downloads}
             loading={isLoading}
             fullWidth
+            className="md:flex-1"
           />
         </div>
       )}

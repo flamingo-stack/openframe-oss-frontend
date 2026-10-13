@@ -26,6 +26,8 @@ export interface UserOnboardingProgress {
   completedAt: string | null;
   skipped: boolean;
   skippedAt: string | null;
+  /** The Mingo conversation the Get Started tour lives in; null until "Start with Mingo". */
+  tourDialogId: string | null;
 }
 
 export interface OnboardingState {

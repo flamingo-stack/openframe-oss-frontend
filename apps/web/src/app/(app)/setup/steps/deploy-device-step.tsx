@@ -110,7 +110,7 @@ export function DeployDeviceStep({
         title="Deploy First Device"
         subtitle="Run one command on a machine to connect it to OpenFrame and start monitoring."
       />
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)]">
+      <div className="flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]">
         <OsPlatformSelector
           value={platform}
           onValueChange={setPlatform}

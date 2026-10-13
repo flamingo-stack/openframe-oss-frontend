@@ -30,7 +30,9 @@ export function ReadyStep({
   starting: boolean;
 }) {
   const known = useFirstDeviceEnrollment(false);
-  const deviceName = device?.name ?? known?.name ?? 'your device';
+  const first = device ?? known;
+  const deviceName = first?.name ?? 'your device';
+  const online = first?.online ?? false;
 
   return (
     <>
@@ -38,7 +40,7 @@ export function ReadyStep({
         title="You are ready to go"
         subtitle="Your device is connected and our AI assistant is live on it. Try chatting with it the way your users would. Your conversation will create a real ticket in OpenFrame."
       />
-      <div className="flex w-full flex-col rounded-md border border-ods-border bg-ods-card">
+      <div className="flex w-full max-w-[600px] flex-col rounded-md border border-ods-border bg-ods-card">
         <div className="flex items-center gap-[var(--spacing-system-s)] border-b border-ods-border p-[var(--spacing-system-m)]">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ods-flamingo-pink text-ods-text-on-accent">
             <ChatFaceIcon className="size-5" />
@@ -47,7 +49,7 @@ export function ReadyStep({
             <p className="truncate text-ods-text-primary text-h4">AI assistant running on {deviceName}</p>
             <p className="text-ods-text-secondary text-h6">Try chat with it to create first ticket</p>
           </div>
-          <Tag label="LIVE" variant="success" />
+          <Tag label={online ? 'LIVE' : 'OFFLINE'} variant={online ? 'success' : 'grey'} />
         </div>
         <ul className="flex flex-col gap-[var(--spacing-system-xs)] p-[var(--spacing-system-m)]">
           {ASSISTANT_POINTS.map(point => (

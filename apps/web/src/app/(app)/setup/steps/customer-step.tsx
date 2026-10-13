@@ -99,7 +99,7 @@ export function CustomerStep({
   return (
     <>
       <SetupHeading title="Your First Customer" subtitle="Add your first client. Devices need an org to belong to." />
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)]">
+      <div className="flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]">
         <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
           <Input
             id="setup-customer-name"

@@ -42,8 +42,8 @@ export interface TourStep {
   subtitle: string;
   description: string;
   Icon: IconComponent;
-  /** The step as the backend records it; null until `UserOnboardingStep` learns it. */
-  userStep: UserOnboardingStep | null;
+  /** The step as the backend records it. */
+  userStep: UserOnboardingStep;
   actions: TourAction[];
 }
 
@@ -60,7 +60,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     description:
       'Every machine running the OpenFrame agent. I read its hardware, software and health, and run commands on it once you approve.',
     Icon: MonitorIcon,
-    userStep: null,
+    userStep: UserOnboardingStep.DEVICES,
     actions: [
       {
         id: 'check-device',
@@ -178,7 +178,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     description:
       'Problems I detect on your devices, like repeated failed logins or a disk that is filling fast. Each one opens with what I saw, why it matters and a fix you can approve.',
     Icon: AlertTriangleIcon,
-    userStep: null,
+    userStep: UserOnboardingStep.INCIDENTS,
     actions: [
       {
         id: 'incidents-on-device',

@@ -4,30 +4,20 @@ import { useSyncExternalStore } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 
 /**
- * Where this user is in the Mingo tour - the handoff from the setup wizard to
- * the Getting Started block in the Mingo panel:
+ * "Start with Mingo" was pressed on this device: the handoff from the setup
+ * wizard to the Mingo panel. The wizard leaves for the dashboard before the
+ * panel has created the tour's conversation, and the dashboard redirect would
+ * send the user straight back to the wizard without this marker. The lasting
+ * record is the server's `userOnboardingProgress.tourDialogId`, written once
+ * the panel has created that conversation; the marker only bridges the gap,
+ * and keeps when the tour began for Mingo's greeting.
  *
- * - `startedAt`: "Start with Mingo" was pressed. Until then the wizard's last
- *   screen ("You are ready to go" / "Everything is set up") is what the
- *   dashboard redirects to.
- * - `dialogId`: the "Welcome to OpenFrame" conversation the tour lives in,
- *   created by the Mingo panel on the first landing after the wizard. The
- *   Getting Started block shows in that conversation only.
- * - `steps`: tour steps done on this device, for the steps the backend's
- *   `UserOnboardingStep` does not know yet; the known ones go to the server.
- *
- * TEMPORARY - this belongs on the backend as `userOnboardingProgress.tourDialogId`
- * plus the missing enum values (the marker has to follow the user to another
- * device). Until that ships the record is a per-user localStorage entry, read
- * through `useSyncExternalStore` so the redirect and the panel that depend on
- * it re-evaluate the moment it is written. Delete this module and read the
- * fields from the onboarding store once it lands.
+ * A per-user localStorage entry, read through `useSyncExternalStore` so the
+ * redirect and the panel re-evaluate the moment it is written.
  */
 
 export interface TourState {
   startedAt: string;
-  dialogId: string | null;
-  steps: string[];
 }
 
 const KEY_PREFIX = 'openframe:onboarding-tour:';
@@ -48,12 +38,7 @@ function parse(raw: string): TourState | null {
   try {
     const record: unknown = JSON.parse(raw);
     if (record && typeof record === 'object' && typeof (record as TourState).startedAt === 'string') {
-      const { startedAt, dialogId, steps } = record as Partial<TourState>;
-      value = {
-        startedAt: startedAt as string,
-        dialogId: typeof dialogId === 'string' ? dialogId : null,
-        steps: Array.isArray(steps) ? steps.filter((step): step is string => typeof step === 'string') : [],
-      };
+      value = { startedAt: (record as TourState).startedAt };
     }
   } catch {
     value = null;
@@ -94,21 +79,7 @@ function write(userId: string | undefined, state: TourState | null): void {
 /** "Start with Mingo": the tour begins, its conversation is still to be created. */
 export function markTourStarted(userId: string | undefined): void {
   if (read(userId)) return;
-  write(userId, { startedAt: new Date().toISOString(), dialogId: null, steps: [] });
-}
-
-/** The panel created the tour's conversation (or found it gone - `null` asks for a new one). */
-export function setTourDialog(userId: string | undefined, dialogId: string | null): void {
-  const current = read(userId);
-  if (!current || current.dialogId === dialogId) return;
-  write(userId, { ...current, dialogId });
-}
-
-/** A tour step done on this device. */
-export function markTourStepDone(userId: string | undefined, stepId: string): void {
-  const current = read(userId);
-  if (!current || current.steps.includes(stepId)) return;
-  write(userId, { ...current, steps: [...current.steps, stepId] });
+  write(userId, { startedAt: new Date().toISOString() });
 }
 
 /** "Reset Onboarding" clears it with the rest of the user's progress. */

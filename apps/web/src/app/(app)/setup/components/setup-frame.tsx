@@ -42,18 +42,20 @@ function SetupProgress({ step }: { step: SetupStep }) {
 
 /**
  * The wizard's page frame: progress bar, the screen centred in the remaining
- * height, and the footer row with "Need Help?" and the Flamingo credit. The
- * bare app shell around it already owns the viewport and the native insets.
+ * height from the tablet step up (the phone reads from the top), and the
+ * footer row with "Need Help?" and the Flamingo credit. The bare app shell
+ * around it already owns the viewport and the native insets. Each step keeps
+ * its body at the design's 600px; the heading above it is wider.
  *
- * Window-chrome breakpoints (`md:`) on purpose: this page never renders inside
- * a content area, so there is no panel for `content-md:` to follow.
+ * Window-chrome breakpoints (`sm:` / `md:`) on purpose: this page never renders
+ * inside a content area, so there is no panel for `content-md:` to follow.
  */
 export function SetupFrame({ step, children }: { step: SetupStep; children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <SetupProgress step={step} />
-      <main className="flex flex-1 flex-col items-center justify-start px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)] md:justify-center">
-        <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">{children}</div>
+      <main className="flex flex-1 flex-col items-center justify-start px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)] sm:justify-center">
+        <div className="flex w-full max-w-[990px] flex-col items-center gap-[var(--spacing-system-xl)]">{children}</div>
       </main>
       <footer className="relative flex h-24 shrink-0 items-center justify-center px-[var(--spacing-system-l)]">
         <div className="absolute left-[var(--spacing-system-l)]">

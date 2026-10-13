@@ -9,6 +9,7 @@ import type { completeTenantOnboardingStepMutation as CompleteTenantStepType } f
 import type { completeUserOnboardingMutation as CompleteUserType } from '@/__generated__/completeUserOnboardingMutation.graphql';
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
+import type { setUserOnboardingTourDialogMutation as SetTourDialogType } from '@/__generated__/setUserOnboardingTourDialogMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
 import { clearTourStarted } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -24,10 +25,11 @@ import { completeTenantOnboardingStepMutation } from './complete-tenant-onboardi
 import { completeUserOnboardingMutation } from './complete-user-onboarding-mutation';
 import { completeUserOnboardingStepMutation } from './complete-user-onboarding-step-mutation';
 import { resetUserOnboardingMutation } from './reset-user-onboarding-mutation';
+import { setUserOnboardingTourDialogMutation } from './set-user-onboarding-tour-dialog-mutation';
 import { skipUserOnboardingMutation } from './skip-user-onboarding-mutation';
 
 type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt?: Instant | null };
-type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null };
+type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null; tourDialogId?: string | null };
 
 function toTenant(payload: TenantPayload): TenantOnboardingProgress {
   return {
@@ -44,6 +46,7 @@ function toUser(payload: UserPayload): UserOnboardingProgress {
     completedAt: payload.completedAt ?? null,
     skipped: payload.skipped,
     skippedAt: payload.skippedAt ?? null,
+    tourDialogId: payload.tourDialogId ?? null,
   };
 }
 
@@ -182,6 +185,22 @@ export function useOnboardingMutations() {
     });
   }, [environment, setUser, toast]);
 
+  // The Mingo panel created the tour's conversation: remember it with the rest
+  // of the user's progress, so another device finds the same conversation.
+  // Fire-and-forget like the step completions; a repeat overwrites. Errors toast.
+  const setTourDialogInBackground = useCallback(
+    (dialogId: string) => {
+      commitMutation<SetTourDialogType>(environment, {
+        mutation: setUserOnboardingTourDialogMutation,
+        variables: { dialogId },
+        onCompleted: res => setUser(toUser(res.setUserOnboardingTourDialog)),
+        onError: err =>
+          toast({ title: 'Error', description: err.message || 'Failed to save the tour', variant: 'destructive' }),
+      });
+    },
+    [environment, setUser, toast],
+  );
+
   const skipUser = useCallback(
     (onDone?: () => void) => {
       begin();
@@ -230,6 +249,7 @@ export function useOnboardingMutations() {
     completeUserStep,
     completeUserStepInBackground,
     completeUserInBackground,
+    setTourDialogInBackground,
     skipUser,
     resetUser,
     isMutating: pending > 0,

@@ -1,25 +1,28 @@
 import { graphql } from 'react-relay';
 
 /**
- * The newest-enrolled machine and how far its agents have come - what the setup
- * wizard's "Deploy First Device" checklist polls while the admin runs the install
- * command, and what "You are ready to go" names.
+ * The newest machine and how far its enrollment has come - what the setup
+ * wizard's "Deploy First Device" checklist polls while the admin runs the
+ * install command, and what "You are ready to go" names.
  *
- * `first: 1` without a sort: a workspace on this screen has at most one device
- * worth reporting, and the ready screen only needs a name to greet with.
+ * Newest by `lastSeen` (the enrollment stamps are not sortable), through
+ * `devices` rather than `deviceFilters`: the latter is served from Pinot and
+ * lags the stages by minutes.
  */
 export const firstDeviceEnrollmentRelayQuery = graphql`
-  query firstDeviceEnrollmentRelayQuery($filter: DeviceFilterInput) {
-    devices(first: 1, filter: $filter) {
+  query firstDeviceEnrollmentRelayQuery($filter: DeviceFilterInput, $sort: SortInput) {
+    devices(first: 1, filter: $filter, sort: $sort) {
       edges {
         node {
           id
           hostname
           displayName
           status
-          toolConnections {
-            toolType
-            status
+          enrollment {
+            registeredAt
+            connectedAt
+            inventoryConnectedAt
+            ready
           }
         }
       }

@@ -69,7 +69,7 @@ export function OrganizationStep({
         title="Set Up Your Organization"
         subtitle="Set your company name, upload a logo, and add your website so clients recognize your brand across all touchpoints."
       />
-      <div className="flex w-full flex-col gap-[var(--spacing-system-m)]">
+      <div className="flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]">
         <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] md:grid-cols-2">
           <Input
             id="setup-org-name"
