@@ -98,9 +98,9 @@ describe('toLoginDiscoveryResult', () => {
         tenant_id: 't-1',
         tenant_name: 'Acme',
         domain: 'acme.openframe.ai',
-        auth_providers: ['google', 'microsoft', 'openframe'],
-        openframe_login: false,
-        providers: { microsoft: true, google: false },
+        auth_providers: ['microsoft', 'google', 'apple', 'openframe'],
+        openframe_login_enabled: false,
+        custom_providers: ['microsoft'],
       }),
     ).toEqual({
       found: true,
@@ -109,6 +109,30 @@ describe('toLoginDiscoveryResult', () => {
       openframe: false,
       customProviders: ['microsoft'],
     });
+  });
+
+  it('keeps the custom providers in the generic order and drops ones the card has no button for', () => {
+    expect(
+      toLoginDiscoveryResult({
+        email: 'kate@acme.com',
+        has_existing_accounts: true,
+        tenant_id: 't-1',
+        openframe_login_enabled: true,
+        custom_providers: ['okta', 'microsoft', 'google'],
+      }).customProviders,
+    ).toEqual(['google', 'microsoft']);
+  });
+
+  it('reads the null fields of an unknown address as no tenant', () => {
+    expect(
+      toLoginDiscoveryResult({
+        email: 'dan@gmail.com',
+        has_existing_accounts: false,
+        tenant_id: null,
+        openframe_login_enabled: null,
+        custom_providers: null,
+      }),
+    ).toMatchObject({ found: false, tenant: null, customProviders: [] });
   });
 
   it("treats an older server's auth_providers as no custom SSO, since it mixes in the platform defaults", () => {

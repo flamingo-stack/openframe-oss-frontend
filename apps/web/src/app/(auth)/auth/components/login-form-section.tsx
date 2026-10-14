@@ -23,8 +23,11 @@ export interface LoginDiscoveryResult {
   customProviders: Exclude<AuthSsoProvider, 'openframe'>[];
 }
 
-/** The providers a tenant can configure with its own credentials — the keys of discovery's `providers`. */
-const CUSTOMIZABLE_PROVIDERS = ['google', 'microsoft'] as const;
+/**
+ * The providers the card can show as a tenant's own, in the generic buttons' order. A custom provider
+ * outside this list has no button to show, so it does not count.
+ */
+const TENANT_SSO_PROVIDERS: Exclude<AuthSsoProvider, 'openframe'>[] = ['google', 'microsoft', 'apple'];
 /** The built-in login in `auth_providers`; 'openframe-sso' is its legacy id. */
 const OPENFRAME_IDS = ['openframe', 'openframe-sso'];
 
@@ -39,11 +42,12 @@ export function toLoginDiscoveryResult(response: TenantDiscoveryResponse): Login
         }
       : null,
     tenantName: response.tenant_name || undefined,
-    // An authorization server older than `openframe_login` reports the built-in login in
-    // `auth_providers` instead, and has no `providers` — no custom SSO it could tell apart.
+    // An authorization server older than `openframe_login_enabled` reports the built-in login in
+    // `auth_providers` instead, and has no `custom_providers` — no custom SSO it could tell apart.
     openframe:
-      response.openframe_login ?? (response.auth_providers || ['openframe']).some(id => OPENFRAME_IDS.includes(id)),
-    customProviders: CUSTOMIZABLE_PROVIDERS.filter(provider => response.providers?.[provider] === true),
+      response.openframe_login_enabled ??
+      (response.auth_providers || ['openframe']).some(id => OPENFRAME_IDS.includes(id)),
+    customProviders: TENANT_SSO_PROVIDERS.filter(provider => response.custom_providers?.includes(provider)),
   };
 }
 

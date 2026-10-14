@@ -31,10 +31,10 @@ export interface TenantDiscoveryResponse {
   tenant_name?: string | null;
   /** The tenant's own providers plus the platform defaults and 'openframe', undistinguished. */
   auth_providers?: string[] | null;
-  /** Whether the tenant's built-in OpenFrame login is on. */
-  openframe_login?: boolean | null;
-  /** Providers the tenant configured with its OWN credentials; platform defaults are never true. */
-  providers?: { google?: boolean; microsoft?: boolean } | null;
+  /** Whether the tenant's built-in OpenFrame login is on; null when no tenant was found. */
+  openframe_login_enabled?: boolean | null;
+  /** Providers the tenant configured with its OWN app (no platform defaults); null when no tenant was found. */
+  custom_providers?: string[] | null;
   domain?: string | null;
 }
 
