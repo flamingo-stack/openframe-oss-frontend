@@ -1,7 +1,12 @@
 'use client';
 
-import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { NotFoundError, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import {
+  ExecutionSourceBadge,
+  ExecutionStatusCell,
+  getDeviceName,
+  ScriptExecutionResult,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -20,11 +25,9 @@ import { formatCount } from '@/lib/format-number';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ExecutionSourceBadge } from '../../shared/components/execution-source-badge';
 import {
   executionOutput,
   executionStatusLabel,
-  executionStatusVariant,
   initiatorInitials,
   initiatorName,
   isExecutionInFlight,
@@ -253,17 +256,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
             })()}
             label="Executed by"
           />
-          <DetailCell
-            value={
-              <div className="flex">
-                <Tag
-                  label={executionStatusLabel(execution.status)}
-                  variant={executionStatusVariant(execution.status)}
-                />
-              </div>
-            }
-            label="Status"
-          />
+          <DetailCell value={<ExecutionStatusCell status={execution.status} />} label="Status" />
           <DetailCell value={formatCount(execution.executionTimeMs)} label="Execution Time (ms)" />
         </div>
 
@@ -285,14 +278,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
 
         {/* Result — an in-flight execution with no output yet says so (the page
             polls, so the output streams in) instead of a dead-end "—". */}
-        <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
-          {result ? (
-            <div className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{result}</div>
-          ) : (
-            <div className="text-ods-text-secondary text-h4">{isInFlight ? 'Waiting for output…' : EMPTY_VALUE}</div>
-          )}
-          <div className="text-ods-text-secondary text-h6">Result</div>
-        </div>
+        <ScriptExecutionResult result={result} inFlight={isInFlight} empty={EMPTY_VALUE} />
       </div>
     </PageLayout>
   );
