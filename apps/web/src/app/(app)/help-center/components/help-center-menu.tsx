@@ -80,18 +80,16 @@ const ITEMS: Item[] = [
 /**
  * The Help Center index grid. Its own items are static, app-owned copy, which
  * is why the route's loading state renders this very component rather than a
- * placeholder. The legal documents are the one read: one card per document the
- * hub has published (`EP.legalDocuments`), each opening that document's own
+ * placeholder. The legal documents are the one read: one card per document on
+ * the hub's list (`EP.legalDocuments`), each opening that document's own
  * page. They come last, so the static cards never move when they arrive, and a
  * document the hub publishes later appears with no change here.
  */
 export function HelpCenterMenu() {
   const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
-  // A card only for a published document this app has a page for (the route
-  // prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
-  const legal = documents.flatMap(doc =>
-    doc.published && isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : [],
-  );
+  // A card for every document on the hub's list that this app has a page for
+  // (the route prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
+  const legal = documents.flatMap(doc => (isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : []));
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (
