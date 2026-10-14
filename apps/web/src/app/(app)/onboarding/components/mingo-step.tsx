@@ -17,8 +17,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 
 const GUARDRAILS_HREF = '/settings/ai-settings?tab=guardrails';
 
-// Placeholder demo clip until the real onboarding videos are ready.
-const DEMO_VIDEO_ID = 'i4H_XqrI3RA';
+const DEMO_VIDEO_ID = '_wHKKuw1Ai0';
 
 /**
  * Inner body of the "Meet Mingo" onboarding step.
