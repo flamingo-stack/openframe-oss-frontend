@@ -1,5 +1,6 @@
 'use client';
 
+import { useLegalDocuments } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BookBookmarkIcon,
   CompassIcon,
@@ -15,6 +16,7 @@ import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/type
 import type { ComponentType } from 'react';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
+import { EP } from '../endpoints';
 
 type Item = {
   href: string;
@@ -67,12 +69,6 @@ const ITEMS: Item[] = [
     Icon: ShieldLockIcon,
   },
   {
-    href: routes.helpCenter.legal(),
-    title: 'Legal',
-    description: 'The policies and terms that apply to OpenFrame.',
-    Icon: FileContentIcon,
-  },
-  {
     href: routes.helpCenter.knowledgeBase,
     title: 'Knowledge Base',
     description: 'Comprehensive guides and references for the OpenFrame platform.',
@@ -81,11 +77,16 @@ const ITEMS: Item[] = [
 ];
 
 /**
- * The Help Center index grid. Entirely static, app-owned copy — no request
- * backs it, which is why the route's loading state renders this very component
- * rather than a placeholder: there is nothing to shimmer, and nothing shifts.
+ * The Help Center index grid. Its own items are static, app-owned copy, which
+ * is why the route's loading state renders this very component rather than a
+ * placeholder. The legal documents are the one read: one card per document the
+ * hub has published (`EP.legalDocuments`), each opening that document's own
+ * page. They come last, so the static cards never move when they arrive, and a
+ * document the hub publishes later appears with no change here.
  */
 export function HelpCenterMenu() {
+  const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
+  const legal = documents.filter(doc => doc.published);
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (
@@ -95,6 +96,15 @@ export function HelpCenterMenu() {
           title={title}
           description={description}
           icon={<Icon className="size-6" />}
+        />
+      ))}
+      {legal.map(doc => (
+        <SettingMenuItem
+          key={doc.docType}
+          href={routes.helpCenter.legal(doc.docType)}
+          title={doc.title}
+          description={doc.summary}
+          icon={<FileContentIcon className="size-6" />}
         />
       ))}
     </div>

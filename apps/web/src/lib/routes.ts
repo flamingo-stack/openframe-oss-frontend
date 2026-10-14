@@ -206,10 +206,10 @@ export const routes = {
     faqs: '/help-center/faqs',
     trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
-    // The document is a query param: the documents are the hub's list, so
-    // `output: 'export'` cannot prerender one page per document. No `doc` opens
-    // the page on its default document.
-    legal: (doc?: string) => withQuery('/help-center/legal', { doc }),
+    // One page per legal document. `[docType]` is enumerable (the route's
+    // `generateStaticParams` prerenders the lib's `LEGAL_DOCUMENT_TYPES`); the
+    // Help Center links the ones the hub's list says are published.
+    legal: (docType: string) => `/help-center/legal/${docType}`,
   },
   worktime: '/worktime',
 

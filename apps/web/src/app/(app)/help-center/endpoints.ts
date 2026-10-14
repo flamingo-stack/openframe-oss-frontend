@@ -96,7 +96,7 @@ export const EP = {
   // product releases
   productReleases: `${CONTENT}/releases`,
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
-  // legal: one document, and the hub's list of them (the page's switcher)
+  // legal: one document, and the hub's list of them (one Help Center card per published document)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
   legalDocuments: `${CONTENT}/legal`,
   // trust center (Vanta-fed public projection) — the lib owns the hub path
