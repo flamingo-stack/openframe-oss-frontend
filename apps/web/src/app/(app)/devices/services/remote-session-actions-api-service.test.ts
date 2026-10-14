@@ -6,9 +6,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { asInstant } from '@/lib/graphql-scalars';
 import { OfflineError } from '@/lib/query-state';
-import { isRetryableReportError, toActionInput } from './remote-session-actions-api-service';
+import { isRetryableReportError, recordRemoteSessionAction, toActionInput } from './remote-session-actions-api-service';
+
+const relay = vi.hoisted(() => ({ commitMutation: vi.fn() }));
 
 vi.mock('react-relay', () => ({ graphql: () => ({}), commitMutation: vi.fn() }));
+vi.mock('@/lib/relay/commit-mutation', () => ({ commitMutationPromise: relay.commitMutation }));
 
 const AT = asInstant('2026-10-13T10:00:00.000Z');
 const input = (action: Parameters<typeof toActionInput>[1]) => toActionInput('session-1', action, 'event-1', AT);
@@ -70,5 +73,20 @@ describe('isRetryableReportError', () => {
     });
     expect(isRetryableReportError(validation)).toBe(false);
     expect(isRetryableReportError(new Error('Validation error (WrongType)'))).toBe(false);
+  });
+});
+
+describe('recordRemoteSessionAction', () => {
+  it('sends the input as is and answers whether the server stored the action', async () => {
+    const action = input({ action: 'CTRL_ALT_DEL' });
+    if (!action) throw new Error('no input');
+    relay.commitMutation.mockResolvedValueOnce({ recordRemoteSessionAction: { accepted: true, userErrors: [] } });
+    await expect(recordRemoteSessionAction(action)).resolves.toBe(true);
+    expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), { input: action });
+
+    relay.commitMutation.mockResolvedValueOnce({
+      recordRemoteSessionAction: { accepted: false, userErrors: [{ code: 'REMOTE_SESSION_ENDED' }] },
+    });
+    await expect(recordRemoteSessionAction(action)).resolves.toBe(false);
   });
 });
