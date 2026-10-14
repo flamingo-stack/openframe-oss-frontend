@@ -1,11 +1,12 @@
 'use client';
 
 import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ValueText } from '@/app/components/shared/value-text';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
-import { DEVICE_LOCAL_TIME_NOTE, isDeviceLocalTime } from '../utils/schedule-timing';
+import { DEVICE_LOCAL_TIME_NOTE } from '../utils/schedule-timing';
 
 interface ScheduleInfoBarFromDataProps {
   /**

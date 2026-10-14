@@ -8,6 +8,8 @@ import {
   ScheduleDateTimeCell,
   SCHEDULES_TABLE_COLUMNS,
   ScriptNameCell,
+  isDeviceLocalTime,
+  isEventTrigger,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -83,13 +85,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
-import {
-  DEVICE_LOCAL_TIME_NOTE,
-  formatScheduleStartAt,
-  isDeviceLocalTime,
-  isEventTrigger,
-  repeatToLabel,
-} from '../utils/schedule-timing';
+import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 

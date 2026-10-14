@@ -9,16 +9,14 @@ import {
   SoftwareActionForm,
   type SoftwareDeviceScope,
   type SoftwareScheduleTiming,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Suspense, useMemo } from 'react';
-import type { Device } from '@/app/(app)/devices/types/device.types';
-import { TIME_REFERENCE_OPTIONS } from '@/app/(app)/scripts/schedule/types/edit-schedule.types';
-import {
   earliestScheduleDay,
   getTimeSlotOptions,
   isScheduleStartInPast,
   PAST_START_MESSAGE,
-} from '@/app/(app)/scripts/schedule/utils/schedule-timing';
+  SCHEDULE_TIME_REFERENCE_OPTIONS,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Suspense, useMemo } from 'react';
+import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
@@ -34,7 +32,7 @@ function agentMissing(device: Device): string | undefined {
 
 /** Date / Time / Timezone read exactly as a script schedule's start is. */
 const SCHEDULE_TIMING: SoftwareScheduleTiming<ScheduleTimeReference> = {
-  timeReferenceOptions: TIME_REFERENCE_OPTIONS,
+  timeReferenceOptions: SCHEDULE_TIME_REFERENCE_OPTIONS,
   getTimeOptions: getTimeSlotOptions,
   getEarliestDay: earliestScheduleDay,
   getStartError: (date, time, timeReference) =>

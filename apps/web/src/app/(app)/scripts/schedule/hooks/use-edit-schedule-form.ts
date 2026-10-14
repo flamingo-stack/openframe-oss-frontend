@@ -1,6 +1,12 @@
 'use client';
 'use no memo';
 
+import {
+  applyTimeSlot,
+  isEventTrigger,
+  isRetryOnReconnect,
+  DEFAULT_SCHEDULE_FORM_VALUES,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -17,19 +23,9 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import { platformsToEnums } from '../../shared/utils/script-mappers';
-import {
-  DEFAULT_SCHEDULE_VALUES,
-  type EditScheduleFormData,
-  editScheduleFormSchema,
-} from '../types/edit-schedule.types';
+import { type EditScheduleFormData, editScheduleFormSchema } from '../types/edit-schedule.types';
 import { collectScriptCustomParams } from '../utils/schedule-script-params';
-import {
-  applyTimeSlot,
-  isEventTrigger,
-  isRetryOnReconnect,
-  resolveDurationSeconds,
-  toScheduleInstant,
-} from '../utils/schedule-timing';
+import { resolveDurationSeconds, toScheduleInstant } from '../utils/schedule-timing';
 
 interface UseEditScheduleFormOptions {
   /** `null` on the create page — which is also what picks create over update. */
@@ -54,7 +50,7 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
 
   const methods = useForm<EditScheduleFormData>({
     resolver: zodResolver(editScheduleFormSchema),
-    defaultValues: DEFAULT_SCHEDULE_VALUES,
+    defaultValues: DEFAULT_SCHEDULE_FORM_VALUES,
     // Nothing is judged mid-word. The default pair is `onSubmit` + re-validate
     // `onChange`, which means that after ONE failed Save every later keystroke
     // is graded — the half-typed "3" of "30" reads as below the minimum, and the
