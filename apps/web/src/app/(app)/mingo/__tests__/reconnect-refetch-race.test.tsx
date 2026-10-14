@@ -19,7 +19,15 @@ import { DialogSubscription } from '../hooks/use-mingo-realtime-subscription';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { Message } from '../types';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
-import { countOccurrences, DIALOG, historyPage, persistedRows, publishTurn } from './chat-fixtures';
+import {
+  ApprovalSession,
+  countOccurrences,
+  DIALOG,
+  historyPage,
+  persistedRows,
+  publishTurn,
+  renderedText,
+} from './chat-fixtures';
 import { FakeJetStream } from './fake-jetstream';
 
 const h = vi.hoisted(() => ({
@@ -110,6 +118,13 @@ async function wait(ms: number) {
       await new Promise(r => setTimeout(r, step));
     });
   }
+}
+
+/** What the user sees: each bubble's author, content and time. */
+function view(messages: Message[]) {
+  return messages
+    .filter(m => !m.id.startsWith('welcome-'))
+    .map(m => ({ role: m.role, text: renderedText(m), at: new Date(m.timestamp ?? 0).toISOString() }));
 }
 
 async function open(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
@@ -253,5 +268,67 @@ describe('re-entry with the previous visit still cached', () => {
 
     for (const t of [seen, ...away]) expect(countOccurrences(thread(), t.answer)).toBe(1);
     expect(h.server.createdConsumers[0]).toMatchObject({ opt_start_seq: away[1].seqs.lastContent + 1 });
+  }, 20_000);
+});
+
+describe('approval rounds: continuations publish no MESSAGE_START', () => {
+  /** The thread a fresh page load renders from the history as it stands now. */
+  async function freshLoad() {
+    await act(async () => root?.unmount());
+    useMingoMessagesStore.getState().resetAll();
+    h.dbDelayMs = 0;
+    h.server.consumeDelayMs = 0;
+    await open();
+    await wait(600);
+    return view(thread());
+  }
+
+  for (const [name, order] of [
+    ['replay lands first', REPLAY_FIRST],
+    ['refetch would land first', REFETCH_FIRST],
+  ] as const) {
+    it(`${name}: rounds finished during an outage render once, as a fresh load shows them`, async () => {
+      // The request went out 15 minutes ago and waited 3 for its approval.
+      const session = new ApprovalSession(h.server, 0, Date.now() - 15 * 60_000).start();
+      h.db = session.rows;
+      await open();
+      await wait(400);
+      session.at += 3 * 60_000;
+      session.approve();
+      await wait(300);
+
+      h.server.disconnectAll();
+      await wait(50);
+      for (const last of [false, false, true]) {
+        session.at += 20_000;
+        session.approve({ last });
+      }
+      h.dbDelayMs = order.dbDelayMs;
+      h.server.consumeDelayMs = order.consumeDelayMs;
+      await wait(2500);
+      const live = view(thread());
+
+      for (const round of session.rounds) {
+        expect(countOccurrences(thread(), round.output)).toBe(1);
+        expect(countOccurrences(thread(), round.followUp)).toBe(1);
+      }
+      expect(live).toEqual(await freshLoad());
+    }, 20_000);
+  }
+
+  it('opened mid-session: the rounds history holds are not replayed into its bubble', async () => {
+    const session = new ApprovalSession(h.server, 0, Date.now() - 15 * 60_000).start();
+    h.db = session.rows;
+    session.at += 3 * 60_000;
+    for (const last of [false, false, false]) {
+      session.at += 20_000;
+      session.approve({ last });
+    }
+    await open();
+    await wait(600);
+    const live = view(thread());
+
+    for (const round of session.rounds) expect(countOccurrences(thread(), round.output)).toBe(1);
+    expect(live).toEqual(await freshLoad());
   }, 20_000);
 });
