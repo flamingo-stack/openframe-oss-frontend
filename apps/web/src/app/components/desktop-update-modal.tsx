@@ -83,7 +83,7 @@ let listenersRegistered = false;
 export function DesktopUpdateModal() {
   // The subscription effect reaches its actions through `getState()` instead of
   // these, so it can stay a mount-once effect with no action in its deps.
-  const { version, releaseNotesUrl, isModalOpen, phase, downloaded, total, error, dismiss, startApply, fail } =
+  const { version, releaseNotesUrl, isModalOpen, phase, downloaded, total, error, blocked, dismiss, startApply, fail } =
     useDesktopUpdateStore(
       useShallow(s => ({
         version: s.version,
@@ -93,6 +93,7 @@ export function DesktopUpdateModal() {
         downloaded: s.downloaded,
         total: s.total,
         error: s.error,
+        blocked: s.blocked,
         dismiss: s.dismiss,
         startApply: s.startApply,
         fail: s.fail,
@@ -144,7 +145,9 @@ export function DesktopUpdateModal() {
 
   if (!version) return null;
 
-  const errorCopy = error ? ERROR_COPY[error.kind] : null;
+  // A failed attempt says more than the pre-flight, so it wins while it lasts.
+  const shownError = error ?? blocked;
+  const errorCopy = shownError ? ERROR_COPY[shownError.kind] : null;
   const percent = total && total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : null;
 
   return (
@@ -194,7 +197,7 @@ export function DesktopUpdateModal() {
         OpenFrame v{version} is ready to install. This version includes performance improvements and bug fixes.
       </p>
 
-      {error && errorCopy && (
+      {shownError && errorCopy && (
         <div
           role="alert"
           // NOT text-h5 — that ramp step is `text-transform: uppercase`, which is
@@ -205,7 +208,7 @@ export function DesktopUpdateModal() {
           {/* The shell's raw error (e.g. "Read-only file system (os error 30)"),
               so a screenshot sent to support carries the OS code without a
               trip to the log file. */}
-          <span className="break-words text-ods-text-secondary text-h6">Details: {error.message}</span>
+          <span className="break-words text-ods-text-secondary text-h6">Details: {shownError.message}</span>
         </div>
       )}
 

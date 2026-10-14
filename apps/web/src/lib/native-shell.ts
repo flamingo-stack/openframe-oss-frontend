@@ -561,6 +561,12 @@ export interface DesktopUpdateAvailability {
   version?: string | null;
   notes?: string | null;
   releaseNotesUrl?: string | null;
+  /**
+   * Set when this install cannot apply the update where it runs (today only
+   * `location`: a read-only mount on macOS). The UI shows why up front instead
+   * of a button that would fail. Absent from shells that predate it.
+   */
+  blocked?: DesktopUpdateError | null;
 }
 
 /**

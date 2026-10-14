@@ -37,6 +37,12 @@ interface DesktopUpdateState {
   /** Null when the download reported no size — render an indeterminate bar. */
   total: number | null;
   error: DesktopUpdateError | null;
+  /**
+   * Why the offered update cannot be applied from here, known before any
+   * attempt. Kept apart from `error` because reopening the modal clears that —
+   * this stays true until a re-announce says otherwise.
+   */
+  blocked: DesktopUpdateError | null;
 
   /** An update was offered, by the mount-time check or the shell's poll. */
   announce: (availability: DesktopUpdateAvailability) => void;
@@ -62,6 +68,7 @@ export const useDesktopUpdateStore = create<DesktopUpdateState>()(
       downloaded: 0,
       total: null,
       error: null,
+      blocked: null,
 
       announce: availability => {
         if (!availability.available || !availability.version) return;
@@ -79,6 +86,7 @@ export const useDesktopUpdateStore = create<DesktopUpdateState>()(
             downloaded: 0,
             total: null,
             error: null,
+            blocked: availability.blocked ?? null,
           },
           false,
           'announce',
