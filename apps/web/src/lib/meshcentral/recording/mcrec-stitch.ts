@@ -1,5 +1,5 @@
 import { McrecParseError } from './mcrec-parser';
-import type { McrecRecord, ParsedRecording } from './mcrec-types';
+import type { McrecRecord, ParsedRecording, RecordingSpan } from './mcrec-types';
 
 /** A reconnect gap between two segments longer than this is shortened to this length in the timeline. */
 export const DEFAULT_MAX_SEGMENT_GAP_MS = 3000;
@@ -14,7 +14,8 @@ export interface StitchOptions {
  * tunnel re-pairs) into a single timeline. Every file opens with the screen
  * size and a full redraw, so the streams simply follow one another and each
  * file's first record is a point a seek can replay from (`restartIndices`).
- * Only the dead time between files is trimmed, down to `maxGapMs`.
+ * Only the dead time between files is trimmed, down to `maxGapMs`; `spans`
+ * says where each file landed, so a server time can be placed on the timeline.
  */
 export function stitchRecordings(segments: ParsedRecording[], options: StitchOptions = {}): ParsedRecording {
   if (segments.length === 0) throw new McrecParseError('No recording segments to stitch');
@@ -30,6 +31,7 @@ export function stitchRecordings(segments: ParsedRecording[], options: StitchOpt
   const records: McrecRecord[] = [];
   const agentRecords: McrecRecord[] = [];
   const restartIndices: number[] = [];
+  const spans: RecordingSpan[] = [];
   // Cumulative ms subtracted from every timestamp of the current segment; grows at each shortened gap.
   let shift = 0;
   let previousLastMs: number | null = null;
@@ -44,6 +46,11 @@ export function stitchRecordings(segments: ParsedRecording[], options: StitchOpt
         else if (gap < 0) shift += gap;
       }
       restartIndices.push(agentRecords.length);
+      spans.push({
+        startMs: first.timeMs,
+        endMs: segment.agentRecords[segment.agentRecords.length - 1].timeMs,
+        shiftMs: shift,
+      });
     }
     const rebase = (r: McrecRecord): McrecRecord => (shift === 0 ? r : { ...r, timeMs: r.timeMs - shift });
     for (const r of segment.records) records.push(rebase(r));
@@ -61,5 +68,6 @@ export function stitchRecordings(segments: ParsedRecording[], options: StitchOpt
     durationMs: Math.max(0, lastTimeMs - baseTimeMs),
     protocol,
     restartIndices: restartIndices.length > 0 ? restartIndices : [0],
+    ...(spans.length > 0 ? { spans } : {}),
   };
 }

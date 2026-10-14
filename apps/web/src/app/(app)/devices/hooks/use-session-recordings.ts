@@ -83,15 +83,18 @@ export interface KeepSessionRecordingTarget extends DeleteRemoteSessionTarget {
 }
 
 /**
- * Keep and Release both change the row, the page and the storage pools (a
- * Keep moves the session's bytes into the kept allowance, a Release back).
+ * Keep and Release both change the row, the page, its events and the storage
+ * pools (a Keep moves the session's bytes into the kept allowance, a Release back).
  */
 function useRefreshKeptRecording(deviceId: string) {
   const queryClient = useQueryClient();
   return (recordingId: string | null) => {
     void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecordings(deviceId) });
     void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.recordingStorage() });
-    if (recordingId) void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecording(recordingId) });
+    if (!recordingId) return;
+    void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionRecording(recordingId) });
+    // The Keep or the Release is a row of the session's events.
+    void queryClient.invalidateQueries({ queryKey: deviceQueryKeys.sessionEvents(recordingId) });
   };
 }
 
