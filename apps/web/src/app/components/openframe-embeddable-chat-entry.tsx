@@ -40,8 +40,9 @@ import {
   getAgentAccent,
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
@@ -58,7 +59,9 @@ import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subs
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
+import { MINGO_WHAT_TO_ASK } from '../(app)/mingo/what-to-ask';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
+import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
 interface OpenframeEmbeddableChatEntryProps {
   /** Controlled open state, shared with the host `AppLayoutDrawer`. */
@@ -97,6 +100,22 @@ export function OpenframeEmbeddableChatEntry({
     dialogError,
   } = useMingoUnifiedChatState();
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+
+  // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
+  // offers it), after the chat's own actions.
+  const canResetOnboarding = useCanResetOnboarding();
+  const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
+  const chatMenuExtraItems =
+    v2 && canResetOnboarding
+      ? [
+          {
+            id: 'reset-onboarding',
+            label: 'Reset Onboarding',
+            icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
+            onClick: () => setIsResetOnboardingOpen(true),
+          },
+        ]
+      : undefined;
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
 
   // A dialog that won't load is otherwise indistinguishable from an empty one — the
@@ -319,6 +338,10 @@ export function OpenframeEmbeddableChatEntry({
         collapseTo={v2?.collapseTo}
         onExpand={v2?.onExpand}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
+        // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
+        // one) with prompts that go into the composer.
+        whatToAsk={v2 ? MINGO_WHAT_TO_ASK : undefined}
+        chatMenuExtraItems={chatMenuExtraItems}
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
@@ -392,6 +415,8 @@ export function OpenframeEmbeddableChatEntry({
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
       />
+
+      <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />
     </>
   );
 }
