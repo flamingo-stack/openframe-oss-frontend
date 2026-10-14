@@ -1,12 +1,12 @@
 'use client';
 
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { scriptShellLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { ValueText } from '@/app/components/shared/value-text';
 import { displayValue } from '@/lib/empty-value';
-import { scriptShellLabel } from '../../shared/utils/shell-types';
 
 interface ScriptSummaryCardProps {
   name: string;
