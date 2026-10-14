@@ -7,17 +7,25 @@
  * no stream sequence started the tail at 0, and nats.ws replayed every turn the
  * stream still retained beside the persisted copies.
  */
-import { MESSAGE_TYPE, processHistoricalMessagesWithErrors } from '@flamingo-stack/openframe-frontend-core';
+import { MESSAGE_TYPE } from '@flamingo-stack/openframe-frontend-core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ASSISTANT_CONFIG, CHAT_TYPE } from '../../tickets/constants';
 import { DialogSubscription } from '../hooks/use-mingo-realtime-subscription';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { Message } from '../types';
 import { historyStreamFloor } from '../utils/history-stream-floor';
-import { countOccurrences, DIALOG, historyPage, persistedRows, publishTurn, SUBJECT, USER_ID } from './chat-fixtures';
+import {
+  countOccurrences,
+  DIALOG,
+  historyPage,
+  persistedRows,
+  processMingoHistory,
+  publishTurn,
+  SUBJECT,
+  thread,
+  USER_ID,
+} from './chat-fixtures';
 import { FakeJetStream } from './fake-jetstream';
 
 const server = vi.hoisted(() => ({ current: null as unknown as FakeJetStream }));
@@ -34,18 +42,8 @@ vi.mock('@/lib/nats/nats-app-config', () => ({
 let root: Root | null = null;
 
 function hydrateFromHistory(rows: Array<Record<string, unknown>>) {
-  const { messages } = processHistoricalMessagesWithErrors(rows as never, {
-    assistantName: ASSISTANT_CONFIG.MINGO.name,
-    assistantType: ASSISTANT_CONFIG.MINGO.type,
-    chatTypeFilter: CHAT_TYPE.ADMIN,
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-  });
   useMingoMessagesStore.getState().setActiveDialogId(DIALOG);
-  useMingoMessagesStore.getState().setMessages(DIALOG, messages as Message[]);
-}
-
-function thread(): Message[] {
-  return useMingoMessagesStore.getState().messagesByDialog.get(DIALOG) ?? [];
+  useMingoMessagesStore.getState().setMessages(DIALOG, processMingoHistory(rows));
 }
 
 async function mount(initialOptStartSeq: number | null) {

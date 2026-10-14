@@ -10,7 +10,7 @@
  * during the outage, and their replay then rendered every one of them a second
  * time; nothing re-merged afterwards. The refetch now waits for the replay.
  */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,6 +27,7 @@ import {
   persistedRows,
   publishTurn,
   renderedText,
+  thread,
 } from './chat-fixtures';
 import { FakeJetStream } from './fake-jetstream';
 
@@ -35,6 +36,8 @@ const h = vi.hoisted(() => ({
   db: [] as Array<Record<string, unknown>>,
   dbDelayMs: 0,
   fetches: 0,
+  /** History requests fail while set. */
+  dbDown: false,
 }));
 h.server = new FakeJetStream();
 
@@ -48,6 +51,7 @@ vi.mock('@/lib/nats/nats-app-config', () => ({
 vi.mock('../queries/fetch-dialog-messages', () => ({
   fetchMingoDialogMessages: async () => {
     h.fetches++;
+    if (h.dbDown) return { ok: false, error: 'history unavailable' };
     // Snapshot at request time, delivered after the latency — like a real query.
     const rows = [...h.db].reverse();
     if (h.dbDelayMs > 0) await new Promise(r => setTimeout(r, h.dbDelayMs));
@@ -107,10 +111,6 @@ function Host() {
 
 let root: Root | null = null;
 
-function thread(): Message[] {
-  return useMingoMessagesStore.getState().messagesByDialog.get(DIALOG) ?? [];
-}
-
 async function wait(ms: number) {
   const step = 25;
   for (let t = 0; t < ms; t += step) {
@@ -162,6 +162,16 @@ async function outage(ids: number[], order: { dbDelayMs: number; consumeDelayMs:
   return missed;
 }
 
+const SLOW_REPLAY_MS = 1500;
+
+/** An outage whose replay is held back well past the reconnect. */
+async function slowReplayOutage() {
+  h.server.disconnectAll();
+  await wait(50);
+  publishTurn(h.server, 1);
+  h.server.consumeDelayMs = SLOW_REPLAY_MS;
+}
+
 const REFETCH_FIRST = { dbDelayMs: 0, consumeDelayMs: 300 };
 const REPLAY_FIRST = { dbDelayMs: 300, consumeDelayMs: 0 };
 
@@ -170,6 +180,7 @@ beforeEach(() => {
   h.db = [];
   h.dbDelayMs = 0;
   h.fetches = 0;
+  h.dbDown = false;
   useMingoMessagesStore.getState().resetAll();
 });
 
@@ -217,16 +228,60 @@ describe('reconnect: history refetch vs JetStream resume', () => {
     await wait(400);
     const fetchesBefore = h.fetches;
 
-    h.server.disconnectAll();
-    await wait(50);
-    publishTurn(h.server, 1);
-    h.server.consumeDelayMs = 1500;
+    await slowReplayOutage();
     // Past the reconnect, short of the delayed replay.
-    await wait(1400);
+    await wait(SLOW_REPLAY_MS - 100);
     expect(h.fetches).toBe(fetchesBefore);
 
-    await wait(1500);
+    await wait(SLOW_REPLAY_MS);
     expect(h.fetches).toBe(fetchesBefore + 1);
+  }, 20_000);
+
+  it('the browser coming back online does not refetch history ahead of the replay', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    finishTurns([0]);
+    await open(queryClient);
+    await wait(400);
+    const fetchesBefore = h.fetches;
+    // Stale, as a long outage leaves it, without fetching.
+    const messagesKey = mingoDialogQueryKeys.messages(DIALOG);
+    await act(() => queryClient.invalidateQueries({ queryKey: messagesKey, refetchType: 'none' }));
+    expect(queryClient.getQueryState(messagesKey)?.isInvalidated).toBe(true);
+
+    await slowReplayOutage();
+    try {
+      await act(async () => onlineManager.setOnline(false));
+      await act(async () => onlineManager.setOnline(true));
+      await wait(SLOW_REPLAY_MS - 100);
+      expect(h.fetches).toBe(fetchesBefore);
+
+      await wait(SLOW_REPLAY_MS);
+      expect(h.fetches).toBe(fetchesBefore + 1);
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  }, 20_000);
+
+  it('a first history load that failed is fetched again when the browser comes back online', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    finishTurns([0]);
+    h.dbDown = true;
+    await open(queryClient);
+    await wait(400);
+    const messagesKey = mingoDialogQueryKeys.messages(DIALOG);
+    expect(queryClient.getQueryState(messagesKey)?.status).toBe('error');
+
+    h.dbDown = false;
+    const fetchesBefore = h.fetches;
+    try {
+      await act(async () => onlineManager.setOnline(false));
+      await act(async () => onlineManager.setOnline(true));
+      await wait(200);
+      expect(h.fetches).toBe(fetchesBefore + 1);
+      expect(queryClient.getQueryState(messagesKey)?.status).toBe('success');
+    } finally {
+      onlineManager.setOnline(true);
+    }
   }, 20_000);
 });
 

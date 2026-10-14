@@ -1,14 +1,38 @@
 /**
- * Mingo turns as the ai-agent publishes and persists them, for the replay
- * regression suite in this folder.
+ * Mingo turns as the ai-agent publishes and persists them, plus the history and
+ * store helpers the replay regression suite in this folder shares.
  */
-import { CHAT_TYPE, MESSAGE_TYPE, OWNER_TYPE } from '@flamingo-stack/openframe-frontend-core';
-import type { MessagePage } from '../types';
+import {
+  CHAT_TYPE,
+  MESSAGE_TYPE,
+  OWNER_TYPE,
+  processHistoricalMessagesWithErrors,
+} from '@flamingo-stack/openframe-frontend-core';
+import { ASSISTANT_CONFIG } from '../../tickets/constants';
+import { useMingoMessagesStore } from '../stores/mingo-messages-store';
+import type { Message, MessagePage } from '../types';
 import type { FakeJetStream } from './fake-jetstream';
 
 export const DIALOG = 'dlg-1';
 export const SUBJECT = `chat.${DIALOG}.admin-message`;
 export const USER_ID = 'admin-user-1';
+
+/** The dialog's thread as the Mingo store mirrors it. */
+export function thread(): Message[] {
+  return useMingoMessagesStore.getState().messagesByDialog.get(DIALOG) ?? [];
+}
+
+/** Persisted rows → thread rows, with the options `use-mingo-dialog-selection`
+ *  passes (not its approve/reject handlers, `approvalStatuses` or
+ *  pending-approvals fold). */
+export function processMingoHistory(rows: ReadonlyArray<Record<string, unknown>>): Message[] {
+  return processHistoricalMessagesWithErrors(rows as never, {
+    assistantName: ASSISTANT_CONFIG.MINGO.name,
+    assistantType: ASSISTANT_CONFIG.MINGO.type,
+    chatTypeFilter: CHAT_TYPE.ADMIN,
+    displayApprovalTypes: ['CLIENT', 'ADMIN'],
+  }).messages as Message[];
+}
 
 export interface PublishedTurn {
   userText: string;

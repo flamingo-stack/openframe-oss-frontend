@@ -269,6 +269,11 @@ export function useMingoDialogSelection() {
     initialPageParam: undefined as string | undefined,
     enabled: !!activeDialogId,
     staleTime: 30 * 1000,
+    // Back online is not the moment to refetch loaded pages: the live tail's
+    // `caughtUpCount` does, once the replay is in (see `DialogSubscription`). A
+    // first load that failed still retries: its tail opened as a first consumer,
+    // which never moves `caughtUpCount`, so nothing else would refetch it.
+    refetchOnReconnect: query => query.state.data === undefined,
   });
 
   // Every selection fetches the history afresh, even inside `staleTime`: the
@@ -306,7 +311,7 @@ export function useMingoDialogSelection() {
     () => maxPersistedStreamSeq(messagesQuery.data?.pages),
     [messagesQuery.data?.pages],
   );
-  const initialOptStartSeq = useMemo(() => historyStreamFloor(messagesQuery.data?.pages), [messagesQuery.data?.pages]);
+  const initialOptStartSeq = historyStreamFloor(messagesQuery.data?.pages);
 
   const chronologicalMessages = useMemo(
     () => flattenMessagePagesChronological(messagesQuery.data?.pages),

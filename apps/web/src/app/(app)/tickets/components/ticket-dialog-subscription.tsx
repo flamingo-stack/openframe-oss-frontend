@@ -15,13 +15,9 @@ interface TicketDialogSubscriptionProps {
   clientInitialOptStartSeq: number;
   /** Gates JetStream consumer creation until history has loaded. */
   isInitialOptStartSeqReady: boolean;
-  /** Fired once the tail is back after a gap (a NATS reconnect, a consumer
-   *  recreation, a resync after the page was hidden) AND has replayed what the
-   *  stream still held. The CHAT_CHUNKS stream retains ~10 minutes, so a longer
-   *  gap is only in persisted history — the parent refetches it here, after the
-   *  replay: a refetch landing first merges without the replayed messages,
-   *  which then show twice. */
-  onReconnected?: () => void;
+  /** Fired when the CLIENT tail's `caughtUpCount` moves: the moment to refetch
+   *  persisted history after a gap (see `caughtUpCount`). */
+  onCaughtUp?: () => void;
 }
 
 export function TicketDialogSubscription({
@@ -29,7 +25,7 @@ export function TicketDialogSubscription({
   dispatchChunk,
   clientInitialOptStartSeq,
   isInitialOptStartSeqReady,
-  onReconnected,
+  onCaughtUp,
 }: TicketDialogSubscriptionProps) {
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
 
@@ -67,17 +63,17 @@ export function TicketDialogSubscription({
     getNatsWsUrl: getWsUrl,
   });
 
-  const onReconnectedRef = useRef(onReconnected);
+  const onCaughtUpRef = useRef(onCaughtUp);
   useEffect(() => {
-    onReconnectedRef.current = onReconnected;
-  }, [onReconnected]);
+    onCaughtUpRef.current = onCaughtUp;
+  }, [onCaughtUp]);
 
   // The ref keeps a repeated read from re-notifying the parent.
   const lastNotifiedCatchUpRef = useRef(0);
   useEffect(() => {
     if (caughtUpCount <= lastNotifiedCatchUpRef.current) return;
     lastNotifiedCatchUpRef.current = caughtUpCount;
-    onReconnectedRef.current?.();
+    onCaughtUpRef.current?.();
   }, [caughtUpCount]);
 
   return null;

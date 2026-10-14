@@ -2,48 +2,32 @@
  * In-memory JetStream behind a `connect` that replaces nats.ws's, for driving
  * the real `DialogSubscription` (and the lib client under it) without a server.
  *
- * The consumer CONFIG is not re-implemented: it is what nats.ws's own
- * `OrderedPullConsumerImpl.getConsumerOpts` builds before `CONSUMER.CREATE`
- * (loaded from the installed package past its exports map), so a nats.ws quirk
- * — a start sequence of 0 becoming 1 — shows up here as it does against a real
- * server. Only the server half is simulated, with JetStream's semantics:
- * `by_start_sequence` delivers every retained message from `opt_start_seq` on,
- * `new` delivers nothing retained, retention is `Limits` + `maxAge` (CHAT_CHUNKS:
- * 10 minutes), and each message carries the `pending` count the server would
- * put in its reply subject.
+ * Only the server half is simulated, from the options the lib hands
+ * `consumers.get`: `by_start_sequence` delivers every retained message from
+ * `opt_start_seq` on (nats.ws sends 0 as 1), `new` delivers nothing retained,
+ * retention is `Limits` + `maxAge` (CHAT_CHUNKS: 10 minutes), and each message
+ * carries the `pending` count the server would put in its reply subject. How
+ * nats.ws turns those options into a CONSUMER.CREATE is pinned by the lib's
+ * own fake (`openframe-frontend-core/src/nats/__tests__/fake-jetstream.ts`),
+ * which runs nats.ws's code for it.
  */
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 
 export interface ServerConsumerConfig {
   name: string;
   deliver_policy: string;
   opt_start_seq?: number;
-  filter_subject?: string;
+  filter_subject: string;
 }
 
-interface OrderedConsumerConfigBuilder {
-  cursor: { stream_seq: number };
-  getConsumerOpts: (seq: number) => ServerConsumerConfig;
-}
-
-const loadCjs = createRequire(import.meta.url);
-const { OrderedPullConsumerImpl } = loadCjs(
-  join(dirname(loadCjs.resolve('nats.ws')), '../lib/jetstream/consumer.js'),
-) as {
-  OrderedPullConsumerImpl: new (
-    api: unknown,
-    stream: string,
-    opts: Record<string, unknown>,
-  ) => OrderedConsumerConfigBuilder;
-};
-
-/** What nats.ws sends the server for these `consumers.get` options. */
-function orderedConsumerServerConfig(stream: string, opts: Record<string, unknown>): ServerConsumerConfig {
-  const impl = new OrderedPullConsumerImpl({}, stream, opts);
-  // `reset()` → `resetConsumer(cursor.stream_seq + 1)`, which maps 0 to 1.
-  const seq = impl.cursor.stream_seq + 1;
-  return impl.getConsumerOpts(seq === 0 ? 1 : seq);
+function serverConfig(name: string, opts: Record<string, unknown>): ServerConsumerConfig {
+  const filter_subject = String(opts.filterSubjects);
+  if (opts.deliver_policy === 'new') return { name, deliver_policy: 'new', filter_subject };
+  return {
+    name,
+    deliver_policy: 'by_start_sequence',
+    opt_start_seq: Math.max(1, Number(opts.opt_start_seq ?? 0)),
+    filter_subject,
+  };
 }
 
 interface StoredMsg {
@@ -109,6 +93,7 @@ export class FakeJetStream {
   createdConsumers: ServerConsumerConfig[] = [];
   /** Latency between CONSUMER.CREATE and the first delivered message. */
   consumeDelayMs = 0;
+  private consumerSerial = 0;
   private live = new Set<LiveConsumer>();
   private conns = new Set<{ drop: () => void }>();
 
@@ -118,6 +103,7 @@ export class FakeJetStream {
     this.nextSeq = 1;
     this.createdConsumers = [];
     this.consumeDelayMs = 0;
+    this.consumerSerial = 0;
     this.live.clear();
   }
 
@@ -149,7 +135,7 @@ export class FakeJetStream {
   }
 
   /** The `nats.ws` `connect()` replacement. */
-  connect = async () => {
+  connect = () => {
     let closed = false;
     const status = new Queue<StatusEvent>();
     const token = {};
@@ -162,24 +148,26 @@ export class FakeJetStream {
       },
     };
     this.conns.add(connEntry);
-    return {
+    return Promise.resolve({
       isClosed: () => closed,
       closed: () => new Promise(() => {}),
-      drain: async () => {
+      drain: () => {
         closed = true;
+        return Promise.resolve();
       },
-      close: async () => {
+      close: () => {
         closed = true;
+        return Promise.resolve();
       },
       status: () => status,
       publish: () => {},
       subscribe: () => ({ unsubscribe() {}, [Symbol.asyncIterator]: async function* () {} }),
       jetstream: () => ({
         consumers: {
-          get: async (stream: string, opts: Record<string, unknown>) => {
-            const config = orderedConsumerServerConfig(stream, opts);
+          get: (_stream: string, opts: Record<string, unknown>) => {
+            const config = serverConfig(`fake-consumer-${++this.consumerSerial}`, opts);
             this.createdConsumers.push(config);
-            const filter = String(opts.filterSubjects);
+            const filter = config.filter_subject;
             const messages = new Queue<unknown>();
             const consumerStatus = new Queue<StatusEvent>();
             const toJsMsg = (m: StoredMsg, pending: number) => ({
@@ -200,9 +188,9 @@ export class FakeJetStream {
               },
             };
 
-            return {
-              info: async () => info,
-              consume: async () => {
+            return Promise.resolve({
+              info: () => Promise.resolve(info),
+              consume: () => {
                 const backlog =
                   config.deliver_policy === 'by_start_sequence'
                     ? this.retainedAfter(filter, config.opt_start_seq ?? 1)
@@ -216,16 +204,19 @@ export class FakeJetStream {
                 };
                 if (this.consumeDelayMs > 0) setTimeout(deliverBacklog, this.consumeDelayMs);
                 else deliverBacklog();
-                return {
-                  status: async () => consumerStatus,
-                  close: async () => entry.end(),
+                return Promise.resolve({
+                  status: () => Promise.resolve(consumerStatus),
+                  close: () => {
+                    entry.end();
+                    return Promise.resolve();
+                  },
                   [Symbol.asyncIterator]: () => messages[Symbol.asyncIterator](),
-                };
+                });
               },
-            };
+            });
           },
         },
       }),
-    };
+    });
   };
 }

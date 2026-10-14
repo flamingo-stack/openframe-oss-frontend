@@ -9,37 +9,31 @@
  * turn AND the live bubble. The next chunk then rewrote the live bubble as both
  * turns, and that "richer" copy later replaced the persisted row.
  */
-import {
-  maxPersistedStreamSeq,
-  mergeHistoryWithRealtime,
-  processHistoricalMessagesWithErrors,
-} from '@flamingo-stack/openframe-frontend-core';
+import { maxPersistedStreamSeq, mergeHistoryWithRealtime } from '@flamingo-stack/openframe-frontend-core';
 import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ASSISTANT_CONFIG, CHAT_TYPE } from '../../tickets/constants';
 import { bindMingoDialog, useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { Message } from '../types';
-import { countOccurrences, DIALOG, persistedRows, publishTurn, renderedText, SUBJECT } from './chat-fixtures';
+import {
+  countOccurrences,
+  DIALOG,
+  persistedRows,
+  processMingoHistory,
+  publishTurn,
+  renderedText,
+  SUBJECT,
+  thread,
+} from './chat-fixtures';
 import { FakeJetStream } from './fake-jetstream';
 
 type Rows = ReturnType<typeof persistedRows>;
 
-function processed(rows: Rows) {
-  return processHistoricalMessagesWithErrors(rows as never, {
-    assistantName: ASSISTANT_CONFIG.MINGO.name,
-    assistantType: ASSISTANT_CONFIG.MINGO.type,
-    chatTypeFilter: CHAT_TYPE.ADMIN,
-    displayApprovalTypes: ['CLIENT', 'ADMIN'],
-  }).messages as Message[];
-}
-
 const store = () => useMingoMessagesStore.getState();
-const thread = () => store().messagesByDialog.get(DIALOG) ?? [];
 
-/** What `use-mingo-dialog-selection` does on every history (re)merge. */
+/** The full-merge branch `use-mingo-dialog-selection` runs on a history
+ *  (re)fetch, without its pending-approvals fold (these turns have none). */
 function merge(rows: Rows, streamingId: string | null) {
   const merged = mergeHistoryWithRealtime({
-    processedHistory: processed(rows),
+    processedHistory: processMingoHistory(rows),
     rawHistoryIds: new Set(rows.map(r => r.id)),
     existingMessages: thread(),
     streamingMessageId: streamingId,

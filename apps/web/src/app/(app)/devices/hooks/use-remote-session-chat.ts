@@ -85,8 +85,9 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     });
   }, []);
 
-  // The page: at every dialog open and after every feed reconnect (the stream
-  // keeps minutes, a longer outage leaves a gap only the page can fill).
+  // The page: at every dialog open and after a gap, once the tail has caught up
+  // (the stream keeps minutes, a longer outage leaves a gap only the page can
+  // fill).
   const [historyRevision, setHistoryRevision] = useState(0);
   useEffect(() => {
     if (!dialogId) return undefined;
@@ -138,8 +139,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     onBeforeReconnect,
     getNatsWsUrl: getWsUrl,
   });
-  // After a gap, history is reloaded once the resumed tail has replayed what
-  // the stream still held, not while it is still replaying.
+  // After a gap, once the replay is in (see `caughtUpCount`).
   const lastCatchUpRef = useRef(0);
   useEffect(() => {
     if (caughtUpCount <= lastCatchUpRef.current) return;

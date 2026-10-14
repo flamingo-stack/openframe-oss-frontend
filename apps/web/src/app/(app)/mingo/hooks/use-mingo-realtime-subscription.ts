@@ -272,11 +272,8 @@ export function DialogSubscription({
     getNatsWsUrl: getWsUrl,
   });
 
-  // The tail came back (reconnect, resync, consumer recreation) and has
-  // replayed what the stream still held: JetStream keeps only ~10 minutes of
-  // CHAT_CHUNKS, so a longer gap is only in persisted history. Refetched AFTER
-  // the replay, never beside it — a refetch that lands first merges without
-  // the replayed turns, which then render a second time.
+  // After a gap, once the replay is in (see `caughtUpCount`): CHAT_CHUNKS keeps
+  // only ~10 minutes, so a longer gap is only in persisted history.
   const lastHandledCatchUpRef = useRef(0);
   useEffect(() => {
     if (caughtUpCount <= lastHandledCatchUpRef.current) return;

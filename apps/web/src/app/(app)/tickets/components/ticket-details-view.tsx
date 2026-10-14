@@ -386,12 +386,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // anything published in the meantime is still delivered from there.
   const isInitialOptStartSeqReady = clientChat.isFetchedAfterMount;
 
-  // After a gap: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
-  // outage longer than that leaves a gap the resume-by-seq cannot fill.
-  // Refetch persisted history once the replay is in (`onReconnected` fires
-  // then), so the merge sees the replayed messages instead of racing them.
+  // After a gap, once the replay is in (see `caughtUpCount`).
   const refetchClientChat = clientChat.refetch;
-  const handleNatsReconnected = useCallback(() => {
+  const handleCaughtUp = useCallback(() => {
     void refetchClientChat();
   }, [refetchClientChat]);
 
@@ -901,7 +898,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         dispatchChunk={dispatchChunk}
         clientInitialOptStartSeq={clientInitialOptStartSeq}
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
-        onReconnected={handleNatsReconnected}
+        onCaughtUp={handleCaughtUp}
       />
       <TicketNotificationsAutoReader
         ticketId={dialog.id}

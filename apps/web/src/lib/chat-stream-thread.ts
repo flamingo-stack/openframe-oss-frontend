@@ -216,6 +216,9 @@ export interface ReducerMirrorConfig<K extends string> {
  *     fresh one.
  *  3. the adopt-once flag, so a REPLAYED `turn-start` re-streams into the
  *     partial bubble rather than opening a duplicate beside it.
+ *
+ * While the reducer has a turn open (`streaming`), only step 1 runs and
+ * adopt-once is disarmed — see `hydrate`.
  */
 export interface HydrateOptions {
   /**
@@ -636,7 +639,7 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
       if (turnOpen) {
         // The `turn-start` that opened it consumed any armed flag already.
         armAdopt = false;
-        reducer.armAdoptTrailingAssistant(false);
+        disarmAdopt(key, reducer);
         return;
       }
       // Second call, `null` thread: seeds ONLY the per-turn kernel, leaving the
