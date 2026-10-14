@@ -57,9 +57,9 @@ import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-se
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { useMingoWhatToAsk } from '../(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
-import { MINGO_WHAT_TO_ASK } from '../(app)/mingo/what-to-ask';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
 import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
@@ -103,6 +103,7 @@ export function OpenframeEmbeddableChatEntry({
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
   // offers it), after the chat's own actions.
+  const loadWhatToAsk = useMingoWhatToAsk();
   const canResetOnboarding = useCanResetOnboarding();
   const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
   const chatMenuExtraItems =
@@ -339,8 +340,8 @@ export function OpenframeEmbeddableChatEntry({
         onExpand={v2?.onExpand}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
         // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
-        // one) with prompts that go into the composer.
-        whatToAsk={v2 ? MINGO_WHAT_TO_ASK : undefined}
+        // one) with prompts that go into the composer, naming online devices.
+        whatToAsk={v2 ? loadWhatToAsk : undefined}
         chatMenuExtraItems={chatMenuExtraItems}
         open={open}
         onOpenChange={onOpenChange}
