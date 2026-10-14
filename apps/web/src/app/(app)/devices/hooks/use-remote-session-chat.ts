@@ -121,7 +121,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
   // The dialog's feed, from the page's tail once the page is in.
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
   const current = store.dialogId === dialogId ? store : EMPTY_STORE;
-  const { reconnectionCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount } = useJetStreamDialogSubscription({
     enabled: dialogId !== null && current.historyLoaded,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -138,12 +138,14 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     onBeforeReconnect,
     getNatsWsUrl: getWsUrl,
   });
-  const lastReconnectRef = useRef(0);
+  // After a gap, history is reloaded once the resumed tail has replayed what
+  // the stream still held, not while it is still replaying.
+  const lastCatchUpRef = useRef(0);
   useEffect(() => {
-    if (reconnectionCount <= lastReconnectRef.current) return;
-    lastReconnectRef.current = reconnectionCount;
+    if (caughtUpCount <= lastCatchUpRef.current) return;
+    lastCatchUpRef.current = caughtUpCount;
     setHistoryRevision(n => n + 1);
-  }, [reconnectionCount]);
+  }, [caughtUpCount]);
 
   const send = useCallback(
     async (body: string) => {

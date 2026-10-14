@@ -24,6 +24,7 @@ import { fetchMingoDialogMessages } from '../queries/fetch-dialog-messages';
 import { useApproveRequestMutation, useRejectRequestMutation } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogResponse, Message, MessagePage } from '../types';
+import { historyStreamFloor } from '../utils/history-stream-floor';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /**
@@ -217,9 +218,10 @@ export function useMingoDialogSelection() {
     // of the backoff (~8s), during which the panel looks like an ordinary empty chat.
     retry: (failureCount, error) => error.message !== MINGO_DIALOG_NOT_FOUND && failureCount < 3,
     staleTime: 30 * 1000,
-    // Self-heals if every chunk carrying streamState=IDLE is dropped; off while
-    // idle. Also polls while the composer is busy WITHOUT an open stream (see
-    // suspiciousBusyRef) so a stuck busy lock releases on server-IDLE proof.
+    // The only source of `streamState` (no chunk carries it), so polled while
+    // STREAMING; off while idle. Also polls while the composer is busy WITHOUT
+    // an open stream (see suspiciousBusyRef) so a stuck busy lock releases on
+    // server-IDLE proof.
     // Additionally polls a fresh title-less dialog until the async-generated
     // title lands (see isAwaitingGeneratedTitle).
     refetchInterval: query => {
@@ -269,6 +271,19 @@ export function useMingoDialogSelection() {
     staleTime: 30 * 1000,
   });
 
+  // Every selection fetches the history afresh, even inside `staleTime`: the
+  // live tail starts after the newest persisted sequence, and only pages
+  // fetched after this selection are allowed to say what that is (see
+  // `isMessagesFetchedAfterMount`). `cancelRefetch: false` joins a first fetch
+  // already in flight instead of restarting it.
+  useEffect(() => {
+    if (!activeDialogId) return;
+    void queryClient.invalidateQueries(
+      { queryKey: mingoDialogQueryKeys.messages(activeDialogId) },
+      { cancelRefetch: false },
+    );
+  }, [activeDialogId, queryClient]);
+
   // When the async-generated title arrives for the open dialog, push it into
   // the Current Chats list immediately — the list's own 60s poll (and 5-minute
   // staleTime across drawer reopens) would otherwise keep showing "New Chat"
@@ -287,10 +302,11 @@ export function useMingoDialogSelection() {
     }
   }, [activeDialogId, dialogTitle, queryClient]);
 
-  const initialOptStartSeq = useMemo(
+  const historyMaxStreamSeq = useMemo(
     () => maxPersistedStreamSeq(messagesQuery.data?.pages),
     [messagesQuery.data?.pages],
   );
+  const initialOptStartSeq = useMemo(() => historyStreamFloor(messagesQuery.data?.pages), [messagesQuery.data?.pages]);
 
   const chronologicalMessages = useMemo(
     () => flattenMessagePagesChronological(messagesQuery.data?.pages),
@@ -492,7 +508,7 @@ export function useMingoDialogSelection() {
         existingMessages,
         streamingMessageId: streamingExemptId,
         historyFetchedAt: dataUpdatedAt,
-        historyMaxStreamSeq: initialOptStartSeq,
+        historyMaxStreamSeq,
         realtimeSeenStreamSeq: realtimeSeen,
       });
       // Debug-only: this merge is where a realtime-only segment can vanish —
@@ -507,7 +523,7 @@ export function useMingoDialogSelection() {
             0,
           );
         console.log(
-          `[mingo-merge] approvals before=${approvals(existingMessages)} after=${approvals(merged)} | historyMaxSeq=${initialOptStartSeq} realtimeSeen=${realtimeSeen} streamingExempt=${streamingExemptId ?? 'none'}`,
+          `[mingo-merge] approvals before=${approvals(existingMessages)} after=${approvals(merged)} | historyMaxSeq=${historyMaxStreamSeq} realtimeSeen=${realtimeSeen} streamingExempt=${streamingExemptId ?? 'none'}`,
         );
       }
       setMessages(activeDialogId, merged);
@@ -530,7 +546,7 @@ export function useMingoDialogSelection() {
     messagesQuery.isFetched,
     chronologicalMessages,
     streamingExemptId,
-    initialOptStartSeq,
+    historyMaxStreamSeq,
     getMessages,
     getHighestStreamSeq,
     setMessages,
@@ -558,5 +574,10 @@ export function useMingoDialogSelection() {
     isFetchingNextPage: messagesQuery.isFetchingNextPage,
     initialOptStartSeq,
     isMessagesFetched: messagesQuery.isFetched,
+    /** The live tail's gate. Not `isMessagesFetched`: on re-entry that is already
+     *  true for the previous visit's cached pages, whose older start sequence
+     *  replays what arrived while away beside the refetch's persisted rows (the
+     *  tickets fix, #452). Every selection refetches, so this always arrives. */
+    isMessagesFetchedAfterMount: messagesQuery.isFetchedAfterMount,
   };
 }

@@ -616,10 +616,29 @@ export function createReducerMirror<K extends string>(config: ReducerMirrorConfi
     // the trailing consecutive assistant run and reports whether it is still
     // unfinished (pending approval, executing tool, open compaction).
     const extras = computeIncompleteTailState(messages);
-    const armAdopt = extras !== undefined && hydrateOptions?.expectingReplay !== false;
+    let armAdopt = extras !== undefined && hydrateOptions?.expectingReplay !== false;
 
     mutate(key, reducer => {
+      // A turn the reducer is streaming owns its accumulator: the thread is
+      // written, but steps 2 and 3 are skipped. A merge landing mid-turn (a
+      // history refetch while a replay is still arriving) puts the live bubble
+      // after the NEWEST persisted turn, so the trailing assistant run spans
+      // two turns; seeded from it, the next chunk rewrote the live bubble as
+      // that persisted turn plus the streaming one.
+      //
+      // 'streaming' exactly, not "not idle": only a `turn-start` raises it and
+      // only the turn's end lowers it. 'thinking' is also what step 2 restores
+      // for an agent-busy tail with NO turn open, and a second hydrate of that
+      // tail (cached pages, then fresh ones) must seed and arm like the first,
+      // or the replayed `turn-start` opens a bubble beside the partial one.
+      const turnOpen = reducer.state.streamingPhase === 'streaming';
       reducer.initializeWithState(messages.map(m => toUnifiedMessage(m)));
+      if (turnOpen) {
+        // The `turn-start` that opened it consumed any armed flag already.
+        armAdopt = false;
+        reducer.armAdoptTrailingAssistant(false);
+        return;
+      }
       // Second call, `null` thread: seeds ONLY the per-turn kernel, leaving the
       // thread just written untouched (`initializeWithState` skips the messages
       // field when handed `null`).

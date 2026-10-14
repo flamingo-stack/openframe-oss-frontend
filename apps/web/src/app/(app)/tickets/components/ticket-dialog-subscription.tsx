@@ -15,9 +15,12 @@ interface TicketDialogSubscriptionProps {
   clientInitialOptStartSeq: number;
   /** Gates JetStream consumer creation until history has loaded. */
   isInitialOptStartSeqReady: boolean;
-  /** Fired once per NATS reconnect. The CHAT_CHUNKS stream retains ~10
-   *  minutes, so an outage longer than that leaves a gap JetStream replay
-   *  cannot fill — the parent must refetch persisted history to cover it. */
+  /** Fired once the tail is back after a gap (a NATS reconnect, a consumer
+   *  recreation, a resync after the page was hidden) AND has replayed what the
+   *  stream still held. The CHAT_CHUNKS stream retains ~10 minutes, so a longer
+   *  gap is only in persisted history — the parent refetches it here, after the
+   *  replay: a refetch landing first merges without the replayed messages,
+   *  which then show twice. */
   onReconnected?: () => void;
 }
 
@@ -53,7 +56,7 @@ export function TicketDialogSubscription({
     dispatchRef.current(chunk);
   }, []);
 
-  const { reconnectionCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount } = useJetStreamDialogSubscription({
     enabled: !!dialogId && isInitialOptStartSeqReady,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -69,15 +72,13 @@ export function TicketDialogSubscription({
     onReconnectedRef.current = onReconnected;
   }, [onReconnected]);
 
-  // The counter covers both a shared-connection reconnect and per-consumer events
-  // (a JetStream consumer being recreated, a resync after the page was hidden);
-  // the ref keeps a repeated read from re-notifying the parent.
-  const lastNotifiedReconnectRef = useRef(0);
+  // The ref keeps a repeated read from re-notifying the parent.
+  const lastNotifiedCatchUpRef = useRef(0);
   useEffect(() => {
-    if (reconnectionCount <= lastNotifiedReconnectRef.current) return;
-    lastNotifiedReconnectRef.current = reconnectionCount;
+    if (caughtUpCount <= lastNotifiedCatchUpRef.current) return;
+    lastNotifiedCatchUpRef.current = caughtUpCount;
     onReconnectedRef.current?.();
-  }, [reconnectionCount]);
+  }, [caughtUpCount]);
 
   return null;
 }
