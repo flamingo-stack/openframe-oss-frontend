@@ -31,9 +31,26 @@ const ERROR_COPY: Record<DesktopUpdateErrorKind, { message: string; retryable: b
     message: "The download didn't pass verification, so it wasn't installed. Try again later.",
     retryable: true,
   },
-  io: {
-    message: "Couldn't write the update to disk. Free up some space and try again.",
+  disk: {
+    message: "There isn't enough free disk space to install the update. Free up some space and try again.",
     retryable: true,
+  },
+  permission: {
+    message:
+      'OpenFrame Console needs administrator approval to replace itself. Try again and approve the password prompt, or ask your IT admin to install the update.',
+    retryable: true,
+  },
+  blocked: {
+    message:
+      'Your security software blocked the update installer. Ask your IT admin to allow OpenFrame Console updates, then try again.',
+    retryable: true,
+  },
+  // A retry from the same place fails the same way, and moving the app means
+  // relaunching it — the next launch's silent pass takes the update from there.
+  location: {
+    message:
+      "OpenFrame Console can't update itself from where it's running. Move it to your Applications folder, open it from there, and it will update.",
+    retryable: false,
   },
   unavailable: {
     message: "This update isn't available for your system. You can keep using this version.",
@@ -177,14 +194,18 @@ export function DesktopUpdateModal() {
         OpenFrame v{version} is ready to install. This version includes performance improvements and bug fixes.
       </p>
 
-      {errorCopy && (
+      {error && errorCopy && (
         <div
           role="alert"
           // NOT text-h5 — that ramp step is `text-transform: uppercase`, which is
           // a label style. This is a sentence.
-          className="rounded-md border border-ods-error bg-ods-error/10 p-[var(--spacing-system-sf)] text-ods-text-primary text-h4"
+          className="flex flex-col gap-[var(--spacing-system-xxs)] rounded-md border border-ods-error bg-ods-error/10 p-[var(--spacing-system-sf)] text-ods-text-primary text-h4"
         >
-          {errorCopy.message}
+          <span>{errorCopy.message}</span>
+          {/* The shell's raw error (e.g. "Read-only file system (os error 30)"),
+              so a screenshot sent to support carries the OS code without a
+              trip to the log file. */}
+          <span className="break-words text-ods-text-secondary text-h6">Details: {error.message}</span>
         </div>
       )}
 

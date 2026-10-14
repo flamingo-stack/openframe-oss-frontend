@@ -566,18 +566,31 @@ export interface DesktopUpdateAvailability {
 /**
  * Why an update failed, classified SHELL-side (updater.rs `classify`). The
  * plugin's error strings are not an interface — they wrap upstream errors and
- * change between releases — so the kind is what the UI switches on and
- * `message` is only ever for the log.
+ * change between releases — so the kind is what the UI switches on, and
+ * `message` is shown verbatim as a detail line, never matched on.
  *
  * - `network` — could not reach the update server (retry)
  * - `signature` — the download failed verification (retry, then reinstall)
- * - `io` — could not write to disk (free space, retry)
+ * - `disk` — the disk is actually full (free space, retry)
+ * - `permission` — macOS: the administrator prompt to replace the app was refused (retry and approve)
+ * - `blocked` — Windows: security software refused the installer (ask IT, retry)
+ * - `location` — macOS: the app runs from the DMG, a translocated copy or another volume (move it to Applications)
  * - `unavailable` — no artifact for this platform, or a malformed manifest
  * - `busy` — an apply is already running; this call owns nothing
  * - `gone` — no longer offered; the silent startup update already took it
- * - `unknown` — anything else
+ * - `unknown` — anything else, including IO failures none of the above explain
  */
-export type DesktopUpdateErrorKind = 'network' | 'signature' | 'io' | 'unavailable' | 'busy' | 'gone' | 'unknown';
+export type DesktopUpdateErrorKind =
+  | 'network'
+  | 'signature'
+  | 'disk'
+  | 'permission'
+  | 'blocked'
+  | 'location'
+  | 'unavailable'
+  | 'busy'
+  | 'gone'
+  | 'unknown';
 
 export interface DesktopUpdateError {
   kind: DesktopUpdateErrorKind;
