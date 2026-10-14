@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
@@ -25,10 +25,10 @@ function Cell({ value, label, className }: { value: string; label: string; class
       )}
     >
       <div className="text-h4">
-        <Skeleton className={cn('inline-block h-3 max-w-full content-md:h-4', value)} />
+        <UnifiedSkeleton className={cn('inline-block h-3 max-w-full content-md:h-4', value)} />
       </div>
       <div className="text-h6">
-        <Skeleton className={cn('inline-block h-2.5 max-w-full content-md:h-3', label)} />
+        <UnifiedSkeleton className={cn('inline-block h-2.5 max-w-full content-md:h-3', label)} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
   Select,
@@ -8,7 +9,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -56,7 +56,7 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
   const { data: policy, isPending, error, refetch } = useTenantRemoteAccessPolicy();
 
   if (isPending) {
-    return <Skeleton className="h-20 w-full rounded-md" />;
+    return <UnifiedSkeleton className="h-20 w-full rounded-md" />;
   }
 
   if (error || !policy) {

@@ -1,7 +1,8 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Card, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Card } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatCompactCount } from '@/lib/format-number';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../ai-balance/ai-top-up-fields';
 import { AutoTopUpCheckbox } from '../ai-balance/auto-top-up-checkbox';
@@ -69,7 +70,7 @@ export function AiTokenBalanceCard({
       <div className="flex items-start gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-mf)]">
         <GiftIcon className="size-6 shrink-0 text-ods-accent" />
         {freeTokens == null ? (
-          <Skeleton className="h-5 w-full max-w-[22rem]" />
+          <UnifiedSkeleton className="h-5 w-full max-w-[22rem]" />
         ) : (
           <p className="text-ods-text-primary text-h4">
             <span className="text-ods-accent text-h3">{formatCompactCount(freeTokens)}</span> free tokens every month.

@@ -1,7 +1,8 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { WorkTimeTableSkeleton } from '@/app/components/shared/work-time-table';
 
 /**
@@ -30,8 +31,8 @@ export function WorktimePageSkeleton() {
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         {/* Search input + date-range picker row (`content-md:w-[276px]` picker). */}
         <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
-          <Skeleton className="h-12 w-full rounded-[6px] content-md:flex-1" />
-          <Skeleton className="h-12 w-full rounded-[6px] content-md:w-[276px]" />
+          <UnifiedSkeleton className="h-12 w-full rounded-[6px] content-md:flex-1" />
+          <UnifiedSkeleton className="h-12 w-full rounded-[6px] content-md:w-[276px]" />
         </div>
         <WorkTimeTableSkeleton showEmployee showCustomer />
       </div>

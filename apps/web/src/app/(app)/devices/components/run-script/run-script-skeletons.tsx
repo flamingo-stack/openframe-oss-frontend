@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from '../../../scripts/script/components/script-summary-card';
 
 /** Description widths cycled through the picker rows so they don't look uniform. */
@@ -20,10 +20,10 @@ export function RunScriptSelectListSkeleton() {
           className="flex w-full items-center gap-[var(--spacing-system-mf)] border-b border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] last:border-b-0"
         >
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className={`h-4 max-w-full ${descWidth}`} />
+            <UnifiedSkeleton className="h-5 w-40" />
+            <UnifiedSkeleton className={`h-4 max-w-full ${descWidth}`} />
           </div>
-          <Skeleton className="h-4 w-4 rounded" />
+          <UnifiedSkeleton className="h-4 w-4 rounded" />
         </div>
       ))}
     </div>
@@ -34,13 +34,13 @@ export function RunScriptSelectListSkeleton() {
 function ArgumentsSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-sf)]">
-      <Skeleton className="h-5 w-36" />
+      <UnifiedSkeleton className="h-5 w-36" />
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <Skeleton className="h-12 flex-1 rounded-md" />
-        <Skeleton className="h-12 flex-1 rounded-md" />
-        <Skeleton className="h-12 w-12 rounded-md" />
+        <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
+        <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
+        <UnifiedSkeleton className="h-12 w-12 rounded-md" />
       </div>
-      <Skeleton className="h-10 w-full rounded-md" />
+      <UnifiedSkeleton className="h-10 w-full rounded-md" />
     </div>
   );
 }
@@ -60,10 +60,10 @@ export function RunScriptConfigStepSkeleton() {
         {/* Timeout + Run as User */}
         <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
           <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <Skeleton className="h-6 w-24" />
-            <Skeleton className="h-12 w-full rounded-md" />
+            <UnifiedSkeleton className="h-6 w-24" />
+            <UnifiedSkeleton className="h-12 w-full rounded-md" />
           </div>
-          <Skeleton className="h-12 w-full rounded-md" />
+          <UnifiedSkeleton className="h-12 w-full rounded-md" />
         </div>
 
         {/* Script Arguments + Environment Vars — one per line */}
@@ -73,8 +73,8 @@ export function RunScriptConfigStepSkeleton() {
 
       {/* Footer: Back / Run Script */}
       <div className="flex shrink-0 gap-[var(--spacing-system-mf)] border-t border-ods-border pt-[var(--spacing-system-mf)]">
-        <Skeleton className="h-12 flex-1 rounded-md" />
-        <Skeleton className="h-12 flex-1 rounded-md" />
+        <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
+        <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
       </div>
     </div>
   );

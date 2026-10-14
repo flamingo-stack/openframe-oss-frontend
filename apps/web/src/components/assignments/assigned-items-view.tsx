@@ -1,6 +1,7 @@
 'use client';
 
-import { Skeleton, type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
 import { DevicesAssignedTable } from './tables/devices-assigned-table';
@@ -61,7 +62,7 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     return (
       <section className={className}>
         {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
-        <Skeleton className="h-12 w-full" />
+        <UnifiedSkeleton className="h-12 w-full" />
       </section>
     );
   }

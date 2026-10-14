@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Component, type ReactNode, Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
@@ -84,9 +84,9 @@ class LogDrawerDetailsErrorBoundary extends Component<
 function LogDrawerDetailsSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <Skeleton className="h-5 w-full" />
-      <Skeleton className="h-5 w-full" />
-      <Skeleton className="h-5 w-3/4" />
+      <UnifiedSkeleton className="h-5 w-full" />
+      <UnifiedSkeleton className="h-5 w-full" />
+      <UnifiedSkeleton className="h-5 w-3/4" />
     </div>
   );
 }

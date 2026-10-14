@@ -1,13 +1,13 @@
 'use client';
 
 import { InfoSection, type InfoSectionRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { InlineSkeleton } from '@/app/components/shared';
 import { providerPresentation } from '../../utils/tenant-presentation';
 import { INTEGRATION_LABELS } from './tenant-integration-labels';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 const bar = (width: string): InfoSectionRow['value'] => ({
   type: 'custom',
-  content: <InlineSkeleton className={`h-6 ${width}`} />,
+  content: <UnifiedSkeleton as="span" aria-hidden className={`inline-block max-w-full align-middle h-6 ${width}`} />,
 });
 
 /**

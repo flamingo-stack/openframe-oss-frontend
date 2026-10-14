@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
@@ -31,7 +31,7 @@ export function MspOrganizationCard({
           swapped to the real logo or initials. `h-12 w-12 rounded-md` is exactly what
           `SquareAvatar size="lg" variant="square"` occupies, so nothing shifts. */}
       {isLoading ? (
-        <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+        <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-md" />
       ) : (
         <SquareAvatar src={logoUrl} fallback={displayName} size="lg" variant="square" />
       )}
@@ -43,7 +43,7 @@ export function MspOrganizationCard({
           // bar: the website line below is optional per tenant, so reserving it would be
           // a guess. The 48px avatar sets the row height either way.
           <div className="flex h-[var(--font-line-space-h4-body)] items-center">
-            <Skeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
+            <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
           </div>
         ) : (
           <>

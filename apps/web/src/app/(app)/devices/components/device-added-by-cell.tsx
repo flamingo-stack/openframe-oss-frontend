@@ -1,6 +1,7 @@
 'use client';
 
-import { Skeleton, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { useUser } from '@/app/(app)/settings/hooks/use-user';
 import type { UserRecord } from '@/app/(app)/settings/hooks/use-users';
@@ -31,13 +32,13 @@ function AddedByFrame({ avatar, children }: { avatar?: React.ReactNode; children
 /** Same frame with the avatar and the name as placeholders; the label is the real text. */
 export function DeviceAddedByCellSkeleton() {
   return (
-    <AddedByFrame avatar={<Skeleton className="size-8 shrink-0 rounded-full" />}>
+    <AddedByFrame avatar={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}>
       <span className="relative inline-block w-28 align-middle text-h4">
         {/* Invisible char establishes the real line-box height of the name. */}
         <span className="invisible" aria-hidden>
           &nbsp;
         </span>
-        <Skeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
+        <UnifiedSkeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
       </span>
     </AddedByFrame>
   );

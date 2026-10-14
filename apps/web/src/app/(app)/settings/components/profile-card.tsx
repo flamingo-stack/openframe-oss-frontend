@@ -1,6 +1,7 @@
 'use client';
 
-import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
+import { Tag } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertCircleIcon,
@@ -45,7 +46,7 @@ interface ProfileCardProps {
 function ProfileCardSkeleton() {
   return (
     <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy="true">
-      <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+      <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1 overflow-hidden">
         {/* `min-h-8` because the loaded name line carries role tags, and `Tag` is a fixed
             32px — taller than the 24px text line box, so IT sets the row's height (16 +
@@ -53,13 +54,13 @@ function ProfileCardSkeleton() {
             grew 4px on handoff. The real line below is pinned the same way so the height
             no longer depends on whether a user happens to have roles. */}
         <div className="flex min-h-8 items-center">
-          <Skeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
         </div>
         <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
-      <Skeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
+      <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
     </div>
   );
 }

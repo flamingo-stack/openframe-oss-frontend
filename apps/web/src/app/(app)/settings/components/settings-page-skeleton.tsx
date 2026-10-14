@@ -1,6 +1,7 @@
 'use client';
 
-import { PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 /**
  * Route-level skeleton for `/settings` — `SettingsHub`'s account card, the
@@ -18,17 +19,17 @@ export function SettingsPageSkeleton() {
       contentClassName="gap-[var(--spacing-system-l)] content-lg:gap-[var(--spacing-system-xl)]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <Skeleton className="h-40 w-full rounded-md" />
+        <UnifiedSkeleton className="h-40 w-full rounded-md" />
       </div>
 
       <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
         {MENU_CARD_KEYS.map(key => (
-          <Skeleton key={key} className="h-[88px] w-full rounded-md" />
+          <UnifiedSkeleton key={key} className="h-[88px] w-full rounded-md" />
         ))}
       </div>
 
       <div className="mt-auto">
-        <Skeleton className="h-12 w-32 rounded-md" />
+        <UnifiedSkeleton className="h-12 w-32 rounded-md" />
       </div>
     </PageLayout>
   );

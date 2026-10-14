@@ -1,7 +1,7 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertCircleIcon, DotIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 // Mirrors the data-loss box structure (header chrome + 5 bulleted rows) so the
 // loading state keeps the same shape instead of a flat rectangle.
@@ -22,7 +22,7 @@ export function DataLossBoxSkeleton() {
         {SKELETON_ROW_WIDTHS.map((width, i) => (
           <li key={i} className="flex h-6 items-center">
             <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
-            <Skeleton className={`h-4 ${width}`} />
+            <UnifiedSkeleton className={`h-4 ${width}`} />
           </li>
         ))}
       </ul>

@@ -1,5 +1,6 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Ellipsis01Icon,
@@ -10,7 +11,6 @@ import {
 import {
   ActionsMenuDropdown,
   Button,
-  Skeleton,
   SquareAvatar,
   Textarea,
   TruncateText,
@@ -197,7 +197,7 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
 export function NotesSectionSkeleton() {
   return (
     <NotesSectionFrame>
-      <Skeleton className="h-8 w-28 rounded-md" />
+      <UnifiedSkeleton className="h-8 w-28 rounded-md" />
     </NotesSectionFrame>
   );
 }

@@ -1,10 +1,10 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type PageActionButton,
-  Skeleton,
   SquareAvatar,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -166,10 +166,10 @@ function RunInfoBarSkeleton() {
             className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
           >
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 w-20 max-w-full content-md:h-4" />
+              <UnifiedSkeleton className="inline-block h-3 w-20 max-w-full content-md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 w-14 max-w-full content-md:h-3" />
+              <UnifiedSkeleton className="inline-block h-2.5 w-14 max-w-full content-md:h-3" />
             </div>
           </div>
         ))}
@@ -181,10 +181,10 @@ function RunInfoBarSkeleton() {
             className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
           >
             <div className="text-h4">
-              <Skeleton className="inline-block h-3 w-32 max-w-full content-md:h-4" />
+              <UnifiedSkeleton className="inline-block h-3 w-32 max-w-full content-md:h-4" />
             </div>
             <div className="text-h6">
-              <Skeleton className="inline-block h-2.5 w-16 max-w-full content-md:h-3" />
+              <UnifiedSkeleton className="inline-block h-2.5 w-16 max-w-full content-md:h-3" />
             </div>
           </div>
         ))}

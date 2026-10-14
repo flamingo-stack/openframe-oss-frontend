@@ -1,16 +1,15 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type ColumnDef,
   DataTable,
-  Skeleton,
   StackedRowsPanel,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
-import { InlineSkeleton } from '@/app/components/shared';
 import { buildCustomerContactRows, buildCustomerInfoRows } from './details-tabs/customer-details-rows';
 
 /**
@@ -36,22 +35,22 @@ export function CustomerHeaderSkeleton() {
     >
       <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
         {/* Back button (hidden on mobile to match TitleBlock) */}
-        <Skeleton className="hidden h-10 w-44 content-md:block" />
+        <UnifiedSkeleton className="hidden h-10 w-44 content-md:block" />
         {/* Identity row: logo + (title + subtitle) */}
         <div className="flex w-full min-w-0 items-center gap-[var(--spacing-system-m)]">
-          <Skeleton className="size-12 shrink-0 rounded-md content-md:size-16" />
+          <UnifiedSkeleton className="size-12 shrink-0 rounded-md content-md:size-16" />
           <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-            <Skeleton className="h-7 w-72 max-w-full content-md:h-9" />
-            <Skeleton className="h-5 w-56 max-w-full" />
+            <UnifiedSkeleton className="h-7 w-72 max-w-full content-md:h-9" />
+            <UnifiedSkeleton className="h-5 w-56 max-w-full" />
           </div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {/* Mobile: single icon button (icon-buttons variant collapses on mobile) */}
-        <Skeleton className="h-12 w-12 rounded-[6px] content-md:hidden" />
+        <UnifiedSkeleton className="h-12 w-12 rounded-[6px] content-md:hidden" />
         {/* Desktop: full action buttons */}
-        <Skeleton className="hidden h-12 w-[200px] rounded-[6px] content-md:block" />
-        <Skeleton className="hidden h-12 w-[180px] rounded-[6px] content-md:block" />
+        <UnifiedSkeleton className="hidden h-12 w-[200px] rounded-[6px] content-md:block" />
+        <UnifiedSkeleton className="hidden h-12 w-[180px] rounded-[6px] content-md:block" />
       </div>
     </div>
   );
@@ -64,8 +63,8 @@ export function CustomerTabNavigationSkeleton() {
       <div className="flex h-full items-center gap-1 overflow-hidden">
         {['w-[110px]', 'w-[100px]', 'w-[90px]', 'w-[100px]'].map((w, i) => (
           <div key={i} className={`flex h-14 shrink-0 items-center justify-center gap-2 p-4 ${w}`}>
-            <Skeleton className="h-6 w-6 shrink-0" />
-            <Skeleton className="h-5 flex-1" />
+            <UnifiedSkeleton className="h-6 w-6 shrink-0" />
+            <UnifiedSkeleton className="h-5 flex-1" />
           </div>
         ))}
       </div>
@@ -77,8 +76,8 @@ export function CustomerTabNavigationSkeleton() {
 function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: string; actionWidth?: string }) {
   return (
     <div className="flex items-end justify-between gap-4">
-      <Skeleton className={`h-10 ${titleWidth}`} />
-      {actionWidth && <Skeleton className={`h-12 ${actionWidth} rounded-[6px]`} />}
+      <UnifiedSkeleton className={`h-10 ${titleWidth}`} />
+      {actionWidth && <UnifiedSkeleton className={`h-12 ${actionWidth} rounded-[6px]`} />}
     </div>
   );
 }
@@ -91,17 +90,17 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
  */
 export function CustomerDetailsTabSkeleton() {
   const infoRows = buildCustomerInfoRows({
-    website: <InlineSkeleton className="h-5 w-40" />,
-    websiteIcon: <Skeleton className="size-6 shrink-0" />,
-    physicalAddress: <InlineSkeleton className="h-5 w-72" />,
-    mailingAddress: <InlineSkeleton className="h-5 w-72" />,
+    website: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-40" />,
+    websiteIcon: <UnifiedSkeleton className="size-6 shrink-0" />,
+    physicalAddress: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-72" />,
+    mailingAddress: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-72" />,
   });
   const contactRows = buildCustomerContactRows([
     {
-      contactName: <InlineSkeleton className="h-5 w-28" />,
-      title: <InlineSkeleton className="h-5 w-28" />,
-      email: <InlineSkeleton className="h-5 w-40" />,
-      phone: <InlineSkeleton className="h-5 w-28" />,
+      contactName: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
+      title: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
+      email: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-40" />,
+      phone: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
     },
   ]);
 
@@ -111,10 +110,10 @@ export function CustomerDetailsTabSkeleton() {
       <StackedRowsPanel rows={contactRows} />
       {/* Notes card: title + two lines of text */}
       <div className="flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]">
-        <Skeleton className="h-8 w-32 content-md:h-10" />
+        <UnifiedSkeleton className="h-8 w-32 content-md:h-10" />
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <Skeleton className="h-5 w-full content-md:h-6" />
-          <Skeleton className="h-5 w-2/3 content-md:h-6" />
+          <UnifiedSkeleton className="h-5 w-full content-md:h-6" />
+          <UnifiedSkeleton className="h-5 w-2/3 content-md:h-6" />
         </div>
       </div>
     </div>
@@ -150,7 +149,7 @@ function makeTableTabSkeleton(columns: Array<{ id: string; header: string; width
     return (
       <div className="flex flex-col gap-4">
         <TabTitleSkeleton titleWidth={titleWidth} actionWidth={actionWidth} />
-        <Skeleton className="h-12 w-full rounded-[6px]" />
+        <UnifiedSkeleton className="h-12 w-full rounded-[6px]" />
         <DataTable table={table}>
           <DataTable.Header />
           <DataTable.Body loading skeletonRows={8} emptyMessage="" rowClassName="mb-1" />

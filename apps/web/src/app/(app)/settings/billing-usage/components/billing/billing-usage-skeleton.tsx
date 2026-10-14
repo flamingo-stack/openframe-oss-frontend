@@ -1,8 +1,9 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Input, PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { InlineSkeleton, TableSkeleton } from '@/app/components/shared';
+import { Button, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TableSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { routes } from '@/lib/routes';
@@ -11,7 +12,7 @@ import { INVOICES_TABLE_COLUMNS } from './invoices-table-layout';
 
 // A value placeholder sized to sit on the right of a BillingRow.
 function Value({ width }: { width: string }) {
-  return <Skeleton className={`h-4 ${width}`} />;
+  return <UnifiedSkeleton className={`h-4 ${width}`} />;
 }
 
 // Mirrors a DashboardInfoCard: real uppercase title, skeleton value, and an
@@ -21,9 +22,9 @@ function InfoCardSkeleton({ title, withProgress = true }: { title: string; withP
     <div className="flex h-[94px] items-center gap-[var(--spacing-system-s)] rounded-sm border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
       <div className="flex flex-1 flex-col gap-2">
         <p className="text-ods-text-secondary text-h5">{title}</p>
-        <Skeleton className="h-7 w-24" />
+        <UnifiedSkeleton className="h-7 w-24" />
       </div>
-      {withProgress && <Skeleton className="size-12 shrink-0 rounded-full" />}
+      {withProgress && <UnifiedSkeleton className="size-12 shrink-0 rounded-full" />}
     </div>
   );
 }
@@ -43,9 +44,9 @@ function StatCardSkeleton({ title, caption }: { title: string; caption?: string 
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
       <div className="flex flex-col gap-1">
         <p className="truncate text-ods-text-secondary text-h5">{title}</p>
-        <Skeleton className="h-8 w-24" />
+        <UnifiedSkeleton className="h-8 w-24" />
       </div>
-      <p className="truncate text-ods-text-secondary text-h6">{caption ?? <InlineSkeleton className="h-3 w-32" />}</p>
+      <p className="truncate text-ods-text-secondary text-h6">{caption ?? <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-32" />}</p>
     </div>
   );
 }

@@ -16,10 +16,11 @@ import {
   StackedRowsPanel,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { InlineSkeleton, TabBarSkeleton, TableSkeleton } from '@/app/components/shared';
+import { TabBarSkeleton, TableSkeleton } from '@/app/components/shared';
 import type { QueryDetailTab } from '@/lib/routes';
 import { ScriptEditor } from '../../scripts/shared/components/script-editor';
 import { POLICY_DEVICES_TABLE_COLUMNS, QUERY_DEVICES_TABLE_COLUMNS } from './monitoring-table-columns';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 /**
  * Loading states for the four monitoring detail routes — `/monitoring/policy`,
@@ -150,9 +151,9 @@ function QueryEditorSkeleton() {
  * one, which the skeleton cannot know yet.
  */
 function policyInfoSkeletonRows(): PanelRow[] {
-  const severity = { key: 'severity', value: <InlineSkeleton className="h-5 w-16" />, label: 'Severity' };
-  const status = { key: 'status', value: <InlineSkeleton className="h-6 w-24 rounded-full" />, label: 'Status' };
-  const author = { key: 'author', value: <InlineSkeleton className="h-5 w-32" />, label: 'Author' };
+  const severity = { key: 'severity', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-16" />, label: 'Severity' };
+  const status = { key: 'status', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-6 w-24 rounded-full" />, label: 'Status' };
+  const author = { key: 'author', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-32" />, label: 'Author' };
 
   return [
     {
@@ -175,7 +176,7 @@ function QueryInfoSkeleton() {
       <div className="grid grid-cols-2 gap-6 content-md:grid-cols-4">
         <div>
           <p className="text-ods-text-primary text-h4">
-            <InlineSkeleton className="h-5 w-24" />
+            <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-24" />
           </p>
           <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
         </div>

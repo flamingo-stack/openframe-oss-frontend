@@ -1,5 +1,6 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
@@ -14,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentType, Suspense } from 'react';
@@ -213,19 +213,19 @@ function ModelTokenRatesSkeleton() {
   return (
     <>
       <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)]">
-        <Skeleton className="h-4 w-12" />
+        <UnifiedSkeleton className="h-4 w-12" />
         <div className="flex-1" />
-        <Skeleton className="h-4 w-28" />
+        <UnifiedSkeleton className="h-4 w-28" />
       </div>
       {SKELETON_ROW_KEYS.map(key => (
         <div
           key={key}
           className="flex items-center gap-[var(--spacing-system-xs)] px-[var(--spacing-system-s)] py-[var(--spacing-system-xxs)]"
         >
-          <Skeleton className="size-6 shrink-0 rounded-full" />
-          <Skeleton className="h-4 w-40" />
+          <UnifiedSkeleton className="size-6 shrink-0 rounded-full" />
+          <UnifiedSkeleton className="h-4 w-40" />
           <div className="flex-1" />
-          <Skeleton className="h-4 w-12" />
+          <UnifiedSkeleton className="h-4 w-12" />
         </div>
       ))}
     </>

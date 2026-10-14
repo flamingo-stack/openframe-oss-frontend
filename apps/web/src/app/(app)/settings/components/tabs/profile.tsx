@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -99,7 +100,7 @@ export function ProfileTab() {
   if (isLoadingProfile && !user) {
     return (
       <div className="pt-6">
-        <Skeleton className="h-20 w-full rounded-md" />
+        <UnifiedSkeleton className="h-20 w-full rounded-md" />
       </div>
     );
   }

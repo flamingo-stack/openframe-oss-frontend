@@ -1,13 +1,9 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PoliciesTable } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  DataTable,
-  type PageActionButton,
-  PageLayout,
-  Skeleton,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DataTable, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { QueriesTable, SearchBarSkeleton, TabBarSkeleton } from '@/app/components/shared';
 
 /**
@@ -52,7 +48,7 @@ export function MonitoringPageSkeleton({ tab }: { tab?: string }) {
           <div className="grid grid-cols-1 gap-4 content-md:grid-cols-2 content-lg:grid-cols-4">
             {/* `DashboardInfoCard`'s own height — see the matching note in `policies.tsx`. */}
             {SUMMARY_CARD_KEYS.map(key => (
-              <Skeleton key={key} className="h-16 w-full content-md:h-[104px]" />
+              <UnifiedSkeleton key={key} className="h-16 w-full content-md:h-[104px]" />
             ))}
           </div>
         )}

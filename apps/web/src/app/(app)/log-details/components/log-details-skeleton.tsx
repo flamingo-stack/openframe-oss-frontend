@@ -1,6 +1,7 @@
 'use client';
 
-import { PageLayout, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DeviceInfoSectionSkeleton } from '@/app/components/shared/device-info-section-skeleton';
 
 interface LogDetailsSkeletonProps {
@@ -10,8 +11,8 @@ interface LogDetailsSkeletonProps {
 function StatusTimestampSkeleton() {
   return (
     <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
-      <Skeleton className="h-6 w-14 rounded-[4px]" />
-      <Skeleton className="h-5 w-40 content-md:h-6" />
+      <UnifiedSkeleton className="h-6 w-14 rounded-[4px]" />
+      <UnifiedSkeleton className="h-5 w-40 content-md:h-6" />
     </div>
   );
 }
@@ -21,11 +22,11 @@ function LogSummaryCardSkeleton() {
     <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
         <div className="flex w-full flex-col gap-2">
-          <Skeleton className="h-5 w-2/3 max-w-[480px] content-md:h-6" />
+          <UnifiedSkeleton className="h-5 w-2/3 max-w-[480px] content-md:h-6" />
           <div className="flex items-center gap-2">
-            <Skeleton className="h-5 w-16 rounded-[4px]" />
-            <Skeleton className="h-1 w-1 rounded-full" />
-            <Skeleton className="h-5 w-28" />
+            <UnifiedSkeleton className="h-5 w-16 rounded-[4px]" />
+            <UnifiedSkeleton className="h-1 w-1 rounded-full" />
+            <UnifiedSkeleton className="h-5 w-28" />
           </div>
         </div>
       </div>
@@ -55,15 +56,15 @@ const FULL_INFO_ROWS: Array<{ labelWidth: string; valueWidth: string }> = [
 function FullInformationSkeleton() {
   return (
     <div className="flex w-full flex-col gap-3">
-      <Skeleton className="h-5 w-32" />
+      <UnifiedSkeleton className="h-5 w-32" />
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="flex flex-col divide-y divide-ods-border">
           {FULL_INFO_ROWS.map(({ labelWidth, valueWidth }, i) => (
             <div key={i} className="p-4 content-md:p-6">
               <div className="flex w-full items-center gap-2">
-                <Skeleton className={`h-5 ${labelWidth} shrink-0`} />
+                <UnifiedSkeleton className={`h-5 ${labelWidth} shrink-0`} />
                 <div className="h-px min-h-px min-w-px flex-1 bg-ods-border" />
-                <Skeleton className={`h-5 ${valueWidth} max-w-[60%] shrink-0`} />
+                <UnifiedSkeleton className={`h-5 ${valueWidth} max-w-[60%] shrink-0`} />
               </div>
             </div>
           ))}
@@ -96,12 +97,12 @@ const DETAILS_LINE_WIDTHS = [
 function DetailsSkeleton() {
   return (
     <div className="flex w-full flex-col gap-3">
-      <Skeleton className="h-5 w-20" />
+      <UnifiedSkeleton className="h-5 w-20" />
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="p-4 content-md:p-6">
           <div className="flex flex-col gap-2">
             {DETAILS_LINE_WIDTHS.map((width, i) => (
-              <Skeleton
+              <UnifiedSkeleton
                 key={i}
                 className={`h-4 ${width}`}
                 style={{ marginLeft: i === 0 || i === DETAILS_LINE_WIDTHS.length - 1 ? 0 : 16 }}
@@ -119,7 +120,7 @@ export function LogDetailsSkeleton({ onBack }: LogDetailsSkeletonProps) {
     <PageLayout
       title="Log Details"
       backButton={{ label: 'Back', onClick: onBack }}
-      selector={<Skeleton className="h-12 w-[180px] rounded-[6px]" />}
+      selector={<UnifiedSkeleton className="h-12 w-[180px] rounded-[6px]" />}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex w-full flex-col gap-6">

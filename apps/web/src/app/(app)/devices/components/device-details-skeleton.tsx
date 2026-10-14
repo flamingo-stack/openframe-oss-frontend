@@ -6,6 +6,7 @@ import {
   PageLayout,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -13,7 +14,6 @@ import {
   ComputerMouseIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components/incidents-table-columns';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
@@ -92,7 +92,7 @@ const SKELETON_ACTIONS: PageActionButton[] = [
       // Deliberately a placeholder, not an arrow or a chevron: which one this
       // becomes is the OS answer we don't have yet. The cell it reserves is what
       // matters.
-      icon: <Skeleton className="h-4 w-4 rounded content-md:h-6 content-md:w-6" />,
+      icon: <UnifiedSkeleton className="h-4 w-4 rounded content-md:h-6 content-md:w-6" />,
       'aria-label': 'Remote Shell',
       onClick: noop,
       disabled: true,
@@ -118,14 +118,14 @@ function TextSkeleton({ typography, width, className }: { typography: string; wi
       <span className="invisible" aria-hidden>
         &nbsp;
       </span>
-      <Skeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
+      <UnifiedSkeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
     </span>
   );
 }
 
 /** Matches the real `Tag` box exactly: `h-8 rounded-md` pill (only the label is skeletoned). */
 function TagSkeleton({ width = 'w-20' }: { width?: string }) {
-  return <Skeleton className={cn('h-8 shrink-0 rounded-md', width)} />;
+  return <UnifiedSkeleton className={cn('h-8 shrink-0 rounded-md', width)} />;
 }
 
 /** Section heading — matches `h3.text-h5.text-ods-text-secondary.mb-4` (line-box accurate). */
@@ -166,12 +166,12 @@ function InfoCardSkeleton({
         <div className="flex w-full flex-col items-start">
           {showTitle && (
             <div className="flex h-6 items-center">
-              <Skeleton className="h-5 w-32" />
+              <UnifiedSkeleton className="h-5 w-32" />
             </div>
           )}
           {showSubtitle && (
             <div className="flex h-6 items-center">
-              <Skeleton className="h-5 w-40" />
+              <UnifiedSkeleton className="h-5 w-40" />
             </div>
           )}
         </div>
@@ -179,12 +179,12 @@ function InfoCardSkeleton({
       <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
         {Array.from({ length: itemCount }).map((_, i) => (
           <div key={i} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-            <Skeleton className="h-5 w-24 shrink-0" />
+            <UnifiedSkeleton className="h-5 w-24 shrink-0" />
             <div className="h-px flex-1 bg-ods-border" />
-            <Skeleton className="h-5 w-20 shrink-0" />
+            <UnifiedSkeleton className="h-5 w-20 shrink-0" />
           </div>
         ))}
-        {showProgress && <Skeleton className="h-1.5 w-full rounded-full" />}
+        {showProgress && <UnifiedSkeleton className="h-1.5 w-full rounded-full" />}
       </div>
     </div>
   );
@@ -207,7 +207,7 @@ function InfoCellSkeleton({
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        {iconClass && <Skeleton className={cn(iconClass, 'shrink-0 rounded-[6px]')} />}
+        {iconClass && <UnifiedSkeleton className={cn(iconClass, 'shrink-0 rounded-[6px]')} />}
         <TextSkeleton typography="text-h4" width={valueWidth} />
       </div>
       <span className="mt-1 truncate text-ods-text-secondary text-h6">{label}</span>
@@ -219,7 +219,7 @@ function InfoCellSkeleton({
 function CustomerCellSkeleton() {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
-      <Skeleton className="size-10 shrink-0 rounded-md" />
+      <UnifiedSkeleton className="size-10 shrink-0 rounded-md" />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TextSkeleton typography="text-h4" width="w-28" />
         <span className="mt-1 truncate text-ods-text-secondary text-h6">Customer ID (Site)</span>
@@ -327,7 +327,7 @@ function HardwareBlockSkeleton({
   return (
     <div className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1">
       <div className="flex h-5 items-center">
-        <Skeleton className="h-4 w-20" />
+        <UnifiedSkeleton className="h-4 w-20" />
       </div>
       <InfoCardSkeleton
         itemCount={items}
@@ -466,32 +466,32 @@ function AgentsTabSkeleton() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="relative flex flex-col">
             <div className="absolute left-4 top-4 z-10">
-              <Skeleton className="h-6 w-24 rounded-[6px]" />
+              <UnifiedSkeleton className="h-6 w-24 rounded-[6px]" />
             </div>
             <div className="absolute right-4 top-4 z-10">
-              <Skeleton className="h-4 w-4 rounded-full" />
+              <UnifiedSkeleton className="h-4 w-4 rounded-full" />
             </div>
             <div className="flex flex-1 flex-col rounded-[6px] border border-ods-border bg-ods-card p-4 pt-16">
               <div className="flex flex-col gap-2">
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-14 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-14 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-20 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-20 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-20 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-20 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-32 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-32 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-8 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-8 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-40 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-40 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-16 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-16 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-14 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-14 shrink-0" />
                 </div>
               </div>
             </div>
@@ -548,11 +548,11 @@ function OverviewTabSkeleton() {
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <DeviceInfoSectionSkeleton />
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-24" />
+        <UnifiedSkeleton className="h-4 w-24" />
         <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-8 w-40 rounded-[6px]" />
-          <Skeleton className="h-8 w-36 rounded-[6px]" />
-          <Skeleton className="h-8 w-44 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-40 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-36 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-44 rounded-[6px]" />
         </div>
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-l)]">

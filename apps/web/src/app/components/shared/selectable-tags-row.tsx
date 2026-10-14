@@ -1,12 +1,8 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  ActionsMenuDropdown,
-  FloatingTooltip,
-  Skeleton,
-  Tag,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ActionsMenuDropdown, FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -115,7 +111,7 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
   );
 }
 
-// Mirrors the visible row: same height (h-8), corner radius (rounded-md, via Skeleton)
+// Mirrors the visible row: same height (h-8), corner radius (rounded-md, via UnifiedSkeleton)
 // and gap as the real Tag chips, with varied widths so the placeholder reads as tags.
 const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
 
@@ -123,7 +119,7 @@ export function SelectableTagsRowSkeleton() {
   return (
     <div aria-hidden className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
       {SKELETON_TAG_WIDTHS.map((width, idx) => (
-        <Skeleton key={idx} className={cn('h-8 shrink-0', width)} />
+        <UnifiedSkeleton key={idx} className={cn('h-8 shrink-0', width)} />
       ))}
     </div>
   );

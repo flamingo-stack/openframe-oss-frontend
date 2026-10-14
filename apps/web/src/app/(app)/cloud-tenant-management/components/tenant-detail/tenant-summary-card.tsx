@@ -11,10 +11,10 @@ import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { tenantSummaryCard_connection$key } from '@/__generated__/tenantSummaryCard_connection.graphql';
 import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSummaryCard_identity.graphql';
-import { InlineSkeleton } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
 import { formatConnectedAt, isReadable, providerPresentation } from '../../utils/tenant-presentation';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 // The two-row identity card of the details page (Figma 2097-140910 / 2097-119207) and its one-row cut
 // on Edit / Reconnect (2097-123264). Own row classes: the employee card's `content-md:contents` folds into one row.
@@ -150,7 +150,7 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
 
 /** A cell whose label is known and whose value is not: the real label under a bar. */
 function CellSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
-  return <InfoCell label={label} value={<InlineSkeleton className={valueClassName} />} />;
+  return <InfoCell label={label} value={<UnifiedSkeleton as="span" aria-hidden className={`inline-block max-w-full align-middle ${valueClassName}`} />} />;
 }
 
 /**

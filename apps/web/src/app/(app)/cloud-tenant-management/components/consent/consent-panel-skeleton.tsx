@@ -2,7 +2,6 @@
 
 import { Copy02Icon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { InlineSkeleton } from '@/app/components/shared';
 import {
   CONSENT_ACTIONS_CLASSES,
   CONSENT_CARD_CLASSES,
@@ -10,6 +9,7 @@ import {
   type ConsentMode,
   LINK_PLACEHOLDER,
 } from './consent-link-panel';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 /**
  * `ConsentLinkPanel` before the record is known: the same frame, field and buttons, locked. Only the
@@ -30,8 +30,8 @@ export function ConsentPanelSkeleton({ mode }: { mode: Exclude<ConsentMode, 'det
       </div>
       <div className={CONSENT_CARD_CLASSES}>
         <div className="flex flex-col">
-          <InlineSkeleton className="h-6 w-full" />
-          <InlineSkeleton className="h-6 w-2/3" />
+          <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-6 w-full" />
+          <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-6 w-2/3" />
         </div>
         <Input
           readOnly

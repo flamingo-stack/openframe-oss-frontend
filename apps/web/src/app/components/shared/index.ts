@@ -14,7 +14,6 @@ export { OrgAvatar } from './org-avatar';
 export {
   InfoCardSkeleton,
   type InfoCardSkeletonProps,
-  InlineSkeleton,
   ListPageSkeleton,
   type ListPageSkeletonProps,
   SearchBarSkeleton,

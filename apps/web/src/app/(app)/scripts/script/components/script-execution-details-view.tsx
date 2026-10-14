@@ -1,9 +1,10 @@
 'use client';
 
 import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
@@ -309,7 +310,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
  * line height, no jump on load.
  */
 function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: string; label: string }) {
-  return <DetailCell value={<Skeleton className={`h-6 ${valueWidth}`} />} label={label} />;
+  return <DetailCell value={<UnifiedSkeleton className={`h-6 ${valueWidth}`} />} label={label} />;
 }
 
 /**
@@ -331,8 +332,8 @@ function ExecutionDetailsCardSkeleton() {
         <DetailCell
           value={
             <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
-              <Skeleton className="h-6 w-28" />
+              <UnifiedSkeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <UnifiedSkeleton className="h-6 w-28" />
             </div>
           }
           label="Executed by"
@@ -343,14 +344,14 @@ function ExecutionDetailsCardSkeleton() {
       {['Device Timezone', 'Your Timezone'].map(zoneLabel => (
         <TimingRow
           key={zoneLabel}
-          zone={<Skeleton className="h-6 w-36" />}
+          zone={<UnifiedSkeleton className="h-6 w-36" />}
           zoneLabel={zoneLabel}
-          start={<Skeleton className="h-6 w-32" />}
-          finish={<Skeleton className="h-6 w-32" />}
+          start={<UnifiedSkeleton className="h-6 w-32" />}
+          finish={<UnifiedSkeleton className="h-6 w-32" />}
         />
       ))}
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
-        <Skeleton className="h-6 w-3/4 max-w-full" />
+        <UnifiedSkeleton className="h-6 w-3/4 max-w-full" />
         <div className="text-ods-text-secondary text-h6">Result</div>
       </div>
     </div>

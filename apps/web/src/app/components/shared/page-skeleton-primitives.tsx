@@ -1,12 +1,12 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type ColumnDef,
   DataTable,
   type PageActionButton,
   PageLayout,
   type PageLayoutProps,
-  Skeleton,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -35,21 +35,6 @@ import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-lay
  */
 const INFO_CARD_CLASS =
   'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-xsf)] content-md:p-[var(--spacing-system-m)] h-16 content-md:h-[104px] flex gap-[var(--spacing-system-s)] content-md:gap-[var(--spacing-system-m)] items-center transition-all';
-
-/**
- * Inline skeleton bar, phrasing-valid (`<span>`) so it can live INSIDE the real
- * `<p>` typography elements. A `<Skeleton>` renders a `<div>`, which is invalid
- * inside a `<p>` and a hydration error. `align-middle` centers it on the
- * baseline; the surrounding element's line box sets the height.
- */
-export function InlineSkeleton({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn('inline-block max-w-full animate-pulse rounded-md bg-ods-border align-middle', className)}
-    />
-  );
-}
 
 export interface InfoCardSkeletonProps {
   /** Real, static card title — it isn't query-dependent, so render it verbatim. */
@@ -88,21 +73,21 @@ export function InfoCardSkeleton({
         </div>
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
           <p className={cn('truncate text-ods-text-primary text-h3 content-md:text-h2', valueClassName)}>
-            <InlineSkeleton className="h-4 w-8 content-md:h-6" />
+            <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-4 w-8 content-md:h-6" />
           </p>
           {showSubValue && (
             <p className="text-ods-text-secondary text-h6">
-              <InlineSkeleton className="h-3 w-16" />
+              <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-16" />
             </p>
           )}
           {showPercentage && (
             <p className="text-ods-text-secondary text-h4">
-              <InlineSkeleton className="h-3 w-14" />
+              <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-14" />
             </p>
           )}
         </div>
       </div>
-      {showProgress && <Skeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
+      {showProgress && <UnifiedSkeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
     </div>
   );
 }
@@ -189,8 +174,8 @@ export function TabBarSkeleton({ widths, className }: { widths: readonly string[
       <div className="flex h-full items-center gap-1 overflow-hidden">
         {widths.map((width, index) => (
           <div key={index} className={cn('flex h-14 shrink-0 items-center justify-center gap-2 p-4', width)}>
-            <Skeleton className="h-6 w-6 shrink-0" />
-            <Skeleton className="h-5 flex-1" />
+            <UnifiedSkeleton className="h-6 w-6 shrink-0" />
+            <UnifiedSkeleton className="h-5 flex-1" />
           </div>
         ))}
       </div>
@@ -200,7 +185,7 @@ export function TabBarSkeleton({ widths, className }: { widths: readonly string[
 
 /** The search/filter toolbar row list pages render above their table. */
 export function SearchBarSkeleton() {
-  return <Skeleton className="h-12 w-full rounded-md" />;
+  return <UnifiedSkeleton className="h-12 w-full rounded-md" />;
 }
 
 export interface ListPageSkeletonProps {

@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatCurrency } from '@/lib/format-currency';
 import type { SelectionTotal } from './plan-selection';
@@ -37,7 +37,7 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
   return (
     <div className={cn('flex flex-col text-ods-text-secondary text-h4', className)}>
       {showAiNote && <p>Devices and AI balance are billed together at checkout.</p>}
-      {loading && <Skeleton className="mt-1 h-5 w-56" />}
+      {loading && <UnifiedSkeleton className="mt-1 h-5 w-56" />}
       {total && total.prepaid && (
         <p>
           Total due today: <span className="text-ods-text-primary text-h3">{formatCurrency(total.amount + topUp)}</span>

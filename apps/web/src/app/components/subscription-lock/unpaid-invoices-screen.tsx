@@ -1,5 +1,6 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -228,7 +229,7 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
 
 /** The row's shape with nothing in it — one row, because at least one is why we are here. */
 function OutstandingInvoiceRowPlaceholder() {
-  return <div className="h-20 w-full animate-pulse rounded-md border border-ods-border bg-ods-skeleton" />;
+  return <UnifiedSkeleton className="h-20 w-full rounded-md border border-ods-border" />;
 }
 
 function InvoiceCell({ caption, children }: { caption: string; children: ReactNode }) {

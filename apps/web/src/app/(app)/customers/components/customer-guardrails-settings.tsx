@@ -1,7 +1,8 @@
 'use client';
 
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
-import { Button, CheckboxBlock, LoadError, NoData, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { Button, CheckboxBlock, LoadError, NoData } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -239,8 +240,8 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
     if (isGuardrailsLoading || isTemplatesLoading) {
       return (
         <div className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-64 w-full" />
+          <UnifiedSkeleton className="h-16 w-full" />
+          <UnifiedSkeleton className="h-64 w-full" />
         </div>
       );
     }
@@ -303,7 +304,7 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
             />
 
             {isDetailLoading ? (
-              <Skeleton className="h-64 w-full" />
+              <UnifiedSkeleton className="h-64 w-full" />
             ) : editorGroups.size === 0 ? (
               <NoData
                 icon={<ShieldCheckIcon />}

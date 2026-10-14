@@ -24,6 +24,7 @@ import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { navigatesCurrentWindow } from '@/lib/link-click';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
 // context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
@@ -110,15 +111,10 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
 }
 
-/** Loading state — same chip shell with an inline skeleton bar for the label.
- *  (An inline span, not the lib `Skeleton` div — the chip lives inside a `<p>`.) */
+/** Loading state: same chip shell with an inline skeleton bar for the label.
+ *  (The shared inline span, not the lib's `UnifiedSkeleton` div: the chip lives inside a `<p>`.) */
 export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
-  return (
-    <MentionTag
-      icon={icon}
-      label={<span className="inline-block h-3 w-20 animate-pulse rounded bg-ods-border align-middle" />}
-    />
-  );
+  return <MentionTag icon={icon} label={<UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-20 rounded" />} />;
 }
 
 /**
