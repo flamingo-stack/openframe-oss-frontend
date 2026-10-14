@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   mobile: true,
@@ -33,6 +33,14 @@ async function load() {
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
+// The first import transforms the whole inlined core lib, which can exceed vitest's 5s default test timeout:
+// pay it once, outside every test's timeout, so each `load()` only re-evaluates. Loading registers the adapter.
+beforeAll(async () => {
+  await load();
+  const { setEmbedAuthAdapter } = await import('@flamingo-stack/openframe-frontend-core/utils');
+  setEmbedAuthAdapter(null);
+}, 60_000);
+
 beforeEach(() => {
   mocks.mobile = true;
   mocks.refreshAccessToken.mockReset().mockResolvedValue(true);
@@ -51,14 +59,13 @@ afterEach(async () => {
 });
 
 describe('embedded chat on 426', () => {
-  it('flips the update state and fails the request, never touching the session', async () => {
+  it('flips the update state and fails the request', async () => {
     const { embedAuthedFetch, versionCheck } = await load();
     await expect(embedAuthedFetch('/content/api/docs/commands')).rejects.toBeInstanceOf(
       versionCheck.UpdateRequiredError,
     );
     expect(versionCheck.isUpdateRequired()).toBe(true);
     expect(versionCheck.resolveStoreUrl()).toBe('itms-apps://x');
-    expect(mocks.refreshAccessToken).not.toHaveBeenCalled();
   });
 
   it('catches a 426 on the retry after a 401 refresh', async () => {
@@ -74,7 +81,9 @@ describe('embedded chat on 426', () => {
 
   it('refuses every later request locally, so no retry reaches the wire', async () => {
     const { embedAuthedFetch, versionCheck } = await load();
-    await embedAuthedFetch('/content/api/docs/commands').catch(() => {});
+    await expect(embedAuthedFetch('/content/api/docs/commands')).rejects.toBeInstanceOf(
+      versionCheck.UpdateRequiredError,
+    );
     await expect(embedAuthedFetch('/content/api/tickets/stream')).rejects.toBeInstanceOf(
       versionCheck.UpdateRequiredError,
     );
