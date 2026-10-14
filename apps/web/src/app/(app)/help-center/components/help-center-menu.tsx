@@ -13,6 +13,7 @@ import {
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/types';
+import { isLegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType } from 'react';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
@@ -86,7 +87,11 @@ const ITEMS: Item[] = [
  */
 export function HelpCenterMenu() {
   const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
-  const legal = documents.filter(doc => doc.published);
+  // A card only for a published document this app has a page for (the route
+  // prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
+  const legal = documents.flatMap(doc =>
+    doc.published && isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : [],
+  );
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (

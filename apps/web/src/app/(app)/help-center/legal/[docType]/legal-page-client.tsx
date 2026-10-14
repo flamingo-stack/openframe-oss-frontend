@@ -11,14 +11,17 @@ import { EP, HELP_CENTER_BASE, pageFaq } from '../../endpoints';
  */
 export function LegalPageClient() {
   const { docType } = useParams<{ docType: string }>();
-  // The FAQ topic of the document is the hub's too (its list carries it).
+  // The document's title and FAQ topic are the hub's too (its list carries
+  // them), so a document that fails to load is still named.
   const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
-  const faqTopic = documents.find(doc => doc.docType === docType)?.faqTopic;
+  const listed = documents.find(doc => doc.docType === docType);
+  const faqTopic = listed?.faqTopic;
 
   return (
     <LegalDocumentPage
       shell={false}
       docType={docType}
+      title={listed?.title}
       apiEndpoint={EP.legal(docType)}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
       faq={faqTopic ? pageFaq(faqTopic) : undefined}

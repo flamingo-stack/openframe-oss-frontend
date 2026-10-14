@@ -18,6 +18,7 @@
  * TabNavigation) is unchanged. URL/path values themselves are not changing, so
  * existing bookmarks stay valid.
  */
+import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -209,7 +210,7 @@ export const routes = {
     // One page per legal document. `[docType]` is enumerable (the route's
     // `generateStaticParams` prerenders the lib's `LEGAL_DOCUMENT_TYPES`); the
     // Help Center links the ones the hub's list says are published.
-    legal: (docType: string) => `/help-center/legal/${docType}`,
+    legal: (docType: LegalDocumentType) => `/help-center/legal/${docType}`,
   },
   worktime: '/worktime',
 
