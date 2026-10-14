@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
 import { doneTourStepIds } from './tour-progress';
-import { TOUR_DIALOG_TITLE, TOUR_STEPS, type TourAction, type TourStep, tourGreeting } from './tour-steps';
+import { TOUR_DIALOG_TITLE, type TourAction, type TourStep, tourGreeting, tourSteps } from './tour-steps';
 
 type ChatMessage = UnifiedChatState['messages'][number];
 
@@ -95,6 +96,11 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
       });
   }, [active, dialogId, createNamedDialog, setTourDialogInBackground]);
 
+  // The Software module decides one Devices chip; absent until the flags
+  // answer, which only swaps that chip's text.
+  const softwareManagement = useFeatureFlag('software-management');
+  const steps = useMemo(() => tourSteps({ softwareManagement }), [softwareManagement]);
+
   const serverSteps = user?.completedSteps;
   const doneStepIds = useMemo(() => doneTourStepIds(serverSteps), [serverSteps]);
 
@@ -155,12 +161,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   return {
     state: decoratedState,
     aboveComposer: showing ? (
-      <GettingStartedBlock
-        steps={TOUR_STEPS}
-        doneStepIds={doneStepIds}
-        onAction={handleAction}
-        onFinish={handleFinish}
-      />
+      <GettingStartedBlock steps={steps} doneStepIds={doneStepIds} onAction={handleAction} onFinish={handleFinish} />
     ) : null,
     onWhatToAsk,
   };

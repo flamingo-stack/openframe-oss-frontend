@@ -65,7 +65,7 @@ describe('GettingStartedBlock', () => {
     render();
     click(button('DevicesMachines running the agent'));
     expect(container.textContent).toContain('Every machine running the OpenFrame agent');
-    expect(button('Check device')).toBeTruthy();
+    expect(button('Check my device')).toBeTruthy();
 
     click(button('TicketsTickets and time logs'));
     expect(container.textContent).toContain('Requests from your clients');
@@ -75,7 +75,7 @@ describe('GettingStartedBlock', () => {
   it('a chip hands its step and action to the host and folds the block into the grid', () => {
     render();
     click(button('DevicesMachines running the agent'));
-    click(button('Check device'));
+    click(button('Check my device'));
 
     expect(onAction).toHaveBeenCalledWith(TOUR_STEPS[0], TOUR_STEPS[0].actions[0]);
     expect(container.textContent).not.toContain('Try asking:');
@@ -87,24 +87,24 @@ describe('GettingStartedBlock', () => {
   it('the grid unfolds from its chevron, or on the step whose chip was pressed', () => {
     render();
     click(button('DevicesMachines running the agent'));
-    click(button('Check device'));
+    click(button('Check my device'));
 
     click(container.querySelector('button[aria-label="Show the steps"]') as Element);
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
 
     click(button('LogsDevice and platform activity'));
-    click(button('What changed today'));
+    click(button('Errors since install'));
     click(button('Logs'));
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
-    expect(container.textContent).toContain('Everything that happened on your devices');
+    expect(container.textContent).toContain('What the agent logged on your devices');
   });
 
   it('a refused chip leaves the step open', () => {
     onAction.mockReturnValueOnce(false);
     render();
     click(button('DevicesMachines running the agent'));
-    click(button('Check device'));
+    click(button('Check my device'));
 
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     expect(container.textContent).toContain('Try asking:');
