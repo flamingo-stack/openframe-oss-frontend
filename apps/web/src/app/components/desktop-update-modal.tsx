@@ -40,9 +40,9 @@ const ERROR_COPY: Record<DesktopUpdateErrorKind, { message: string; retryable: b
       'OpenFrame Console needs administrator approval to replace itself. Try again and approve the password prompt, or ask your IT admin to install the update.',
     retryable: true,
   },
-  blocked: {
+  security: {
     message:
-      'Your security software blocked the update installer. Ask your IT admin to allow OpenFrame Console updates, then try again.',
+      "Windows couldn't save the update installer — security software may have blocked it. Ask your IT admin to allow OpenFrame Console updates, then try again.",
     retryable: true,
   },
   // A retry from the same place fails the same way, and moving the app means

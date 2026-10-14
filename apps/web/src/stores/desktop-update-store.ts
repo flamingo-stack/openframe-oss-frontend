@@ -38,9 +38,10 @@ interface DesktopUpdateState {
   total: number | null;
   error: DesktopUpdateError | null;
   /**
-   * Why the offered update cannot be applied from here, known before any
-   * attempt. Kept apart from `error` because reopening the modal clears that —
-   * this stays true until a re-announce says otherwise.
+   * Why no update can be applied from where the app runs: reported by the
+   * shell's pre-flight, or learned from a `location` failure it could not
+   * foresee. Holds for the session — the app does not move while it runs — and
+   * is kept apart from `error` because reopening the modal clears that.
    */
   blocked: DesktopUpdateError | null;
 
@@ -72,7 +73,7 @@ export const useDesktopUpdateStore = create<DesktopUpdateState>()(
 
       announce: availability => {
         if (!availability.available || !availability.version) return;
-        const { version, dismissedVersion, phase } = get();
+        const { version, dismissedVersion, phase, blocked } = get();
         // Re-announcing the version already on screen must not reset an apply
         // in flight: the shell's poll keeps running during the download.
         if (availability.version === version && phase !== 'idle') return;
@@ -86,7 +87,7 @@ export const useDesktopUpdateStore = create<DesktopUpdateState>()(
             downloaded: 0,
             total: null,
             error: null,
-            blocked: availability.blocked ?? null,
+            blocked: availability.blocked ?? blocked,
           },
           false,
           'announce',
@@ -123,6 +124,9 @@ export const useDesktopUpdateStore = create<DesktopUpdateState>()(
             ...(error.kind === 'gone'
               ? { available: false, isModalOpen: false, phase: 'idle' as const, error: null }
               : {}),
+            // The pre-flight cannot see a writable volume the bundle cannot be
+            // renamed off; once an attempt has, no retry is offered again.
+            ...(error.kind === 'location' ? { blocked: error } : {}),
           },
           false,
           'fail',

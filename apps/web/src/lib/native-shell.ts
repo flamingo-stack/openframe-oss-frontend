@@ -564,7 +564,7 @@ export interface DesktopUpdateAvailability {
   /**
    * Set when this install cannot apply the update where it runs (today only
    * `location`: a read-only mount on macOS). The UI shows why up front instead
-   * of a button that would fail. Absent from shells that predate it.
+   * of a button that would fail.
    */
   blocked?: DesktopUpdateError | null;
 }
@@ -579,7 +579,7 @@ export interface DesktopUpdateAvailability {
  * - `signature` — the download failed verification (retry, then reinstall)
  * - `disk` — the disk is actually full (free space, retry)
  * - `permission` — macOS: the administrator prompt to replace the app was refused (retry and approve)
- * - `blocked` — Windows: security software refused the installer (ask IT, retry)
+ * - `security` — Windows: writing the installer was refused, most often by security software (ask IT, retry)
  * - `location` — macOS: the app runs from the DMG, a translocated copy or another volume (move it to Applications)
  * - `unavailable` — no artifact for this platform, or a malformed manifest
  * - `busy` — an apply is already running; this call owns nothing
@@ -591,7 +591,7 @@ export type DesktopUpdateErrorKind =
   | 'signature'
   | 'disk'
   | 'permission'
-  | 'blocked'
+  | 'security'
   | 'location'
   | 'unavailable'
   | 'busy'
