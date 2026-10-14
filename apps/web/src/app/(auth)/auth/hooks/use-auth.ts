@@ -41,7 +41,7 @@ export interface TenantDiscoveryResponse {
 /** The tenant a provider sign-in goes to. Without one the flow is identity-first. */
 export interface SsoLoginTenant {
   tenantId: string;
-  /** Discovery's `domain`: the tenant's gateway host. */
+  /** The tenant's gateway host (discovery's `domain`), when there is one. */
   tenantDomain?: string;
 }
 
@@ -320,20 +320,10 @@ export function useAuth() {
       }
 
       if (isAppShell()) {
-        await nativeLoginToDashboard(
-          tenant
-            ? {
-                tenantId: tenant.tenantId,
-                provider,
-                // 'localhost' is discovery's answer for a single-tenant dev backend, not a host.
-                tenantDomain: tenant.tenantDomain !== 'localhost' ? tenant.tenantDomain : undefined,
-              }
-            : // No tenant: the authorization server runs the flow against its onboarding
-              // pseudo-tenant and resolves the real one from the identity the provider asserts.
-              // This deliberately does NOT honour a tenant's own SSO credentials — those cannot be
-              // looked up before the tenant is known.
-              { provider },
-        );
+        // Without a tenant the authorization server runs the flow against its onboarding pseudo-tenant
+        // and resolves the real one from the identity the provider asserts. That deliberately does NOT
+        // honour a tenant's own SSO credentials — those cannot be looked up before the tenant is known.
+        await nativeLoginToDashboard({ ...tenant, provider });
         return;
       }
 

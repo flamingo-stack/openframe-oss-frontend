@@ -80,7 +80,7 @@ export function CreateOrganizationSection({
   // Dev environments only: links the registration to a PR so the tenant lands on that preview.
   const [prNumber, setPrNumber] = useState('');
   const showPrNumber = runtimeEnv.prNumberEnabled();
-  // Email first, then everything else. The providers above the email need nothing typed, so this
+  // Email first, then everything else. The providers under the email need nothing typed, so this
   // step is also the one that keeps them reachable on a cold screen.
   const [step, setStep] = useState<'email' | 'details'>('email');
   // Funnel event, fired once when the user commits to the details step — the "signup started"

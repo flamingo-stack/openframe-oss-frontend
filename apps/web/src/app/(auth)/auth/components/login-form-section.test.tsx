@@ -16,6 +16,7 @@ const shell = vi.hoisted(() => ({ loginOnly: false }));
 vi.mock('@/app/hooks/use-login-only-mobile-shell', () => ({ useLoginOnlyMobileShell: () => shell.loginOnly }));
 
 const GENERIC: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
+const GENERIC_BUTTONS = ['Continue with Google', 'Continue with Microsoft', 'Continue with Apple'];
 
 const ACME_TENANT = { tenantId: 't-1', tenantDomain: 'acme.openframe.ai' };
 
@@ -26,6 +27,10 @@ const ACME_CUSTOM: LoginDiscoveryResult = {
   openframe: true,
   customProviders: ['microsoft'],
 };
+
+const ACME_BUTTONS = ['Continue with OpenFrame', 'Continue with MicrosoftAcme'];
+
+const NOT_FOUND: LoginDiscoveryResult = { found: false, tenant: null, openframe: false, customProviders: [] };
 
 let root: Root;
 let container: HTMLDivElement;
@@ -64,6 +69,13 @@ async function settle() {
   await act(async () => {
     for (let i = 0; i < 5; i++) await Promise.resolve();
   });
+}
+
+/** Types an address, looks it up at once and lets the answer land. */
+async function lookUp(value: string) {
+  type(value);
+  pressEnter();
+  await settle();
 }
 
 beforeEach(() => {
@@ -112,12 +124,23 @@ describe('toLoginDiscoveryResult', () => {
         .openframe,
     ).toBe(false);
   });
+
+  it("reads a 'localhost' domain as no host", () => {
+    expect(
+      toLoginDiscoveryResult({
+        email: 'kate@acme.com',
+        has_existing_accounts: true,
+        tenant_id: 't-1',
+        domain: 'localhost',
+      }).tenant,
+    ).toEqual({ tenantId: 't-1', tenantDomain: undefined });
+  });
 });
 
 describe('LoginSection', () => {
   it('offers the generic providers, enabled, before anything is typed', () => {
     renderSection(vi.fn());
-    expect(enabledNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
     expect(container.textContent).not.toContain('Sign-in methods for');
   });
 
@@ -125,13 +148,11 @@ describe('LoginSection', () => {
     const onDiscover = vi.fn().mockResolvedValue(ACME_CUSTOM);
     const onSso = renderSection(onDiscover);
 
-    type('kate@acme.com');
-    pressEnter();
-    await settle();
+    await lookUp('kate@acme.com');
 
     expect(onDiscover).toHaveBeenCalledWith('kate@acme.com');
     expect(container.textContent).toContain('Sign-in methods for Acme');
-    expect(enabledNames()).toEqual(['Continue with OpenFrame', 'Continue with MicrosoftAcme']);
+    expect(enabledNames()).toEqual(ACME_BUTTONS);
 
     act(() => buttons()[1].click());
     expect(onSso).toHaveBeenCalledWith('microsoft', ACME_TENANT);
@@ -140,16 +161,9 @@ describe('LoginSection', () => {
   it('keeps the generic providers after OpenFrame when the tenant has no custom SSO, signing in to it', async () => {
     const onSso = renderSection(vi.fn().mockResolvedValue({ ...ACME_CUSTOM, customProviders: [] }));
 
-    type('kate@acme.com');
-    pressEnter();
-    await settle();
+    await lookUp('kate@acme.com');
 
-    expect(enabledNames()).toEqual([
-      'Continue with OpenFrame',
-      'Continue with Google',
-      'Continue with Microsoft',
-      'Continue with Apple',
-    ]);
+    expect(enabledNames()).toEqual(['Continue with OpenFrame', ...GENERIC_BUTTONS]);
 
     act(() => buttons()[1].click());
     expect(onSso).toHaveBeenCalledWith('google', ACME_TENANT);
@@ -158,9 +172,7 @@ describe('LoginSection', () => {
   it('leaves OpenFrame out when the tenant turned it off', async () => {
     renderSection(vi.fn().mockResolvedValue({ ...ACME_CUSTOM, openframe: false }));
 
-    type('kate@acme.com');
-    pressEnter();
-    await settle();
+    await lookUp('kate@acme.com');
 
     expect(buttonNames()).toEqual(['Continue with MicrosoftAcme']);
   });
@@ -178,7 +190,7 @@ describe('LoginSection', () => {
 
     await act(async () => answer(ACME_CUSTOM));
     await settle();
-    expect(enabledNames()).toEqual(['Continue with OpenFrame', 'Continue with MicrosoftAcme']);
+    expect(enabledNames()).toEqual(ACME_BUTTONS);
   });
 
   it('looks the address up after a typing pause without Enter', async () => {
@@ -199,46 +211,114 @@ describe('LoginSection', () => {
   it('goes back to the generic providers when the address changes', async () => {
     renderSection(vi.fn().mockResolvedValue(ACME_CUSTOM));
 
-    type('kate@acme.com');
-    pressEnter();
-    await settle();
+    await lookUp('kate@acme.com');
     type('kate@acme.co');
 
     expect(container.textContent).not.toContain('Sign-in methods for');
-    expect(buttonNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
+    expect(buttonNames()).toEqual(GENERIC_BUTTONS);
   });
 
   it('signs in to no tenant once a recognized address is cleared', async () => {
     const onSso = renderSection(vi.fn().mockResolvedValue(ACME_CUSTOM));
 
-    type('kate@acme.com');
-    pressEnter();
-    await settle();
+    await lookUp('kate@acme.com');
     type('');
 
-    expect(enabledNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
     act(() => buttons()[0].click());
     expect(onSso).toHaveBeenCalledWith('google', null);
   });
 
   it('keeps the generic providers and says so when no account matches', async () => {
-    renderSection(vi.fn().mockResolvedValue({ found: false, tenant: null, openframe: false, customProviders: [] }));
+    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
 
-    type('dan@gmail.com');
-    pressEnter();
-    await settle();
+    await lookUp('dan@gmail.com');
 
     expect(container.textContent).toContain('No account found for this email.');
-    expect(enabledNames()).toEqual(['Continue with Google', 'Continue with Microsoft', 'Continue with Apple']);
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
+  });
+
+  it('looks a failed address up again on Enter, holding the providers until the retry answers', async () => {
+    let answerRetry: (result: LoginDiscoveryResult) => void = () => {};
+    const onDiscover = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce(() => new Promise(resolve => (answerRetry = resolve)));
+    renderSection(onDiscover);
+
+    await lookUp('kate@acme.com');
+    expect(container.textContent).toContain('Failed to check your account.');
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
+
+    pressEnter();
+    await settle();
+    expect(onDiscover).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('Checking your account…');
+    expect(enabledNames()).toEqual([]);
+
+    await act(async () => answerRetry(ACME_CUSTOM));
+    await settle();
+    expect(container.textContent).toContain('Sign-in methods for Acme');
+  });
+
+  it('looks an address up once when Enter beats the typing pause', async () => {
+    vi.useFakeTimers();
+    const onDiscover = vi.fn().mockResolvedValue(ACME_CUSTOM);
+    renderSection(onDiscover);
+
+    await lookUp('kate@acme.com');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+
+    expect(onDiscover).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a late answer for an address the field has moved on from', async () => {
+    let answerFirst: (result: LoginDiscoveryResult) => void = () => {};
+    const onDiscover = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise(resolve => (answerFirst = resolve)))
+      .mockResolvedValueOnce(NOT_FOUND);
+    renderSection(onDiscover);
+
+    await lookUp('kate@acme.com');
+    await lookUp('dan@gmail.com');
+    await act(async () => answerFirst(ACME_CUSTOM));
+    await settle();
+
+    expect(container.textContent).not.toContain('Sign-in methods for');
+    expect(container.textContent).toContain('No account found for this email.');
+  });
+
+  it('counts a lookup that never answers as failed', async () => {
+    vi.useFakeTimers();
+    renderSection(() => new Promise(() => {}));
+
+    await lookUp('kate@acme.com');
+    expect(enabledNames()).toEqual([]);
+
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(container.textContent).toContain('Failed to check your account.');
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
+  });
+
+  it('treats a rejected lookup as a failed one instead of holding the providers', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderSection(vi.fn().mockRejectedValue(new Error('boom')));
+
+    await lookUp('kate@acme.com');
+
+    expect(container.textContent).toContain('Failed to check your account.');
+    expect(enabledNames()).toEqual(GENERIC_BUTTONS);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it('shows the invitation notice instead on the login-only mobile build', async () => {
     shell.loginOnly = true;
-    renderSection(vi.fn().mockResolvedValue({ found: false, tenant: null, openframe: false, customProviders: [] }));
+    renderSection(vi.fn().mockResolvedValue(NOT_FOUND));
 
-    type('dan@gmail.com');
-    pressEnter();
-    await settle();
+    await lookUp('dan@gmail.com');
 
     expect(container.querySelector('[role="status"]')?.textContent).toContain('Ask them for an invitation.');
     expect(container.textContent).not.toContain('No account found for this email.');
