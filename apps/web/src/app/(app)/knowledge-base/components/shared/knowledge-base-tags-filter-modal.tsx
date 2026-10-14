@@ -2,6 +2,7 @@
 
 import { FilterModal } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { SelectableTag } from '@/app/components/shared';
+import type { AssignedArticlesTarget } from '../assigned-articles/assigned-articles-target';
 import { useKnowledgeBaseTags } from './use-knowledge-base-tags';
 
 // Knowledge base tags are flat (no key:value), so the modal has one group.
@@ -12,6 +13,10 @@ interface KnowledgeBaseTagsFilterModalProps {
   onClose: () => void;
   parentId: string | null;
   archived: boolean;
+  /** Offer the tags of the articles assigned to this customer or device instead. */
+  assignedTo?: AssignedArticlesTarget | null;
+  /** Bumped after an assign or unassign, which can change the tags on offer. */
+  refreshKey?: number;
   /** The applied tag ids — ticked when the modal opens. */
   selectedIds: ReadonlyArray<string>;
   /** Apply hands back the whole new selection; it replaces the current one. */
@@ -19,18 +24,20 @@ interface KnowledgeBaseTagsFilterModalProps {
 }
 
 /**
- * The tag filter of a phone, where the tag row has no room: every tag as a
- * checkbox. Suspends on the tags.
+ * The tag filter as a modal — a phone's, where the tag row has no room, and the
+ * Assigned Articles tab's at every width: every tag as a checkbox. Suspends on the tags.
  */
 export function KnowledgeBaseTagsFilterModal({
   isOpen,
   onClose,
   parentId,
   archived,
+  assignedTo = null,
+  refreshKey = 0,
   selectedIds,
   onApply,
 }: KnowledgeBaseTagsFilterModalProps) {
-  const tags = useKnowledgeBaseTags(parentId, archived);
+  const tags = useKnowledgeBaseTags(parentId, archived, assignedTo, refreshKey);
 
   const handleFilterChange = (filters: Record<string, string[]>) => {
     const picked = new Set(filters[TAGS_GROUP_ID] ?? []);
