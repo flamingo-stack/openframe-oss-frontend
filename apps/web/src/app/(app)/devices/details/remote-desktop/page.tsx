@@ -29,6 +29,7 @@ import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-ac
 import { RecordingWarningAlert } from '@/app/(app)/devices/components/remote-sessions/recording-storage-banner';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
+import { useRemoteSessionActionReporter } from '@/app/(app)/devices/hooks/use-remote-session-action-reporter';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
@@ -50,6 +51,7 @@ import {
   REMOTE_SHORTCUTS_STORAGE_KEY,
   type RemoteShortcut,
   SHORTCUT_DESCRIPTIONS,
+  shortcutAction,
 } from './remote-shortcuts';
 import { SessionChatPanel } from './session-chat-panel';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
@@ -217,6 +219,8 @@ function RemoteDesktopSession() {
   const remoteSettingsRef = useRef<RemoteSettingsConfig>(DEFAULT_SETTINGS);
   const [state, setState] = useState<TunnelState>(0);
   const [enableInput, setEnableInput] = useState(true);
+  // What the technician does here goes on the session's timeline.
+  const reportAction = useRemoteSessionActionReporter(remoteSession?.sessionId ?? null);
   const [isPageReady, setIsPageReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [remoteSettings, setRemoteSettings] = useState<RemoteSettingsConfig>(DEFAULT_SETTINGS);
@@ -580,6 +584,7 @@ function RemoteDesktopSession() {
     // MeshDesktop.sendKeyCombo parses the combo string itself and special-cases
     // 'alt+ctrl+del' into the secure attention sequence.
     desktopRef.current?.sendKeyCombo(combo);
+    reportAction(shortcutAction(combo));
     toast({
       title: comboLabel(combo),
       description: SHORTCUT_DESCRIPTIONS[combo] ?? 'Shortcut sent',
@@ -592,6 +597,12 @@ function RemoteDesktopSession() {
     try {
       desktopRef.current?.switchDisplay?.(displayId);
       setCurrentDisplay(displayId);
+      reportAction({
+        action: 'MONITOR_SWITCHED',
+        toMonitorId: displayId,
+        fromMonitorId: currentDisplay,
+        label: displayLabel(displayId),
+      });
       toast({
         title: 'Display Switched',
         description: `Switched to ${displayLabel(displayId)}`,
@@ -613,8 +624,10 @@ function RemoteDesktopSession() {
     openShortcutsManager: () => setShortcutsOpen(true),
     sendPower,
     setEnableInput: (enabled: boolean) => {
+      if (enabled === enableInput) return;
       setEnableInput(enabled);
       desktopRef.current?.setViewOnly(!enabled);
+      reportAction({ action: enabled ? 'INPUT_ENABLED' : 'INPUT_DISABLED' });
     },
     setClipboardEnabled,
     toast,

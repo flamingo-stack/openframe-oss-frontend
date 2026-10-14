@@ -1882,6 +1882,12 @@ type Mutation {
   deleteRemoteSession(sessionId: String!): DeleteRemoteSessionPayload!
 
   """
+  Records a console action on the caller's own ACTIVE session. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  INVALID_ACTION, REMOTE_SESSION_NOT_FOUND, REMOTE_ACCESS_FORBIDDEN, REMOTE_SESSION_ENDED.
+  """
+  recordRemoteSessionAction(input: RecordRemoteSessionActionInput!): RecordRemoteSessionActionPayload!
+
+  """
   Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
   each row, the Keep on the session. A file listed later for a kept session is held too. Calling it again after
   RECORDING_STORAGE_UNAVAILABLE finishes the files left. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
@@ -3450,6 +3456,35 @@ type Query {
   autoTopUpSettings: AutoTopUpSettings!
 }
 
+"""
+One console action. SHORTCUT_SENT takes label and source. MONITOR_SWITCHED takes toMonitorId, and optionally
+fromMonitorId and label. The other actions take no fields. A label matches ^[A-Za-z0-9+ ]{1,40}$, monitor ids are
+0..15, and clientEventId is a UUID: a retry with the same clientEventId is stored once.
+"""
+input RecordRemoteSessionActionInput {
+  sessionId: String!
+  action: RemoteSessionActionType!
+  label: String
+  source: RemoteSessionActionSource
+
+  fromMonitorId: Int
+  toMonitorId: Int
+
+  """
+  The browser's clock when the action happened; the server receive time orders the timeline.
+  """
+  clientTime: Instant
+  clientEventId: String
+}
+
+"""
+accepted is true when the action is stored or was already stored, false with userErrors otherwise.
+"""
+type RecordRemoteSessionActionPayload {
+  accepted: Boolean!
+  userErrors: [UserError!]!
+}
+
 enum RemoteAccessDecisionSource {
   USER
   POLICY
@@ -3598,6 +3633,25 @@ type RemoteSession {
 
   """The list's SIZE column: bytes of the session's stored files (AVAILABLE and HELD); null while no file is registered."""
   recordingSizeBytes: Long
+}
+
+"""
+How a shortcut was sent: from the console menu or typed on the keyboard.
+"""
+enum RemoteSessionActionSource {
+  MENU
+  KEYBOARD
+}
+
+"""
+A console action the technician's browser reports during a remote session.
+"""
+enum RemoteSessionActionType {
+  INPUT_ENABLED
+  INPUT_DISABLED
+  SHORTCUT_SENT
+  CTRL_ALT_DEL
+  MONITOR_SWITCHED
 }
 
 """The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
