@@ -41,6 +41,11 @@ export interface TourAction {
   prompt: string;
   /** The section the chip opens beside the chat. */
   href: string;
+  /**
+   * Where the chip opens instead when the workspace's first device is known:
+   * its page, by `machineId`. `href` is the fallback without one.
+   */
+  deviceHref?: (machineId: string) => string;
   Icon: IconComponent;
 }
 
@@ -154,7 +159,8 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'weekly-cleanup',
           label: 'Schedule a weekly cleanup',
-          prompt: 'Save a temp-files cleanup script and schedule it to run on my device every Sunday at 3 AM.',
+          prompt:
+            'Save a temp-files cleanup script and schedule it to run on my device every Sunday at 3 AM in my timezone.',
           href: routes.scripts.list,
           Icon: CalendarIcon,
         },
@@ -199,6 +205,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Errors since install',
           prompt: 'Show any errors or warnings the agent logged on my device since it was installed.',
           href: routes.logs.page,
+          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: AlertCircleIcon,
         },
         {
@@ -206,6 +213,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Search the logs',
           prompt: 'Search my device\'s logs for "failed" in the last 24 hours and group what you find.',
           href: routes.logs.page,
+          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: SearchIcon,
         },
       ],

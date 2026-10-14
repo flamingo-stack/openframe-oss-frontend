@@ -4,6 +4,8 @@ import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/c
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRelayEnvironment } from 'react-relay';
+import { fetchFirstDevice } from '@/app/(app)/setup/hooks/use-first-device-enrollment';
 import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
@@ -49,6 +51,7 @@ export interface MingoTour {
  */
 export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
   const router = useRouter();
+  const environment = useRelayEnvironment();
   const { toast } = useToast();
   const handoff = useTourState();
   const firstName = useAuthStore(s => s.user?.firstName);
@@ -123,10 +126,19 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
         if (sent === false) return;
         if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);
       });
-      router.push(action.href);
+      // A chip about the first device opens that device's page; the section
+      // stands in while there is no device to name (or the read fails).
+      const { deviceHref } = action;
+      if (deviceHref) {
+        fetchFirstDevice(environment)
+          .then(device => router.push(device?.machineId ? deviceHref(device.machineId) : action.href))
+          .catch(() => router.push(action.href));
+      } else {
+        router.push(action.href);
+      }
       return true;
     },
-    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground],
+    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground, environment],
   );
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);

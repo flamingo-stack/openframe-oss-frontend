@@ -15,6 +15,7 @@ export const firstDeviceEnrollmentRelayQuery = graphql`
       edges {
         node {
           id
+          machineId
           hostname
           displayName
           status

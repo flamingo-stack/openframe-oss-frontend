@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
-import type { FetchPolicy } from 'relay-runtime';
+import type { Environment, FetchPolicy } from 'relay-runtime';
 import type { firstDeviceEnrollmentRelayQuery as EnrollmentQuery } from '@/__generated__/firstDeviceEnrollmentRelayQuery.graphql';
 import { DeviceStatus, SortDirection } from '@/generated/schema-enums';
 import { firstDeviceEnrollmentRelayQuery } from '@/graphql/onboarding/first-device-enrollment-relay';
@@ -47,6 +47,8 @@ export interface EnrollmentStages {
 }
 
 export interface FirstDevice {
+  /** The device page's id (`routes.devices.details`); null for a record without one. */
+  machineId: string | null;
   /** What the device page would call it: display name, else hostname. */
   name: string;
   /** The agent is connected right now - the "LIVE" tag. */
@@ -60,6 +62,7 @@ function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null 
   if (!node) return null;
   const enrollment = node.enrollment;
   return {
+    machineId: node.machineId?.trim() || null,
     name: node.displayName?.trim() || node.hostname?.trim() || 'your device',
     online: node.status === DeviceStatus.ONLINE,
     stages: {
@@ -68,6 +71,18 @@ function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null 
       aiReady: enrollment?.ready ?? false,
     },
   };
+}
+
+/**
+ * The first device, read once from the network: for a handler that needs it
+ * at the moment of a click (the tour's chips that open the device's page)
+ * rather than a component that renders it.
+ */
+export async function fetchFirstDevice(environment: Environment): Promise<FirstDevice | null> {
+  const data = await fetchQuery<EnrollmentQuery>(environment, firstDeviceEnrollmentRelayQuery, ENROLLMENT_VARIABLES, {
+    fetchPolicy: 'store-or-network',
+  }).toPromise();
+  return toFirstDevice(data?.devices.edges?.[0]?.node);
 }
 
 /**
