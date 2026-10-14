@@ -96,8 +96,9 @@ export const EP = {
   // product releases
   productReleases: `${CONTENT}/releases`,
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
-  // legal (privacy / terms)
+  // legal: one document, and the hub's list of them (the page's switcher)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
+  legalDocuments: `${CONTENT}/legal`,
   // trust center (Vanta-fed public projection) — the lib owns the hub path
   // (`TRUST_CENTER_API_PATH` = `/api/trust-center`), so it is prefixed onto the
   // proxy root rather than re-spelled (same spelling as react-embedding-example).

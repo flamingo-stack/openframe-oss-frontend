@@ -136,7 +136,8 @@ These mirror the app-router constraints (static-export build):
   `generateStaticParams` does **not** buy an escape hatch: it prerenders the
   placeholder and nothing else.
   A dynamic segment is allowed *only* when its params are fully enumerable at
-  build time — `/help-center/legal/[docType]` prerenders both of its values.
+  build time. The legal documents are not (they are the hub's list), so
+  `/help-center/legal?doc=…` takes the document as a query param.
   The Help Center content routes are the one naming variation:
   `/help-center/onboarding-guides/detail?slug=…` and
   `/help-center/releases/detail?slug=…` use `slug`, not `id`, because the content

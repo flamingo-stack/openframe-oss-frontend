@@ -8,7 +8,6 @@ import {
   QuestionCircleIcon,
   Rocket02Icon,
   RouteArrowIcon,
-  ShieldCheckIcon,
   ShieldLockIcon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -68,15 +67,9 @@ const ITEMS: Item[] = [
     Icon: ShieldLockIcon,
   },
   {
-    href: routes.helpCenter.legal('privacy'),
-    title: 'Privacy Policy',
-    description: 'How we collect, use, and protect your data.',
-    Icon: ShieldCheckIcon,
-  },
-  {
-    href: routes.helpCenter.legal('terms'),
-    title: 'Terms of Service',
-    description: 'License agreement and acceptable-use terms.',
+    href: routes.helpCenter.legal(),
+    title: 'Legal',
+    description: 'The policies and terms that apply to OpenFrame.',
     Icon: FileContentIcon,
   },
   {

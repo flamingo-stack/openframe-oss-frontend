@@ -87,9 +87,6 @@ export const MANAGE_AI_BALANCE_ACTION = 'manageAiBalance';
 export type BillingUsageAction = typeof MANAGE_AI_BALANCE_ACTION;
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
 
-/** Legal documents the Help Center `[docType]` route prerenders. */
-export type HelpCenterLegalDoc = 'privacy' | 'terms';
-
 // --------------------------------------------------------------------------
 // Ticket prefill keys (shared with the ticket form and its page)
 // --------------------------------------------------------------------------
@@ -209,9 +206,10 @@ export const routes = {
     faqs: '/help-center/faqs',
     trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
-    // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
-    // literal union is the typed guard ROUTES.md asks for over a bare `string`.
-    legal: (docType: HelpCenterLegalDoc) => `/help-center/legal/${docType}`,
+    // The document is a query param: the documents are the hub's list, so
+    // `output: 'export'` cannot prerender one page per document. No `doc` opens
+    // the page on its default document.
+    legal: (doc?: string) => withQuery('/help-center/legal', { doc }),
   },
   worktime: '/worktime',
 
