@@ -1,5 +1,6 @@
 'use client';
 
+import { useLegalDocuments } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BookBookmarkIcon,
   CompassIcon,
@@ -8,14 +9,15 @@ import {
   QuestionCircleIcon,
   Rocket02Icon,
   RouteArrowIcon,
-  ShieldCheckIcon,
   ShieldLockIcon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/types';
+import { isLegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType } from 'react';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
+import { EP } from '../endpoints';
 
 type Item = {
   href: string;
@@ -68,18 +70,6 @@ const ITEMS: Item[] = [
     Icon: ShieldLockIcon,
   },
   {
-    href: routes.helpCenter.legal('privacy'),
-    title: 'Privacy Policy',
-    description: 'How we collect, use, and protect your data.',
-    Icon: ShieldCheckIcon,
-  },
-  {
-    href: routes.helpCenter.legal('terms'),
-    title: 'Terms of Service',
-    description: 'License agreement and acceptable-use terms.',
-    Icon: FileContentIcon,
-  },
-  {
     href: routes.helpCenter.knowledgeBase,
     title: 'Knowledge Base',
     description: 'Comprehensive guides and references for the OpenFrame platform.',
@@ -88,11 +78,18 @@ const ITEMS: Item[] = [
 ];
 
 /**
- * The Help Center index grid. Entirely static, app-owned copy — no request
- * backs it, which is why the route's loading state renders this very component
- * rather than a placeholder: there is nothing to shimmer, and nothing shifts.
+ * The Help Center index grid. Its own items are static, app-owned copy, which
+ * is why the route's loading state renders this very component rather than a
+ * placeholder. The legal documents are the one read: one card per document on
+ * the hub's list (`EP.legalDocuments`), each opening that document's own
+ * page. They come last, so the static cards never move when they arrive, and a
+ * document the hub publishes later appears with no change here.
  */
 export function HelpCenterMenu() {
+  const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
+  // A card for every document on the hub's list that this app has a page for
+  // (the route prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
+  const legal = documents.flatMap(doc => (isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : []));
   return (
     <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
       {ITEMS.map(({ href, title, description, Icon }) => (
@@ -102,6 +99,15 @@ export function HelpCenterMenu() {
           title={title}
           description={description}
           icon={<Icon className="size-6" />}
+        />
+      ))}
+      {legal.map(doc => (
+        <SettingMenuItem
+          key={doc.docType}
+          href={routes.helpCenter.legal(doc.docType)}
+          title={doc.title}
+          description={doc.summary}
+          icon={<FileContentIcon className="size-6" />}
         />
       ))}
     </div>

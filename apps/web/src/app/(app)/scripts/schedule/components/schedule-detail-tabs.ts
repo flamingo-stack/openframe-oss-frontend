@@ -1,3 +1,4 @@
+import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BracketCurlyIcon,
   ClockHistoryIcon,
@@ -7,7 +8,6 @@ import {
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
 import type { ScriptScheduleTrigger } from '@/generated/schema-enums';
-import { isEventTrigger } from '../utils/schedule-timing';
 import { ScheduleDevicesTab } from './schedule-devices-tab';
 import { ScheduleExecutionsTab } from './schedule-executions-tab';
 import { ScheduleRunsTab } from './schedule-runs-tab';

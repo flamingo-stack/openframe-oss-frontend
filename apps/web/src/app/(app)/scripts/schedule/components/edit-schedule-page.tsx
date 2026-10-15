@@ -2,17 +2,25 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import {
+  ScheduleFormFields,
+  type ScheduleScriptSearchSlotProps,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useLayoutEffect, useMemo, useState } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
+import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '../../shared/utils/script-utils';
 import { useEditScheduleForm } from '../hooks/use-edit-schedule-form';
 import { type EditScheduleFormData, scheduleToFormValues } from '../types/edit-schedule.types';
-import { ScheduleFormFields } from './schedule-form-fields';
+import { ScheduleScriptSearch } from './schedule-script-search';
+
+const renderScriptSearch = (field: ScheduleScriptSearchSlotProps) => <ScheduleScriptSearch {...field} />;
 
 /** What the page knows about the record it is editing. */
 type ScheduleRecordState =
@@ -71,6 +79,9 @@ function ScheduleRecordLoader({
 function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
   const { methods, showErrors, handleSave, isSaving, isEditMode, backFallback } = useEditScheduleForm({ scheduleId });
   const handleBack = useSafeBack(backFallback);
+  // The Timezone picker's flag, handed to the fields as a GATE: they lock the
+  // timing row while it is unanswered instead of guessing a layout.
+  const deviceTimeGate = useFeatureFlagGate('script-schedule-device-time');
 
   // Nothing to wait for when creating. When editing, the loader below reports in
   // as soon as the schedule is there; until then the fields are locked, and so is
@@ -136,7 +147,14 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
         {record.status === 'missing' ? (
           <NotFoundError message="Schedule not found" />
         ) : (
-          <ScheduleFormFields showErrors={showErrors} disabled={!isRecordReady} />
+          <ScheduleFormFields
+            showErrors={showErrors}
+            disabled={!isRecordReady}
+            renderScriptSearch={renderScriptSearch}
+            timeReferenceGate={deviceTimeGate}
+            platforms={AVAILABLE_PLATFORMS}
+            comingSoonPlatforms={DISABLED_PLATFORMS}
+          />
         )}
       </PageLayout>
     </FormProvider>

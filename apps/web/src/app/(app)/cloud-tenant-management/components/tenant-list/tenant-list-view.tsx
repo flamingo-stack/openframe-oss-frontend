@@ -50,7 +50,12 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const tableSkeleton = (
-    <TableSkeleton columns={TENANTS_TABLE_COLUMNS} rows={TENANTS_PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
+    <TableSkeleton
+      label="Loading tenants"
+      columns={TENANTS_TABLE_COLUMNS}
+      rows={TENANTS_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 
   return (

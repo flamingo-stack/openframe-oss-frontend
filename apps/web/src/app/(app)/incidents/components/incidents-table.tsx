@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -582,10 +582,12 @@ function IncidentsTableSkeleton({ layout, stickyHeaderOffset }: IncidentsTableSk
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading incidents">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

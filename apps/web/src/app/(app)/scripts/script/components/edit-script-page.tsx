@@ -2,6 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { SCRIPT_SHELL_TYPES } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
@@ -19,7 +20,6 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import type { EditScriptFormData } from '../../shared/types/edit-script.types';
 import { relayScriptToForm, shellToEnum } from '../../shared/utils/script-mappers';
-import { SCRIPT_SHELL_TYPES } from '../../shared/utils/shell-types';
 import { useEditScriptForm } from '../hooks/use-edit-script-form';
 import type { ScriptDetailData } from '../types/script-detail.types';
 import { ExecutionStartedModal } from './execution-started-modal';

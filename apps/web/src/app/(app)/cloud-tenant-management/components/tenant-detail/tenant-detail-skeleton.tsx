@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantSummaryCardSkeleton } from './tenant-summary-card';
@@ -21,9 +22,9 @@ export function TenantDetailSkeleton() {
   return (
     <>
       <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <TenantSummaryCardSkeleton />
-      </div>
+      <LoadingRegion className="flex flex-1 flex-col gap-[var(--spacing-system-l)]" label="Loading tenant">
+        <TenantSummaryCardSkeleton region={false} />
+      </LoadingRegion>
     </>
   );
 }
