@@ -9,7 +9,7 @@ import { useNativeBackDismissible } from '@/lib/native-back';
 import type { ApplicationTheme } from '../../types/ai-settings';
 import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-modal';
 import { FaeChatPreview } from './fae-chat-preview';
-import { MeetFaePreview } from './meet-fae-preview';
+import { FaeWelcomePreview } from './fae-welcome-preview';
 import { usePreviewThemeClass } from './use-resolved-theme';
 
 interface AiSettingsPreviewsProps {
@@ -17,19 +17,16 @@ interface AiSettingsPreviewsProps {
   avatarUrl?: string;
   accentColor: string;
   theme: ApplicationTheme;
-  providerName?: string;
-  modelDisplayName?: string;
 }
 
 /**
- * Onboarding + chat previews, re-themed locally via `.theme-light` /
- * `.theme-dark`.
+ * Welcome + chat previews of the Fae window, re-themed locally via
+ * `.theme-light` / `.theme-dark`.
  *
- * Both inline forms are thumbnails — the source layouts are 600/650px wide and
- * ~1000px tall, and the scale that fits them into a card takes a 12px caption
- * down to 3-5px. No scale factor fixes that (legible would need a ~1000px-tall
- * card), so the thumbnails are an affordance, not the deliverable: tapping
- * either opens the same 1:1 modal. Below `md` even the thumbnail is pointless —
+ * Both inline forms are thumbnails — the source is the 1024×800 window, and the
+ * scale that fits it into a card takes a 12px caption down to 5px. No scale
+ * factor fixes that, so the thumbnails are an affordance, not the deliverable:
+ * tapping either opens the same 1:1 modal. Below `md` even the thumbnail is pointless —
  * it renders at 41% of the card's width — so it gives way to a single button
  * onto that modal.
  *
@@ -37,14 +34,7 @@ interface AiSettingsPreviewsProps {
  * (a narrow desktop window is the same problem) and `md` is 800px in the core
  * preset, exactly where the ODS type tokens step up.
  */
-export function AiSettingsPreviews({
-  assistantName,
-  avatarUrl,
-  accentColor,
-  theme,
-  providerName,
-  modelDisplayName,
-}: AiSettingsPreviewsProps) {
+export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor, theme }: AiSettingsPreviewsProps) {
   // Open state and pane are separate: collapsing them into one nullable value
   // resets the pane to 'welcome' mid-close, which is visible during ModalV2's
   // 200ms exit animation.
@@ -98,20 +88,14 @@ export function AiSettingsPreviews({
           label="Open the welcome screen preview at full size"
           onOpen={() => openPreview('welcome')}
         >
-          <MeetFaePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+          <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
         </ThumbnailTrigger>
         <ThumbnailTrigger
           themeClass={themeClass}
           label="Open the chat preview at full size"
           onOpen={() => openPreview('chat')}
         >
-          <FaeChatPreview
-            assistantName={assistantName}
-            avatarUrl={resolvedAvatarUrl}
-            accentColor={accentColor}
-            providerName={providerName}
-            modelDisplayName={modelDisplayName}
-          />
+          <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
         </ThumbnailTrigger>
       </div>
 
@@ -124,8 +108,6 @@ export function AiSettingsPreviews({
         avatarUrl={resolvedAvatarUrl}
         accentColor={accentColor}
         theme={theme}
-        providerName={providerName}
-        modelDisplayName={modelDisplayName}
       />
     </>
   );
@@ -140,7 +122,7 @@ interface ThumbnailTriggerProps {
 
 /**
  * The click target is an overlay sibling, not a wrapper: both previews contain
- * real buttons ("Get Started", the MSP website link, the chat header actions),
+ * real buttons (the step controls, the sidebar, the top bar's actions),
  * and a <button> around them is invalid HTML that React reports as a hydration
  * error. `inert` takes the whole thumbnail out of the pointer, focus and
  * accessibility trees at once, leaving exactly one interactive element.

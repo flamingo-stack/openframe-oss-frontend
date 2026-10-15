@@ -46,7 +46,7 @@ import {
   useResetOrganizationClientAiQuickActions,
   useUpdateOrganizationClientAiConfig,
 } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
-import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
+import { useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { toAgentAiConfigInput } from '@/app/(app)/settings/ai-settings/types/ai-logic.types';
 import { getDefaultClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -143,7 +143,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     const applicationTheme = form.watch('applicationTheme');
     const accentColor = form.watch('accentColor');
     const llmProvider = form.watch('llmProvider');
-    const providerModel = form.watch('providerModel');
     const answerStyle = form.watch('answerStyle');
 
     // Persistence is driven by the page's "Save Customer" button.
@@ -360,8 +359,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 avatarUrl={avatarUrl}
                 accentColor={accentColor || effectiveView.accentColor}
                 theme={applicationTheme}
-                providerName={llmProvider}
-                modelDisplayName={getProviderModelLabel(modelsByProvider, llmProvider, providerModel)}
               />
             </div>
 

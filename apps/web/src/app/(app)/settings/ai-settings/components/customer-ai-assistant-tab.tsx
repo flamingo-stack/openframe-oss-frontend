@@ -41,7 +41,6 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
   const llmProvider = form.watch('llmProvider');
   const answerStyle = form.watch('answerStyle');
   const assistantName = form.watch('assistantName');
-  const providerModel = form.watch('providerModel');
   const applicationTheme = form.watch('applicationTheme');
   const accentColor = form.watch('accentColor');
 
@@ -134,12 +133,6 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
           avatarUrl={avatarUrl}
           accentColor={accentColor || view.accentColor}
           theme={applicationTheme}
-          providerName={llmProvider}
-          modelDisplayName={getProviderModelLabel(
-            modelsByProvider,
-            llmProvider,
-            providerModel || aiConfig.providerModel,
-          )}
         />
       </div>
 

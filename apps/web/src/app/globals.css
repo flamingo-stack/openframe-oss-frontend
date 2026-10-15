@@ -96,28 +96,6 @@ body:has([aria-modal='true']:not([inert]), [role='alertdialog']) .of-walkthrough
 }
 
 /*
- * AI Settings chat preview: the approval-card explanation paragraph renders in
- * secondary (grey) by default in the core lib; the design shows it in primary
- * (white) text. The command <code> uses `whitespace-pre-wrap` and markdown
- * message text has no `whitespace-pre-line`, so this targets only the
- * explanation paragraph.
- */
-.fae-chat-preview p.whitespace-pre-line.break-words {
-  color: var(--color-text-primary);
-}
-
-/*
- * Chat preview: the core lib renders each message with the avatar INLINE in the
- * name row and the body at full width below it. The design instead puts the
- * avatar in its own left column with the body aligned under the name, so we
- * indent the message body (`div.flex.flex-col.gap-2`) past the avatar column
- * (SquareAvatar `sm` = 32px + 8px gap = 40px).
- */
-.fae-chat-preview div.flex.flex-col.gap-2 {
-  padding-left: 2.5rem;
-}
-
-/*
  * Mobile shell (Capacitor) safe areas — activated by `data-shell="mobile"`,
  * which NativeShellInitializer sets from the detected shell kind. Browsers never
  * get the attribute and the desktop shell reports `"desktop"`, so neither the web

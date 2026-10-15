@@ -11,7 +11,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ApplicationTheme } from '../../types/ai-settings';
 import { FaeChatPreview } from './fae-chat-preview';
-import { MeetFaePreview } from './meet-fae-preview';
+import { FaeWelcomePreview } from './fae-welcome-preview';
 import { usePreviewThemeClass } from './use-resolved-theme';
 
 export type PreviewPane = 'welcome' | 'chat';
@@ -30,8 +30,6 @@ interface AiSettingsPreviewModalProps {
   avatarUrl?: string;
   accentColor: string;
   theme: ApplicationTheme;
-  providerName?: string;
-  modelDisplayName?: string;
 }
 
 /**
@@ -48,8 +46,6 @@ export function AiSettingsPreviewModal({
   avatarUrl,
   accentColor,
   theme,
-  providerName,
-  modelDisplayName,
 }: AiSettingsPreviewModalProps) {
   const themeClass = usePreviewThemeClass(theme);
 
@@ -67,10 +63,9 @@ export function AiSettingsPreviewModal({
         // below ModalV2's 1300. Every other modal keeps a margin and never
         // reaches the edge. Unset on web, where the fallback is 0px.
         'pt-[var(--native-safe-top,0px)]',
-        // 672px ≈ the 600px content column plus the panes' own padding. Wider
-        // just adds empty margin, since both previews cap at 600px like the
-        // real chat does.
-        'md:mx-4 md:h-[85dvh] md:max-w-[672px] md:rounded-md md:border md:pt-0',
+        // 1024px = the Fae window's default width, so the chat shows its
+        // sidebar beside the thread the way a customer first sees it.
+        'md:mx-4 md:h-[85dvh] md:max-w-[1024px] md:rounded-md md:border md:pt-0',
       )}
     >
       <div className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border px-[var(--spacing-system-l)] py-[var(--spacing-system-m)]">
@@ -96,11 +91,13 @@ export function AiSettingsPreviewModal({
           background fills it rather than the app's. */}
       <div className={cn('min-h-0 flex-1 bg-ods-bg pb-[var(--native-safe-bottom,0px)] md:pb-0', themeClass)}>
         {activePane === 'welcome' ? (
-          <MeetFaePreview
+          <FaeWelcomePreview
             variant="full"
             assistantName={assistantName}
             avatarUrl={avatarUrl}
             accentColor={accentColor}
+            // "Start Chat" leads where it does in the chat: into the conversation.
+            onComplete={() => onPaneChange('chat')}
           />
         ) : (
           <FaeChatPreview
@@ -108,8 +105,6 @@ export function AiSettingsPreviewModal({
             assistantName={assistantName}
             avatarUrl={avatarUrl}
             accentColor={accentColor}
-            providerName={providerName}
-            modelDisplayName={modelDisplayName}
           />
         )}
       </div>

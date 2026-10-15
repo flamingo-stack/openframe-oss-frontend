@@ -49,8 +49,6 @@ export function AiSettingsOverview({
             avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
             accentColor={view.accentColor}
             theme={view.applicationTheme}
-            providerName={aiConfig.llmProvider}
-            modelDisplayName={providerModelLabel ?? aiConfig.providerModel}
           />
         </>
       )}
