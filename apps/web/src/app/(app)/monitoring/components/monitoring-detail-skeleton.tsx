@@ -153,17 +153,17 @@ function QueryEditorSkeleton() {
 function policyInfoSkeletonRows(): PanelRow[] {
   const severity = {
     key: 'severity',
-    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-16" />,
+    value: <UnifiedSkeleton as="span" className="inline-block h-5 w-16 max-w-full align-middle" />,
     label: 'Severity',
   };
   const status = {
     key: 'status',
-    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-6 w-24 rounded-full" />,
+    value: <UnifiedSkeleton as="span" className="inline-block h-6 w-24 max-w-full rounded-full align-middle" />,
     label: 'Status',
   };
   const author = {
     key: 'author',
-    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-32" />,
+    value: <UnifiedSkeleton as="span" className="inline-block h-5 w-32 max-w-full align-middle" />,
     label: 'Author',
   };
 
@@ -188,7 +188,7 @@ function QueryInfoSkeleton() {
       <div className="grid grid-cols-2 gap-6 content-md:grid-cols-4">
         <div>
           <p className="text-ods-text-primary text-h4">
-            <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-24" />
+            <UnifiedSkeleton as="span" className="inline-block h-5 w-24 max-w-full align-middle" />
           </p>
           <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
         </div>
