@@ -5,7 +5,7 @@ import { normalizeMingoDialogId } from '@/app/components/notifications/open-ming
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
 import { routes, withMingoDialog } from '@/lib/routes';
-import { MingoChatPlaceholder } from './mingo-chat-placeholder';
+import { MingoChatView } from './mingo-chat-view';
 
 /**
  * One conversation as a page — and the canonical chat link (`mingoDialogLink`), so it
@@ -25,5 +25,5 @@ export default function MingoChatPage() {
   useShellRedirect(target);
 
   if (variant !== 'mingo' || !dialogId || target) return <CompactPageLoader />;
-  return <MingoChatPlaceholder dialogId={dialogId} />;
+  return <MingoChatView dialogId={dialogId} />;
 }

@@ -3,7 +3,7 @@
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
 import { routes } from '@/lib/routes';
-import { MingoArchivePlaceholder } from './mingo-archive-placeholder';
+import { MingoArchiveView } from './mingo-archive-view';
 
 /**
  * Archived chats, a page of the Mingo-first shell. The classic shell keeps its archive
@@ -14,5 +14,5 @@ export default function MingoArchivePage() {
   useShellRedirect(variant === 'classic' ? routes.dashboard : null);
 
   if (variant !== 'mingo') return <CompactPageLoader />;
-  return <MingoArchivePlaceholder />;
+  return <MingoArchiveView />;
 }

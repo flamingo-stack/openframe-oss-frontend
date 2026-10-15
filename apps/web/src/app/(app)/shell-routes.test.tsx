@@ -27,11 +27,11 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOri
 }));
 vi.mock('@/app/(app)/dashboard/components/dashboard-content', () => ({ default: () => <p>dashboard</p> }));
 vi.mock('@/app/(app)/mingo/mingo-home-placeholder', () => ({ MingoHomePlaceholder: () => <p>mingo home</p> }));
-vi.mock('@/app/(app)/mingo/chat/mingo-chat-placeholder', () => ({
-  MingoChatPlaceholder: ({ dialogId }: { dialogId: string }) => <p>chat {dialogId}</p>,
+vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
+  MingoChatView: ({ dialogId }: { dialogId: string }) => <p>chat {dialogId}</p>,
 }));
-vi.mock('@/app/(app)/mingo/archive/mingo-archive-placeholder', () => ({
-  MingoArchivePlaceholder: () => <p>archive</p>,
+vi.mock('@/app/(app)/mingo/archive/mingo-archive-view', () => ({
+  MingoArchiveView: () => <p>archive</p>,
 }));
 vi.mock('@/app/(app)/approvals/approvals-placeholder', () => ({ ApprovalsPlaceholder: () => <p>approvals</p> }));
 
