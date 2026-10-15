@@ -1894,6 +1894,22 @@ type Mutation {
   recordRecordingPlayed(sessionId: String!): RecordRemoteSessionActionPayload!
 
   """
+  Links tickets to a remote session, ended or the caller's own active one. Idempotent per ticket: an active link
+  is left as it is, an unassigned one is linked again. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  REMOTE_SESSION_NOT_FOUND, TICKET_NOT_FOUND (one id unknown in the tenant refuses the call and links nothing),
+  RECORDING_TICKET_LIMIT (more than 50 active links). An empty list or more than 50 ids is not a userError: the
+  request fails with a GraphQL error, extensions.code VALIDATION_ERROR, httpStatus 400.
+  """
+  assignRecordingTickets(input: AssignRecordingTicketsInput!): RemoteSessionPayload!
+
+  """
+  Removes a ticket from the session's table; the session and its access request keep their own ticket.
+  Idempotent: a ticket that is not linked answers success. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  REMOTE_SESSION_NOT_FOUND.
+  """
+  unassignRecordingTicket(sessionId: String!, ticketId: String!): RemoteSessionPayload!
+
+  """
   Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
   each row, the Keep on the session. A file listed later for a kept session is held too. Calling it again after
   RECORDING_STORAGE_UNAVAILABLE finishes the files left. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
@@ -3689,6 +3705,39 @@ type RemoteSessionAudience {
   replayedBy: [RemoteSessionEventActor!]!
 }
 
+"""Where a link came from: the ticket of the access request, a technician's assign, or the ticket of a Keep."""
+enum RemoteSessionTicketSource {
+  SESSION
+  MANUAL
+  KEEP
+}
+
+"""A ticket linked to a remote session, with the ticket facts read live."""
+type RemoteSessionTicketLink {
+  """The raw ticket id, the one the ai-agent tickets query returns."""
+  ticketId: String!
+  """The ticket number; the copy taken at link time when the ticket is gone."""
+  ticketNumber: Int
+  title: String
+  """The status name from the tenant's ticket statuses; null when the status definition is gone."""
+  statusName: String
+  """AI_ASSISTANCE, TECH_REQUIRED, RESOLVED, ARCHIVED or CUSTOM."""
+  statusKind: String
+  statusColor: String
+  assignedTo: String
+  assignedName: String
+  source: RemoteSessionTicketSource!
+  linkedAt: Instant!
+  """Who linked the ticket; null when the system linked the session's own ticket."""
+  linkedBy: RemoteAccessTechnician
+}
+
+input AssignRecordingTicketsInput {
+  sessionId: String!
+  """1 to 50 raw ticket ids; duplicates count once."""
+  ticketIds: [String!]!
+}
+
 type RemoteSession {
   """A plain 26-char ULID."""
   sessionId: String!
@@ -3752,7 +3801,9 @@ type RemoteSession {
   recordingSizeBytes: Long
 
   """
-  The session's timeline, ascending by at then id, as a cursor connection. first is clamped to 1..500, default 100;
+  The session's timeline as a cursor connection, ascending by at. Rows at the same millisecond follow the session:
+  REQUESTED, APPROVED, STARTED, the rows during the session, ENDED, then the rows after the end; id breaks what is
+  left. first is clamped to 1..500, default 100;
   types filters before the page is cut, and a cursor that does not decode reads INVALID_CURSOR. Same visibility as the
   session. Times are the server wall clock: the player maps at to video time with each recording file's startedAt
   (whole seconds) and the reconnect gaps it cut when it stitched the files; a row inside a cut gap has no position.
@@ -3760,6 +3811,9 @@ type RemoteSession {
   events(types: [RemoteSessionEventType!], first: Int, after: String): RemoteSessionEventConnection!
   """Built from the same rows as events, whatever types asks for."""
   audience: RemoteSessionAudience!
+
+  """Active links, the session's own ticket first, then by link time. Same visibility as the session."""
+  tickets: [RemoteSessionTicketLink!]!
 }
 
 """
