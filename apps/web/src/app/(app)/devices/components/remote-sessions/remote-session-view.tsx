@@ -6,7 +6,12 @@ import {
   PageLayout,
   type PageActionButton,
 } from '@flamingo-stack/openframe-frontend-core';
-import { KeepRecordingModal, ReleaseKeepingModal } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  KeepRecordingModal,
+  ReleaseKeepingModal,
+  RemoteSessionEventList,
+  RemoteSessionTimelineMarkers,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LockIcon, TrashIcon, UnlockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -18,6 +23,7 @@ import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
+import { useReportRecordingPlayed, useSessionEvents } from '../../hooks/use-session-events';
 import {
   useDeleteRemoteSession,
   useKeepSessionRecording,
@@ -34,6 +40,7 @@ import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
+import { activeSessionEventId, placeSessionEvents } from './session-events';
 import { canDeleteSession, canKeepSession } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
@@ -44,7 +51,8 @@ interface RemoteSessionViewProps {
 /**
  * The "Remote Session Recording" page (Figma 1728-42383 with the session chat,
  * 2164-113294 without it): the metadata card, then the player with the chat
- * transcript in a column beside it when the session had a chat.
+ * transcript in a column beside it when the session had a chat, then the
+ * Session Events list; the events also mark the player's track, and both seek.
  *
  * Fullscreen lives here rather than in the player so the canvas never
  * remounts: the wrapper swaps to `fixed inset-0` and PageLayout hides its
@@ -80,6 +88,11 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const releaseRecording = useReleaseSessionRecording(recording?.deviceId ?? '');
   const storage = useRecordingStorage();
   const keep = recording?.keep ?? null;
+  // Read once the page has the recording: a missing one has no timeline either.
+  const events = placeSessionEvents(useSessionEvents(recording ? recordingId : null), player.timeline);
+  const hasPlayback = player.state !== 'empty';
+  const activeEventId = hasPlayback ? activeSessionEventId(events, player.currentMs) : null;
+  useReportRecordingPlayed(recording?.id ?? null, player.state);
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
   const unavailableNote = unavailable ? 'The video is still being processed, check back in a moment' : null;
@@ -248,6 +261,15 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
                     durationMs={player.durationMs}
                     speed={player.speed}
                     isFullscreen={isFullscreen}
+                    markers={
+                      events.length > 0 && (
+                        <RemoteSessionTimelineMarkers
+                          events={events}
+                          durationMs={player.durationMs}
+                          onSelect={event => player.seek(event.offsetMs)}
+                        />
+                      )
+                    }
                     onTogglePlay={player.togglePlay}
                     onSeek={player.seek}
                     onStepBack={player.stepBack}
@@ -261,6 +283,14 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           </div>
           {showChat && <SessionChat messages={recording.chat} employee={recording.employee} />}
         </div>
+        {!isFullscreen && events.length > 0 && (
+          <RemoteSessionEventList
+            events={events}
+            activeEventId={activeEventId}
+            // A row seeks only once there is a recording to seek in.
+            onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
+          />
+        )}
       </div>
       <KeepRecordingModal
         isOpen={isKeepOpen}

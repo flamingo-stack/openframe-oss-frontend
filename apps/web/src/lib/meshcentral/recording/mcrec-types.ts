@@ -57,6 +57,22 @@ export interface ParsedRecording {
    * first record of each segment; a single file has only 0 (absent = [0]).
    */
   restartIndices?: number[];
+  /**
+   * The wall-clock stretch each file covers and how far the stitcher moved it
+   * back, in playback order - what maps a time from the server onto the
+   * player's timeline. Absent on a single parsed file: one span, not moved.
+   */
+  spans?: RecordingSpan[];
+}
+
+/** One file of a stitched session, in absolute ms since epoch. */
+export interface RecordingSpan {
+  /** The file's first agent record. */
+  startMs: number;
+  /** The file's last agent record. */
+  endMs: number;
+  /** Ms the stitcher subtracted from the file's timestamps (the reconnect gaps it cut before it). */
+  shiftMs: number;
 }
 
 export type RecordingPlayerState = 'empty' | 'ready' | 'playing' | 'paused' | 'seeking' | 'ended';
