@@ -17,7 +17,7 @@
  * on reopen, with realtime caught up via JetStream replay — no `keepMounted`.
  *
  * It does NOT touch the `/mingo` page: it composes the same building blocks
- * (`useMingoDialogs`, `useMingoDialogSelection`, `useMingoChat`,
+ * (`useMingoDialogs`, `useMingoDialogSelection`, `useMingoDialogChat`,
  * `useMingoRealtimeSubscription`, `useMingoMessagesStore`) independently.
  *
  * Realtime is a rendered component (`<DialogSubscription>`), not a hook, so
@@ -59,7 +59,7 @@ import {
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types';
-import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
+import { type MingoSendContext, type ProcessedMessage, useMingoDialogChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
@@ -99,7 +99,7 @@ export interface MingoUnifiedChat {
   state: UnifiedChatState;
   subscription: MingoSubscriptionBindings;
   /**
-   * PENDING approval cards, lifted out of the thread by `useMingoChat` — it
+   * PENDING approval cards, lifted out of the thread by `useMingoDialogChat` — it
    * filters them from their bubble so an interrupted retry cannot render the
    * same request twice. They therefore reach the view ONLY through the chat's
    * sticky-footer prop, which is why they travel beside `state` rather than
@@ -325,7 +325,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     stopGeneration,
     isTyping,
     isCompacting,
-  } = useMingoChat(activeDialogId);
+  } = useMingoDialogChat(activeDialogId);
 
   const dialogStatusOf = useMingoDialogRowStatus({
     activeDialogId,
@@ -410,7 +410,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // The row-level mapping is `mapMingoMessageToUnified` (above, and unit-tested);
   // what lives here is only the CACHING around it.
   // `processedMessages` hands back referentially-stable objects for unchanged
-  // messages (see useMingoChat's reconciliation), so keying a WeakMap by the
+  // messages (see useMingoDialogChat's reconciliation), so keying a WeakMap by the
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
   // equality memo then re-renders only the streaming bubble, not the whole list
   // (which would otherwise collapse open menus/cards on every chunk).
@@ -757,7 +757,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   return {
     state,
     subscription,
-    /** PENDING approval cards, lifted out of the thread by `useMingoChat` (it
+    /** PENDING approval cards, lifted out of the thread by `useMingoDialogChat` (it
      *  filters them from their bubble to dedupe an interrupted retry). They are
      *  displayed nowhere unless the host hands them to the chat's sticky
      *  footer, which is why they leave this hook separately from `state`. */
