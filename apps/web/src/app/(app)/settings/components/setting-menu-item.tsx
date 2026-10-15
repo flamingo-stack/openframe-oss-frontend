@@ -1,7 +1,7 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -34,9 +34,9 @@ const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rou
  */
 export function SettingMenuItemSkeleton() {
   return (
-    <div className={CARD_SHELL_CLASSES} aria-busy="true">
+    <div className={CARD_SHELL_CLASSES}>
       <div className={ICON_FRAME_CLASSES}>
-        <Skeleton className="h-6 w-6 rounded" />
+        <UnifiedSkeleton className="h-6 w-6 rounded" />
       </div>
       {/* Each bar sits in a box the height of the line it replaces (`text-h3` title,
           `text-h6` description) but is only as tall as the glyphs themselves. Filling the
@@ -45,14 +45,14 @@ export function SettingMenuItemSkeleton() {
           exactly what the two `<p>`s do. */}
       <div className="min-w-0 flex-1">
         <div className="flex h-[var(--font-line-space-h3-body)] items-center">
-          <Skeleton className="h-[var(--font-size-h3-body)] w-32 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h3-body)] w-32 max-w-full rounded-md" />
         </div>
         <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
       <div className={CHEVRON_FRAME_CLASSES}>
-        <Skeleton className="h-6 w-6 rounded" />
+        <UnifiedSkeleton className="h-6 w-6 rounded" />
       </div>
     </div>
   );

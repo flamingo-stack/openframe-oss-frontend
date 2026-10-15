@@ -56,19 +56,29 @@ export function useCustomerAiAssistantForm({ aiConfig, view, onSubmit }: UseCust
     }
   }, []);
 
-  // Re-sync form + avatar when either underlying record changes (e.g. the
-  // post-save refetch lands, or the first save created the default records).
+  // Re-sync the form when either underlying record changes (e.g. the post-save
+  // refetch lands, or the first save created the default records).
   const syncKey = `${aiConfig.id}:${aiConfig.updatedAt ?? ''}:${view.id}:${view.updatedAt ?? ''}`;
   const lastSyncRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastSyncRef.current === syncKey) return;
     lastSyncRef.current = syncKey;
+    form.reset(getCustomerAiAssistantDefaults(aiConfig, view));
+  }, [syncKey, aiConfig, view, form]);
+
+  // The avatar belongs to the ClientView alone. The AI config is saved and
+  // refetched in parallel with it, so its refetch lands mid-save. Re-syncing
+  // the avatar on it would drop the staged file and show the old avatar.
+  const viewSyncKey = `${view.id}:${view.updatedAt ?? ''}`;
+  const lastViewSyncRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastViewSyncRef.current === viewSyncKey) return;
+    lastViewSyncRef.current = viewSyncKey;
     clearPreview();
     pendingFileRef.current = null;
     pendingRemovalRef.current = false;
-    form.reset(getCustomerAiAssistantDefaults(aiConfig, view));
     setAvatarUrl(getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash));
-  }, [syncKey, aiConfig, view, form, clearPreview]);
+  }, [viewSyncKey, view, clearPreview]);
 
   useEffect(() => () => clearPreview(), [clearPreview]);
 
@@ -89,31 +99,43 @@ export function useCustomerAiAssistantForm({ aiConfig, view, onSubmit }: UseCust
     setAvatarUrl(undefined);
   };
 
-  // Flush the pending avatar change to the saved ClientView id. Throws on failure.
-  const commitAvatar: CommitAvatar = async clientViewId => {
-    const imageEndpoint = `/api/client-agent-settings/${clientViewId}/image`;
-    if (pendingFileRef.current) {
-      const uploadedUrl = await uploadWithAuth(imageEndpoint, pendingFileRef.current);
-      pendingFileRef.current = null;
-      clearPreview();
-      // The image endpoint URL is content-stable, so the browser would otherwise
-      // serve the previously cached avatar. Bust the cache so the freshly
-      // uploaded image actually loads.
-      setAvatarUrl(getFullImageUrl(uploadedUrl, String(Date.now())));
-      toast({ title: 'Avatar updated', description: 'Assistant avatar uploaded', variant: 'success' });
-    } else if (pendingRemovalRef.current) {
-      await deleteWithAuth(imageEndpoint);
-      pendingRemovalRef.current = false;
-      toast({ title: 'Avatar removed', description: 'Assistant avatar deleted', variant: 'success' });
-    }
+  // Flush the avatar change staged at submit to the saved ClientView id. The
+  // change is captured when Save is pressed, not read from the refs once the
+  // saves resolve, so nothing that lands meanwhile can drop it. Throws on failure.
+  const createCommitAvatar = (file: File | null, remove: boolean): CommitAvatar => {
+    return async clientViewId => {
+      const imageEndpoint = `/api/client-agent-settings/${clientViewId}/image`;
+      if (file) {
+        const uploadedUrl = await uploadWithAuth(imageEndpoint, file);
+        // A newer pick made while this upload ran stays staged and previewed.
+        if (pendingFileRef.current === file) {
+          pendingFileRef.current = null;
+          clearPreview();
+          // The image endpoint URL is content-stable, so the browser would otherwise
+          // serve the previously cached avatar. Bust the cache so the freshly
+          // uploaded image actually loads.
+          setAvatarUrl(getFullImageUrl(uploadedUrl, String(Date.now())));
+        }
+        toast({ title: 'Avatar updated', description: 'Assistant avatar uploaded', variant: 'success' });
+      } else if (remove) {
+        await deleteWithAuth(imageEndpoint);
+        pendingRemovalRef.current = false;
+        toast({ title: 'Avatar removed', description: 'Assistant avatar deleted', variant: 'success' });
+      }
+    };
   };
 
   // Built on submit, not during render: `form.handleSubmit` is opaque to the React
-  // Compiler, so calling it here would mean handing a closure over `commitAvatar`
-  // — which reads the pending-avatar refs — to a function that might, as far as
-  // the compiler can tell, run it while rendering.
+  // Compiler, so calling it here would mean handing a closure over the
+  // pending-avatar refs to a function that might, as far as the compiler can
+  // tell, run it while rendering.
   const handleSubmit = (event?: BaseSyntheticEvent) =>
-    form.handleSubmit(values => onSubmit(toCustomerAiAssistantSubmit(values), commitAvatar))(event);
+    form.handleSubmit(values =>
+      onSubmit(
+        toCustomerAiAssistantSubmit(values),
+        createCommitAvatar(pendingFileRef.current, pendingRemovalRef.current),
+      ),
+    )(event);
 
   return {
     form,

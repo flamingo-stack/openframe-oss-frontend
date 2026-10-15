@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { type AuthSsoProvider, PROVIDER_META } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -139,7 +140,7 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
   }
 
   if (!identity) {
-    return <div className="min-h-[320px]" aria-busy="true" aria-live="polite" />;
+    return <LoadingRegion label="Loading your sign-in" className="min-h-[320px]" />;
   }
 
   const label = ssoProviderLabel(identity.provider);

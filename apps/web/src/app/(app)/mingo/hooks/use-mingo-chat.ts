@@ -17,6 +17,8 @@ import {
 } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { CoreMessage } from '../types/message.types';
+import { insertNewDialog } from '../utils/insert-new-dialog';
+import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /** Context attached to an outgoing message: the picker selection plus the
  *  current navigation context (resolved by the caller from the context store).
@@ -225,6 +227,10 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         setCreatingDialog(true);
 
         const newDialogId = await createDialogMutation.mutateAsync({ insightId });
+        // Listed at once (a list read still in flight would drop it again, so
+        // it is cancelled first); the refetch then brings the server's row.
+        await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
+        insertNewDialog(queryClient, newDialogId, user);
         queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
 
         return newDialogId;
@@ -244,7 +250,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         setCreatingDialog(false);
       }
     },
-    [isCreatingDialog, setCreatingDialog, createDialogMutation, queryClient, toast],
+    [isCreatingDialog, setCreatingDialog, createDialogMutation, queryClient, user, toast],
   );
 
   const sendMessage = useCallback(

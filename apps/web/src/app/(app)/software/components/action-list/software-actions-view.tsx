@@ -85,6 +85,7 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
   // The rows before they answer — the same for a query in flight and for the flag's own window.
   const tableSkeleton = (
     <TableSkeleton
+      label="Loading software actions"
       columns={SOFTWARE_ACTION_TABLE_COLUMNS}
       rows={SOFTWARE_ACTIONS_PAGE_SIZE}
       stickyHeaderOffset={stickyHeaderOffset}

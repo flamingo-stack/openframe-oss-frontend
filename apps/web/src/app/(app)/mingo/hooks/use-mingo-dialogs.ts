@@ -10,6 +10,7 @@ import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
+import { keepCreatedDialogs } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
@@ -103,10 +104,10 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
       });
 
       const { edges, pageInfo } = extractGraphQlData(response).dialogs;
-      return {
-        dialogs: edges.map(edge => edge.node),
-        pageInfo,
-      };
+      const page = { dialogs: edges.map(edge => edge.node), pageInfo };
+      // A dialog created moments ago may not be in the server's answer yet; the
+      // first page of an unsearched list keeps it on top until it is.
+      return pageParam === undefined && !search ? keepCreatedDialogs(page) : page;
     },
     getNextPageParam: lastPage => {
       return lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor : undefined;

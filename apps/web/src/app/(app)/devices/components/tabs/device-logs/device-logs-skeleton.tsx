@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEFAULT_DEVICE_LOG_RANGE } from '../../../utils/device-log-time';
 import {
@@ -22,29 +22,32 @@ export function DeviceLogsRowsSkeleton({ rows = 8, dayHeader = false }: { rows?:
       {dayHeader && (
         <div className={DEVICE_LOG_DAY_HEADER}>
           {/* The heading's own box: 1lh tall and 8ch wide (a short date) in its text-h5 font. */}
-          <Skeleton className="h-[1lh] w-[8ch] text-h5" />
+          <UnifiedSkeleton className="h-[1lh] w-[8ch] text-h5" />
           <span className="h-px flex-1 bg-ods-border" />
         </div>
       )}
       {Array.from({ length: rows }, (_, index) => (
         <div key={index} className={cn('rounded-md border border-transparent', DEVICE_LOG_LINE)}>
           {/* text-code: the column is sized in `ch`, which only matches the live time's width in its font. */}
-          <Skeleton className={cn('h-5 shrink-0 text-code', DEVICE_LOG_TIME_COLUMN)} />
-          <Skeleton className={cn('h-8 shrink-0', DEVICE_LOG_LEVEL_COLUMN)} />
-          <Skeleton className="h-5 flex-1" />
+          <UnifiedSkeleton className={cn('h-5 shrink-0 text-code', DEVICE_LOG_TIME_COLUMN)} />
+          <UnifiedSkeleton className={cn('h-8 shrink-0', DEVICE_LOG_LEVEL_COLUMN)} />
+          <UnifiedSkeleton className="h-5 flex-1" />
         </div>
       ))}
     </div>
   );
 }
 
-/** The list before its first page: the live list's top sentinel, then a day of lines. */
-export function DeviceLogsListSkeleton() {
+/**
+ * The list before its first page: the live list's top sentinel, then a day of lines. `region={false}`
+ * inside another loading region, which announces for the list.
+ */
+export function DeviceLogsListSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
+    <LoadingRegion label="Loading logs…" announce={region} className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <div className="h-px" />
       <DeviceLogsRowsSkeleton dayHeader />
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -53,7 +56,7 @@ const noop = () => {};
 const NO_BOUNDS = { fromDate: new Date(0), toDate: new Date(0) };
 
 /** The tab while the device loads: the real toolbar, locked, over the rows. */
-export function DeviceLogsTabSkeleton() {
+export function DeviceLogsTabSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <DeviceLogsToolbar
@@ -73,7 +76,7 @@ export function DeviceLogsTabSkeleton() {
         onRefresh={noop}
         isRefreshing={false}
       />
-      <DeviceLogsListSkeleton />
+      <DeviceLogsListSkeleton region={region} />
     </div>
   );
 }

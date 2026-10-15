@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { memo, Suspense } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -67,9 +68,12 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
  */
 export function ScheduleScriptsTabSkeleton() {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+    <LoadingRegion
+      label="Loading scripts"
+      className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
+    >
       <ScheduleScriptCardSkeleton />
-    </div>
+    </LoadingRegion>
   );
 }
 

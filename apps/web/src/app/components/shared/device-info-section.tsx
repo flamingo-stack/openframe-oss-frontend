@@ -1,15 +1,15 @@
 'use client';
 
+import { DeviceCardSkeleton, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceOperatingSystem,
   getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
+import { DEVICE_DETAILS_BUTTON_BOX, DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
-import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 
 interface DeviceInfoSectionProps {
   deviceId?: string;
@@ -27,10 +27,10 @@ export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceI
   // Show loading state only if we're fetching and don't have data from props
   if (isLoading && !deviceFromProps) {
     return (
-      <div className="flex w-full flex-col gap-1">
+      <LoadingRegion label="Loading device info" className="flex w-full flex-col gap-1">
         <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-        <DeviceInfoSectionSkeleton />
-      </div>
+        <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
+      </LoadingRegion>
     );
   }
 

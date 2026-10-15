@@ -9,13 +9,15 @@ import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRef, useState } from 'react';
 import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
 import {
-  EMAIL_REGEX,
+  getPasswordError,
   INVALID_EMAIL_ERROR,
-  MIN_PASSWORD_LENGTH,
+  isValidPersonName,
+  normalizePersonName,
   ORG_NAME_ERROR,
   ORG_NAME_REGEX,
-  PASSWORD_TOO_SHORT_ERROR,
   PASSWORDS_DO_NOT_MATCH_ERROR,
+  PERSON_NAME_ERROR,
+  VALID_EMAIL_REGEX,
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useOrganizationDomain } from '@/app/(auth)/auth/hooks/use-organization-domain';
 import {
@@ -42,7 +44,7 @@ interface CreateOrganizationSectionProps {
     password: string;
     prNumber?: number;
   }) => void;
-  /** Provider buttons, rendered above the email field on step one where they need nothing typed. */
+  /** Provider buttons, rendered under the email field on step one; they need nothing typed. */
   ssoProviders?: AuthSsoProvider[];
   /**
    * Provider sign-up with nothing filled in. Runs the shared SSO login: the server resolves the
@@ -54,8 +56,8 @@ interface CreateOrganizationSectionProps {
 }
 
 /**
- * Wires the shared forms to the sign-up flow, in two steps on one screen: providers and the email
- * that unlocks the rest, then the organization and account details.
+ * Wires the shared forms to the sign-up flow, in two steps on one screen: the email that unlocks the
+ * rest and the providers, then the organization and account details.
  *
  * Owns the email, organization-name and credential state plus live email availability. The whole
  * subdomain concern — sanitizing, live and submit-time availability, and the tenant-registration
@@ -80,13 +82,13 @@ export function CreateOrganizationSection({
   // Dev environments only: links the registration to a PR so the tenant lands on that preview.
   const [prNumber, setPrNumber] = useState('');
   const showPrNumber = runtimeEnv.prNumberEnabled();
-  // Email first, then everything else. The providers above the email need nothing typed, so this
+  // Email first, then everything else. The providers under the email need nothing typed, so this
   // step is also the one that keeps them reachable on a cold screen.
   const [step, setStep] = useState<'email' | 'details'>('email');
   // Funnel event, fired once when the user commits to the details step — the "signup started"
   // edge of the password funnel.
   const signupStartedFired = useRef(false);
-  const isEmailValid = EMAIL_REGEX.test(email.trim());
+  const isEmailValid = VALID_EMAIL_REGEX.test(email.trim());
   const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
 
   const emailStatus = useEmailAvailability(email);
@@ -102,13 +104,13 @@ export function CreateOrganizationSection({
     !domainField.isBlocked &&
     agreedToTerms;
 
-  const isPasswordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+  const passwordError = getPasswordError(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const isDetailsValid =
     isOrganizationValid &&
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    password.length >= MIN_PASSWORD_LENGTH &&
+    isValidPersonName(firstName) &&
+    isValidPersonName(lastName) &&
+    !passwordError &&
     passwordsMatch;
 
   const handleSubmit = async () => {
@@ -119,8 +121,8 @@ export function CreateOrganizationSection({
       orgName: organizationName.trim(),
       domain: tenantDomain,
       email: email.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      firstName: normalizePersonName(firstName),
+      lastName: normalizePersonName(lastName),
       password,
       ...(showPrNumber && prNumber ? { prNumber: Number(prNumber) } : {}),
     });
@@ -138,8 +140,8 @@ export function CreateOrganizationSection({
             ? { message: 'Email is available', variant: 'success' as const }
             : undefined;
 
-  // Step one: providers, then the email that unlocks the rest. Reuses the login shape so both tabs
-  // present the same thing on arrival — providers first, email second.
+  // Step one: the email that unlocks the rest, then the providers. Reuses the login shape so both
+  // tabs present the same thing on arrival — email first, providers under it.
   if (step === 'email') {
     return (
       <LoginForm
@@ -151,7 +153,6 @@ export function CreateOrganizationSection({
         emailStatus={emailStatusMessage}
         ssoProviders={ssoProviders ?? []}
         onSsoClick={provider => onSsoLogin?.(provider)}
-        dividerLabel="or enter email to continue with OpenFrame SSO"
         onSubmitClick={() => {
           if (!signupStartedFired.current) {
             signupStartedFired.current = true;
@@ -205,10 +206,13 @@ export function CreateOrganizationSection({
         ) : undefined
       }
       errors={{
-        password: isPasswordTooShort ? PASSWORD_TOO_SHORT_ERROR : undefined,
+        firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
+        lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
+        password: password ? passwordError : undefined,
         confirmPassword:
           confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
         organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
+        domain: domainField.formatError,
       }}
     >
       {showPrNumber && (

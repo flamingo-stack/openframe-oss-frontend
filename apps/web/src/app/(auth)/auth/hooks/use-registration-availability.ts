@@ -2,7 +2,7 @@
 
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useState } from 'react';
-import { EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
+import { VALID_EMAIL_REGEX } from '@/app/(auth)/auth/constants/registration-validation';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
 
 export type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'taken' | 'blocked' | 'error';
@@ -22,7 +22,7 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
   // previous verdict (a red "taken") on screen for a frame after the field changes, and setting
   // state synchronously inside one is what `react-hooks/set-state-in-effect` forbids.
   const [lastDebounced, setLastDebounced] = useState(debounced);
-  const checkable = Boolean(debounced) && EMAIL_REGEX.test(debounced);
+  const checkable = Boolean(debounced) && VALID_EMAIL_REGEX.test(debounced);
   if (debounced !== lastDebounced) {
     setLastDebounced(debounced);
     setResult({ email: debounced, status: checkable ? 'checking' : 'idle' });
@@ -63,7 +63,7 @@ export function useEmailAvailability(email: string, delay = 400): AvailabilitySt
   // and a late "taken" can no longer be corrected.
   const trimmed = email.trim();
   if (result?.email !== trimmed) {
-    return EMAIL_REGEX.test(trimmed) ? 'checking' : 'idle';
+    return VALID_EMAIL_REGEX.test(trimmed) ? 'checking' : 'idle';
   }
 
   return result.status;

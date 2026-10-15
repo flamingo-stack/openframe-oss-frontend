@@ -5,9 +5,8 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
-import { authApiClient } from '@/lib/auth-api-client';
-
-const MIN_PASSWORD_LENGTH = 8;
+import { getPasswordError } from '@/app/(auth)/auth/constants/registration-validation';
+import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
 export default function PasswordResetPage() {
   const searchParams = useSearchParams();
@@ -31,9 +30,9 @@ export default function PasswordResetPage() {
     }
   }, [token, router, toast]);
 
-  const isTooShort = !!password && password.length < MIN_PASSWORD_LENGTH;
+  const passwordError = getPasswordError(password);
   const isMismatch = !!confirmPassword && password !== confirmPassword;
-  const isValid = password.length >= MIN_PASSWORD_LENGTH && password === confirmPassword;
+  const isValid = !passwordError && password === confirmPassword;
 
   const handleBack = () => router.push('/auth');
 
@@ -49,8 +48,7 @@ export default function PasswordResetPage() {
       });
 
       if (!response.ok) {
-        const error = response.data as { code?: string; message?: string } | undefined;
-        throw new Error(error?.message || response.error || 'Failed to reset password');
+        throw new Error(getAuthFailureMessage(response, 'Failed to reset password'));
       }
 
       toast({
@@ -90,7 +88,7 @@ export default function PasswordResetPage() {
         submitDisabled={!isValid}
         loading={isLoading}
         errors={{
-          password: isTooShort ? `Password must be at least ${MIN_PASSWORD_LENGTH} characters` : undefined,
+          password: password ? passwordError : undefined,
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
         }}
       />

@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CheckboxBlock, Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { CheckboxBlock, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DeviceLogLevelChips } from '@/app/(app)/devices/components/tabs/device-logs/device-log-level-chips';
 import { DeviceLogRangeSelect } from '@/app/(app)/devices/components/tabs/device-logs/device-log-range-select';
@@ -57,7 +58,11 @@ export function TroubleshootingToolbar({
         {customerFilter === 'on' && (
           <OrganizationFilter value={customers} onChange={onCustomersChange} maxItems={TROUBLESHOOTING_PICK_LIMIT} />
         )}
-        {customerFilter === 'loading' && <Skeleton className="h-12 rounded-md" aria-hidden="true" />}
+        {customerFilter === 'loading' && (
+          <LoadingRegion label="Loading customers">
+            <UnifiedSkeleton className="h-12 rounded-md" />
+          </LoadingRegion>
+        )}
         <DeviceFilter value={devices} onChange={onDevicesChange} organizationIds={organizationIds} />
         <div className="flex flex-wrap gap-[var(--spacing-system-xs)]">
           <DeviceLogRangeSelect

@@ -76,6 +76,7 @@ import { clientIdentityHeaders } from '@/lib/client-identity';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
+import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -159,6 +160,16 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // rotation (which, with rotating refresh tokens, invalidates the credential
   // just obtained).
   refresh: () => refreshAccessToken(lastChatSendEpoch),
+  // Mobile force-update, as `apiClient`, Relay and the upload helpers do it:
+  // once this bundle is refused nothing goes out, and a 426 flips the app into
+  // the "Update required" screen ahead of the 401 → `refresh` path, never
+  // retried. Both are no-ops off the mobile shell.
+  beforeRequest: () => {
+    if (isUpdateRequired()) throw new UpdateRequiredError();
+  },
+  onResponse: async response => {
+    if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+  },
   // The one origin the bearer belongs to, in bearer mode only (see
   // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
   // same-origin rule stays absolute.

@@ -1,5 +1,6 @@
 'use client';
 
+import { DeviceCardSkeleton, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceOperatingSystem,
@@ -7,15 +8,18 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
-import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
+import { DEVICE_DETAILS_BUTTON_BOX, DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
-import { DeviceInfoSectionSkeleton } from './device-info-section-skeleton';
 
 function LogDrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNavigate: () => void }) {
   const { deviceDetails, isLoading } = useDeviceDetails(deviceId, { polling: false });
 
   if (isLoading) {
-    return <DeviceInfoSectionSkeleton />;
+    return (
+      <LoadingRegion label="Loading device">
+        <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
+      </LoadingRegion>
+    );
   }
 
   if (!deviceDetails) return null;

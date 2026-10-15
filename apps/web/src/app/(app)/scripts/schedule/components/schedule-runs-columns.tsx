@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -317,9 +318,17 @@ export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffse
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={RUNS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading schedule runs">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body
+          loading
+          loadingRegion={false}
+          skeletonRows={RUNS_PAGE_SIZE}
+          emptyMessage=""
+          rowClassName="mb-1"
+        />
+      </DataTable>
+    </LoadingRegion>
   );
 }
