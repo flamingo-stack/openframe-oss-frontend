@@ -251,8 +251,8 @@ export function InitialSetupSkeleton() {
       <div className="flex min-w-0 flex-col">
         {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
             `text-h6` line boxes so the header height matches the loaded card exactly.
-            Decorative `div` wrappers (not `h2`/`p`) since `UnifiedSkeleton` renders a `div`,
-            which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
+            Decorative `div` wrappers (not `h2`/`p`), so the loading card adds no empty heading
+            or paragraph to the page; the type utilities carry the height. */}
         <div className="text-ods-text-primary text-h2">
           <UnifiedSkeleton className="inline-block h-6 w-40 align-middle" />
         </div>

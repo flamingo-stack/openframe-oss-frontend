@@ -2,7 +2,7 @@
 
 import { PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DeviceSelectorSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   CheckboxBlock,
   Input,
@@ -15,8 +15,6 @@ import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from './script-summary-c
 
 const noop = () => {};
 const EMPTY_ARGUMENTS: never[] = [];
-const EMPTY_SELECTION = new Set<string>();
-const NO_DEVICES: never[] = [];
 
 const ACTIONS: PageActionButton[] = [{ label: 'Run Script', variant: 'accent', disabled: true }];
 
@@ -77,20 +75,8 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         </div>
 
         <div className="space-y-[var(--spacing-system-xxs)]">
-          <DeviceSelector
-            devices={NO_DEVICES}
-            loading
-            // Same lock as `DeviceSelectorSkeleton` and `SchedulePickerSkeleton`:
-            // the search box, the tag filter and the tab strip render for real
-            // here, so without it they take input that the loaded picker throws
-            // away a moment later.
-            disabled
-            selectedIds={EMPTY_SELECTION}
-            getDeviceKey={() => ''}
-            onSelectionChange={noop}
-            showSelectionModeRadio={false}
-            addAllBehavior="replace"
-          />
+          {/* The page's "Loading script" region announces for the picker too. */}
+          <DeviceSelectorSkeleton region={false} showSelectionModeRadio={false} />
         </div>
       </LoadingRegion>
     </PageLayout>

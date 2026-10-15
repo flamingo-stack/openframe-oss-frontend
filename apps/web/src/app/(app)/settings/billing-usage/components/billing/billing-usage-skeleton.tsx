@@ -10,9 +10,9 @@ import { routes } from '@/lib/routes';
 import { BillingRow, SectionBlock, TestModeBanner } from '../shared/billing-section';
 import { INVOICES_TABLE_COLUMNS } from './invoices-table-layout';
 
-// A value placeholder sized to sit on the right of a BillingRow.
+// A value placeholder sized to sit on the right of a BillingRow, whose value slot is a `span`.
 function Value({ width }: { width: string }) {
-  return <UnifiedSkeleton className={`h-4 ${width}`} />;
+  return <UnifiedSkeleton as="span" className={`h-4 ${width}`} />;
 }
 
 /**
