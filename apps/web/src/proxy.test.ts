@@ -31,24 +31,18 @@ afterEach(() => {
   delete process.env.NEXT_PUBLIC_APP_MODE;
 });
 
-describe('the /mobile allowlist in the Edge proxy', () => {
-  it('lets the QR landing page through in saas-shared, which allows almost nothing else', () => {
-    expect(redirectedTo('/mobile', 'saas-shared')).toBeNull();
-    // `trailingSlash: true` is the form the export build serves.
-    expect(redirectedTo('/mobile/', 'saas-shared')).toBeNull();
+/**
+ * `/mobile` was the mobile-app install page. It is gone (the website's download page
+ * replaced it), so it carries no exemption: it is an ordinary path under the mode rules.
+ */
+describe('the mode rules in the Edge proxy', () => {
+  it('gives the removed /mobile path no exemption in saas-shared', () => {
+    expect(redirectedTo('/mobile', 'saas-shared')).toContain('/auth');
+    expect(redirectedTo('/mobile/', 'saas-shared')).toContain('/auth');
   });
 
-  it('does not extend that to a route which merely shares the prefix', () => {
-    // Segment match, not `startsWith`: this exemption sits above every mode rule, so a
-    // prefix would hand any future `/mobile*` route a blanket pass.
-    expect(redirectedTo('/mobile-onboarding', 'saas-shared')).toContain('/auth');
-    expect(redirectedTo('/mobiles', 'saas-shared')).toContain('/auth');
-  });
-
-  it('keeps the page reachable in the tenant modes too', () => {
-    for (const mode of ['oss-tenant', 'saas-tenant']) {
-      expect(redirectedTo('/mobile', mode)).toBeNull();
-    }
+  it('keeps the account-deletion page reachable in saas-shared, which allows almost nothing else', () => {
+    expect(redirectedTo('/account-deletion', 'saas-shared')).toBeNull();
   });
 
   it('preserves the query string when it does redirect', () => {
