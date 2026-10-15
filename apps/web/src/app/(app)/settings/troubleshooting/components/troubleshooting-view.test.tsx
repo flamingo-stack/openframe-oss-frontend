@@ -182,6 +182,17 @@ function listStatus() {
     .find(text => text.startsWith('Loading logs'));
 }
 
+function buttonByText(text: string) {
+  return Array.from(container.querySelectorAll('button')).find(button => button.textContent?.trim() === text);
+}
+
+/** What relay-runtime throws for a query whose answer is only errors: the GraphQL errors ride on `source`. */
+function graphqlFailure(code: string, message: string) {
+  return Object.assign(new Error(`No data returned for operation \`deviceLogsListQuery\`, got error(s):\n${message}`), {
+    source: { errors: [{ message, extensions: { code, httpStatus: 404 } }] },
+  });
+}
+
 function logEdge(cursor: string) {
   return {
     cursor,
@@ -396,6 +407,61 @@ describe('TroubleshootingView', () => {
     expect(container.textContent).toContain('No logs in this range');
     expect(listStatus()).toBeUndefined();
     expect(refreshButton()?.disabled).toBe(false);
+  });
+
+  it('answers an unknown customer with "Customer not found" and clears just that id from the URL', async () => {
+    flags(true);
+    spies.lazyLoadQuery.mockImplementation((_node, variables) => {
+      if ((variables.organizationIds as string[] | null)?.includes('bad-org'))
+        throw graphqlFailure('ORGANIZATION_NOT_FOUND', 'Organization not found: bad-org');
+      return {};
+    });
+    await mount('customer=org-1&customer=bad-org');
+    expect(container.textContent).toContain('Customer not found');
+    expect(container.textContent).not.toContain("Couldn't load device logs.");
+    expect(buttonByText('Try Again')).toBeUndefined();
+
+    await act(async () => {
+      buttonByText('Clear filter')?.click();
+    });
+    expect(spies.replace).toHaveBeenCalledTimes(1);
+    const written = new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '');
+    expect(written.getAll('customer')).toEqual(['org-1']);
+
+    // The new pick reaches the list once it settles, and the boundary lets it through.
+    await settle();
+    expect(lastVariables().organizationIds).toEqual(['org-1']);
+    expect(container.textContent).not.toContain('Customer not found');
+    expect(container.textContent).toContain('No logs in this range');
+  });
+
+  it('answers an unknown device with "Device not found" and clears it from the URL', async () => {
+    spies.lazyLoadQuery.mockImplementation((_node, variables) => {
+      if ((variables.machineIds as string[] | null)?.includes('m-gone'))
+        throw graphqlFailure('DEVICE_NOT_FOUND', 'Machine not found: m-gone');
+      return {};
+    });
+    await mount('device=m-gone');
+    expect(container.textContent).toContain('Device not found');
+
+    await act(async () => {
+      buttonByText('Clear filter')?.click();
+    });
+    const written = new URLSearchParams(spies.replace.mock.calls[0][0].split('?')[1] ?? '');
+    expect(written.getAll('device')).toEqual([]);
+    await settle();
+    expect(lastVariables().machineIds).toBeNull();
+    expect(container.textContent).toContain('No logs in this range');
+  });
+
+  it('keeps the generic load error for any other failure', async () => {
+    spies.lazyLoadQuery.mockImplementation(() => {
+      throw graphqlFailure('INTERNAL_ERROR', 'An unexpected error occurred. Please try again later.');
+    });
+    await mount('device=m-1');
+    expect(container.textContent).toContain("Couldn't load device logs.");
+    expect(container.textContent).not.toContain('Device not found');
+    expect(buttonByText('Clear filter')).toBeUndefined();
   });
 
   it('resets the customers, the devices and the log params in one URL write', async () => {

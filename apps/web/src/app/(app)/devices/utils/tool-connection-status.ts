@@ -41,6 +41,29 @@ export function getToolConnectionDisplayStatus(
  */
 const NON_CONNECTING_DEVICE_STATUSES = new Set(['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED']);
 
+function isArchiveLifecycle(device: Device): boolean {
+  return NON_CONNECTING_DEVICE_STATUSES.has(device.status?.toUpperCase() ?? '');
+}
+
+/**
+ * Agents the platform installs on every device, as `installedAgents.agentType`
+ * values. Mirrors the enabled tool-agent configurations the backend installs on
+ * registration (not exposed over GraphQL): Fleet and MeshCentral everywhere,
+ * plus the openframe-chat app on SaaS tenants.
+ */
+const CORE_AGENT_TYPES = ['fleetmdm-agent', 'meshcentral-agent'] as const;
+const SAAS_AGENT_TYPES = [...CORE_AGENT_TYPES, 'openframe-chat'] as const;
+
+/**
+ * Agents the Agents tab keeps a slot for, so one that has not reported yet
+ * shows as pending instead of being absent. None on archive-lifecycle records:
+ * a missing agent there is teardown, not an install in progress.
+ */
+export function getExpectedAgentTypes(device: Device, saasTenant: boolean): readonly string[] {
+  if (isArchiveLifecycle(device)) return [];
+  return saasTenant ? SAAS_AGENT_TYPES : CORE_AGENT_TYPES;
+}
+
 /**
  * True while the device is waiting for its first Fleet or MeshCentral
  * registration — drives the "Device is still connecting" banner. Shows only
@@ -48,7 +71,8 @@ const NON_CONNECTING_DEVICE_STATUSES = new Set(['ARCHIVED', 'DELETED', 'PENDING_
  * re-triggers), and never on archive-lifecycle records.
  */
 export function isDeviceStillConnecting(device: Device): boolean {
-  if (NON_CONNECTING_DEVICE_STATUSES.has(device.status?.toUpperCase() ?? '')) return false;
+  if (isArchiveLifecycle(device)) return false;
+  // The openframe-chat app has no tool connection to wait for, so it never holds the banner.
   const fleet = device.toolConnections?.find(tc => tc.toolType === 'FLEET_MDM');
   const mesh = device.toolConnections?.find(tc => tc.toolType === 'MESHCENTRAL');
   return getToolConnectionState(fleet) === 'pending' || getToolConnectionState(mesh) === 'pending';

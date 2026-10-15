@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadError, NoData, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { LoadError, NoData } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { EmptyState } from '@/app/components/shared/empty-state';
 import { GuardrailsPolicyGroups } from './guardrails-policy-groups';
@@ -23,10 +24,10 @@ interface GuardrailsPanelProps {
 export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
   if (editor.isLoading) {
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-sf)]">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <LoadingRegion label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-sf)]">
+        <UnifiedSkeleton className="h-20 w-full" />
+        <UnifiedSkeleton className="h-64 w-full" />
+      </LoadingRegion>
     );
   }
 
@@ -74,7 +75,9 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
       )}
 
       {editor.isDetailLoading ? (
-        <Skeleton className="h-64 w-full" />
+        <LoadingRegion label="Loading policy rules">
+          <UnifiedSkeleton className="h-64 w-full" />
+        </LoadingRegion>
       ) : editor.policyGroups.size === 0 ? (
         <NoData
           icon={<ShieldCheckIcon />}

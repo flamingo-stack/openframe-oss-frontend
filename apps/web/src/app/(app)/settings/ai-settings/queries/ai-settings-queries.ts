@@ -11,6 +11,9 @@ const AGENT_AI_CONFIG_FIELDS = `
     id
     name
     instructions
+    iconName
+    iconUrl
+    iconProps
   }
   createdAt
   updatedAt
@@ -24,7 +27,6 @@ const CLIENT_VIEW_FIELDS = `
     imageUrl
     hash
   }
-  applicationTheme
   accentColor
   createdAt
   updatedAt

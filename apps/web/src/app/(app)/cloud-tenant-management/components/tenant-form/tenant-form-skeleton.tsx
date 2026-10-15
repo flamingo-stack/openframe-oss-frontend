@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { Button, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useForm } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -42,26 +43,28 @@ export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVar
       actions={[SAVE_PLACEHOLDER]}
       actionsVariant="primary-buttons"
     >
-      {!create && <TenantSummaryCardSkeleton identityOnly />}
-      {variant !== 'reconnect' && (
-        <TenantFormFields
-          control={form.control}
-          disabled
-          domainLocked
-          hideDomain={variant === 'edit'}
-          providerField={create ? <ProviderFieldSkeleton /> : undefined}
-          customersEnabled={false}
-        />
-      )}
-      {variant === 'new' && (
-        <div>
-          <Button variant="accent" disabled className="w-full content-md:w-auto">
-            Generate Connection Link
-          </Button>
-        </div>
-      )}
-      {variant === 'connect' && <ConsentPanelSkeleton mode="new" />}
-      {variant === 'reconnect' && <ConsentPanelSkeleton mode="reconnect" />}
+      <LoadingRegion className="contents" label="Loading tenant form">
+        {!create && <TenantSummaryCardSkeleton identityOnly region={false} />}
+        {variant !== 'reconnect' && (
+          <TenantFormFields
+            control={form.control}
+            disabled
+            domainLocked
+            hideDomain={variant === 'edit'}
+            providerField={create ? <ProviderFieldSkeleton region={false} /> : undefined}
+            customersEnabled={false}
+          />
+        )}
+        {variant === 'new' && (
+          <div>
+            <Button variant="accent" disabled className="w-full content-md:w-auto">
+              Generate Connection Link
+            </Button>
+          </div>
+        )}
+        {variant === 'connect' && <ConsentPanelSkeleton mode="new" />}
+        {variant === 'reconnect' && <ConsentPanelSkeleton mode="reconnect" />}
+      </LoadingRegion>
     </PageLayout>
   );
 }

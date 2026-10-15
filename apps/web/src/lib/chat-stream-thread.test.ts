@@ -1,4 +1,5 @@
 import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-core';
+import { decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { createChatDialogStore, DEFAULT_DIALOG_SIDE } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it } from 'vitest';
 import { bindMingoDialog, useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
@@ -218,6 +219,63 @@ describe('adopt-once', () => {
     expect(messages).toHaveLength(hydratedCount + 1);
     expect(textOf(messages.at(-2))).toContain('This needs your go-ahead.');
     expect(textOf(messages.at(-1))).toBe('');
+  });
+});
+
+describe('hydration while a turn is open', () => {
+  it('leaves a streaming turn its accumulator: the next delta extends the live bubble only', async () => {
+    // A history merge landing mid-turn appends the live bubble after the newest
+    // persisted turn. The trailing assistant run then spans both, and while a
+    // tool runs it reads as unfinished: seeded from it, the next delta rewrote
+    // the live bubble as the persisted turn plus the streaming one.
+    const dialogId = 'dialog-open-turn';
+    const store = useMingoMessagesStore.getState();
+    store.setMessages(dialogId, hydratedThread());
+    const bound = bindMingoDialog(dialogId);
+    for (const chunk of [
+      { type: 'MESSAGE_START', streamSeq: 1 },
+      { type: 'TEXT', text: 'Live answer.', streamSeq: 2 },
+      {
+        type: 'EXECUTING_TOOL',
+        integratedToolType: 'OPENFRAME',
+        toolFunction: 'run_script',
+        toolExecutionRequestId: 'req-live',
+        streamSeq: 3,
+      },
+    ]) {
+      const event = decodeNatsChunk(chunk);
+      if (event) bound.apply(event);
+    }
+    await flushDeltas();
+
+    store.setMessages(dialogId, useMingoMessagesStore.getState().getMessages(dialogId));
+    const next = decodeNatsChunk({ type: 'TEXT', text: ' More.', streamSeq: 4 });
+    if (next) bound.apply(next);
+    await flushDeltas();
+
+    const messages = useMingoMessagesStore.getState().getMessages(dialogId);
+    expect(textOf(messages.at(-1))).not.toContain("I'll kick this off in parallel.");
+    expect(textOf(messages.at(-1))).toContain(' More.');
+    expect(textOf(messages.at(-2))).toBe("I'll kick this off in parallel.");
+  });
+
+  it('still seeds and arms a second hydrate of an agent-busy tail with no turn open', async () => {
+    // The first hydrate raises 'thinking' off the busy tail; the cached pages
+    // and then the fresh ones hydrate twice before the replay arrives. Treating
+    // "not idle" as "turn open" disarmed adoption on the second, and the
+    // replayed turn-start opened a duplicate bubble.
+    const dialogId = 'dialog-busy-twice';
+    const store = useMingoMessagesStore.getState();
+    store.setMessages(dialogId, unfinishedThread());
+    store.setMessages(dialogId, unfinishedThread());
+    const hydratedCount = useMingoMessagesStore.getState().getMessages(dialogId).length;
+
+    bindMingoDialog(dialogId).apply({ type: 'turn-start' });
+    await flushDeltas();
+
+    const messages = useMingoMessagesStore.getState().getMessages(dialogId);
+    expect(messages).toHaveLength(hydratedCount);
+    expect(textOf(messages.at(-1))).toContain("I'll kick this off in parallel.");
   });
 });
 

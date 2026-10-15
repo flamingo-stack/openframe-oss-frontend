@@ -54,6 +54,17 @@ const config: CapacitorConfig = {
       splashImmersive: true,
     },
   },
+  // Ignore the server base path Capacitor persists at launch. The built-in
+  // WebView plugin lets any page script call setServerBasePath +
+  // persistServerBasePath, and the shell then boots that directory on every
+  // later launch until a store update resets it (Android: any existing
+  // directory; iOS: one under Library/NoCloud/ionic_built_snapshots), so an
+  // XSS could make itself permanent. Nothing in this app uses that path.
+  cordova: {
+    preferences: {
+      DisableDeploy: 'true',
+    },
+  },
   // @capacitor-firebase/messaging pulls the Firebase iOS SDK via SPM; this
   // symlink option avoids a SwiftPM package-identity collision (capawesome #959).
   // Requires @capacitor/cli 8.4.0+.

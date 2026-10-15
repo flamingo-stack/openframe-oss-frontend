@@ -25,10 +25,11 @@ export interface AiQuickAction {
   name: string;
   instructions: string;
   /**
-   * Optional glyph, present only on Product Hub defaults (the hub agent config
-   * carries `iconName`/`iconUrl`/`iconProps`). Tenant customs from the BE have
-   * none yet. Rendered on the CHAT chip only - the settings editor omits it,
-   * since edit mode can't persist icons back to the BE (SVG-icons follow-up).
+   * Optional glyph, rendered on the chat chip and in the settings lists.
+   * `iconName` is a library glyph key (the core-lib icon registry): Product Hub
+   * defaults carry it, and tenant customs persist the one picked in the
+   * editor. `iconUrl` / `iconProps` (uploaded image, glyph prop overrides such
+   * as a color) come from the hub only; the tenant editor never writes them.
    */
   iconName?: string | null;
   iconUrl?: string | null;
@@ -39,6 +40,8 @@ export interface AiQuickActionInput {
   id?: string;
   name: string;
   instructions: string;
+  /** Library glyph key from the editor's picker; null / blank clears it (the BE trims and stores null). */
+  iconName?: string | null;
 }
 
 /** AI logic for one agent, tenant-wide (no per-organization override). */
@@ -72,7 +75,6 @@ export interface ClientView {
   organizationId: string | null;
   assistantName: string;
   assistantAvatar: AiImage | null;
-  applicationTheme: ApplicationTheme;
   accentColor: string;
   createdAt: string;
   updatedAt: string | null;
@@ -80,6 +82,7 @@ export interface ClientView {
 
 export interface ClientViewInput {
   assistantName?: string;
+  /** No longer configurable: sent only when a save creates the view (see `withClientViewCreateFields`). */
   applicationTheme?: ApplicationTheme;
   accentColor?: string;
 }
@@ -109,7 +112,6 @@ export function getDefaultClientView(organizationId: string | null = null): Clie
     organizationId,
     assistantName: 'AI',
     assistantAvatar: null,
-    applicationTheme: 'DARK',
     accentColor: '#F357BB',
     createdAt: '',
     updatedAt: null,

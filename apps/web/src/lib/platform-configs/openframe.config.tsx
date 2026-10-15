@@ -1,9 +1,9 @@
 import {
   HamburgerIcon,
-  IconsXIcon,
-  OpenFrameLogo,
-  UserIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons';
+  OpenframeLogoIcon,
+  UserClassicIcon,
+  XSmallIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import type { AppConfig } from '../app-config';
@@ -55,7 +55,11 @@ export const openframeConfig: AppConfig = {
       icon: 'openframe',
       getElement: () => (
         <span className="flex items-center gap-3">
-          <OpenFrameLogo className="h-8 w-8" />
+          <OpenframeLogoIcon
+            color="var(--color-text-on-accent)"
+            secondaryColor="var(--color-text-primary)"
+            className="h-8 w-8"
+          />
           <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>
         </span>
       ),
@@ -84,7 +88,7 @@ export const openframeConfig: AppConfig = {
             variant="transparent"
             size="small-legacy"
             onClick={() => router.push('/profile')}
-            leftIcon={<UserIcon className="h-5 w-5" />}
+            leftIcon={<UserClassicIcon className="h-5 w-5" />}
           >
             Profile
           </Button>,
@@ -113,13 +117,20 @@ export const openframeConfig: AppConfig = {
     },
     mobileNav: {
       menuIcon: <HamburgerIcon className="h-6 w-6 text-ods-text-primary" />,
-      closeIcon: <IconsXIcon className="h-4 w-4 text-ods-text-primary" />,
+      closeIcon: <XSmallIcon className="h-4 w-4 text-ods-text-primary" />,
     },
   },
   footer: {
     showWaitlist: false,
     logo: {
-      getElement: () => <OpenFrameLogo width={32} height={32} className="h-8 w-8 flex-shrink-0" />,
+      getElement: () => (
+        <OpenframeLogoIcon
+          color="var(--color-text-on-accent)"
+          secondaryColor="var(--color-text-primary)"
+          size={32}
+          className="h-8 w-8 flex-shrink-0"
+        />
+      ),
     },
     name: {
       getElement: () => <span className="font-semibold text-ods-text-primary text-code">OpenFrame</span>,

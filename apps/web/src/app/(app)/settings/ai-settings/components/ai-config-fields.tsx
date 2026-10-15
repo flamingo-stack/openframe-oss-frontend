@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   RadioGroupBlock,
   Select,
@@ -68,11 +69,10 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
               </SelectTrigger>
               <SelectContent>
                 {LLM_PROVIDER_OPTIONS.map(provider => {
-                  const Icon = LLM_PROVIDER_ICON[provider];
                   return (
                     <SelectItem key={provider} value={provider}>
                       <span className="flex items-center gap-2">
-                        <Icon className="h-5 w-5" />
+                        <NamedIcon icon={LLM_PROVIDER_ICON[provider]} className="h-5 w-5" />
                         {LLM_PROVIDER_LABEL[provider]}
                       </span>
                     </SelectItem>

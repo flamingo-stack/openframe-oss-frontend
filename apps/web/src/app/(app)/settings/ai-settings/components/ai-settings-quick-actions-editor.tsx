@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import type { QuickActionAccent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   type SortableRowRenderArgs,
   TicketStatusConfigList,
@@ -18,7 +19,12 @@ import { type Control, Controller, type FieldValues, useFieldArray, useWatch } f
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import type { AiQuickAction } from '../types/ai-settings';
 import type { QuickActionsFormValues } from '../types/quick-action.types';
-import { AiSettingsQuickActions, type QuickActionsAgentConfig } from './ai-settings-quick-actions';
+import {
+  AiSettingsQuickActions,
+  type QuickActionsAgentConfig,
+  resolveQuickActionAccent,
+} from './ai-settings-quick-actions';
+import { QuickActionIconSelect } from './quick-action-icon-select';
 
 /** Wording + preview-header source for the "use default" checkbox. */
 export interface QuickActionsDefaultCopy {
@@ -51,6 +57,12 @@ interface AiSettingsQuickActionsEditorProps<T extends QuickActionsFormValues & F
    * the tenant's configured actions, which may be customs.
    */
   defaultActionsCopy?: QuickActionsDefaultCopy;
+  /**
+   * Glyph tint for the preview list and the icon picker: the customer
+   * assistant's configured accent color (live from the form while it is being
+   * edited); omitted on the Mingo screen, where the built-in cyan applies.
+   */
+  accent?: QuickActionAccent;
   className?: string;
 }
 
@@ -69,6 +81,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
   agentConfig,
   defaultActions,
   defaultActionsCopy,
+  accent,
   className,
 }: AiSettingsQuickActionsEditorProps<T>) {
   // The generic constraint guarantees the form has compatible quick-action
@@ -79,6 +92,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
     name: 'quickActions',
   });
   const isDefault = useWatch({ control: quickActionsControl, name: 'quickActionsIsDefault' });
+  const glyphAccent = resolveQuickActionAccent(agentConfig, accent);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -95,8 +109,16 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       onChange(false);
       // Seed the editor with the hub defaults (as new custom rows — no ids, the
       // BE assigns them on save). Only when the rows aren't already populated.
+      // The glyph key comes along; a hub-only uploaded icon (`iconUrl`) has no
+      // key to keep, so that row starts without an icon.
       if (fields.length === 0) {
-        replace(defaultActions.map(action => ({ name: action.name, instructions: action.instructions })));
+        replace(
+          defaultActions.map(action => ({
+            name: action.name,
+            instructions: action.instructions,
+            iconName: action.iconName ?? null,
+          })),
+        );
       }
       return;
     }
@@ -154,6 +176,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
             actions={defaultActions}
             isDefault={copy.previewIsOpenFrame}
             agentConfig={agentConfig}
+            accent={accent}
             className="pointer-events-none opacity-50"
           />
         )
@@ -186,6 +209,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
                 <QuickActionCard
                   index={index}
                   control={quickActionsControl}
+                  accent={glyphAccent}
                   onRemove={() => remove(index)}
                   drag={dragArgs}
                 />
@@ -196,7 +220,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
           <Button
             type="button"
             variant="transparent"
-            onClick={() => append({ name: '', instructions: '' })}
+            onClick={() => append({ name: '', instructions: '', iconName: null })}
             leftIcon={<PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />}
             className="self-start"
           >
@@ -211,6 +235,8 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
 interface QuickActionCardProps {
   index: number;
   control: Control<QuickActionsFormValues>;
+  /** Resolved glyph tint for the icon picker. */
+  accent?: QuickActionAccent;
   onRemove: () => void;
   drag: SortableRowRenderArgs;
 }
@@ -220,15 +246,18 @@ interface QuickActionCardProps {
 const LABEL_OFFSET_CLASS = 'pt-[calc(var(--font-line-space-h4-body)+0.25rem)]';
 
 /**
- * Card layout per the mock (icon field ships with the SVG-icons follow-up):
- * - desktop (lg+):     [handle] [Action Name] [Action Instructions] [delete] in one row
+ * Card layout per the mock (openframe---settings 536-18932):
+ * - desktop (lg+):     [handle] [Action Name] [Action Instructions] [Icon 160px] [delete]
+ *                      in one row
  * - mobile/tablet:     [handle] [Action Name] [delete], Instructions on the next
- *                      row indented to the Name column
+ *                      row and Icon on the one below, both indented to the Name
+ *                      column (the mock draws desktop only; the narrow stacking
+ *                      is ours)
  * On touch/narrow viewports (`drag.moveButtons` set) the drag rail disappears
  * and the up/down pair renders beside the delete button instead.
  * Transparent background — only the border outlines the card.
  */
-function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProps) {
+function QuickActionCard({ index, control, accent, onRemove, drag }: QuickActionCardProps) {
   // Touch mode: no drag rail column, reorder buttons live beside delete.
   const touchReorder = drag.moveButtons != null;
   return (
@@ -237,8 +266,8 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
         touchReorder
           ? // Touch: the mock spaces name / move buttons / delete by the same
             // fixed 8px, so the grid gap matches the controls-cluster gap.
-            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] content-lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
-          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] content-lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto]',
+            'grid grid-cols-[minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xsf)] content-lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto]'
+          : 'grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-[var(--spacing-system-xs)] content-lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_10rem_auto]',
         'items-start gap-y-[var(--spacing-system-m)]',
         'rounded-md border border-ods-border p-[var(--spacing-system-m)]',
         drag.isDragging && 'bg-ods-bg opacity-70 shadow-lg',
@@ -291,8 +320,17 @@ function QuickActionCard({ index, control, onRemove, drag }: QuickActionCardProp
 
       <div
         className={cn(
+          'col-span-2 row-start-3 min-w-0 content-lg:col-span-1 content-lg:row-start-1',
+          touchReorder ? 'col-start-1 content-lg:col-start-3' : 'col-start-2 content-lg:col-start-4',
+        )}
+      >
+        <QuickActionIconSelect index={index} control={control} accent={accent} />
+      </div>
+
+      <div
+        className={cn(
           'row-start-1 flex items-center gap-[var(--spacing-system-xsf)]',
-          touchReorder ? 'col-start-2 content-lg:col-start-3' : 'col-start-3 content-lg:col-start-4',
+          touchReorder ? 'col-start-2 content-lg:col-start-4' : 'col-start-3 content-lg:col-start-5',
           LABEL_OFFSET_CLASS,
         )}
       >

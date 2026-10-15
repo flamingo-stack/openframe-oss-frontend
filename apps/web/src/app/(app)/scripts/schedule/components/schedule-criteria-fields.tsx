@@ -1,5 +1,6 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import type { DeviceFilters } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption, InfoCardData } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -13,7 +14,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   Tag,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -207,7 +207,7 @@ export function ScheduleCriteriaFieldsSkeleton() {
         {['Customer', 'OS'].map(label => (
           <div key={label} className="flex w-full flex-col">
             <span className="mb-1 text-ods-text-primary text-h4">{label}</span>
-            <Skeleton className="h-11 w-full rounded-[6px] content-md:h-12" />
+            <UnifiedSkeleton className="h-11 w-full rounded-[6px] content-md:h-12" />
           </div>
         ))}
       </div>

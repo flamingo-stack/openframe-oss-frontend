@@ -10,6 +10,7 @@ import { isMobileAuthLoginOnly } from '@/lib/app-mode';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
 import { MOBILE_AUTH_ERROR, readMobileAuthReturn } from '@/lib/mobile-auth-return';
+import { pushIdentify } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
 
 /**
@@ -58,6 +59,9 @@ export default function SsoJoinPage() {
       if (!active) return;
 
       if (res.ok && res.data?.email) {
+        // GTM's identify on /auth reads a typed address, and neither this card nor the invitation page
+        // has an email field: without this the visit stays apart from the person the tenant identifies.
+        pushIdentify({ email: res.data.email });
         setPending(res.data);
         return;
       }

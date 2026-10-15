@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Device, ToolConnection } from '../types/device.types';
 import { fleetTimestampMs } from './fleet-timestamp';
 import {
+  getExpectedAgentTypes,
   getToolConnectionDisplayStatus,
   getToolConnectionState,
   isDeviceStillConnecting,
@@ -89,6 +90,23 @@ describe('isDeviceStillConnecting', () => {
     for (const status of ['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED']) {
       expect(isDeviceStillConnecting(device({ status, toolConnections: [] }))).toBe(false);
     }
+  });
+});
+
+describe('getExpectedAgentTypes', () => {
+  it('expects Fleet and MeshCentral on every tenant, plus the chat app on SaaS', () => {
+    expect(getExpectedAgentTypes(device({}), false)).toEqual(['fleetmdm-agent', 'meshcentral-agent']);
+    expect(getExpectedAgentTypes(device({}), true)).toEqual(['fleetmdm-agent', 'meshcentral-agent', 'openframe-chat']);
+  });
+
+  it('expects nothing on archive-lifecycle records, whatever the case', () => {
+    for (const status of ['ARCHIVED', 'DELETED', 'PENDING_DELETION', 'DECOMMISSIONED', 'archived']) {
+      expect(getExpectedAgentTypes(device({ status }), true)).toEqual([]);
+    }
+  });
+
+  it('keeps the slots for a device that is itself still pending', () => {
+    expect(getExpectedAgentTypes(device({ status: 'PENDING' }), false)).toHaveLength(2);
   });
 });
 

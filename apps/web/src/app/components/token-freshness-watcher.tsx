@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { appPlugin } from '@/lib/native-shell';
+import { onAppResume } from '@/lib/native-shell';
 import { refreshIfStale } from '@/lib/token-refresh-manager';
 
 /**
@@ -28,28 +28,11 @@ export function TokenFreshnessWatcher() {
     // app is backgrounded, and the phone is where returning after hours is the
     // norm — so listen to the shell's own resume event as well. Concurrent
     // triggers are harmless: the refresh is single-flight.
-    const app = appPlugin();
-    let removeAppListener: (() => void) | undefined;
-    if (app) {
-      try {
-        // The injected plugin proxy returns a bare handle, not the Promise its
-        // type suggests (see native-back.ts) — absorb both shapes.
-        const registration = app.addListener('appStateChange', ({ isActive }) => {
-          if (isActive) void refreshIfStale();
-        });
-        void Promise.resolve(registration)
-          .then(handle => {
-            removeAppListener = () => handle.remove();
-          })
-          .catch(error => console.error('[Token Freshness] appStateChange registration failed:', error));
-      } catch (error) {
-        console.error('[Token Freshness] appStateChange registration threw:', error);
-      }
-    }
+    const removeAppListener = onAppResume(() => void refreshIfStale(), 'Token Freshness');
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      removeAppListener?.();
+      removeAppListener();
     };
   }, []);
 

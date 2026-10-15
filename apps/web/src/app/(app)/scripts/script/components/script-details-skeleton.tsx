@@ -1,6 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
@@ -29,17 +30,23 @@ export function ScriptHeaderSkeleton() {
   const handleBack = useSafeBack(routes.scripts.list);
 
   return (
-    <TitleBlock
-      title="Script Details"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      loadingActions
-      actionsVariant="menu-primary"
-    />
+    <LoadingRegion className="contents" label="Loading the script">
+      <TitleBlock
+        title="Script Details"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={LOADING_ACTIONS}
+        loadingActions
+        actionsVariant="menu-primary"
+      />
+    </LoadingRegion>
   );
 }
 
 /** The tag chips and the summary card before the script lands. */
 export function ScriptSummarySkeleton() {
-  return <ScriptSummaryCardSkeleton />;
+  return (
+    <LoadingRegion className="contents" label="Loading script details">
+      <ScriptSummaryCardSkeleton />
+    </LoadingRegion>
+  );
 }

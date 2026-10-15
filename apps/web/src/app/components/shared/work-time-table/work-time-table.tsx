@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChartDonutIcon,
@@ -40,7 +41,6 @@ import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/m
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyState } from '@/app/components/shared/empty-state';
-import { InfoCardSkeleton } from '@/app/components/shared/page-skeleton-primitives';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
@@ -423,13 +423,7 @@ function WorkTimeTableData({
  * Loading state for the stats row + entry table. Exported so the route-level
  * Worktime skeleton renders THIS, not a copy of it.
  */
-export function WorkTimeTableSkeleton({
-  showEmployee,
-  showCustomer,
-}: {
-  showEmployee: boolean;
-  showCustomer: boolean;
-}) {
+function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   const columns = useMemo(() => buildColumns(showEmployee, showCustomer, noop, noop), [showEmployee, showCustomer]);
   const table = useDataTable<WorkTimeRow>({
     data: EMPTY_ROWS,
@@ -439,19 +433,21 @@ export function WorkTimeTableSkeleton({
   });
 
   return (
-    <>
+    <LoadingRegion className="contents" label="Loading work time">
       {/* Mirrors the loaded stats row exactly: the REAL card geometry via
-          `InfoCardSkeleton`, the REAL titles (static, not query-dependent), and
+          `DashboardInfoCard` in its `loading` state, the REAL titles (static, not query-dependent), and
           bars only for the duration + entry count. The previous hand-rolled
           placeholder had no fixed height, so the row was ~33px short of the
           104px cards and the table below jumped on load. */}
       <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
         {STAT_CARDS.map(card => (
-          <InfoCardSkeleton
+          <DashboardInfoCard
             key={card.title}
+            loading
+            value=""
             className="flex-1"
             title={card.title}
-            showSubValue={card.showSubValue}
+            loadingShowsSubValue={card.showSubValue}
             valueClassName="font-mono"
           />
         ))}
@@ -459,9 +455,9 @@ export function WorkTimeTableSkeleton({
 
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
-        <DataTable.Body loading skeletonRows={8} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={8} />
       </DataTable>
-    </>
+    </LoadingRegion>
   );
 }
 

@@ -255,3 +255,26 @@ describe('the type + attributes contract', () => {
     ).toBeNull();
   });
 });
+
+/**
+ * The re-consent notice names no entity: on every transport it opens the tenant list, where
+ * each connection re-authorizes.
+ */
+describe('re-consent notice', () => {
+  it('routes NEW_PERMISSIONS_REQUIRED to the tenant list', () => {
+    expect(
+      resolvePushNotificationRoute({ type: 'NEW_PERMISSIONS_REQUIRED', providers: 'MICROSOFT_365,GOOGLE_WORKSPACE' }),
+    ).toBe('/cloud-tenant-management');
+    expect(
+      resolveNatsNotificationRoute({
+        type: 'NEW_PERMISSIONS_REQUIRED',
+        attributes: { providers: 'MICROSOFT_365' },
+        category: 'GENERIC',
+      }),
+    ).toBe('/cloud-tenant-management');
+    const action = resolveNotificationAction({
+      meta: { notificationType: 'NEW_PERMISSIONS_REQUIRED', providers: 'MICROSOFT_365' },
+    } as unknown as Notification);
+    expect(action).toEqual({ label: 'Cloud Tenants', route: '/cloud-tenant-management' });
+  });
+});

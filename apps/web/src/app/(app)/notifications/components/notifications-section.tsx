@@ -1,6 +1,7 @@
 'use client';
 
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { BellCheckIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   DataTable,
@@ -253,13 +254,15 @@ function SectionTableSkeleton({
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header
-        stickyHeader
-        stickyHeaderOffset={stickyHeaderOffset}
-        rightSlot={<DataTable.RowCount itemName="result" />}
-      />
-      <DataTable.Body loading skeletonRows={4} rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label={rowVariant === 'unread' ? 'Loading unread notifications' : 'Loading notifications'}>
+      <DataTable table={table}>
+        <DataTable.Header
+          stickyHeader
+          stickyHeaderOffset={stickyHeaderOffset}
+          rightSlot={<DataTable.RowCount itemName="result" />}
+        />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={4} rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }

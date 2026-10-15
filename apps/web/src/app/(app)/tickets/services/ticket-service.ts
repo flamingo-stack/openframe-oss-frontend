@@ -1,8 +1,15 @@
-import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
 import { apiClient } from '@/lib/api-client';
-import type { ChatType } from '../constants';
+import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
-import { GET_DIALOG_MESSAGES_QUERY, normalizeMessageDataAliases } from '../queries/dialogs-queries';
+import {
+  CREATE_DIALOG_MUTATION,
+  GET_DIALOG_MESSAGES_QUERY,
+  normalizeMessageDataAliases,
+  RESOLVE_APPROVAL_REQUEST_MUTATION,
+  SEND_MESSAGE_MUTATION,
+  STOP_DIALOG_GENERATION_MUTATION,
+  UPDATE_DIALOG_MODE_MUTATION,
+} from '../queries/dialogs-queries';
 import {
   GET_TICKET_QUERY,
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
@@ -17,11 +24,13 @@ import type { Dialog, DialogOwnerEnum, Message, TicketActivityState } from '../t
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import type {
+  CreateDialogParams,
   FetchBoardColumnByStatusIdParams,
   FetchMessagesParams,
   FetchTicketsParams,
   MessagePage,
   ReorderTicketParams,
+  SendMessageContext,
   TicketService as TicketServiceInterface,
   TicketStatusTransitionRule,
   TicketsPage,
@@ -29,6 +38,7 @@ import type {
 
 interface TicketNode {
   id: string;
+  ticketId: string;
   ticketNumber: number;
   title: string;
   statusDefinition?: { id: string; name: string; color: string; kind?: string } | null;
@@ -92,6 +102,7 @@ interface TicketNode {
   }>;
   dialog?: {
     id: string;
+    dialogId: string;
     currentMode?: string;
     tokenUsage?: Array<{
       chatType: string;
@@ -126,14 +137,44 @@ interface StatusMutationPayload {
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
+interface CommandPayload {
+  userErrors: Array<{ field?: string[]; message: string }>;
+}
+
+interface CreateDialogPayload extends CommandPayload {
+  dialog: { dialogId: string } | null;
+}
+
 interface MarkDialogMessagesReadPayload {
   dialog: { id: string; unreadMessageCount: number } | null;
   userErrors: Array<{ field?: string[]; message: string }>;
 }
 
+async function runCommand<P extends CommandPayload = CommandPayload>(
+  field: string,
+  query: string,
+  input: object,
+): Promise<P> {
+  const response = await apiClient.post<GraphQlResponse<Record<string, P>>>(API_ENDPOINTS.GRAPHQL, {
+    query,
+    variables: { input },
+  });
+
+  const payload = extractGraphQlData(response)[field];
+  if (payload.userErrors?.length) {
+    throw new Error(payload.userErrors[0].message);
+  }
+  return payload;
+}
+
+/**
+ * `id` is the raw `ticketId`, not the Relay global `Ticket.id`, and `dialogId` the
+ * raw `Dialog.dialogId`: routes, cache keys, NATS subjects and every comparison with
+ * ids from notifications, push and REST work on raw ids. ai-agent inputs accept both.
+ */
 function normalizeTicketToDialog(ticket: TicketNode): Dialog {
   return {
-    id: ticket.id,
+    id: ticket.ticketId,
     title: ticket.title,
     statusId: ticket.statusDefinition?.id,
     statusName: ticket.statusDefinition?.name,
@@ -158,7 +199,7 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
     currentMode: ticket.dialog?.currentMode,
     ticketNumber: ticket.ticketNumber,
     order: ticket.order,
-    dialogId: ticket.dialog?.id,
+    dialogId: ticket.dialog?.dialogId,
     description: ticket.description,
     creationSource: ticket.creationSource,
     deviceId: ticket.deviceId,
@@ -195,11 +236,6 @@ function normalizeTicketToDialog(ticket: TicketNode): Dialog {
 
 export class TicketService implements TicketServiceInterface {
   async fetchDialogs(params: FetchTicketsParams): Promise<TicketsPage> {
-    const paginationVars: Record<string, unknown> = { limit: params.limit };
-    if (params.cursor) {
-      paginationVars.cursor = params.cursor;
-    }
-
     const filter: Record<string, unknown> = {};
     if (params.statusIds.length) {
       filter.statusIds = params.statusIds;
@@ -224,7 +260,8 @@ export class TicketService implements TicketServiceInterface {
       query: GET_TICKETS_QUERY,
       variables: {
         filter,
-        pagination: paginationVars,
+        first: params.limit,
+        after: params.cursor || undefined,
         search: params.search || undefined,
         sort: params.sort ?? TICKETS_DEFAULT_SORT,
       },
@@ -386,51 +423,40 @@ export class TicketService implements TicketServiceInterface {
     return payload.dialog?.unreadMessageCount ?? 0;
   }
 
-  async sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void> {
-    const response = await apiClient.post(API_ENDPOINTS.SEND_MESSAGE, {
+  async createDialog(params: CreateDialogParams): Promise<string> {
+    const { dialog } = await runCommand<CreateDialogPayload>('createDialog', CREATE_DIALOG_MUTATION, params);
+    if (!dialog?.dialogId) {
+      throw new Error('Invalid response: dialog id not found');
+    }
+    return dialog.dialogId;
+  }
+
+  async updateDialogMode(dialogId: string, mode: DialogModeValue): Promise<void> {
+    await runCommand('updateDialogMode', UPDATE_DIALOG_MODE_MUTATION, { id: dialogId, mode });
+  }
+
+  async stopDialogGeneration(dialogId: string, chatType: ChatType): Promise<void> {
+    await runCommand('stopDialogGeneration', STOP_DIALOG_GENERATION_MUTATION, { id: dialogId, chatType });
+  }
+
+  async sendMessage(
+    dialogId: string,
+    content: string,
+    chatType: ChatType,
+    context?: SendMessageContext,
+  ): Promise<void> {
+    const { contextItems, currentView, recentViews } = context ?? {};
+    await runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
       dialogId,
       content,
       chatType,
+      ...(contextItems?.length ? { contextItems } : {}),
+      ...(currentView ? { currentView } : {}),
+      ...(recentViews?.length ? { recentViews } : {}),
     });
-
-    if (!response.ok) {
-      throw new Error(response.error || 'Failed to send message');
-    }
   }
 
-  async approveRequest(requestId: string): Promise<void> {
-    const response = await apiClient.post(`${API_ENDPOINTS.APPROVAL_REQUEST}/${requestId}/approve`, {
-      approve: true,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error || `Failed to approve request (${response.status})`);
-    }
-  }
-
-  async rejectRequest(requestId: string): Promise<void> {
-    const response = await apiClient.post(`${API_ENDPOINTS.APPROVAL_REQUEST}/${requestId}/approve`, {
-      approve: false,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.error || `Failed to reject request (${response.status})`);
-    }
-  }
-
-  async fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]> {
-    let url = `${API_ENDPOINTS.DIALOG_CHUNKS}/${dialogId}/chunks?chatType=${chatType}`;
-    if (fromSequenceId !== null && fromSequenceId !== undefined) {
-      url += `&fromSequenceId=${fromSequenceId}`;
-    }
-
-    const response = await apiClient.get<ChunkData[]>(url);
-
-    if (!response.ok) {
-      console.error(`Failed to fetch ${chatType} chunks:`, response.status);
-      return [];
-    }
-
-    return response.data || [];
+  async resolveApprovalRequest(requestId: string, approve: boolean): Promise<void> {
+    await runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
   }
 }

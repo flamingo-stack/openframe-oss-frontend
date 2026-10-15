@@ -1,35 +1,31 @@
 'use client';
 
-import { FAE_AVATAR_DATA_URI } from '@flamingo-stack/openframe-frontend-core/assets';
+import { useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExpandSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useState } from 'react';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import type { ApplicationTheme } from '../../types/ai-settings';
 import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-modal';
 import { FaeChatPreview } from './fae-chat-preview';
-import { MeetFaePreview } from './meet-fae-preview';
-import { usePreviewThemeClass } from './use-resolved-theme';
+import { FaeWelcomePreview } from './fae-welcome-preview';
+import { PREVIEW_THEME_CLASS } from './preview-theme';
 
 interface AiSettingsPreviewsProps {
   assistantName: string;
   avatarUrl?: string;
   accentColor: string;
-  theme: ApplicationTheme;
-  providerName?: string;
-  modelDisplayName?: string;
 }
 
 /**
- * Onboarding + chat previews, re-themed locally via `.theme-light` /
- * `.theme-dark`.
+ * Welcome + chat previews of the Fae window, shown in Fae's default dark
+ * theme (`PREVIEW_THEME_CLASS`): the theme is not a setting, each client picks
+ * it in the Fae app.
  *
- * Both inline forms are thumbnails — the source layouts are 600/650px wide and
- * ~1000px tall, and the scale that fits them into a card takes a 12px caption
- * down to 3-5px. No scale factor fixes that (legible would need a ~1000px-tall
- * card), so the thumbnails are an affordance, not the deliverable: tapping
- * either opens the same 1:1 modal. Below `md` even the thumbnail is pointless —
+ * Both inline forms are thumbnails — the source is the 1024×800 window, and the
+ * scale that fits it into a card takes a 12px caption down to 5px. No scale
+ * factor fixes that, so the thumbnails are an affordance, not the deliverable:
+ * tapping either opens the same 1:1 modal. Below `md` even the thumbnail is pointless —
  * it renders at 41% of the card's width — so it gives way to a single button
  * onto that modal.
  *
@@ -37,14 +33,7 @@ interface AiSettingsPreviewsProps {
  * (a narrow desktop window is the same problem) and `md` is 800px in the core
  * preset, exactly where the ODS type tokens step up.
  */
-export function AiSettingsPreviews({
-  assistantName,
-  avatarUrl,
-  accentColor,
-  theme,
-  providerName,
-  modelDisplayName,
-}: AiSettingsPreviewsProps) {
+export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: AiSettingsPreviewsProps) {
   // Open state and pane are separate: collapsing them into one nullable value
   // resets the pane to 'welcome' mid-close, which is visible during ModalV2's
   // 200ms exit animation.
@@ -66,22 +55,16 @@ export function AiSettingsPreviews({
   // stays uncovered — which is why the header carries a close button regardless.
   useNativeBackDismissible(isPreviewOpen, closePreview);
 
-  // Fall back to the library's packaged default Fae avatar when no custom image
-  // is uploaded — same behavior as the chat, which never renders an empty/broken
-  // avatar. Keeps both previews (and their MSP/chat cards) looking complete.
-  const resolvedAvatarUrl = avatarUrl || FAE_AVATAR_DATA_URI;
-
-  // Scope the theme to each card, not the wrapper: `.theme-light` flips
-  // `--ods-system-greys-background`, so applying it to the container would turn
-  // the whole container white too. Per-card scoping keeps the container on the
-  // (dark) app background while only the cards re-theme.
-  const themeClass = usePreviewThemeClass(theme);
+  // With no custom image uploaded, Fae's own picture: the one her server identity
+  // holds (the lib packages none), so both previews show what the chat shows.
+  const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
+  const resolvedAvatarUrl = avatarUrl || faeAvatar;
 
   return (
     <>
       {/* Just the affordance: every consumer already renders the assistant's
-          name, avatar, model, theme and accent directly above this, so a
-          summary card here only repeats them. */}
+          name, avatar, model and accent directly above this, so a summary
+          card here only repeats them. */}
       <Button
         type="button"
         variant="outline"
@@ -93,25 +76,11 @@ export function AiSettingsPreviews({
       </Button>
 
       <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid">
-        <ThumbnailTrigger
-          themeClass={themeClass}
-          label="Open the welcome screen preview at full size"
-          onOpen={() => openPreview('welcome')}
-        >
-          <MeetFaePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+        <ThumbnailTrigger label="Open the welcome screen preview at full size" onOpen={() => openPreview('welcome')}>
+          <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
         </ThumbnailTrigger>
-        <ThumbnailTrigger
-          themeClass={themeClass}
-          label="Open the chat preview at full size"
-          onOpen={() => openPreview('chat')}
-        >
-          <FaeChatPreview
-            assistantName={assistantName}
-            avatarUrl={resolvedAvatarUrl}
-            accentColor={accentColor}
-            providerName={providerName}
-            modelDisplayName={modelDisplayName}
-          />
+        <ThumbnailTrigger label="Open the chat preview at full size" onOpen={() => openPreview('chat')}>
+          <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
         </ThumbnailTrigger>
       </div>
 
@@ -123,16 +92,12 @@ export function AiSettingsPreviews({
         assistantName={assistantName}
         avatarUrl={resolvedAvatarUrl}
         accentColor={accentColor}
-        theme={theme}
-        providerName={providerName}
-        modelDisplayName={modelDisplayName}
       />
     </>
   );
 }
 
 interface ThumbnailTriggerProps {
-  themeClass: string;
   label: string;
   onOpen: () => void;
   children: ReactNode;
@@ -140,14 +105,16 @@ interface ThumbnailTriggerProps {
 
 /**
  * The click target is an overlay sibling, not a wrapper: both previews contain
- * real buttons ("Get Started", the MSP website link, the chat header actions),
+ * real buttons (the step controls, the sidebar, the top bar's actions),
  * and a <button> around them is invalid HTML that React reports as a hydration
  * error. `inert` takes the whole thumbnail out of the pointer, focus and
  * accessibility trees at once, leaving exactly one interactive element.
  */
-function ThumbnailTrigger({ themeClass, label, onOpen, children }: ThumbnailTriggerProps) {
+function ThumbnailTrigger({ label, onOpen, children }: ThumbnailTriggerProps) {
   return (
-    <div className={cn('relative', themeClass)}>
+    // Each card takes the preview theme on its own: on the wrapper,
+    // `.ai-preview-theme` would re-point the background of the gap between them.
+    <div className={cn('relative', PREVIEW_THEME_CLASS)}>
       <div inert>{children}</div>
       {/* `group` belongs on the button, not the wrapper: `group-focus-visible`
           compiles to `.group:focus-visible`, and the wrapper can never take

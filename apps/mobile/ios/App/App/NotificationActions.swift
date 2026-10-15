@@ -45,15 +45,26 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
     private static let replyAction = "of.reply"
     /// Marks, in userInfo, the outcome notifications this class posts.
     private static let feedbackKey = "ofFeedback"
+    /// On the "update to continue" outcome: a tap opens this store listing
+    /// instead of the app, which could do nothing but say the same thing.
+    private static let updateStoreURLKey = "ofUpdateStoreURL"
+    /// The published listing, for a 426 whose body named none. Same as the web
+    /// app's `APP_STORE_URL` (apps/web/src/lib/mobile-app-links.ts).
+    private static let fallbackStoreURL = "https://apps.apple.com/us/app/openframe-console/id6801064262"
 
     /// iOS terminates a handler that has not called its completion after
     /// roughly 30s; call it by then whatever the request is doing, and let the
     /// background-task assertion carry the request the rest of the way.
     private static let completionDeadline: TimeInterval = 25
     private static let requestTimeout: TimeInterval = 10
-    /// `SendMessageRequest.content` is `@Size(max = 10000)`.
+    /// `SendMessageInput.content` is `@Size(max = 10000)`.
     private static let maxReplyLength = 10_000
     private static let feedbackBodyLimit = 200
+    private static let graphqlPath = "/chat/graphql"
+    private static let sendMessageMutation = "mutation SendMessage($input: SendMessageInput!) "
+        + "{ sendMessage(input: $input) { userErrors { message code } } }"
+    private static let resolveApprovalRequestMutation = "mutation ResolveApprovalRequest($input: ResolveApprovalRequestInput!) "
+        + "{ resolveApprovalRequest(input: $input) { userErrors { message code } } }"
 
     private weak var bridge: CAPBridgeProtocol?
     private var buffered: [(response: UNNotificationResponse, completion: () -> Void)] = []
@@ -154,6 +165,16 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        // Only the shell's own (local) 426 notification may name a URL to open: a
+        // remote push carrying the key is server content, not ours to follow.
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+           !(response.notification.request.trigger is UNPushNotificationTrigger),
+           let raw = response.notification.request.content.userInfo[Self.updateStoreURLKey] as? String,
+           let url = Self.storeURL(raw) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            completionHandler()
+            return
+        }
         let userText = (response as? UNTextInputNotificationResponse)?.userText
         guard let action = Self.action(identifier: response.actionIdentifier, userText: userText) else {
             forward(response, completion: completionHandler)
@@ -213,6 +234,15 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         var isReply: Bool {
             if case .reply = self { return true }
             return false
+        }
+
+        var mutation: String {
+            isReply ? NotificationActions.sendMessageMutation : NotificationActions.resolveApprovalRequestMutation
+        }
+
+        /// The mutation's response field, where its `userErrors` are.
+        var field: String {
+            isReply ? "sendMessage" : "resolveApprovalRequest"
         }
     }
 
@@ -355,36 +385,35 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
 
     private static func request(for action: Action, content: UNNotificationContent, base: URL, bearer: String) -> URLRequest? {
         let info = content.userInfo
-        let path: String
-        let body: [String: Any]
+        let input: [String: Any]
         switch action {
         case .approve, .reject:
             guard let id = validId(info["approvalRequestId"]) else { return nil }
-            path = "/chat/api/v1/approval-requests/\(id)/approve"
-            if case .approve = action { body = ["approve": true] } else { body = ["approve": false] }
+            if case .approve = action { input = ["id": id, "approve": true] } else { input = ["id": id, "approve": false] }
         case .reply(let text):
             guard let id = validId(info["dialogId"]) else { return nil }
-            path = "/chat/api/v1/messages"
             // Static, not inferred: both specs behind MINGO_REPLY sit behind the
             // same `chatType == ADMIN_AI_CHAT` guard server-side.
-            body = ["dialogId": id, "content": text, "chatType": "ADMIN_AI_CHAT"]
+            input = ["dialogId": id, "content": text, "chatType": "ADMIN_AI_CHAT"]
         }
-        // Built on the learned origin, never from payload text: the id is an
-        // opaque path segment of a fixed base.
+        let body: [String: Any] = ["query": action.mutation, "variables": ["input": input]]
+        // Built on the learned origin, never from payload text: the payload only
+        // names ids.
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
-        components.path = path
+        components.path = graphqlPath
         guard let url = components.url,
               let payload = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        request.setValue(TokenLifecycle.shared.clientIdentity(), forHTTPHeaderField: "X-OpenFrame-Client")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = payload
         return request
     }
 
-    /// An id goes into a URL path: nothing but an identifier may.
+    /// An id comes from the push payload: nothing but an identifier is sent on.
     private static func validId(_ value: Any?) -> String? {
         guard let id = value as? String,
               (1...128).contains(id.count),
@@ -407,32 +436,53 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
             return
         }
         let status = response.statusCode
-        let gateway = Self.gatewayError(data)
-        ShellLog.notifications.notice("\(action.verb): HTTP \(status) \(gateway.code ?? "")")
-        switch status {
-        case 200..<300:
+        // GraphQL answers a refused command with HTTP 200, so a 2xx is read for
+        // its verdict; any other status carries the gateway's own ErrorResponse.
+        // Both name a failure with the same codes (`userErrors[].code` mirrors
+        // the REST `ErrorResponse.code`), so one switch reads either.
+        let verdict: Verdict? = (200..<300).contains(status)
+            ? Self.commandVerdict(data, field: action.field)
+            : Self.gatewayVerdict(data)
+        ShellLog.notifications.notice("\(action.verb): HTTP \(status) \(verdict?.code ?? "")")
+        guard let verdict else {
             let body: String
             if case .reply(let text) = action { body = text } else { body = content.body.isEmpty ? content.title : content.body }
             post(title: action.done, body: body, original: content, retry: false)
-        case 401:
+            return
+        }
+        if status == 401 {
             signInFeedback(for: action, content: content)
-        case 404:
+            return
+        }
+        if status == 426 {
+            // The gateway refuses this app's bundle: no retry button, nothing a
+            // second press could change. The tap goes to the store.
+            post(title: "Update OpenFrame to continue",
+                 body: "This version of OpenFrame is no longer supported. Update the app, then try again.\(action.echo)",
+                 original: content, retry: false,
+                 extra: [Self.updateStoreURLKey: Self.storeURL(verdict.storeURL ?? "")?.absoluteString ?? Self.fallbackStoreURL])
+            return
+        }
+        switch verdict.code {
+        case "NOT_FOUND"?:
             post(title: "No longer available",
                  body: "This \(action.isReply ? "conversation" : "request") no longer exists.",
                  original: content, retry: false)
-        case 409 where gateway.code == "DIALOG_LOCKED":
+        case "DIALOG_LOCKED"?:
             post(title: "Mingo is busy",
                  body: "Mingo is still working on this conversation. Try again in a moment.\(action.echo)",
                  original: content, retry: true)
-        case 409 where !action.isReply:
-            // `ILLEGAL_STATE` covers already-processed, a non-writable dialog and
-            // direct mode alike; the gateway's own message names which. Not a
-            // failed press: the decision it asked for has been made.
+        case "ILLEGAL_STATE"? where !action.isReply:
+            // `ILLEGAL_STATE` is mostly an already-processed request: not a
+            // failed press, the decision it asked for has been made. A
+            // non-writable dialog, direct mode and, on approve, a request no
+            // longer executable land here too until the backend gives them a
+            // code of their own; the gateway's message names which.
             post(title: "Already handled",
-                 body: gateway.message ?? "This request was already resolved or is no longer open.",
+                 body: verdict.message ?? "This request was already resolved or is no longer open.",
                  original: content, retry: false)
         default:
-            postFailure(action, reason: gateway.message ?? "HTTP \(status)", content: content)
+            postFailure(action, reason: verdict.message ?? "HTTP \(status)", content: content)
         }
     }
 
@@ -466,21 +516,63 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         return exp > Date()
     }
 
-    /// The gateway's `ErrorResponse`: a machine `code` and a human `message`.
-    private static func gatewayError(_ data: Data?) -> (code: String?, message: String?) {
+    /// Why a press did not go through: a machine `code` (may be nil), a human
+    /// `message` and, on a 426, the `storeUrl` for this platform.
+    private typealias Verdict = (code: String?, message: String?, storeURL: String?)
+
+    /// The gateway's `ErrorResponse` on a non-2xx.
+    private static func gatewayVerdict(_ data: Data?) -> Verdict {
         guard let data, !data.isEmpty,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return (nil, nil)
+            return (nil, nil, nil)
         }
+        return verdict(of: object)
+    }
+
+    /// A 2xx mutation answer: nil when it ran, else the first top-level `errors`
+    /// entry (validation, authorization — no code) or the first `userErrors`
+    /// entry. A body that is neither is not a success either: nothing says the
+    /// command ran.
+    private static func commandVerdict(_ data: Data?, field: String) -> Verdict? {
+        let unreadable: Verdict = (nil, "the gateway sent an answer the app could not read", nil)
+        let refused = "the request was refused"
+        guard let data, !data.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return unreadable
+        }
+        if let errors = object["errors"] as? [[String: Any]], let error = errors.first {
+            return (nil, verdict(of: error).message ?? refused, nil)
+        }
+        guard let payload = (object["data"] as? [String: Any])?[field] as? [String: Any],
+              let userErrors = payload["userErrors"] as? [[String: Any]] else {
+            return unreadable
+        }
+        guard let userError = userErrors.first else { return nil }
+        let found = verdict(of: userError)
+        return (found.code, found.message ?? refused, nil)
+    }
+
+    private static func verdict(of object: [String: Any]) -> Verdict {
         let message = (object["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (object["code"] as? String, message.flatMap { $0.isEmpty ? nil : String($0.prefix(feedbackBodyLimit)) })
+        return (object["code"] as? String,
+                message.flatMap { $0.isEmpty ? nil : String($0.prefix(feedbackBodyLimit)) },
+                object["storeUrl"] as? String)
+    }
+
+    /// Server-supplied and handed to `UIApplication.open`: only a store listing's schemes.
+    private static func storeURL(_ raw: String) -> URL? {
+        guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "itms-apps" else {
+            return nil
+        }
+        return url
     }
 
     /// The only place an outcome reaches the user: there is no window to report
     /// into. The original userInfo rides along so a tap on this opens the same
     /// item the push would have; `retry` keeps the original category, so a
     /// failed decision is still there to make.
-    private func post(title: String, body: String, original: UNNotificationContent, retry: Bool) {
+    private func post(title: String, body: String, original: UNNotificationContent, retry: Bool, extra: [AnyHashable: Any] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = String(body.prefix(Self.feedbackBodyLimit * 2))
@@ -488,6 +580,7 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
         content.threadIdentifier = original.threadIdentifier
         var info = original.userInfo
         info[Self.feedbackKey] = true
+        info.merge(extra) { _, new in new }
         content.userInfo = info
         if retry {
             content.categoryIdentifier = original.categoryIdentifier

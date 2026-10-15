@@ -29,6 +29,9 @@ const ORGANIZATION_CLIENT_AI_CONFIG_FIELDS = `
     id
     name
     instructions
+    iconName
+    iconUrl
+    iconProps
   }
   quickActionsIsDefault
   updatedAt

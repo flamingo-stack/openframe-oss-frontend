@@ -338,6 +338,7 @@ public class NativeAuthPlugin extends Plugin {
      * the shared auth host the web view refreshes against — the refresher's
      * base when the build carries none. Never the other way round: see
      * TokenLifecycle.setSharedHost for why the tenant host must not refresh.
+     * {@code clientBundleVersion} rides along for the actions' X-OpenFrame-Client.
      */
     @PluginMethod
     public void setTenantHost(PluginCall call) {
@@ -345,6 +346,10 @@ public class NativeAuthPlugin extends Plugin {
         if (origin == null || !lifecycle.setTenantHost(origin)) {
             call.reject("Refusing a tenant host that is not an https origin", "URL_NOT_ALLOWED");
             return;
+        }
+        String bundleVersion = call.getString("clientBundleVersion");
+        if (bundleVersion != null && !bundleVersion.isEmpty()) {
+            lifecycle.setClientBundleVersion(bundleVersion);
         }
         String shared = call.getString("sharedOrigin");
         if (shared != null && !shared.isEmpty() && !lifecycle.setSharedHost(shared)) {
