@@ -35,6 +35,7 @@ export const TAB_IDS = {
     'custom-ai-assistant',
     'customer-ai-guardrails',
     'customer-device-guardrails',
+    'assigned-articles',
   ],
   customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
@@ -53,6 +54,7 @@ export const TAB_IDS = {
     'software',
     'remote-sessions',
     'device-logs',
+    'assigned-articles',
   ],
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
