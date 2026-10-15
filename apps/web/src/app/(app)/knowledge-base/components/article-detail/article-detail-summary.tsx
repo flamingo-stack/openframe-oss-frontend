@@ -117,22 +117,22 @@ export function ArticleDetailSummarySkeleton() {
       <SummaryCard
         author={
           <AuthorCell
-            avatar={<UnifiedSkeleton as="span" className="inline-block size-10 max-w-full rounded-full align-middle" />}
-            name={<UnifiedSkeleton as="span" className="inline-block h-6 w-32 max-w-full align-middle" />}
+            avatar={<UnifiedSkeleton as="span" className="size-10 rounded-full" />}
+            name={<UnifiedSkeleton as="span" className="h-6 w-32" />}
           />
         }
         updated={
           <InfoCell
             className={CELL_CLASSES}
             label={LABELS.updated}
-            value={<UnifiedSkeleton as="span" className="inline-block h-6 w-24 max-w-full align-middle" />}
+            value={<UnifiedSkeleton as="span" className="h-6 w-24" />}
           />
         }
         status={
           <InfoCell
             className={CELL_CLASSES}
             label={LABELS.status}
-            value={<UnifiedSkeleton as="span" className="inline-block h-6 w-20 max-w-full align-middle" />}
+            value={<UnifiedSkeleton as="span" className="h-6 w-20" />}
           />
         }
       />
