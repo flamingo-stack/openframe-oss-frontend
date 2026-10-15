@@ -17,18 +17,20 @@ import { ContentErrorBoundary, QueryIsland } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { CancellationEffectiveDate } from './cancellation-effective-date';
 import { DataLossBox } from './data-loss-box';
-import { DataLossBoxSkeleton } from './data-loss-box-skeleton';
+import { DataLossCoreRows } from './data-loss-core-rows';
+import { DataLossRowsSkeleton } from './data-loss-rows-skeleton';
 
 /**
  * Two parts of the dialog read the server — the date the subscription runs to,
  * and what the workspace loses — with a fixed sentence between them. Each part
  * is its own island over this one query, so they paint as they resolve and
- * Relay makes one fetch of it.
+ * Relay makes one fetch of it. Flagged modules count on their own queries
+ * (`DataLossModuleRows`).
  */
 const cancelSubscriptionModalQuery = graphql`
   query cancelSubscriptionModalQuery {
     ...cancellationEffectiveDate_query
-    ...dataLossBox_query
+    ...dataLossCoreRows_query
   }
 `;
 
@@ -128,17 +130,19 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
         billing period.
       </p>
 
-      <ContentErrorBoundary label="DataLossBox" fallback={() => <></>}>
-        <Suspense fallback={<DataLossBoxSkeleton />}>
-          <QueryIsland<CancelSubscriptionModalQueryType>
-            query={cancelSubscriptionModalQuery}
-            variables={{}}
-            fetchPolicy="store-or-network"
-          >
-            {data => <DataLossBox query={data} />}
-          </QueryIsland>
-        </Suspense>
-      </ContentErrorBoundary>
+      <DataLossBox>
+        <ContentErrorBoundary label="DataLossCoreRows" fallback={() => <></>}>
+          <Suspense fallback={<DataLossRowsSkeleton />}>
+            <QueryIsland<CancelSubscriptionModalQueryType>
+              query={cancelSubscriptionModalQuery}
+              variables={{}}
+              fetchPolicy="store-or-network"
+            >
+              {data => <DataLossCoreRows query={data} />}
+            </QueryIsland>
+          </Suspense>
+        </ContentErrorBoundary>
+      </DataLossBox>
 
       <div className="flex flex-col gap-1">
         <label className="text-ods-text-primary text-h3" htmlFor={reasonId}>
