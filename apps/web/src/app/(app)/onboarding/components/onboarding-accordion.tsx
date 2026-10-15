@@ -1,23 +1,10 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import React from 'react';
-
-/**
- * Inline (phrasing-valid `<span>`) skeleton bar for the loading title/description.
- * Lives INSIDE the real `<p>` so that element's line box sets the height — the loading
- * row is pixel-identical to the loaded one, only the text is a bar instead of real text.
- */
-function InlineTextSkeleton({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn('inline-block max-w-full animate-pulse rounded-md bg-ods-border align-middle', className)}
-    />
-  );
-}
 
 /**
  * Visual status of an onboarding step.
@@ -144,17 +131,25 @@ export function OnboardingAccordionItem({
             which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <p className="text-ods-text-primary text-h3">
-            {loading ? <InlineTextSkeleton className="h-4 w-40 content-md:h-5" /> : title}
+            {loading ? (
+              <UnifiedSkeleton as="span" className="inline-block h-4 w-40 max-w-full align-middle content-md:h-5" />
+            ) : (
+              title
+            )}
           </p>
           <p className="text-ods-text-secondary text-h6">
-            {loading ? <InlineTextSkeleton className="h-3 w-64 max-w-full" /> : description}
+            {loading ? (
+              <UnifiedSkeleton as="span" className="inline-block h-3 w-64 max-w-full align-middle" />
+            ) : (
+              description
+            )}
           </p>
         </div>
 
         {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.
             Status is the one thing the skeleton doesn't know, so only this control is a placeholder. */}
         {loading ? (
-          <Skeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
+          <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
         ) : isDisabled ? (
           requirementHint ? (
             <p className="shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6">{requirementHint}</p>

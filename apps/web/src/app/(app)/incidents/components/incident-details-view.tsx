@@ -1,7 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
@@ -137,16 +137,18 @@ const LOADING_ACTIONS: PageActionButton[] = [
   { label: 'Resolve' },
 ];
 
-function IncidentHeaderSkeleton() {
+function IncidentHeaderSkeleton({ region = true }: { region?: boolean } = {}) {
   const handleBack = useSafeBack(routes.incidents.list);
   return (
-    <TitleBlock
-      title="Incident Details"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      loadingActions
-      actionsVariant="icon-buttons"
-    />
+    <LoadingRegion className="contents" label="Loading incident" announce={region}>
+      <TitleBlock
+        title="Incident Details"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={LOADING_ACTIONS}
+        loadingActions
+        actionsVariant="icon-buttons"
+      />
+    </LoadingRegion>
   );
 }
 
@@ -163,16 +165,18 @@ function IncidentDetailsFrame({ header, body }: { header: ReactNode; body: React
 /** The whole page before it may render at all (the feature flag still unanswered). */
 export function IncidentDetailsSkeleton() {
   return (
-    <IncidentDetailsFrame
-      header={<IncidentHeaderSkeleton />}
-      body={
-        <>
-          <IncidentSummaryCardSkeleton />
-          <NotesSectionSkeleton />
-          <IncidentQueryResultsSkeleton />
-        </>
-      }
-    />
+    <LoadingRegion className="contents" label="Loading incident">
+      <IncidentDetailsFrame
+        header={<IncidentHeaderSkeleton region={false} />}
+        body={
+          <>
+            <IncidentSummaryCardSkeleton region={false} />
+            <NotesSectionSkeleton region={false} />
+            <IncidentQueryResultsSkeleton region={false} />
+          </>
+        }
+      />
+    </LoadingRegion>
   );
 }
 

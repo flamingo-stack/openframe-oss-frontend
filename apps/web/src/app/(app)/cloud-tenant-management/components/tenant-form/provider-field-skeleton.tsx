@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { PROVIDER_ORDER, providerPresentation } from '../../utils/tenant-presentation';
 
@@ -10,7 +11,14 @@ const OPTIONS = PROVIDER_ORDER.map(provider => {
   return { value: provider, label, description: radioDescription };
 });
 
-/** `ProviderField` before its options are known — the real radio, disabled. */
-export function ProviderFieldSkeleton() {
-  return <RadioGroupBlock options={OPTIONS} variant="grouped" disabled aria-label="Provider" aria-busy />;
+/**
+ * `ProviderField` before its options are known: the real radio, disabled. `region={false}` inside another
+ * loading region, which announces for the field.
+ */
+export function ProviderFieldSkeleton({ region = true }: { region?: boolean } = {}) {
+  return (
+    <LoadingRegion label="Loading providers" announce={region} className="contents">
+      <RadioGroupBlock options={OPTIONS} variant="grouped" disabled aria-label="Provider" />
+    </LoadingRegion>
+  );
 }
