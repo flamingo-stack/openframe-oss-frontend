@@ -14,10 +14,12 @@ import type {
   FileOperationResponse,
   RelayControlMessage,
 } from './file-manager-types';
-import { FileDeleteError, FileOperations } from './file-operations';
+import { FileDeleteError, FileOperations, FileOperationTimeoutError } from './file-operations';
 import { FileUploader } from './file-uploader';
 import type { MeshControlClient } from './meshcentral-control';
 import { MeshTunnel, type TunnelState } from './meshcentral-tunnel';
+
+const RECONNECT_TIMEOUT_MS = 15000;
 
 export class MeshCentralFileManager {
   private tunnel: MeshTunnel | null = null;
@@ -52,6 +54,7 @@ export class MeshCentralFileManager {
   private cancelledSearchRequestIds: Set<string> = new Set();
   private isPreparingNewSearch: boolean = false;
   private pendingDebouncedSearchReject: ((error: Error) => void) | null = null;
+  private onEndToEnd: (() => void) | null = null;
 
   private options: FileManagerOptions;
   private isRemote: boolean;
@@ -247,6 +250,7 @@ export class MeshCentralFileManager {
   private setState(newState: FileConnectionState): void {
     if (this.state !== newState) {
       this.state = newState;
+      if (newState === 'connected_end_to_end') this.onEndToEnd?.();
       this.options.onStateChange?.(newState);
     }
   }
@@ -509,7 +513,7 @@ export class MeshCentralFileManager {
       if (timeoutMs > 0) {
         timeout = setTimeout(() => {
           this.pendingRequests.delete(request.reqid);
-          reject(new Error('Operation timed out'));
+          reject(new FileOperationTimeoutError('Operation timed out'));
         }, timeoutMs);
       }
 
@@ -764,18 +768,65 @@ export class MeshCentralFileManager {
   }
 
   async navigateToPath(path: string): Promise<FileEntry[]> {
-    return await this.loadDirectory(path);
+    return await this.loadDirectoryWithReconnect(path);
   }
 
   async navigateUp(): Promise<FileEntry[]> {
     const parentPath = this.fileOps.getParentPath(this.currentPath || '/');
-    return await this.loadDirectory(parentPath);
+    return await this.loadDirectoryWithReconnect(parentPath);
   }
 
   async navigateInto(directoryName: string): Promise<FileEntry[]> {
     const basePath = this.currentPath || '';
     const newPath = this.fileOps.joinPath(basePath, directoryName);
-    return await this.loadDirectory(newPath);
+    return await this.loadDirectoryWithReconnect(newPath);
+  }
+
+  /**
+   * A listing that times out usually means the relay stalled but did not close, so
+   * the tunnel never reconnects by itself. Build a new tunnel once and ask again.
+   * If the new tunnel does not open, the state goes to `failed` and the caller
+   * shows a retry.
+   */
+  private async loadDirectoryWithReconnect(path: string): Promise<FileEntry[]> {
+    try {
+      return await this.loadDirectory(path);
+    } catch (error) {
+      if (!(error instanceof FileOperationTimeoutError)) throw error;
+    }
+
+    const previousPath = this.currentPath;
+    try {
+      this.disconnect();
+      // The listing on screen is still the old folder. Relative navigation must start from it.
+      this.currentPath = previousPath;
+      await this.connect();
+      // The new tunnel lists the current folder when it opens. This method lists the requested path instead.
+      this.initialDirectoryRequested = true;
+      await this.waitForEndToEnd(RECONNECT_TIMEOUT_MS);
+    } catch (error) {
+      this.disconnect();
+      this.setState('failed');
+      throw error;
+    }
+
+    return await this.loadDirectory(path);
+  }
+
+  private waitForEndToEnd(timeoutMs: number): Promise<void> {
+    if (this.state === 'connected_end_to_end') return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.onEndToEnd = null;
+        reject(new Error('Reconnect timed out'));
+      }, timeoutMs);
+      this.onEndToEnd = () => {
+        clearTimeout(timeout);
+        this.onEndToEnd = null;
+        resolve();
+      };
+    });
   }
 
   getCurrentPath(): string {
