@@ -93,6 +93,11 @@ describe('stitchRecordings', () => {
     expect(stitched.restartIndices).toEqual([0, 2]);
     const browserRecord = stitched.records.find(r => (r.flags & MCREC_FLAG_FROM_BROWSER) !== 0);
     expect(browserRecord?.timeMs).toBe(T0 + 4200);
+    // Where each file landed, for placing server times on the timeline.
+    expect(stitched.spans).toEqual([
+      { startMs: T0, endMs: T0 + 1000, shiftMs: 0 },
+      { startMs: T0 + 31_000, endMs: T0 + 32_000, shiftMs: 27_000 },
+    ]);
     // The inputs are left untouched.
     expect(second.agentRecords[0].timeMs).toBe(T0 + 31_000);
   });
