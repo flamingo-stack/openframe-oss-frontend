@@ -15,10 +15,9 @@ interface TicketDialogSubscriptionProps {
   clientInitialOptStartSeq: number;
   /** Gates JetStream consumer creation until history has loaded. */
   isInitialOptStartSeqReady: boolean;
-  /** Fired once per NATS reconnect. The CHAT_CHUNKS stream retains ~10
-   *  minutes, so an outage longer than that leaves a gap JetStream replay
-   *  cannot fill — the parent must refetch persisted history to cover it. */
-  onReconnected?: () => void;
+  /** Fired when the CLIENT tail's `caughtUpCount` moves: the moment to refetch
+   *  persisted history after a gap (see `caughtUpCount`). */
+  onCaughtUp?: () => void;
 }
 
 export function TicketDialogSubscription({
@@ -26,7 +25,7 @@ export function TicketDialogSubscription({
   dispatchChunk,
   clientInitialOptStartSeq,
   isInitialOptStartSeqReady,
-  onReconnected,
+  onCaughtUp,
 }: TicketDialogSubscriptionProps) {
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
 
@@ -53,7 +52,7 @@ export function TicketDialogSubscription({
     dispatchRef.current(chunk);
   }, []);
 
-  const { reconnectionCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount } = useJetStreamDialogSubscription({
     enabled: !!dialogId && isInitialOptStartSeqReady,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -64,20 +63,18 @@ export function TicketDialogSubscription({
     getNatsWsUrl: getWsUrl,
   });
 
-  const onReconnectedRef = useRef(onReconnected);
+  const onCaughtUpRef = useRef(onCaughtUp);
   useEffect(() => {
-    onReconnectedRef.current = onReconnected;
-  }, [onReconnected]);
+    onCaughtUpRef.current = onCaughtUp;
+  }, [onCaughtUp]);
 
-  // The counter covers both a shared-connection reconnect and per-consumer events
-  // (a JetStream consumer being recreated, a resync after the page was hidden);
-  // the ref keeps a repeated read from re-notifying the parent.
-  const lastNotifiedReconnectRef = useRef(0);
+  // The ref keeps a repeated read from re-notifying the parent.
+  const lastNotifiedCatchUpRef = useRef(0);
   useEffect(() => {
-    if (reconnectionCount <= lastNotifiedReconnectRef.current) return;
-    lastNotifiedReconnectRef.current = reconnectionCount;
-    onReconnectedRef.current?.();
-  }, [reconnectionCount]);
+    if (caughtUpCount <= lastNotifiedCatchUpRef.current) return;
+    lastNotifiedCatchUpRef.current = caughtUpCount;
+    onCaughtUpRef.current?.();
+  }, [caughtUpCount]);
 
   return null;
 }

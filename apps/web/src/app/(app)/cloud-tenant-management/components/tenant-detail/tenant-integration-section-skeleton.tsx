@@ -7,7 +7,7 @@ import { INTEGRATION_LABELS } from './tenant-integration-labels';
 
 const bar = (width: string): InfoSectionRow['value'] => ({
   type: 'custom',
-  content: <UnifiedSkeleton as="span" className={`inline-block max-w-full align-middle h-6 ${width}`} />,
+  content: <UnifiedSkeleton as="span" className={`inline-block h-6 max-w-full align-middle ${width}`} />,
 });
 
 /**

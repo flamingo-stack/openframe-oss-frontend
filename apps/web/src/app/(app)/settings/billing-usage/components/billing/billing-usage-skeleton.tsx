@@ -33,7 +33,7 @@ function StatCardSkeleton({ title, caption }: { title: string; caption?: string 
         <UnifiedSkeleton className="h-8 w-24" />
       </div>
       <p className="truncate text-ods-text-secondary text-h6">
-        {caption ?? <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-3 w-32" />}
+        {caption ?? <UnifiedSkeleton as="span" className="inline-block h-3 w-32 max-w-full align-middle" />}
       </p>
     </div>
   );
