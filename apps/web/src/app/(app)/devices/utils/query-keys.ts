@@ -37,6 +37,9 @@ export const deviceQueryKeys = {
   /** The session timeline a recording page lists (the Session Events list and the track markers). */
   sessionEvents: (recordingId: string) =>
     [...deviceQueryKeys.all, 'session-recordings', 'events', recordingId] as const,
+  /** The tickets linked to the session a recording page shows (the Assigned Tickets table). */
+  recordingTickets: (recordingId: string) =>
+    [...deviceQueryKeys.all, 'session-recordings', 'tickets', recordingId] as const,
   /** The tenant's recording storage (the device page's "storage full" banner). */
   recordingStorage: () => [...deviceQueryKeys.all, 'session-recordings', 'storage'] as const,
 

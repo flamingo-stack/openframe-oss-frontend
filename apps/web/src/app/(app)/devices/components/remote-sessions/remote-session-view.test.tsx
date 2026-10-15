@@ -2,7 +2,8 @@
  * The recording page when there is nothing to play: a recording the server has
  * not got (an unknown id, a deleted session, an expired or deleted file) is a
  * 404 with no Retry; any other failed read stays the "couldn't load" error.
- * With a recording, the session's events are listed and a row seeks the player.
+ * With a recording, the session's events are listed and a row seeks the player,
+ * Assign Ticket is offered, and the linked tickets are listed when there are any.
  */
 
 import { act } from 'react';
@@ -10,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { RecordingNotFoundError } from '../../services/session-recordings-service';
 import type { RecordingDetail } from '../../types/session-recording';
+import type { RecordingTicket } from './recording-tickets';
 import { RemoteSessionView } from './remote-session-view';
 import type { UseRecordingPlayerResult } from './use-recording-player';
 
@@ -23,6 +25,7 @@ const playback = vi.hoisted<{ state: UseRecordingPlayerResult['state']; currentM
   currentMs: 0,
   seek: vi.fn(),
 }));
+const linked = vi.hoisted(() => ({ tickets: [] as RecordingTicket[] }));
 const T0 = Date.parse('2026-10-14T08:00:00.000Z');
 const timeline = vi.hoisted(() => ({
   events: [] as { id: string; atMs: number; offsetMs: number | null; title: string; detail: string | null }[],
@@ -68,6 +71,17 @@ vi.mock('../../hooks/use-session-events', () => ({
   useSessionEvents: (recordingId: string | null) => (recordingId ? timeline.events : []),
   useReportRecordingPlayed: vi.fn(),
 }));
+vi.mock('../../hooks/use-recording-tickets', () => {
+  const mutation = { mutate: vi.fn(), isPending: false };
+  return {
+    useRecordingTickets: (recordingId: string | null) => ({ data: recordingId ? linked.tickets : undefined }),
+    useAssignRecordingTickets: () => mutation,
+    useUnassignRecordingTicket: () => mutation,
+  };
+});
+vi.mock('@/app/(app)/tickets/hooks/use-ticket-options', () => ({
+  useTicketSearchOptions: () => ({ options: [], isLoading: false }),
+}));
 vi.mock('../../hooks/use-remote-access-mock-tools', () => ({ useRemoteAccessMockTools: () => false }));
 vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: vi.fn(), commitLocalUpdate: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -98,6 +112,7 @@ beforeEach(() => {
   playback.state = 'empty';
   playback.currentMs = 0;
   timeline.events = [];
+  linked.tickets = [];
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -184,5 +199,36 @@ describe('RemoteSessionView with a recording', () => {
     render();
     expect(rows().map(row => row.textContent?.slice(0, 5))).toEqual(['00:05', '00:54']);
     expect(rows().map(row => row.getAttribute('aria-current'))).toEqual([null, null]);
+  });
+});
+
+describe('RemoteSessionView tickets', () => {
+  beforeEach(() => {
+    recording.data = RECORDING;
+  });
+
+  const buttonLabels = () => Array.from(container.querySelectorAll('button')).map(button => button.textContent);
+
+  it('offers Assign Ticket and leaves the Assigned Tickets section out while none is linked', () => {
+    render();
+    expect(buttonLabels()).toContain('Assign Ticket');
+    expect(container.textContent).not.toContain('Assigned Tickets');
+  });
+
+  it('lists the linked tickets', () => {
+    linked.tickets = [
+      {
+        id: 't-1',
+        ticketNumber: 3891,
+        title: 'Page not found error',
+        statusName: 'TODO',
+        statusKind: 'CUSTOM',
+        statusColor: '#2890FA',
+        assignedName: 'Roman Smith',
+      },
+    ];
+    render();
+    expect(container.textContent).toContain('Assigned Tickets');
+    expect(container.textContent).toContain('Page not found error');
   });
 });
