@@ -71,7 +71,7 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading = false 
                 subtitle={
                   loading ? (
                     <LoadingRegion as="span" status={false} className="contents">
-                      <UnifiedSkeleton className="h-4 w-16" />
+                      <UnifiedSkeleton as="span" className="inline-block h-4 w-16 max-w-full align-middle" />
                     </LoadingRegion>
                   ) : tokens == null ? (
                     EMPTY_VALUE

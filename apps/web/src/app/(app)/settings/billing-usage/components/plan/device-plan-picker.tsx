@@ -172,7 +172,7 @@ export function DevicePlanPicker({
                     ) : (
                       // Stand-in for a figure the server has not sent yet, sized to the value it replaces.
                       <LoadingRegion as="span" status={false} className="contents">
-                        <UnifiedSkeleton className="h-5 w-20" />
+                        <UnifiedSkeleton as="span" className="inline-block h-5 w-20 max-w-full align-middle" />
                       </LoadingRegion>
                     )
                   }
