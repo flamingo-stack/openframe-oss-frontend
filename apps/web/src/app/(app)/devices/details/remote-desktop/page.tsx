@@ -641,11 +641,11 @@ function RemoteDesktopSession() {
 
   if (!legacyDeviceData && isDeviceLoading) {
     return (
-      <LoadingRegion className="contents" label="Loading device">
-        <PageLayout
-          className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-          backButton={{ label: 'Back', onClick: handleBack }}
-        >
+      <PageLayout
+        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+      >
+        <LoadingRegion className="contents" label="Loading device">
           <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
             <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
               <UnifiedSkeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
@@ -662,8 +662,8 @@ function RemoteDesktopSession() {
           </div>
 
           <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
-        </PageLayout>
-      </LoadingRegion>
+        </LoadingRegion>
+      </PageLayout>
     );
   }
 

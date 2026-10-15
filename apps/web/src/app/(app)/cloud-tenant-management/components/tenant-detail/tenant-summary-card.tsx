@@ -150,12 +150,7 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
 
 /** A cell whose label is known and whose value is not: the real label under a bar. */
 function CellSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
-  return (
-    <InfoCell
-      label={label}
-      value={<UnifiedSkeleton as="span" className={`inline-block max-w-full align-middle ${valueClassName}`} />}
-    />
-  );
+  return <InfoCell label={label} value={<UnifiedSkeleton as="span" className={valueClassName} />} />;
 }
 
 /**

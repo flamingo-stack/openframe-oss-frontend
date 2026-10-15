@@ -28,24 +28,23 @@ export function OnboardingSkeleton() {
   const total = USER_ONBOARDING_STEPS.length;
 
   return (
-    <LoadingRegion className="contents" label="Loading onboarding">
-      <PageLayout
-        title="Get Started"
-        subtitle={`${total} steps to complete`}
-        actions={[
-          {
-            label: 'Skip Onboarding',
-            variant: 'outline',
-            icon: <FastForwardIcon className="size-5" />,
-            disabled: true,
-          },
-        ]}
-        actionsVariant="icon-buttons"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
-      >
-        <BookCallSection />
-
+    <PageLayout
+      title="Get Started"
+      subtitle={`${total} steps to complete`}
+      actions={[
+        {
+          label: 'Skip Onboarding',
+          variant: 'outline',
+          icon: <FastForwardIcon className="size-5" />,
+          disabled: true,
+        },
+      ]}
+      actionsVariant="icon-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
+    >
+      <BookCallSection />
+      <LoadingRegion className="contents" label="Loading onboarding">
         {USER_ONBOARDING_GROUPS.map(group => (
           <OnboardingAccordionGroup key={group.label} label={group.label}>
             {group.items.map(item => (
@@ -59,7 +58,7 @@ export function OnboardingSkeleton() {
             ))}
           </OnboardingAccordionGroup>
         ))}
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

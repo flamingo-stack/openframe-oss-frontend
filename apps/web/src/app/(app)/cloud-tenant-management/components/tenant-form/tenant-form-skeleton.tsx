@@ -37,13 +37,13 @@ export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVar
   const create = variant === 'new' || variant === 'connect';
 
   return (
-    <LoadingRegion className="contents" label="Loading tenant form">
-      <PageLayout
-        title={FORM_TITLES[variant]}
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={[SAVE_PLACEHOLDER]}
-        actionsVariant="primary-buttons"
-      >
+    <PageLayout
+      title={FORM_TITLES[variant]}
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={[SAVE_PLACEHOLDER]}
+      actionsVariant="primary-buttons"
+    >
+      <LoadingRegion className="contents" label="Loading tenant form">
         {!create && <TenantSummaryCardSkeleton identityOnly region={false} />}
         {variant !== 'reconnect' && (
           <TenantFormFields
@@ -64,7 +64,7 @@ export function TenantFormSkeleton({ variant }: { variant: TenantFormSkeletonVar
         )}
         {variant === 'connect' && <ConsentPanelSkeleton mode="new" />}
         {variant === 'reconnect' && <ConsentPanelSkeleton mode="reconnect" />}
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

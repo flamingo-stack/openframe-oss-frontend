@@ -2,7 +2,7 @@
 
 import { PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { DeviceSelectorSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   CheckboxBlock,
   Input,
@@ -15,8 +15,6 @@ import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from './script-summary-c
 
 const noop = () => {};
 const EMPTY_ARGUMENTS: never[] = [];
-const EMPTY_SELECTION = new Set<string>();
-const NO_DEVICES: never[] = [];
 
 const ACTIONS: PageActionButton[] = [{ label: 'Run Script', variant: 'accent', disabled: true }];
 
@@ -28,14 +26,14 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
 
   return (
-    <LoadingRegion className="contents" label="Loading script">
-      <PageLayout
-        title="Run Script"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={ACTIONS}
-        actionsVariant="primary-buttons"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      >
+    <PageLayout
+      title="Run Script"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={ACTIONS}
+      actionsVariant="primary-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <LoadingRegion className="contents" label="Loading script">
         {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
         <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
@@ -77,22 +75,10 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
         </div>
 
         <div className="space-y-[var(--spacing-system-xxs)]">
-          <DeviceSelector
-            devices={NO_DEVICES}
-            loading
-            // Same lock as `DeviceSelectorSkeleton` and `SchedulePickerSkeleton`:
-            // the search box, the tag filter and the tab strip render for real
-            // here, so without it they take input that the loaded picker throws
-            // away a moment later.
-            disabled
-            selectedIds={EMPTY_SELECTION}
-            getDeviceKey={() => ''}
-            onSelectionChange={noop}
-            showSelectionModeRadio={false}
-            addAllBehavior="replace"
-          />
+          {/* The page's "Loading script" region announces for the picker too. */}
+          <DeviceSelectorSkeleton region={false} showSelectionModeRadio={false} />
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

@@ -11,7 +11,7 @@ export function ActionDetailSummarySkeleton() {
     <LoadingRegion className="contents" label="Loading action">
       <SummaryCardSkeleton columns={4} labels={Object.values(ACTION_DETAIL_SUMMARY_LABELS)} />
       <ActionDetailLogsHeading>
-        <UnifiedSkeleton as="span" className="inline-block h-8 w-48 max-w-full align-middle" />
+        <UnifiedSkeleton as="span" className="h-8 w-48" />
       </ActionDetailLogsHeading>
     </LoadingRegion>
   );

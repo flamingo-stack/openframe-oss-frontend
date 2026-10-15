@@ -10,9 +10,9 @@ import { routes } from '@/lib/routes';
 import { BillingRow, SectionBlock, TestModeBanner } from '../shared/billing-section';
 import { INVOICES_TABLE_COLUMNS } from './invoices-table-layout';
 
-// A value placeholder sized to sit on the right of a BillingRow.
+// A value placeholder sized to sit on the right of a BillingRow, whose value slot is a `span`.
 function Value({ width }: { width: string }) {
-  return <UnifiedSkeleton className={`h-4 ${width}`} />;
+  return <UnifiedSkeleton as="span" className={`h-4 ${width}`} />;
 }
 
 /**
@@ -33,7 +33,7 @@ function StatCardSkeleton({ title, caption }: { title: string; caption?: string 
         <UnifiedSkeleton className="h-8 w-24" />
       </div>
       <p className="truncate text-ods-text-secondary text-h6">
-        {caption ?? <UnifiedSkeleton as="span" className="inline-block h-3 w-32 max-w-full align-middle" />}
+        {caption ?? <UnifiedSkeleton as="span" className="h-3 w-32" />}
       </p>
     </div>
   );
@@ -55,12 +55,12 @@ export function BillingUsageSkeleton() {
   // a Next Payment row, and an invoices table the real page never renders.
   if (isBillingHidden()) {
     return (
-      <LoadingRegion className="contents" label="Loading usage">
-        <PageLayout
-          title="Usage"
-          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-          backButton={{ label: 'Back', onClick: handleBack }}
-        >
+      <PageLayout
+        title="Usage"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+      >
+        <LoadingRegion className="contents" label="Loading usage">
           <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
             <DashboardInfoCard loading value="" title="Device Usage" showProgress />
             <DashboardInfoCard loading value="" title="AI Usage" />
@@ -75,18 +75,18 @@ export function BillingUsageSkeleton() {
               <BillingRow label="Devices included" value={<Value width="w-8" />} />
             </SectionBlock>
           </div>
-        </PageLayout>
-      </LoadingRegion>
+        </LoadingRegion>
+      </PageLayout>
     );
   }
 
   return (
-    <LoadingRegion className="contents" label="Loading billing and usage">
-      <PageLayout
-        title="Billing & Usage"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back to Settings', onClick: handleBack }}
-      >
+    <PageLayout
+      title="Billing & Usage"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      backButton={{ label: 'Back to Settings', onClick: handleBack }}
+    >
+      <LoadingRegion className="contents" label="Loading billing and usage">
         <TestModeBanner />
 
         {/* Three cards unconditionally: the AI pair is dropped only for a
@@ -129,7 +129,7 @@ export function BillingUsageSkeleton() {
           </div>
           <TableSkeleton columns={INVOICES_TABLE_COLUMNS} rows={INVOICE_SKELETON_ROWS} region={false} />
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

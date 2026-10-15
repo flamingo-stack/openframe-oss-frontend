@@ -17,7 +17,7 @@ export function SummaryCardSkeleton({ labels, columns, lead }: SummaryCardSkelet
     <SummaryCard
       fields={labels.map(label => ({
         label,
-        value: <UnifiedSkeleton as="span" className="inline-block h-6 w-24 max-w-full align-middle" />,
+        value: <UnifiedSkeleton as="span" className="h-6 w-24" />,
       }))}
       columns={columns}
       lead={lead}

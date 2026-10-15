@@ -106,20 +106,18 @@ interface FileManagerPageSkeletonProps {
 
 function FileManagerPageSkeleton({ onBack }: FileManagerPageSkeletonProps) {
   return (
-    <LoadingRegion className="contents" label="Loading file manager">
-      <PageLayout
-        title="File Manager"
-        className={`${PAGE_PADDING} h-full`}
-        contentClassName="flex min-h-0 flex-col overflow-hidden"
-        backButton={{
-          label: 'Back',
-          onClick: onBack,
-        }}
-      >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <FileManagerSkeleton region={false} />
-        </div>
-      </PageLayout>
-    </LoadingRegion>
+    <PageLayout
+      title="File Manager"
+      className={`${PAGE_PADDING} h-full`}
+      contentClassName="flex min-h-0 flex-col overflow-hidden"
+      backButton={{
+        label: 'Back',
+        onClick: onBack,
+      }}
+    >
+      <LoadingRegion className="flex min-h-0 flex-1 flex-col" label="Loading file manager">
+        <FileManagerSkeleton region={false} />
+      </LoadingRegion>
+    </PageLayout>
   );
 }

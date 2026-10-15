@@ -54,15 +54,15 @@ export function AiSettings() {
 
   if (!visibleTabs) {
     return (
-      <LoadingRegion label="Loading AI settings" className="contents">
-        <AiSettingsLayout>
+      <AiSettingsLayout>
+        <LoadingRegion label="Loading AI settings" className="contents">
           <TabBarSkeleton widths={TAB_WIDTHS} />
           <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
             <UnifiedSkeleton className="h-20 w-full rounded-md" />
             <UnifiedSkeleton className="h-64 w-full rounded-md" />
           </div>
-        </AiSettingsLayout>
-      </LoadingRegion>
+        </LoadingRegion>
+      </AiSettingsLayout>
     );
   }
 

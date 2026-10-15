@@ -90,17 +90,17 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
  */
 export function CustomerDetailsTabSkeleton() {
   const infoRows = buildCustomerInfoRows({
-    website: <UnifiedSkeleton as="span" className="inline-block h-5 w-40 max-w-full align-middle" />,
+    website: <UnifiedSkeleton as="span" className="h-5 w-40" />,
     websiteIcon: <UnifiedSkeleton className="size-6 shrink-0" />,
-    physicalAddress: <UnifiedSkeleton as="span" className="inline-block h-5 w-72 max-w-full align-middle" />,
-    mailingAddress: <UnifiedSkeleton as="span" className="inline-block h-5 w-72 max-w-full align-middle" />,
+    physicalAddress: <UnifiedSkeleton as="span" className="h-5 w-72" />,
+    mailingAddress: <UnifiedSkeleton as="span" className="h-5 w-72" />,
   });
   const contactRows = buildCustomerContactRows([
     {
-      contactName: <UnifiedSkeleton as="span" className="inline-block h-5 w-28 max-w-full align-middle" />,
-      title: <UnifiedSkeleton as="span" className="inline-block h-5 w-28 max-w-full align-middle" />,
-      email: <UnifiedSkeleton as="span" className="inline-block h-5 w-40 max-w-full align-middle" />,
-      phone: <UnifiedSkeleton as="span" className="inline-block h-5 w-28 max-w-full align-middle" />,
+      contactName: <UnifiedSkeleton as="span" className="h-5 w-28" />,
+      title: <UnifiedSkeleton as="span" className="h-5 w-28" />,
+      email: <UnifiedSkeleton as="span" className="h-5 w-40" />,
+      phone: <UnifiedSkeleton as="span" className="h-5 w-28" />,
     },
   ]);
 

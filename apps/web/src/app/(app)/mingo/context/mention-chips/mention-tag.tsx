@@ -119,10 +119,7 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
 export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
   return (
     <LoadingRegion as="span" status={false} className="contents">
-      <MentionTag
-        icon={icon}
-        label={<UnifiedSkeleton as="span" className="inline-block h-3 w-20 max-w-full rounded align-middle" />}
-      />
+      <MentionTag icon={icon} label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />} />
     </LoadingRegion>
   );
 }

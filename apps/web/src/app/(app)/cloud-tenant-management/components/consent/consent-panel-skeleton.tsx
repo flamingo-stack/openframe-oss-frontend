@@ -30,8 +30,8 @@ export function ConsentPanelSkeleton({ mode }: { mode: Exclude<ConsentMode, 'det
       </div>
       <div className={CONSENT_CARD_CLASSES}>
         <div className="flex flex-col">
-          <UnifiedSkeleton as="span" className="inline-block h-6 w-full max-w-full align-middle" />
-          <UnifiedSkeleton as="span" className="inline-block h-6 w-2/3 max-w-full align-middle" />
+          <UnifiedSkeleton as="span" className="h-6 w-full" />
+          <UnifiedSkeleton as="span" className="h-6 w-2/3" />
         </div>
         <Input
           readOnly
