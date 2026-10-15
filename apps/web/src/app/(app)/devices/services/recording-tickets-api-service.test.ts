@@ -1,13 +1,20 @@
 /**
- * Assign and unassign answer with the session's tickets, which replace the
- * table; a refusal reads as an error with the server's message.
+ * The table reads the session's tickets through the opened recording; assign
+ * and unassign answer with the session's tickets, which replace the table; a
+ * refusal reads as an error with the server's message.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { assignRecordingTickets, unassignRecordingTicket } from './recording-tickets-api-service';
+import {
+  assignRecordingTickets,
+  fetchRecordingTickets,
+  MAX_ASSIGNED_TICKETS,
+  unassignRecordingTicket,
+} from './recording-tickets-api-service';
 
-const relay = vi.hoisted(() => ({ commitMutation: vi.fn() }));
+const relay = vi.hoisted(() => ({ commitMutation: vi.fn(), fetchQuery: vi.fn() }));
 
-vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: vi.fn() }));
+vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: relay.fetchQuery }));
+vi.mock('@/lib/relay', () => ({ getRelayEnvironment: () => ({}) }));
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
 vi.mock('@/lib/relay/commit-mutation', () => ({ commitMutationPromise: relay.commitMutation }));
 
@@ -63,5 +70,33 @@ describe('unassignRecordingTicket', () => {
       sessionId: 'session-1',
       ticketId: '6650aa',
     });
+  });
+});
+
+describe('fetchRecordingTickets', () => {
+  it('reads the tickets of the session the recording belongs to', async () => {
+    relay.fetchQuery.mockReturnValueOnce({
+      toPromise: () => Promise.resolve({ remoteSessionRecording: { session: { tickets: [LINK] } } }),
+    });
+    await expect(fetchRecordingTickets('rec-1')).resolves.toMatchObject([{ id: '6650aa', ticketNumber: 3891 }]);
+    expect(relay.fetchQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      { recordingId: 'rec-1' },
+      {
+        fetchPolicy: 'network-only',
+      },
+    );
+  });
+
+  it('reads no tickets when the answer carries none', async () => {
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.resolve(undefined) });
+    await expect(fetchRecordingTickets('rec-1')).resolves.toEqual([]);
+  });
+});
+
+describe('MAX_ASSIGNED_TICKETS', () => {
+  it('is the server ceiling of one assign call', () => {
+    expect(MAX_ASSIGNED_TICKETS).toBe(50);
   });
 });
