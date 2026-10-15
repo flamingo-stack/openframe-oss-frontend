@@ -3,6 +3,7 @@
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SectionLoadError } from '@/app/components/shared';
+import type { DeviceStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -10,7 +11,7 @@ import { useDevicesOverview } from '../hooks/use-dashboard-stats';
 import { DevicesOverviewSkeleton } from './dashboard-skeletons';
 
 type DeviceStatusCard = {
-  status: string;
+  status: DeviceStatus;
   title: string;
   /** `null` = the stats request failed; render unavailable, not zero. */
   value: number | null;
@@ -81,7 +82,9 @@ export function DevicesOverviewSection() {
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
-              card.status === DEVICE_STATUS.ARCHIVED ? routes.devices.archive : `/devices?statuses=${card.status}`
+              card.status === DEVICE_STATUS.ARCHIVED
+                ? routes.devices.archive
+                : routes.devices.filtered({ statuses: [card.status] })
             }
           />
         ))}
