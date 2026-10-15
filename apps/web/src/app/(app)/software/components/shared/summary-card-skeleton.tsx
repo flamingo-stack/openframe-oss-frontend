@@ -1,7 +1,7 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import type { ReactNode } from 'react';
-import { InlineSkeleton } from '@/app/components/shared';
 import { SummaryCard, type SummaryCardColumns } from './summary-card';
 
 interface SummaryCardSkeletonProps {
@@ -15,7 +15,10 @@ interface SummaryCardSkeletonProps {
 export function SummaryCardSkeleton({ labels, columns, lead }: SummaryCardSkeletonProps) {
   return (
     <SummaryCard
-      fields={labels.map(label => ({ label, value: <InlineSkeleton className="h-6 w-24" /> }))}
+      fields={labels.map(label => ({
+        label,
+        value: <UnifiedSkeleton as="span" className="h-6 w-24" />,
+      }))}
       columns={columns}
       lead={lead}
     />

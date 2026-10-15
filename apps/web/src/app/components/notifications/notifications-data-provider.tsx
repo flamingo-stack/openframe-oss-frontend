@@ -84,7 +84,7 @@ import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
-import { withCategoryIcon } from './notification-category-icons';
+import { withNotificationIcon } from './notification-category-icons';
 import {
   mingoDrawerDialogId,
   type NotificationAction,
@@ -524,7 +524,8 @@ function NotificationsDrawerHydrator({ onPaginationChange }: NotificationsDrawer
   >(notificationsDrawerRelayFragment, queryData);
 
   const notifications = useMemo(
-    () => data.notifications.edges.map(edge => withCategoryIcon(mapNotificationNode(readNotificationNode(edge.node)))),
+    () =>
+      data.notifications.edges.map(edge => withNotificationIcon(mapNotificationNode(readNotificationNode(edge.node)))),
     [data.notifications.edges],
   );
 

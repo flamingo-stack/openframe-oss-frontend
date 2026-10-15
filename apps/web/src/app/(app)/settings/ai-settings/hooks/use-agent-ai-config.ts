@@ -18,6 +18,16 @@ export const agentAiConfigQueryKeys = {
   detail: (agentType: AgentType) => ['agent-ai-config', agentType] as const,
 };
 
+interface QuickActionGql {
+  id: string;
+  name: string;
+  instructions: string;
+  iconName?: string | null;
+  iconUrl?: string | null;
+  /** `JSON` scalar - arrives as the stored object (e.g. `{ color }`). */
+  iconProps?: Record<string, unknown> | null;
+}
+
 interface AgentAiConfigGql {
   id: string;
   agentType: AgentType;
@@ -26,7 +36,7 @@ interface AgentAiConfigGql {
   answerStyle: AnswerStyle | null;
   customPrompt: string | null;
   quickActionsIsDefault: boolean | null;
-  quickActions: { id: string; name: string; instructions: string }[] | null;
+  quickActions: QuickActionGql[] | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -41,7 +51,14 @@ function toAgentAiConfig(raw: AgentAiConfigGql): AgentAiConfig {
     customPrompt: raw.customPrompt ?? null,
     // BE default is true (defaults come from Product Hub until customized).
     quickActionsIsDefault: raw.quickActionsIsDefault ?? true,
-    quickActions: (raw.quickActions ?? []).map(q => ({ id: q.id, name: q.name, instructions: q.instructions })),
+    quickActions: (raw.quickActions ?? []).map(q => ({
+      id: q.id,
+      name: q.name,
+      instructions: q.instructions,
+      iconName: q.iconName ?? null,
+      iconUrl: q.iconUrl ?? null,
+      iconProps: q.iconProps ?? null,
+    })),
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt ?? null,
   };

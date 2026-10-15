@@ -40,8 +40,9 @@ import {
   getAgentAccent,
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
 import { mingoDialogLink } from '@/lib/routes';
@@ -56,9 +57,11 @@ import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-se
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
+import { useMingoWhatToAsk } from '../(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
+import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
 interface OpenframeEmbeddableChatEntryProps {
   /** Controlled open state, shared with the host `AppLayoutDrawer`. */
@@ -97,6 +100,23 @@ export function OpenframeEmbeddableChatEntry({
     dialogError,
   } = useMingoUnifiedChatState();
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
+
+  // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
+  // offers it), after the chat's own actions.
+  const loadWhatToAsk = useMingoWhatToAsk();
+  const canResetOnboarding = useCanResetOnboarding();
+  const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
+  const chatMenuExtraItems =
+    v2 && canResetOnboarding
+      ? [
+          {
+            id: 'reset-onboarding',
+            label: 'Reset Onboarding',
+            icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
+            onClick: () => setIsResetOnboardingOpen(true),
+          },
+        ]
+      : undefined;
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
 
   // A dialog that won't load is otherwise indistinguishable from an empty one — the
@@ -266,10 +286,10 @@ export function OpenframeEmbeddableChatEntry({
         id: action.id,
         label: action.name,
         variant: 'outline',
-        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps);
-        // render it into the chip node. Tenant customs have none → undefined →
-        // no icon. `mingo` accent tints registry glyphs unless the hub icon
-        // sets its own color. The settings editor deliberately omits this.
+        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps) and
+        // tenant customs the `iconName` picked in AI Settings; render it into
+        // the chip node. No icon → undefined → a text-only chip. `mingo` accent
+        // tints registry glyphs unless the hub icon sets its own color.
         icon: renderQuickActionIcon({
           name: action.iconName ?? undefined,
           url: action.iconUrl ?? undefined,
@@ -319,6 +339,10 @@ export function OpenframeEmbeddableChatEntry({
         collapseTo={v2?.collapseTo}
         onExpand={v2?.onExpand}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
+        // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
+        // one) with prompts that go into the composer, naming online devices.
+        whatToAsk={v2 ? loadWhatToAsk : undefined}
+        chatMenuExtraItems={chatMenuExtraItems}
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
@@ -392,6 +416,8 @@ export function OpenframeEmbeddableChatEntry({
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
       />
+
+      <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />
     </>
   );
 }

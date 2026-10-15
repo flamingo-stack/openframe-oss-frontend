@@ -3,7 +3,11 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useState } from 'react';
 import { AUTH_ERROR_CODE } from '@/app/(auth)/auth/constants/auth-error-codes';
-import { sanitizeSubdomain } from '@/app/(auth)/auth/constants/registration-validation';
+import {
+  sanitizeSubdomain,
+  TENANT_SUBDOMAIN_ERROR,
+  TENANT_SUBDOMAIN_REGEX,
+} from '@/app/(auth)/auth/constants/registration-validation';
 import { useDomainAvailability } from '@/app/(auth)/auth/hooks/use-registration-availability';
 import { isSharedAuthUi } from '@/lib/app-mode';
 import { authApiClient, SAAS_DOMAIN_SUFFIX } from '@/lib/auth-api-client';
@@ -14,8 +18,10 @@ export interface OrganizationDomainState {
   domain: string;
   /** Sanitizing setter — subdomains accept only lowercase letters, digits and dashes. */
   setDomain: (value: string) => void;
-  /** True while the debounced check says the subdomain is taken or still resolving. */
+  /** True while the subdomain is malformed, or the debounced check says it is taken or still resolving. */
   isBlocked: boolean;
+  /** The inline error for a subdomain the server would reject as malformed; never sent for a check. */
+  formatError: string | undefined;
   /** True during the submit-time re-check, for the button's busy state. */
   isChecking: boolean;
   statusMessage: { message: string; variant: StatusVariant } | undefined;
@@ -45,7 +51,14 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
   const [isChecking, setIsChecking] = useState(false);
   const [submitSuggestions, setSubmitSuggestions] = useState<string[]>([]);
 
-  const { status, suggestions: liveSuggestions } = useDomainAvailability(domain, organizationName, isSharedAuth);
+  const formatError =
+    isSharedAuth && domain && !TENANT_SUBDOMAIN_REGEX.test(domain) ? TENANT_SUBDOMAIN_ERROR : undefined;
+
+  const { status, suggestions: liveSuggestions } = useDomainAvailability(
+    domain,
+    organizationName,
+    isSharedAuth && !formatError,
+  );
 
   const setDomain = useCallback(
     (value: string) => {
@@ -130,7 +143,8 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
   return {
     domain,
     setDomain,
-    isBlocked: isSharedAuth && (status === 'taken' || status === 'checking'),
+    isBlocked: isSharedAuth && (!!formatError || status === 'taken' || status === 'checking'),
+    formatError,
     isChecking,
     statusMessage,
     // Prefer live suggestions from the debounced check; fall back to the submit-time ones.

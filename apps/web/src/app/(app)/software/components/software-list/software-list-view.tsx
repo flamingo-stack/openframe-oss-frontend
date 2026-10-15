@@ -29,6 +29,7 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
         placeholder="Search for Software"
         skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
         skeletonRows={FLEET_LIST_SKELETON_ROWS}
+        skeletonLabel="Loading software"
         loading={loading}
       >
         {list => <SoftwareListTable {...list} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}

@@ -147,9 +147,12 @@ export interface NativeAuthPlugin {
    * auth host THIS side refreshes against, and is what iOS refreshes against
    * when the build carries no plist host — never the tenant host, whose gateway
    * may answer a header-based refresh without the rotated pair. Desktop ignores
-   * `sharedOrigin`. Optional; both shells. Rejects a non-https origin.
+   * `sharedOrigin`. `clientBundleVersion` is this bundle's version as
+   * `X-OpenFrame-Client` reports it, so the mobile shell's own gateway calls
+   * (notification actions) send the same header; older shells ignore it.
+   * Optional; both shells. Rejects a non-https origin.
    */
-  setTenantHost?(options: { origin: string; sharedOrigin?: string }): Promise<void>;
+  setTenantHost?(options: { origin: string; sharedOrigin?: string; clientBundleVersion?: string }): Promise<void>;
   /**
    * Shell-pushed token changes — the MOBILE transport (Capacitor's generated
    * per-plugin `addListener`; desktop delivers the same payload as a Tauri
@@ -382,6 +385,40 @@ export function appPlugin(): AppPlugin | null {
   return isMobileShell() ? ((capacitorPlugins()?.App as AppPlugin | undefined) ?? null) : null;
 }
 
+/**
+ * Runs `callback` every time the mobile app comes back to the foreground, and
+ * returns the unsubscribe. `appStateChange`, not `visibilitychange`: WKWebView
+ * does not reliably flip `visibilityState` when the app is backgrounded. No-op
+ * off mobile.
+ *
+ * The injected plugin proxy returns a bare handle from `addListener`, not the
+ * Promise its type suggests (see native-back.ts), so both shapes are absorbed —
+ * and an unsubscribe that lands before the handle does still removes it.
+ */
+export function onAppResume(callback: () => void, logTag: string): () => void {
+  const app = appPlugin();
+  if (!app) return () => {};
+  let disposed = false;
+  let remove: (() => void) | undefined;
+  try {
+    const registration = app.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) callback();
+    });
+    void Promise.resolve(registration)
+      .then(handle => {
+        remove = () => void handle.remove();
+        if (disposed) remove();
+      })
+      .catch(error => console.error(`[${logTag}] appStateChange registration failed:`, error));
+  } catch (error) {
+    console.error(`[${logTag}] appStateChange registration threw:`, error);
+  }
+  return () => {
+    disposed = true;
+    remove?.();
+  };
+}
+
 /** Mobile-only. Also null until @capacitor/keyboard is present in the shell — callers fall back to visualViewport. */
 export function keyboardPlugin(): KeyboardPlugin | null {
   return isMobileShell() ? ((capacitorPlugins()?.Keyboard as KeyboardPlugin | undefined) ?? null) : null;
@@ -524,23 +561,42 @@ export interface DesktopUpdateAvailability {
   version?: string | null;
   notes?: string | null;
   releaseNotesUrl?: string | null;
+  /**
+   * Set when this install cannot apply the update where it runs (today only
+   * `location`: a read-only mount on macOS). The UI shows why up front instead
+   * of a button that would fail.
+   */
+  blocked?: DesktopUpdateError | null;
 }
 
 /**
  * Why an update failed, classified SHELL-side (updater.rs `classify`). The
  * plugin's error strings are not an interface — they wrap upstream errors and
- * change between releases — so the kind is what the UI switches on and
- * `message` is only ever for the log.
+ * change between releases — so the kind is what the UI switches on, and
+ * `message` is shown verbatim as a detail line, never matched on.
  *
  * - `network` — could not reach the update server (retry)
  * - `signature` — the download failed verification (retry, then reinstall)
- * - `io` — could not write to disk (free space, retry)
+ * - `disk` — the disk is actually full (free space, retry)
+ * - `permission` — macOS: the administrator prompt to replace the app was refused (retry and approve)
+ * - `security` — Windows: writing the installer was refused, most often by security software (ask IT, retry)
+ * - `location` — macOS: the app runs from the DMG, a translocated copy or another volume (move it to Applications)
  * - `unavailable` — no artifact for this platform, or a malformed manifest
  * - `busy` — an apply is already running; this call owns nothing
  * - `gone` — no longer offered; the silent startup update already took it
- * - `unknown` — anything else
+ * - `unknown` — anything else, including IO failures none of the above explain
  */
-export type DesktopUpdateErrorKind = 'network' | 'signature' | 'io' | 'unavailable' | 'busy' | 'gone' | 'unknown';
+export type DesktopUpdateErrorKind =
+  | 'network'
+  | 'signature'
+  | 'disk'
+  | 'permission'
+  | 'security'
+  | 'location'
+  | 'unavailable'
+  | 'busy'
+  | 'gone'
+  | 'unknown';
 
 export interface DesktopUpdateError {
   kind: DesktopUpdateErrorKind;

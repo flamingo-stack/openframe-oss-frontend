@@ -1,10 +1,10 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Card, SquareAvatar, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetailSummary_article$key } from '@/__generated__/articleDetailSummary_article.graphql';
-import { InlineSkeleton } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { formatDate } from '@/lib/format-date';
@@ -113,19 +113,27 @@ export function ArticleDetailSummary({ article }: { article: articleDetailSummar
 /** The card while the article loads: its cells and labels real, its values as bars. */
 export function ArticleDetailSummarySkeleton() {
   return (
-    <div aria-busy>
+    <div>
       <SummaryCard
         author={
           <AuthorCell
-            avatar={<InlineSkeleton className="size-10 rounded-full" />}
-            name={<InlineSkeleton className="h-6 w-32" />}
+            avatar={<UnifiedSkeleton as="span" className="size-10 rounded-full" />}
+            name={<UnifiedSkeleton as="span" className="h-6 w-32" />}
           />
         }
         updated={
-          <InfoCell className={CELL_CLASSES} label={LABELS.updated} value={<InlineSkeleton className="h-6 w-24" />} />
+          <InfoCell
+            className={CELL_CLASSES}
+            label={LABELS.updated}
+            value={<UnifiedSkeleton as="span" className="h-6 w-24" />}
+          />
         }
         status={
-          <InfoCell className={CELL_CLASSES} label={LABELS.status} value={<InlineSkeleton className="h-6 w-20" />} />
+          <InfoCell
+            className={CELL_CLASSES}
+            label={LABELS.status}
+            value={<UnifiedSkeleton as="span" className="h-6 w-20" />}
+          />
         }
       />
     </div>

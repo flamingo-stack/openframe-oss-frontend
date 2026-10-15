@@ -43,6 +43,7 @@ export function ArchivedArticlesView() {
         <Suspense
           fallback={
             <TableSkeleton
+              label="Loading archived articles"
               columns={ARCHIVED_ARTICLE_TABLE_COLUMNS}
               rows={KNOWLEDGE_BASE_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}

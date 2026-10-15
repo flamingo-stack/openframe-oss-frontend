@@ -1,23 +1,102 @@
 'use client';
 
+import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { extractGraphQlData } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
+import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from '../../hooks/chat-graphql';
 import {
   CUSTOM_POLICY_TYPE,
   type CustomPolicyRequest,
   type PolicyTemplateDetail,
   type PolicyTemplateSummary,
 } from './guardrails.types';
-import { organizationGuardrailsQueryKeys } from './use-organization-guardrails';
+import {
+  GUARDRAIL_RULE_FIELDS,
+  type GuardrailRuleGql,
+  organizationGuardrailsQueryKeys,
+  toPolicyRule,
+} from './use-organization-guardrails';
 
 /**
- * React-query data layer for guardrails policy templates
- * (`/chat/api/v1/policies`, tenant-scoped). A future per-organization scope
+ * React-query data layer for guardrails policy templates (ai-agent GraphQL
+ * `guardrailPolicies`, tenant-scoped). A future per-organization scope
  * (customer details page) extends these hooks and their query keys — the
  * editor and panel components stay unchanged.
+ *
+ * Every view-model `id` is the raw `policyId`, not the Relay `GuardrailPolicy.id`:
+ * it is compared with `OrganizationGuardrails.sourceTemplate`, which is raw.
+ * The mutations accept both.
  */
+
+const GET_GUARDRAIL_POLICIES_QUERY = `
+  query GuardrailPolicies {
+    guardrailPolicies {
+      policyId
+      displayName
+      description
+      type
+      isActive
+      customOverridesCount
+    }
+  }
+`;
+
+const GET_GUARDRAIL_POLICY_QUERY = `
+  query GuardrailPolicy($id: ID!) {
+    guardrailPolicy(id: $id) {
+      policyId
+      displayName
+      type
+      isActive
+      sourceTemplate
+      rules {
+        ${GUARDRAIL_RULE_FIELDS}
+      }
+      customOverrides {
+        naturalKey
+        approvalLevel
+      }
+    }
+  }
+`;
+
+const ACTIVATE_GUARDRAIL_POLICY_MUTATION = `
+  mutation ActivateGuardrailPolicy($input: GuardrailPolicyIdInput!) {
+    activateGuardrailPolicy(input: $input) {
+      userErrors { field message }
+    }
+  }
+`;
+
+const SAVE_CUSTOM_GUARDRAIL_POLICY_MUTATION = `
+  mutation SaveCustomGuardrailPolicy($input: SaveCustomGuardrailPolicyInput!) {
+    saveCustomGuardrailPolicy(input: $input) {
+      userErrors { field message }
+    }
+  }
+`;
+
+interface GuardrailPolicySummaryGql {
+  policyId: string;
+  displayName: string | null;
+  description: string | null;
+  type: PolicyTemplateSummary['type'];
+  isActive: boolean;
+  customOverridesCount: number;
+}
+
+interface GuardrailPolicyDetailGql {
+  policyId: string;
+  displayName: string | null;
+  type: PolicyTemplateDetail['type'];
+  isActive: boolean;
+  sourceTemplate: string | null;
+  rules: GuardrailRuleGql[];
+  customOverrides: { naturalKey: string; approvalLevel: ApprovalLevel }[];
+}
 
 export const guardrailsQueryKeys = {
   all: ['guardrails-policies'] as const,
@@ -29,10 +108,21 @@ export function useGuardrailsTemplates() {
   const result = useQuery({
     queryKey: guardrailsQueryKeys.templates(),
     queryFn: async (): Promise<PolicyTemplateSummary[]> => {
-      const res = await apiClient.get<PolicyTemplateSummary[]>('/chat/api/v1/policies');
-      if (!res.ok) throw new Error(res.error || 'Failed to fetch policy templates');
+      const response = await apiClient.post<GraphqlResponse<{ guardrailPolicies: GuardrailPolicySummaryGql[] }>>(
+        '/chat/graphql',
+        { query: GET_GUARDRAIL_POLICIES_QUERY },
+      );
+      const { guardrailPolicies } = extractGraphQlData(response);
+      const templates: PolicyTemplateSummary[] = guardrailPolicies.map(policy => ({
+        id: policy.policyId,
+        displayName: policy.displayName ?? '',
+        description: policy.description ?? undefined,
+        type: policy.type,
+        isActive: policy.isActive,
+        customOverridesCount: policy.customOverridesCount,
+      }));
       // Stock templates first, the tenant's custom policy last.
-      return (res.data || []).sort((a, b) => {
+      return templates.sort((a, b) => {
         if (a.type === CUSTOM_POLICY_TYPE && b.type !== CUSTOM_POLICY_TYPE) return 1;
         if (a.type !== CUSTOM_POLICY_TYPE && b.type === CUSTOM_POLICY_TYPE) return -1;
         return 0;
@@ -58,11 +148,23 @@ export function useGuardrailsTemplate(templateId: string | null) {
   const result = useQuery({
     queryKey: guardrailsQueryKeys.template(templateId ?? ''),
     queryFn: async (): Promise<PolicyTemplateDetail> => {
-      const res = await apiClient.get<PolicyTemplateDetail>(
-        `/chat/api/v1/policies/${encodeURIComponent(templateId as string)}`,
+      const response = await apiClient.post<GraphqlResponse<{ guardrailPolicy: GuardrailPolicyDetailGql | null }>>(
+        '/chat/graphql',
+        { query: GET_GUARDRAIL_POLICY_QUERY, variables: { id: templateId } },
       );
-      if (!res.ok || !res.data) throw new Error(res.error || 'Failed to fetch policy template');
-      return res.data;
+      const { guardrailPolicy: policy } = extractGraphQlData(response);
+      if (!policy) throw new Error('Policy template not found');
+      return {
+        id: policy.policyId,
+        displayName: policy.displayName ?? '',
+        type: policy.type,
+        sourceTemplate: policy.sourceTemplate ?? undefined,
+        rules: policy.rules.map(toPolicyRule),
+        customOverrides: Object.fromEntries(
+          policy.customOverrides.map(override => [override.naturalKey, override.approvalLevel]),
+        ),
+        active: policy.isActive,
+      };
     },
     enabled: !!templateId,
   });
@@ -80,8 +182,11 @@ export function useActivateGuardrailsTemplate() {
 
   const result = useMutation({
     mutationFn: async (templateId: string) => {
-      const res = await apiClient.post(`/chat/api/v1/policies/${encodeURIComponent(templateId)}/activate`);
-      if (!res.ok) throw new Error(res.error || 'Failed to activate policy template');
+      const response = await apiClient.post<GraphqlResponse<Record<string, MutationPayloadGql>>>('/chat/graphql', {
+        query: ACTIVATE_GUARDRAIL_POLICY_MUTATION,
+        variables: { input: { id: templateId } },
+      });
+      throwOnErrors(response, 'Failed to activate policy template');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: guardrailsQueryKeys.all });
@@ -113,9 +218,17 @@ export function useSaveCustomGuardrailsPolicy() {
   const queryClient = useQueryClient();
 
   const result = useMutation({
-    mutationFn: async (request: CustomPolicyRequest) => {
-      const res = await apiClient.put('/chat/api/v1/policies/custom', request);
-      if (!res.ok) throw new Error(res.error || 'Failed to save custom policy');
+    mutationFn: async ({ templateId, overrides }: CustomPolicyRequest) => {
+      const response = await apiClient.post<GraphqlResponse<Record<string, MutationPayloadGql>>>('/chat/graphql', {
+        query: SAVE_CUSTOM_GUARDRAIL_POLICY_MUTATION,
+        variables: {
+          input: {
+            templateId,
+            overrides: Object.entries(overrides).map(([naturalKey, approvalLevel]) => ({ naturalKey, approvalLevel })),
+          },
+        },
+      });
+      throwOnErrors(response, 'Failed to save custom policy');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: guardrailsQueryKeys.all });

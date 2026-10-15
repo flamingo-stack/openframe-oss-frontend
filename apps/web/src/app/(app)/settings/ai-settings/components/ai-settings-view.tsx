@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadError, Skeleton, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadError, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -13,7 +14,12 @@ import {
   useUpdateAdminAiConfig,
   useUpdateClientAiConfig,
 } from '../hooks/use-agent-ai-config';
-import { clientViewQueryKeys, useClientView, useUpdateClientView } from '../hooks/use-client-view';
+import {
+  clientViewQueryKeys,
+  useClientView,
+  useUpdateClientView,
+  withClientViewCreateFields,
+} from '../hooks/use-client-view';
 import type { CommitAvatar } from '../hooks/use-customer-ai-assistant-form';
 import { useUpdateAiConfiguration } from '../hooks/use-update-ai-configuration';
 import {
@@ -54,11 +60,13 @@ export function AiSettings() {
   if (!visibleTabs) {
     return (
       <AiSettingsLayout>
-        <TabBarSkeleton widths={TAB_WIDTHS} />
-        <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-          <Skeleton className="h-20 w-full rounded-md" />
-          <Skeleton className="h-64 w-full rounded-md" />
-        </div>
+        <LoadingRegion label="Loading AI settings" className="contents">
+          <TabBarSkeleton widths={TAB_WIDTHS} />
+          <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+            <UnifiedSkeleton className="h-20 w-full rounded-md" />
+            <UnifiedSkeleton className="h-64 w-full rounded-md" />
+          </div>
+        </LoadingRegion>
       </AiSettingsLayout>
     );
   }
@@ -172,7 +180,7 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
           // the refetch race the in-flight write and cache the pre-save view).
           const [aiResult, viewResult] = await Promise.allSettled([
             updateClientAiConfig(payload.ai),
-            updateClientView(payload.view),
+            updateClientView(withClientViewCreateFields(payload.view, !clientView.view)),
           ]);
           const failure = [aiResult, viewResult].find(result => result.status === 'rejected');
           if (failure) {
@@ -259,10 +267,10 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
           // Keep the tab bar visible; show skeletons while the tab config loads.
           if (isLoading) {
             return (
-              <div className="flex flex-col gap-[var(--spacing-system-l)]">
-                <Skeleton className="h-20 w-full rounded-md" />
-                <Skeleton className="h-64 w-full rounded-md" />
-              </div>
+              <LoadingRegion label="Loading AI settings" className="flex flex-col gap-[var(--spacing-system-l)]">
+                <UnifiedSkeleton className="h-20 w-full rounded-md" />
+                <UnifiedSkeleton className="h-64 w-full rounded-md" />
+              </LoadingRegion>
             );
           }
 

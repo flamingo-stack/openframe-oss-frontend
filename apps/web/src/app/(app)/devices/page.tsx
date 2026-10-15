@@ -17,7 +17,7 @@ export default function Devices() {
 
   return (
     <div className="flex w-full flex-col">
-      {/* Devices List | Remote Sessions Recordings, where session recordings are on. */}
+      {/* Devices List | Remote Sessions, where session recordings are on. */}
       <DevicesTabNavigation activeTab="list" />
       <DevicesPanel
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
