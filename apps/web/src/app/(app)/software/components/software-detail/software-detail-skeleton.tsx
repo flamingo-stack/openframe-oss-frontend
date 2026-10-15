@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { routes } from '@/lib/routes';
 import { DetailTitle } from '../shared/detail-title';
 import { SummaryCardSkeleton } from '../shared/summary-card-skeleton';
@@ -13,9 +14,9 @@ import { SOFTWARE_DETAIL_TITLE } from './software-detail-title';
  */
 export function SoftwareDetailSkeleton() {
   return (
-    <>
+    <LoadingRegion className="contents" label="Loading software">
       <DetailTitle title={SOFTWARE_DETAIL_TITLE} backTo={routes.software.list} loading />
       <SummaryCardSkeleton columns={2} labels={Object.values(SOFTWARE_DETAIL_SUMMARY_LABELS)} />
-    </>
+    </LoadingRegion>
   );
 }

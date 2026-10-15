@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   MspOrganizationCard,
   MspOrganizationCardSkeleton,
@@ -136,7 +137,9 @@ export function MeetFaePreview({
         </div>
 
         {isLoading ? (
-          <MspOrganizationCardSkeleton className="w-full" />
+          <LoadingRegion label="Loading your organization">
+            <MspOrganizationCardSkeleton className="w-full" />
+          </LoadingRegion>
         ) : (
           <MspOrganizationCard
             name={orgName}

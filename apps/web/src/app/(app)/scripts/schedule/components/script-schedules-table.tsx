@@ -1,6 +1,6 @@
 'use client';
 
-import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
@@ -627,10 +627,12 @@ function SchedulesTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: st
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading schedules">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

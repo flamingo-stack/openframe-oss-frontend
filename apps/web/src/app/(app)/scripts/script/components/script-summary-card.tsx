@@ -1,8 +1,8 @@
 'use client';
 
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { scriptShellLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { ValueText } from '@/app/components/shared/value-text';
@@ -150,13 +150,13 @@ export function ScriptSummaryCardSkeleton({
   return (
     <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        <Skeleton className="h-6 w-56" />
+        <UnifiedSkeleton className="h-6 w-56" />
       </div>
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
         {stats.map(stat => (
           <MetaCell key={stat}>
-            <Skeleton className="h-6 w-28" />
-            <Skeleton className={`h-5 max-w-full ${STAT_LABEL_WIDTHS[stat]}`} />
+            <UnifiedSkeleton className="h-6 w-28" />
+            <UnifiedSkeleton className={`h-5 max-w-full ${STAT_LABEL_WIDTHS[stat]}`} />
           </MetaCell>
         ))}
         <MetaSpacer count={stats.length} />

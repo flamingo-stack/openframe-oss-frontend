@@ -1,6 +1,7 @@
 'use client';
 
-import { PageLayout, ServiceCard, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { PageLayout, ServiceCard } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo, useState } from 'react';
@@ -65,20 +66,20 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
         />
       </div>
       {isLoading && (
-        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2">
+        <LoadingRegion label="Loading architecture" className="grid grid-cols-1 gap-6 content-md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-lg border border-ods-border bg-ods-card p-6">
               <div className="mb-4 flex items-center gap-4">
-                <Skeleton className="h-12 w-12 rounded-md" />
+                <UnifiedSkeleton className="h-12 w-12 rounded-md" />
                 <div className="flex-1">
-                  <Skeleton className="mb-2 h-5 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
+                  <UnifiedSkeleton className="mb-2 h-5 w-3/4" />
+                  <UnifiedSkeleton className="h-4 w-1/2" />
                 </div>
               </div>
-              <Skeleton className="h-12 w-full" />
+              <UnifiedSkeleton className="h-12 w-full" />
             </div>
           ))}
-        </div>
+        </LoadingRegion>
       )}
 
       {layerOrder.map(layer => (

@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   DEVICE_STATUS,
@@ -46,7 +47,13 @@ function renderPackageSearch({ packageManager, value, onChange }: PackageSearchS
   return (
     // Keyed by catalog: a new package manager starts a new search.
     <ErrorBoundary key={packageManager} fallback={<PackageSearchFieldPlaceholder error="Couldn't search packages." />}>
-      <Suspense fallback={<PackageSearchFieldPlaceholder />}>
+      <Suspense
+        fallback={
+          <LoadingRegion label="Loading packages" className="contents">
+            <PackageSearchFieldPlaceholder />
+          </LoadingRegion>
+        }
+      >
         <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
       </Suspense>
     </ErrorBoundary>
