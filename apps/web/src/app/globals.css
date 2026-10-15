@@ -86,15 +86,6 @@ body:has([aria-modal='true']:not([inert]), [role='alertdialog']) .of-walkthrough
   --ods-attention-yellow-warning: #1a1a1a;
 }
 
-.ai-preview-theme.theme-light {
-  /* Alpha token not derived from a flipping primitive. */
-  --color-text-subtle: rgba(26, 26, 26, 0.6);
-
-  /* Keep the green "APPROVED BY …" badge identical across themes. */
-  --ods-attention-green-success: #5ea62e;
-  --ods-attention-green-success-secondary: #2e461f;
-}
-
 /*
  * Mobile shell (Capacitor) safe areas — activated by `data-shell="mobile"`,
  * which NativeShellInitializer sets from the detected shell kind. Browsers never

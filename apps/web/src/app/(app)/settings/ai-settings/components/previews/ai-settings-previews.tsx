@@ -9,7 +9,7 @@ import { useNativeBackDismissible } from '@/lib/native-back';
 import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-modal';
 import { FaeChatPreview } from './fae-chat-preview';
 import { FaeWelcomePreview } from './fae-welcome-preview';
-import { type PreviewTheme, previewThemeClass, PreviewThemeSwitch } from './preview-theme';
+import { PREVIEW_THEME_CLASS } from './preview-theme';
 
 interface AiSettingsPreviewsProps {
   assistantName: string;
@@ -18,9 +18,9 @@ interface AiSettingsPreviewsProps {
 }
 
 /**
- * Welcome + chat previews of the Fae window, re-themed locally via
- * `.theme-light` / `.theme-dark`. The theme is the preview's own switch, not a
- * setting: each client picks it in the Fae app.
+ * Welcome + chat previews of the Fae window, shown in Fae's default dark
+ * theme (`PREVIEW_THEME_CLASS`): the theme is not a setting, each client picks
+ * it in the Fae app.
  *
  * Both inline forms are thumbnails — the source is the 1024×800 window, and the
  * scale that fits it into a card takes a 12px caption down to 5px. No scale
@@ -39,8 +39,6 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
   // 200ms exit animation.
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPane, setPreviewPane] = useState<PreviewPane>('welcome');
-  // Dark is what Fae shows until the client picks a theme.
-  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('dark');
 
   const openPreview = (pane: PreviewPane) => {
     setPreviewPane(pane);
@@ -62,17 +60,11 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
   const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
   const resolvedAvatarUrl = avatarUrl || faeAvatar;
 
-  // Scope the theme to each card, not the wrapper: `.theme-light` flips
-  // `--ods-system-greys-background`, so applying it to the container would turn
-  // the whole container white too. Per-card scoping keeps the container on the
-  // (dark) app background while only the cards re-theme.
-  const themeClass = previewThemeClass(previewTheme);
-
   return (
     <>
       {/* Just the affordance: every consumer already renders the assistant's
           name, avatar, model and accent directly above this, so a summary
-          card here only repeats them. The theme switch lives in the modal. */}
+          card here only repeats them. */}
       <Button
         type="button"
         variant="outline"
@@ -83,24 +75,13 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
         Preview Assistant
       </Button>
 
-      <div className="hidden flex-col items-end gap-[var(--spacing-system-m)] content-md:flex">
-        <PreviewThemeSwitch value={previewTheme} onChange={setPreviewTheme} />
-        <div className="grid w-full grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg">
-          <ThumbnailTrigger
-            themeClass={themeClass}
-            label="Open the welcome screen preview at full size"
-            onOpen={() => openPreview('welcome')}
-          >
-            <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
-          </ThumbnailTrigger>
-          <ThumbnailTrigger
-            themeClass={themeClass}
-            label="Open the chat preview at full size"
-            onOpen={() => openPreview('chat')}
-          >
-            <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
-          </ThumbnailTrigger>
-        </div>
+      <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid">
+        <ThumbnailTrigger label="Open the welcome screen preview at full size" onOpen={() => openPreview('welcome')}>
+          <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+        </ThumbnailTrigger>
+        <ThumbnailTrigger label="Open the chat preview at full size" onOpen={() => openPreview('chat')}>
+          <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+        </ThumbnailTrigger>
       </div>
 
       <AiSettingsPreviewModal
@@ -111,15 +92,12 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
         assistantName={assistantName}
         avatarUrl={resolvedAvatarUrl}
         accentColor={accentColor}
-        previewTheme={previewTheme}
-        onPreviewThemeChange={setPreviewTheme}
       />
     </>
   );
 }
 
 interface ThumbnailTriggerProps {
-  themeClass: string;
   label: string;
   onOpen: () => void;
   children: ReactNode;
@@ -132,9 +110,11 @@ interface ThumbnailTriggerProps {
  * error. `inert` takes the whole thumbnail out of the pointer, focus and
  * accessibility trees at once, leaving exactly one interactive element.
  */
-function ThumbnailTrigger({ themeClass, label, onOpen, children }: ThumbnailTriggerProps) {
+function ThumbnailTrigger({ label, onOpen, children }: ThumbnailTriggerProps) {
   return (
-    <div className={cn('relative', themeClass)}>
+    // Each card takes the preview theme on its own: on the wrapper,
+    // `.ai-preview-theme` would re-point the background of the gap between them.
+    <div className={cn('relative', PREVIEW_THEME_CLASS)}>
       <div inert>{children}</div>
       {/* `group` belongs on the button, not the wrapper: `group-focus-visible`
           compiles to `.group:focus-visible`, and the wrapper can never take
