@@ -82,3 +82,67 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * loaded at tablet width and then widened the window.
  */
 export const sidebarWidthFoucScript = runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${SIDEBAR_EXPANDED_WIDTH}px');}catch(e){}})();`;
+
+// --------------------------------------------------------------------------
+// The persisted preference as a store — for a host that CONTROLS the collapse
+// --------------------------------------------------------------------------
+
+/**
+ * The core sidebar's in-page change event (`useLocalStorage` listens for it), so the
+ * sidebar's own copy of the preference follows a write made here.
+ */
+const LOCAL_STORAGE_UPDATE_EVENT = 'localStorageUpdate';
+
+/**
+ * The desktop collapse preference, for the Mingo-first shell: it controls the sidebar
+ * (`NavigationSidebarConfig.collapsed`) so ⌘K can reveal it, and a controlled sidebar
+ * persists nothing itself. Same key and encoding (JSON `true` / `false`) as the core
+ * sidebar's own persisted preference, so the seed script above stays right in both shells
+ * and the preference carries over when the user switches between them.
+ */
+export function readSidebarMinimized(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_MINIMIZED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist the preference and tell every reader on the page — the subscribers below and the core sidebar's copy. */
+export function writeSidebarMinimized(minimized: boolean): void {
+  const newValue = JSON.stringify(minimized);
+  try {
+    window.localStorage.setItem(SIDEBAR_MINIMIZED_STORAGE_KEY, newValue);
+  } catch {
+    // Storage refused (Safari private mode, blocked site data): the preference lasts
+    // for this page only. The event below still moves every reader.
+  }
+  window.dispatchEvent(
+    new CustomEvent(LOCAL_STORAGE_UPDATE_EVENT, { detail: { key: SIDEBAR_MINIMIZED_STORAGE_KEY, newValue } }),
+  );
+}
+
+/** `useSyncExternalStore` subscription: writes on this page (either sidebar's) and other tabs. */
+export function subscribeSidebarMinimized(listener: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === SIDEBAR_MINIMIZED_STORAGE_KEY) listener();
+  };
+  const onUpdate = (event: Event) => {
+    const detail: unknown = (event as CustomEvent<unknown>).detail;
+    if (
+      typeof detail === 'object' &&
+      detail !== null &&
+      'key' in detail &&
+      detail.key === SIDEBAR_MINIMIZED_STORAGE_KEY
+    ) {
+      listener();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  window.addEventListener(LOCAL_STORAGE_UPDATE_EVENT, onUpdate);
+  return () => {
+    window.removeEventListener('storage', onStorage);
+    window.removeEventListener(LOCAL_STORAGE_UPDATE_EVENT, onUpdate);
+  };
+}

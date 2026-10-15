@@ -28,6 +28,16 @@ export function headerLoadingCells(): HeaderLoadingCell[] {
 }
 
 /**
+ * The same for the Mingo-first shell, whose header is the phone top bar only
+ * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
+ * `'icon-max-md'` like every phone-only cell), then the classic cells. The desktop
+ * header these would reserve is hidden in CSS from md up, placeholder included.
+ */
+export function mingoHeaderLoadingCells(): HeaderLoadingCell[] {
+  return ['icon-max-md', ...headerLoadingCells()];
+}
+
+/**
  * Bottom padding the (app) group layout passes to the live `<main>` for standard
  * routes (its `mainClassNameOverride || …` fallback). Defined here — not in
  * app-layout.tsx — because that file imports this one and the constant must be
@@ -45,5 +55,9 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
+  // The Mingo-first chat and archive pages fill `<main>` (`h-full`): the default
+  // bottom padding would add its height as a scroll under them. In the classic shell
+  // both routes only redirect, so the override costs nothing there.
+  if (pathname.startsWith('/mingo/chat') || pathname.startsWith('/mingo/archive')) return 'pb-0 md:pb-0';
   return undefined;
 }
