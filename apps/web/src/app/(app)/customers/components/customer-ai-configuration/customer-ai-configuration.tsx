@@ -2,12 +2,7 @@
 'use no memo';
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  MonitorIcon,
-  MoonStarIcon,
-  PenEditIcon,
-  Sun01Icon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   CheckboxBlock,
@@ -15,7 +10,6 @@ import {
   ImageUploader,
   Input,
   LoadError,
-  TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +32,7 @@ import {
   useClientView,
   useResetClientView,
   useUpdateClientView,
+  withClientViewCreateFields,
 } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useHubDefaultQuickActions } from '@/app/(app)/settings/ai-settings/hooks/use-hub-default-quick-actions';
 import {
@@ -46,7 +41,7 @@ import {
   useResetOrganizationClientAiQuickActions,
   useUpdateOrganizationClientAiConfig,
 } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
-import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
+import { useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { toAgentAiConfigInput } from '@/app/(app)/settings/ai-settings/types/ai-logic.types';
 import { getDefaultClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -140,10 +135,8 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     });
 
     const assistantName = form.watch('assistantName');
-    const applicationTheme = form.watch('applicationTheme');
     const accentColor = form.watch('accentColor');
     const llmProvider = form.watch('llmProvider');
-    const providerModel = form.watch('providerModel');
     const answerStyle = form.watch('answerStyle');
 
     // Persistence is driven by the page's "Save Customer" button.
@@ -166,11 +159,13 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
           }
           const values = form.getValues();
 
-          const savedView = await updateView({
-            assistantName: values.assistantName,
-            applicationTheme: values.applicationTheme,
-            accentColor: values.accentColor,
-          });
+          // No override yet: this save creates the customer's own view.
+          const savedView = await updateView(
+            withClientViewCreateFields(
+              { assistantName: values.assistantName, accentColor: values.accentColor },
+              !orgView,
+            ),
+          );
 
           await updateAiConfig(toAgentAiConfigInput(values));
           // The update omits `quickActions` while defaults are on, and the
@@ -275,7 +270,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 fallbackDefault.assistantAvatar?.hash,
               )}
               accentColor={fallbackDefault.accentColor}
-              theme={fallbackDefault.applicationTheme}
             />
 
             {/* Quick actions stay visible while inheriting the default config —
@@ -324,28 +318,11 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
             </div>
 
             <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-              <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-end">
-                <div className="min-w-0 flex-1">
-                  <Controller
-                    name="applicationTheme"
-                    control={form.control}
-                    render={({ field }) => (
-                      <TabSelector
-                        label="Application Theme"
-                        variant="primary"
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        items={[
-                          { id: 'DARK', label: 'Dark', icon: <MoonStarIcon className="size-5" /> },
-                          { id: 'LIGHT', label: 'Light', icon: <Sun01Icon className="size-5" /> },
-                          { id: 'SYSTEM', label: 'System', icon: <MonitorIcon className="size-5" /> },
-                        ]}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
+              {/* The accent is the only appearance setting (the client picks the theme
+                  in the Fae app). Same two columns as the previews below, so the field
+                  ends where the welcome preview does. */}
+              <div className="grid gap-[var(--spacing-system-l)] content-md:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
                   <p className="text-ods-text-primary text-h3">Accent Color</p>
                   <Controller
                     name="accentColor"
@@ -359,9 +336,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 assistantName={assistantName || effectiveView.assistantName}
                 avatarUrl={avatarUrl}
                 accentColor={accentColor || effectiveView.accentColor}
-                theme={applicationTheme}
-                providerName={llmProvider}
-                modelDisplayName={getProviderModelLabel(modelsByProvider, llmProvider, providerModel)}
               />
             </div>
 

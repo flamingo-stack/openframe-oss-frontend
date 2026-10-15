@@ -14,7 +14,12 @@ import {
   useUpdateAdminAiConfig,
   useUpdateClientAiConfig,
 } from '../hooks/use-agent-ai-config';
-import { clientViewQueryKeys, useClientView, useUpdateClientView } from '../hooks/use-client-view';
+import {
+  clientViewQueryKeys,
+  useClientView,
+  useUpdateClientView,
+  withClientViewCreateFields,
+} from '../hooks/use-client-view';
 import type { CommitAvatar } from '../hooks/use-customer-ai-assistant-form';
 import { useUpdateAiConfiguration } from '../hooks/use-update-ai-configuration';
 import {
@@ -175,7 +180,7 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
           // the refetch race the in-flight write and cache the pre-save view).
           const [aiResult, viewResult] = await Promise.allSettled([
             updateClientAiConfig(payload.ai),
-            updateClientView(payload.view),
+            updateClientView(withClientViewCreateFields(payload.view, !clientView.view)),
           ]);
           const failure = [aiResult, viewResult].find(result => result.status === 'rejected');
           if (failure) {
