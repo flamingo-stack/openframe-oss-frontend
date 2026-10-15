@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Ellipsis01Icon,
@@ -10,7 +11,6 @@ import {
 import {
   ActionsMenuDropdown,
   Button,
-  Skeleton,
   SquareAvatar,
   Textarea,
   TruncateText,
@@ -194,11 +194,13 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
  * when there are no notes yet, which is what most records have. Notes, when
  * there are any, grow the section either way.
  */
-export function NotesSectionSkeleton() {
+export function NotesSectionSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <NotesSectionFrame>
-      <Skeleton className="h-8 w-28 rounded-md" />
-    </NotesSectionFrame>
+    <LoadingRegion className="contents" label="Loading notes" announce={region}>
+      <NotesSectionFrame>
+        <UnifiedSkeleton className="h-8 w-28 rounded-md" />
+      </NotesSectionFrame>
+    </LoadingRegion>
   );
 }
 

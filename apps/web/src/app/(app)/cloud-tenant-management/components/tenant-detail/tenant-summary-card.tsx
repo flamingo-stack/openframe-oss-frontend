@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   accessStateTag,
   formatLastRead,
@@ -11,7 +12,6 @@ import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { tenantSummaryCard_connection$key } from '@/__generated__/tenantSummaryCard_connection.graphql';
 import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSummaryCard_identity.graphql';
-import { InlineSkeleton } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
 import { formatConnectedAt, isReadable, providerPresentation } from '../../utils/tenant-presentation';
@@ -150,16 +150,28 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
 
 /** A cell whose label is known and whose value is not: the real label under a bar. */
 function CellSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
-  return <InfoCell label={label} value={<InlineSkeleton className={valueClassName} />} />;
+  return (
+    <InfoCell
+      label={label}
+      value={<UnifiedSkeleton as="span" className={`inline-block max-w-full align-middle ${valueClassName}`} />}
+    />
+  );
 }
 
 /**
  * The connected card's rows, cells and labels — the details page's steady state — so the page does not
  * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival.
  */
-export function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOnly?: boolean }) {
+export function TenantSummaryCardSkeleton({
+  identityOnly = false,
+  region = true,
+}: {
+  identityOnly?: boolean;
+  /** `false` inside another loading region, which announces for the card. Default `true`. */
+  region?: boolean;
+}) {
   return (
-    <div className={CARD_CLASSES} aria-busy>
+    <LoadingRegion label="Loading tenant" announce={region} className={CARD_CLASSES}>
       <div className={ROW_CLASSES}>
         <CellSkeleton label={LABELS.provider} valueClassName="h-6 w-36" />
         <CellSkeleton label={identityOnly ? LABELS.domainName : LABELS.customer} valueClassName="h-6 w-44" />
@@ -172,6 +184,6 @@ export function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOn
           <CellSkeleton label={LABELS.lastRead} valueClassName="h-6 w-28" />
         </div>
       )}
-    </div>
+    </LoadingRegion>
   );
 }

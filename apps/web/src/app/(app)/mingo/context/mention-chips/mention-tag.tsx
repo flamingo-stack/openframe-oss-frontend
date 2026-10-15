@@ -18,6 +18,7 @@
  * id chip if the fetch throws (never crashes the message).
  */
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
@@ -110,14 +111,19 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
 }
 
-/** Loading state — same chip shell with an inline skeleton bar for the label.
- *  (An inline span, not the lib `Skeleton` div — the chip lives inside a `<p>`.) */
+/**
+ * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
+ * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
+ * and a "loading" read out mid-sentence for each would bury the message itself.
+ */
 export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
   return (
-    <MentionTag
-      icon={icon}
-      label={<span className="inline-block h-3 w-20 animate-pulse rounded bg-ods-border align-middle" />}
-    />
+    <LoadingRegion as="span" status={false} className="contents">
+      <MentionTag
+        icon={icon}
+        label={<UnifiedSkeleton as="span" className="inline-block h-3 w-20 max-w-full rounded align-middle" />}
+      />
+    </LoadingRegion>
   );
 }
 
