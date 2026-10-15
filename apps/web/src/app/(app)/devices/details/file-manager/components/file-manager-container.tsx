@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadError, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { FileAction, FileItem } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { FileManager, FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import type React from 'react';
@@ -58,6 +58,7 @@ export function FileManagerContainer({
     selectFile,
     selectAll,
     handleFileAction: handleAction,
+    retryConnection,
   } = useMeshFileManager({
     meshcentralAgentId,
     isRemote: true,
@@ -290,7 +291,9 @@ export function FileManagerContainer({
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col">
-        {showFileManagerSkeleton ? (
+        {connectionState === 'failed' ? (
+          <LoadError message="Couldn't connect to the device's file system." onRetry={retryConnection} />
+        ) : showFileManagerSkeleton ? (
           <FileManagerSkeleton />
         ) : (
           <FileManager

@@ -2,6 +2,7 @@
 
 import {
   AlertTriangleIcon,
+  BookBookmarkIcon,
   // BracketCurlyEllipsisVrIcon, // Queries tab temporarily disabled
   BracketSquareCheckIcon,
   ClipboardListIcon,
@@ -19,8 +20,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
+import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
+import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
 import type { DeviceDetailTab } from '@/lib/routes';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
+import type { Device } from '../../types/device.types';
 import { AgentsTab } from './agents-tab';
 import { DeviceLogsTab } from './device-logs/device-logs-tab';
 import { HardwareTab } from './hardware-tab';
@@ -36,6 +40,12 @@ import { SoftwareTab } from './software-tab';
 import { TicketsTab } from './tickets-tab';
 import { UsersTab } from './users-tab';
 import { VulnerabilitiesTab } from './vulnerabilities-tab';
+
+// Module-level, so its identity is stable across renders (TabContent would remount the tab otherwise).
+function ArticlesTab({ device }: { device: Device | null }) {
+  if (!device?.machineId) return null;
+  return <AssignedArticlesTab target={deviceArticlesTarget(device.machineId)} />;
+}
 
 // `satisfies` links each gated id to the route registry's tab union — renaming it in
 // TAB_IDS.deviceDetails without updating this fails tsc.
@@ -139,6 +149,12 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     // Control header button uses.
     icon: ComputerMouseIcon,
     component: RemoteSessionsTab,
+  },
+  {
+    id: 'assigned-articles',
+    label: 'Assigned Articles',
+    icon: BookBookmarkIcon,
+    component: ArticlesTab,
   },
 ];
 

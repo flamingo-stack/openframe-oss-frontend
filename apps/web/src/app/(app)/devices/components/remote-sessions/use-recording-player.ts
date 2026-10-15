@@ -9,6 +9,7 @@ import {
   type ParsedRecording,
   type RecordingPlaybackSpeed,
   type RecordingPlayerState,
+  type RecordingTimeline,
   TerminalRecordingRenderer,
 } from '@/lib/meshcentral/recording';
 
@@ -21,6 +22,8 @@ export interface UseRecordingPlayerResult {
   speed: RecordingPlaybackSpeed;
   /** Protocol of the loaded recording; null until one is loaded. */
   protocol: 1 | 2 | null;
+  /** Where the loaded files sit in wall-clock time, to place server times on the track; null until one is loaded. */
+  timeline: RecordingTimeline | null;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   terminalHostRef: React.RefObject<HTMLDivElement | null>;
   /**
@@ -58,6 +61,9 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
   const [durationMs, setDurationMs] = useState(0);
   const [speed, setSpeedState] = useState<RecordingPlaybackSpeed>(1);
   const [protocol, setProtocol] = useState<1 | 2 | null>(null);
+  const [timeline, setTimeline] = useState<RecordingTimeline | null>(null);
+  const showTimeline = (recording: ParsedRecording) =>
+    setTimeline({ baseTimeMs: recording.baseTimeMs, durationMs: recording.durationMs, spans: recording.spans });
 
   useEffect(() => {
     const player = new McrecPlayer({
@@ -117,9 +123,14 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
         const player = playerRef.current;
         if (!player) return;
         await attachRenderer(player, recording);
-        if (isCurrent()) player.loadParsed(recording, { complete });
+        if (!isCurrent()) return;
+        player.loadParsed(recording, { complete });
+        showTimeline(recording);
       },
-      extend: (recording, complete) => playerRef.current?.extend(recording, complete),
+      extend: (recording, complete) => {
+        playerRef.current?.extend(recording, complete);
+        showTimeline(recording);
+      },
     });
   };
 
@@ -150,6 +161,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     durationMs,
     speed,
     protocol,
+    timeline,
     canvasRef,
     terminalHostRef,
     loadSegments,
