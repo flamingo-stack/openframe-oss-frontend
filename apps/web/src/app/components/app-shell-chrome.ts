@@ -28,6 +28,16 @@ export function headerLoadingCells(): HeaderLoadingCell[] {
 }
 
 /**
+ * The same for the Mingo-first shell, whose header is the phone top bar only
+ * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
+ * `'icon-max-md'` like every phone-only cell), then the classic cells. The desktop
+ * header these would reserve is hidden in CSS from md up, placeholder included.
+ */
+export function mingoHeaderLoadingCells(): HeaderLoadingCell[] {
+  return ['icon-max-md', ...headerLoadingCells()];
+}
+
+/**
  * Bottom padding the (app) group layout passes to the live `<main>` for standard
  * routes (its `mainClassNameOverride || …` fallback). Defined here — not in
  * app-layout.tsx — because that file imports this one and the constant must be
