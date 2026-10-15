@@ -14,7 +14,8 @@ import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-stor
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 
-const { panel } = vi.hoisted(() => ({
+const { panel, onboarding } = vi.hoisted(() => ({
+  onboarding: { canReset: false },
   panel: {
     props: null as Record<string, unknown> | null,
     startNewChat: vi.fn(),
@@ -60,7 +61,10 @@ vi.mock('../(app)/mingo/context/render-context-items', () => ({ renderMingoConte
 vi.mock('../(app)/mingo/context/use-context-memory', () => ({ useMingoContextMemory: () => undefined }));
 vi.mock('../(app)/mingo/hooks/use-mingo-quick-actions', () => ({ useMingoQuickActions: () => [] }));
 vi.mock('../(app)/mingo/hooks/use-mingo-what-to-ask', () => ({ useMingoWhatToAsk: () => async () => [] }));
-vi.mock('./reset-onboarding-dialog', () => ({ ResetOnboardingDialog: () => null, useCanResetOnboarding: () => false }));
+vi.mock('./reset-onboarding-dialog', () => ({
+  ResetOnboardingDialog: () => null,
+  useCanResetOnboarding: () => onboarding.canReset,
+}));
 vi.mock('../(auth)/auth/stores/auth-store', () => ({
   useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
 }));
@@ -93,6 +97,7 @@ describe('OpenframeEmbeddableChatEntry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     panel.props = null;
+    onboarding.canReset = false;
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
     useMingoLauncherStore.setState({ pendingPrompt: null, pendingDraft: null, pendingNewChat: false });
     container = document.createElement('div');
@@ -169,6 +174,106 @@ describe('OpenframeEmbeddableChatEntry', () => {
       useMingoLauncherStore.getState().startNewChat();
     });
     expect(panel.startNewChat).toHaveBeenCalledTimes(2);
+  });
+
+  // The props are built by `useOpenframeChatProps`, shared with the Mingo-first
+  // dock. The classic surfaces must pass exactly what they passed before it was
+  // extracted — and nothing of the dock's split layout.
+  const CLASSIC_PROP_KEYS = [
+    'appearance',
+    'baseRoute',
+    'chatMenuExtraItems',
+    'closable',
+    'collapseTo',
+    'contextMemory',
+    'contextPicker',
+    'dialogStatusOf',
+    'mingoDialogCapabilities',
+    'mingoState',
+    'mingoWelcome',
+    'modes',
+    'onCollapse',
+    'onExpand',
+    'onOpenChange',
+    'open',
+    'pendingApprovals',
+    'renderContextItem',
+    'renderMention',
+    'shell',
+    'userAvatarUrl',
+    'userDisplayName',
+    'whatToAsk',
+  ];
+
+  it('passes the classic drawer the same props as before the shared builder', () => {
+    render(shell(true));
+
+    expect(Object.keys(panel.props ?? {}).sort()).toEqual(CLASSIC_PROP_KEYS);
+    expect(panel.props).toMatchObject({
+      shell: 'none',
+      appearance: 'classic',
+      open: true,
+      closable: true,
+      modes: {},
+      baseRoute: '/help-center/knowledge-base',
+      dialogStatusOf: undefined,
+      whatToAsk: undefined,
+      chatMenuExtraItems: undefined,
+      mingoWelcome: undefined,
+      contextPicker: { entityTypes: [], maxItems: 10 },
+      mingoDialogCapabilities: { canRename: true, canArchive: true },
+    });
+    expect(typeof panel.props?.renderMention).toBe('function');
+    expect(typeof panel.props?.renderContextItem).toBe('function');
+  });
+
+  it('passes the v2 side panel the same props as before the shared builder', () => {
+    const onCollapse = vi.fn();
+    render(
+      <MingoChatProvider enabled identityEnabled={false}>
+        <OpenframeEmbeddableChatEntry
+          shell="inline"
+          open
+          onOpenChange={() => {}}
+          closable={false}
+          v2={{ onCollapse, collapseTo: 'column' }}
+        />
+      </MingoChatProvider>,
+    );
+
+    expect(Object.keys(panel.props ?? {}).sort()).toEqual(CLASSIC_PROP_KEYS);
+    expect(panel.props).toMatchObject({
+      shell: 'inline',
+      appearance: 'v2',
+      closable: false,
+      onCollapse,
+      collapseTo: 'column',
+      dialogStatusOf: fakeChatProbe.result?.dialogStatusOf,
+      whatToAsk: expect.any(Function),
+    });
+  });
+
+  // What the Mingo-first dock relies on from the same builder (its page header ⋯
+  // on the chat page): Reset Onboarding in v2 (MISSING 3.3) and Unarchive (3.1).
+  it('v2: offers Reset Onboarding in the chat ⋯ and every dialog action', () => {
+    onboarding.canReset = true;
+    render(
+      <MingoChatProvider enabled identityEnabled={false}>
+        <OpenframeEmbeddableChatEntry shell="inline" open onOpenChange={() => {}} closable={false} v2={{}} />
+      </MingoChatProvider>,
+    );
+
+    const chat = fakeChatProbe.result;
+    expect(panel.props?.chatMenuExtraItems).toEqual([
+      expect.objectContaining({ id: 'reset-onboarding', label: 'Reset Onboarding' }),
+    ]);
+    expect(panel.props?.mingoDialogCapabilities).toMatchObject({
+      canRename: true,
+      canArchive: true,
+      unarchiveDialog: chat?.unarchiveDialog,
+      fetchArchivedDialogs: chat?.fetchArchivedDialogs,
+      onCopyLink: expect.any(Function),
+    });
   });
 
   it('shows a crashed state in its own boundary', () => {
