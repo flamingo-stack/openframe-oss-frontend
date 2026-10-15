@@ -13,8 +13,13 @@ the Custom-Tabs login redirect shows an **app chooser**; testers pick "OF Stage"
 ```sh
 NEXT_PUBLIC_SHARED_HOST_URL=https://<stage shared auth host> \
 RELEASE_NOTES="what changed" \
+[VERSION_CODE=<n>] [VERSION_NAME=<x.y.z>] \
 scripts/build-android-stage.sh
 ```
+
+`VERSION_NAME` is the version the app reports to the force-update policy. Give every
+upload a higher `VERSION_CODE`: Android will not install a lower one over a higher one
+without an uninstall, which signs the tester out.
 
 Web bundle (stage env baked) → `cap sync` → `assembleStageDebug` →
 `firebase appdistribution:distribute` to the `qa` group. The Firebase app id is
