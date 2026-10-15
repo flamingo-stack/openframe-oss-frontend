@@ -423,13 +423,7 @@ function WorkTimeTableData({
  * Loading state for the stats row + entry table. Exported so the route-level
  * Worktime skeleton renders THIS, not a copy of it.
  */
-function WorkTimeTableSkeleton({
-  showEmployee,
-  showCustomer,
-}: {
-  showEmployee: boolean;
-  showCustomer: boolean;
-}) {
+function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   const columns = useMemo(() => buildColumns(showEmployee, showCustomer, noop, noop), [showEmployee, showCustomer]);
   const table = useDataTable<WorkTimeRow>({
     data: EMPTY_ROWS,

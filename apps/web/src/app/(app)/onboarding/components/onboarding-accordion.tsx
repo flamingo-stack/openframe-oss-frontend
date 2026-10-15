@@ -132,14 +132,14 @@ export function OnboardingAccordionItem({
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <p className="text-ods-text-primary text-h3">
             {loading ? (
-              <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-4 w-40 content-md:h-5" />
+              <UnifiedSkeleton as="span" className="inline-block h-4 w-40 max-w-full align-middle content-md:h-5" />
             ) : (
               title
             )}
           </p>
           <p className="text-ods-text-secondary text-h6">
             {loading ? (
-              <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-3 w-64 max-w-full" />
+              <UnifiedSkeleton as="span" className="inline-block h-3 w-64 max-w-full align-middle" />
             ) : (
               description
             )}

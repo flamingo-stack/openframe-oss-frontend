@@ -2,6 +2,16 @@
 
 import { LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import {
+  OpenInNewTabCell,
+  RowActionsCell,
+  SCHEDULE_COLUMNS,
+  ScheduleDateTimeCell,
+  SCHEDULES_TABLE_COLUMNS,
+  ScriptNameCell,
+  isDeviceLocalTime,
+  isEventTrigger,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
   ArrowRightUpIcon,
   BoxArchiveIcon,
   Filter02Icon,
@@ -71,19 +81,11 @@ import {
 import { unarchiveScriptScheduleMutation } from '@/graphql/scripts/unarchive-script-schedule-mutation';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { SCHEDULE_COLUMNS, SCHEDULES_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
-import {
-  DEVICE_LOCAL_TIME_NOTE,
-  formatScheduleStartAt,
-  isDeviceLocalTime,
-  isEventTrigger,
-  repeatToLabel,
-} from '../utils/schedule-timing';
+import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import { RestoreScheduleModal } from './restore-schedule-modal';
 
@@ -368,14 +370,7 @@ function SchedulesTableContent({
         accessorKey: 'name',
         header: SCHEDULE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-1">
-            <TruncateText>{row.original.name}</TruncateText>
-            {row.original.description && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.description}
-              </TruncateText>
-            )}
-          </div>
+          <ScriptNameCell name={row.original.name} description={row.original.description} />
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCHEDULE_COLUMNS.name),
@@ -408,19 +403,18 @@ function SchedulesTableContent({
           if (!row.original.startAt) {
             return <ValueText value={null} />;
           }
+          // The reading rides the time, not a column of its own: a device-local
+          // row shows the wall clock each device reads on its own timezone, and
+          // an unmarked "6:00 PM" here reads as the viewer's.
           return (
-            <div className="flex min-w-0 flex-col justify-center gap-1">
-              <TruncateText>{date}</TruncateText>
-              {/* The reading rides the time, not a column of its own: a
-                  device-local row shows the wall clock each device reads on its
-                  own timezone, and an unmarked "6:00 PM" here reads as the
-                  viewer's. */}
-              <TruncateText variant="h6" tone="secondary">
-                {isDeviceLocalTime(row.original.timeReference)
+            <ScheduleDateTimeCell
+              date={date}
+              time={
+                isDeviceLocalTime(row.original.timeReference)
                   ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}`
-                  : time}
-              </TruncateText>
-            </div>
+                  : time
+              }
+            />
           );
         },
         enableSorting: false,
@@ -450,9 +444,7 @@ function SchedulesTableContent({
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
-            {renderRowActions(row.original)}
-          </div>
+          <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCHEDULE_COLUMNS.actions),
@@ -460,16 +452,7 @@ function SchedulesTableContent({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(routes.scripts.schedules.details(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
+          <OpenInNewTabCell href={routes.scripts.schedules.details(row.original.id)} />
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCHEDULE_COLUMNS.open),

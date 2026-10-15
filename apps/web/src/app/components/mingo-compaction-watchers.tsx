@@ -68,12 +68,13 @@ async function requestCompaction(dialogId: string): Promise<CompactionRequestRes
 const LATEST_MESSAGES_LIMIT = 10;
 
 /**
- * The stream sequence the watcher resumes after. Without one the lib's JetStream
- * client replays everything the stream still holds for the dialog (it ignores
- * the live-tail policy), which would hand the watcher the chunks of an earlier
- * compaction. The open dialog's live tail knows the newest sequence; otherwise
- * the newest persisted message does, and CONTEXT_COMPACTION_START/END are
- * persisted, so none can come before it.
+ * The stream sequence the watcher resumes after, so it neither replays the
+ * chunks of an earlier compaction nor misses this one's. A live tail could miss
+ * them: it starts wherever the stream is when the server creates the consumer,
+ * which can be after `onSubscribed` has sent the request. The open dialog's
+ * live tail knows the newest sequence; otherwise the newest persisted message
+ * does, and CONTEXT_COMPACTION_START/END are persisted, so none can come before
+ * it.
  */
 async function latestStreamSeq(dialogId: string): Promise<number> {
   const response = await fetchMingoDialogMessages({

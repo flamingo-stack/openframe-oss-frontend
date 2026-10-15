@@ -4,6 +4,9 @@ import {
   SOFTWARE_ACTION_COPY,
   type SoftwareRow,
   type SoftwareRunMode,
+  applyTimeSlot,
+  isScheduleStartInPast,
+  PAST_START_MESSAGE,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -11,12 +14,7 @@ import { useState } from 'react';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useSoftwareActionSubmitActionQuery as ActionQueryType } from '@/__generated__/useSoftwareActionSubmitActionQuery.graphql';
 import type { useSoftwareActionSubmitMutation as SubmitMutationType } from '@/__generated__/useSoftwareActionSubmitMutation.graphql';
-import {
-  applyTimeSlot,
-  isScheduleStartInPast,
-  PAST_START_MESSAGE,
-  toScheduleInstant,
-} from '@/app/(app)/scripts/schedule/utils/schedule-timing';
+import { toScheduleInstant } from '@/app/(app)/scripts/schedule/utils/schedule-timing';
 import type { ScheduleTimeReference, SoftwareAction } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';

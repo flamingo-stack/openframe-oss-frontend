@@ -2,11 +2,11 @@
 
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { scriptShellLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { ValueText } from '@/app/components/shared/value-text';
 import { displayValue } from '@/lib/empty-value';
-import { scriptShellLabel } from '../../shared/utils/shell-types';
 
 interface ScriptSummaryCardProps {
   name: string;
