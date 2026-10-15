@@ -1,5 +1,6 @@
 'use client';
 
+import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
 import { useMutation } from 'react-relay';
@@ -10,7 +11,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import type { ScheduleDevicesSettingsData } from '../types/schedule-detail.types';
 import { toEnvVarInputs } from '../utils/schedule-script-params';
-import { isEventTrigger, resolveOfflineBehavior, resolveTimeReference } from '../utils/schedule-timing';
+import { resolveOfflineBehavior, resolveTimeReference } from '../utils/schedule-timing';
 
 interface SaveSpecificModeCallbacks {
   onSaved?: () => void;

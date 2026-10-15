@@ -40,13 +40,22 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 /**
  * The `/content` proxy root (no `/api` suffix). Exported for the two callers
  * that need the base rather than a finished endpoint:
- *   - `<FaqSection apiBaseUrl>`, which self-builds `/api/faqs?…` onto it;
+ *   - `<FaqSection apiBaseUrl>` and a page's `faq` prop (`pageFaq`), which
+ *     self-build `/api/faqs?…` onto it;
  *   - RELATIVE hub URLs that arrive INSIDE a payload and have to be routed back
  *     through the proxy — the walkthrough video's `captionsUrl` comes as
  *     `/api/captions/…` and would otherwise resolve against the app origin.
  */
 export const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
 const CONTENT = `${CONTENT_BASE}/api`;
+
+/**
+ * A Help Center page's own FAQ block: the lib's shared pages take it as their
+ * `faq` prop. The topic is what the page is about, written by the page (the
+ * hub shows the FAQs its admin wrote for that topic); it is never read from
+ * the route. A topic with no FAQ renders nothing.
+ */
+export const pageFaq = (topic: string) => ({ topic, apiBaseUrl: CONTENT_BASE });
 
 /**
  * The route prefix this whole section is mounted under.

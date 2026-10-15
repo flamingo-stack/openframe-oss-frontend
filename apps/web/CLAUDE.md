@@ -539,6 +539,10 @@ live before a schema field is removed. `apiClient`, Relay, the upload helpers an
 new raw `fetch` to the gateway spreads `clientIdentityHeaders()`. Never send it to the shared auth host (it would
 make CORS-simple login calls preflight), presigned storage URLs, or third parties. The bundle version is inlined
 at build time from `OPENFRAME_BUNDLE_VERSION` (`next.config.mjs`) — the Docker build gets it as a build-arg.
+The gateway answers a mobile bundle below the policy's `minBundleVersion` with **426**, and every place that sends the
+header handles it (`src/lib/version-check.ts`): bail out with `UpdateRequiredError` while `isUpdateRequired()`, and run
+`noteUpgradeRequired(response)` *before* any 401 → refresh → logout branch. That flips the app into the blocking
+"Update required" screen (`AppUpdateGate` in the root layout) and keeps the request off every retry path.
 
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 
@@ -1160,3 +1164,13 @@ if (response.ok) {
    `eslint-disable`; keep the files you touch clean
 8. **Normalize multi-source device data** — Fleet-first priority; merge logic in `use-device-details.ts` `createDevice()`
 9. **Build internal URLs via `routes.*` from `src/lib/routes.ts`** — no raw path strings; new pages/tabs must be added to the registry (see `src/lib/ROUTES.md`)
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

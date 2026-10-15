@@ -85,7 +85,7 @@ export function withLiveRowState(
   if (!data) return data;
   let changed = false;
   const pages = data.pages.map(page => {
-    const index = page.dialogs.findIndex(node => node.id === dialogId);
+    const index = page.dialogs.findIndex(node => node.dialogId === dialogId);
     if (index === -1) return page;
     const node = page.dialogs[index];
     const streamState = live.streaming ? 'STREAMING' : 'IDLE';

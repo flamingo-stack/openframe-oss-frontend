@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ColumnDef, DataTable, Input, useDataTable } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
@@ -35,9 +36,15 @@ const EMPTY_TABLE_ROWS: unknown[] = [];
 export function TableTabSkeleton({
   columns,
   placeholder,
+  label = 'Loading',
+  region = true,
 }: {
   columns: readonly TableSkeletonColumn[];
   placeholder: string;
+  /** What the screen reader hears while the tab loads. */
+  label?: string;
+  /** `false` inside another loading region (the device page's), which announces for the tab. Default `true`. */
+  region?: boolean;
 }) {
   const colDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
@@ -49,12 +56,18 @@ export function TableTabSkeleton({
   });
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+    <LoadingRegion label={label} announce={region} className="flex flex-col gap-[var(--spacing-system-l)]">
       <SearchInputSkeleton placeholder={placeholder} />
       <DataTable table={table}>
         <DataTable.Header />
-        <DataTable.Body loading skeletonRows={DEVICE_TAB_SKELETON_ROWS} emptyMessage="" rowClassName="mb-1" />
+        <DataTable.Body
+          loading
+          loadingRegion={false}
+          skeletonRows={DEVICE_TAB_SKELETON_ROWS}
+          emptyMessage=""
+          rowClassName="mb-1"
+        />
       </DataTable>
-    </div>
+    </LoadingRegion>
   );
 }

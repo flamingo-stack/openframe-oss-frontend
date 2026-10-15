@@ -1,7 +1,7 @@
 'use client';
 
+import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
 import {
   ArrowRightUpIcon,
   Filter02Icon,
@@ -412,13 +412,7 @@ function IncidentsTableContent({
                 onClick={onClick}
                 variant="outline"
                 size="icon"
-                leftIcon={
-                  <MingoIcon
-                    className="size-5"
-                    eyesColor="var(--ods-flamingo-cyan-base)"
-                    cornerColor="var(--ods-flamingo-cyan-base)"
-                  />
-                }
+                leftIcon={<AgentMark agent="mingo" className="size-5" />}
                 aria-label={label}
                 title={label}
                 disabled={disabled}
@@ -588,10 +582,12 @@ function IncidentsTableSkeleton({ layout, stickyHeaderOffset }: IncidentsTableSk
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading incidents">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

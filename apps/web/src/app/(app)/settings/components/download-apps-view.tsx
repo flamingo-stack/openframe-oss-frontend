@@ -8,16 +8,17 @@ import { routes } from '@/lib/routes';
 
 /**
  * Settings → Get OpenFrame Apps: a mount of the lib's ready-made `<DownloadAppsPage>`,
- * the same page the website serves at `/download`. It self-fetches the desktop
- * installers and install commands from the hub through the `/content` proxy, and
- * draws the mobile app's store badges and install QR code from the lib's constants.
+ * the same page the website serves at `/download`. It self-fetches everything it
+ * draws (desktop installers, install commands, store listings, the install QR code)
+ * from the hub through the `/content` proxy, in one request.
  * `shell={false}` because `AppLayout` already provides the page `<main>`.
  *
  * What stays this app's decision:
  *
  * - `showDesktop`: inside the desktop app the whole desktop section is an offer of
- *   the app you are already running, and the request for it is not made at all. The
- *   HOOK, not the bare predicate, because it gates a rendered subtree.
+ *   the app you are already running. It hides the section only; the request still
+ *   runs, since the mobile section reads the same answer. The HOOK, not the bare
+ *   predicate, because it gates a rendered subtree.
  * - `openStoresInNewTab`: a narrow browser window navigates in place (the viewport
  *   term of `useSameWindowLinks`), but the store links must always open OUT of the
  *   desktop shell. It routes `target="_blank"` to the system browser, while a

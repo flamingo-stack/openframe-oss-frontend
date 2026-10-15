@@ -1,7 +1,8 @@
 'use client';
 
 import { PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { DeviceSelectorSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   CheckboxBlock,
   Input,
@@ -14,8 +15,6 @@ import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from './script-summary-c
 
 const noop = () => {};
 const EMPTY_ARGUMENTS: never[] = [];
-const EMPTY_SELECTION = new Set<string>();
-const NO_DEVICES: never[] = [];
 
 const ACTIONS: PageActionButton[] = [{ label: 'Run Script', variant: 'accent', disabled: true }];
 
@@ -34,62 +33,52 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
       actionsVariant="primary-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
-      <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
+      <LoadingRegion className="contents" label="Loading script">
+        {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
+        <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
-      <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-        <div>
-          <Label className="text-ods-text-primary text-h3">Timeout</Label>
-          <Input
-            type="number"
-            className="w-full"
-            value=""
-            onChange={noop}
+        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+          <div>
+            <Label className="text-ods-text-primary text-h3">Timeout</Label>
+            <Input
+              type="number"
+              className="w-full"
+              value=""
+              onChange={noop}
+              disabled
+              endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+            />
+          </div>
+          <CheckboxBlock checked={false} onCheckedChange={noop} label="Run as User" disabled />
+        </div>
+
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+          <ScriptArguments
+            arguments={EMPTY_ARGUMENTS}
+            onArgumentsChange={noop}
+            keyPlaceholder="Key"
+            valuePlaceholder="Enter Value (empty=flag)"
+            addButtonLabel="Add Script Argument"
+            titleLabel="Script Arguments"
             disabled
-            endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+          />
+          <ScriptArguments
+            arguments={EMPTY_ARGUMENTS}
+            onArgumentsChange={noop}
+            keyPlaceholder="Key"
+            valuePlaceholder="Enter Value"
+            addButtonLabel="Add Variable"
+            addSecretButtonLabel="Add Secret"
+            titleLabel="Environment Vars"
+            disabled
           />
         </div>
-        <CheckboxBlock checked={false} onCheckedChange={noop} label="Run as User" disabled />
-      </div>
 
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-        <ScriptArguments
-          arguments={EMPTY_ARGUMENTS}
-          onArgumentsChange={noop}
-          keyPlaceholder="Key"
-          valuePlaceholder="Enter Value (empty=flag)"
-          addButtonLabel="Add Script Argument"
-          titleLabel="Script Arguments"
-          disabled
-        />
-        <ScriptArguments
-          arguments={EMPTY_ARGUMENTS}
-          onArgumentsChange={noop}
-          keyPlaceholder="Key"
-          valuePlaceholder="Enter Value"
-          addButtonLabel="Add Variable"
-          addSecretButtonLabel="Add Secret"
-          titleLabel="Environment Vars"
-          disabled
-        />
-      </div>
-
-      <div className="space-y-[var(--spacing-system-xxs)]">
-        <DeviceSelector
-          devices={NO_DEVICES}
-          loading
-          // Same lock as `DeviceSelectorSkeleton` and `SchedulePickerSkeleton`:
-          // the search box, the tag filter and the tab strip render for real
-          // here, so without it they take input that the loaded picker throws
-          // away a moment later.
-          disabled
-          selectedIds={EMPTY_SELECTION}
-          getDeviceKey={() => ''}
-          onSelectionChange={noop}
-          showSelectionModeRadio={false}
-          addAllBehavior="replace"
-        />
-      </div>
+        <div className="space-y-[var(--spacing-system-xxs)]">
+          {/* The page's "Loading script" region announces for the picker too. */}
+          <DeviceSelectorSkeleton region={false} showSelectionModeRadio={false} />
+        </div>
+      </LoadingRegion>
     </PageLayout>
   );
 }

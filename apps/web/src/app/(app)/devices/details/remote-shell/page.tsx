@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -261,36 +262,36 @@ function RemoteShellSession() {
   // Loading skeleton
   if (isDeviceLoading) {
     return (
-      <div className="flex h-full animate-pulse flex-col overflow-hidden p-4 content-md:p-6">
+      <LoadingRegion label="Loading device" className="flex h-full flex-col overflow-hidden p-4 content-md:p-6">
         <div className="flex-shrink-0 bg-ods-bg py-2">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-ods-border" />
-            <div className="h-5 w-28 rounded bg-ods-border" />
+            <UnifiedSkeleton className="h-6 w-6 rounded" />
+            <UnifiedSkeleton className="h-5 w-28 rounded" />
           </div>
         </div>
         <div className="mb-2 flex flex-shrink-0 items-center justify-between rounded-md border border-ods-border bg-ods-card px-4 py-2">
           <div className="flex items-center gap-4">
             <div className="rounded-md border border-ods-border bg-ods-card p-2">
-              <div className="h-4 w-4 rounded bg-ods-border" />
+              <UnifiedSkeleton className="h-4 w-4 rounded" />
             </div>
             <div className="flex flex-col gap-1">
-              <div className="h-5 w-48 rounded bg-ods-border" />
-              <div className="h-4 w-36 rounded bg-ods-border" />
+              <UnifiedSkeleton className="h-5 w-48 rounded" />
+              <UnifiedSkeleton className="h-4 w-36 rounded" />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="h-10 w-24 rounded-md bg-ods-border" />
+            <UnifiedSkeleton className="h-10 w-24 rounded-md" />
           </div>
         </div>
         <div className="min-h-0 flex-1 pb-4">
           <div className="flex h-full items-center justify-center overflow-hidden rounded-lg border border-ods-border bg-ods-card">
             <div className="flex flex-col items-center gap-4">
               <TerminalSquareIcon className="h-16 w-16 text-ods-border" />
-              <div className="h-4 w-48 rounded bg-ods-border" />
+              <UnifiedSkeleton className="h-4 w-48 rounded" />
             </div>
           </div>
         </div>
-      </div>
+      </LoadingRegion>
     );
   }
 

@@ -45,7 +45,7 @@ import {
   useSlashCommandRegistry,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
@@ -58,6 +58,7 @@ import {
 } from '../context/context-types';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
+import type { DialogNode } from '../types';
 import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
@@ -89,7 +90,8 @@ export interface MingoSubscriptionBindings {
   approvalStatuses: Record<string, string>;
   onConnectionChange: (dialogId: string, connected: boolean) => void;
   onMetadata: (metadata: MetadataFrame) => void;
-  initialOptStartSeq: number;
+  /** `null` = live tail (see `historyStreamFloor`). */
+  initialOptStartSeq: number | null;
   isInitialOptStartSeqReady: boolean;
 }
 
@@ -146,6 +148,23 @@ export interface MingoUnifiedChat {
 export function needsAllChatsScope(ownerUserId: string | undefined, currentUserId: string | undefined): boolean {
   if (!ownerUserId || !currentUserId) return false;
   return ownerUserId !== currentUserId;
+}
+
+/**
+ * The raw dialog id to switch to when the open conversation was reached by its Relay
+ * global id — a `?mingoDialog=` link copied from a bundle older than the raw-id mapping.
+ * `dialog(id)` accepts it, but the NATS subject, the list rows and the active-dialog
+ * registry only know the raw id.
+ *
+ * Null unless the loaded record is the one the active id names: the dialog query is
+ * keyed on the active id, so once the switch lands the record's global `id` no longer
+ * matches and this stops answering.
+ */
+export function rawDialogIdToAdopt(
+  activeDialogId: string | null,
+  dialog: Pick<DialogNode, 'id' | 'dialogId'> | null,
+): string | null {
+  return activeDialogId && dialog?.id === activeDialogId ? dialog.dialogId : null;
 }
 
 /** Slash-command action that dumps a row's body into the chat verbatim. */
@@ -294,6 +313,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     isFetchingNextPage: isFetchingNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
+    isMessagesFetchedAfterMount,
     dialogError,
   } = useMingoDialogSelection();
 
@@ -435,6 +455,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     },
     [activeDialogId, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
+
+  // An effect, not a render-time reconcile like the scope above: `selectDialog`
+  // subscribes to NATS and starts the dialog queries.
+  useEffect(() => {
+    const rawId = rawDialogIdToAdopt(activeDialogId, dialogData);
+    if (rawId) selectDialog(rawId);
+  }, [dialogData, activeDialogId, selectDialog]);
 
   // ─── Create a fresh dialog and send into it (always-new) ──────────────────
   // Shared by the draft branch of `sendMessage` and external launchers that
@@ -712,7 +739,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       onConnectionChange,
       onMetadata,
       initialOptStartSeq,
-      isInitialOptStartSeqReady: isMessagesFetched,
+      isInitialOptStartSeqReady: isMessagesFetchedAfterMount,
     }),
     [
       activeDialogId,
@@ -723,7 +750,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       onConnectionChange,
       onMetadata,
       initialOptStartSeq,
-      isMessagesFetched,
+      isMessagesFetchedAfterMount,
     ],
   );
 

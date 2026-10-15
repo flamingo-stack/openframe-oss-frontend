@@ -56,6 +56,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
   // The rows before they answer — the same for a query in flight and for the flag's own window.
   const tableSkeleton = (
     <TableSkeleton
+      label="Loading vulnerabilities"
       columns={SOFTWARE_VULNERABILITIES_TABLE_COLUMNS}
       rows={FLEET_LIST_SKELETON_ROWS}
       stickyHeaderOffset={stickyHeaderOffset}

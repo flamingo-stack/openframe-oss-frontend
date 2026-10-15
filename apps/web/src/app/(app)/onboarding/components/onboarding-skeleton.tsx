@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { USER_ONBOARDING_STEPS } from '../onboarding-steps';
@@ -31,27 +32,33 @@ export function OnboardingSkeleton() {
       title="Get Started"
       subtitle={`${total} steps to complete`}
       actions={[
-        { label: 'Skip Onboarding', variant: 'outline', icon: <FastForwardIcon className="size-5" />, disabled: true },
+        {
+          label: 'Skip Onboarding',
+          variant: 'outline',
+          icon: <FastForwardIcon className="size-5" />,
+          disabled: true,
+        },
       ]}
       actionsVariant="icon-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
     >
       <BookCallSection />
-
-      {USER_ONBOARDING_GROUPS.map(group => (
-        <OnboardingAccordionGroup key={group.label} label={group.label}>
-          {group.items.map(item => (
-            <OnboardingAccordionItem
-              key={item.step}
-              icon={item.icon}
-              title={item.title}
-              description={item.description}
-              loading
-            />
-          ))}
-        </OnboardingAccordionGroup>
-      ))}
+      <LoadingRegion className="contents" label="Loading onboarding">
+        {USER_ONBOARDING_GROUPS.map(group => (
+          <OnboardingAccordionGroup key={group.label} label={group.label}>
+            {group.items.map(item => (
+              <OnboardingAccordionItem
+                key={item.step}
+                icon={item.icon}
+                title={item.title}
+                description={item.description}
+                loading
+              />
+            ))}
+          </OnboardingAccordionGroup>
+        ))}
+      </LoadingRegion>
     </PageLayout>
   );
 }

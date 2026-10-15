@@ -1,7 +1,12 @@
 'use client';
 
-import { FlamingoLogo, OpenFrameLogo, OpenFrameText } from '@flamingo-stack/openframe-frontend-core/components/icons';
-import { Button, SkeletonText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  FlamingoMarkIcon,
+  OpenframeLogoIcon,
+  OpenframeTextIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { routes } from '@/lib/routes';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
@@ -22,12 +27,12 @@ export default function AuthErrorPage() {
     <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
       {/* Logo */}
       <div className="flex items-center gap-2">
-        <OpenFrameLogo
+        <OpenframeLogoIcon
+          secondaryColor="var(--color-accent-primary)"
           className="h-10 w-auto"
-          lowerPathColor="var(--color-accent-primary)"
-          upperPathColor="var(--color-text-primary)"
+          color="var(--color-text-primary)"
         />
-        <OpenFrameText textColor="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
+        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
       </div>
 
       {/* Error Content */}
@@ -35,7 +40,13 @@ export default function AuthErrorPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-ods-text-primary text-h2">{title}</h1>
           {isLoading ? (
-            <SkeletonText lines={2} className="w-[360px] max-w-full" aria-busy="true" />
+            <LoadingRegion
+              label="Loading the error details"
+              className="flex w-[360px] max-w-full flex-col gap-[var(--spacing-system-xsf)]"
+            >
+              <TextSkeleton.Body />
+              <TextSkeleton.Body className="w-3/4" />
+            </LoadingRegion>
           ) : (
             <p className="text-ods-text-secondary text-h4">{description}</p>
           )}
@@ -62,7 +73,7 @@ export default function AuthErrorPage() {
         className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
       >
         <span className="text-h6">Powered by</span>
-        <FlamingoLogo className="h-5 w-5" fill="currentColor" />
+        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
         <span className="font-semibold text-code">Flamingo</span>
       </a>
     </div>

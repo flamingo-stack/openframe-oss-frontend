@@ -10,7 +10,7 @@ import { useSessionRecordingsGate } from '../hooks/use-session-recordings-gate';
 type DevicesPageTab = 'list' | 'remote-sessions';
 
 /** The Remote Sessions tab's name, as Figma 2539-21701 draws it. */
-export const REMOTE_SESSIONS_PAGE_TITLE = 'Remote Sessions Recordings';
+export const REMOTE_SESSIONS_PAGE_TITLE = 'Remote Sessions';
 
 const DEVICES_PAGE_TABS: TabItem[] = [
   { id: 'list', label: 'Devices List', icon: MonitorIcon },

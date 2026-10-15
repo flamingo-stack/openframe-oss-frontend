@@ -17,6 +17,7 @@ const RECORDING: RecordingDetail = {
   sizeBytes: 6 * 1024 ** 2,
   protocol: 2,
   recordingState: 'ready',
+  live: false,
   kept: false,
   keep: null,
   expiresAt: '2027-01-06T17:32:00Z',

@@ -1,14 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { sessionRecordingsApiService_session$data as WireSession } from '@/__generated__/sessionRecordingsApiService_session.graphql';
 import { fromWireSession, SessionRecordingsApiService } from './session-recordings-api-service';
-import { RecordingUnavailableError } from './session-recordings-service';
+import { RecordingNotFoundError, RecordingUnavailableError } from './session-recordings-service';
 
-const relay = vi.hoisted(() => ({ fetchQuery: vi.fn(), commitMutation: vi.fn() }));
+const relay = vi.hoisted(() => ({ fetchQuery: vi.fn(), commitMutation: vi.fn(), commitLocalUpdate: vi.fn() }));
+/** The Relay store's records, by data id, and the ones a local update marked stale. */
+interface StoreState {
+  records: Record<string, Record<string, unknown>>;
+  invalidated: string[];
+}
+const store = vi.hoisted((): StoreState => ({ records: {}, invalidated: [] }));
 const chat = vi.hoisted(() => ({ history: vi.fn() }));
 const auth = vi.hoisted(() => ({ bearer: null as string | null }));
 
-vi.mock('react-relay', () => ({ graphql: () => ({}), fetchQuery: relay.fetchQuery }));
-vi.mock('@/lib/relay', () => ({ getRelayEnvironment: () => ({}) }));
+vi.mock('react-relay', () => ({
+  graphql: () => ({}),
+  fetchQuery: relay.fetchQuery,
+  commitLocalUpdate: relay.commitLocalUpdate,
+}));
+vi.mock('@/lib/relay', () => ({
+  getRelayEnvironment: () => ({
+    getStore: () => ({
+      getSource: () => ({ getRecordIDs: () => Object.keys(store.records), get: (id: string) => store.records[id] }),
+    }),
+  }),
+}));
 vi.mock('@/lib/relay/commit-mutation', () => ({ commitMutationPromise: relay.commitMutation }));
 // `@inline` fragments are read with `readInlineData`; the wire objects below stand in for the ref.
 vi.mock('relay-runtime', () => ({ readInlineData: (_fragment: unknown, ref: unknown) => ref }));
@@ -25,6 +41,7 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
   return {
     sessionId: 'session-1',
     deviceId: 'machine-1',
+    status: 'ENDED',
     startedAt: '2026-09-25T10:49:27Z',
     durationMs: 3_600_000,
     recordingState: 'READY',
@@ -53,6 +70,13 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
   } as unknown as WireSession;
 }
 
+/** Relay's error for an operation that answered with errors and no data. */
+function relayError(...codes: string[]): Error {
+  return Object.assign(new Error('No data returned for operation'), {
+    source: { errors: codes.map(code => ({ message: code, extensions: { code } })) },
+  });
+}
+
 /** Queries answer in order with these payloads. */
 function queriesAnswer(...payloads: unknown[]) {
   for (const payload of payloads) {
@@ -65,6 +89,12 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   relay.fetchQuery.mockReset();
   relay.commitMutation.mockReset();
+  relay.commitLocalUpdate.mockReset();
+  relay.commitLocalUpdate.mockImplementation((_environment, update: (proxy: unknown) => void) =>
+    update({ get: (id: string) => ({ invalidateRecord: () => store.invalidated.push(id) }) }),
+  );
+  store.records = {};
+  store.invalidated = [];
   chat.history.mockReset();
   fetchMock.mockReset();
   auth.bearer = null;
@@ -84,6 +114,7 @@ describe('fromWireSession', () => {
       sizeBytes: 150,
       protocol: 2,
       recordingState: 'ready',
+      live: false,
       kept: false,
       expiresAt: '2026-12-24T10:49:27Z',
       recordingId: 'rec-1',
@@ -99,6 +130,12 @@ describe('fromWireSession', () => {
       recordingState: 'none',
       recordingId: null,
     });
+  });
+
+  it('reads a running session as live', () => {
+    expect(fromWireSession(session({ status: 'ACTIVE', recordingState: 'PROCESSING', recordings: [] })).live).toBe(
+      true,
+    );
   });
 
   it('reads the failed, expired and deleted states, and an unknown one as nothing recorded', () => {
@@ -196,15 +233,29 @@ describe('SessionRecordingsApiService', () => {
     await expect(service.release('session-1')).rejects.toThrow('The recording is not kept');
   });
 
-  it('deletes by session id and throws the server refusal', async () => {
-    relay.commitMutation.mockResolvedValueOnce({ deleteRecording: { userErrors: [] } });
+  it('deletes the session by its id and marks every Relay copy of it stale, nothing else', async () => {
+    store.records = {
+      'client:root:remoteSessions:edges:0:node': { __typename: 'RemoteSession', sessionId: 'session-1' },
+      'client:root:remoteSessions:edges:1:node': { __typename: 'RemoteSession', sessionId: 'session-2' },
+      'client:root:remoteSessionRecording:session': { __typename: 'RemoteSession', sessionId: 'session-1' },
+      'client:root:remoteSessions': { __typename: 'RemoteSessionConnection' },
+    };
+    relay.commitMutation.mockResolvedValueOnce({ deleteRemoteSession: { userErrors: [] } });
     await service.delete('session-1');
     expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), { sessionId: 'session-1' });
+    expect(store.invalidated).toEqual([
+      'client:root:remoteSessions:edges:0:node',
+      'client:root:remoteSessionRecording:session',
+    ]);
+  });
 
+  it('throws the server refusal and leaves the store as it was', async () => {
+    store.records = { node: { __typename: 'RemoteSession', sessionId: 'session-1' } };
     relay.commitMutation.mockResolvedValueOnce({
-      deleteRecording: { userErrors: [{ code: 'RECORDING_HELD', message: 'The recording is kept' }] },
+      deleteRemoteSession: { userErrors: [{ code: 'RECORDING_HELD', message: 'The recording is kept' }] },
     });
     await expect(service.delete('session-1')).rejects.toThrow('The recording is kept');
+    expect(relay.commitLocalUpdate).not.toHaveBeenCalled();
   });
 
   it('reads the recording storage, Long fields as numbers', async () => {
@@ -270,6 +321,21 @@ describe('SessionRecordingsApiService', () => {
       ['User', false],
     ]);
     expect(chat.history).toHaveBeenCalledWith('dialog-1');
+  });
+
+  it('reads a recording the server has not got as not found, and any other failure as itself', async () => {
+    for (const code of ['REMOTE_SESSION_RECORDING_NOT_FOUND', 'REMOTE_SESSION_NOT_FOUND']) {
+      relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(relayError(code)) });
+      await expect(service.get('rec-gone')).rejects.toBeInstanceOf(RecordingNotFoundError);
+    }
+
+    const forbidden = relayError('FORBIDDEN');
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(forbidden) });
+    await expect(service.get('rec-1')).rejects.toBe(forbidden);
+
+    const timeout = new Error('Relay fetch timed out');
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(timeout) });
+    await expect(service.get('rec-1')).rejects.toBe(timeout);
   });
 
   it('still opens the page when the transcript cannot be read', async () => {

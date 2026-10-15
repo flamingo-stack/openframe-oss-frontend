@@ -48,9 +48,6 @@ export function AiSettingsOverview({
             assistantName={view.assistantName}
             avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
             accentColor={view.accentColor}
-            theme={view.applicationTheme}
-            providerName={aiConfig.llmProvider}
-            modelDisplayName={providerModelLabel ?? aiConfig.providerModel}
           />
         </>
       )}
@@ -60,6 +57,9 @@ export function AiSettingsOverview({
           actions={quickActions}
           isDefault={aiConfig.quickActionsIsDefault}
           agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
+          // The assistant's glyphs take its configured accent (the chat tints
+          // them the same way); pink is only the fallback.
+          accent={view?.accentColor}
           bannerCopy={quickActionsBanner}
         />
       )}

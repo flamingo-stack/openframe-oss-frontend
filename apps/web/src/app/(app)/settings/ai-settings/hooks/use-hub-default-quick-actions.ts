@@ -32,8 +32,10 @@ export function useHubDefaultQuickActions(agentSlug: string, options: { enabled?
         id: action.id,
         name: action.label,
         instructions: action.prompt,
-        // Preserve the hub glyph so the CHAT chip can render it. The settings
-        // editor ignores these fields (it can't persist icons yet).
+        // Preserve the hub glyph: the chat chips and the settings lists render
+        // it, and the editor seeds `iconName` from it when defaults are turned
+        // off (`iconUrl` / `iconProps` stay hub-only - the tenant can't persist
+        // an uploaded image or prop overrides).
         iconName: action.iconName,
         iconUrl: action.iconUrl,
         iconProps: action.iconProps,

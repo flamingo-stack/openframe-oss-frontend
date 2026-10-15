@@ -4,6 +4,15 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import type { AIProvider } from '../types/ai-settings';
+import { type GraphqlResponse, type MutationPayloadGql, throwOnErrors } from './chat-graphql';
+
+const SAVE_TENANT_AI_MODEL_CONFIG_MUTATION = `
+  mutation SaveTenantAiModelConfig($input: TenantAiModelConfigInput!) {
+    saveTenantAiModelConfig(input: $input) {
+      userErrors { field message }
+    }
+  }
+`;
 
 interface UpdateAiConfigurationInput {
   provider: AIProvider;
@@ -20,10 +29,11 @@ export function useUpdateAiConfiguration() {
 
   const mutation = useMutation({
     mutationFn: async (input: UpdateAiConfigurationInput) => {
-      const response = await apiClient.post('/chat/api/v1/ai-configuration', input);
-      if (!response.ok) {
-        throw new Error(response.error || 'Failed to update AI configuration');
-      }
+      const response = await apiClient.post<GraphqlResponse<Record<string, MutationPayloadGql>>>('/chat/graphql', {
+        query: SAVE_TENANT_AI_MODEL_CONFIG_MUTATION,
+        variables: { input },
+      });
+      throwOnErrors(response, 'Failed to update AI configuration');
     },
     // No cache invalidation needed: the model badges now read adminAiConfig /
     // organizationClientAiConfig, which the settings mutations invalidate.

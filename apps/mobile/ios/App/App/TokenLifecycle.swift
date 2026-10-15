@@ -62,6 +62,10 @@ final class TokenLifecycle {
     static let sharedHostPlistKey = "OpenFrameSharedHostURL"
     private static let tenantHostDefaultsKey = "ai.openframe.mobile.auth.tenantHost"
     private static let sharedHostDefaultsKey = "ai.openframe.mobile.auth.sharedHost"
+    private static let bundleVersionDefaultsKey = "ai.openframe.mobile.clientBundleVersion"
+    private static let bundleVersionBuildDefaultsKey = "ai.openframe.mobile.clientBundleVersionBuild"
+    /// The web bundle's own acceptance rule for a header version (`client-identity.ts`).
+    private static let headerVersionPattern = "^[0-9A-Za-z.-]{1,32}$"
 
     /// Reject codes the web view sees on `refreshTokens`. Every one of them maps
     /// to "transient" there — the session is intact and nothing was cleared.
@@ -447,6 +451,43 @@ final class TokenLifecycle {
         guard let url = Self.httpsOrigin(origin) else { return false }
         UserDefaults.standard.set(url.absoluteString, forKey: Self.sharedHostDefaultsKey)
         return true
+    }
+
+    /// The bundle version the web view reports in `X-OpenFrame-Client`, pushed
+    /// with the hosts. Not baked in here: the bundle is the half the gateway
+    /// gates on, and only the bundle knows its own version. Recorded against the
+    /// build that pushed it — see `clientIdentity`.
+    func setClientBundleVersion(_ version: String) {
+        UserDefaults.standard.set(version, forKey: Self.bundleVersionDefaultsKey)
+        UserDefaults.standard.set(Self.shellBuild, forKey: Self.bundleVersionBuildDefaultsKey)
+    }
+
+    /// `X-OpenFrame-Client` for the shell's own gateway calls — the value the web
+    /// view sends, with `-` for whichever half is unknown. The pushed bundle
+    /// version counts only under the build that pushed it: UserDefaults survives
+    /// a store update, and until the web view of the NEW build runs, an action
+    /// would otherwise report the old bundle and draw the very 426 the user just
+    /// updated to escape. `-` passes the gateway as unknown.
+    func clientIdentity() -> String {
+        let shell = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let defaults = UserDefaults.standard
+        let bundle = defaults.string(forKey: Self.bundleVersionBuildDefaultsKey) == Self.shellBuild
+            ? defaults.string(forKey: Self.bundleVersionDefaultsKey)
+            : nil
+        return "ios/\(Self.headerVersion(shell)) bundle/\(Self.headerVersion(bundle))"
+    }
+
+    /// Marketing version and build number: a store update changes at least one.
+    private static var shellBuild: String {
+        let info = Bundle.main.infoDictionary
+        return "\(info?["CFBundleShortVersionString"] as? String ?? "")+\(info?["CFBundleVersion"] as? String ?? "")"
+    }
+
+    private static func headerVersion(_ value: String?) -> String {
+        guard let value, value.range(of: headerVersionPattern, options: .regularExpression) != nil else {
+            return "-"
+        }
+        return value
     }
 
     /// The tenant origin the web view learned at login, or nil before any login.

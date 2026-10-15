@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { authApiClient } from '@/lib/auth-api-client';
+import { markDevTicketSettled } from '@/lib/dev-ticket-pending';
 import { routes } from '@/lib/routes';
 import { authSessionQueryKey } from './use-auth-session';
 import { useTokenStorage } from './use-token-storage';
@@ -27,12 +28,13 @@ export function useDevTicketExchange() {
         }
 
         const tokens = await storeTokensFromHeaders(response.headers);
+        markDevTicketSettled(ticket);
+        // The session check was held for this ticket: ask now, whatever the
+        // exchange returned (useAuthSession syncs the user to the store). An
+        // answer with no tokens must not leave the held "signed out" in place.
+        await queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
 
         if (tokens.accessToken || tokens.refreshToken) {
-          // Trigger auth session recheck — useAuthSession will handle
-          // syncing user data to the store
-          await queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
-
           toast({
             title: 'Welcome!',
             description: 'Successfully signed in',
@@ -51,6 +53,11 @@ export function useDevTicketExchange() {
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to exchange devTicket';
+
+        // The session check was held for this ticket; it failed, so ask now
+        // (a same-site deployment may still hold a cookie session).
+        markDevTicketSettled(ticket);
+        void queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
 
         toast({
           title: 'Exchange Failed',
