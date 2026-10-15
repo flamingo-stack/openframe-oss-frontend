@@ -9,13 +9,15 @@ import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRef, useState } from 'react';
 import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
 import {
-  EMAIL_REGEX,
+  getPasswordError,
   INVALID_EMAIL_ERROR,
-  MIN_PASSWORD_LENGTH,
+  isValidPersonName,
+  normalizePersonName,
   ORG_NAME_ERROR,
   ORG_NAME_REGEX,
-  PASSWORD_TOO_SHORT_ERROR,
   PASSWORDS_DO_NOT_MATCH_ERROR,
+  PERSON_NAME_ERROR,
+  VALID_EMAIL_REGEX,
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useOrganizationDomain } from '@/app/(auth)/auth/hooks/use-organization-domain';
 import {
@@ -86,7 +88,7 @@ export function CreateOrganizationSection({
   // Funnel event, fired once when the user commits to the details step — the "signup started"
   // edge of the password funnel.
   const signupStartedFired = useRef(false);
-  const isEmailValid = EMAIL_REGEX.test(email.trim());
+  const isEmailValid = VALID_EMAIL_REGEX.test(email.trim());
   const isOrgNameValid = ORG_NAME_REGEX.test(organizationName.trim());
 
   const emailStatus = useEmailAvailability(email);
@@ -102,13 +104,13 @@ export function CreateOrganizationSection({
     !domainField.isBlocked &&
     agreedToTerms;
 
-  const isPasswordTooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
+  const passwordError = getPasswordError(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const isDetailsValid =
     isOrganizationValid &&
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    password.length >= MIN_PASSWORD_LENGTH &&
+    isValidPersonName(firstName) &&
+    isValidPersonName(lastName) &&
+    !passwordError &&
     passwordsMatch;
 
   const handleSubmit = async () => {
@@ -119,8 +121,8 @@ export function CreateOrganizationSection({
       orgName: organizationName.trim(),
       domain: tenantDomain,
       email: email.trim(),
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      firstName: normalizePersonName(firstName),
+      lastName: normalizePersonName(lastName),
       password,
       ...(showPrNumber && prNumber ? { prNumber: Number(prNumber) } : {}),
     });
@@ -204,10 +206,13 @@ export function CreateOrganizationSection({
         ) : undefined
       }
       errors={{
-        password: isPasswordTooShort ? PASSWORD_TOO_SHORT_ERROR : undefined,
+        firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
+        lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
+        password: password ? passwordError : undefined,
         confirmPassword:
           confirmPassword.length > 0 && password !== confirmPassword ? PASSWORDS_DO_NOT_MATCH_ERROR : undefined,
         organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
+        domain: domainField.formatError,
       }}
     >
       {showPrNumber && (

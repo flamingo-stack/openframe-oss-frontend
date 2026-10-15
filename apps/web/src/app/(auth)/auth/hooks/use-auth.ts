@@ -4,7 +4,7 @@ import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-co
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { authApiClient } from '@/lib/auth-api-client';
+import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 import { AppleRegistrationRequiredError, nativeLogin, SsoRegistrationRequiredError } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
 import { isAppShell, isMobileShell } from '@/lib/platform';
@@ -229,7 +229,7 @@ export function useAuth() {
         // body; both are optional because a transport failure carries neither.
         const body = response.data as { code?: string; message?: string } | undefined;
         const code = body?.code;
-        const message = body?.message || response.error || 'Registration failed';
+        const message = getAuthFailureMessage(response, 'Registration failed');
         let userMessage = 'Registration failed';
         let title = 'Registration Failed';
         const variant = 'destructive' as const;
