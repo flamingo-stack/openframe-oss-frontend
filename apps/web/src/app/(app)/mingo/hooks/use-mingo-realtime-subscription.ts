@@ -183,6 +183,13 @@ interface DialogSubscriptionProps {
   onMetadata?: (metadata: ChatModelMetadata) => void;
   initialOptStartSeq: number | null;
   isInitialOptStartSeqReady: boolean;
+  /**
+   * Whether the dialog counts as on screen while this tail runs (default true):
+   * registered in `active-dialog-views`, so its notifications skip the popup and
+   * are auto-read. False when the tail outlives the view — the Mingo-first shell
+   * keeps it running on every page, and the chat is on screen only on its page.
+   */
+  onScreen?: boolean;
 }
 
 export function DialogSubscription({
@@ -194,12 +201,13 @@ export function DialogSubscription({
   onMetadata,
   initialOptStartSeq,
   isInitialOptStartSeqReady,
+  onScreen = true,
 }: DialogSubscriptionProps) {
   const { getWsUrl, onBeforeReconnect } = useNatsAppConfig();
 
-  // While this live tail is mounted the user is watching the dialog, so the
-  // notifications pipeline suppresses popups / auto-reads for it.
-  useEffect(() => registerActiveDialogView(dialogId), [dialogId]);
+  // While this live tail is mounted on screen the user is watching the dialog, so
+  // the notifications pipeline suppresses popups / auto-reads for it.
+  useEffect(() => (onScreen ? registerActiveDialogView(dialogId) : undefined), [dialogId, onScreen]);
 
   const recordHighestStreamSeq = useMingoMessagesStore(s => s.recordHighestStreamSeq);
   const storedHighestSeq = useMingoMessagesStore(s => s.highestStreamSeqByDialog.get(dialogId) ?? 0);

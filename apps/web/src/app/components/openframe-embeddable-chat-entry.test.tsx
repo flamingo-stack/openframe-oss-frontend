@@ -65,6 +65,7 @@ vi.mock('../(auth)/auth/stores/auth-store', () => ({
   useAuthStore: (select: (state: { user: null }) => unknown) => select({ user: null }),
 }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: () => false }));
+vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => 'classic' }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://acme.openframe.ai' } }));
 vi.mock('@/lib/image-url', () => ({ getFullImageUrl: () => undefined }));
 

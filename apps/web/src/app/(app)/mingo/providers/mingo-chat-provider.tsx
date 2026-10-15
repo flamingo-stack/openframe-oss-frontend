@@ -28,6 +28,15 @@
  * network traffic is the same as before. A surface that stays mounted for the whole
  * session keeps all of it running for the whole session.
  *
+ * ## Subscribed is not on screen
+ *
+ * The live tail also marks the open dialog "on screen" (`active-dialog-views`): its
+ * notifications skip the popup and are read on arrival. In the classic shell every
+ * surface shows the thread, so that holds while the tail runs. In the Mingo-first
+ * shell the dock keeps the tail running on every page but shows the thread only on
+ * the chat page, so there the dialog is on screen only while that page says so
+ * (`useMingoChatThreadOnScreen`); everywhere else its popups show.
+ *
  * ## Chat identity
  *
  * `identityEnabled` is AppShell's latch (first open, or the docked panel; never in
@@ -50,6 +59,7 @@ import {
 } from 'react';
 import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watchers';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { useShellVariant } from '@/app/hooks/use-shell-variant';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
@@ -93,6 +103,8 @@ interface MingoChatSession {
   store: MingoChatStore;
   /** Counts a surface in; the returned function counts it out. */
   register: () => () => void;
+  /** Counts a view of the open thread in (Mingo-first chat page); the returned function counts it out. */
+  registerThreadView: () => () => void;
   enabled: boolean;
   identityEnabled: boolean;
   compactDialog: MingoChat['compactDialog'];
@@ -124,6 +136,14 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
     setSurfaceCount(count => count + 1);
     return () => setSurfaceCount(count => count - 1);
   }, []);
+  const [threadViewCount, setThreadViewCount] = useState(0);
+  const registerThreadView = useCallback(() => {
+    setThreadViewCount(count => count + 1);
+    return () => setThreadViewCount(count => count - 1);
+  }, []);
+  // See "Subscribed is not on screen". Not `'mingo'` (classic, or still loading —
+  // when no Mingo-first dock exists yet): every running surface shows the thread.
+  const onScreen = useShellVariant() !== 'mingo' || threadViewCount > 0;
 
   const { toast } = useToast();
 
@@ -175,7 +195,15 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
     }
   };
 
-  const session: MingoChatSession = { store, register, enabled, identityEnabled, compactDialog, copyDialogLink };
+  const session: MingoChatSession = {
+    store,
+    register,
+    registerThreadView,
+    enabled,
+    identityEnabled,
+    compactDialog,
+    copyDialogLink,
+  };
   const running = enabled && surfaceCount > 0;
 
   return (
@@ -185,7 +213,7 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
           {/* Nothing in the state suspends today. If something ever does, it must
               not reach the shell's own boundary, which would blank the whole app. */}
           <Suspense fallback={null}>
-            <MingoChatRunner store={store} />
+            <MingoChatRunner store={store} onScreen={onScreen} />
           </Suspense>
         </MingoChatRunnerBoundary>
       ) : null}
@@ -237,4 +265,15 @@ export function useMingoChatSurface(): MingoChat {
   const register = useContext(MingoChatSessionContext)?.register;
   useLayoutEffect(() => register?.(), [register]);
   return useMingoChat();
+}
+
+/**
+ * Says the open dialog's thread is on screen while the caller is mounted — the
+ * Mingo-first chat page, the one place that shell shows it. Its notifications then
+ * skip the popup and are read on arrival, as in the classic drawer. Needed only in
+ * that shell: in the classic one every surface is on screen while it is mounted.
+ */
+export function useMingoChatThreadOnScreen(): void {
+  const registerThreadView = useContext(MingoChatSessionContext)?.registerThreadView;
+  useLayoutEffect(() => registerThreadView?.(), [registerThreadView]);
 }

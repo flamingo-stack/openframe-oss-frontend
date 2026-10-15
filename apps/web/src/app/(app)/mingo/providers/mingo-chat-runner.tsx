@@ -81,7 +81,7 @@ function useLauncherPromptDrain({ sendInNewDialog }: MingoChatState): void {
  * every request, poll and live tail starts and stops exactly where it did when the
  * state lived inside the drawer.
  */
-export function MingoChatRunner({ store }: { store: MingoChatStore }) {
+export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {
   const { subscription, ...chat } = useMingoUnifiedChatState();
 
   // A layout effect, so a surface that registered in this same pass renders the
@@ -98,7 +98,8 @@ export function MingoChatRunner({ store }: { store: MingoChatStore }) {
 
   // Realtime tail for the active dialog — writes chunks into the shared store.
   // Gated on active + subscribed; on a remount it resubscribes and replays missed
-  // chunks from the stored sequence offset.
+  // chunks from the stored sequence offset. `onScreen`: whether the dialog counts
+  // as watched (see the provider's "Subscribed is not on screen").
   if (!subscription.activeDialogId || !subscription.isSubscribed) return null;
   return (
     <DialogSubscription
@@ -112,6 +113,7 @@ export function MingoChatRunner({ store }: { store: MingoChatStore }) {
       onMetadata={subscription.onMetadata}
       initialOptStartSeq={subscription.initialOptStartSeq}
       isInitialOptStartSeqReady={subscription.isInitialOptStartSeqReady}
+      onScreen={onScreen}
     />
   );
 }
