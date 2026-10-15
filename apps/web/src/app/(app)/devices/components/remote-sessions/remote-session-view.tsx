@@ -1,6 +1,11 @@
 'use client';
 
-import { type ActionsMenuGroup, PageLayout, type PageActionButton } from '@flamingo-stack/openframe-frontend-core';
+import {
+  type ActionsMenuGroup,
+  NotFoundError,
+  PageLayout,
+  type PageActionButton,
+} from '@flamingo-stack/openframe-frontend-core';
 import { KeepRecordingModal, ReleaseKeepingModal } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LockIcon, TrashIcon, UnlockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -8,27 +13,28 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useEffectEvent, useState } from 'react';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
 import {
-  useDeleteSessionRecording,
+  useDeleteRemoteSession,
   useKeepSessionRecording,
   useRecordingStorage,
   useReleaseSessionRecording,
   useSessionRecording,
 } from '../../hooks/use-session-recordings';
 import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
+import { RecordingNotFoundError } from '../../services/session-recordings-service';
+import { DeleteSessionDialog } from './delete-session-dialog';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import { SessionChat } from './session-chat';
-import { canDeleteSession, canKeepSession, isRecordingGone, recordingUnavailableNote } from './session-status';
+import { canDeleteSession, canKeepSession } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
@@ -51,8 +57,11 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const recording = recordingQuery.data;
   const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
   const player = useRecordingPlayer();
+  // An unknown id, a deleted session, an expired or deleted file: the server
+  // has nothing to show, which is a 404 rather than a load error to retry.
+  const notFound = recordingQuery.error instanceof RecordingNotFoundError && player.state === 'empty';
   // Nothing to show but the error - unless local files were loaded in the meantime.
-  const failedToLoad = (!!loadError || isOffline) && player.state === 'empty';
+  const failedToLoad = (!!loadError || isOffline) && !notFound && player.state === 'empty';
   const searchParams = useSearchParams();
   // The local-file loader is not part of the design - it exists purely to test
   // the engine before the storage backend ships, so it hides behind the
@@ -66,25 +75,22 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const [isKeepOpen, setIsKeepOpen] = useState(false);
   const [isReleaseOpen, setIsReleaseOpen] = useState(false);
   const router = useRouter();
-  const deleteRecording = useDeleteSessionRecording(recording?.deviceId ?? '');
+  const deleteSession = useDeleteRemoteSession(recording?.deviceId ?? '');
   const keepRecording = useKeepSessionRecording(recording?.deviceId ?? '');
   const releaseRecording = useReleaseSessionRecording(recording?.deviceId ?? '');
   const storage = useRecordingStorage();
   const keep = recording?.keep ?? null;
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
-  // A deleted or expired recording has no files left to fetch: the page says
-  // so from the session's state instead of waiting on downloads that 410.
-  const gone = !!recording && isRecordingGone(recording);
-  const unavailableNote = recording ? recordingUnavailableNote(recording, unavailable) : null;
-  // Delete lives in the "..." menu, for a recording the server would let go (not kept).
+  const unavailableNote = unavailable ? 'The video is still being processed, check back in a moment' : null;
+  // Delete lives in the "..." menu, for a session the server would let go (ended, not processing, not kept).
   const menuActions: ActionsMenuGroup[] =
     sessionRecordingsApiService.canDelete && recording && canDeleteSession(recording)
       ? [
           {
             items: [
               {
-                id: 'delete-recording',
+                id: 'delete-session',
                 label: 'Delete',
                 // Per the design only the glyph is red; `danger` would colour the label too.
                 icon: <TrashIcon className="h-full w-full text-ods-error" />,
@@ -140,8 +146,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // refetch hands back an equal detail as a new object, and reloading the same
   // files into the player restarts playback for nothing. The player's own
   // callbacks are not stable across renders either, hence the effect event.
-  const segmentsKey =
-    recording && !gone ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
+  const segmentsKey = recording ? `${recordingId}:${recording.segments.map(segment => segment.id).join(',')}` : '';
   const loadFiles = useEffectEvent(async () => {
     if (!recording) return { failed: 0, total: 0 };
     const { failed } = await player.loadSegments(
@@ -194,7 +199,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           }}
         />
       )}
-      {/* An unknown or hidden recording, or a failed read: the page has nothing to play. */}
+      {notFound && <NotFoundError message="Recording not found" />}
+      {/* A failed read: the page has nothing to play. */}
       {failedToLoad && (
         <LoadError
           {...loadErrorProps(isOffline, "Couldn't load this recording.", () => void recordingQuery.refetch())}
@@ -203,7 +209,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       <div
         className={cn(
           isFullscreen ? 'fixed inset-0 z-50 flex flex-col gap-0 bg-black' : 'contents',
-          failedToLoad && 'hidden',
+          (failedToLoad || notFound) && 'hidden',
         )}
       >
         {!isFullscreen &&
@@ -288,29 +294,22 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           }}
         />
       )}
-      <ConfirmDialog
+      <DeleteSessionDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
-        title="Delete Recording"
-        description={
-          <>
-            Are you sure you want to delete the session recording from{' '}
-            <span className="font-medium text-ods-accent">{recording ? formatDateTime(recording.startedAt) : ''}</span>?
-            This cannot be undone.
-          </>
-        }
-        confirmLabel="Delete Recording"
-        variant="destructive"
-        isPending={deleteRecording.isPending}
+        startedAt={recording?.startedAt ?? null}
+        isPending={deleteSession.isPending}
         onConfirm={() => {
           if (!recording) return;
-          deleteRecording.mutate(
+          deleteSession.mutate(
             { sessionId: recording.id, recordingId },
             {
-              onSuccess: () => {
-                setIsDeleteOpen(false);
-                router.replace(routes.devices.details(recording.deviceId, { tab: 'remote-sessions' }));
-              },
+              // Back to the list the page was opened from (the device's tab or
+              // the tenant-wide page), without the session; the device's tab
+              // when there is none. A refusal is toasted and the page stays.
+              onSuccess: () =>
+                safeBackOrReplace(router, routes.devices.details(recording.deviceId, { tab: 'remote-sessions' })),
+              onSettled: () => setIsDeleteOpen(false),
             },
           );
         }}

@@ -11,13 +11,8 @@ export type ApprovalRequestAction = {
 
 export function useApprovalRequests() {
   const approvalMutation = useMutation({
-    mutationFn: async ({ requestId, approve }: ApprovalRequestAction) => {
-      if (approve) {
-        await ticketService.approveRequest(requestId);
-      } else {
-        await ticketService.rejectRequest(requestId);
-      }
-    },
+    mutationFn: ({ requestId, approve }: ApprovalRequestAction) =>
+      ticketService.resolveApprovalRequest(requestId, approve),
   });
 
   const handleApproveRequest = async (

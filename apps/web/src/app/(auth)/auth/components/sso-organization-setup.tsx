@@ -111,6 +111,7 @@ export function SsoOrganizationSetup({
       domainStatus={domainField.statusMessage}
       errors={{
         organizationName: organizationName.trim() && !isOrgNameValid ? ORG_NAME_ERROR : undefined,
+        domain: domainField.formatError,
       }}
     />
   );

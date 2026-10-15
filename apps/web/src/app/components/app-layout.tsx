@@ -15,6 +15,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import type { AppLayoutSidePanelConfig } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
+import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -833,7 +834,10 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // `next build` fails on every statically generated page under `(app)` — and
     // only in a production build, so a dev-mode build won't tell you.
     <Suspense fallback={null}>
-      <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
+      {/* The admin look for every tab strip; the lib's `default` is the hub's. */}
+      <TabNavigationVariantProvider variant="admin">
+        <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>
+      </TabNavigationVariantProvider>
     </Suspense>
   );
 }

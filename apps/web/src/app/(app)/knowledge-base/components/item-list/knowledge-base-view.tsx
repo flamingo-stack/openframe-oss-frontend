@@ -116,6 +116,7 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
         <Suspense
           fallback={
             <TableSkeleton
+              label="Loading articles"
               columns={KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS}
               rows={KNOWLEDGE_BASE_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}

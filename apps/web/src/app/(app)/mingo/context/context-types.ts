@@ -2,7 +2,7 @@
  * Mingo entity-context types shared across the host's context layer (the
  * picker config, the recent-views store, and the send payload).
  *
- * The backend message payload (POST /chat/api/v1/messages) carries context as
+ * The backend message payload (the `sendMessage` mutation) carries context as
  * `{ type, id }` pairs — see `ContextRef`. The picker/store keep a `label`
  * alongside for display (chips + the dev window); the label is stripped when
  * building the wire payload.
@@ -23,10 +23,10 @@
  * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →
  * `kb`, not `kb_article`, and `SCHEDULED_SCRIPT` → camelCase `scheduledScript`).
  * The structured `contextItems[].type` wire field keeps the UPPERCASE kind
- * (Jackson deserializes the enum by name); only the inline `@`-mention token in
- * the message text uses the marker. The picker forwards the marker to the lib via
- * `ChatContextEntityType.marker`, the single mapper that brings every mention to
- * the backend's short form.
+ * (the `ContextItemType` GraphQL enum, matched by name); only the inline
+ * `@`-mention token in the message text uses the marker. The picker forwards
+ * the marker to the lib via `ChatContextEntityType.marker`, the single mapper
+ * that brings every mention to the backend's short form.
  *
  * SINGLE SOURCE OF TRUTH — to add a kind: add one entry here (+ its marker),
  * then wire its label/icon in `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in

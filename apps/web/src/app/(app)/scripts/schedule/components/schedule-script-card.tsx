@@ -1,7 +1,8 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Skeleton, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
@@ -257,16 +258,16 @@ export function ScheduleScriptCardSkeleton() {
     <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] content-md:h-[80px] content-md:gap-[var(--spacing-system-m)] content-md:py-0">
         <div className="flex min-w-0 flex-1 flex-col">
-          <Skeleton className="mb-1 h-6 w-44" />
-          <Skeleton className="h-5 w-12" />
+          <UnifiedSkeleton className="mb-1 h-6 w-44" />
+          <UnifiedSkeleton className="h-5 w-12" />
         </div>
         <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
           <div className="flex min-w-0 flex-1 flex-col">
-            <Skeleton className="mb-1 h-6 w-24" />
-            <Skeleton className="h-5 w-16" />
+            <UnifiedSkeleton className="mb-1 h-6 w-24" />
+            <UnifiedSkeleton className="h-5 w-16" />
           </div>
-          <Skeleton className="hidden h-12 w-[130px] rounded-[6px] content-md:block" />
-          <Skeleton className="h-11 w-11 rounded-[6px] content-md:h-12 content-md:w-12" />
+          <UnifiedSkeleton className="hidden h-12 w-[130px] rounded-[6px] content-md:block" />
+          <UnifiedSkeleton className="h-11 w-11 rounded-[6px] content-md:h-12 content-md:w-12" />
         </div>
       </div>
 
@@ -291,9 +292,9 @@ export function ScheduleScriptCardSkeleton() {
           >
             <span className="truncate text-ods-text-primary text-h4">{panel}</span>
             <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-              <Skeleton className="h-4 w-20" />
+              <UnifiedSkeleton className="h-4 w-20" />
               <span className="h-px min-w-4 flex-1 bg-ods-divider" />
-              <Skeleton className="h-4 w-16" />
+              <UnifiedSkeleton className="h-4 w-16" />
             </div>
           </div>
         ))}

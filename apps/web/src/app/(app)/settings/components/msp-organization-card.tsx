@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
@@ -24,14 +24,18 @@ export function MspOrganizationCard({
   const displayName = name || 'Your Organization';
 
   return (
-    <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy={isLoading}>
+    <LoadingRegion
+      label="Loading your organization"
+      announce={Boolean(isLoading)}
+      className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
+    >
       {/* The avatar is data-dependent too, so it gets a placeholder rather than being
           left live: with no tenant yet it rendered the initials of the *fallback* name
           ("YO" from "Your Organization") — a plausible-looking wrong value — and then
           swapped to the real logo or initials. `h-12 w-12 rounded-md` is exactly what
           `SquareAvatar size="lg" variant="square"` occupies, so nothing shifts. */}
       {isLoading ? (
-        <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
+        <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-md" />
       ) : (
         <SquareAvatar src={logoUrl} fallback={displayName} size="lg" variant="square" />
       )}
@@ -43,7 +47,7 @@ export function MspOrganizationCard({
           // bar: the website line below is optional per tenant, so reserving it would be
           // a guess. The 48px avatar sets the row height either way.
           <div className="flex h-[var(--font-line-space-h4-body)] items-center">
-            <Skeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
+            <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
           </div>
         ) : (
           <>
@@ -65,6 +69,6 @@ export function MspOrganizationCard({
           disabled={!onEditOrganization}
         />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

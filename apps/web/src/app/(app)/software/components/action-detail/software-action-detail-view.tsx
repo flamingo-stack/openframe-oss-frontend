@@ -86,6 +86,7 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
             // than the shell's script-execution skeleton.
             const tableFallback = (
               <TableSkeleton
+                label="Loading the action log"
                 columns={SOFTWARE_LOG_TABLE_COLUMNS}
                 rows={EXECUTIONS_PAGE_SIZE}
                 stickyHeaderOffset={state.stickyHeaderOffset}

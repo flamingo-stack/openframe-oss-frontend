@@ -17,7 +17,7 @@ const hooks = vi.hoisted(() => ({ rows: [] as RecordingSummary[], mutate: vi.fn(
 
 vi.mock('../../hooks/use-session-recordings', () => ({
   useSessionRecordings: () => ({ data: hooks.rows, isLoading: false }),
-  useDeleteSessionRecording: () => ({ mutate: hooks.mutate, isPending: false }),
+  useDeleteRemoteSession: () => ({ mutate: hooks.mutate, isPending: false }),
 }));
 vi.mock('@/app/hooks/use-now', () => ({ useNow: () => NOW }));
 vi.mock('@/app/hooks/use-sticky-toolbar', () => ({
@@ -55,6 +55,7 @@ const session = (id: string, startedAt: string, overrides: Partial<RecordingSumm
   sizeBytes: 1024,
   protocol: 2,
   recordingState: 'ready',
+  live: false,
   kept: false,
   keep: null,
   expiresAt: null,
@@ -83,6 +84,16 @@ const KEPT = session('kept', '2026-05-02T10:00:00Z', {
   },
 });
 const EXPIRED = session('expired', '2026-06-01T10:00:00Z', { recordingState: 'expired' });
+const NOT_RECORDED = session('none', '2026-04-01T10:00:00Z', { recordingState: 'none', recordingId: null });
+const LIVE = session('live', '2026-10-09T09:00:00Z', {
+  recordingState: 'none',
+  live: true,
+  durationMs: null,
+  recordingId: null,
+});
+// Deleted earlier through the recording-only delete: the session is still listed.
+const LEGACY_DELETED = session('deleted', '2026-03-01T10:00:00Z', { recordingState: 'deleted' });
+const ROWS = [READY, PROCESSING, FAILED, KEPT, EXPIRED, NOT_RECORDED, LIVE, LEGACY_DELETED];
 
 let container: HTMLDivElement;
 let root: Root;
@@ -94,7 +105,7 @@ function rowOf(row: RecordingSummary): HTMLElement {
     el => el.children.length === 0 && el.textContent === date,
   );
   let el: HTMLElement | null | undefined = cell;
-  while (el && !el.querySelector('[aria-label="Delete recording"]')) el = el.parentElement;
+  while (el && !el.querySelector('[aria-label="Delete session"]')) el = el.parentElement;
   if (!el) throw new Error(`No row for ${row.id}`);
   return el;
 }
@@ -104,7 +115,7 @@ const button = (row: RecordingSummary, label: string) =>
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  hooks.rows = [READY, PROCESSING, FAILED, KEPT, EXPIRED];
+  hooks.rows = ROWS;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -132,30 +143,36 @@ describe('RemoteSessionsTab rows', () => {
     expect(rowOf(EXPIRED).textContent).toContain('Expired');
   });
 
-  it('opens only rows with something to play, and deletes all but processing and kept ones', () => {
+  it('opens only rows with something to play, and deletes every ended session but processing and kept ones', () => {
     const open = (row: RecordingSummary) => !button(row, 'Open session recording')?.disabled;
-    const del = (row: RecordingSummary) => !button(row, 'Delete recording')?.disabled;
+    const del = (row: RecordingSummary) => !button(row, 'Delete session')?.disabled;
 
-    expect([READY, PROCESSING, FAILED, KEPT, EXPIRED].map(open)).toEqual([true, false, false, true, false]);
-    expect([READY, PROCESSING, FAILED, KEPT, EXPIRED].map(del)).toEqual([true, false, true, false, true]);
+    expect(ROWS.map(open)).toEqual([true, false, false, true, false, false, false, false]);
+    expect(ROWS.map(del)).toEqual([true, false, true, false, true, true, false, true]);
   });
 
   it('dims the trash glyph of a row that cannot be deleted', () => {
-    const glyph = (row: RecordingSummary) =>
-      button(row, 'Delete recording')?.querySelector('svg')?.getAttribute('class');
+    const glyph = (row: RecordingSummary) => button(row, 'Delete session')?.querySelector('svg')?.getAttribute('class');
     expect(glyph(READY)).toContain('text-ods-error');
     expect(glyph(READY)).not.toContain('text-ods-error-secondary');
     expect(glyph(PROCESSING)).toContain('text-ods-error-secondary');
     expect(glyph(KEPT)).toContain('text-ods-error-secondary');
   });
 
-  it('deletes a failed session by its session id', () => {
-    act(() => button(FAILED, 'Delete recording')?.click());
+  it('deletes a failed session by its session id, after a confirm that says it cannot be restored', () => {
+    act(() => button(FAILED, 'Delete session')?.click());
+    expect(document.body.textContent).toContain(
+      "Its recording and session data will be deleted and can't be restored.",
+    );
     const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
-      el => el.textContent === 'Delete Recording',
+      el => el.textContent === 'Delete Session',
     );
     act(() => confirm?.click());
     expect(hooks.mutate).toHaveBeenCalledWith({ sessionId: 'failed', recordingId: null }, expect.anything());
+  });
+
+  it('keeps a session deleted before as a greyed "Deleted" row', () => {
+    expect(rowOf(LEGACY_DELETED).textContent).toContain('Deleted');
   });
 });
 

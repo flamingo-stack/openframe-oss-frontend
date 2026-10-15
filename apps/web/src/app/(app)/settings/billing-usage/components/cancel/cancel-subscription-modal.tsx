@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Button,
   Select,
@@ -7,7 +8,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useId, useState } from 'react';
@@ -105,10 +105,13 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
       <ContentErrorBoundary label="CancellationEffectiveDate" fallback={() => <></>}>
         <Suspense
           fallback={
-            <div className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4">
+            <LoadingRegion
+              label="Loading the end date"
+              className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4"
+            >
               <span>Your subscription will remain active until:</span>
-              <Skeleton className="h-5 w-20" />
-            </div>
+              <UnifiedSkeleton className="h-5 w-20" />
+            </LoadingRegion>
           }
         >
           <QueryIsland<CancelSubscriptionModalQueryType>

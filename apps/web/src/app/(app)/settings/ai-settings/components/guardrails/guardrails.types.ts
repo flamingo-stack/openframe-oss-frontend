@@ -1,9 +1,9 @@
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 
 /**
- * DTOs for the ai-agent tenant policy REST API (`/chat/api/v1/policies`).
- * Per-organization guardrails use the ai-agent GraphQL API instead — see
- * `use-organization-guardrails.ts` (its rules normalize to `PolicyRule`).
+ * View-models of the ai-agent tenant guardrail policies (`guardrailPolicies`,
+ * mapped in `use-guardrails-policies.ts`). Per-organization guardrails —
+ * `use-organization-guardrails.ts` — normalize their rules to `PolicyRule` too.
  */
 
 export const CUSTOM_POLICY_TYPE = 'CUSTOM' as const;

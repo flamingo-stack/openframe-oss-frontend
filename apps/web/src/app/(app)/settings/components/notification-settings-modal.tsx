@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   ModalV2,
@@ -8,7 +9,6 @@ import {
   ModalV2Footer,
   ModalV2Header,
   ModalV2Title,
-  Skeleton,
   Switch,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -138,15 +138,17 @@ function SettingsFooter({
 function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
   return (
     <>
-      <ModalV2Content className={CONTENT_CLASS}>
-        <Skeleton className={ROW_SKELETON_CLASS} />
-        <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-          <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-          {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-            <Skeleton key={index} className={ROW_SKELETON_CLASS} />
-          ))}
-        </div>
-      </ModalV2Content>
+      <LoadingRegion className="contents" label="Loading notification settings">
+        <ModalV2Content className={CONTENT_CLASS}>
+          <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
+          <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+            <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
+            {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+              <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} />
+            ))}
+          </div>
+        </ModalV2Content>
+      </LoadingRegion>
       <SettingsFooter onClose={onClose} />
     </>
   );

@@ -10,12 +10,16 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
+import {
+  getPasswordError,
+  isValidPersonName,
+  normalizePersonName,
+  PERSON_NAME_ERROR,
+} from '@/app/(auth)/auth/constants/registration-validation';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
-import { authApiClient } from '@/lib/auth-api-client';
-
-const MIN_PASSWORD_LENGTH = 8;
+import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
 // Backend provider id ↔ form provider id (external providers only)
 const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
@@ -47,10 +51,10 @@ export default function InvitePage() {
 
   const handleBack = () => router.push('/auth');
 
-  const isTooShort = !!password && password.length < MIN_PASSWORD_LENGTH;
+  const passwordError = getPasswordError(password);
   const isMismatch = !!confirmPassword && password !== confirmPassword;
   const isValid =
-    !!firstName.trim() && !!lastName.trim() && password.length >= MIN_PASSWORD_LENGTH && password === confirmPassword;
+    isValidPersonName(firstName) && isValidPersonName(lastName) && !passwordError && password === confirmPassword;
 
   const handleSubmit = async (switchTenant = false) => {
     if (!invitationId || !isValid) return;
@@ -59,8 +63,8 @@ export default function InvitePage() {
     try {
       const response = await authApiClient.acceptInvitation({
         invitationId,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: normalizePersonName(firstName),
+        lastName: normalizePersonName(lastName),
         password,
         switchTenant,
       });
@@ -75,7 +79,7 @@ export default function InvitePage() {
           return;
         }
 
-        throw new Error(errorData?.message || response.error || 'Failed to accept invitation');
+        throw new Error(getAuthFailureMessage(response, 'Failed to accept invitation'));
       }
 
       toast({
@@ -151,7 +155,9 @@ export default function InvitePage() {
         submitDisabled={!isValid}
         loading={loading || isSubmitting}
         errors={{
-          password: isTooShort ? `Password must be at least ${MIN_PASSWORD_LENGTH} characters` : undefined,
+          firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
+          lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
+          password: password ? passwordError : undefined,
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
         }}
       />
