@@ -3,7 +3,7 @@
 import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
+import { useMingoV2ChatGate } from '@/app/hooks/use-shell-variant';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
@@ -62,8 +62,10 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = 20, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
   // Only the v2 list shows a chat waiting for approval, and only v2 asks for it (see
-  // the query). Both chat surfaces mount after the flags have answered.
-  const withPendingApproval = useFeatureFlag('mingo-v2');
+  // the query). Both chat surfaces mount after the flags have answered. "v2", not
+  // `mingo-v2`: the Mingo-first shell's sidebar history has the v2 rows whatever
+  // that flag says.
+  const withPendingApproval = useMingoV2ChatGate() === 'on';
 
   // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
   // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),

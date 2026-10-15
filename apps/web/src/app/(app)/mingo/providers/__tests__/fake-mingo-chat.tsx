@@ -15,6 +15,8 @@ export const fakeChatProbe = {
   mounted: 0,
   /** Live tails mounted right now, by dialog id. */
   liveTails: [] as string[],
+  /** The subset of `liveTails` that counts its dialog as on screen (`onScreen`). */
+  onScreenTails: [] as string[],
   /** What the hook returns. */
   result: null as MingoUnifiedChat | null,
   /** Thrown by the hook while set. */
@@ -25,6 +27,7 @@ export function resetFakeChatProbe(result: MingoUnifiedChat) {
   fakeChatProbe.created = 0;
   fakeChatProbe.mounted = 0;
   fakeChatProbe.liveTails = [];
+  fakeChatProbe.onScreenTails = [];
   fakeChatProbe.result = result;
   fakeChatProbe.crash = null;
 }
@@ -60,6 +63,8 @@ export function makeFakeChat({
     },
     pendingApprovals: [],
     dialogStatusOf: () => undefined,
+    dialogOwnedByOther: () => false,
+    dialogsLoadFailed: false,
     sendInNewDialog,
     searchQuery: '',
     setSearchQuery: noop,
@@ -85,12 +90,19 @@ export function useFakeMingoUnifiedChatState(): MingoUnifiedChat {
   return fakeChatProbe.result;
 }
 
-export function FakeDialogSubscription({ dialogId }: { dialogId: string }) {
+export function FakeDialogSubscription({ dialogId, onScreen = true }: { dialogId: string; onScreen?: boolean }) {
   useEffect(() => {
     fakeChatProbe.liveTails.push(dialogId);
     return () => {
       fakeChatProbe.liveTails = fakeChatProbe.liveTails.filter(id => id !== dialogId);
     };
   }, [dialogId]);
+  useEffect(() => {
+    if (!onScreen) return undefined;
+    fakeChatProbe.onScreenTails.push(dialogId);
+    return () => {
+      fakeChatProbe.onScreenTails = fakeChatProbe.onScreenTails.filter(id => id !== dialogId);
+    };
+  }, [dialogId, onScreen]);
   return null;
 }
