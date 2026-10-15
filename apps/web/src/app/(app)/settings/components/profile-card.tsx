@@ -14,13 +14,14 @@ import {
   ActionsMenuDropdown,
   PageError,
   SquareAvatar,
+  Switch,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { useClassicLayout, useMingoFirstGate, useMingoV2ChatGate } from '@/app/hooks/use-shell-variant';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { DeleteAccountModal } from './delete-account-modal';
@@ -67,6 +68,32 @@ function ProfileCardSkeleton() {
   );
 }
 
+/**
+ * The "Classic layout" opt-out from the Mingo-first shell — the way back once the
+ * account menu's switch has been used, so it is offered whichever shell is showing.
+ * Only on a tenant that has the shell at all: elsewhere the preference changes nothing.
+ * Stored in this browser; flipping it switches the shell in place, no reload.
+ */
+function ClassicLayoutSwitch() {
+  const mingoFirst = useMingoFirstGate();
+  const [classic, setClassic] = useClassicLayout();
+  const switchId = useId();
+  if (mingoFirst !== 'on') return null;
+  return (
+    <div className="flex items-center gap-[var(--spacing-system-s)] border-t border-ods-border p-[var(--spacing-system-m)]">
+      <div className="min-w-0 flex-1">
+        <label htmlFor={switchId} className="text-ods-text-primary text-h3">
+          Classic layout
+        </label>
+        <p className="text-ods-text-secondary text-h6">
+          Open OpenFrame on the dashboard, with Mingo beside the page. Applies to this browser.
+        </p>
+      </div>
+      <Switch id={switchId} checked={classic} onCheckedChange={setClassic} />
+    </div>
+  );
+}
+
 export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) {
   const user = useAuthStore(state => state.user);
   // `/me`'s own answer, taken from the session query rather than the store — the `!user`
@@ -74,10 +101,11 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
-  // one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
-  // here only once the flag has answered "off".
-  const mingoV2 = useFeatureFlagGate('mingo-v2');
-  const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
+  // one to replay. With the v2 chat look (Mingo v2, or the Mingo-first shell, which
+  // implies it) it moves to the Mingo chat's ⋯ menu, so it is offered here only once
+  // that has answered "off".
+  const mingoV2Chat = useMingoV2ChatGate();
+  const canResetOnboarding = useCanResetOnboarding() && mingoV2Chat === 'off';
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -201,6 +229,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           />
         </div>
       </div>
+
+      <ClassicLayoutSwitch />
 
       {/* Mounted only while open, so the query fires on the click rather than with the
           page. The modal carries its OWN Suspense boundary (skeleton body inside an

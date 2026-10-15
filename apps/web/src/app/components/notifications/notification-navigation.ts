@@ -1,5 +1,4 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import {
   INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
@@ -47,8 +46,7 @@ const TICKET_TYPES = new Set<string>([
 /**
  * Ticket types announcing a new message in the ticket's client chat; they land on the
  * Chat tab instead of Details. Mingo ticket messages (`ADMIN_AI_TICKET_MESSAGE`) are
- * excluded — that conversation lives in the sidebar drawer, not the page's Client Chat
- * tab.
+ * excluded — that conversation is a Mingo chat, not the page's Client Chat tab.
  */
 const TICKET_CHAT_TYPES = new Set<string>([
   CUSTOMER_MESSAGE_PUBLISHED_TYPE,
@@ -61,10 +59,10 @@ const TICKET_CHAT_TYPES = new Set<string>([
  * push, and the only thing a transport that runs OUTSIDE React (a push tap, an OS
  * toast) can act on.
  *
- * A Mingo dialog additionally carries `mingoDialogId`, because in-app it should
- * open the in-layout drawer rather than navigate. That is a preference, not a
- * substitute: `mingoDrawerDialogId` decides at CLICK time whether the drawer is
- * actually there, and the route is the fallback when it isn't.
+ * A Mingo dialog additionally carries `mingoDialogId`, because in-app it goes through
+ * the dialog-open seam (`openMingoDialog` in `./open-mingo-dialog`), which decides at
+ * CLICK time between the classic drawer and the chat page. Its `route` is the
+ * canonical chat link, which resolves in either shell on its own.
  */
 export type NotificationAction = { label: string; route: string; mingoDialogId?: string };
 
@@ -79,33 +77,17 @@ const incidentAction = (insightId: string): NotificationAction => ({
 });
 
 /**
- * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
+ * Action for a Mingo dialog: the canonical route ALWAYS, plus the dialog id.
  *
- * The route is the fallback for when there is no drawer to open into (subscription
- * lock, shell unmounted); `mingoDrawerDialogId` below decides between the two when
- * the user actually acts, rather than here, where nothing can answer yet.
+ * The route is what a transport with no seam follows (push tap, OS toast); in-app the
+ * seam decides drawer vs page when the user actually acts, rather than here, where the
+ * shell variant may not have answered yet.
  */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
   label: 'Open Chat',
   route: mingoDialogRoute(dialogId),
   mingoDialogId: dialogId,
 });
-
-/**
- * The dialog to open in the in-layout drawer for this action, or `null` to follow
- * `action.route` instead.
- *
- * Decided when the user acts, rather than in the mapping above, which runs before the
- * shell can answer. Asks `MingoLauncherStore.canOpen` — see that field for why the
- * feature flag alone is the wrong question.
- *
- * A render-phase caller must SUBSCRIBE to `canOpen` and pass it down; this reads the
- * store without one, so a value read during render never updates.
- */
-export function mingoDrawerDialogId(action: NotificationAction): string | null {
-  if (!action.mingoDialogId) return null;
-  return useMingoLauncherStore.getState().canOpen ? action.mingoDialogId : null;
-}
 
 const nonEmptyString = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
@@ -151,8 +133,8 @@ function resolveAction(
   // by the entity ids rather than giving up.
   //
   // A ticket id is unambiguous. A bare dialog id is NOT: CLIENT_AI_MESSAGE carries a CLIENT
-  // chat's dialogId, and the Mingo drawer resolves admin dialogs only, so following one
-  // blindly would land on an empty chat. The category is what tells the two apart.
+  // chat's dialogId, and Mingo resolves admin dialogs only, so following one blindly
+  // would land on an empty chat. The category is what tells the two apart.
   if (ticketId) return { label: 'Ticket Details', route: ticketRoute(ticketId) };
   // An incident id outranks a Mingo dialog: a chat ABOUT an incident still names the incident.
   if (insightId) return incidentAction(insightId);
@@ -238,9 +220,9 @@ export function resolveNotificationRoute(notification: Notification): string | n
 }
 
 /**
- * True when the notification carries the id of a dialog currently on screen. The drawer's
- * resting URL is one `notificationTargetsLocation` can never match (see it below), so this
- * is its drawer analogue — the caller supplies the active-view set from
+ * True when the notification carries the id of a dialog currently on screen. The classic
+ * drawer's resting URL is one `notificationTargetsLocation` can never match (see it below),
+ * so this is its drawer analogue — the caller supplies the active-view set from
  * `@/lib/active-dialog-views`. Matches by
  * `meta.dialogId` rather than the navigation action so ticket-linked Mingo messages
  * (whose action is the ticket route) still auto-read while their dialog is being watched.
@@ -256,10 +238,11 @@ export function notificationTargetsDialog(notification: Notification, activeDial
  * auto-marking a notification read once the user opens its entity, uniformly for every entity
  * type the route mapping covers (mingo dialog, ticket, …).
  *
- * A Mingo dialog never matches here: the drawer floats over whatever route is showing, so its
- * resting URL is `?mingoDialog=` on an arbitrary path rather than a route this can compare
- * against. The drawer's auto-read runs through `notificationTargetsDialog` instead, off the set
- * of dialogs actually on screen.
+ * A Mingo dialog matches only in the Mingo-first shell, where its route (`/mingo/chat?id=`) is
+ * the page that shows it. The classic shell redirects that route to the drawer, which floats
+ * over whatever route is showing (`?mingoDialog=` on an arbitrary path), so there the drawer's
+ * auto-read runs through `notificationTargetsDialog` instead, off the set of dialogs actually
+ * on screen.
  */
 export function notificationTargetsLocation(
   notification: Notification,

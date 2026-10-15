@@ -54,6 +54,13 @@ export const FEATURE_FLAG_NAMES = [
   // instead of the overlay drawer, the page laying out by the room it leaves
   // (`content-md:` / `content-lg:`). Off = the overlay drawer.
   'mingo-v2',
+  // The Mingo-first shell (Project Manhattan): the app opens on Mingo (`/mingo`),
+  // chats are pages (`/mingo/chat?id=`) instead of the drawer, and it implies the
+  // v2 chat look. Never read raw: `useShellVariant()` (`app/hooks/use-shell-variant.ts`)
+  // folds in the per-user "Classic layout" opt-out and the development-only
+  // override. Off = the classic shell, where `mingo-v2` still picks drawer vs
+  // side panel. On for dev / qa, absent elsewhere, which reads as off.
+  'mingo-first',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

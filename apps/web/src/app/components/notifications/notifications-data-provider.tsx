@@ -86,13 +86,12 @@ import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
-  mingoDrawerDialogId,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
 } from './notification-navigation';
-import { openMingoDialogInDrawer } from './open-mingo-dialog';
+import { openMingoDialog } from './open-mingo-dialog';
 import { useApproveRequest } from './use-approve-request';
 
 const SHOW_POPUPS_STORAGE_KEY = 'of.notifications:showPopups';
@@ -236,13 +235,15 @@ interface TileHelpers {
 
 /**
  * Open what a notification points at, from either imperative surface — a clicked tile
- * or a desktop OS banner.
+ * or a desktop OS banner. A Mingo dialog goes through the dialog-open seam
+ * (`openMingoDialog`): the classic drawer, or the chat page in the Mingo-first shell.
  *
  * Shared because the drawer branch carries a compensating step that is easy to omit:
  * it changes no URL of its own here (the sync hook stamps one a commit later), so the
  * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
  * to mark the notification read itself. Written out twice, one copy drifted from the
- * other within a single review pass.
+ * other within a single review pass. The chat page needs no such step: it is a route,
+ * and the auto-reader sees the user arrive on it.
  *
  * The table's action cell does NOT use this — it needs the same decision split across
  * an `href` and an `onClick` rather than run as one statement.
@@ -252,13 +253,11 @@ function openNotificationTarget(
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
-  const drawerDialogId = mingoDrawerDialogId(action);
-  if (!drawerDialogId) {
+  if (!action.mingoDialogId) {
     navigate(action.route);
     return;
   }
-  openMingoDialogInDrawer(drawerDialogId);
-  markRead(notificationId);
+  if (openMingoDialog(action.mingoDialogId, { navigate }) === 'drawer') markRead(notificationId);
 }
 
 interface NavigationTileWrapperProps {

@@ -18,7 +18,8 @@ import {
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { getNotificationIcon } from '@/app/components/notifications/notification-category-icons';
 import { resolveNotificationAction } from '@/app/components/notifications/notification-navigation';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
+import { openMingoDialog, resolveMingoDialogSurface } from '@/app/components/notifications/open-mingo-dialog';
+import { useShellVariant } from '@/app/hooks/use-shell-variant';
 
 export interface NotificationRow {
   id: string;
@@ -36,10 +37,10 @@ interface BuildColumnsArgs {
   /**
    * `MingoLauncherStore.canOpen`, SUBSCRIBED by the caller.
    *
-   * This cell has to decide `href` vs `onClick` during render, so unlike the other
-   * `mingoDrawerDialogId` callers it cannot ask at click time — and a bare `getState()`
-   * read here would freeze whatever the flags happened to say when the row first
-   * rendered.
+   * The action cell has to decide `href` vs `onClick` during render, so unlike the
+   * other dialog-open callers it cannot let `openMingoDialog` ask at click time — and
+   * a bare `getState()` read here would freeze whatever the shell happened to say when
+   * the row first rendered. The cell subscribes to the shell variant itself.
    */
   canOpenMingoDrawer?: boolean;
   onMarkRead?: (id: string) => void;
@@ -69,6 +70,72 @@ function NotificationTitle({ row, className }: { row: NotificationRow; className
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <TruncateText className={className}>{row.title}</TruncateText>
       {row.archived ? <Tag label="Archived" variant="grey" className="shrink-0" /> : null}
+    </div>
+  );
+}
+
+interface NotificationActionCellProps {
+  row: NotificationRow;
+  canOpenMingoDrawer: boolean;
+  onMarkRead?: (id: string) => void;
+}
+
+/** The row's open action. A component, not an inline cell body: it subscribes to the shell variant. */
+function NotificationActionCell({ row, canOpenMingoDrawer, onMarkRead }: NotificationActionCellProps) {
+  const variant = useShellVariant();
+  const action = resolveNotificationAction(row.notification);
+  if (!action) return null;
+  // A Mingo dialog opens the classic drawer instead of navigating — but only where
+  // that drawer exists (the dialog-open seam's decision). Everything else, the chat
+  // page of the Mingo-first shell included, is a route like any entity and keeps the
+  // open-in-new-tab anchor. Bound to a const so it narrows inside the closure.
+  const drawerDialogId =
+    action.mingoDialogId && resolveMingoDialogSurface(variant, canOpenMingoDrawer) === 'drawer'
+      ? action.mingoDialogId
+      : null;
+  const navigates = !drawerDialogId;
+  const { id, read, archived } = row;
+  const markRead = !read || archived ? () => onMarkRead?.(id) : undefined;
+  // Opening clears unread: the drawer changes no URL of its own here (the sync
+  // hook stamps one a commit later), so the location-based auto-reader can't.
+  // The seam re-decides at click time; should the shell have changed since this
+  // render, it navigates instead and the route's own auto-reader takes over.
+  const openDrawer = drawerDialogId
+    ? () => {
+        if (openMingoDialog(drawerDialogId) === 'drawer') markRead?.();
+      }
+    : undefined;
+  // Any open of an archived row clears its flag, a navigation included: only ticket and
+  // dialog pages auto-read on arrival, and the new-tab half leaves this row on screen.
+  const onOpen = openDrawer ?? (archived ? markRead : undefined);
+  return (
+    <div data-no-row-click className="flex w-full justify-end">
+      <SplitButton
+        className="hidden content-md:inline-flex"
+        variant="outline"
+        href={navigates ? action.route : undefined}
+        onClick={onOpen}
+        groupAriaLabel={action.label}
+        iconAction={{
+          icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
+          'aria-label': navigates ? `Open ${action.label} in new tab` : `Open ${action.label}`,
+          href: navigates ? action.route : undefined,
+          onClick: onOpen,
+          openInNewTab: navigates,
+        }}
+      >
+        {action.label}
+      </SplitButton>
+      {/* Mobile: the labeled SplitButton doesn't fit — collapse to an icon-only open button. */}
+      <Button
+        className="content-md:hidden"
+        variant="outline"
+        size="icon"
+        href={navigates ? action.route : undefined}
+        onClick={onOpen}
+        aria-label={action.label}
+        leftIcon={<ArrowRightUpIcon />}
+      />
     </div>
   );
 }
@@ -140,59 +207,9 @@ export function buildNotificationColumns({
       header: '',
       enableSorting: false,
       meta: { width: 'w-11 shrink-0 content-md:w-[210px]', align: 'right' },
-      cell: ({ row }: { row: Row<NotificationRow> }) => {
-        const action = resolveNotificationAction(row.original.notification);
-        if (!action) return null;
-        // A Mingo dialog opens the in-layout drawer instead of navigating — but only
-        // where that drawer exists. Every action carries a route, so anything else
-        // (and a shell with no drawer) keeps the open-in-new-tab anchor. Bound to a
-        // const so it narrows inside the closure.
-        const drawerDialogId = canOpenMingoDrawer ? (action.mingoDialogId ?? null) : null;
-        const navigates = !drawerDialogId;
-        const { id, read, archived } = row.original;
-        const markRead = !read || archived ? () => onMarkRead?.(id) : undefined;
-        // Opening clears unread: the drawer changes no URL of its own here (the sync
-        // hook stamps one a commit later), so the location-based auto-reader can't.
-        const openDrawer = drawerDialogId
-          ? () => {
-              openMingoDialogInDrawer(drawerDialogId);
-              markRead?.();
-            }
-          : undefined;
-        // Any open of an archived row clears its flag, a navigation included: only ticket and
-        // dialog pages auto-read on arrival, and the new-tab half leaves this row on screen.
-        const onOpen = openDrawer ?? (archived ? markRead : undefined);
-        return (
-          <div data-no-row-click className="flex w-full justify-end">
-            <SplitButton
-              className="hidden content-md:inline-flex"
-              variant="outline"
-              href={navigates ? action.route : undefined}
-              onClick={onOpen}
-              groupAriaLabel={action.label}
-              iconAction={{
-                icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
-                'aria-label': navigates ? `Open ${action.label} in new tab` : `Open ${action.label}`,
-                href: navigates ? action.route : undefined,
-                onClick: onOpen,
-                openInNewTab: navigates,
-              }}
-            >
-              {action.label}
-            </SplitButton>
-            {/* Mobile: the labeled SplitButton doesn't fit — collapse to an icon-only open button. */}
-            <Button
-              className="content-md:hidden"
-              variant="outline"
-              size="icon"
-              href={navigates ? action.route : undefined}
-              onClick={onOpen}
-              aria-label={action.label}
-              leftIcon={<ArrowRightUpIcon />}
-            />
-          </div>
-        );
-      },
+      cell: ({ row }: { row: Row<NotificationRow> }) => (
+        <NotificationActionCell row={row.original} canOpenMingoDrawer={canOpenMingoDrawer} onMarkRead={onMarkRead} />
+      ),
     },
     {
       id: 'rowIcon',

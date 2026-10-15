@@ -4,7 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRef, useState } from 'react';
 import { fetchQuery, useRelayEnvironment } from 'react-relay';
 import type { insightChatPromptRelayQuery as InsightChatPromptQueryType } from '@/__generated__/insightChatPromptRelayQuery.graphql';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
+import { openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
 import { insightChatPromptRelayQuery } from '@/graphql/insights/insight-chat-prompt-relay';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { useMingoLauncherStore } from '../../mingo/stores/mingo-launcher-store';
@@ -80,7 +80,11 @@ export function mingoActionFor(
   if (session) {
     return {
       label: 'Open Mingo Session',
-      onClick: () => openMingoDialogInDrawer(session.dialogId),
+      // Through the dialog-open seam: the drawer in the classic shell, the chat page
+      // in the Mingo-first one.
+      onClick: () => {
+        openMingoDialog(session.dialogId);
+      },
       // Also while another row's prompt is in flight: that draft, landing,
       // resets the drawer to a new chat over the conversation just opened.
       disabled: !canOpenMingo || pendingId !== null,
