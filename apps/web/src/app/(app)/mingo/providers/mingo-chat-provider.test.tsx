@@ -13,12 +13,24 @@ import { mingoDialogLink } from '@/lib/routes';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../stores/mingo-launcher-store';
 import { fakeChatProbe, makeFakeChat, resetFakeChatProbe } from './__tests__/fake-mingo-chat';
-import { type MingoChat, MingoChatProvider, useMingoChat, useMingoChatSurface } from './mingo-chat-provider';
+import {
+  type MingoChat,
+  MingoChatProvider,
+  useMingoChat,
+  useMingoChatSurface,
+  useMingoChatThreadOnScreen,
+} from './mingo-chat-provider';
 
-const { toast, flags, watchers } = vi.hoisted(() => ({
+const {
+  toast,
+  flags,
+  watchers,
+  shell: shellVariant,
+} = vi.hoisted(() => ({
   toast: vi.fn(),
   flags: new Map<string, boolean>(),
   watchers: { mounted: 0 },
+  shell: { variant: 'classic' as 'loading' | 'classic' | 'mingo' },
 }));
 
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
@@ -44,6 +56,7 @@ vi.mock('@/app/components/mingo-compaction-watchers', async () => {
 });
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
+vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => shellVariant.variant }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://acme.openframe.ai' } }));
 
 /** What each probe last read, by name. */
@@ -62,6 +75,12 @@ function Reader({ name }: { name: string }) {
   useLayoutEffect(() => {
     seen.set(name, chat);
   });
+  return null;
+}
+
+/** The Mingo-first chat page: shows the thread the dock portals into it. */
+function ChatPage() {
+  useMingoChatThreadOnScreen();
   return null;
 }
 
@@ -110,6 +129,7 @@ describe('MingoChatProvider', () => {
     flags.clear();
     seen.clear();
     watchers.mounted = 0;
+    shellVariant.variant = 'classic';
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
     useMingoLauncherStore.setState({ pendingPrompt: null, pendingDraft: null, pendingNewChat: false });
     useMingoCompactionStore.setState({ compactingDialogIds: [] });
@@ -265,5 +285,38 @@ describe('MingoChatProvider', () => {
     expect(writeText).toHaveBeenCalledWith(`https://acme.openframe.ai${mingoDialogLink('d-1')}`);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' }));
     vi.unstubAllGlobals();
+  });
+
+  describe('which dialog counts as on screen (popups, auto-read)', () => {
+    it('in the classic shell, the open dialog of any running surface', () => {
+      render(shell(['drawer']));
+
+      expect(fakeChatProbe.onScreenTails).toEqual(['d-1']);
+    });
+
+    it('in the Mingo-first shell, not while only the dock keeps the tail running', () => {
+      shellVariant.variant = 'mingo';
+      render(shell(['dock']));
+
+      expect(fakeChatProbe.liveTails).toEqual(['d-1']);
+      expect(fakeChatProbe.onScreenTails).toEqual([]);
+    });
+
+    it('in the Mingo-first shell, while the chat page shows the thread, and no longer once it leaves', () => {
+      shellVariant.variant = 'mingo';
+      const withPage = (page: boolean) => (
+        <MingoChatProvider enabled identityEnabled={false}>
+          <Surface name="dock" />
+          {page && <ChatPage />}
+        </MingoChatProvider>
+      );
+
+      render(withPage(true));
+      expect(fakeChatProbe.onScreenTails).toEqual(['d-1']);
+
+      render(withPage(false));
+      expect(fakeChatProbe.liveTails).toEqual(['d-1']);
+      expect(fakeChatProbe.onScreenTails).toEqual([]);
+    });
   });
 });
