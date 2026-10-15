@@ -24,9 +24,8 @@ export function affectedInvitationsListings(onScreenId: string): string[] {
 
 /**
  * An invitation left the listings: each count goes down with the edge `@deleteEdge`
- * removed. Every record passed counts it — the unfiltered listing always, a
- * narrowed one because the row was on screen in it, and the tab bar's count of
- * the search on screen. Anything with a `filteredCount` qualifies.
+ * removed. Every listing passed contains it — the unfiltered one always, a narrowed
+ * one because the row was on screen in it.
  */
 export function decrementInvitationsCount(store: RecordSourceProxy, listingIds: readonly string[]): void {
   for (const listingId of new Set(listingIds)) {
@@ -40,9 +39,8 @@ export function decrementInvitationsCount(store: RecordSourceProxy, listingIds: 
 
 /**
  * Invitations were added. Marked stale rather than handed edges: whether one
- * matches a search, and where it sorts, is the server's answer. Whatever shows
- * a record passed (the table, the tab bar's count) refetches it; elsewhere the
- * next visit loads it fresh.
+ * matches a search, and where it sorts, is the server's answer. A table showing
+ * the listing refetches it; elsewhere the next visit loads it fresh.
  */
 export function invalidateInvitationsListings(store: RecordSourceProxy, listingIds: readonly string[]): void {
   for (const listingId of new Set(listingIds)) {

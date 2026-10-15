@@ -53,8 +53,6 @@ interface InvitationsListTableProps {
   /** Live funnels — what the headers draw as ticked, so a tick lands instantly. */
   selections: EmployeeSelections;
   onSelectionsChange: (next: EmployeeSelections) => void;
-  /** Other records counting these invitations (the tab bar's), kept in step with the table's own. */
-  countIds: readonly string[];
   /** A deferred search or funnel lags its control: the rows on screen are the previous result. */
   isPending: boolean;
   stickyHeaderOffset: string;
@@ -70,7 +68,6 @@ export function InvitationsListTable({
   backendSelections,
   selections,
   onSelectionsChange,
-  countIds,
   isPending,
   stickyHeaderOffset,
 }: InvitationsListTableProps) {
@@ -107,7 +104,7 @@ export function InvitationsListTable({
       isFiltered={filter !== null}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
-      listingIds={[...affectedInvitationsListings(invitations.__id), ...countIds]}
+      listingIds={affectedInvitationsListings(invitations.__id)}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
       infiniteScroll={{

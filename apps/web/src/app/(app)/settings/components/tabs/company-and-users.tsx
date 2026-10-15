@@ -17,7 +17,6 @@ import { type EmployeeSelections, NO_EMPLOYEE_SELECTIONS } from '../employees/em
 import { INVITATIONS_TABLE_COLUMNS, USERS_TABLE_COLUMNS } from '../employees/employees-columns';
 import { InvitationsListTable } from '../employees/invitations-list-table';
 import { affectedInvitationsListings, invitationsListingId } from '../employees/invitations-listing';
-import { useEmployeesTabCounts } from '../employees/use-employees-tab-counts';
 import { UsersListTable } from '../employees/users-list-table';
 
 const EMPLOYEES_TAB_VIEWS = {
@@ -30,14 +29,19 @@ const EMPLOYEES_TAB_VIEWS = {
   },
 } satisfies Record<EmployeesTab, object>;
 
+const EMPLOYEES_TABS: TabItem[] = TAB_IDS.employees.map(id => ({
+  id,
+  label: EMPLOYEES_TAB_VIEWS[id].label,
+  icon: EMPLOYEES_TAB_VIEWS[id].icon,
+}));
+
 function isEmployeesTab(value: string): value is EmployeesTab {
   return TAB_IDS.employees.some(tab => tab === value);
 }
 
 /**
  * Settings → Employees: users and open invitations, one tab each, both searched,
- * narrowed and paged on the server. The search is shared by the tabs, so the
- * other tab's count answers "is this person still an invitation?"; the funnels
+ * narrowed and paged on the server. The search is shared by the tabs; the funnels
  * belong to the open tab and a switch clears them.
  */
 export function CompanyAndUsersTab() {
@@ -72,19 +76,12 @@ export function CompanyAndUsersTab() {
   const { deferredFilters: shownView, deferredSearch, isPending } = useDeferredQuery(view, debouncedSearch);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  const counts = useEmployeesTabCounts(deferredSearch);
-  const tabs: TabItem[] = TAB_IDS.employees.map(id => {
-    const count = id === 'users' ? counts.users : counts.invitations;
-    const { label, icon } = EMPLOYEES_TAB_VIEWS[id];
-    return { id, label, icon, ...(count !== undefined && { sublabel: String(count) }) };
-  });
-
   const setSelections = (next: EmployeeSelections) => setParams({ roles: next.roles, status: next.status });
 
   const actions = [
     {
       label: 'Add Users',
-      icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
+      icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
       onClick: () => setIsAddOpen(true),
       variant: 'outline' as const,
     },
@@ -101,7 +98,7 @@ export function CompanyAndUsersTab() {
       <TabNavigation
         urlSync={false}
         activeTab={tab}
-        tabs={tabs}
+        tabs={EMPLOYEES_TABS}
         onTabChange={next => setParams({ tab: next, ...NO_EMPLOYEE_SELECTIONS })}
       />
       <div style={containerStyle}>
@@ -139,7 +136,6 @@ export function CompanyAndUsersTab() {
                 backendSelections={shownView.selections}
                 selections={selections}
                 onSelectionsChange={setSelections}
-                countIds={counts.invitationsCountIds}
                 isPending={isPending}
                 stickyHeaderOffset={stickyHeaderOffset}
               />
@@ -152,10 +148,7 @@ export function CompanyAndUsersTab() {
         onClose={() => setIsAddOpen(false)}
         // The new invitations land on their tab, unfiltered, so none hides behind a funnel.
         onInvited={() => setParams({ tab: 'invitations', ...NO_EMPLOYEE_SELECTIONS })}
-        listingIds={[
-          ...affectedInvitationsListings(invitationsListingId(deferredSearch)),
-          ...counts.invitationsCountIds,
-        ]}
+        listingIds={affectedInvitationsListings(invitationsListingId(deferredSearch))}
       />
     </PageLayout>
   );

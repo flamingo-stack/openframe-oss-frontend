@@ -88,7 +88,7 @@ interface InvitationsTableProps {
   isFiltered: boolean;
   selections: EmployeeSelections;
   onSelectionsChange: (next: EmployeeSelections) => void;
-  /** The records the dialogs' mutations update, the listing the rows came from first. */
+  /** The listings the dialogs' mutations update, the one the rows came from first. */
   listingIds: readonly string[];
   /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;

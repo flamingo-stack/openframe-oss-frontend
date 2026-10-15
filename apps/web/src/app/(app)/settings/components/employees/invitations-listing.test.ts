@@ -23,9 +23,6 @@ import invitationsListTableFragment, {
 import invitationsListTableQuery, {
   type InvitationFilterInput,
 } from '@/__generated__/invitationsListTableQuery.graphql';
-import useEmployeesTabCountsQuery, {
-  type useEmployeesTabCountsQuery$data,
-} from '@/__generated__/useEmployeesTabCountsQuery.graphql';
 import { InvitationStatus, UserRole } from '@/generated/schema-enums';
 import {
   affectedInvitationsListings,
@@ -85,24 +82,6 @@ function readListing(environment: Environment, operation: ReturnType<typeof load
   return (environment.lookup(selector).data as invitationsListTable_query$data).invitations;
 }
 
-/** Puts one answer of the tab bar's counts into the store and returns the invitations count's record id. */
-function loadTabCounts(environment: Environment, search: string, invitationsCount: number): string {
-  const operation = createOperationDescriptor(useEmployeesTabCountsQuery, { search: search || null, list: true });
-  environment.retain(operation);
-  environment.commitPayload(operation, {
-    users: { filteredCount: 0 },
-    invitations: { filteredCount: invitationsCount },
-  });
-  const data = environment.lookup(operation.fragment).data as useEmployeesTabCountsQuery$data;
-  if (!data.invitations) throw new Error('the counts were not stored');
-  return data.invitations.__id;
-}
-
-function readTabCount(environment: Environment, search: string): number | undefined {
-  const operation = createOperationDescriptor(useEmployeesTabCountsQuery, { search: search || null, list: true });
-  return (environment.lookup(operation.fragment).data as useEmployeesTabCountsQuery$data).invitations?.filteredCount;
-}
-
 describe('invitationsListingId', () => {
   it("is the id Relay gives the table's connection, unfiltered, searched and narrowed", () => {
     const environment = createEnvironment();
@@ -140,18 +119,6 @@ describe('decrementInvitationsCount', () => {
 
     expect(readListing(environment, unfiltered).filteredCount).toBe(1);
     expect(readListing(environment, searched).filteredCount).toBe(0);
-  });
-
-  it("counts the tab bar's number down too, when its record is passed", () => {
-    const environment = createEnvironment();
-    loadListing(environment, '', ['inv-1', 'inv-2']);
-    const countId = loadTabCounts(environment, '', 2);
-
-    environment.commitUpdate(store =>
-      decrementInvitationsCount(store, [...affectedInvitationsListings(invitationsListingId('')), countId]),
-    );
-
-    expect(readTabCount(environment, '')).toBe(1);
   });
 });
 
