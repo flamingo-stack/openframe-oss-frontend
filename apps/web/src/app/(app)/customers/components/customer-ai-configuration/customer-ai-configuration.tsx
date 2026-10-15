@@ -318,15 +318,18 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
             </div>
 
             <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-              {/* The theme mode is the client's own choice in the Fae app, so
-                  the accent is the only appearance setting here. */}
-              <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] content-md:w-1/2">
-                <p className="text-ods-text-primary text-h3">Accent Color</p>
-                <Controller
-                  name="accentColor"
-                  control={form.control}
-                  render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
-                />
+              {/* The accent is the only appearance setting (the client picks the theme
+                  in the Fae app). Same two columns as the previews below, so the field
+                  ends where the welcome preview does. */}
+              <div className="grid gap-[var(--spacing-system-l)] content-md:grid-cols-2">
+                <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+                  <p className="text-ods-text-primary text-h3">Accent Color</p>
+                  <Controller
+                    name="accentColor"
+                    control={form.control}
+                    render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
+                  />
+                </div>
               </div>
 
               <AiSettingsPreviews
