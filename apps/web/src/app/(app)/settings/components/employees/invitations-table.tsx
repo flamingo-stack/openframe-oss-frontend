@@ -14,7 +14,7 @@ import type {
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import { liveColumnMeta } from '@/app/components/shared';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
-import { type EmployeeSelections, INVITATION_STATUS_FILTER_OPTIONS, ROLE_FILTER_OPTIONS } from './employee-filters';
+import type { EmployeeFilterOptions, EmployeeSelections } from './employee-filters';
 import { EMPLOYEES_COLUMNS } from './employees-columns';
 import { type InvitationAction, InvitationActionsCell } from './invitation-actions-cell';
 import { InvitationDialog } from './invitation-dialog';
@@ -42,7 +42,10 @@ type InvitationRow = invitationsTable_invitation$data[number];
 
 const getRowId = (row: InvitationRow) => row.id;
 
-function buildColumns(onAction: (row: InvitationRow, action: InvitationAction) => void): ColumnDef<InvitationRow>[] {
+function buildColumns(
+  filterOptions: EmployeeFilterOptions,
+  onAction: (row: InvitationRow, action: InvitationAction) => void,
+): ColumnDef<InvitationRow>[] {
   return [
     {
       id: EMPLOYEES_COLUMNS.user.id,
@@ -54,13 +57,13 @@ function buildColumns(onAction: (row: InvitationRow, action: InvitationAction) =
       id: EMPLOYEES_COLUMNS.roles.id,
       header: EMPLOYEES_COLUMNS.roles.header,
       cell: ({ row }: { row: Row<InvitationRow> }) => <InvitationRolesCell invitation={row.original} />,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles, { filter: { options: ROLE_FILTER_OPTIONS } }),
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles, { filter: { options: filterOptions.roles } }),
     },
     {
       id: EMPLOYEES_COLUMNS.status.id,
       header: EMPLOYEES_COLUMNS.status.header,
       cell: ({ row }: { row: Row<InvitationRow> }) => <InvitationStatusCell invitation={row.original} />,
-      meta: liveColumnMeta(EMPLOYEES_COLUMNS.status, { filter: { options: INVITATION_STATUS_FILTER_OPTIONS } }),
+      meta: liveColumnMeta(EMPLOYEES_COLUMNS.status, { filter: { options: filterOptions.status } }),
     },
     {
       id: EMPLOYEES_COLUMNS.actions.id,
@@ -72,10 +75,14 @@ function buildColumns(onAction: (row: InvitationRow, action: InvitationAction) =
   ];
 }
 
-function emptyTitle(search: string, isFiltered: boolean): string {
-  if (search) return `No invitations found matching "${search}". Try adjusting your search.`;
-  if (isFiltered) return 'No invitations match the selected filters. Try adjusting your filters.';
-  return 'No open invitations. Invite people with Add Users.';
+// The description is always given: without one the table adds its own
+// "Try adjusting your search or filters" under the title.
+function emptyState(search: string, isFiltered: boolean) {
+  if (search) return { title: `No invitations found matching "${search}"`, description: 'Try adjusting your search.' };
+  if (isFiltered) {
+    return { title: 'No invitations match the selected filters', description: 'Try adjusting your filters.' };
+  }
+  return { title: 'No open invitations', description: 'Invite people with Add Users.' };
 }
 
 interface InvitationsTableProps {
@@ -86,6 +93,7 @@ interface InvitationsTableProps {
   search: string;
   /** A funnel is ticked: an empty table says so instead of "no invitations". */
   isFiltered: boolean;
+  filterOptions: EmployeeFilterOptions;
   selections: EmployeeSelections;
   onSelectionsChange: (next: EmployeeSelections) => void;
   /** The listings the dialogs' mutations update, the one the rows came from first. */
@@ -105,6 +113,7 @@ export function InvitationsTable({
   totalCount,
   search,
   isFiltered,
+  filterOptions,
   selections,
   onSelectionsChange,
   listingIds,
@@ -120,7 +129,7 @@ export function InvitationsTable({
   const table = useDataTable<InvitationRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
     data: rows as InvitationRow[],
-    columns: buildColumns(openDialog),
+    columns: buildColumns(filterOptions, openDialog),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -136,7 +145,7 @@ export function InvitationsTable({
             stickyHeaderOffset={stickyHeaderOffset}
             rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
           />
-          <DataTable.Body emptyState={{ title: emptyTitle(search, isFiltered) }} />
+          <DataTable.Body emptyState={emptyState(search, isFiltered)} />
           {rows.length > 0 && (
             <DataTable.InfiniteFooter
               hasNextPage={infiniteScroll.hasNextPage}

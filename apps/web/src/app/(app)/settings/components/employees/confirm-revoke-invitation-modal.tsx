@@ -6,7 +6,7 @@ import type { confirmRevokeInvitationModal_invitation$key } from '@/__generated_
 import type { confirmRevokeInvitationModalMutation } from '@/__generated__/confirmRevokeInvitationModalMutation.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { decrementInvitationsCount } from './invitations-listing';
+import { decrementInvitationsCount, invalidateInvitationsListings } from './invitations-listing';
 
 const confirmRevokeInvitationModalFragment = graphql`
   fragment confirmRevokeInvitationModal_invitation on Invitation {
@@ -66,7 +66,11 @@ export function ConfirmRevokeInvitationModal({
   const handleConfirm = () => {
     commit({
       variables: { id, connections: [...listingIds] },
-      updater: store => decrementInvitationsCount(store, listingIds),
+      // The count drops at once; the refetch the stale mark starts brings the funnels' numbers.
+      updater: store => {
+        decrementInvitationsCount(store, listingIds);
+        invalidateInvitationsListings(store, listingIds);
+      },
       onCompleted: onClose,
       onError: error => {
         toast({

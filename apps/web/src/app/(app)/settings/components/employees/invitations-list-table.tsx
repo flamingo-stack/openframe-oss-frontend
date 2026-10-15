@@ -12,7 +12,7 @@ import type { invitationsListTable_query$key } from '@/__generated__/invitations
 import type { invitationsListTablePaginationQuery } from '@/__generated__/invitationsListTablePaginationQuery.graphql';
 import type { invitationsListTableQuery } from '@/__generated__/invitationsListTableQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
-import { type EmployeeSelections, toInvitationFilter } from './employee-filters';
+import { type EmployeeSelections, invitationFilterOptions, toInvitationFilter } from './employee-filters';
 import { INVITATIONS_PAGE_SIZE } from './employees-columns';
 import { affectedInvitationsListings } from './invitations-listing';
 import { InvitationsTable } from './invitations-table';
@@ -20,6 +20,10 @@ import { InvitationsTable } from './invitations-table';
 const invitationsListTableQueryNode = graphql`
   query invitationsListTableQuery($filter: InvitationFilterInput, $search: String, $first: Int!) {
     ...invitationsListTable_query @arguments(filter: $filter, search: $search, first: $first)
+    # Beside the fragment, not in it: the next page does not count the funnels again.
+    invitationFilters(filter: $filter, search: $search) {
+      ...employeeFilters_invitationFilters
+    }
   }
 `;
 
@@ -86,7 +90,8 @@ export function InvitationsListTable({
   const { invitations } = data;
 
   // A new invitation is the server's to place (does it match, where does it
-  // sort): the mutation marks the listing stale and it is read again here,
+  // sort), and every change moves the funnels' numbers: the mutations mark the
+  // listing stale and it is read again here, with the funnels,
   // without suspending the rows on screen — as many as are loaded, so a scrolled
   // table keeps its length.
   useSubscribeToInvalidationState([invitations.__id], () => {
@@ -102,6 +107,7 @@ export function InvitationsListTable({
       totalCount={invitations.filteredCount}
       search={search}
       isFiltered={filter !== null}
+      filterOptions={invitationFilterOptions(queryData.invitationFilters, selections)}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
       listingIds={affectedInvitationsListings(invitations.__id)}

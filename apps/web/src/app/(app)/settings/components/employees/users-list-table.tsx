@@ -5,13 +5,17 @@ import type { usersListTable_query$key } from '@/__generated__/usersListTable_qu
 import type { usersListTablePaginationQuery } from '@/__generated__/usersListTablePaginationQuery.graphql';
 import type { usersListTableQuery } from '@/__generated__/usersListTableQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
-import { type EmployeeSelections, toUserFilter } from './employee-filters';
+import { type EmployeeSelections, toUserFilter, userFilterOptions } from './employee-filters';
 import { USERS_PAGE_SIZE } from './employees-columns';
 import { UsersTable } from './users-table';
 
 const usersListTableQueryNode = graphql`
   query usersListTableQuery($filter: UserFilterInput, $search: String, $first: Int!) {
     ...usersListTable_query @arguments(filter: $filter, search: $search, first: $first)
+    # Beside the fragment, not in it: the next page does not count the funnels again.
+    userFilters(filter: $filter, search: $search) {
+      ...employeeFilters_userFilters
+    }
   }
 `;
 
@@ -78,6 +82,7 @@ export function UsersListTable({
       totalCount={data.users.filteredCount}
       search={search}
       isFiltered={filter !== null}
+      filterOptions={userFilterOptions(queryData.userFilters, selections)}
       selections={selections}
       onSelectionsChange={onSelectionsChange}
       isPending={isPending}
