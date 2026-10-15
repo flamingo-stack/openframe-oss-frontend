@@ -20,6 +20,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
+import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -43,7 +44,6 @@ import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
-import { MingoCompactionWatchers } from './mingo-compaction-watchers';
 import { isFullWidthPage, MingoSidePanel } from './mingo-side-panel';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
@@ -580,7 +580,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             </ChatDrawerErrorBoundary>
           </AppLayoutDrawerContent>
         </AppLayoutDrawer>
-        <MingoCompactionWatchers />
       </ChatIdentityProvider>
     ) : null;
 
@@ -588,7 +587,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // overlay, so it neither closes on navigation nor offers a close button while
   // docked; the launcher's `isOpen` only means "opened from the header", which is
   // how it shows when there is no room to dock (and on a phone). The compaction
-  // watchers stay in the `drawer` slot: they must outlive the panel, which
+  // watchers live in `MingoChatProvider`: they must outlive the panel, which
   // unmounts while hidden.
   const chatSidePanel: AppLayoutSidePanelConfig | undefined =
     chatMounted && mingoV2 === 'on'
@@ -605,7 +604,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           children: state => <MingoSidePanel {...state} identityEnabled={chatIdentityEnabled} />,
         }
       : undefined;
-  const chatWatchers = chatEnabled && mingoV2 === 'on' ? <MingoCompactionWatchers /> : null;
 
   return (
     <>
@@ -657,23 +655,27 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             CoreAppLayout so BOTH the header's TicketAlertsButton and the
             /help-center/tickets page (children) read one provider. */}
         <TicketLiveProvider enabled={sessionReady && !isLocked}>
-          <CoreAppLayout
-            // Hook for the native-shell safe-area CSS in globals.css: the layout
-            // root owns the top inset (see `.app-shell-root`). Inert on the web.
-            className="app-shell-root"
-            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-            sidebarConfig={sidebarConfig}
-            mobileBurgerMenuProps={mobileBurgerMenuProps}
-            headerProps={headerProps}
-            // Greys the header and nav rail out for the lock: they stay legible —
-            // the user can still see where they are and reach the account menu —
-            // but nothing they lead to is reachable until the workspace is paid for.
-            disabled={showLockContent}
-            drawer={chatDrawer ?? chatWatchers}
-            sidePanel={chatSidePanel}
-            topBar={topBar}
-          >
-            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+          {/* The Mingo chat state, once for the session, around every surface that
+              can show it (drawer / side panel, and the page). Gated like the chat
+              surfaces themselves; it runs only while one of them is mounted. */}
+          <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
+            <CoreAppLayout
+              // Hook for the native-shell safe-area CSS in globals.css: the layout
+              // root owns the top inset (see `.app-shell-root`). Inert on the web.
+              className="app-shell-root"
+              mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+              sidebarConfig={sidebarConfig}
+              mobileBurgerMenuProps={mobileBurgerMenuProps}
+              headerProps={headerProps}
+              // Greys the header and nav rail out for the lock: they stay legible —
+              // the user can still see where they are and reach the account menu —
+              // but nothing they lead to is reachable until the workspace is paid for.
+              disabled={showLockContent}
+              drawer={chatDrawer}
+              sidePanel={chatSidePanel}
+              topBar={topBar}
+            >
+              {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -692,8 +694,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header — which also means the lock
               arriving late costs a content swap, not a second chrome mount. */}
-            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-          </CoreAppLayout>
+              <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+            </CoreAppLayout>
+          </MingoChatProvider>
         </TicketLiveProvider>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
