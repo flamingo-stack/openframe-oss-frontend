@@ -1,7 +1,7 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
@@ -247,17 +247,21 @@ function InitialSetupCardContent() {
  */
 export function InitialSetupSkeleton() {
   return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
+    <LoadingRegion
+      label="Loading setup steps"
+      as="section"
+      className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]"
+    >
       <div className="flex min-w-0 flex-col">
-        {/* Title + subtitle as core `Skeleton` bars, kept inside the real `text-h2`/
+        {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
             `text-h6` line boxes so the header height matches the loaded card exactly.
-            Decorative `div` wrappers (not `h2`/`p`) since `Skeleton` renders a `div`,
+            Decorative `div` wrappers (not `h2`/`p`) since `UnifiedSkeleton` renders a `div`,
             which is invalid inside `<p>`/`<h2>`; the type utilities carry the height. */}
         <div className="text-ods-text-primary text-h2">
-          <Skeleton className="inline-block h-6 w-40 align-middle" />
+          <UnifiedSkeleton className="inline-block h-6 w-40 align-middle" />
         </div>
         <div className="text-ods-text-secondary text-h6">
-          <Skeleton className="inline-block h-3 w-52 max-w-full align-middle" />
+          <UnifiedSkeleton className="inline-block h-3 w-52 max-w-full align-middle" />
         </div>
       </div>
 
@@ -278,6 +282,6 @@ export function InitialSetupSkeleton() {
           />
         ))}
       </div>
-    </section>
+    </LoadingRegion>
   );
 }

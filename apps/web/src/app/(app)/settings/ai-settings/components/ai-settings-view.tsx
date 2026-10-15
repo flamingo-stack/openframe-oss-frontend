@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadError, Skeleton, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadError, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -58,13 +59,15 @@ export function AiSettings() {
 
   if (!visibleTabs) {
     return (
-      <AiSettingsLayout>
-        <TabBarSkeleton widths={TAB_WIDTHS} />
-        <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-          <Skeleton className="h-20 w-full rounded-md" />
-          <Skeleton className="h-64 w-full rounded-md" />
-        </div>
-      </AiSettingsLayout>
+      <LoadingRegion label="Loading AI settings" className="contents">
+        <AiSettingsLayout>
+          <TabBarSkeleton widths={TAB_WIDTHS} />
+          <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+            <UnifiedSkeleton className="h-20 w-full rounded-md" />
+            <UnifiedSkeleton className="h-64 w-full rounded-md" />
+          </div>
+        </AiSettingsLayout>
+      </LoadingRegion>
     );
   }
 
@@ -264,10 +267,10 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
           // Keep the tab bar visible; show skeletons while the tab config loads.
           if (isLoading) {
             return (
-              <div className="flex flex-col gap-[var(--spacing-system-l)]">
-                <Skeleton className="h-20 w-full rounded-md" />
-                <Skeleton className="h-64 w-full rounded-md" />
-              </div>
+              <LoadingRegion label="Loading AI settings" className="flex flex-col gap-[var(--spacing-system-l)]">
+                <UnifiedSkeleton className="h-20 w-full rounded-md" />
+                <UnifiedSkeleton className="h-64 w-full rounded-md" />
+              </LoadingRegion>
             );
           }
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   PasscodeIcon,
   PenEditIcon,
@@ -16,7 +17,6 @@ import {
   PageError,
   PageLayout,
   type Row,
-  Skeleton,
   Tag,
   TruncateText,
   useDataTable,
@@ -440,19 +440,19 @@ export function SsoConfigurationTab() {
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
       {isOpenframeLoading || isDomainLoading ? (
-        <Card className="border-ods-border bg-ods-card p-4">
+        <LoadingRegion label="Loading sign-in options" as={Card} className="border-ods-border bg-ods-card p-4">
           <div className="flex flex-col gap-6">
             {[0, 1].map(row => (
               <div key={row} className="flex items-start gap-3">
-                <Skeleton className="h-5 w-5 shrink-0 rounded" />
+                <UnifiedSkeleton className="h-5 w-5 shrink-0 rounded" />
                 <div className="flex flex-1 flex-col gap-1">
-                  <Skeleton className="h-5 w-48 content-md:w-64" />
-                  <Skeleton className="h-4 w-full content-md:w-96" />
+                  <UnifiedSkeleton className="h-5 w-48 content-md:w-64" />
+                  <UnifiedSkeleton className="h-4 w-full content-md:w-96" />
                 </div>
               </div>
             ))}
           </div>
-        </Card>
+        </LoadingRegion>
       ) : (
         (openframeSso || tenantDomain) && (
           <Card className="overflow-hidden border-ods-border bg-ods-card">

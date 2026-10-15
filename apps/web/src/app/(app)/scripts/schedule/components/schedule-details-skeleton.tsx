@@ -1,6 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
@@ -36,13 +37,15 @@ export function ScheduleHeaderSkeleton() {
   const handleBack = useSafeBack(routes.scripts.schedules.list);
 
   return (
-    <TitleBlock
-      title=""
-      loading
-      loadingActions
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      actionsVariant="icon-buttons"
-    />
+    <LoadingRegion className="contents" label="Loading the schedule">
+      <TitleBlock
+        title=""
+        loading
+        loadingActions
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={LOADING_ACTIONS}
+        actionsVariant="icon-buttons"
+      />
+    </LoadingRegion>
   );
 }

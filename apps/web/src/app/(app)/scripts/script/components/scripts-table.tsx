@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   BoxArchiveIcon,
@@ -661,10 +661,12 @@ function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: stri
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading scripts">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

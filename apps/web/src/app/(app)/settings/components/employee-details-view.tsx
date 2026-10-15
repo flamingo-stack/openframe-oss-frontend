@@ -1,8 +1,9 @@
 'use client';
 
 import { LoadError, NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton, SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -35,19 +36,19 @@ const CARD_ROW =
 function ProfileFieldSkeleton({ valueClassName }: { valueClassName: string }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-      <Skeleton className={valueClassName} />
-      <Skeleton className="h-4 w-16" />
+      <UnifiedSkeleton className={valueClassName} />
+      <UnifiedSkeleton className="h-4 w-16" />
     </div>
   );
 }
 
 function EmployeeSummarySkeleton() {
   return (
-    <div className={CARD_CONTAINER}>
+    <LoadingRegion label="Loading employee" className={CARD_CONTAINER}>
       <div className={CARD_ROW}>
         <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
           {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
-          <Skeleton className="size-9 shrink-0 rounded-full content-md:size-12" />
+          <UnifiedSkeleton className="size-9 shrink-0 rounded-full content-md:size-12" />
           <ProfileFieldSkeleton valueClassName="h-6 w-32" />
         </div>
         <ProfileFieldSkeleton valueClassName="h-6 w-40" />
@@ -56,7 +57,7 @@ function EmployeeSummarySkeleton() {
         <ProfileFieldSkeleton valueClassName="h-6 w-24" />
         <ProfileFieldSkeleton valueClassName="h-8 w-16 rounded-md" />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -94,7 +95,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
   }
 
   // The non-breaking space below reserves the title's h1 height while loading
-  // (PageLayout's title is string-only, so the bar can't be a Skeleton) — it
+  // (PageLayout's title is string-only, so the bar can't be a UnifiedSkeleton) — it
   // keeps the card from jumping. Spelled as a literal NBSP, not &nbsp;, because
   // the value is handed straight to a string-typed prop.
   const displayName = user

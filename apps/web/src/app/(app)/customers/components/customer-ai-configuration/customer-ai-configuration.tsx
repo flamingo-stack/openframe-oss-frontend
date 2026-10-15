@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -9,7 +10,6 @@ import {
   ImageUploader,
   Input,
   LoadError,
-  Skeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -241,10 +241,10 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
 
     if (isViewLoading || isConfigLoading) {
       return (
-        <div className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+        <LoadingRegion label="Loading AI configuration" className="flex flex-col gap-[var(--spacing-system-sf)]">
+          <UnifiedSkeleton className="h-16 w-full" />
+          <UnifiedSkeleton className="h-64 w-full" />
+        </LoadingRegion>
       );
     }
 
