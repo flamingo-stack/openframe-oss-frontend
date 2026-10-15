@@ -110,6 +110,11 @@ enum AssignmentTargetType {
   KNOWLEDGE_ARTICLE
 }
 
+input AssignmentTargetInput {
+  targetType: AssignmentTargetType!
+  targetId: ID!
+}
+
 """
 Relay connection for the schedule's "Available Devices" picker. Same shape as DeviceConnection,
 but each edge additionally reports whether the device is already assigned to the schedule.
@@ -1573,6 +1578,7 @@ input KnowledgeBaseFilterInput {
   DESCENDANTS when the listing carries a search or tagIds.
   """
   scope: KnowledgeBaseScope
+  assignedTo: AssignmentTargetInput
 }
 
 type KnowledgeBaseItem implements AssignableTarget & Node {
@@ -3117,7 +3123,7 @@ type Query {
   scriptFilters(filter: ScriptFilterInput): ScriptFilters!
   knowledgeBaseItems(filter: KnowledgeBaseFilterInput, search: String, first: Int, after: String): KnowledgeBaseItemConnection!
   knowledgeBaseItem(id: ID!): KnowledgeBaseItem
-  knowledgeBaseTags(folderId: ID, archived: Boolean): [Tag!]!
+  knowledgeBaseTags(folderId: ID, archived: Boolean, assignedTo: AssignmentTargetInput): [Tag!]!
   knowledgeBaseFolderTree: [KnowledgeBaseItem!]!
   knowledgeBaseArticleTree: [KnowledgeBaseItem!]!
   archivedArticles(search: String, tagIds: [ID], first: Int, after: String): KnowledgeBaseItemConnection!

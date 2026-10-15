@@ -1,6 +1,7 @@
 'use client';
 
-import { Skeleton, Tag } from '@flamingo-stack/openframe-frontend-core';
+import { Tag } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertCircleIcon,
@@ -18,11 +19,10 @@ import {
 import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useOnboardingStore } from '@/stores/onboarding-store';
 import { DeleteAccountModal } from './delete-account-modal';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
@@ -44,8 +44,11 @@ interface ProfileCardProps {
  */
 function ProfileCardSkeleton() {
   return (
-    <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy="true">
-      <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+    <LoadingRegion
+      label="Loading your profile"
+      className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
+    >
+      <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1 overflow-hidden">
         {/* `min-h-8` because the loaded name line carries role tags, and `Tag` is a fixed
             32px — taller than the 24px text line box, so IT sets the row's height (16 +
@@ -53,14 +56,14 @@ function ProfileCardSkeleton() {
             grew 4px on handoff. The real line below is pinned the same way so the height
             no longer depends on whether a user happens to have roles. */}
         <div className="flex min-h-8 items-center">
-          <Skeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
         </div>
         <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <Skeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
+          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
         </div>
       </div>
-      <Skeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
-    </div>
+      <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
+    </LoadingRegion>
   );
 }
 
@@ -70,14 +73,11 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // branch below explains why that distinction is the whole fix.
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
-  // "Reset Onboarding" replays the personal Get Started tour. Offered only when there
-  // is a finished tour to replay — i.e. progress has loaded and the user has completed
-  // or skipped it. While the tour is still in progress it's already in the menu, so
-  // there's nothing to reset.
-  const onboardingProgress = useOnboardingStore(state => state.user);
-  const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
-  const canResetOnboarding = onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
-  const { resetUser, isMutating: isResettingOnboarding } = useOnboardingMutations();
+  // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
+  // one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
+  // here only once the flag has answered "off".
+  const mingoV2 = useFeatureFlagGate('mingo-v2');
+  const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -180,7 +180,6 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                           label: 'Reset Onboarding',
                           icon: <Refresh01LeftIcon className="h-5 w-5 text-ods-text-secondary" />,
                           onClick: () => setIsResetConfirmOpen(true),
-                          disabled: isResettingOnboarding,
                         },
                       ]
                     : []),
@@ -215,18 +214,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
 
       <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />
 
-      {/* Reset Onboarding confirmation */}
-      <ConfirmDialog
-        open={isResetConfirmOpen}
-        onOpenChange={setIsResetConfirmOpen}
-        title="Reset onboarding"
-        description="This replays your Get Started tour from the beginning. Your existing data isn't affected."
-        confirmLabel="Reset Onboarding"
-        cancelLabel="Cancel"
-        variant="warning"
-        isPending={isResettingOnboarding}
-        onConfirm={() => resetUser(() => setIsResetConfirmOpen(false))}
-      />
+      <ResetOnboardingDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen} />
     </>
   );
 }

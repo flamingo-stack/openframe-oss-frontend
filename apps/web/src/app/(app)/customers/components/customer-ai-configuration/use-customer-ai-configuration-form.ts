@@ -30,7 +30,6 @@ function getCustomerAiConfigurationDefaults(
   const quickActionsIsDefault = config?.quickActionsIsDefault ?? true;
   return {
     assistantName: view.assistantName,
-    applicationTheme: view.applicationTheme,
     accentColor: view.accentColor,
     llmProvider: config?.llmProvider ?? baseConfig.llmProvider,
     providerModel: config?.providerModel ?? baseConfig.providerModel,

@@ -11,6 +11,9 @@ import type { FileEntry, FileOperationRequest } from './file-manager-types';
  */
 export class FileDeleteError extends Error {}
 
+/** The agent did not answer in time. The tunnel can still report itself as open. */
+export class FileOperationTimeoutError extends Error {}
+
 export class FileOperations {
   private requestIdCounter = 0;
 

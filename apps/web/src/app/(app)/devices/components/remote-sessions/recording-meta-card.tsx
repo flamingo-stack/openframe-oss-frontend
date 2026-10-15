@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage, Skeleton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -119,16 +120,19 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
 
 export function RecordingMetaCardSkeleton() {
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4">
+    <LoadingRegion
+      label="Loading recording details"
+      className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4"
+    >
       {Array.from({ length: 8 }, (_, index) => (
         <div
           key={index}
           className="flex h-20 flex-col justify-center gap-[var(--spacing-system-xxs)] border-b border-ods-border px-[var(--spacing-system-m)] last:border-b-0"
         >
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-3.5 w-20" />
+          <UnifiedSkeleton className="h-5 w-32" />
+          <UnifiedSkeleton className="h-3.5 w-20" />
         </div>
       ))}
-    </div>
+    </LoadingRegion>
   );
 }
