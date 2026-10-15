@@ -43,10 +43,10 @@ function CustomerInfoCardSkeleton() {
       <UnifiedSkeleton className="size-8 shrink-0 rounded-sm content-md:size-14" />
       <div className="flex min-w-0 flex-1 flex-col">
         <p className="text-ods-text-primary text-h3">
-          <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-4 w-40" />
+          <UnifiedSkeleton as="span" className="inline-block h-4 w-40 max-w-full align-middle" />
         </p>
         <p className="text-ods-text-secondary text-h6">
-          <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-3 w-24" />
+          <UnifiedSkeleton as="span" className="inline-block h-3 w-24 max-w-full align-middle" />
         </p>
       </div>
     </div>

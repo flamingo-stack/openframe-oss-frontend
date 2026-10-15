@@ -37,6 +37,11 @@ export function useTicketMessages(dialogId: string | null, chatType: ChatType) {
     initialPageParam: undefined as string | undefined,
     enabled: !!dialogId,
     staleTime: 30 * 1000,
+    // Back online is not the moment to refetch loaded pages:
+    // `TicketDialogSubscription` does, once the live tail's replay is in
+    // (`caughtUpCount`). A first load that failed still retries: its tail opened
+    // as a first consumer, which never moves `caughtUpCount`.
+    refetchOnReconnect: query => query.state.data === undefined,
   });
 
   return {
@@ -53,9 +58,7 @@ export function useTicketMessages(dialogId: string | null, chatType: ChatType) {
     hasNextPage: messagesQuery.hasNextPage ?? false,
     isFetchingNextPage: messagesQuery.isFetchingNextPage,
     fetchNextPage: messagesQuery.fetchNextPage,
-    /** Re-fetch the loaded pages. Used after a NATS reconnect: the JetStream
-     *  CHAT_CHUNKS stream retains only ~10 minutes, so a longer outage leaves
-     *  a gap only the persisted history can fill (the merge dedupes). */
+    /** Re-fetch the loaded pages. */
     refetch: messagesQuery.refetch,
     error: messagesQuery.error?.message || null,
   };
