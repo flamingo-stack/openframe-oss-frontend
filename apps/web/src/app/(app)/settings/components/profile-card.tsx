@@ -19,11 +19,10 @@ import {
 import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
-import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
-import { useOnboardingStore } from '@/stores/onboarding-store';
 import { DeleteAccountModal } from './delete-account-modal';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
@@ -74,14 +73,11 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   // branch below explains why that distinction is the whole fix.
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
-  // "Reset Onboarding" replays the personal Get Started tour. Offered only when there
-  // is a finished tour to replay — i.e. progress has loaded and the user has completed
-  // or skipped it. While the tour is still in progress it's already in the menu, so
-  // there's nothing to reset.
-  const onboardingProgress = useOnboardingStore(state => state.user);
-  const onboardingLoaded = useOnboardingStore(state => state.isLoaded);
-  const canResetOnboarding = onboardingLoaded && !!(onboardingProgress?.completed || onboardingProgress?.skipped);
-  const { resetUser, isMutating: isResettingOnboarding } = useOnboardingMutations();
+  // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
+  // one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
+  // here only once the flag has answered "off".
+  const mingoV2 = useFeatureFlagGate('mingo-v2');
+  const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -184,7 +180,6 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
                           label: 'Reset Onboarding',
                           icon: <Refresh01LeftIcon className="h-5 w-5 text-ods-text-secondary" />,
                           onClick: () => setIsResetConfirmOpen(true),
-                          disabled: isResettingOnboarding,
                         },
                       ]
                     : []),
@@ -219,18 +214,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
 
       <DeleteAccountModal open={isDeleteAccountOpen} onOpenChange={setIsDeleteAccountOpen} />
 
-      {/* Reset Onboarding confirmation */}
-      <ConfirmDialog
-        open={isResetConfirmOpen}
-        onOpenChange={setIsResetConfirmOpen}
-        title="Reset onboarding"
-        description="This replays your Get Started tour from the beginning. Your existing data isn't affected."
-        confirmLabel="Reset Onboarding"
-        cancelLabel="Cancel"
-        variant="warning"
-        isPending={isResettingOnboarding}
-        onConfirm={() => resetUser(() => setIsResetConfirmOpen(false))}
-      />
+      <ResetOnboardingDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen} />
     </>
   );
 }
