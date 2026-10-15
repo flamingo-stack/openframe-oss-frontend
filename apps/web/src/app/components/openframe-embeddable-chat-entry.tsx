@@ -27,12 +27,16 @@
  * and are used by the Help Center doc surfaces — re-enabling Guide in this
  * panel would be a one-line `modes` change, not new plumbing.
  *
- * Coexists with the old `/mingo` page route during migration.
+ * What the chat can do — every prop that is not about where it sits — is built
+ * by `useOpenframeChatProps` below, shared with the Mingo-first shell's composer
+ * dock (`mingo-shell/mingo-composer-dock.tsx`), so the two shells offer the same
+ * chat.
  */
 
 import type {
   ChatContextPickerConfig,
   EmbeddableChatHandle,
+  EmbeddableChatProps,
   MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
@@ -41,7 +45,7 @@ import {
   renderQuickActionIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { getFullImageUrl } from '@/lib/image-url';
 import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
@@ -103,11 +107,123 @@ function EmbeddableChatPanel({
   compactDialog,
   copyDialogLink,
 }: EmbeddableChatPanelProps) {
+  const { props: chatProps, overlays } = useOpenframeChatProps({ chat, compactDialog, copyDialogLink, v2: !!v2 });
+
+  // A queued launcher PROMPT (`sendToMingo`) needs no panel, so the session drains
+  // it (`MingoChatProvider`'s runner). The two below go through this panel's handle.
+  //
+  // Queued launcher "start a new chat". Nothing to send and nothing the host can
+  // set — which view the narrow panel shows with no open conversation (list vs.
+  // composer) is its own state — so this goes to its imperative handle. A
+  // one-shot drain: it must fire on a fresh open AND while the drawer is
+  // already open on the list.
+  const chatHandle = useRef<EmbeddableChatHandle>(null);
+  const pendingNewChat = useMingoLauncherStore(s => s.pendingNewChat);
+  const consumePendingNewChat = useMingoLauncherStore(s => s.consumePendingNewChat);
+
+  useEffect(() => {
+    if (!pendingNewChat) return;
+    if (!consumePendingNewChat()) return;
+    chatHandle.current?.startNewChat();
+  }, [pendingNewChat, consumePendingNewChat]);
+
+  // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
+  // a fresh chat with the composer prefilled and nothing sent. The same one-shot
+  // drain, through the handle, since the composer's text is the panel's own
+  // state.
+  const pendingDraft = useMingoLauncherStore(s => s.pendingDraft);
+  const consumePendingDraft = useMingoLauncherStore(s => s.consumePendingDraft);
+
+  useEffect(() => {
+    if (!pendingDraft) return;
+    const draft = consumePendingDraft();
+    if (!draft) return;
+    chatHandle.current?.prefillDraft(draft);
+  }, [pendingDraft, consumePendingDraft]);
+
+  return (
+    <>
+      {/* The realtime tail for the active dialog is the session's, rendered by
+          `MingoChatProvider` beside the layout. */}
+      <EmbeddableChat
+        ref={chatHandle}
+        // Shell-less: the host `AppLayoutDrawer` owns the panel chrome,
+        // open/close, and positioning. `open` / `onOpenChange` are the same
+        // state the drawer is bound to, so the chat's in-header X button and
+        // the drawer close in lockstep.
+        shell={shell}
+        appearance={v2 ? 'v2' : 'classic'}
+        onCollapse={v2?.onCollapse}
+        collapseTo={v2?.collapseTo}
+        onExpand={v2?.onExpand}
+        open={open}
+        onOpenChange={onOpenChange}
+        closable={closable}
+        {...chatProps}
+      />
+
+      {overlays}
+    </>
+  );
+}
+
+/**
+ * The `EmbeddableChat` props every OpenFrame chat surface shares: the classic
+ * drawer / v2 side panel (`OpenframeEmbeddableChatEntry`) and the Mingo-first
+ * composer dock. One implementation, so the two shells cannot drift in what the
+ * chat can do (context picker, `@`, memory strip, quick actions, identity, the
+ * dialog actions). Each surface adds only its own layout props on top.
+ */
+export type OpenframeChatProps = Pick<
+  EmbeddableChatProps,
+  | 'baseRoute'
+  | 'chatMenuExtraItems'
+  | 'contextMemory'
+  | 'contextPicker'
+  | 'dialogStatusOf'
+  | 'mingoDialogCapabilities'
+  | 'mingoState'
+  | 'mingoWelcome'
+  | 'modes'
+  | 'pendingApprovals'
+  | 'renderContextItem'
+  | 'renderMention'
+  | 'userAvatarUrl'
+  | 'userDisplayName'
+  | 'whatToAsk'
+>;
+
+interface OpenframeChatPropsOptions {
+  chat: MingoChatState;
+  /**
+   * "Compact Chat Memory" in the chat's own ⋯ menus (header + rows). Undefined
+   * leaves it out: the `mingo-compact-memory` flag is off, or the surface puts it
+   * in the composer's ⋯ instead (the dock).
+   */
+  compactDialog: MingoChat['compactDialog'];
+  copyDialogLink: MingoChat['copyDialogLink'];
+  /** The Mingo v2 look: row status glyphs, "What to ask Mingo?", Reset Onboarding in the chat ⋯. */
+  v2: boolean;
+  /** How a quick-action chip starts its chat. Default: the session's `sendInNewDialog`. */
+  sendInNewDialog?: (text: string) => Promise<void>;
+}
+
+/**
+ * Builds {@link OpenframeChatProps} from the session's chat state. `overlays` is
+ * what those props open outside the chat (the Reset Onboarding confirmation):
+ * render it beside the `EmbeddableChat`.
+ */
+export function useOpenframeChatProps({
+  chat,
+  compactDialog,
+  copyDialogLink,
+  v2,
+  sendInNewDialog = chat.sendInNewDialog,
+}: OpenframeChatPropsOptions): { props: OpenframeChatProps; overlays: ReactNode } {
   const {
     state,
     pendingApprovals,
     dialogStatusOf,
-    sendInNewDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,
@@ -141,38 +257,6 @@ function EmbeddableChatPanel({
   }, [authUser]);
   // Header-avatar counterpart of the display name (New Chat compose view).
   const userAvatarUrl = getFullImageUrl(authUser?.image?.imageUrl, authUser?.image?.hash);
-
-  // A queued launcher PROMPT (`sendToMingo`) needs no panel, so the session drains
-  // it (`MingoChatProvider`'s runner). The two below go through this panel's handle.
-  //
-  // Queued launcher "start a new chat". Nothing to send and nothing the host can
-  // set — which view the narrow panel shows with no open conversation (list vs.
-  // composer) is its own state — so this goes to its imperative handle. A
-  // one-shot drain: it must fire on a fresh open AND while the drawer is
-  // already open on the list.
-  const chatHandle = useRef<EmbeddableChatHandle>(null);
-  const pendingNewChat = useMingoLauncherStore(s => s.pendingNewChat);
-  const consumePendingNewChat = useMingoLauncherStore(s => s.consumePendingNewChat);
-
-  useEffect(() => {
-    if (!pendingNewChat) return;
-    if (!consumePendingNewChat()) return;
-    chatHandle.current?.startNewChat();
-  }, [pendingNewChat, consumePendingNewChat]);
-
-  // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
-  // a fresh chat with the composer prefilled and nothing sent. The same one-shot
-  // drain, through the handle, since the composer's text is the panel's own
-  // state.
-  const pendingDraft = useMingoLauncherStore(s => s.pendingDraft);
-  const consumePendingDraft = useMingoLauncherStore(s => s.consumePendingDraft);
-
-  useEffect(() => {
-    if (!pendingDraft) return;
-    const draft = consumePendingDraft();
-    if (!draft) return;
-    chatHandle.current?.prefillDraft(draft);
-  }, [pendingDraft, consumePendingDraft]);
 
   // Entity-context picker config (the `+` "Assign Item" menu + `@` trigger).
   // Stable so the lib's composer doesn't re-derive its icon map each render:
@@ -225,97 +309,80 @@ function EmbeddableChatPanel({
     [quickActions, sendInNewDialog],
   );
 
-  return (
-    <>
-      {/* The realtime tail for the active dialog is the session's, rendered by
-          `MingoChatProvider` beside the layout. */}
-      <EmbeddableChat
-        ref={chatHandle}
-        // Shell-less: the host `AppLayoutDrawer` owns the panel chrome,
-        // open/close, and positioning. `open` / `onOpenChange` are the same
-        // state the drawer is bound to, so the chat's in-header X button and
-        // the drawer close in lockstep.
-        shell={shell}
-        appearance={v2 ? 'v2' : 'classic'}
-        onCollapse={v2?.onCollapse}
-        collapseTo={v2?.collapseTo}
-        onExpand={v2?.onExpand}
-        dialogStatusOf={v2 ? dialogStatusOf : undefined}
-        // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
-        // one) with prompts that go into the composer, naming online devices.
-        whatToAsk={v2 ? loadWhatToAsk : undefined}
-        chatMenuExtraItems={chatMenuExtraItems}
-        open={open}
-        onOpenChange={onOpenChange}
-        closable={closable}
-        // Signed-in user's name for the header sub-line under the chat title.
-        // Fallback for the lib's server identity when the tenant identity route
-        // returns no name — sourced from the host auth store.
-        userDisplayName={userDisplayName}
-        userAvatarUrl={userAvatarUrl}
-        // Mingo mode is host-owned via `mingoState`, so we do NOT pass
-        // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
-        // The EXPLICIT empty object matters: omitting `modes` entirely makes
-        // the lib fall back to its legacy guide-only default, resurrecting the
-        // Guide (SSE hub) mode. With no `modes.guide`, the panel is
-        // Mingo-only: no mode toggle, no "Start Guide Chat" entry point, and
-        // the uncontrolled active mode defaults to 'mingo'.
-        modes={{}}
-        mingoState={state}
-        // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
-        // documentation, and each cited source renders as a chip whose target is
-        // resolved against this route; without it the lib derives one from
-        // `runtime.source`, which is the hub's doc tree, not ours.
-        baseRoute={KNOWLEDGE_BASE_ROUTE}
-        // PENDING approval cards are FILTERED OUT of their bubble by
-        // `useMingoDialogChat` (dedupe for interrupted retries), so a card that the
-        // reducer built renders nowhere unless it is handed back here — the
-        // standalone `/mingo` page has always done this, the drawer never did.
-        // That gap hid every pending approval in this panel, including the
-        // Product Guide's "create a support ticket" card whose own preamble
-        // tells the user to click Approve.
-        pendingApprovals={pendingApprovals}
-        // Dialog management for the host-injected Mingo state:
-        //  - search: the chat-history search bar emits the debounced term into
-        //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
-        //  - rename/archive: enable the row + header ⋯ menu (mutations live on
-        //    `mingoState` via `useMingoDialogActions`).
-        //  - compact: "Compact Chat Memory" in the same menus, flag-gated.
-        //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
-        //    `unarchiveDialog` enables restore.
-        mingoDialogCapabilities={{
-          searchQuery,
-          onSearchChange: setSearchQuery,
-          canRename: true,
-          canArchive: true,
-          fetchArchivedDialogs,
-          unarchiveDialog,
-          onCopyLink: copyDialogLink,
-          // The result is reported by `MingoCompactionWatchers` when the compaction ends.
-          compactDialog: compactDialog ? dialog => compactDialog(dialog.id) : undefined,
-        }}
-        // Admin-configured Mingo quick actions rendered as chips in the Mingo
-        // empty state. Omitted when none are configured so the lib keeps its
-        // default welcome content.
-        mingoWelcome={mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined}
-        contextPicker={contextPicker}
-        // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
-        // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
-        // for `[card://]`. Stable module-level fn so the message memo holds.
-        renderMention={renderMingoMention}
-        // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
-        // self-fetching chips as inline mentions — so manually attached context
-        // resolves its live name + link instead of the lib's label-only pill.
-        renderContextItem={renderMingoContextItem}
-        // Context memory (Figma 271:38656): the strip at the top of the composer
-        // card naming what Mingo remembers from this session's navigation — the
-        // open entity page plus the recently viewed ones — with a `⋯` dropdown
-        // to review and forget individual entries. Replaces the old under-the-
-        // header page-context banner. The strip self-hides when memory is empty.
-        contextMemory={contextMemory}
-      />
+  const props: OpenframeChatProps = {
+    dialogStatusOf: v2 ? dialogStatusOf : undefined,
+    // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
+    // one) with prompts that go into the composer, naming online devices.
+    whatToAsk: v2 ? loadWhatToAsk : undefined,
+    chatMenuExtraItems,
+    // Signed-in user's name for the header sub-line under the chat title.
+    // Fallback for the lib's server identity when the tenant identity route
+    // returns no name — sourced from the host auth store.
+    userDisplayName,
+    userAvatarUrl,
+    // Mingo mode is host-owned via `mingoState`, so we do NOT pass
+    // `modes.mingo` — that keeps the lib's built-in NATS adapter idle.
+    // The EXPLICIT empty object matters: omitting `modes` entirely makes
+    // the lib fall back to its legacy guide-only default, resurrecting the
+    // Guide (SSE hub) mode. With no `modes.guide`, the panel is
+    // Mingo-only: no mode toggle, no "Start Guide Chat" entry point, and
+    // the uncontrolled active mode defaults to 'mingo'.
+    modes: {},
+    mingoState: state,
+    // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
+    // documentation, and each cited source renders as a chip whose target is
+    // resolved against this route; without it the lib derives one from
+    // `runtime.source`, which is the hub's doc tree, not ours.
+    baseRoute: KNOWLEDGE_BASE_ROUTE,
+    // PENDING approval cards are FILTERED OUT of their bubble by
+    // `useMingoDialogChat` (dedupe for interrupted retries), so a card that the
+    // reducer built renders nowhere unless it is handed back here — the
+    // standalone `/mingo` page has always done this, the drawer never did.
+    // That gap hid every pending approval in this panel, including the
+    // Product Guide's "create a support ticket" card whose own preamble
+    // tells the user to click Approve.
+    pendingApprovals,
+    // Dialog management for the host-injected Mingo state:
+    //  - search: the chat-history search bar emits the debounced term into
+    //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
+    //  - rename/archive: enable the row + header ⋯ menu (mutations live on
+    //    `mingoState` via `useMingoDialogActions`).
+    //  - compact: "Compact Chat Memory" in the same menus, flag-gated.
+    //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
+    //    `unarchiveDialog` enables restore.
+    mingoDialogCapabilities: {
+      searchQuery,
+      onSearchChange: setSearchQuery,
+      canRename: true,
+      canArchive: true,
+      fetchArchivedDialogs,
+      unarchiveDialog,
+      onCopyLink: copyDialogLink,
+      // The result is reported by `MingoCompactionWatchers` when the compaction ends.
+      compactDialog: compactDialog ? dialog => compactDialog(dialog.id) : undefined,
+    },
+    // Admin-configured Mingo quick actions rendered as chips in the Mingo
+    // empty state. Omitted when none are configured so the lib keeps its
+    // default welcome content.
+    mingoWelcome: mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined,
+    contextPicker,
+    // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
+    // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
+    // for `[card://]`. Stable module-level fn so the message memo holds.
+    renderMention: renderMingoMention,
+    // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
+    // self-fetching chips as inline mentions — so manually attached context
+    // resolves its live name + link instead of the lib's label-only pill.
+    renderContextItem: renderMingoContextItem,
+    // Context memory (Figma 271:38656): the strip at the top of the composer
+    // card naming what Mingo remembers from this session's navigation — the
+    // open entity page plus the recently viewed ones — with a `⋯` dropdown
+    // to review and forget individual entries. Replaces the old under-the-
+    // header page-context banner. The strip self-hides when memory is empty.
+    contextMemory,
+  };
 
-      <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />
-    </>
-  );
+  const overlays = <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />;
+
+  return { props, overlays };
 }

@@ -56,3 +56,74 @@ describe('mingo launcher: closedForNavigation', () => {
     expect(store().closedForNavigation).toBe(false);
   });
 });
+
+/**
+ * The Mingo-first shell has no drawer: while its composer dock is mounted, every
+ * launcher request is ONE dock request, and nothing opens.
+ */
+describe('mingo launcher: composer dock', () => {
+  const store = () => useMingoLauncherStore.getState();
+
+  beforeEach(() => {
+    useMingoLauncherStore.setState({
+      isOpen: false,
+      pendingPrompt: null,
+      pendingDraft: null,
+      pendingNewChat: false,
+      dockMounted: false,
+      dockRequest: null,
+    });
+  });
+
+  it('queues each launcher request for the dock, opening nothing', () => {
+    store().setDockMounted(true);
+    const draft = { text: 'Fix the disk' };
+
+    for (const [launch, request] of [
+      [() => store().sendToMingo('hi'), { kind: 'prompt', prompt: 'hi' }],
+      [() => store().draftToMingo(draft), { kind: 'draft', draft }],
+      [() => store().startNewChat(), { kind: 'newChat' }],
+    ] as const) {
+      launch();
+      expect(store().dockRequest).toEqual(request);
+      expect(store().isOpen).toBe(false);
+      expect(store().pendingPrompt).toBeNull();
+      expect(store().pendingDraft).toBeNull();
+      expect(store().pendingNewChat).toBe(false);
+    }
+  });
+
+  it('hands a request out once', () => {
+    store().setDockMounted(true);
+    store().startNewChat();
+
+    expect(store().consumeDockRequest()).toEqual({ kind: 'newChat' });
+    expect(store().consumeDockRequest()).toBeNull();
+  });
+
+  it('adopts a classic request queued just before the dock mounted', () => {
+    store().draftToMingo({ text: 'Fix the disk' });
+    expect(store().isOpen).toBe(true);
+
+    store().setDockMounted(true);
+
+    expect(store().dockRequest).toEqual({ kind: 'draft', draft: { text: 'Fix the disk' } });
+    expect(store().pendingDraft).toBeNull();
+    expect(store().isOpen).toBe(false);
+  });
+
+  it('keeps an undrained request for the next dock, and launches the drawer again without one', () => {
+    store().setDockMounted(true);
+    store().sendToMingo('hi');
+
+    // StrictMode's development remount: what the dock adopted must survive it.
+    store().setDockMounted(false);
+    expect(store().dockRequest).toEqual({ kind: 'prompt', prompt: 'hi' });
+
+    // A drawer launch supersedes it, like every launcher request does the others.
+    store().startNewChat();
+    expect(store().pendingNewChat).toBe(true);
+    expect(store().isOpen).toBe(true);
+    expect(store().dockRequest).toBeNull();
+  });
+});

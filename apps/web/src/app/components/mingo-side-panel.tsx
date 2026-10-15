@@ -9,13 +9,15 @@ import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry'
 
 /**
  * Pages that need the whole content width (a remote screen, a terminal, the
- * script editor): Mingo starts at its minimum there. Path prefixes, matched
- * against the pathname, so they carry no query.
+ * file manager, the script editor): Mingo starts at its minimum there — the
+ * classic side panel collapsed, the Mingo-first composer dock down to its input
+ * row. Path prefixes, matched against the pathname, so they carry no query.
  */
 const FULL_WIDTH_PATHS = [
   '/devices/details/remote-desktop',
   '/devices/details/remote-shell',
   '/devices/details/remote-session',
+  '/devices/details/file-manager',
   '/scripts/new',
   '/scripts/edit',
 ] as const;
