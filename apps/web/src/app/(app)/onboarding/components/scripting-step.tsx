@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@flamingo-stack/openframe-frontend-core';
-import { SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { SCRIPT_SHELL_TYPES, SelectButton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, CheckboxBlock, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -26,7 +26,6 @@ import { routes } from '@/lib/routes';
 import { ScriptEditor } from '../../scripts/shared/components/script-editor';
 import { EDIT_SCRIPT_DEFAULT_VALUES } from '../../scripts/shared/types/edit-script.types';
 import { formToWriteInput } from '../../scripts/shared/utils/script-mappers';
-import { SCRIPT_SHELL_TYPES } from '../../scripts/shared/utils/shell-types';
 import { onboardingHintUrl } from '../onboarding-coach-marks';
 import { useStepActionState } from '../use-step-action-state';
 import { FullFormLink } from './full-form-link';

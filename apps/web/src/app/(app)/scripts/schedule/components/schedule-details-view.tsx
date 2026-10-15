@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
   InboxArrowUpIcon,
@@ -27,7 +28,7 @@ import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleArchive } from '../hooks/use-schedule-archive';
-import { formatScheduleStartAt, isEventTrigger, offlineBehaviorToLabel, repeatToLabel } from '../utils/schedule-timing';
+import { formatScheduleStartAt, offlineBehaviorToLabel, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import {
   SCHEDULE_DEFAULT_TAB,
