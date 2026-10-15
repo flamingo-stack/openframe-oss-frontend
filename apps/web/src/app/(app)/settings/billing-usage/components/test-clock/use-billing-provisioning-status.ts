@@ -60,7 +60,9 @@ export function useBillingProvisioningStatus() {
         environment,
         billingProvisioningStatusQuery,
         {},
-        { fetchPolicy: 'network-only' },
+        // Polled on Billing & Usage, which PAST_DUE leaves open while the
+        // subscription gate stays shut — see `subscription-gate.ts`.
+        { fetchPolicy: 'network-only', networkCacheConfig: { metadata: { skipSubscriptionGate: true } } },
       ).subscribe({
         next: data => {
           if (cancelled) return;
