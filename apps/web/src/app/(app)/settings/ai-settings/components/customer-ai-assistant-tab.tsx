@@ -1,13 +1,7 @@
 'use client';
 'use no memo';
 
-import { MonitorIcon, MoonStarIcon, Sun01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  ColorPickerInput,
-  ImageUploader,
-  Input,
-  TabSelector,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ColorPickerInput, ImageUploader, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Controller } from 'react-hook-form';
 import { type CommitAvatar, useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
@@ -41,8 +35,6 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
   const llmProvider = form.watch('llmProvider');
   const answerStyle = form.watch('answerStyle');
   const assistantName = form.watch('assistantName');
-  const providerModel = form.watch('providerModel');
-  const applicationTheme = form.watch('applicationTheme');
   const accentColor = form.watch('accentColor');
 
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
@@ -98,28 +90,11 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
       </div>
 
       <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-        <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-end">
-          <div className="min-w-0 flex-1">
-            <Controller
-              name="applicationTheme"
-              control={form.control}
-              render={({ field }) => (
-                <TabSelector
-                  label="Application Theme"
-                  variant="primary"
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  items={[
-                    { id: 'DARK', label: 'Dark', icon: <MoonStarIcon className="size-5" /> },
-                    { id: 'LIGHT', label: 'Light', icon: <Sun01Icon className="size-5" /> },
-                    { id: 'SYSTEM', label: 'System', icon: <MonitorIcon className="size-5" /> },
-                  ]}
-                />
-              )}
-            />
-          </div>
-
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* The accent is the only appearance setting (the client picks the theme
+            in the Fae app). Same two columns as the previews below, so the field
+            ends where the welcome preview does. */}
+        <div className="grid gap-[var(--spacing-system-l)] content-md:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
             <p className="text-ods-text-primary text-h3">Accent Color</p>
             <Controller
               name="accentColor"
@@ -133,13 +108,6 @@ export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }:
           assistantName={assistantName || view.assistantName}
           avatarUrl={avatarUrl}
           accentColor={accentColor || view.accentColor}
-          theme={applicationTheme}
-          providerName={llmProvider}
-          modelDisplayName={getProviderModelLabel(
-            modelsByProvider,
-            llmProvider,
-            providerModel || aiConfig.providerModel,
-          )}
         />
       </div>
 

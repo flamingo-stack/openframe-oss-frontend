@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Input, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -38,7 +39,13 @@ export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   if (!testClockEnabled) return null;
 
   return (
-    <Suspense fallback={<Skeleton className="h-[104px] w-full rounded-md" />}>
+    <Suspense
+      fallback={
+        <LoadingRegion label="Loading the test clock">
+          <UnifiedSkeleton className="h-[104px] w-full rounded-md" />
+        </LoadingRegion>
+      }
+    >
       <TestClockPanelContent onClockChanged={onClockChanged} />
     </Suspense>
   );

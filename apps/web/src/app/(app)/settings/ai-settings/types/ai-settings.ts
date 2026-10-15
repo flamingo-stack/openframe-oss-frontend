@@ -75,7 +75,6 @@ export interface ClientView {
   organizationId: string | null;
   assistantName: string;
   assistantAvatar: AiImage | null;
-  applicationTheme: ApplicationTheme;
   accentColor: string;
   createdAt: string;
   updatedAt: string | null;
@@ -83,6 +82,7 @@ export interface ClientView {
 
 export interface ClientViewInput {
   assistantName?: string;
+  /** No longer configurable: sent only when a save creates the view (see `withClientViewCreateFields`). */
   applicationTheme?: ApplicationTheme;
   accentColor?: string;
 }
@@ -112,7 +112,6 @@ export function getDefaultClientView(organizationId: string | null = null): Clie
     organizationId,
     assistantName: 'AI',
     assistantAvatar: null,
-    applicationTheme: 'DARK',
     accentColor: '#F357BB',
     createdAt: '',
     updatedAt: null,

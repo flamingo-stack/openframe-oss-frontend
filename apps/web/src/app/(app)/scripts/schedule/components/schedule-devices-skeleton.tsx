@@ -1,6 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceSelectionMode,
   DeviceSelectionModeRadio,
@@ -85,17 +86,15 @@ export function ScheduleDevicesSkeleton({ scheduleId }: { scheduleId: string }) 
       actionsVariant="primary-buttons"
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <span role="status" className="sr-only">
-        Loading schedule…
-      </span>
-
-      <div className="flex flex-col gap-[var(--spacing-system-l)]" inert>
-        <ScheduleInfoBarSkeleton />
-        {/* The REAL mode block, locked and with nothing marked: both rows are
-            static copy, so only the SELECTION is data — and `''` is how this
-            block says it has none yet. */}
-        <DeviceSelectionModeRadio value="" disabled />
-      </div>
+      <LoadingRegion className="contents" label="Loading schedule">
+        <div className="flex flex-col gap-[var(--spacing-system-l)]" inert>
+          <ScheduleInfoBarSkeleton region={false} />
+          {/* The REAL mode block, locked and with nothing marked: both rows are
+              static copy, so only the SELECTION is data — and `''` is how this
+              block says it has none yet. */}
+          <DeviceSelectionModeRadio value="" disabled />
+        </div>
+      </LoadingRegion>
     </PageLayout>
   );
 }

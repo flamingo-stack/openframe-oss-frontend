@@ -15,6 +15,7 @@ import { DateColumnHeader } from '@/app/components/shared/date-column-header';
  */
 const INERT_LOG_ID_HEADER = <DateColumnHeader label="Log ID" />;
 
-export function LogsTableSkeleton() {
-  return <LogsTableSkeletonView logIdHeader={INERT_LOG_ID_HEADER} />;
+/** `region={false}` inside another loading region, which announces for the table. */
+export function LogsTableSkeleton({ region = true }: { region?: boolean } = {}) {
+  return <LogsTableSkeletonView logIdHeader={INERT_LOG_ID_HEADER} region={region} />;
 }

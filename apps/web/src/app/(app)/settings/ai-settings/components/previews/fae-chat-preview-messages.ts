@@ -1,12 +1,20 @@
 import type { Message } from '@flamingo-stack/openframe-frontend-core/components/chat';
 
-/** Static sample conversation for the read-only chat preview. */
+/** Name the sample end user signs approvals with. */
+const SAMPLE_USER_NAME = 'John Smith';
+
+/**
+ * Static sample conversation for the read-only chat preview: a fix the client
+ * approves, then a hand-off to a technician, so the preview shows the thread
+ * blocks and the hand-off bar the Fae window renders for that state.
+ */
 export function buildFaeChatPreviewMessages(assistantName: string, avatarUrl?: string): Message[] {
-  // Fixed time so every bubble shows the same stamp.
+  // Fixed time so every message shows the same stamp.
   const at = new Date();
   at.setHours(14, 47, 0, 0);
 
-  const base = {
+  const user = { role: 'user' as const, authorType: 'user' as const, timestamp: at };
+  const assistant = {
     role: 'assistant' as const,
     name: assistantName,
     assistantType: 'fae' as const,
@@ -15,45 +23,55 @@ export function buildFaeChatPreviewMessages(assistantName: string, avatarUrl?: s
   };
 
   return [
+    { ...user, id: 'preview-1', content: 'My laptop has been running really slowly lately' },
     {
-      ...base,
-      id: 'preview-1',
+      ...assistant,
+      id: 'preview-2',
       content: "I'll run a quick diagnostic to identify what's causing the performance issues.",
     },
     {
-      ...base,
-      id: 'preview-2',
+      ...assistant,
+      id: 'preview-3',
       content: [
         {
           type: 'text',
-          text: 'I found that your C: drive is 89% full. I can clean up temporary files to free some space – may I proceed with clearing C:/temp?',
+          text: 'I found that your C: drive is 89% full. I can clean up temporary files to free some space – may I proceed?',
         },
         {
           type: 'approval_request',
           status: 'approved',
+          resolvedByName: SAMPLE_USER_NAME,
           data: {
             command: 'Get-ChildItem C:\\temp -Recurse | Remove-Item -Force -Recurse',
-            explanation:
-              'Removes all temporary files and folders from C:\\temp directory to free up disk space. This PowerShell command recursively deletes contents while forcing removal of read-only files.',
+            explanation: 'Clear temporary files from C:\\temp to free up disk space',
           },
         },
       ],
     },
     {
-      ...base,
-      id: 'preview-3',
-      content: 'Cleaning temporary files now...',
-    },
-    {
-      ...base,
+      ...assistant,
       id: 'preview-4',
       content: "Complete! I've freed up 2.4 GB of disk space, which should help with performance.",
     },
+    { ...user, id: 'preview-5', content: 'Thanks, but Chrome still freezes every few minutes' },
     {
-      ...base,
-      id: 'preview-5',
-      content:
-        "I also detected 19 Chrome tabs running under a suspicious parent process that doesn't match your user profile. This could be malware. I'm escalating this to our security team for analysis – please give me a moment. Escalated to technician – awaiting response.",
+      ...assistant,
+      id: 'preview-6',
+      content: [
+        {
+          type: 'text',
+          text: "I detected 19 Chrome tabs running under a suspicious parent process that doesn't match your user profile. This could be malware, so I'm handing it to your technician.",
+        },
+        {
+          type: 'ticket_escalated',
+          data: {
+            ticketId: 'preview-ticket',
+            ticketNumber: 1932,
+            reason: 'AI_REQUESTED',
+            text: 'A technician will review the ticket and reply here when available.',
+          },
+        },
+      ],
     },
   ];
 }
