@@ -247,11 +247,7 @@ function InitialSetupCardContent() {
  */
 export function InitialSetupSkeleton() {
   return (
-    <LoadingRegion
-      label="Loading setup steps"
-      as="section"
-      className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]"
-    >
+    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
       <div className="flex min-w-0 flex-col">
         {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
             `text-h6` line boxes so the header height matches the loaded card exactly.
@@ -271,7 +267,10 @@ export function InitialSetupSkeleton() {
           down when the card loads. */}
       <BookCallSection />
 
-      <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
+      <LoadingRegion
+        label="Loading setup steps"
+        className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0"
+      >
         {STEP_META.map(meta => (
           <OnboardingAccordionItem
             key={meta.step}
@@ -281,7 +280,7 @@ export function InitialSetupSkeleton() {
             description={meta.description}
           />
         ))}
-      </div>
-    </LoadingRegion>
+      </LoadingRegion>
+    </section>
   );
 }

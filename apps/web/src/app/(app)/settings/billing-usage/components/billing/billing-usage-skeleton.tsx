@@ -55,12 +55,12 @@ export function BillingUsageSkeleton() {
   // a Next Payment row, and an invoices table the real page never renders.
   if (isBillingHidden()) {
     return (
-      <LoadingRegion className="contents" label="Loading usage">
-        <PageLayout
-          title="Usage"
-          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-          backButton={{ label: 'Back', onClick: handleBack }}
-        >
+      <PageLayout
+        title="Usage"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+      >
+        <LoadingRegion className="contents" label="Loading usage">
           <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
             <DashboardInfoCard loading value="" title="Device Usage" showProgress />
             <DashboardInfoCard loading value="" title="AI Usage" />
@@ -75,18 +75,18 @@ export function BillingUsageSkeleton() {
               <BillingRow label="Devices included" value={<Value width="w-8" />} />
             </SectionBlock>
           </div>
-        </PageLayout>
-      </LoadingRegion>
+        </LoadingRegion>
+      </PageLayout>
     );
   }
 
   return (
-    <LoadingRegion className="contents" label="Loading billing and usage">
-      <PageLayout
-        title="Billing & Usage"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back to Settings', onClick: handleBack }}
-      >
+    <PageLayout
+      title="Billing & Usage"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      backButton={{ label: 'Back to Settings', onClick: handleBack }}
+    >
+      <LoadingRegion className="contents" label="Loading billing and usage">
         <TestModeBanner />
 
         {/* Three cards unconditionally: the AI pair is dropped only for a
@@ -129,7 +129,7 @@ export function BillingUsageSkeleton() {
           </div>
           <TableSkeleton columns={INVOICES_TABLE_COLUMNS} rows={INVOICE_SKELETON_ROWS} region={false} />
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

@@ -14,9 +14,11 @@ import { SOFTWARE_DETAIL_TITLE } from './software-detail-title';
  */
 export function SoftwareDetailSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading software">
+    <>
       <DetailTitle title={SOFTWARE_DETAIL_TITLE} backTo={routes.software.list} loading />
-      <SummaryCardSkeleton columns={2} labels={Object.values(SOFTWARE_DETAIL_SUMMARY_LABELS)} />
-    </LoadingRegion>
+      <LoadingRegion className="contents" label="Loading software">
+        <SummaryCardSkeleton columns={2} labels={Object.values(SOFTWARE_DETAIL_SUMMARY_LABELS)} />
+      </LoadingRegion>
+    </>
   );
 }

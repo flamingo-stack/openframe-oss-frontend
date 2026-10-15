@@ -202,15 +202,15 @@ export function MonitoringDetailSkeleton({ kind, onBack, queryTab = 'results' }:
   const isPolicy = kind === 'policy';
 
   return (
-    <LoadingRegion className="contents" label={isPolicy ? 'Loading policy' : 'Loading query'}>
-      <PageLayout
-        loading
-        backButton={{ label: 'Back', onClick: onBack }}
-        actions={editActions(kind)}
-        menuActions={deleteMenuActions(kind)}
-        actionsVariant="menu-primary"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      >
+    <PageLayout
+      loading
+      backButton={{ label: 'Back', onClick: onBack }}
+      actions={editActions(kind)}
+      menuActions={deleteMenuActions(kind)}
+      actionsVariant="menu-primary"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <LoadingRegion className="contents" label={isPolicy ? 'Loading policy' : 'Loading query'}>
         {isPolicy ? <StackedRowsPanel rows={policyInfoSkeletonRows()} /> : <QueryInfoSkeleton />}
 
         <div
@@ -253,8 +253,8 @@ export function MonitoringDetailSkeleton({ kind, onBack, queryTab = 'results' }:
             </div>
           </div>
         )}
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }
 
@@ -272,14 +272,14 @@ export function MonitoringEditSkeleton({ kind, onBack }: MonitoringSkeletonProps
   const isQuery = kind === 'query';
 
   return (
-    <LoadingRegion className="contents" label={isQuery ? 'Loading query' : 'Loading policy'}>
-      <PageLayout
-        loading
-        backButton={{ label: 'Back', onClick: onBack }}
-        actions={[{ label: COPY[kind].save, variant: 'accent', disabled: true }]}
-        actionsVariant="primary-buttons"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      >
+    <PageLayout
+      loading
+      backButton={{ label: 'Back', onClick: onBack }}
+      actions={[{ label: COPY[kind].save, variant: 'accent', disabled: true }]}
+      actionsVariant="primary-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <LoadingRegion className="contents" label={isQuery ? 'Loading query' : 'Loading policy'}>
         <div className="space-y-6 content-md:space-y-8">
           {/* Name — and, on the query form, Frequency beside it. */}
           <div
@@ -317,7 +317,7 @@ export function MonitoringEditSkeleton({ kind, onBack }: MonitoringSkeletonProps
             <DeviceSelectorSkeleton region={false} />
           </div>
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

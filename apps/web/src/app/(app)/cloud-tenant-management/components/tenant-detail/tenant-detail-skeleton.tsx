@@ -20,11 +20,11 @@ const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'E
  */
 export function TenantDetailSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading tenant">
+    <>
       <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
+      <LoadingRegion className="flex flex-1 flex-col gap-[var(--spacing-system-l)]" label="Loading tenant">
         <TenantSummaryCardSkeleton region={false} />
-      </div>
-    </LoadingRegion>
+      </LoadingRegion>
+    </>
   );
 }

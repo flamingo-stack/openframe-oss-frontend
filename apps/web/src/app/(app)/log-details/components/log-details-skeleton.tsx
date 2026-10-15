@@ -117,13 +117,13 @@ function DetailsSkeleton() {
 
 export function LogDetailsSkeleton({ onBack }: LogDetailsSkeletonProps) {
   return (
-    <LoadingRegion className="contents" label="Loading log details">
-      <PageLayout
-        title="Log Details"
-        backButton={{ label: 'Back', onClick: onBack }}
-        selector={<UnifiedSkeleton className="h-12 w-[180px] rounded-[6px]" />}
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      >
+    <PageLayout
+      title="Log Details"
+      backButton={{ label: 'Back', onClick: onBack }}
+      selector={<UnifiedSkeleton className="h-12 w-[180px] rounded-[6px]" />}
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <LoadingRegion className="contents" label="Loading log details">
         <div className="flex w-full flex-col gap-6">
           <StatusTimestampSkeleton />
           <LogSummaryCardSkeleton />
@@ -131,7 +131,7 @@ export function LogDetailsSkeleton({ onBack }: LogDetailsSkeletonProps) {
           <FullInformationSkeleton />
           <DetailsSkeleton />
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

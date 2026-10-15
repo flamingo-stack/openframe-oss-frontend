@@ -137,18 +137,20 @@ function SettingsFooter({
  */
 function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
   return (
-    <LoadingRegion className="contents" label="Loading notification settings">
-      <ModalV2Content className={CONTENT_CLASS}>
-        <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
-        <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-          <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-          {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-            <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} />
-          ))}
-        </div>
-      </ModalV2Content>
+    <>
+      <LoadingRegion className="contents" label="Loading notification settings">
+        <ModalV2Content className={CONTENT_CLASS}>
+          <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
+          <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+            <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
+            {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+              <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} />
+            ))}
+          </div>
+        </ModalV2Content>
+      </LoadingRegion>
       <SettingsFooter onClose={onClose} />
-    </LoadingRegion>
+    </>
   );
 }
 

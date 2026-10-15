@@ -35,18 +35,18 @@ const SIDEBAR_ACTIONS: PageActionButton[] = [
  */
 export function TicketDetailsSkeleton({ onBack }: TicketDetailsSkeletonProps) {
   return (
-    <LoadingRegion className="contents" label="Loading ticket">
-      <PageLayout
-        loading
-        backButton={{ label: 'Back', onClick: onBack }}
-        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        actions={SIDEBAR_ACTIONS}
-        actionsVariant="icon-buttons"
-        contentClassName="flex min-h-0 flex-col"
-      >
+    <PageLayout
+      loading
+      backButton={{ label: 'Back', onClick: onBack }}
+      className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      actions={SIDEBAR_ACTIONS}
+      actionsVariant="icon-buttons"
+      contentClassName="flex min-h-0 flex-col"
+    >
+      <LoadingRegion className="contents" label="Loading ticket">
         <SidebarLayoutSkeleton />
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }
 

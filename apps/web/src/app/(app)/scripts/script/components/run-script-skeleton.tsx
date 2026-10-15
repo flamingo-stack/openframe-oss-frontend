@@ -28,14 +28,14 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
 
   return (
-    <LoadingRegion className="contents" label="Loading script">
-      <PageLayout
-        title="Run Script"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={ACTIONS}
-        actionsVariant="primary-buttons"
-        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      >
+    <PageLayout
+      title="Run Script"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={ACTIONS}
+      actionsVariant="primary-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <LoadingRegion className="contents" label="Loading script">
         {/* Same 3 stats as the loaded card (`showTimeout` is off on the run page). */}
         <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
@@ -92,7 +92,7 @@ export function RunScriptSkeleton({ scriptId }: { scriptId: string }) {
             addAllBehavior="replace"
           />
         </div>
-      </PageLayout>
-    </LoadingRegion>
+      </LoadingRegion>
+    </PageLayout>
   );
 }

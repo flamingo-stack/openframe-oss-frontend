@@ -165,18 +165,16 @@ function IncidentDetailsFrame({ header, body }: { header: ReactNode; body: React
 /** The whole page before it may render at all (the feature flag still unanswered). */
 export function IncidentDetailsSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading incident">
-      <IncidentDetailsFrame
-        header={<IncidentHeaderSkeleton region={false} />}
-        body={
-          <>
-            <IncidentSummaryCardSkeleton region={false} />
-            <NotesSectionSkeleton region={false} />
-            <IncidentQueryResultsSkeleton region={false} />
-          </>
-        }
-      />
-    </LoadingRegion>
+    <IncidentDetailsFrame
+      header={<IncidentHeaderSkeleton region={false} />}
+      body={
+        <LoadingRegion className="contents" label="Loading incident">
+          <IncidentSummaryCardSkeleton region={false} />
+          <NotesSectionSkeleton region={false} />
+          <IncidentQueryResultsSkeleton region={false} />
+        </LoadingRegion>
+      }
+    />
   );
 }
 
