@@ -22,6 +22,11 @@
  *
  * Realtime is a rendered component (`<DialogSubscription>`), not a hook, so
  * this returns a `subscription` bundle the host renders alongside the chat.
+ *
+ * Call it in ONE place: `MingoChatProvider` (`../providers`) runs it once per
+ * session and renders the subscription; surfaces read the result through
+ * `useMingoChatSurface()`. A second call is a second dialog list poll and a
+ * second live tail applying every chunk again.
  */
 
 import type {
