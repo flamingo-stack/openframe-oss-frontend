@@ -55,5 +55,9 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
+  // The Mingo-first chat and archive pages fill `<main>` (`h-full`): the default
+  // bottom padding would add its height as a scroll under them. In the classic shell
+  // both routes only redirect, so the override costs nothing there.
+  if (pathname.startsWith('/mingo/chat') || pathname.startsWith('/mingo/archive')) return 'pb-0 md:pb-0';
   return undefined;
 }
