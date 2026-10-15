@@ -82,18 +82,18 @@ function SignupFormSkeleton() {
 }
 
 /**
- * Providers first (they need nothing typed), then the email — and nothing else.
+ * The email, then the generic providers under their divider — and nothing else.
  *
- * The login screen has no submit: the tenant's own SSO buttons appear under the field only once an
+ * The login screen has no submit: a tenant's own methods replace the generic ones only once an
  * address has resolved to a tenant, which cannot have happened yet while this is on screen.
  */
 function LoginFormSkeleton() {
   return (
     <>
       <HeaderSkeleton />
-      <SsoProviderButtonsSkeleton />
-      <DividerSkeleton />
       <FieldSkeleton />
+      <DividerSkeleton />
+      <SsoProviderButtonsSkeleton />
     </>
   );
 }
