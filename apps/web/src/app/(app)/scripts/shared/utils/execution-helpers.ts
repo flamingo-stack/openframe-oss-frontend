@@ -1,6 +1,11 @@
+import {
+  SCRIPT_EXECUTION_STATUS_PRESENTATION,
+  type ScriptExecutionStatusPresentation,
+  type ScriptExecutionStatusVariant,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 // Value import: the generated module exports each enum as both a `const` and a
 // `type` under the same name, so these stand in for hardcoded literals.
-import { PrivilegeLevel, ScriptExecutionStatus } from '@/generated/schema-enums';
+import { PrivilegeLevel, type ScriptExecutionStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { presentationFor } from '@/lib/exhaustive-map';
 
@@ -9,34 +14,22 @@ import { presentationFor } from '@/lib/exhaustive-map';
  * table and the single-execution details page so labels/variants stay in sync.
  */
 
-export type TagVariant = 'success' | 'error' | 'warning' | 'grey';
-
-interface ExecutionStatusPresentation {
-  /** Human label (design: SUCCESS reads as "Completed"). */
-  label: string;
-  /** Tag color variant. */
-  variant: TagVariant;
-  /** Not a final state — the details page polls while an execution is in one. */
-  inFlight: boolean;
-}
+export type TagVariant = ScriptExecutionStatusVariant;
 
 /**
- * Every execution status, in one exhaustive table.
+ * Every execution status, in one exhaustive table: the lib's, which the
+ * Execution History's cells read too.
  *
  * Typed as `Record<ScriptExecutionStatus, …>` on purpose: when the backend adds
  * a status and `npm run fetch-schema && npm run generate-enums` widens the enum,
- * this object stops type-checking until the new value is given a label, a color
- * and a polling answer — instead of silently landing in a `default:` branch that
- * renders the raw `SOME_NEW_STATUS` in a grey tag.
+ * this stops type-checking until the lib's table gives the new value a label, a
+ * color and a polling answer — instead of it silently rendering the raw
+ * `SOME_NEW_STATUS` in a grey tag.
  */
-const EXECUTION_STATUS_PRESENTATION = {
-  [ScriptExecutionStatus.QUEUED]: { label: 'Queued', variant: 'grey', inFlight: true },
-  [ScriptExecutionStatus.RUNNING]: { label: 'Running', variant: 'warning', inFlight: true },
-  [ScriptExecutionStatus.SUCCESS]: { label: 'Completed', variant: 'success', inFlight: false },
-  [ScriptExecutionStatus.FAILED]: { label: 'Failed', variant: 'error', inFlight: false },
-} satisfies Record<ScriptExecutionStatus, ExecutionStatusPresentation>;
+const EXECUTION_STATUS_PRESENTATION: Record<ScriptExecutionStatus, ScriptExecutionStatusPresentation> =
+  SCRIPT_EXECUTION_STATUS_PRESENTATION;
 
-/** Human label for an execution status. */
+/** Human label for an execution status (SUCCESS reads as "Completed"). */
 export function executionStatusLabel(status: ScriptExecutionStatus | string | null | undefined): string {
   return presentationFor(EXECUTION_STATUS_PRESENTATION, status)?.label ?? (status ? String(status) : EMPTY_VALUE);
 }

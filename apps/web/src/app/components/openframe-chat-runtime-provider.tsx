@@ -59,9 +59,9 @@ import { type ReactNode, useCallback, useMemo } from 'react';
 import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
-import { refreshAccessToken } from '@/lib/token-refresh-manager';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -73,7 +73,10 @@ import { refreshAccessToken } from '@/lib/token-refresh-manager';
  * case-study / …) still opens OUT to its RAG-authoritative `externalUrl` on
  * the content hub.
  */
+import { runtimeEnv } from '@/lib/runtime-config';
+import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
+import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -97,6 +100,27 @@ const CHAT_SOURCE = 'openframe' as const;
  * refresh, today's behavior), never a retry with a genuinely dead token.
  */
 let lastChatSendEpoch = 0;
+
+/**
+ * The tenant gateway's origin, whenever auth rides in a header instead of a
+ * cookie: the native shell and dev-ticket web (`isBearerAuthMode`). Both call
+ * the gateway ABSOLUTE and cross-origin, so `embedAuthedFetch`'s guard has to
+ * sanction exactly that origin, and `needsBearerAssetFetch` reads the same list
+ * to decide that a gateway image (`/api/images/...`, built by
+ * `getFullImageUrl`) is fetched with the bearer rather than loaded by a plain
+ * `<img>`, which carries no header and gets a 401.
+ *
+ * It was the shell's `CONTENT_ORIGIN` alone, so on dev-ticket web every
+ * organization logo and avatar answered 401.
+ */
+function bearerGatewayOrigins(): string[] {
+  if (!isBearerAuthMode()) return [];
+  try {
+    return [new URL(runtimeEnv.tenantHostUrl()).origin];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Auth adapter the lib's `embedAuthedFetch` consults on every embedded-chat
@@ -136,12 +160,20 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // rotation (which, with rotating refresh tokens, invalidates the credential
   // just obtained).
   refresh: () => refreshAccessToken(lastChatSendEpoch),
-  // Native shell only: the page origin (`capacitor://localhost`) has no server
-  // behind it, so every `/content` call goes ABSOLUTE to the tenant gateway
-  // (see `help-center/endpoints.ts`) — sanction exactly that origin for
-  // `embedAuthedFetch`'s cross-origin guard. Empty on the web, where the
+  // Mobile force-update, as `apiClient`, Relay and the upload helpers do it:
+  // once this bundle is refused nothing goes out, and a 426 flips the app into
+  // the "Update required" screen ahead of the 401 → `refresh` path, never
+  // retried. Both are no-ops off the mobile shell.
+  beforeRequest: () => {
+    if (isUpdateRequired()) throw new UpdateRequiredError();
+  },
+  onResponse: async response => {
+    if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+  },
+  // The one origin the bearer belongs to, in bearer mode only (see
+  // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
   // same-origin rule stays absolute.
-  allowedOrigins: CONTENT_ORIGIN ? [CONTENT_ORIGIN] : [],
+  allowedOrigins: bearerGatewayOrigins(),
   // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
   // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
   // token (a refresh it could not run). Native-only: the web branch never emits.
@@ -401,9 +433,16 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // identity an admin set in chat config (`emptyStateUrl`, the request the chat
   // panel makes), else the Mingo agent's published one (`aiAgentConfigUrl`),
   // read only once the platform is known to have none.
-  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl);
+  // Read once the session is in place, like everything else the shell reads:
+  // before it the request is refused (a dev-ticket landing mounts this provider
+  // before the ticket is exchanged).
+  const { isReady: sessionResolved, isAuthenticated } = useAuthSession();
+  const sessionReady = sessionResolved && isAuthenticated;
+  const { config: platformConfig, loaded: platformLoaded } = useEmptyStateConfig(runtime.endpoints.emptyStateUrl, {
+    enabled: sessionReady,
+  });
   const agentConfigUrl = runtime.endpoints.aiAgentConfigUrl?.(ASSISTANT_AGENT_SLUG);
-  const needsAgent = platformLoaded && (!platformConfig.name || !platformConfig.icon);
+  const needsAgent = sessionReady && platformLoaded && (!platformConfig.name || !platformConfig.icon);
   const { config: agentConfig } = useEmptyStateConfig(agentConfigUrl, {
     enabled: needsAgent && Boolean(agentConfigUrl),
   });
@@ -419,7 +458,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       available: chatCanOpen,
       name: assistantName,
       icon: assistantIconNode,
-      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/quick-actions/questions`,
+      askPromptsUrl: `${CONTENT_ORIGIN}/content/api/faqs/questions`,
       open: openMingo,
     }),
     [chatCanOpen, assistantName, assistantIconNode],

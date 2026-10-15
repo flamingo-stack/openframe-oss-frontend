@@ -45,7 +45,8 @@ export function EditTenantView({ id }: { id: string }) {
       actions={actions}
       actionsVariant="primary-buttons"
     >
-      <Suspense fallback={<TenantSummaryCardSkeleton identityOnly />}>
+      {/* The status below announces the wait, so the card's own region stays quiet. */}
+      <Suspense fallback={<TenantSummaryCardSkeleton identityOnly region={false} />}>
         <TenantRecordLoader id={id} onResolved={setRecord} />
       </Suspense>
       {/* Locked fields announce nothing on their own; the text switches, the live region stays mounted. */}

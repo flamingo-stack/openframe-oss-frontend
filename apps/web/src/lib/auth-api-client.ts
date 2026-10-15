@@ -47,6 +47,27 @@ export interface AuthApiResponse<T = unknown> {
   ok: boolean;
 }
 
+/**
+ * What an auth screen shows for a failed call. A rejected field comes back as a 400 whose `message`
+ * prefixes each failure with its field name (`password: …`), so the per-field messages are read
+ * instead. A 5xx with no JSON body is what the edge firewall answers a request it blocks with (a
+ * bare 502), and it would otherwise read "Request failed with status 502".
+ */
+export function getAuthFailureMessage(response: AuthApiResponse, fallback: string): string {
+  const body = response.data as { message?: unknown; fieldErrors?: { message?: unknown }[] } | undefined;
+  const fieldMessages = (body?.fieldErrors ?? [])
+    .map(fieldError => fieldError.message)
+    .filter((message): message is string => typeof message === 'string' && message.trim() !== '')
+    .map(message => message.trim().replace(/\.?$/, '.'));
+  if (fieldMessages.length > 0) return Array.from(new Set(fieldMessages)).join(' ');
+  if (typeof body?.message === 'string' && body.message.trim()) return body.message;
+  if (response.status === 0) return 'Could not reach the server. Check your connection and try again.';
+  if (!body && response.status >= 500) {
+    return 'The request did not go through. Try again, and if it keeps failing, remove characters such as < > or " from the form.';
+  }
+  return fallback;
+}
+
 function buildAuthUrl(path: string): string {
   const base = runtimeEnv.sharedHostUrl();
   if (!base) return path.startsWith('/') ? path : `/${path}`;

@@ -225,7 +225,7 @@ export class MeshControlClient {
         const checkConnection = () => {
           if (this.isOpen) {
             resolve();
-          } else if (this.wsManager?.getState() === 'failed') {
+          } else if (!this.wsManager || this.wsManager.getState() === 'failed') {
             reject(new Error('Failed to establish control connection'));
           } else {
             setTimeout(checkConnection, 100);

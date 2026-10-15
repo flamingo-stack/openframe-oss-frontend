@@ -214,7 +214,7 @@ export function useTicketTagOptions() {
 // --- Ticket search ---
 
 interface TicketSearchNode {
-  id: string;
+  ticketId: string;
   ticketNumber: number | null;
   title: string | null;
   organizationId: string | null;
@@ -250,7 +250,7 @@ async function fetchTicketSearchOptions(
       variables: {
         search: search || undefined,
         filter: Object.keys(filter).length ? filter : undefined,
-        pagination: { limit: 50 },
+        first: 50,
         sort: TICKETS_DEFAULT_SORT,
       },
     },
@@ -260,10 +260,10 @@ async function fetchTicketSearchOptions(
     .filter(({ node }) => node.statusDefinition?.kind !== 'ARCHIVED')
     .map(({ node }) => {
       const number = node.ticketNumber != null ? `#${node.ticketNumber}` : '';
-      const label = [number, node.title].filter(Boolean).join(' ') || node.id;
+      const label = [number, node.title].filter(Boolean).join(' ') || node.ticketId;
       return {
         label,
-        value: node.id,
+        value: node.ticketId,
         organizationId: node.organizationId,
         organizationName: node.organizationName,
         organizationImageUrl: getFullImageUrl(node.organizationImage?.imageUrl, node.organizationImage?.hash),

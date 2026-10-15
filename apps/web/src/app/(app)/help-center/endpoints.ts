@@ -28,7 +28,7 @@
  * 401-refresh). Same-origin keeps `embedAuthedFetch` valid in prod builds too.
  */
 import type { EndpointsRuntime } from '@flamingo-stack/openframe-frontend-core/contexts';
-import { TRUST_CENTER_API_PATH } from '@flamingo-stack/openframe-frontend-core/types';
+import { DOWNLOADS_API_PATH, TRUST_CENTER_API_PATH } from '@flamingo-stack/openframe-frontend-core/types';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
@@ -40,13 +40,22 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 /**
  * The `/content` proxy root (no `/api` suffix). Exported for the two callers
  * that need the base rather than a finished endpoint:
- *   - `<FaqSection apiBaseUrl>`, which self-builds `/api/faqs?…` onto it;
+ *   - `<FaqSection apiBaseUrl>` and a page's `faq` prop (`pageFaq`), which
+ *     self-build `/api/faqs?…` onto it;
  *   - RELATIVE hub URLs that arrive INSIDE a payload and have to be routed back
  *     through the proxy — the walkthrough video's `captionsUrl` comes as
  *     `/api/captions/…` and would otherwise resolve against the app origin.
  */
 export const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
 const CONTENT = `${CONTENT_BASE}/api`;
+
+/**
+ * A Help Center page's own FAQ block: the lib's shared pages take it as their
+ * `faq` prop. The topic is what the page is about, written by the page (the
+ * hub shows the FAQs its admin wrote for that topic); it is never read from
+ * the route. A topic with no FAQ renders nothing.
+ */
+export const pageFaq = (topic: string) => ({ topic, apiBaseUrl: CONTENT_BASE });
 
 /**
  * The route prefix this whole section is mounted under.
@@ -87,12 +96,16 @@ export const EP = {
   // product releases
   productReleases: `${CONTENT}/releases`,
   productReleaseBySlug: (slug: string) => `${CONTENT}/releases/${slug}`,
-  // legal (privacy / terms)
+  // legal: one document, and the hub's list of them (one Help Center card per published document)
   legal: (docType: string) => `${CONTENT}/legal/${docType}`,
+  legalDocuments: `${CONTENT}/legal`,
   // trust center (Vanta-fed public projection) — the lib owns the hub path
   // (`TRUST_CENTER_API_PATH` = `/api/trust-center`), so it is prefixed onto the
   // proxy root rather than re-spelled (same spelling as react-embedding-example).
   trustCenter: `${CONTENT_BASE}${TRUST_CENTER_API_PATH}`,
+  // downloads (desktop installers + install commands), the same way: the lib owns
+  // the hub path (`DOWNLOADS_API_PATH` = `/api/downloads`).
+  downloads: `${CONTENT_BASE}${DOWNLOADS_API_PATH}`,
   // FAQs — `<FaqSection apiBaseUrl=CONTENT_BASE>` self-builds `/api/faqs`.
   // knowledge base (docs hub) — the lib `<DocsHubPage>` fetches the tree +
   // content from `…/docs/sources/<sourceId>/{structure,content}`, resolves

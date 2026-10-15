@@ -1,7 +1,7 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
@@ -61,13 +61,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.
   const ticketAssignee = incident.assignee && !incident.assignee.deleted ? incident.assignee : undefined;
 
-  const mingoIcon = (
-    <MingoIcon
-      className="size-5"
-      eyesColor="var(--ods-flamingo-cyan-base)"
-      cornerColor="var(--ods-flamingo-cyan-base)"
-    />
-  );
+  const mingoIcon = <AgentMark agent="mingo" className="size-5" />;
   const mingoAction: PageActionButton = {
     ...mingoActionFor(incident, mingoSession, mingoControls),
     variant: 'outline',
@@ -143,16 +137,18 @@ const LOADING_ACTIONS: PageActionButton[] = [
   { label: 'Resolve' },
 ];
 
-function IncidentHeaderSkeleton() {
+function IncidentHeaderSkeleton({ region = true }: { region?: boolean } = {}) {
   const handleBack = useSafeBack(routes.incidents.list);
   return (
-    <TitleBlock
-      title="Incident Details"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      loadingActions
-      actionsVariant="icon-buttons"
-    />
+    <LoadingRegion className="contents" label="Loading incident" announce={region}>
+      <TitleBlock
+        title="Incident Details"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={LOADING_ACTIONS}
+        loadingActions
+        actionsVariant="icon-buttons"
+      />
+    </LoadingRegion>
   );
 }
 
@@ -170,13 +166,13 @@ function IncidentDetailsFrame({ header, body }: { header: ReactNode; body: React
 export function IncidentDetailsSkeleton() {
   return (
     <IncidentDetailsFrame
-      header={<IncidentHeaderSkeleton />}
+      header={<IncidentHeaderSkeleton region={false} />}
       body={
-        <>
-          <IncidentSummaryCardSkeleton />
-          <NotesSectionSkeleton />
-          <IncidentQueryResultsSkeleton />
-        </>
+        <LoadingRegion className="contents" label="Loading incident">
+          <IncidentSummaryCardSkeleton region={false} />
+          <NotesSectionSkeleton region={false} />
+          <IncidentQueryResultsSkeleton region={false} />
+        </LoadingRegion>
       }
     />
   );

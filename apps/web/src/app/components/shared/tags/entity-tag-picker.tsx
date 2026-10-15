@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -53,17 +54,19 @@ export function EntityTagPickerFallback({
   emptyPlaceholder?: string;
 }) {
   return (
-    <Autocomplete
-      multiple
-      disabled
-      label={label}
-      placeholder={emptyPlaceholder}
-      options={FALLBACK_NO_OPTIONS}
-      value={FALLBACK_NO_VALUE}
-      onChange={fallbackNoop}
-      startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
-      showChevron={false}
-    />
+    <LoadingRegion className="contents" label="Loading tags">
+      <Autocomplete
+        multiple
+        disabled
+        label={label}
+        placeholder={emptyPlaceholder}
+        options={FALLBACK_NO_OPTIONS}
+        value={FALLBACK_NO_VALUE}
+        onChange={fallbackNoop}
+        startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
+        showChevron={false}
+      />
+    </LoadingRegion>
   );
 }
 

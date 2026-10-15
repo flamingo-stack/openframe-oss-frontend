@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagPercentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton, TabSelector, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TabSelector, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { devicePlanPickerProductFragment$key } from '@/__generated__/devicePlanPickerProductFragment.graphql';
@@ -143,7 +144,9 @@ export function DevicePlanPicker({
               {/* The floor is a catalog figure, so it holds a line while it loads —
                   otherwise the block grows a sentence under the user's cursor. */}
               {loading ? (
-                <Skeleton className="h-4 w-52" />
+                <LoadingRegion status={false}>
+                  <UnifiedSkeleton className="h-4 w-52" />
+                </LoadingRegion>
               ) : (
                 catalog.minDevices > 1 &&
                 minimumMonthlyPrice != null && (
@@ -168,7 +171,9 @@ export function DevicePlanPicker({
                       <PriceValue amount={catalog.paygUnitPrice} period="month" />
                     ) : (
                       // Stand-in for a figure the server has not sent yet, sized to the value it replaces.
-                      <Skeleton className="h-5 w-20" />
+                      <LoadingRegion as="span" status={false} className="contents">
+                        <UnifiedSkeleton as="span" className="h-5 w-20" />
+                      </LoadingRegion>
                     )
                   }
                 />

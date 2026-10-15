@@ -5,13 +5,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { API_ENDPOINTS } from '../constants';
 import { CREATE_TICKET_MUTATION } from '../queries/ticket-queries';
-import type { CreateTicketInput, TicketPayload } from '../types/ticket.types';
+import type { CreateTicketInput, Ticket, TicketPayload } from '../types/ticket.types';
 import type { GraphQlResponse } from '../utils/graphql';
 import { extractGraphQlData } from '../utils/graphql';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 
+/** Only `CreateTicket` selects `ticketId`; the other `TicketPayload` mutations do not. */
+type CreateTicketPayload = Omit<TicketPayload, 'ticket'> & { ticket: (Ticket & { ticketId: string }) | null };
+
 async function createTicketApi(input: CreateTicketInput) {
-  const response = await apiClient.post<GraphQlResponse<{ createTicket: TicketPayload }>>(API_ENDPOINTS.GRAPHQL, {
+  const response = await apiClient.post<GraphQlResponse<{ createTicket: CreateTicketPayload }>>(API_ENDPOINTS.GRAPHQL, {
     query: CREATE_TICKET_MUTATION,
     variables: { input },
   });

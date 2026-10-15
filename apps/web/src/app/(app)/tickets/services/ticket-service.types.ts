@@ -1,5 +1,4 @@
-import type { ChunkData } from '@flamingo-stack/openframe-frontend-core';
-import type { ChatType } from '../constants';
+import type { ChatType, DialogModeValue } from '../constants';
 import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
@@ -87,6 +86,30 @@ export interface FetchMessagesParams {
   sortDirection?: 'ASC' | 'DESC';
 }
 
+export interface CreateDialogParams {
+  agentType: 'ADMIN' | 'CLIENT';
+  ticketId?: string;
+  /** The stored insight id when the chat is about an incident — the server lists the chat under it. */
+  insightId?: string;
+  /** Honoured for admin callers only. */
+  mode?: DialogModeValue;
+}
+
+/** Minimal entity ref carried in the message payload (`ContextItemInput`). */
+export interface MessageContextRef {
+  type: string;
+  id: string;
+}
+
+export interface SendMessageContext {
+  /** Entity-context items the user attached via the composer (max 10). */
+  contextItems?: MessageContextRef[];
+  /** The entity page currently open when the message was sent. */
+  currentView?: MessageContextRef;
+  /** Up to 5 previously-open entity views, most-recent-first. */
+  recentViews?: MessageContextRef[];
+}
+
 export interface TicketService {
   fetchDialogs(params: FetchTicketsParams): Promise<TicketsPage>;
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
@@ -98,8 +121,12 @@ export interface TicketService {
    *  resolves to the server's count after the reset (0), throws on `userErrors`. */
   markDialogMessagesRead(dialogId: string): Promise<number>;
   fetchTicketStatusTransitionRules(): Promise<TicketStatusTransitionRule[]>;
-  sendMessage(dialogId: string, content: string, chatType: ChatType): Promise<void>;
-  approveRequest(requestId: string): Promise<void>;
-  rejectRequest(requestId: string): Promise<void>;
-  fetchChunks(dialogId: string, chatType: ChatType, fromSequenceId?: number | null): Promise<ChunkData[]>;
+  /** Resolves to the new dialog's raw id. */
+  createDialog(params: CreateDialogParams): Promise<string>;
+  updateDialogMode(dialogId: string, mode: DialogModeValue): Promise<void>;
+  /** Throws when no reply is running; the stream winds down asynchronously. */
+  stopDialogGeneration(dialogId: string, chatType: ChatType): Promise<void>;
+  sendMessage(dialogId: string, content: string, chatType: ChatType, context?: SendMessageContext): Promise<void>;
+  /** `requestId` is the raw approval request id (`PendingApproval.id`, `approvalRequestId` in NATS/notifications). */
+  resolveApprovalRequest(requestId: string, approve: boolean): Promise<void>;
 }

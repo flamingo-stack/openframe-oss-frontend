@@ -1,7 +1,14 @@
 'use client';
 
-import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
-import { MingoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons';
+import { AgentMark, LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  OpenInNewTabCell,
+  RowActionsCell,
+  SCRIPT_COLUMNS,
+  ScriptNameCell,
+  ScriptShellBadge,
+  SCRIPTS_TABLE_COLUMNS,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   BoxArchiveIcon,
@@ -68,13 +75,11 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { SCRIPT_COLUMNS, SCRIPTS_TABLE_COLUMNS } from '../../shared/components/scripts-table-columns';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
 import { facetToMappedOptions, facetToSortedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
-import { ScriptShellBadge } from './script-shell-badge';
 import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
@@ -365,14 +370,7 @@ function ScriptsTableContent({
         accessorKey: 'name',
         header: SCRIPT_COLUMNS.name.header,
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-1">
-            <TruncateText>{row.original.name}</TruncateText>
-            {row.original.description && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.description}
-              </TruncateText>
-            )}
-          </div>
+          <ScriptNameCell name={row.original.name} description={row.original.description} />
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCRIPT_COLUMNS.name),
@@ -479,9 +477,7 @@ function ScriptsTableContent({
       {
         id: 'actions',
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
-            {renderRowActions(row.original)}
-          </div>
+          <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCRIPT_COLUMNS.actions),
@@ -489,16 +485,7 @@ function ScriptsTableContent({
       {
         id: 'open',
         cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(routes.scripts.details(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
+          <OpenInNewTabCell href={routes.scripts.details(row.original.id)} />
         ),
         enableSorting: false,
         meta: liveColumnMeta(SCRIPT_COLUMNS.open),
@@ -577,13 +564,7 @@ function ScriptsTableContent({
           { icon: <PlayIcon />, label: 'Run on one device or push to many at once' },
           { icon: <TerminalIcon />, label: 'Write in PowerShell, Bash, Python, or Batch' },
           {
-            icon: (
-              <MingoIcon
-                className="size-5"
-                eyesColor="var(--ods-flamingo-cyan-base)"
-                cornerColor="var(--ods-flamingo-cyan-base)"
-              />
-            ),
+            icon: <AgentMark agent="mingo" className="size-5" />,
             label: 'Let Mingo suggest or generate scripts for you',
           },
         ]}
@@ -668,10 +649,12 @@ function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: stri
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading scripts">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

@@ -2,49 +2,23 @@
 
 import { LegalDocumentPage } from '@flamingo-stack/openframe-frontend-core/components';
 import { useParams } from 'next/navigation';
-import { EP, HELP_CENTER_BASE } from '../../endpoints';
+import { CONTENT_BASE, EP, HELP_CENTER_BASE } from '../../endpoints';
 
-// LegalDocumentPage is one parameterized surface (it replaced the hub's separate
-// Privacy/Terms pages), so the host supplies the per-doc copy strings.
-const COPY: Record<
-  string,
-  {
-    title: string;
-    fallbackDescription: string;
-    contactEmail: string;
-    errorContactPrompt: string;
-    errorTitle: string;
-    emptyStateMessage: string;
-  }
-> = {
-  privacy: {
-    title: 'Privacy Policy',
-    fallbackDescription: 'Our privacy policy and data protection practices.',
-    contactEmail: 'privacy@openframe.io',
-    errorContactPrompt: 'For privacy-related questions, please contact:',
-    errorTitle: 'Unable to load privacy policy',
-    emptyStateMessage: 'Privacy policy content is not available at this time.',
-  },
-  terms: {
-    title: 'Terms of Service',
-    fallbackDescription: 'The terms governing your use of OpenFrame.',
-    contactEmail: 'legal@openframe.io',
-    errorContactPrompt: 'For terms-related questions, please contact:',
-    errorTitle: 'Unable to load terms of service',
-    emptyStateMessage: 'Terms of service content is not available at this time.',
-  },
-};
-
+/**
+ * One legal document's page. The lib page reads the document and the hub's list
+ * of legal documents itself (title, version, effective date, FAQ topic), so this
+ * page passes only the type and the endpoints and states nothing per document.
+ */
 export function LegalPageClient() {
-  const { docType = 'privacy' } = useParams<{ docType: string }>();
-  const copy = COPY[docType] ?? COPY.privacy;
+  const { docType } = useParams<{ docType: string }>();
   return (
     <LegalDocumentPage
       shell={false}
       docType={docType}
       apiEndpoint={EP.legal(docType)}
+      documentsEndpoint={EP.legalDocuments}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
-      {...copy}
+      faq={{ apiBaseUrl: CONTENT_BASE }}
     />
   );
 }

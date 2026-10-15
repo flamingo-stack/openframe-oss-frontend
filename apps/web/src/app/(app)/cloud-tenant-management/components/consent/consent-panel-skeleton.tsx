@@ -1,8 +1,8 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Copy02Icon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { InlineSkeleton } from '@/app/components/shared';
 import {
   CONSENT_ACTIONS_CLASSES,
   CONSENT_CARD_CLASSES,
@@ -18,7 +18,7 @@ import {
  */
 export function ConsentPanelSkeleton({ mode }: { mode: Exclude<ConsentMode, 'details'> }) {
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-label="Grant admin consent" aria-busy>
+    <section className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-label="Grant admin consent">
       <div className="flex items-center justify-between gap-[var(--spacing-system-xs)]">
         <p className="text-ods-text-secondary text-h5">Grant admin consent</p>
         {/* The connect step offers Edit Domain until the admin has consented; locked, it keeps the row's height. */}
@@ -30,8 +30,8 @@ export function ConsentPanelSkeleton({ mode }: { mode: Exclude<ConsentMode, 'det
       </div>
       <div className={CONSENT_CARD_CLASSES}>
         <div className="flex flex-col">
-          <InlineSkeleton className="h-6 w-full" />
-          <InlineSkeleton className="h-6 w-2/3" />
+          <UnifiedSkeleton as="span" className="h-6 w-full" />
+          <UnifiedSkeleton as="span" className="h-6 w-2/3" />
         </div>
         <Input
           readOnly
