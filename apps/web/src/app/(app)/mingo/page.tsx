@@ -3,7 +3,7 @@
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
 import { routes } from '@/lib/routes';
-import { MingoHomePlaceholder } from './mingo-home-placeholder';
+import { MingoHome } from './home/mingo-home';
 
 /**
  * Mingo's home: the landing page of the Mingo-first shell. In the classic shell it
@@ -15,5 +15,5 @@ export default function MingoHomePage() {
   useShellRedirect(variant === 'classic' ? routes.dashboard : null, { carryLocation: true });
 
   if (variant !== 'mingo') return <CompactPageLoader />;
-  return <MingoHomePlaceholder />;
+  return <MingoHome />;
 }
