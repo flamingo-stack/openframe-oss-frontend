@@ -44,7 +44,26 @@ routes.customers.details(id, { tab: 'tickets' })      // ...&tab=tickets
 routes.devices.details(id, { action: 'runScript' })   // ...&action=runScript
 routes.monitoring.root({ tab: 'policies' })           // /monitoring?tab=policies
 routes.tickets.dialog(id, { tab: 'chat' })            // /tickets/dialog?id=<id>&tab=chat
+routes.mingo.chat(id)                                 // /mingo/chat?id=<id>
+
+// Arrays become one repeated key per value — what useApiParams reads back:
+routes.devices.filtered({ statuses: ['PENDING'] })    // /devices?statuses=PENDING
+routes.incidents.filtered({ severity: ['CRITICAL', 'HIGH'] })
+                                                      // /incidents?severity=CRITICAL&severity=HIGH
 ```
+
+**A static list with filters.** `devices.list`, `tickets.list` and `incidents.list`
+stay plain strings — ~30 call sites, the navigation config among them, link the bare
+list — and their filtered form is a sibling `filtered(...)` builder over the same
+path constant. Each builder writes only params its page already reads from the URL
+(verify in the page's `useApiParams` schema when adding one).
+
+**Shell-specific routes.** `routes.mingo.*` and `routes.approvals` exist in the
+Mingo-first shell (flag `mingo-first`, read through `useShellVariant()`). Each page
+resolves itself in the classic shell — `/mingo` and `/mingo/archive` → `/dashboard`,
+`/mingo/chat?id=` → `/dashboard?mingoDialog=`, `/approvals` → `/notifications` — and
+`/dashboard` forwards to `/mingo` in the new one, so a link to either side works for
+every recipient. While the variant is `'loading'` none of them redirects.
 
 Usage at call sites:
 
@@ -80,10 +99,12 @@ Rules for one:
   `onboardingHintUrl` pair lives in `onboarding-coach-marks.ts` beside the only
   feature that reads it. Either home is fine — two homes for one param is not.
 - **Exactly one owner of the live value.** For `mingoDialog` that is
-  `useMingoDialogUrlSync`, which mirrors drawer state into the URL and adopts it
-  back. A resolver may hand the param in once as a redirect target and must then
-  leave it alone; that is a handoff, not a second owner. Two owners turn a shared
-  param into a race with no arbiter.
+  `useMingoDialogUrlSync` in the classic shell, which mirrors drawer state into the
+  URL and adopts it back; in the Mingo-first shell, which has no drawer, it is
+  `MingoDialogParamBridge`, which forwards the param to the chat page — one owner per
+  shell variant, and none while the variant is `'loading'`. A resolver may hand the
+  param in once as a redirect target and must then leave it alone; that is a handoff,
+  not a second owner. Two owners turn a shared param into a race with no arbiter.
 - **Other query writers must re-base on the live search string.** An overlay param is
   only as durable as the code that writes *around* it, and dropping it is not a
   cosmetic loss: the owner sees a param it was mirroring vanish and treats that as
@@ -107,7 +128,8 @@ Rules for one:
 - **Give it a canonical counterpart.** An overlay param rides the sharer's page,
   which is not what a notification or a copied link should carry — those need a
   page-independent URL that *resolves into* the overlay. For `mingoDialog` that is
-  `mingoDialogLink()`: the same param on a fixed landing page.
+  `mingoDialogLink()` = `routes.mingo.chat(id)`: the chat page in the Mingo-first
+  shell, a redirect to the param on `/dashboard` in the classic one.
 
 ## Tab ids (`TAB_IDS`)
 

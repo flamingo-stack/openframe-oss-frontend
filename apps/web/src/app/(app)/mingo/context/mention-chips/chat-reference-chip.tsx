@@ -11,22 +11,23 @@
  * conversation as context, the picker does not offer one, and it has no entry
  * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
  *
- * Unlike every entity chip, the target is not a page. The conversation opens IN
- * THE DRAWER, in place, over whatever page the drawer floats — the same path a
- * notification click takes — so the reader keeps their page and their place.
- * The `href` (`mingoDialogLink`) stays on the anchor for a middle-click or a
- * copy; a fresh load of it resolves into the drawer through the URL sync.
+ * Unlike every entity chip, the target opens through the dialog-open seam
+ * (`openMingoDialog`) — the same path a notification click takes. In the classic
+ * shell that is the drawer, in place, over whatever page it floats, so the reader
+ * keeps their page and their place; in the Mingo-first shell it is the chat page.
+ * The `href` (`mingoDialogLink`, the canonical chat route) stays on the anchor for a
+ * middle-click or a copy, and resolves in either shell on a fresh load.
  *
  * The title comes from `conversationMemoryChatReference(id)` on the ai-agent
  * GraphQL. `null` is the backend refusing to name the chat for this caller — not
  * theirs, or gone — and the ONE case with nothing to open, so the chip says so
  * and links nowhere. A failed lookup is not that case: the chip keeps its link
- * under a generic label, since the drawer resolves the dialog on its own.
+ * under a generic label, since the chat resolves the dialog on its own.
  */
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { type ReactNode, Suspense } from 'react';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
+import { openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
@@ -83,7 +84,7 @@ interface ChatReferenceChipProps {
 
 /** The linked form: the same in-place open whether the title resolved or not. */
 function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} onOpen={() => openMingoDialogInDrawer(id)} />;
+  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} onOpen={() => openMingoDialog(id)} />;
 }
 
 function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {

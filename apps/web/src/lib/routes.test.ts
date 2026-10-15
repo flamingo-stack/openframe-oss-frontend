@@ -43,13 +43,72 @@ describe('withMingoDialog', () => {
 });
 
 describe('the canonical Mingo dialog deep link', () => {
-  it('shares the drawer resting URL', () => {
-    // The chat has no route of its own, so the shareable shape is the drawer's own
-    // param on a fixed landing page — a pasted link adopts on arrival with nothing
-    // rendered in between.
-    expect(mingoDialogLink('d-1')).toBe('/dashboard?mingoDialog=d-1');
-    expect(mingoDialogLink('a b&c=1')).toBe('/dashboard?mingoDialog=a+b%26c%3D1');
+  it('is the chat route, which resolves in either shell', () => {
+    // The Mingo-first shell shows the chat there; the classic shell redirects it to
+    // the drawer's resting URL (`/dashboard?mingoDialog=`). A sender cannot know which
+    // shell the recipient runs, so the link must be the one that works in both.
+    expect(mingoDialogLink('d-1')).toBe('/mingo/chat?id=d-1');
+    expect(mingoDialogLink('a b&c=1')).toBe('/mingo/chat?id=a+b%26c%3D1');
+    expect(mingoDialogLink('d-1')).toBe(routes.mingo.chat('d-1'));
     expect(MINGO_DIALOG_PARAM).toBe('mingoDialog');
+  });
+});
+
+describe('mingo', () => {
+  it('builds the home, the chat page and the archive', () => {
+    expect(routes.mingo.home).toBe('/mingo');
+    expect(routes.mingo.chat('d-1')).toBe('/mingo/chat?id=d-1');
+    expect(routes.mingo.archive).toBe('/mingo/archive');
+  });
+
+  it('puts the dialog id in `?id=`, never a path segment', () => {
+    // Static export forbids dynamic segments, see ROUTES.md.
+    expect(routes.mingo.chat(7)).toBe('/mingo/chat?id=7');
+  });
+
+  it('has an approvals page', () => {
+    expect(routes.approvals).toBe('/approvals');
+  });
+});
+
+/**
+ * The filtered list builders write exactly what each page reads back through
+ * `useApiParams`: arrays as one repeated key per value.
+ */
+describe('filtered lists', () => {
+  it('narrows devices by status the way useDevicesUrlParams reads it', () => {
+    expect(routes.devices.filtered({ statuses: ['PENDING'] })).toBe('/devices?statuses=PENDING');
+    expect(routes.devices.filtered({ statuses: ['ONLINE', 'OFFLINE'] })).toBe(
+      '/devices?statuses=ONLINE&statuses=OFFLINE',
+    );
+    expect(
+      new URLSearchParams(routes.devices.filtered({ statuses: ['ONLINE', 'OFFLINE'] }).split('?')[1]).getAll(
+        'statuses',
+      ),
+    ).toEqual(['ONLINE', 'OFFLINE']);
+  });
+
+  it('drops an empty filter, leaving the bare list', () => {
+    expect(routes.devices.filtered({ statuses: [] })).toBe(routes.devices.list);
+    expect(routes.devices.filtered({})).toBe('/devices');
+    expect(routes.tickets.filtered({})).toBe(routes.tickets.list);
+    expect(routes.incidents.filtered({ severity: [] })).toBe(routes.incidents.list);
+  });
+
+  it('narrows tickets by status id in the table view', () => {
+    expect(routes.tickets.filtered({ status: ['s-1', 's 2'], viewMode: 'table' })).toBe(
+      '/tickets?status=s-1&status=s+2&viewMode=table',
+    );
+    expect(routes.tickets.filtered({ viewMode: 'board' })).toBe('/tickets?viewMode=board');
+  });
+
+  it('narrows incidents by severity on a tab', () => {
+    expect(routes.incidents.filtered({ severity: ['CRITICAL', 'HIGH'] })).toBe(
+      '/incidents?severity=CRITICAL&severity=HIGH',
+    );
+    expect(routes.incidents.filtered({ tab: 'snoozed', severity: ['CRITICAL'] })).toBe(
+      '/incidents?tab=snoozed&severity=CRITICAL',
+    );
   });
 });
 
