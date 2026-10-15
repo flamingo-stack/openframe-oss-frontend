@@ -17,11 +17,16 @@ import { createOperationDescriptor, getRequest, type OperationType } from 'relay
  * The query declares `$list: Boolean!` and guards its root fields with
  * `@include(if: $list)`: before the first answer it is read with `list: false`,
  * which reads nothing and needs no request. Pass the variables with `list: true`.
+ *
+ * `fetchPolicy`: `store-or-network` (default) reuses an answer already in the
+ * store; `network-only` asks every time the variables change, for a number that
+ * must not come back stale from an earlier visit.
  */
 export function useNonSuspendingQuery<TQuery extends OperationType>(
   query: GraphQLTaggedNode,
   variables: TQuery['variables'],
   enabled = true,
+  fetchPolicy: 'store-or-network' | 'network-only' = 'store-or-network',
 ) {
   const environment = useRelayEnvironment();
   // A string, not an object: the effect and the answer compare it by value.
@@ -39,10 +44,7 @@ export function useNonSuspendingQuery<TQuery extends OperationType>(
     // Not unsubscribed on cleanup: an identical request in flight is shared, so
     // a remount (or another card asking the same) joins it instead of sending
     // its own. A stale answer is only ignored.
-    fetchQuery<TQuery>(environment, query, operation.request.variables, {
-      // Answered already: read from the store.
-      fetchPolicy: 'store-or-network',
-    }).subscribe({
+    fetchQuery<TQuery>(environment, query, operation.request.variables, { fetchPolicy }).subscribe({
       complete: () => current && setAnsweredKey(requestKey),
       error: () => current && setFailedKey(requestKey),
     });
@@ -50,7 +52,7 @@ export function useNonSuspendingQuery<TQuery extends OperationType>(
       current = false;
       retained.dispose();
     };
-  }, [environment, query, requestKey]);
+  }, [environment, query, requestKey, fetchPolicy]);
 
   const data = useLazyLoadQuery<TQuery>(
     query,

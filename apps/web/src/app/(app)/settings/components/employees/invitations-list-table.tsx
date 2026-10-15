@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   fetchQuery,
   graphql,
@@ -13,21 +12,28 @@ import type { invitationsListTable_query$key } from '@/__generated__/invitations
 import type { invitationsListTablePaginationQuery } from '@/__generated__/invitationsListTablePaginationQuery.graphql';
 import type { invitationsListTableQuery } from '@/__generated__/invitationsListTableQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
+import { type EmployeeSelections, toInvitationFilter } from './employee-filters';
 import { INVITATIONS_PAGE_SIZE } from './employees-columns';
 import { affectedInvitationsListings } from './invitations-listing';
 import { InvitationsTable } from './invitations-table';
 
 const invitationsListTableQueryNode = graphql`
-  query invitationsListTableQuery($search: String, $first: Int!) {
-    ...invitationsListTable_query @arguments(search: $search, first: $first)
+  query invitationsListTableQuery($filter: InvitationFilterInput, $search: String, $first: Int!) {
+    ...invitationsListTable_query @arguments(filter: $filter, search: $search, first: $first)
   }
 `;
 
 const invitationsListTableFragment = graphql`
   fragment invitationsListTable_query on Query
   @refetchable(queryName: "invitationsListTablePaginationQuery")
-  @argumentDefinitions(search: { type: "String" }, first: { type: "Int", defaultValue: 5 }, after: { type: "String" }) {
-    invitations(search: $search, first: $first, after: $after) @connection(key: "invitationsListTable_invitations") {
+  @argumentDefinitions(
+    filter: { type: "InvitationFilterInput" }
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 20 }
+    after: { type: "String" }
+  ) {
+    invitations(filter: $filter, search: $search, first: $first, after: $after)
+      @connection(key: "invitationsListTable_invitations") {
       # The dialogs' mutations reach this connection by id; invite and resend mark it stale (invitations-listing.ts).
       __id
       filteredCount
@@ -40,24 +46,38 @@ const invitationsListTableFragment = graphql`
   }
 `;
 
-/** "Show more" grows the block by this many. */
-const SHOW_MORE_SIZE = 20;
-
 interface InvitationsListTableProps {
   search: string;
-  /** A deferred search is in flight: the rows on screen are the previous result. */
+  /** Deferred funnels — feed the query (lag the live ones during a refetch). */
+  backendSelections: EmployeeSelections;
+  /** Live funnels — what the headers draw as ticked, so a tick lands instantly. */
+  selections: EmployeeSelections;
+  onSelectionsChange: (next: EmployeeSelections) => void;
+  /** Other records counting these invitations (the tab bar's), kept in step with the table's own. */
+  countIds: readonly string[];
+  /** A deferred search or funnel lags its control: the rows on screen are the previous result. */
   isPending: boolean;
+  stickyHeaderOffset: string;
 }
 
 /**
- * Open invitations above the users: a few newest first, more on request, so a
- * pile of unanswered invites never pushes the people off the page. Owns the
- * `invitations` connection; the rows and their dialogs are `InvitationsTable`.
+ * Open invitations, newest first, searched, narrowed and paged on the server.
+ * Owns the `invitations` connection and the infinite scroll; the rows and their
+ * dialogs are `InvitationsTable`. Suspends on the first page.
  */
-export function InvitationsListTable({ search, isPending }: InvitationsListTableProps) {
+export function InvitationsListTable({
+  search,
+  backendSelections,
+  selections,
+  onSelectionsChange,
+  countIds,
+  isPending,
+  stickyHeaderOffset,
+}: InvitationsListTableProps) {
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
-  const variables = { search: search || null, first: INVITATIONS_PAGE_SIZE };
+  const filter = toInvitationFilter(backendSelections);
+  const variables = { filter, search: search || null, first: INVITATIONS_PAGE_SIZE };
   const queryData = useLazyLoadQuery<invitationsListTableQuery>(invitationsListTableQueryNode, variables, {
     fetchPolicy: 'store-and-network',
     fetchKey: retryKey,
@@ -68,14 +88,14 @@ export function InvitationsListTable({ search, isPending }: InvitationsListTable
   >(invitationsListTableFragment, queryData);
   const { invitations } = data;
 
-  // A new invitation is the server's to place (does it match the search, where
-  // does it sort): the mutation marks the listing stale and it is read again
-  // here, without suspending the rows on screen — as many as are shown, so a
-  // block opened with "Show more" stays open.
+  // A new invitation is the server's to place (does it match, where does it
+  // sort): the mutation marks the listing stale and it is read again here,
+  // without suspending the rows on screen — as many as are loaded, so a scrolled
+  // table keeps its length.
   useSubscribeToInvalidationState([invitations.__id], () => {
     const first = Math.max(invitations.edges.length, INVITATIONS_PAGE_SIZE);
     fetchQuery(environment, invitationsListTableQueryNode, { ...variables, first }, { fetchPolicy: 'network-only' })
-      // The block keeps the rows it has; the next change asks again.
+      // The table keeps the rows it has; the next change asks again.
       .subscribe({ error: () => {} });
   });
 
@@ -83,19 +103,20 @@ export function InvitationsListTable({ search, isPending }: InvitationsListTable
     <InvitationsTable
       rows={invitations.edges.map(edge => edge.node)}
       totalCount={invitations.filteredCount}
-      listingIds={affectedInvitationsListings(invitations.__id)}
+      search={search}
+      isFiltered={filter !== null}
+      selections={selections}
+      onSelectionsChange={onSelectionsChange}
+      listingIds={[...affectedInvitationsListings(invitations.__id), ...countIds]}
       isPending={isPending}
-    >
-      {hasNext && (
-        <Button
-          variant="outline"
-          className="self-center"
-          loading={isLoadingNext}
-          onClick={() => loadNext(SHOW_MORE_SIZE)}
-        >
-          Show more invitations
-        </Button>
-      )}
-    </InvitationsTable>
+      stickyHeaderOffset={stickyHeaderOffset}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: () => {
+          if (hasNext && !isLoadingNext) loadNext(INVITATIONS_PAGE_SIZE);
+        },
+      }}
+    />
   );
 }

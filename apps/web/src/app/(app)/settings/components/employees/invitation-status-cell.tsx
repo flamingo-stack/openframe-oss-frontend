@@ -10,8 +10,13 @@ const invitationStatusCellFragment = graphql`
   }
 `;
 
-/** STATUS column of the invitations block. */
+/** STATUS column of the invitations table. */
 export function InvitationStatusCell({ invitation }: { invitation: invitationStatusCell_invitation$key }) {
   const { status } = useFragment(invitationStatusCellFragment, invitation);
-  return <EmployeeStatusTag status={status} />;
+  // A row, not the cell's column: the chip keeps its own width instead of stretching across the cell.
+  return (
+    <div className="flex min-w-0 items-center">
+      <EmployeeStatusTag status={status} />
+    </div>
+  );
 }

@@ -13,5 +13,10 @@ const employeeStatusCellFragment = graphql`
 /** STATUS column of the users table. */
 export function EmployeeStatusCell({ user }: { user: employeeStatusCell_user$key }) {
   const { status } = useFragment(employeeStatusCellFragment, user);
-  return <EmployeeStatusTag status={status} />;
+  // A row, not the cell's column: the chip keeps its own width instead of stretching across the cell.
+  return (
+    <div className="flex min-w-0 items-center">
+      <EmployeeStatusTag status={status} />
+    </div>
+  );
 }

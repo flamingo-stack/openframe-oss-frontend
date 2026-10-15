@@ -9,10 +9,12 @@ import {
 import { graphql, useFragment } from 'react-relay';
 import type { usersTable_user$data, usersTable_user$key } from '@/__generated__/usersTable_user.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import { liveColumnMeta } from '@/app/components/shared';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { rawIdOf } from '@/lib/relay-id';
+import { type EmployeeSelections, ROLE_FILTER_OPTIONS, USER_STATUS_FILTER_OPTIONS } from './employee-filters';
 import { EmployeeRolesCell } from './employee-roles-cell';
 import { EmployeeStatusCell } from './employee-status-cell';
 import { EmployeeUserCell } from './employee-user-cell';
@@ -48,13 +50,13 @@ const COLUMNS: ColumnDef<UserRow>[] = [
     id: EMPLOYEES_COLUMNS.roles.id,
     header: EMPLOYEES_COLUMNS.roles.header,
     cell: ({ row }: { row: Row<UserRow> }) => <EmployeeRolesCell user={row.original} />,
-    meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles),
+    meta: liveColumnMeta(EMPLOYEES_COLUMNS.roles, { filter: { options: ROLE_FILTER_OPTIONS } }),
   },
   {
     id: EMPLOYEES_COLUMNS.status.id,
     header: EMPLOYEES_COLUMNS.status.header,
     cell: ({ row }: { row: Row<UserRow> }) => <EmployeeStatusCell user={row.original} />,
-    meta: liveColumnMeta(EMPLOYEES_COLUMNS.status),
+    meta: liveColumnMeta(EMPLOYEES_COLUMNS.status, { filter: { options: USER_STATUS_FILTER_OPTIONS } }),
   },
   {
     id: EMPLOYEES_COLUMNS.open.id,
@@ -67,12 +69,22 @@ const COLUMNS: ColumnDef<UserRow>[] = [
 
 const getRowId = (row: UserRow) => row.id;
 
+function emptyTitle(search: string, isFiltered: boolean): string {
+  if (search) return `No users found matching "${search}". Try adjusting your search.`;
+  if (isFiltered) return 'No users match the selected filters. Try adjusting your filters.';
+  return 'No users found.';
+}
+
 interface UsersTableProps {
   /** The pages fetched so far. */
   rows: usersTable_user$key;
-  /** The server's total for the current search, not the rows fetched so far. */
+  /** The server's total for the current search and funnels, not the rows fetched so far. */
   totalCount: number;
   search: string;
+  /** A funnel is ticked: an empty table says so instead of "no users". */
+  isFiltered: boolean;
+  selections: EmployeeSelections;
+  onSelectionsChange: (next: EmployeeSelections) => void;
   /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;
   stickyHeaderOffset: string;
@@ -87,11 +99,16 @@ export function UsersTable({
   rows: rowRefs,
   totalCount,
   search,
+  isFiltered,
+  selections,
+  onSelectionsChange,
   isPending,
   stickyHeaderOffset,
   infiniteScroll,
 }: UsersTableProps) {
   const rows = useFragment(usersTableFragment, rowRefs);
+  // The funnels filter on the server: the table only keeps their state.
+  const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
 
   const table = useDataTable<UserRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
@@ -99,6 +116,8 @@ export function UsersTable({
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
+    state: { columnFilters },
+    onColumnFiltersChange,
   });
 
   return (
@@ -107,14 +126,9 @@ export function UsersTable({
         <DataTable.Header
           stickyHeader
           stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="user" totalCount={totalCount} />}
+          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
         />
-        <DataTable.Body
-          emptyState={{
-            title: search ? `No users found matching "${search}". Try adjusting your search.` : 'No users found.',
-          }}
-          rowHref={detailHref}
-        />
+        <DataTable.Body emptyState={{ title: emptyTitle(search, isFiltered) }} rowHref={detailHref} />
         {rows.length > 0 && (
           <DataTable.InfiniteFooter
             hasNextPage={infiniteScroll.hasNextPage}

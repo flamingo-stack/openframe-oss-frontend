@@ -41,11 +41,13 @@ const ROLE_OPTIONS = [{ value: 'ADMIN', label: 'Admin' }];
 interface AddUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** The invitations listings on screen, refetched with the new invitations. */
+  /** At least one invitation went out: the page shows them. */
+  onInvited: () => void;
+  /** The invitations listings and counts to refetch with the new invitations. */
   listingIds: readonly string[];
 }
 
-export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProps) {
+export function AddUsersModal({ isOpen, onClose, onInvited, listingIds }: AddUsersModalProps) {
   const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: 'ADMIN' }]);
   const [commit, isSubmitting] = useMutation<addUsersModalMutation>(addUsersModalMutationNode);
   const { toast } = useToast();
@@ -81,6 +83,7 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
         const refused = describeInviteRefusals(emails, userErrors);
         if (!refused) {
           toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
+          onInvited();
           onClose();
           return;
         }
@@ -88,6 +91,7 @@ export function AddUsersModal({ isOpen, onClose, listingIds }: AddUsersModalProp
         // does not invite the rest a second time.
         const refusedIndexes = refusedEmailIndexes(userErrors);
         const sent = new Set(emails.filter((_, index) => !refusedIndexes.has(index)));
+        if (sent.size > 0) onInvited();
         setRows(prev => prev.filter(row => !sent.has(row.email.trim())));
         toast({
           title: sent.size > 0 ? `${sent.size} of ${emails.length} invites sent` : 'Invite failed',

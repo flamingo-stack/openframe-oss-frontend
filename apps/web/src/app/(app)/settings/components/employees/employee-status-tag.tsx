@@ -14,6 +14,11 @@ const STATUS_TAG: Record<string, TagStyle> = {
   [InvitationStatus.EXPIRED]: { label: 'INVITE EXPIRED', variant: 'error' },
 } satisfies Record<UserStatus | InvitationStatus, TagStyle>;
 
+/** The status as the chip words it — the Status funnel says the same. */
+export function employeeStatusLabel(status: string): string {
+  return STATUS_TAG[status]?.label ?? status;
+}
+
 /** STATUS column of both Employees tables: a user's account state or an invitation's. */
 export function EmployeeStatusTag({ status }: { status: string }) {
   const { label, variant } = STATUS_TAG[status] ?? { label: status, variant: 'grey' };

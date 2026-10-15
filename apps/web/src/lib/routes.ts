@@ -60,6 +60,8 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
+  /** Settings → Employees (`/settings/employees`). */
+  employees: ['users', 'invitations'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
   incidents: ['current', 'snoozed', 'archived'],
@@ -76,6 +78,7 @@ export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
+export type EmployeesTab = (typeof TAB_IDS.employees)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 
 /**

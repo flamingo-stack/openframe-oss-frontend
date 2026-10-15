@@ -20,7 +20,12 @@ import { describe, expect, it } from 'vitest';
 import invitationsListTableFragment, {
   type invitationsListTable_query$data,
 } from '@/__generated__/invitationsListTable_query.graphql';
-import invitationsListTableQuery from '@/__generated__/invitationsListTableQuery.graphql';
+import invitationsListTableQuery, {
+  type InvitationFilterInput,
+} from '@/__generated__/invitationsListTableQuery.graphql';
+import useEmployeesTabCountsQuery, {
+  type useEmployeesTabCountsQuery$data,
+} from '@/__generated__/useEmployeesTabCountsQuery.graphql';
 import { InvitationStatus, UserRole } from '@/generated/schema-enums';
 import {
   affectedInvitationsListings,
@@ -49,9 +54,14 @@ function createEnvironment() {
   });
 }
 
-/** Puts one answer of the block's query into the store, the way a fetch would. */
-function loadListing(environment: Environment, search: string, ids: string[]) {
-  const operation = createOperationDescriptor(invitationsListTableQuery, { search: search || null, first: 5 });
+/** Puts one answer of the table's query into the store, the way a fetch would. */
+function loadListing(
+  environment: Environment,
+  search: string,
+  ids: string[],
+  filter: InvitationFilterInput | null = null,
+) {
+  const operation = createOperationDescriptor(invitationsListTableQuery, { filter, search: search || null, first: 20 });
   environment.retain(operation);
   environment.commitPayload(operation, {
     invitations: {
@@ -63,26 +73,48 @@ function loadListing(environment: Environment, search: string, ids: string[]) {
   return operation;
 }
 
-/** The listing as the block reads it, through its pagination fragment. */
+/** The listing as the table reads it, through its pagination fragment. */
 function readListing(environment: Environment, operation: ReturnType<typeof loadListing>) {
-  const { search, first } = operation.request.variables;
+  const { filter, search, first } = operation.request.variables;
   const selector = createReaderSelector(
     invitationsListTableFragment,
     ROOT_ID,
-    { search, first, after: null },
+    { filter, search, first, after: null },
     operation.request,
   );
   return (environment.lookup(selector).data as invitationsListTable_query$data).invitations;
 }
 
+/** Puts one answer of the tab bar's counts into the store and returns the invitations count's record id. */
+function loadTabCounts(environment: Environment, search: string, invitationsCount: number): string {
+  const operation = createOperationDescriptor(useEmployeesTabCountsQuery, { search: search || null, list: true });
+  environment.retain(operation);
+  environment.commitPayload(operation, {
+    users: { filteredCount: 0 },
+    invitations: { filteredCount: invitationsCount },
+  });
+  const data = environment.lookup(operation.fragment).data as useEmployeesTabCountsQuery$data;
+  if (!data.invitations) throw new Error('the counts were not stored');
+  return data.invitations.__id;
+}
+
+function readTabCount(environment: Environment, search: string): number | undefined {
+  const operation = createOperationDescriptor(useEmployeesTabCountsQuery, { search: search || null, list: true });
+  return (environment.lookup(operation.fragment).data as useEmployeesTabCountsQuery$data).invitations?.filteredCount;
+}
+
 describe('invitationsListingId', () => {
-  it("is the id Relay gives the block's connection, unfiltered and searched", () => {
+  it("is the id Relay gives the table's connection, unfiltered, searched and narrowed", () => {
     const environment = createEnvironment();
+    const filter: InvitationFilterInput = { statuses: [InvitationStatus.EXPIRED], roles: [UserRole.ADMIN] };
     const unfiltered = loadListing(environment, '', ['inv-1']);
     const searched = loadListing(environment, 'acme', ['inv-1']);
+    const narrowed = loadListing(environment, 'acme', ['inv-1'], filter);
 
     expect(readListing(environment, unfiltered).__id).toBe(invitationsListingId(''));
     expect(readListing(environment, searched).__id).toBe(invitationsListingId('acme'));
+    expect(readListing(environment, narrowed).__id).toBe(invitationsListingId('acme', filter));
+    expect(invitationsListingId('acme', filter)).not.toBe(invitationsListingId('acme'));
   });
 });
 
@@ -108,6 +140,18 @@ describe('decrementInvitationsCount', () => {
 
     expect(readListing(environment, unfiltered).filteredCount).toBe(1);
     expect(readListing(environment, searched).filteredCount).toBe(0);
+  });
+
+  it("counts the tab bar's number down too, when its record is passed", () => {
+    const environment = createEnvironment();
+    loadListing(environment, '', ['inv-1', 'inv-2']);
+    const countId = loadTabCounts(environment, '', 2);
+
+    environment.commitUpdate(store =>
+      decrementInvitationsCount(store, [...affectedInvitationsListings(invitationsListingId('')), countId]),
+    );
+
+    expect(readTabCount(environment, '')).toBe(1);
   });
 });
 
