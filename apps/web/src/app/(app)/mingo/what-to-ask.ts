@@ -15,7 +15,7 @@ const isWindows = (device: WhatToAskDevice) => device.osType === 'WINDOWS';
  * online device of the workspace that fits (a workstation for "slow", a server
  * for its logs, a Windows device for the print spooler), a different one each
  * while there are enough; without one that fits, the prompt asks without a
- * name. A picked prompt goes into the composer; nothing is sent until the user does.
+ * name. A picked prompt is sent in that chat, like a quick action.
  */
 export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatToAskContent {
   const named = devices.filter(device => getDeviceName(device));
@@ -84,6 +84,5 @@ export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatTo
         ],
       },
     ],
-    note: 'Click one to put it in the composer, then send.',
   };
 }
