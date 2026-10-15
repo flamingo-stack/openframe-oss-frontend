@@ -18,10 +18,11 @@ input[type='number'] {
 }
 
 /*
- * Core-library accordion fix (ToolExecutionDisplay / ApprovalBatch ToolCallRow):
- * core renders an expand chevron and makes the row clickable even when there
- * is no body to show. Detect empty body via `:has` and hide the chevron +
- * remove the pointer cursor. TODO: drop when core-library handles this.
+ * Core-library accordion fix (ApprovalBatch ToolCallRow): core renders an
+ * expand chevron and makes the row clickable even when there is no body to
+ * show. Detect empty body via `:has` and hide the chevron + remove the pointer
+ * cursor. ToolExecutionDisplay handles this itself since lib 0.0.743 (#2676).
+ * TODO: drop when ToolCallRow does the same.
  */
 .bg-ods-card > button:has(+ div.w-full > div:empty) {
   cursor: default;
