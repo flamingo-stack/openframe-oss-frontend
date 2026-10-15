@@ -13,7 +13,6 @@ import { featureFlags } from '@/lib/feature-flags';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
 import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
-import type { DialogNode } from '../types/dialog.types';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 export const MINGO_JETSTREAM_TOPIC: NatsMessageType = 'admin-message';
@@ -204,7 +203,10 @@ export function DialogSubscription({
 
   const recordHighestStreamSeq = useMingoMessagesStore(s => s.recordHighestStreamSeq);
   const storedHighestSeq = useMingoMessagesStore(s => s.highestStreamSeqByDialog.get(dialogId) ?? 0);
-  const effectiveOptStartSeq = Math.max(initialOptStartSeq ?? 0, storedHighestSeq);
+  // Without a cursor of its own the tail starts where the host says, and `null`
+  // (history whose rows say nothing about the stream) means live tail.
+  const effectiveOptStartSeq =
+    storedHighestSeq > 0 ? Math.max(initialOptStartSeq ?? 0, storedHighestSeq) : initialOptStartSeq;
 
   const { processChunk: processorProcessChunk } = useDialogChunkProcessor(dialogId, {
     onApprove,
@@ -220,37 +222,19 @@ export function DialogSubscription({
 
   const queryClient = useQueryClient();
 
-  // Rejects out-of-order JetStream redeliveries.
-  const lastAppliedStreamSeqRef = useRef<number>(-1);
-
   // Dispatch-level redelivery gate (mirrors the tickets subscription):
   // JetStream is at-least-once, so a chunk with an equal-or-older streamSeq
   // has already been processed — letting it through duplicates accumulator
-  // text / participant rows. The streamState guard above only protects the
-  // query-cache write, not the processor.
+  // text / participant rows.
   const lastDispatchedStreamSeqRef = useRef<number>(-1);
   useEffect(() => {
     lastDispatchedStreamSeqRef.current = -1;
   }, [dialogId]);
 
-  const syncStreamStateFromChunk = useCallback(
-    (chunk: ChunkData) => {
-      if (typeof chunk.streamSeq === 'number') {
-        recordHighestStreamSeq(dialogId, chunk.streamSeq);
-      }
-      const next = chunk.streamState;
-      if (!next) return;
-      if (typeof chunk.streamSeq === 'number') {
-        if (chunk.streamSeq < lastAppliedStreamSeqRef.current) return;
-        lastAppliedStreamSeqRef.current = chunk.streamSeq;
-      }
-      queryClient.setQueryData<DialogNode | null | undefined>(mingoDialogQueryKeys.detail(dialogId), prev =>
-        prev ? { ...prev, streamState: next } : prev,
-      );
-    },
-    [queryClient, dialogId, recordHighestStreamSeq],
-  );
-
+  // The dialog's stream state is NOT mirrored from chunks: the ai-agent puts
+  // none on them. It exists only as `Dialog.streamState` (resolved from the
+  // dialog lock), so the detail query is its one source — polled while
+  // STREAMING, refetched after a resync (below).
   const handleJetStreamEvent = useCallback(
     (payload: unknown, _messageType: NatsMessageType) => {
       const chunk = payload as ChunkData;
@@ -260,11 +244,11 @@ export function DialogSubscription({
       if (typeof chunk.streamSeq === 'number') {
         if (chunk.streamSeq <= lastDispatchedStreamSeqRef.current) return;
         lastDispatchedStreamSeqRef.current = chunk.streamSeq;
+        recordHighestStreamSeq(dialogId, chunk.streamSeq);
       }
-      syncStreamStateFromChunk(chunk);
       processorRef.current(chunk);
     },
-    [syncStreamStateFromChunk, dialogId],
+    [recordHighestStreamSeq, dialogId],
   );
 
   const handleConnect = useCallback(() => {
@@ -275,7 +259,7 @@ export function DialogSubscription({
     onConnectionChange?.(dialogId, false);
   }, [dialogId, onConnectionChange]);
 
-  const { reconnectionCount } = useJetStreamDialogSubscription({
+  const { caughtUpCount } = useJetStreamDialogSubscription({
     enabled: isInitialOptStartSeqReady,
     dialogId,
     streamName: CHAT_CHUNKS_STREAM,
@@ -288,16 +272,15 @@ export function DialogSubscription({
     getNatsWsUrl: getWsUrl,
   });
 
-  // NATS reconnect: JetStream replays only ~10 minutes of CHAT_CHUNKS, so an
-  // outage longer than that leaves a gap the resume-by-seq cannot fill.
-  // Refetch persisted history — the merge layer dedupes what replay covers.
-  const lastHandledReconnectRef = useRef(0);
+  // After a gap, once the replay is in (see `caughtUpCount`): CHAT_CHUNKS keeps
+  // only ~10 minutes, so a longer gap is only in persisted history.
+  const lastHandledCatchUpRef = useRef(0);
   useEffect(() => {
-    if (reconnectionCount <= lastHandledReconnectRef.current) return;
-    lastHandledReconnectRef.current = reconnectionCount;
+    if (caughtUpCount <= lastHandledCatchUpRef.current) return;
+    lastHandledCatchUpRef.current = caughtUpCount;
     void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.messages(dialogId) });
     void queryClient.invalidateQueries({ queryKey: mingoDialogQueryKeys.detail(dialogId) });
-  }, [reconnectionCount, queryClient, dialogId]);
+  }, [caughtUpCount, queryClient, dialogId]);
 
   return null;
 }

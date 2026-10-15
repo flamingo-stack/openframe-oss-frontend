@@ -6,6 +6,7 @@ import {
   PageLayout,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -13,7 +14,6 @@ import {
   ComputerMouseIcon,
   TerminalIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components/incidents-table-columns';
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
@@ -92,7 +92,7 @@ const SKELETON_ACTIONS: PageActionButton[] = [
       // Deliberately a placeholder, not an arrow or a chevron: which one this
       // becomes is the OS answer we don't have yet. The cell it reserves is what
       // matters.
-      icon: <Skeleton className="h-4 w-4 rounded content-md:h-6 content-md:w-6" />,
+      icon: <UnifiedSkeleton className="h-4 w-4 rounded content-md:h-6 content-md:w-6" />,
       'aria-label': 'Remote Shell',
       onClick: noop,
       disabled: true,
@@ -118,14 +118,14 @@ function TextSkeleton({ typography, width, className }: { typography: string; wi
       <span className="invisible" aria-hidden>
         &nbsp;
       </span>
-      <Skeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
+      <UnifiedSkeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
     </span>
   );
 }
 
 /** Matches the real `Tag` box exactly: `h-8 rounded-md` pill (only the label is skeletoned). */
 function TagSkeleton({ width = 'w-20' }: { width?: string }) {
-  return <Skeleton className={cn('h-8 shrink-0 rounded-md', width)} />;
+  return <UnifiedSkeleton className={cn('h-8 shrink-0 rounded-md', width)} />;
 }
 
 /** Section heading — matches `h3.text-h5.text-ods-text-secondary.mb-4` (line-box accurate). */
@@ -166,12 +166,12 @@ function InfoCardSkeleton({
         <div className="flex w-full flex-col items-start">
           {showTitle && (
             <div className="flex h-6 items-center">
-              <Skeleton className="h-5 w-32" />
+              <UnifiedSkeleton className="h-5 w-32" />
             </div>
           )}
           {showSubtitle && (
             <div className="flex h-6 items-center">
-              <Skeleton className="h-5 w-40" />
+              <UnifiedSkeleton className="h-5 w-40" />
             </div>
           )}
         </div>
@@ -179,12 +179,12 @@ function InfoCardSkeleton({
       <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
         {Array.from({ length: itemCount }).map((_, i) => (
           <div key={i} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-            <Skeleton className="h-5 w-24 shrink-0" />
+            <UnifiedSkeleton className="h-5 w-24 shrink-0" />
             <div className="h-px flex-1 bg-ods-border" />
-            <Skeleton className="h-5 w-20 shrink-0" />
+            <UnifiedSkeleton className="h-5 w-20 shrink-0" />
           </div>
         ))}
-        {showProgress && <Skeleton className="h-1.5 w-full rounded-full" />}
+        {showProgress && <UnifiedSkeleton className="h-1.5 w-full rounded-full" />}
       </div>
     </div>
   );
@@ -207,7 +207,7 @@ function InfoCellSkeleton({
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        {iconClass && <Skeleton className={cn(iconClass, 'shrink-0 rounded-[6px]')} />}
+        {iconClass && <UnifiedSkeleton className={cn(iconClass, 'shrink-0 rounded-[6px]')} />}
         <TextSkeleton typography="text-h4" width={valueWidth} />
       </div>
       <span className="mt-1 truncate text-ods-text-secondary text-h6">{label}</span>
@@ -219,7 +219,7 @@ function InfoCellSkeleton({
 function CustomerCellSkeleton() {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
-      <Skeleton className="size-10 shrink-0 rounded-md" />
+      <UnifiedSkeleton className="size-10 shrink-0 rounded-md" />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <TextSkeleton typography="text-h4" width="w-28" />
         <span className="mt-1 truncate text-ods-text-secondary text-h6">Customer ID (Site)</span>
@@ -246,7 +246,7 @@ function DeviceInfoSectionSkeleton() {
   const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
   const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 content-md:w-6 content-md:h-6" />;
   const customer = <CustomerCellSkeleton />;
-  const addedBy = <DeviceAddedByCellSkeleton />;
+  const addedBy = <DeviceAddedByCellSkeleton region={false} />;
   const emptyCell = <div className="flex-1" aria-hidden="true" />;
 
   return (
@@ -327,7 +327,7 @@ function HardwareBlockSkeleton({
   return (
     <div className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1">
       <div className="flex h-5 items-center">
-        <Skeleton className="h-4 w-20" />
+        <UnifiedSkeleton className="h-4 w-20" />
       </div>
       <InfoCardSkeleton
         itemCount={items}
@@ -466,32 +466,32 @@ function AgentsTabSkeleton() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="relative flex flex-col">
             <div className="absolute left-4 top-4 z-10">
-              <Skeleton className="h-6 w-24 rounded-[6px]" />
+              <UnifiedSkeleton className="h-6 w-24 rounded-[6px]" />
             </div>
             <div className="absolute right-4 top-4 z-10">
-              <Skeleton className="h-4 w-4 rounded-full" />
+              <UnifiedSkeleton className="h-4 w-4 rounded-full" />
             </div>
             <div className="flex flex-1 flex-col rounded-[6px] border border-ods-border bg-ods-card p-4 pt-16">
               <div className="flex flex-col gap-2">
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-14 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-14 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-20 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-20 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-20 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-20 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-32 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-32 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-8 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-8 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-40 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-40 shrink-0" />
                 </div>
                 <div className="flex w-full items-center gap-2">
-                  <Skeleton className="h-5 w-16 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-16 shrink-0" />
                   <div className="h-px flex-1 bg-ods-border" />
-                  <Skeleton className="h-5 w-14 shrink-0" />
+                  <UnifiedSkeleton className="h-5 w-14 shrink-0" />
                 </div>
               </div>
             </div>
@@ -503,7 +503,7 @@ function AgentsTabSkeleton() {
 }
 
 function UsersTabSkeleton() {
-  return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" />;
+  return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" region={false} />;
 }
 
 /**
@@ -532,7 +532,7 @@ function QueriesTabSkeleton() {
 }
 
 function TicketsTabSkeleton() {
-  return <TableTabSkeleton columns={DEVICE_TICKET_COLUMNS} placeholder="Search for Tickets" />;
+  return <TableTabSkeleton columns={DEVICE_TICKET_COLUMNS} placeholder="Search for Tickets" region={false} />;
 }
 
 /** Matches embedded LogsTable: full-width search input + the real log columns (header labels static). */
@@ -548,16 +548,16 @@ function OverviewTabSkeleton() {
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <DeviceInfoSectionSkeleton />
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-24" />
+        <UnifiedSkeleton className="h-4 w-24" />
         <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-8 w-40 rounded-[6px]" />
-          <Skeleton className="h-8 w-36 rounded-[6px]" />
-          <Skeleton className="h-8 w-44 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-40 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-36 rounded-[6px]" />
+          <UnifiedSkeleton className="h-8 w-44 rounded-[6px]" />
         </div>
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <SearchInputSkeleton placeholder="Search for Logs" />
-        <LogsTableSkeleton />
+        <LogsTableSkeleton region={false} />
       </div>
     </div>
   );
@@ -582,9 +582,9 @@ function getTabSkeleton(activeTab: string) {
     case 'users':
       return <UsersTabSkeleton />;
     case 'software':
-      return <SoftwareTabSkeleton />;
+      return <SoftwareTabSkeleton region={false} />;
     case 'vulnerabilities':
-      return <VulnerabilitiesTabSkeleton />;
+      return <VulnerabilitiesTabSkeleton region={false} />;
     case 'policies':
       return <PoliciesTabSkeleton />;
     case 'queries':
@@ -592,11 +592,19 @@ function getTabSkeleton(activeTab: string) {
     case 'tickets':
       return <TicketsTabSkeleton />;
     case 'device-logs':
-      return <DeviceLogsTabSkeleton />;
+      return <DeviceLogsTabSkeleton region={false} />;
     case 'remote-sessions':
-      return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+      return (
+        <TableTabSkeleton
+          columns={REMOTE_SESSIONS_TAB_COLUMNS}
+          placeholder="Search for Remote Session"
+          region={false}
+        />
+      );
     case 'incidents':
-      return <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" />;
+      return (
+        <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" region={false} />
+      );
     default:
       return <OverviewTabSkeleton />;
   }
@@ -619,25 +627,27 @@ export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsS
   // The gated tab set, so the loading tab bar matches the loaded one exactly.
   const deviceTabs = useDeviceTabs();
   return (
-    <PageLayout
-      loading
-      // The real header always renders a subtitle ("Updated X ago"), so this
-      // skeleton has to reserve that line too — otherwise the loading header is
-      // shorter than the loaded one and the page jumps once the device lands.
-      subtitleRow="always"
-      backButton={{ label: 'Back', onClick: noop }}
-      actions={SKELETON_ACTIONS}
-      menuActions={SKELETON_MENU_ACTIONS}
-      actionsVariant="menu-primary"
-      titleAdornment={<TagSkeleton />}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {/* Reuse the REAL `TabNavigation` (not a copy) so the tab bar is pixel-identical to
-          the loaded page and can't drift. `pointer-events-none` keeps it non-interactive
-          while loading; `onTabChange` is a required no-op in controlled mode. */}
-      <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
-        {() => getTabSkeleton(activeTab)}
-      </TabNavigation>
-    </PageLayout>
+    <LoadingRegion className="contents" label="Loading device">
+      <PageLayout
+        loading
+        // The real header always renders a subtitle ("Updated X ago"), so this
+        // skeleton has to reserve that line too — otherwise the loading header is
+        // shorter than the loaded one and the page jumps once the device lands.
+        subtitleRow="always"
+        backButton={{ label: 'Back', onClick: noop }}
+        actions={SKELETON_ACTIONS}
+        menuActions={SKELETON_MENU_ACTIONS}
+        actionsVariant="menu-primary"
+        titleAdornment={<TagSkeleton />}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        {/* Reuse the REAL `TabNavigation` (not a copy) so the tab bar is pixel-identical to
+            the loaded page and can't drift. `pointer-events-none` keeps it non-interactive
+            while loading; `onTabChange` is a required no-op in controlled mode. */}
+        <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
+          {() => getTabSkeleton(activeTab)}
+        </TabNavigation>
+      </PageLayout>
+    </LoadingRegion>
   );
 }

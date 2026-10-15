@@ -63,6 +63,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
   // The rows before they answer — the same for a query in flight and for the flag's own window.
   const tableSkeleton = (
     <TableSkeleton
+      label="Loading devices"
       columns={SOFTWARE_DEVICES_TABLE_COLUMNS}
       rows={FLEET_LIST_SKELETON_ROWS}
       stickyHeaderOffset={stickyHeaderOffset}

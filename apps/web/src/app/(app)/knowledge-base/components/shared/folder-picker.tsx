@@ -78,7 +78,6 @@ export function FolderPicker({
       align="start"
       side="bottom"
       sideOffset={4}
-      contentClassName="z-[1400]"
       customTrigger={
         <InputTrigger
           selectedLabel={label ?? pickedName}

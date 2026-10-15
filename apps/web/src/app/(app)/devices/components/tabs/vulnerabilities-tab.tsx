@@ -25,12 +25,14 @@ const SEARCH_PLACEHOLDER = 'Search for Vulnerability';
  * `software-management` answers. See `SoftwareTabSkeleton` for why it reads
  * the gate and what `'loading'` draws.
  */
-export function VulnerabilitiesTabSkeleton() {
+export function VulnerabilitiesTabSkeleton({ region = true }: { region?: boolean } = {}) {
   const gate = useFeatureFlagGate('software-management');
   return (
     <TableTabSkeleton
       columns={gate === 'on' ? VULNERABILITY_LIST_TABLE_COLUMNS : FLEET_VULNERABILITIES_TAB_COLUMNS}
       placeholder={SEARCH_PLACEHOLDER}
+      label="Loading vulnerabilities"
+      region={region}
     />
   );
 }
@@ -111,6 +113,7 @@ function ModuleVulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
       placeholder={SEARCH_PLACEHOLDER}
       skeletonColumns={VULNERABILITY_LIST_TABLE_COLUMNS}
       skeletonRows={DEVICE_TAB_SKELETON_ROWS}
+      skeletonLabel="Loading vulnerabilities"
       // Results are on screen but the last matching run predates the current
       // software inventory — e.g. a patched CVE may still show as active until
       // the hourly run catches up.

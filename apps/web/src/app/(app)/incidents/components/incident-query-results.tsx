@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { QueryReportTable } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { Incident } from '../utils/incident-transform';
@@ -41,10 +42,19 @@ function QueryResultsFrame({ children }: { children: ReactNode }) {
  * is the detecting query's and unknown until the record lands; three is the
  * common shape, one row the common count.
  */
-export function IncidentQueryResultsSkeleton() {
+export function IncidentQueryResultsSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <QueryResultsFrame>
-      <QueryReportTable data={[]} loading skeletonRows={1} skeletonColumns={3} showExport={false} />
-    </QueryResultsFrame>
+    <LoadingRegion className="contents" label="Loading query results" announce={region}>
+      <QueryResultsFrame>
+        <QueryReportTable
+          data={[]}
+          loading
+          loadingRegion={false}
+          skeletonRows={1}
+          skeletonColumns={3}
+          showExport={false}
+        />
+      </QueryResultsFrame>
+    </LoadingRegion>
   );
 }

@@ -10,7 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import type { RecordingPlaybackSpeed, RecordingPlayerState } from '@/lib/meshcentral/recording';
 import { formatTimecodeMs } from './format';
 
@@ -22,6 +22,8 @@ interface PlayerControlsProps {
   durationMs: number;
   speed: RecordingPlaybackSpeed;
   isFullscreen: boolean;
+  /** The session's event marks, drawn right above the track. */
+  markers?: ReactNode;
   onTogglePlay: () => void;
   onSeek: (ms: number) => void;
   onStepBack: () => void;
@@ -31,7 +33,8 @@ interface PlayerControlsProps {
 }
 
 /**
- * Playback controls per Figma 758-46350 / 758-45143: progress bar, transport
+ * Playback controls per Figma 758-46350 / 758-45143: event marks over the
+ * progress bar, the bar, transport
  * buttons with the "MM:SS / MM:SS" clock, speed toggle group, fullscreen.
  * Purely presentational - all state lives in `useRecordingPlayer` and the
  * page's fullscreen effect.
@@ -46,6 +49,7 @@ export function PlayerControls({
   durationMs,
   speed,
   isFullscreen,
+  markers,
   onTogglePlay,
   onSeek,
   onStepBack,
@@ -67,36 +71,39 @@ export function PlayerControls({
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-      {/* Custom track per the mockup (8px bordered track, darker played fill,
+      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        {markers}
+        {/* Custom track per the mockup (8px bordered track, darker played fill,
           16px thumb); the invisible native range on top keeps pointer drags
           and keyboard seeking accessible. */}
-      <div className="relative h-2 w-full">
-        <div className="absolute inset-0 rounded-[6px] border border-ods-border bg-ods-bg" />
-        {progress > 0 && (
+        <div className="relative h-2 w-full">
+          <div className="absolute inset-0 rounded-[6px] border border-ods-border bg-ods-bg" />
+          {progress > 0 && (
+            <div
+              className="absolute inset-y-0 left-0 rounded-[6px] border border-ods-border bg-ods-open-yellow-secondary"
+              style={{ width: `${(progress * 100).toFixed(2)}%` }}
+            />
+          )}
           <div
-            className="absolute inset-y-0 left-0 rounded-[6px] border border-ods-border bg-ods-open-yellow-secondary"
-            style={{ width: `${(progress * 100).toFixed(2)}%` }}
+            className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 rounded-full bg-ods-accent"
+            style={{ left: `clamp(0px, calc(${(progress * 100).toFixed(2)}% - 8px), calc(100% - 16px))` }}
           />
-        )}
-        <div
-          className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 rounded-full bg-ods-accent"
-          style={{ left: `clamp(0px, calc(${(progress * 100).toFixed(2)}% - 8px), calc(100% - 16px))` }}
-        />
-        <input
-          type="range"
-          min={0}
-          max={Math.max(durationMs, 1)}
-          step={100}
-          value={Math.min(shownMs, durationMs)}
-          disabled={disabled || durationMs === 0}
-          aria-label="Playback position"
-          onChange={e => setDragMs(Number(e.target.value))}
-          onPointerUp={commitDrag}
-          onKeyUp={e => {
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') commitDrag();
-          }}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"
-        />
+          <input
+            type="range"
+            min={0}
+            max={Math.max(durationMs, 1)}
+            step={100}
+            value={Math.min(shownMs, durationMs)}
+            disabled={disabled || durationMs === 0}
+            aria-label="Playback position"
+            onChange={e => setDragMs(Number(e.target.value))}
+            onPointerUp={commitDrag}
+            onKeyUp={e => {
+              if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') commitDrag();
+            }}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"
+          />
+        </div>
       </div>
       <div className="flex items-center gap-[var(--spacing-system-xs)]">
         <Button

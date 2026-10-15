@@ -1,18 +1,13 @@
 'use client';
 
-import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core';
-import { BracketCurlyIcon, TimerIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TabNavigation } from '@flamingo-stack/openframe-frontend-core';
+import { SCRIPTS_TABS, type ScriptsTabId } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { routes } from '@/lib/routes';
 
-const SCRIPTS_TABS: TabItem[] = [
-  { id: 'list', label: 'Scripts List', icon: BracketCurlyIcon },
-  { id: 'schedules', label: 'Scripts Schedules', icon: TimerIcon },
-];
-
 interface ScriptsTabNavigationProps {
-  activeTab: 'list' | 'schedules';
+  activeTab: ScriptsTabId;
 }
 
 /**

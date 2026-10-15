@@ -20,6 +20,7 @@ const row = (overrides: Partial<RecordingSummary> = {}): RecordingSummary => ({
   sizeBytes: 1024,
   protocol: 2,
   recordingState: 'ready',
+  live: false,
   kept: false,
   keep: null,
   expiresAt: new Date(NOW + 3 * DAY_MS).toISOString(),

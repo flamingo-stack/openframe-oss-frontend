@@ -2,22 +2,17 @@
 
 import type { AuthSsoProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useState } from 'react';
-import { type LoginDiscoveryResult, LoginSection } from '@/app/(auth)/auth/components/login-form-section';
+import {
+  type LoginDiscoveryResult,
+  LoginSection,
+  toLoginDiscoveryResult,
+} from '@/app/(auth)/auth/components/login-form-section';
 import { NativeSsoSignupSection } from '@/app/(auth)/auth/components/native-sso-signup-section';
-import { useAuth } from '@/app/(auth)/auth/hooks/use-auth';
+import { type SsoLoginTenant, useAuth } from '@/app/(auth)/auth/hooks/use-auth';
 import { useSsoSignupTakeover } from '@/app/(auth)/auth/hooks/use-sso-signup-takeover';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 
-// Backend provider id ↔ LoginForm provider id
-const SSO_TO_FORM: Record<string, AuthSsoProvider> = {
-  // The backend reports the built-in login as 'openframe'; 'openframe-sso' is the legacy id.
-  openframe: 'openframe',
-  'openframe-sso': 'openframe',
-  google: 'google',
-  microsoft: 'microsoft',
-  apple: 'apple',
-};
-const FORM_PROVIDER_ORDER: AuthSsoProvider[] = ['openframe', 'google', 'microsoft', 'apple'];
+const GENERIC_PROVIDERS: AuthSsoProvider[] = ['google', 'microsoft', 'apple'];
 
 export default function LoginPage() {
   const { loginWithSso, discoverTenants } = useAuth();
@@ -29,26 +24,19 @@ export default function LoginPage() {
 
   // "Continue with Apple" is offered on Apple devices only.
   const isApple = useIsApplePlatform();
-  const formProviders = FORM_PROVIDER_ORDER.filter(provider => provider !== 'apple' || isApple);
+  const genericProviders = GENERIC_PROVIDERS.filter(provider => provider !== 'apple' || isApple);
 
-  // Single-screen flow: the email field runs debounced discovery. The external provider buttons
-  // need nothing typed and are never gated; discovery decides only whether the OpenFrame email
-  // path is offered, which LoginSection resolves from the providers returned here.
+  // Single-screen flow: the email field runs debounced discovery, and its answer decides which
+  // sign-in methods LoginSection offers under the field.
   const handleDiscover = async (email: string): Promise<LoginDiscoveryResult | null> => {
     const result = await discoverTenants(email);
-    if (!result) return null;
-    const backendProviders = result.auth_providers || ['openframe'];
-    const providers = formProviders.filter(provider => backendProviders.some(id => SSO_TO_FORM[id] === provider));
-    return {
-      found: result.has_existing_accounts,
-      providers,
-    };
+    return result ? toLoginDiscoveryResult(result) : null;
   };
 
-  const handleSso = async (provider: AuthSsoProvider) => {
+  const handleSso = async (provider: AuthSsoProvider, tenant: SsoLoginTenant | null) => {
     setSsoLoading(true);
     try {
-      await loginWithSso(provider);
+      await loginWithSso(provider, tenant);
     } catch (error) {
       // Not a failure: the Apple identity verified but has no account, so the organization form
       // takes over in place. Every other error was already surfaced inside loginWithSso.
@@ -69,6 +57,11 @@ export default function LoginPage() {
   }
 
   return (
-    <LoginSection onDiscover={handleDiscover} onSso={handleSso} allProviders={formProviders} isLoading={ssoLoading} />
+    <LoginSection
+      onDiscover={handleDiscover}
+      onSso={handleSso}
+      genericProviders={genericProviders}
+      isLoading={ssoLoading}
+    />
   );
 }

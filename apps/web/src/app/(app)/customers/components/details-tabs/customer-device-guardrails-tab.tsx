@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core';
+import { LoadError } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
@@ -28,10 +29,10 @@ export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGu
   // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too.
   if (organization.isPending) {
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <Skeleton className="h-16 w-full rounded-md" />
-        <Skeleton className="h-20 w-full rounded-md" />
-      </div>
+      <LoadingRegion label="Loading remote access settings" className="flex flex-col gap-[var(--spacing-system-l)]">
+        <UnifiedSkeleton className="h-16 w-full rounded-md" />
+        <UnifiedSkeleton className="h-20 w-full rounded-md" />
+      </LoadingRegion>
     );
   }
 

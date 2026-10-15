@@ -1,11 +1,20 @@
 'use client';
 
-import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  EXECUTION_COLUMNS,
+  ExecutionDeviceCell,
+  ExecutionInitiatorCell,
+  ExecutionResultCell,
+  EXECUTIONS_TABLE_COLUMNS,
+  ExecutionStatusCell,
+  ExecutionTimestampCell,
+  getDeviceName,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
   Copy01Icon,
   Filter02Icon,
-  MonitorIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -21,7 +30,6 @@ import {
   type NoDataProps,
   type Row,
   SquareAvatar,
-  Tag,
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -36,11 +44,7 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import {
-  liveColumnMeta,
-  skeletonColumnMeta,
-  type TableSkeletonColumn,
-} from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta, skeletonColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -54,15 +58,8 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import {
-  executionOutput,
-  executionStatusLabel,
-  executionStatusVariant,
-  initiatorInitials,
-  initiatorName,
-} from '../utils/execution-helpers';
+import { executionOutput, executionStatusLabel, initiatorInitials, initiatorName } from '../utils/execution-helpers';
 import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
-import { ExecutionSourceBadge } from './execution-source-badge';
 
 /**
  * The Execution History table, shared by the per-SCRIPT tab
@@ -80,36 +77,14 @@ import { ExecutionSourceBadge } from './execution-source-badge';
 export const EXECUTIONS_PAGE_SIZE = 20;
 
 /**
- * Column layout — ONE declaration, read by {@link ExecutionsTable} and by
- * {@link ExecutionsSkeleton}. Widths, `hideAt` and `filterable` were written out
- * twice before, and the copies drifted: the skeleton's three filterable columns
- * lost their `filterable`, so their funnels were missing while loading and
- * popped in with the facets, shifting every label. See `table-column-layout.ts`.
+ * Column layout — ONE declaration, the lib's (`EXECUTION_COLUMNS` in render
+ * order as `EXECUTIONS_TABLE_COLUMNS`), read by {@link ExecutionsTable}, by
+ * {@link ExecutionsSkeleton} and by the lib's own picture of this table. Widths,
+ * `hideAt` and `filterable` were written out twice before, and the copies
+ * drifted: the skeleton's three filterable columns lost their `filterable`, so
+ * their funnels were missing while loading and popped in with the facets,
+ * shifting every label. See `table-column-layout.ts`.
  */
-const EXECUTION_COLUMNS = {
-  executionId: { id: 'executionId', header: 'Execution', width: 'w-[160px]', dateFilterable: true },
-  status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
-  machineId: { id: 'machineId', header: 'Device', width: 'w-[200px]', hideAt: 'lg', filterable: true },
-  initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
-  result: { id: 'result', header: 'Result', width: 'flex-1 min-w-0', hideAt: 'xl' },
-  actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
-  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-} satisfies Record<string, TableSkeletonColumn>;
-
-/** Render order, shared by the live table and the skeleton. */
-const EXECUTION_COLUMN_ORDER: readonly TableSkeletonColumn[] = [
-  EXECUTION_COLUMNS.executionId,
-  EXECUTION_COLUMNS.status,
-  EXECUTION_COLUMNS.machineId,
-  EXECUTION_COLUMNS.initiatorId,
-  EXECUTION_COLUMNS.result,
-  // The loaded table ends in two 48px action columns. They carry no header text,
-  // but they do carry width — leaving them out of the skeleton laid the `flex-1`
-  // columns across ~128px more than they get, and every label jumped left the
-  // moment the rows arrived.
-  EXECUTION_COLUMNS.actions,
-  EXECUTION_COLUMNS.open,
-];
 
 export type { ScriptExecutionFilterInput, SortInput };
 
@@ -337,12 +312,7 @@ export function ExecutionsTable({
         // on a column of its own.
         header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter} />,
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-1">
-            <TruncateText>{row.original.timestamp}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.executionId}
-            </TruncateText>
-          </div>
+          <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
         ),
         enableSorting: false,
         meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
@@ -350,16 +320,7 @@ export function ExecutionsTable({
       {
         accessorKey: 'status',
         header: 'Status',
-        // Wrap in a flex row so the tag hugs its content instead of stretching to
-        // the cell width (the cell is a stretch column).
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex">
-            <Tag
-              label={executionStatusLabel(row.original.status)}
-              variant={executionStatusVariant(row.original.status)}
-            />
-          </div>
-        ),
+        cell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusCell status={row.original.status} />,
         enableSorting: false,
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: { options: statusOptions } }),
@@ -369,24 +330,11 @@ export function ExecutionsTable({
         // match the `machineIds` server filter; the cell still renders the name.
         accessorKey: 'machineId',
         header: 'Device',
-        // Icon rides only with the machine name on the first line; the org label
-        // sits on its own line beneath, left-aligned to the icon (not indented
-        // under the name) — matching the design.
         cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-1">
-            <div className="flex min-w-0 items-center gap-1">
-              <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
-              {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
-              <div className="min-w-0 flex-1">
-                <ValueText value={row.original.machineName} />
-              </div>
-            </div>
-            {row.original.organization && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.organization}
-              </TruncateText>
-            )}
-          </div>
+          <ExecutionDeviceCell
+            name={<ValueText value={row.original.machineName} />}
+            organization={row.original.organization}
+          />
         ),
         enableSorting: false,
         filterFn: multiSelectFilterFn,
@@ -409,53 +357,44 @@ export function ExecutionsTable({
           const isDeleted = row.original.initiatorDeleted;
 
           return (
-            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
-              {isDeleted ? (
-                <DeletedUserAvatar size="md" />
-              ) : (
-                <SquareAvatar
-                  variant="round"
-                  size="md"
-                  src={row.original.initiatorImage}
-                  fallback={row.original.initiatorInitials}
-                  alt={row.original.initiatorName}
-                  initialsClassName="text-ods-text-secondary"
-                />
-              )}
-              {/* min-w-0 flex-1 so the FloatingTooltip's block div can shrink and the text ellipsizes. */}
-              <div className="flex min-w-0 flex-1 flex-col justify-center">
-                {/* Name and the source chip share the first line: a schedule or
-                    Mingo dispatches on a technician's behalf, so the chip
-                    qualifies the name instead of standing in for it. The name is
-                    the part that ellipsizes — the chip keeps its width. */}
-                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-                  {href ? (
-                    // Only the NAME opts out of the row link — the rest of the cell
-                    // still navigates to the execution, like every other cell.
-                    <button
-                      data-no-row-click
-                      type="button"
-                      onClick={openInNewTab(href)}
-                      className="pointer-events-auto min-w-0 text-left"
-                    >
-                      <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-                        {row.original.initiatorName}
-                      </TruncateText>
-                    </button>
-                  ) : (
-                    <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+            <ExecutionInitiatorCell
+              avatar={
+                isDeleted ? (
+                  <DeletedUserAvatar size="md" />
+                ) : (
+                  <SquareAvatar
+                    variant="round"
+                    size="md"
+                    src={row.original.initiatorImage}
+                    fallback={row.original.initiatorInitials}
+                    alt={row.original.initiatorName}
+                    initialsClassName="text-ods-text-secondary"
+                  />
+                )
+              }
+              name={
+                href ? (
+                  // Only the NAME opts out of the row link — the rest of the cell
+                  // still navigates to the execution, like every other cell.
+                  <button
+                    data-no-row-click
+                    type="button"
+                    onClick={openInNewTab(href)}
+                    className="pointer-events-auto min-w-0 text-left"
+                  >
+                    <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
                       {row.original.initiatorName}
                     </TruncateText>
-                  )}
-                  <ExecutionSourceBadge source={row.original.source} />
-                </div>
-                {row.original.scriptName && (
-                  <TruncateText variant="h6" tone="secondary">
-                    {row.original.scriptName}
+                  </button>
+                ) : (
+                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                    {row.original.initiatorName}
                   </TruncateText>
-                )}
-              </div>
-            </div>
+                )
+              }
+              source={row.original.source}
+              scriptName={row.original.scriptName}
+            />
           );
         },
         enableSorting: false,
@@ -465,12 +404,9 @@ export function ExecutionsTable({
       {
         accessorKey: 'result',
         header: 'Result',
-        cell: ({ row }: { row: Row<UiExecution> }) =>
-          row.original.result ? (
-            <TruncateText lines={2}>{row.original.result}</TruncateText>
-          ) : (
-            <ValueText value={null} />
-          ),
+        cell: ({ row }: { row: Row<UiExecution> }) => (
+          <ExecutionResultCell result={row.original.result} empty={<ValueText value={null} />} />
+        ),
         enableSorting: false,
         meta: liveColumnMeta(EXECUTION_COLUMNS.result),
       },
@@ -649,7 +585,7 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
   // arrive and the real popover replaces it.
   const columns = useMemo<ColumnDef<UiExecution>[]>(
     () =>
-      EXECUTION_COLUMN_ORDER.map(column => {
+      EXECUTIONS_TABLE_COLUMNS.map(column => {
         const label = column.header;
         return {
           id: column.id,
@@ -669,10 +605,18 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-      <DataTable.Body loading={true} skeletonRows={EXECUTIONS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading executions">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+        <DataTable.Body
+          loading
+          loadingRegion={false}
+          skeletonRows={EXECUTIONS_PAGE_SIZE}
+          emptyMessage=""
+          rowClassName="mb-1"
+        />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

@@ -10,6 +10,7 @@ import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
+import { ConsentAnnouncementBanner } from './consent-announcement-banner';
 import { TENANTS_PAGE_SIZE, TenantsTable } from './tenants-table';
 
 /**
@@ -49,7 +50,12 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const tableSkeleton = (
-    <TableSkeleton columns={TENANTS_TABLE_COLUMNS} rows={TENANTS_PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
+    <TableSkeleton
+      label="Loading tenants"
+      columns={TENANTS_TABLE_COLUMNS}
+      rows={TENANTS_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 
   return (
@@ -61,6 +67,7 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
+        {!loading && <ConsentAnnouncementBanner />}
         {!isEmpty && (
           <div
             ref={toolbarRef}

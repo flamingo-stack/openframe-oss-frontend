@@ -23,9 +23,9 @@ import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE, useClientPaging } from
 // ───────────────────────────── Ticket ───────────────────────────────────────
 
 const TICKETS_QUERY = `
-  query MingoContextTickets($search: String, $pagination: CursorPaginationInput) {
-    tickets(search: $search, pagination: $pagination) {
-      edges { node { id ticketNumber title status } }
+  query MingoContextTickets($search: String, $first: Int, $after: String) {
+    tickets(search: $search, first: $first, after: $after) {
+      edges { node { ticketId ticketNumber title status } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -37,7 +37,7 @@ interface GraphQlEnvelope<T> {
 }
 interface TicketsData {
   tickets?: {
-    edges?: Array<{ node: { id: string; ticketNumber?: number; title?: string; status?: string } }>;
+    edges?: Array<{ node: { ticketId: string; ticketNumber?: number; title?: string; status?: string } }>;
     pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
   };
 }
@@ -50,7 +50,8 @@ async function fetchTicketsPage(
     query: TICKETS_QUERY,
     variables: {
       search: query || undefined,
-      pagination: { limit: MINGO_CONTEXT_PAGE_SIZE, ...(cursor ? { cursor } : {}) },
+      first: MINGO_CONTEXT_PAGE_SIZE,
+      after: cursor ?? undefined,
     },
   });
   if (!res.ok) throw new Error(res.error || 'Failed to load tickets');
@@ -58,10 +59,12 @@ async function fetchTicketsPage(
   const conn = res.data?.data?.tickets;
   const items = (conn?.edges ?? []).map(e => ({
     type: CONTEXT_ENTITY_KIND.TICKET,
-    id: e.node.id,
+    // Raw: the server matches an `@ticket:<id>` mention token literally against
+    // the raw ticket id, so a global id would leave the mention as plain text.
+    id: e.node.ticketId,
     // The picked label becomes the chip's fallback label, so it carries the
     // number the same way the resolved chip does.
-    label: formatTicketRef(e.node, e.node.id),
+    label: formatTicketRef(e.node, e.node.ticketId),
     description: e.node.status || undefined,
   }));
   return { items, nextCursor: conn?.pageInfo?.hasNextPage ? (conn.pageInfo.endCursor ?? null) : null };

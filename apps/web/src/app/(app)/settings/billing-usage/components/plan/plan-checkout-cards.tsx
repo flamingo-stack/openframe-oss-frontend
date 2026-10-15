@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { graphql, useFragment } from 'react-relay';
 import type { planCheckoutCards_query$key } from '@/__generated__/planCheckoutCards_query.graphql';
 import { OpenframeProduct } from '@/generated/schema-enums';
@@ -63,7 +64,13 @@ export function PlanCheckoutCards({ query, form }: PlanCheckoutCardsProps) {
           different heights read as one unfinished. Each card keeps its content
           top-aligned (they are `flex-col`), so the shorter one gains empty space
           at the bottom rather than stretched rows. */}
-      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+      {/* The one announcement for the form's figures; each value that waits inside is busy without a
+          status of its own. */}
+      <LoadingRegion
+        label="Loading plans"
+        announce={form.loading}
+        className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
+      >
         {form.showDeviceCard && (
           <DeviceManagementCard
             product={deviceProduct}
@@ -81,7 +88,7 @@ export function PlanCheckoutCards({ query, form }: PlanCheckoutCardsProps) {
             onAutoTopUpChange={form.setAutoTopUp}
           />
         )}
-      </div>
+      </LoadingRegion>
     </>
   );
 }

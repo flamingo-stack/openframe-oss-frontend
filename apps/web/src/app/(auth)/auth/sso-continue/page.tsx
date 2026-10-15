@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -84,7 +85,7 @@ export default function SsoContinuePage() {
   if (loadState !== 'ready' || !identity) {
     return (
       <AuthShell>
-        <div className="min-h-[320px]" aria-busy="true" aria-live="polite" />
+        <LoadingRegion label="Loading your sign-in" className="min-h-[320px]" />
       </AuthShell>
     );
   }

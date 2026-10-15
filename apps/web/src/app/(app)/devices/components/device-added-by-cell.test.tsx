@@ -90,7 +90,10 @@ describe('DeviceAddedByCell', () => {
     render('user-1');
 
     expect(useLazyLoadQuery.mock.calls[0][1]).toEqual({ id: toGlobalId('User', 'user-1') });
-    expect(container.textContent?.trim()).toBe('Added by');
+    // The one thing read out while it loads is the region's status; besides it, only the label.
+    const status = container.querySelector('[role="status"]')?.textContent ?? '';
+    expect(status).toBe('Loading who added the device');
+    expect(container.textContent?.replace(status, '').trim()).toBe('Added by');
     expect(deletedAvatar()).toBeNull();
   });
 

@@ -52,6 +52,8 @@ interface SoftwareListFrameProps {
   filterKeys?: readonly string[];
   skeletonColumns: readonly TableSkeletonColumn[];
   skeletonRows: number;
+  /** What the screen reader hears while the rows load. */
+  skeletonLabel: string;
   /** The module's flag has not answered yet: the toolbar draws locked, the rows do not fetch. */
   loading?: boolean;
   /** Above the toolbar while the list has rows — a device tab's sync banner. */
@@ -100,6 +102,7 @@ export function SoftwareListFrame({
   filterKeys = NO_IDS,
   skeletonColumns,
   skeletonRows,
+  skeletonLabel,
   loading = false,
   banner,
   className,
@@ -161,7 +164,12 @@ export function SoftwareListFrame({
 
   // The rows before they answer — the same for a query in flight and for the flag's own window.
   const tableSkeleton = (
-    <TableSkeleton columns={skeletonColumns} rows={skeletonRows} stickyHeaderOffset={stickyHeaderOffset} />
+    <TableSkeleton
+      label={skeletonLabel}
+      columns={skeletonColumns}
+      rows={skeletonRows}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 
   return (
