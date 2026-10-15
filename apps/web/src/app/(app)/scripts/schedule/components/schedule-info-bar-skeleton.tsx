@@ -1,6 +1,6 @@
 'use client';
 
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
@@ -25,10 +25,10 @@ function Cell({ value, label, className }: { value: string; label: string; class
       )}
     >
       <div className="text-h4">
-        <Skeleton className={cn('inline-block h-3 max-w-full content-md:h-4', value)} />
+        <UnifiedSkeleton className={cn('inline-block h-3 max-w-full content-md:h-4', value)} />
       </div>
       <div className="text-h6">
-        <Skeleton className={cn('inline-block h-2.5 max-w-full content-md:h-3', label)} />
+        <UnifiedSkeleton className={cn('inline-block h-2.5 max-w-full content-md:h-3', label)} />
       </div>
     </div>
   );
@@ -51,9 +51,13 @@ function Cell({ value, label, className }: { value: string; label: string; class
  * a case the data does not produce, and dropping the row here would shorten the
  * block by 80px on every load.
  */
-export function ScheduleInfoBarSkeleton() {
+export function ScheduleInfoBarSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <LoadingRegion
+      label="Loading schedule details"
+      announce={region}
+      className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card"
+    >
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {CELLS.map(cell => (
           <Cell
@@ -68,6 +72,6 @@ export function ScheduleInfoBarSkeleton() {
         <Cell value="w-28" label="w-24" className="border-b border-ods-border content-md:border-b-0" />
         <Cell value="w-24" label="w-16" />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

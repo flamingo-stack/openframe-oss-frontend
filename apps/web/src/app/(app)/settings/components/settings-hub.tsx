@@ -1,6 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChartDonutIcon,
   ClipboardListIcon,
@@ -240,7 +241,11 @@ export function SettingsHub() {
       </div>
 
       {/* Navigation Cards Grid */}
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2">
+      <LoadingRegion
+        label="Loading settings"
+        announce={!gatesResolved}
+        className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2"
+      >
         {gatesResolved
           ? visibleItems.map(item => {
               const {
@@ -264,7 +269,7 @@ export function SettingsHub() {
             // set this build can show — the app mode is known synchronously, so only
             // Billing's and Download Apps' presence is actually in question.
             defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
-      </div>
+      </LoadingRegion>
 
       {/* Log Out — pinned to the bottom-left of the page */}
       <div className="mt-auto">

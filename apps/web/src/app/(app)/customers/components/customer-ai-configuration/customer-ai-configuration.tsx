@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   MonitorIcon,
   MoonStarIcon,
@@ -14,7 +15,6 @@ import {
   ImageUploader,
   Input,
   LoadError,
-  Skeleton,
   TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -246,10 +246,10 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
 
     if (isViewLoading || isConfigLoading) {
       return (
-        <div className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
+        <LoadingRegion label="Loading AI configuration" className="flex flex-col gap-[var(--spacing-system-sf)]">
+          <UnifiedSkeleton className="h-16 w-full" />
+          <UnifiedSkeleton className="h-64 w-full" />
+        </LoadingRegion>
       );
     }
 
