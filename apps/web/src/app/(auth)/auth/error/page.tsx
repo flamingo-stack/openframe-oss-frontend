@@ -1,6 +1,6 @@
 'use client';
 
-import { TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   FlamingoMarkIcon,
   OpenframeLogoIcon,
@@ -40,10 +40,13 @@ export default function AuthErrorPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-ods-text-primary text-h2">{title}</h1>
           {isLoading ? (
-            <div className="flex w-[360px] max-w-full flex-col gap-[var(--spacing-system-xsf)]" aria-busy="true">
+            <LoadingRegion
+              label="Loading the error details"
+              className="flex w-[360px] max-w-full flex-col gap-[var(--spacing-system-xsf)]"
+            >
               <TextSkeleton.Body />
               <TextSkeleton.Body className="w-3/4" />
-            </div>
+            </LoadingRegion>
           ) : (
             <p className="text-ods-text-secondary text-h4">{description}</p>
           )}

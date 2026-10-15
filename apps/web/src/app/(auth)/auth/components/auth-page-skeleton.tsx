@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { StandaloneAuthShell } from './standalone-auth-shell';
 
 export type AuthPageSkeletonVariant = 'signup' | 'login' | 'complete-account' | 'sso-join';
@@ -144,6 +144,14 @@ function SsoJoinFormSkeleton() {
   );
 }
 
+/** What the screen reader hears while each form loads. */
+const FORM_LOADING_LABELS: Record<AuthPageSkeletonVariant, string> = {
+  signup: 'Loading sign up',
+  login: 'Loading sign in',
+  'complete-account': 'Loading your invitation',
+  'sso-join': 'Loading your account',
+};
+
 const FORM_SKELETONS: Record<AuthPageSkeletonVariant, () => React.ReactNode> = {
   signup: SignupFormSkeleton,
   login: LoginFormSkeleton,
@@ -162,13 +170,12 @@ export function AuthFormSkeleton({ variant = 'signup' }: { variant?: AuthPageSke
   const FormSkeleton = FORM_SKELETONS[variant];
 
   return (
-    <div
-      role="status"
-      aria-label="Loading"
+    <LoadingRegion
+      label={FORM_LOADING_LABELS[variant]}
       className="flex w-full flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xl)]"
     >
       <FormSkeleton />
-    </div>
+    </LoadingRegion>
   );
 }
 

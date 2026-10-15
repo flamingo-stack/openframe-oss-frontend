@@ -8,7 +8,7 @@ import {
   PageLayout,
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChatsIcon,
@@ -641,27 +641,29 @@ function RemoteDesktopSession() {
 
   if (!legacyDeviceData && isDeviceLoading) {
     return (
-      <PageLayout
-        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back', onClick: handleBack }}
-      >
-        <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-            <UnifiedSkeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
-            <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-              <UnifiedSkeleton className="h-5 w-48" />
-              <UnifiedSkeleton className="h-4 w-36" />
+      <LoadingRegion className="contents" label="Loading device">
+        <PageLayout
+          className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          backButton={{ label: 'Back', onClick: handleBack }}
+        >
+          <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
+            <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
+              <UnifiedSkeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
+              <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
+                <UnifiedSkeleton className="h-5 w-48" />
+                <UnifiedSkeleton className="h-4 w-36" />
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
+              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
+              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
+              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
             </div>
           </div>
-          <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
-            <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-            <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-            <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-          </div>
-        </div>
 
-        <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
-      </PageLayout>
+          <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
+        </PageLayout>
+      </LoadingRegion>
     );
   }
 

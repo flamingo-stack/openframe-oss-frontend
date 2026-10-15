@@ -12,11 +12,8 @@ export { type NoteItem, NotesSection, NotesSectionSkeleton } from './notes-secti
 export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';
 export { OrgAvatar } from './org-avatar';
 export {
-  InfoCardSkeleton,
-  type InfoCardSkeletonProps,
   ListPageSkeleton,
   type ListPageSkeletonProps,
-  SearchBarSkeleton,
   skeletonColumnDefs,
   TabBarSkeleton,
   TableSkeleton,

@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ArticleDetailSummarySkeleton } from './article-detail-summary';
 import { ArticleDetailTitle } from './article-detail-title';
@@ -11,12 +11,12 @@ const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Edit Article' }];
 /** `ArticleDetailContent` while the article loads. The text is one block: its length is unknown until it arrives. */
 export function ArticleDetailSkeleton() {
   return (
-    <>
+    <LoadingRegion className="contents" label="Loading article">
       <ArticleDetailTitle title="Article" loading actions={LOADING_ACTIONS} loadingActions />
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <ArticleDetailSummarySkeleton />
         <UnifiedSkeleton className="h-64 w-full" />
       </div>
-    </>
+    </LoadingRegion>
   );
 }

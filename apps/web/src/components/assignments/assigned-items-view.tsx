@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
@@ -60,10 +60,10 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
 
   if (isLoading && activeTypes.length === 0) {
     return (
-      <section className={className}>
+      <LoadingRegion as="section" label="Loading assigned items" className={className}>
         {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
         <UnifiedSkeleton className="h-12 w-full" />
-      </section>
+      </LoadingRegion>
     );
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
@@ -211,7 +211,7 @@ function ModelTokenRatesContent() {
 
 function ModelTokenRatesSkeleton() {
   return (
-    <>
+    <LoadingRegion className="contents" label="Loading model token rates">
       <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-s)] py-[var(--spacing-system-xs)]">
         <UnifiedSkeleton className="h-4 w-12" />
         <div className="flex-1" />
@@ -228,6 +228,6 @@ function ModelTokenRatesSkeleton() {
           <UnifiedSkeleton className="h-4 w-12" />
         </div>
       ))}
-    </>
+    </LoadingRegion>
   );
 }

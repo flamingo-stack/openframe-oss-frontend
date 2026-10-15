@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -262,7 +262,7 @@ function RemoteShellSession() {
   // Loading skeleton
   if (isDeviceLoading) {
     return (
-      <div className="flex h-full flex-col overflow-hidden p-4 content-md:p-6">
+      <LoadingRegion label="Loading device" className="flex h-full flex-col overflow-hidden p-4 content-md:p-6">
         <div className="flex-shrink-0 bg-ods-bg py-2">
           <div className="flex items-center gap-2">
             <UnifiedSkeleton className="h-6 w-6 rounded" />
@@ -291,7 +291,7 @@ function RemoteShellSession() {
             </div>
           </div>
         </div>
-      </div>
+      </LoadingRegion>
     );
   }
 

@@ -1,9 +1,9 @@
 'use client';
 
 import { TicketStatusTag } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { DashboardInfoCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
 
 /**
  * Single source of truth for the dashboard section skeletons.
@@ -26,48 +26,10 @@ import type { ReactNode } from 'react';
 const DEVICE_CARDS = ['Online Devices', 'Offline Devices', 'Pending Devices', 'Archived Devices'] as const;
 const CUSTOMER_ROW_KEYS = ['row-1', 'row-2', 'row-3'] as const;
 
-// Exact wrapper of the core `DashboardInfoCard` (its `baseClassName`).
+// Exact wrapper of the core `DashboardInfoCard` (its `baseClassName`), for the customer card, which
+// has no static title. The status cards are `DashboardInfoCard` itself, in its `loading` state.
 const INFO_CARD_CLASS =
   'flex h-16 items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)] transition-all content-md:h-[104px] content-md:gap-[var(--spacing-system-m)] content-md:p-[var(--spacing-system-m)]';
-
-/**
- * One `DashboardInfoCard` in its loading state. The title (or the status-tag
- * `titleSlot`) is REAL, static content; only the value, optional percentage and
- * optional progress ring are skeletons — matching the real card's markup exactly.
- */
-function InfoCardSkeleton({
-  title,
-  titleSlot,
-  showProgress = false,
-  showPercentage = false,
-}: {
-  title?: string;
-  titleSlot?: ReactNode;
-  showProgress?: boolean;
-  showPercentage?: boolean;
-}) {
-  return (
-    <div className={INFO_CARD_CLASS}>
-      <div className="flex flex-1 flex-col">
-        {/* Title — real static text (text-h5 uppercases it) or a real status tag. */}
-        {titleSlot ?? <p className="text-ods-text-secondary text-h5">{title}</p>}
-        {/* Value (+ optional percentage) — the query-dependent part. */}
-        <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className="text-ods-text-primary text-h2">
-            <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-4 w-8 content-md:h-6" />
-          </p>
-          {showPercentage && (
-            <p className="text-ods-text-secondary text-h4">
-              <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-14" />
-            </p>
-          )}
-        </div>
-      </div>
-      {/* Circular progress ring — responsive 24 → 56px, matching progressSize={{ base: 24, md: 56 }}. */}
-      {showProgress && <UnifiedSkeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
-    </div>
-  );
-}
 
 /**
  * Customer `DashboardInfoCard` skeleton — the whole card is per-customer data
@@ -81,10 +43,10 @@ function CustomerInfoCardSkeleton() {
       <UnifiedSkeleton className="size-8 shrink-0 rounded-sm content-md:size-14" />
       <div className="flex min-w-0 flex-1 flex-col">
         <p className="text-ods-text-primary text-h3">
-          <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-4 w-40" />
+          <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-4 w-40" />
         </p>
         <p className="text-ods-text-secondary text-h6">
-          <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-24" />
+          <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-3 w-24" />
         </p>
       </div>
     </div>
@@ -124,25 +86,35 @@ function OverviewHeaderSkeleton({ title, className }: { title: string; className
 /** Devices Overview loading state — real header + 4 info-card skeletons with real titles. */
 export function DevicesOverviewSkeleton() {
   return (
-    <div>
+    <LoadingRegion label="Loading devices overview">
       <OverviewHeaderSkeleton title="Devices Overview" />
       <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
         {DEVICE_CARDS.map(title => (
-          <InfoCardSkeleton key={title} title={title} showProgress showPercentage />
+          <DashboardInfoCard
+            key={title}
+            loading
+            value=""
+            title={title}
+            showProgress
+            loadingShowsPercentage
+            percentageDisplay="plain"
+          />
         ))}
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 
 /** Tickets Overview loading state — real header + 4 ticket cards with their real status tags. */
 export function TicketsOverviewSkeleton() {
   return (
-    <div>
+    <LoadingRegion label="Loading tickets overview">
       <OverviewHeaderSkeleton title="Tickets Overview" />
       <div className="grid grid-cols-1 gap-[var(--spacing-system-mf)] content-md:grid-cols-2 content-lg:grid-cols-4">
-        <InfoCardSkeleton titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />} />
-        <InfoCardSkeleton
+        <DashboardInfoCard loading value="" titleSlot={<TicketStatusTag status="AI_ASSISTANCE" />} />
+        <DashboardInfoCard
+          loading
+          value=""
           titleSlot={
             <TicketStatusTag
               status="TECH_REQUIRED"
@@ -150,14 +122,16 @@ export function TicketsOverviewSkeleton() {
             />
           }
         />
-        <InfoCardSkeleton titleSlot={<TicketStatusTag status="RESOLVED" />} />
-        <InfoCardSkeleton
+        <DashboardInfoCard loading value="" titleSlot={<TicketStatusTag status="RESOLVED" />} />
+        <DashboardInfoCard
+          loading
+          value=""
           titleSlot={
             <span className="flex h-8 items-center uppercase text-ods-text-secondary text-h5">Other Statuses</span>
           }
         />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -168,8 +142,22 @@ function CustomersRowsSkeleton() {
       {CUSTOMER_ROW_KEYS.map(key => (
         <div key={key} className="grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
           <CustomerInfoCardSkeleton />
-          <InfoCardSkeleton title="Online Devices" showProgress showPercentage />
-          <InfoCardSkeleton title="Offline Devices" showProgress showPercentage />
+          <DashboardInfoCard
+            loading
+            value=""
+            title="Online Devices"
+            showProgress
+            loadingShowsPercentage
+            percentageDisplay="plain"
+          />
+          <DashboardInfoCard
+            loading
+            value=""
+            title="Offline Devices"
+            showProgress
+            loadingShowsPercentage
+            percentageDisplay="plain"
+          />
         </div>
       ))}
     </div>
@@ -179,9 +167,9 @@ function CustomersRowsSkeleton() {
 /** Customers Overview loading state — real header + the row skeletons. */
 export function CustomersOverviewSkeleton() {
   return (
-    <div>
+    <LoadingRegion label="Loading customers overview">
       <OverviewHeaderSkeleton title="Customers Overview" />
       <CustomersRowsSkeleton />
-    </div>
+    </LoadingRegion>
   );
 }

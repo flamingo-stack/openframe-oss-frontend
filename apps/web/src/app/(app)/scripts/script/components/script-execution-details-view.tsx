@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -321,7 +321,10 @@ function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: strin
  */
 function ExecutionDetailsCardSkeleton() {
   return (
-    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
+    <LoadingRegion
+      label="Loading execution details"
+      className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card"
+    >
       <div className={CARD_ROW_CLASS}>
         <DetailCellSkeleton valueWidth="w-40" label="Script Name" />
         <DetailCellSkeleton valueWidth="w-20" label="Privilege Level" />
@@ -354,7 +357,7 @@ function ExecutionDetailsCardSkeleton() {
         <UnifiedSkeleton className="h-6 w-3/4 max-w-full" />
         <div className="text-ods-text-secondary text-h6">Result</div>
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 

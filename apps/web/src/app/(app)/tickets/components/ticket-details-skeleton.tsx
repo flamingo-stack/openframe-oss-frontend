@@ -1,7 +1,7 @@
 'use client';
 
 import { ChatMessageListSkeleton } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
@@ -35,16 +35,18 @@ const SIDEBAR_ACTIONS: PageActionButton[] = [
  */
 export function TicketDetailsSkeleton({ onBack }: TicketDetailsSkeletonProps) {
   return (
-    <PageLayout
-      loading
-      backButton={{ label: 'Back', onClick: onBack }}
-      className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      actions={SIDEBAR_ACTIONS}
-      actionsVariant="icon-buttons"
-      contentClassName="flex min-h-0 flex-col"
-    >
-      <SidebarLayoutSkeleton />
-    </PageLayout>
+    <LoadingRegion className="contents" label="Loading ticket">
+      <PageLayout
+        loading
+        backButton={{ label: 'Back', onClick: onBack }}
+        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        actions={SIDEBAR_ACTIONS}
+        actionsVariant="icon-buttons"
+        contentClassName="flex min-h-0 flex-col"
+      >
+        <SidebarLayoutSkeleton />
+      </PageLayout>
+    </LoadingRegion>
   );
 }
 
@@ -54,7 +56,7 @@ function MainChatPaneSkeleton() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
       <UnifiedSkeleton className="h-5 w-24" />
       <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
-        <ChatMessageListSkeleton fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
+        <ChatMessageListSkeleton region={false} fullWidth contentClassName="px-[var(--spacing-system-mf)]" />
       </div>
       <UnifiedSkeleton className="mt-[var(--spacing-system-xsf)] h-12 w-full rounded-lg" />
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
@@ -59,18 +59,15 @@ const PLACEHOLDER_ROWS = [
  */
 function ScriptEditorPlaceholder({ visible }: { visible: boolean }) {
   return (
-    <div
+    <LoadingRegion
+      label="Loading editor"
+      announce={visible}
       aria-hidden={!visible}
       className={cn(
         'absolute inset-0 overflow-hidden bg-ods-bg py-3 transition-opacity duration-200 motion-reduce:transition-none',
         visible ? 'opacity-100' : 'pointer-events-none opacity-0',
       )}
     >
-      {visible && (
-        <span role="status" className="sr-only">
-          Loading editor…
-        </span>
-      )}
       {/* One pulse on the group rather than per line: rows blinking out of step
           read as content, which is exactly what this is not. So every bar is a
           still `UnifiedSkeleton` and the group pulses. Dropped once the editor
@@ -81,19 +78,18 @@ function ScriptEditorPlaceholder({ visible }: { visible: boolean }) {
             {/* The gutter: a digit's worth of bar, right-aligned exactly where
                 the line number goes. */}
             <div className={cn('flex shrink-0 justify-end', GUTTER_WIDTH, GUTTER_NUMBER_INSET)}>
-              <UnifiedSkeleton animate={false} aria-hidden className="h-3 w-2 rounded-sm opacity-50" />
+              <UnifiedSkeleton animate={false} className="h-3 w-2 rounded-sm opacity-50" />
             </div>
             <div className={cn('min-w-0 flex-1 pr-4', CODE_COLUMN_INSET)}>
               <UnifiedSkeleton
                 animate={false}
-                aria-hidden
                 className={cn('h-3 rounded-sm', PLACEHOLDER_INDENTS[row.indent], row.width)}
               />
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 

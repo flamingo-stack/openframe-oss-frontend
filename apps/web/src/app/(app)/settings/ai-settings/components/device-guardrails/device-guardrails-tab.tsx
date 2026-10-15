@@ -1,7 +1,7 @@
 'use client';
 'use no memo';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
   Select,
@@ -56,7 +56,11 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
   const { data: policy, isPending, error, refetch } = useTenantRemoteAccessPolicy();
 
   if (isPending) {
-    return <UnifiedSkeleton className="h-20 w-full rounded-md" />;
+    return (
+      <LoadingRegion label="Loading remote access settings">
+        <UnifiedSkeleton className="h-20 w-full rounded-md" />
+      </LoadingRegion>
+    );
   }
 
   if (error || !policy) {

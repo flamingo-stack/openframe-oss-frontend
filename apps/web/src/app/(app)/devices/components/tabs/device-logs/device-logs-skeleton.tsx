@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEFAULT_DEVICE_LOG_RANGE } from '../../../utils/device-log-time';
 import {
@@ -38,13 +38,16 @@ export function DeviceLogsRowsSkeleton({ rows = 8, dayHeader = false }: { rows?:
   );
 }
 
-/** The list before its first page: the live list's top sentinel, then a day of lines. */
-export function DeviceLogsListSkeleton() {
+/**
+ * The list before its first page: the live list's top sentinel, then a day of lines. `region={false}`
+ * inside another loading region, which announces for the list.
+ */
+export function DeviceLogsListSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
+    <LoadingRegion label="Loading logs…" announce={region} className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <div className="h-px" />
       <DeviceLogsRowsSkeleton dayHeader />
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -53,7 +56,7 @@ const noop = () => {};
 const NO_BOUNDS = { fromDate: new Date(0), toDate: new Date(0) };
 
 /** The tab while the device loads: the real toolbar, locked, over the rows. */
-export function DeviceLogsTabSkeleton() {
+export function DeviceLogsTabSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <DeviceLogsToolbar
@@ -73,7 +76,7 @@ export function DeviceLogsTabSkeleton() {
         onRefresh={noop}
         isRefreshing={false}
       />
-      <DeviceLogsListSkeleton />
+      <DeviceLogsListSkeleton region={region} />
     </div>
   );
 }

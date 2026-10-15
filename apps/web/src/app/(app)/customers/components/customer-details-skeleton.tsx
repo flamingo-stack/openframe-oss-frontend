@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type ColumnDef,
   DataTable,
@@ -90,17 +90,17 @@ function TabTitleSkeleton({ titleWidth = 'w-32', actionWidth }: { titleWidth?: s
  */
 export function CustomerDetailsTabSkeleton() {
   const infoRows = buildCustomerInfoRows({
-    website: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-40" />,
+    website: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-40" />,
     websiteIcon: <UnifiedSkeleton className="size-6 shrink-0" />,
-    physicalAddress: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-72" />,
-    mailingAddress: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-72" />,
+    physicalAddress: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-72" />,
+    mailingAddress: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-72" />,
   });
   const contactRows = buildCustomerContactRows([
     {
-      contactName: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
-      title: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
-      email: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-40" />,
-      phone: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-28" />,
+      contactName: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-28" />,
+      title: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-28" />,
+      email: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-40" />,
+      phone: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-28" />,
     },
   ]);
 
@@ -152,7 +152,7 @@ function makeTableTabSkeleton(columns: Array<{ id: string; header: string; width
         <UnifiedSkeleton className="h-12 w-full rounded-[6px]" />
         <DataTable table={table}>
           <DataTable.Header />
-          <DataTable.Body loading skeletonRows={8} emptyMessage="" rowClassName="mb-1" />
+          <DataTable.Body loading loadingRegion={false} skeletonRows={8} emptyMessage="" rowClassName="mb-1" />
         </DataTable>
       </div>
     );
@@ -223,12 +223,15 @@ interface CustomerDetailsSkeletonProps {
  */
 export function CustomerDetailsSkeleton({ activeTab = 'devices' }: CustomerDetailsSkeletonProps) {
   return (
-    <div className="flex w-full flex-col content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]">
+    <LoadingRegion
+      label="Loading customer"
+      className="flex w-full flex-col content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]"
+    >
       <CustomerHeaderSkeleton />
       <div className="flex flex-col gap-[var(--spacing-system-l)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] content-md:px-0 content-md:pb-0">
         <CustomerTabNavigationSkeleton />
         {getCustomerTabSkeleton(activeTab)}
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

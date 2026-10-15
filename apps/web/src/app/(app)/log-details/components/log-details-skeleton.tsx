@@ -1,8 +1,8 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { DeviceCardSkeleton, LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DeviceInfoSectionSkeleton } from '@/app/components/shared/device-info-section-skeleton';
+import { DEVICE_DETAILS_BUTTON_BOX } from '@/app/(app)/devices/components/device-details-button';
 
 interface LogDetailsSkeletonProps {
   onBack: () => void;
@@ -38,7 +38,7 @@ function DeviceInfoSkeleton() {
   return (
     <div className="flex w-full flex-col gap-1">
       <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-      <DeviceInfoSectionSkeleton />
+      <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
     </div>
   );
 }
@@ -117,19 +117,21 @@ function DetailsSkeleton() {
 
 export function LogDetailsSkeleton({ onBack }: LogDetailsSkeletonProps) {
   return (
-    <PageLayout
-      title="Log Details"
-      backButton={{ label: 'Back', onClick: onBack }}
-      selector={<UnifiedSkeleton className="h-12 w-[180px] rounded-[6px]" />}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div className="flex w-full flex-col gap-6">
-        <StatusTimestampSkeleton />
-        <LogSummaryCardSkeleton />
-        <DeviceInfoSkeleton />
-        <FullInformationSkeleton />
-        <DetailsSkeleton />
-      </div>
-    </PageLayout>
+    <LoadingRegion className="contents" label="Loading log details">
+      <PageLayout
+        title="Log Details"
+        backButton={{ label: 'Back', onClick: onBack }}
+        selector={<UnifiedSkeleton className="h-12 w-[180px] rounded-[6px]" />}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        <div className="flex w-full flex-col gap-6">
+          <StatusTimestampSkeleton />
+          <LogSummaryCardSkeleton />
+          <DeviceInfoSkeleton />
+          <FullInformationSkeleton />
+          <DetailsSkeleton />
+        </div>
+      </PageLayout>
+    </LoadingRegion>
   );
 }

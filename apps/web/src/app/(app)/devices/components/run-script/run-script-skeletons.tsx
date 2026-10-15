@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { RUN_SUMMARY_STATS, ScriptSummaryCardSkeleton } from '../../../scripts/script/components/script-summary-card';
 
 /** Description widths cycled through the picker rows so they don't look uniform. */
@@ -13,7 +13,7 @@ const PICKER_ROW_DESCRIPTIONS = ['w-72', 'w-56', 'w-48', 'w-64', 'w-40', 'w-60']
  */
 export function RunScriptSelectListSkeleton() {
   return (
-    <div>
+    <LoadingRegion label="Loading scripts">
       {PICKER_ROW_DESCRIPTIONS.map(descWidth => (
         <div
           key={descWidth}
@@ -26,7 +26,7 @@ export function RunScriptSelectListSkeleton() {
           <UnifiedSkeleton className="h-4 w-4 rounded" />
         </div>
       ))}
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -53,7 +53,10 @@ function ArgumentsSkeleton() {
  */
 export function RunScriptConfigStepSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
+    <LoadingRegion
+      label="Loading script settings"
+      className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)]"
+    >
       <div className="min-h-0 flex-1 space-y-[var(--spacing-system-l)] overflow-y-auto">
         <ScriptSummaryCardSkeleton stats={RUN_SUMMARY_STATS} />
 
@@ -76,6 +79,6 @@ export function RunScriptConfigStepSkeleton() {
         <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
         <UnifiedSkeleton className="h-12 flex-1 rounded-md" />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

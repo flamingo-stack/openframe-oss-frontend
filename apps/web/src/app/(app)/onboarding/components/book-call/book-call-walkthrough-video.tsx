@@ -11,7 +11,7 @@
  * `isLoading` is for.
  */
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InlineWalkthroughVideo } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useWalkthroughVideoData } from '@/app/hooks/use-walkthrough-video-data';
@@ -29,7 +29,11 @@ export function BookCallWalkthroughVideo({ className }: { className?: string }) 
     // w-full` is the lib card's base geometry and the host `className` (which
     // actually sizes this slot) lands on both — sizing only one would show up
     // as a jump when the video arrives.
-    return <UnifiedSkeleton className={cn('aspect-video w-full rounded-md', className)} />;
+    return (
+      <LoadingRegion label="Loading the walkthrough video" className={cn('aspect-video w-full rounded-md', className)}>
+        <UnifiedSkeleton className="size-full" />
+      </LoadingRegion>
+    );
   }
 
   // The clip is the point of the page: it starts on its own, muted, with the unmute glyph up.

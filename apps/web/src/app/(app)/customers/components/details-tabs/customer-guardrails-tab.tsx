@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadError, NoData } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   InfoCircleIcon,
   PenEditIcon,
@@ -39,11 +39,11 @@ export function CustomerGuardrailsTab({ organizationId }: CustomerGuardrailsTabP
 
   if (isLoading || isTemplatesLoading) {
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-sf)]">
+      <LoadingRegion label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-sf)]">
         <UnifiedSkeleton className="h-16 w-full" />
         <UnifiedSkeleton className="h-20 w-full" />
         <UnifiedSkeleton className="h-64 w-full" />
-      </div>
+      </LoadingRegion>
     );
   }
 

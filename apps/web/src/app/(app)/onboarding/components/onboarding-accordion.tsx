@@ -131,10 +131,18 @@ export function OnboardingAccordionItem({
             which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <p className="text-ods-text-primary text-h3">
-            {loading ? <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-4 w-40 content-md:h-5" /> : title}
+            {loading ? (
+              <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-4 w-40 content-md:h-5" />
+            ) : (
+              title
+            )}
           </p>
           <p className="text-ods-text-secondary text-h6">
-            {loading ? <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-64 max-w-full" /> : description}
+            {loading ? (
+              <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-3 w-64 max-w-full" />
+            ) : (
+              description
+            )}
           </p>
         </div>
 

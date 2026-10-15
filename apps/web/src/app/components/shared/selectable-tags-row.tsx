@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ActionsMenuDropdown, FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -117,10 +117,10 @@ const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
 
 export function SelectableTagsRowSkeleton() {
   return (
-    <div aria-hidden className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
+    <LoadingRegion label="Loading tags" className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
       {SKELETON_TAG_WIDTHS.map((width, idx) => (
         <UnifiedSkeleton key={idx} className={cn('h-8 shrink-0', width)} />
       ))}
-    </div>
+    </LoadingRegion>
   );
 }

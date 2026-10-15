@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
@@ -247,7 +247,11 @@ function InitialSetupCardContent() {
  */
 export function InitialSetupSkeleton() {
   return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
+    <LoadingRegion
+      label="Loading setup steps"
+      as="section"
+      className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]"
+    >
       <div className="flex min-w-0 flex-col">
         {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
             `text-h6` line boxes so the header height matches the loaded card exactly.
@@ -278,6 +282,6 @@ export function InitialSetupSkeleton() {
           />
         ))}
       </div>
-    </section>
+    </LoadingRegion>
   );
 }

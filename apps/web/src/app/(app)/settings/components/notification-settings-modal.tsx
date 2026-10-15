@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   ModalV2,
@@ -137,7 +137,7 @@ function SettingsFooter({
  */
 function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
   return (
-    <>
+    <LoadingRegion className="contents" label="Loading notification settings">
       <ModalV2Content className={CONTENT_CLASS}>
         <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
@@ -148,7 +148,7 @@ function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
         </div>
       </ModalV2Content>
       <SettingsFooter onClose={onClose} />
-    </>
+    </LoadingRegion>
   );
 }
 

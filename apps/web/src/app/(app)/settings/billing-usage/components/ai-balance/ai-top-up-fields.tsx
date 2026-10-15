@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -70,7 +70,9 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading = false 
                 // without a rate, the line says there is no figure.
                 subtitle={
                   loading ? (
-                    <UnifiedSkeleton className="h-4 w-16" />
+                    <LoadingRegion as="span" status={false} className="contents">
+                      <UnifiedSkeleton className="h-4 w-16" />
+                    </LoadingRegion>
                   ) : tokens == null ? (
                     EMPTY_VALUE
                   ) : (

@@ -6,7 +6,7 @@ import {
   PageLayout,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -246,7 +246,7 @@ function DeviceInfoSectionSkeleton() {
   const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
   const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass="w-4 h-4 content-md:w-6 content-md:h-6" />;
   const customer = <CustomerCellSkeleton />;
-  const addedBy = <DeviceAddedByCellSkeleton />;
+  const addedBy = <DeviceAddedByCellSkeleton region={false} />;
   const emptyCell = <div className="flex-1" aria-hidden="true" />;
 
   return (
@@ -503,7 +503,7 @@ function AgentsTabSkeleton() {
 }
 
 function UsersTabSkeleton() {
-  return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" />;
+  return <TableTabSkeleton columns={USERS_TAB_COLUMNS} placeholder="Search for User" region={false} />;
 }
 
 /**
@@ -532,7 +532,7 @@ function QueriesTabSkeleton() {
 }
 
 function TicketsTabSkeleton() {
-  return <TableTabSkeleton columns={DEVICE_TICKET_COLUMNS} placeholder="Search for Tickets" />;
+  return <TableTabSkeleton columns={DEVICE_TICKET_COLUMNS} placeholder="Search for Tickets" region={false} />;
 }
 
 /** Matches embedded LogsTable: full-width search input + the real log columns (header labels static). */
@@ -557,7 +557,7 @@ function OverviewTabSkeleton() {
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <SearchInputSkeleton placeholder="Search for Logs" />
-        <LogsTableSkeleton />
+        <LogsTableSkeleton region={false} />
       </div>
     </div>
   );
@@ -582,9 +582,9 @@ function getTabSkeleton(activeTab: string) {
     case 'users':
       return <UsersTabSkeleton />;
     case 'software':
-      return <SoftwareTabSkeleton />;
+      return <SoftwareTabSkeleton region={false} />;
     case 'vulnerabilities':
-      return <VulnerabilitiesTabSkeleton />;
+      return <VulnerabilitiesTabSkeleton region={false} />;
     case 'policies':
       return <PoliciesTabSkeleton />;
     case 'queries':
@@ -592,11 +592,19 @@ function getTabSkeleton(activeTab: string) {
     case 'tickets':
       return <TicketsTabSkeleton />;
     case 'device-logs':
-      return <DeviceLogsTabSkeleton />;
+      return <DeviceLogsTabSkeleton region={false} />;
     case 'remote-sessions':
-      return <TableTabSkeleton columns={REMOTE_SESSIONS_TAB_COLUMNS} placeholder="Search for Remote Session" />;
+      return (
+        <TableTabSkeleton
+          columns={REMOTE_SESSIONS_TAB_COLUMNS}
+          placeholder="Search for Remote Session"
+          region={false}
+        />
+      );
     case 'incidents':
-      return <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" />;
+      return (
+        <TableTabSkeleton columns={DEVICE_INCIDENTS_TABLE_COLUMNS} placeholder="Search for Incidents" region={false} />
+      );
     default:
       return <OverviewTabSkeleton />;
   }
@@ -619,25 +627,27 @@ export function DeviceDetailsSkeleton({ activeTab = 'overview' }: DeviceDetailsS
   // The gated tab set, so the loading tab bar matches the loaded one exactly.
   const deviceTabs = useDeviceTabs();
   return (
-    <PageLayout
-      loading
-      // The real header always renders a subtitle ("Updated X ago"), so this
-      // skeleton has to reserve that line too — otherwise the loading header is
-      // shorter than the loaded one and the page jumps once the device lands.
-      subtitleRow="always"
-      backButton={{ label: 'Back', onClick: noop }}
-      actions={SKELETON_ACTIONS}
-      menuActions={SKELETON_MENU_ACTIONS}
-      actionsVariant="menu-primary"
-      titleAdornment={<TagSkeleton />}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {/* Reuse the REAL `TabNavigation` (not a copy) so the tab bar is pixel-identical to
-          the loaded page and can't drift. `pointer-events-none` keeps it non-interactive
-          while loading; `onTabChange` is a required no-op in controlled mode. */}
-      <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
-        {() => getTabSkeleton(activeTab)}
-      </TabNavigation>
-    </PageLayout>
+    <LoadingRegion className="contents" label="Loading device">
+      <PageLayout
+        loading
+        // The real header always renders a subtitle ("Updated X ago"), so this
+        // skeleton has to reserve that line too — otherwise the loading header is
+        // shorter than the loaded one and the page jumps once the device lands.
+        subtitleRow="always"
+        backButton={{ label: 'Back', onClick: noop }}
+        actions={SKELETON_ACTIONS}
+        menuActions={SKELETON_MENU_ACTIONS}
+        actionsVariant="menu-primary"
+        titleAdornment={<TagSkeleton />}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        {/* Reuse the REAL `TabNavigation` (not a copy) so the tab bar is pixel-identical to
+            the loaded page and can't drift. `pointer-events-none` keeps it non-interactive
+            while loading; `onTabChange` is a required no-op in controlled mode. */}
+        <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={noop} className="pointer-events-none">
+          {() => getTabSkeleton(activeTab)}
+        </TabNavigation>
+      </PageLayout>
+    </LoadingRegion>
   );
 }

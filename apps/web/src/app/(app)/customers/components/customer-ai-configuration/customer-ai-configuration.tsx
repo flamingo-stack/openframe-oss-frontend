@@ -1,7 +1,7 @@
 'use client';
 'use no memo';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   MonitorIcon,
   MoonStarIcon,
@@ -246,10 +246,10 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
 
     if (isViewLoading || isConfigLoading) {
       return (
-        <div className="flex flex-col gap-[var(--spacing-system-sf)]">
+        <LoadingRegion label="Loading AI configuration" className="flex flex-col gap-[var(--spacing-system-sf)]">
           <UnifiedSkeleton className="h-16 w-full" />
           <UnifiedSkeleton className="h-64 w-full" />
-        </div>
+        </LoadingRegion>
       );
     }
 

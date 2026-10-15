@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
@@ -51,9 +51,13 @@ function Cell({ value, label, className }: { value: string; label: string; class
  * a case the data does not produce, and dropping the row here would shorten the
  * block by 80px on every load.
  */
-export function ScheduleInfoBarSkeleton() {
+export function ScheduleInfoBarSkeleton({ region = true }: { region?: boolean } = {}) {
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <LoadingRegion
+      label="Loading schedule details"
+      announce={region}
+      className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card"
+    >
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {CELLS.map(cell => (
           <Cell
@@ -68,6 +72,6 @@ export function ScheduleInfoBarSkeleton() {
         <Cell value="w-28" label="w-24" className="border-b border-ods-border content-md:border-b-0" />
         <Cell value="w-24" label="w-16" />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
@@ -124,7 +124,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
 }
 
 /** Same header + two strips, every value a bar, so the card keeps its height while the record loads. */
-export function IncidentSummaryCardSkeleton() {
+export function IncidentSummaryCardSkeleton({ region = true }: { region?: boolean } = {}) {
   const cell = (label: string, index: number) => (
     <Cell key={index}>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
@@ -134,13 +134,17 @@ export function IncidentSummaryCardSkeleton() {
     </Cell>
   );
   return (
-    <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+    <LoadingRegion
+      label="Loading incident summary"
+      announce={region}
+      className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card"
+    >
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
         <UnifiedSkeleton className="h-6 w-64" />
         <UnifiedSkeleton className="h-5 w-full max-w-[720px]" />
       </div>
       <Row>{['Device', 'Customer', 'Detected', 'Assigned'].map(cell)}</Row>
       <Row>{['Severity', 'Category', 'Interval', 'Status'].map(cell)}</Row>
-    </div>
+    </LoadingRegion>
   );
 }

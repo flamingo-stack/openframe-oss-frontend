@@ -18,13 +18,13 @@
  * id chip if the fetch throws (never crashes the message).
  */
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { navigatesCurrentWindow } from '@/lib/link-click';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
 // context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
@@ -111,10 +111,20 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
 }
 
-/** Loading state: same chip shell with an inline skeleton bar for the label.
- *  (The shared inline span, not the lib's `UnifiedSkeleton` div: the chip lives inside a `<p>`.) */
+/**
+ * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
+ * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
+ * and a "loading" read out mid-sentence for each would bury the message itself.
+ */
 export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={<UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-20 rounded" />} />;
+  return (
+    <LoadingRegion as="span" status={false} className="contents">
+      <MentionTag
+        icon={icon}
+        label={<UnifiedSkeleton as="span" className="inline-block h-3 w-20 max-w-full rounded align-middle" />}
+      />
+    </LoadingRegion>
+  );
 }
 
 /**

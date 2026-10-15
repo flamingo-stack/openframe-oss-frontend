@@ -1,7 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertCircleIcon,
@@ -45,7 +45,10 @@ interface ProfileCardProps {
  */
 function ProfileCardSkeleton() {
   return (
-    <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy="true">
+    <LoadingRegion
+      label="Loading your profile"
+      className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
+    >
       <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1 overflow-hidden">
         {/* `min-h-8` because the loaded name line carries role tags, and `Tag` is a fixed
@@ -61,7 +64,7 @@ function ProfileCardSkeleton() {
         </div>
       </div>
       <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
-    </div>
+    </LoadingRegion>
   );
 }
 

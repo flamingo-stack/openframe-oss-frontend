@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { useSearchParams } from 'next/navigation';
@@ -105,18 +106,20 @@ interface FileManagerPageSkeletonProps {
 
 function FileManagerPageSkeleton({ onBack }: FileManagerPageSkeletonProps) {
   return (
-    <PageLayout
-      title="File Manager"
-      className={`${PAGE_PADDING} h-full`}
-      contentClassName="flex min-h-0 flex-col overflow-hidden"
-      backButton={{
-        label: 'Back',
-        onClick: onBack,
-      }}
-    >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <FileManagerSkeleton />
-      </div>
-    </PageLayout>
+    <LoadingRegion className="contents" label="Loading file manager">
+      <PageLayout
+        title="File Manager"
+        className={`${PAGE_PADDING} h-full`}
+        contentClassName="flex min-h-0 flex-col overflow-hidden"
+        backButton={{
+          label: 'Back',
+          onClick: onBack,
+        }}
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          <FileManagerSkeleton region={false} />
+        </div>
+      </PageLayout>
+    </LoadingRegion>
   );
 }

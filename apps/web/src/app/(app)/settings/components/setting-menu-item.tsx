@@ -34,7 +34,7 @@ const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rou
  */
 export function SettingMenuItemSkeleton() {
   return (
-    <div className={CARD_SHELL_CLASSES} aria-busy="true">
+    <div className={CARD_SHELL_CLASSES}>
       <div className={ICON_FRAME_CLASSES}>
         <UnifiedSkeleton className="h-6 w-6 rounded" />
       </div>

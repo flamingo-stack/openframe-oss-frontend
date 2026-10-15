@@ -1,13 +1,13 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoSection, type InfoSectionRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { providerPresentation } from '../../utils/tenant-presentation';
 import { INTEGRATION_LABELS } from './tenant-integration-labels';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 const bar = (width: string): InfoSectionRow['value'] => ({
   type: 'custom',
-  content: <UnifiedSkeleton as="span" aria-hidden className={`inline-block max-w-full align-middle h-6 ${width}`} />,
+  content: <UnifiedSkeleton as="span" className={`inline-block max-w-full align-middle h-6 ${width}`} />,
 });
 
 /**
@@ -23,5 +23,9 @@ export function TenantIntegrationSectionSkeleton({ provider }: { provider: strin
     { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: bar('w-72') },
     { id: 'domains', label: INTEGRATION_LABELS.domains, value: bar('w-40') },
   ];
-  return <InfoSection title="Integration" rows={rows} />;
+  return (
+    <LoadingRegion className="contents" label="Loading integration">
+      <InfoSection title="Integration" rows={rows} />
+    </LoadingRegion>
+  );
 }

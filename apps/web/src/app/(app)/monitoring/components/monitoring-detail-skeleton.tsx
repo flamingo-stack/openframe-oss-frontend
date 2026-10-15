@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DeviceSelectorSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -20,7 +21,6 @@ import { TabBarSkeleton, TableSkeleton } from '@/app/components/shared';
 import type { QueryDetailTab } from '@/lib/routes';
 import { ScriptEditor } from '../../scripts/shared/components/script-editor';
 import { POLICY_DEVICES_TABLE_COLUMNS, QUERY_DEVICES_TABLE_COLUMNS } from './monitoring-table-columns';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 
 /**
  * Loading states for the four monitoring detail routes — `/monitoring/policy`,
@@ -151,9 +151,21 @@ function QueryEditorSkeleton() {
  * one, which the skeleton cannot know yet.
  */
 function policyInfoSkeletonRows(): PanelRow[] {
-  const severity = { key: 'severity', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-16" />, label: 'Severity' };
-  const status = { key: 'status', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-6 w-24 rounded-full" />, label: 'Status' };
-  const author = { key: 'author', value: <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-32" />, label: 'Author' };
+  const severity = {
+    key: 'severity',
+    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-16" />,
+    label: 'Severity',
+  };
+  const status = {
+    key: 'status',
+    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-6 w-24 rounded-full" />,
+    label: 'Status',
+  };
+  const author = {
+    key: 'author',
+    value: <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-32" />,
+    label: 'Author',
+  };
 
   return [
     {
@@ -172,11 +184,11 @@ function policyInfoSkeletonRows(): PanelRow[] {
  */
 function QueryInfoSkeleton() {
   return (
-    <div aria-busy="true" className="rounded-lg border border-ods-border bg-ods-card p-6">
+    <div className="rounded-lg border border-ods-border bg-ods-card p-6">
       <div className="grid grid-cols-2 gap-6 content-md:grid-cols-4">
         <div>
           <p className="text-ods-text-primary text-h4">
-            <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-5 w-24" />
+            <UnifiedSkeleton as="span" className="inline-block max-w-full align-middle h-5 w-24" />
           </p>
           <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
         </div>
@@ -190,66 +202,59 @@ export function MonitoringDetailSkeleton({ kind, onBack, queryTab = 'results' }:
   const isPolicy = kind === 'policy';
 
   return (
-    <PageLayout
-      loading
-      backButton={{ label: 'Back', onClick: onBack }}
-      actions={editActions(kind)}
-      menuActions={deleteMenuActions(kind)}
-      actionsVariant="menu-primary"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {isPolicy ? <StackedRowsPanel rows={policyInfoSkeletonRows()} /> : <QueryInfoSkeleton />}
-
-      {/* `aria-busy` sits on each top-level section rather than on one page
-          container: `PageLayout`'s content element is a `flex flex-col` with a
-          gap, so an extra wrapper around these siblings would collapse the gaps
-          it applies between them — the exact drift this skeleton exists to
-          avoid. The policy info panel is the one section without it:
-          `StackedRowsPanel` takes `rows`/`title`/`className` only and forwards
-          no DOM props. Its labels are static real copy with empty values, which
-          is accurate rather than misleading, so nothing is lost there. */}
-      <div
-        aria-busy="true"
-        className={
-          isPolicy
-            ? 'mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]'
-            : 'mt-6 space-y-[var(--spacing-system-xxs)]'
-        }
+    <LoadingRegion className="contents" label={isPolicy ? 'Loading policy' : 'Loading query'}>
+      <PageLayout
+        loading
+        backButton={{ label: 'Back', onClick: onBack }}
+        actions={editActions(kind)}
+        menuActions={deleteMenuActions(kind)}
+        actionsVariant="menu-primary"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
-        <QueryEditorSkeleton />
-      </div>
+        {isPolicy ? <StackedRowsPanel rows={policyInfoSkeletonRows()} /> : <QueryInfoSkeleton />}
 
-      {isPolicy ? (
-        <div aria-busy="true" className="mt-6">
-          <h1 className="pt-6 text-ods-text-primary text-h2">Devices</h1>
-          <div className="pt-4">
-            <TableSkeleton columns={POLICY_DEVICES_TABLE_COLUMNS} rows={8} />
-          </div>
+        <div
+          className={
+            isPolicy
+              ? 'mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]'
+              : 'mt-6 space-y-[var(--spacing-system-xxs)]'
+          }
+        >
+          <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
+          <QueryEditorSkeleton />
         </div>
-      ) : (
-        <div aria-busy="true" className="mt-6">
-          <TabBarSkeleton widths={QUERY_TAB_WIDTHS} />
+
+        {isPolicy ? (
           <div className="mt-6">
-            {queryTab === 'devices' ? (
-              <TableSkeleton columns={QUERY_DEVICES_TABLE_COLUMNS} rows={8} />
-            ) : (
-              // Query Results is NOT a `DataTable`: `QueryReportTable` lays
-              // itself out by hand and carries its own
-              // `QueryReportTableSkeleton`, which the page shows again while
-              // `isReportLoading`. So render the REAL table in its loading
-              // state — the two loading frames are then the same element with
-              // the same defaults (8 rows, 6 columns, 160px), and there is no
-              // shape to drift. `emptyMessage`/`columnOrder` are left off on
-              // purpose: with `loading` set and no rows, neither the empty
-              // state nor `deriveColumns` is reached, so passing them would
-              // only duplicate copy that can rot.
-              <QueryReportTable data={NO_REPORT_ROWS} loading showExport={false} />
-            )}
+            <h1 className="pt-6 text-ods-text-primary text-h2">Devices</h1>
+            <div className="pt-4">
+              <TableSkeleton columns={POLICY_DEVICES_TABLE_COLUMNS} rows={8} region={false} />
+            </div>
           </div>
-        </div>
-      )}
-    </PageLayout>
+        ) : (
+          <div className="mt-6">
+            <TabBarSkeleton widths={QUERY_TAB_WIDTHS} />
+            <div className="mt-6">
+              {queryTab === 'devices' ? (
+                <TableSkeleton columns={QUERY_DEVICES_TABLE_COLUMNS} rows={8} region={false} />
+              ) : (
+                // Query Results is NOT a `DataTable`: `QueryReportTable` lays
+                // itself out by hand and carries its own
+                // `QueryReportTableSkeleton`, which the page shows again while
+                // `isReportLoading`. So render the REAL table in its loading
+                // state — the two loading frames are then the same element with
+                // the same defaults (8 rows, 6 columns, 160px), and there is no
+                // shape to drift. `emptyMessage`/`columnOrder` are left off on
+                // purpose: with `loading` set and no rows, neither the empty
+                // state nor `deriveColumns` is reached, so passing them would
+                // only duplicate copy that can rot.
+                <QueryReportTable data={NO_REPORT_ROWS} loading loadingRegion={false} showExport={false} />
+              )}
+            </div>
+          </div>
+        )}
+      </PageLayout>
+    </LoadingRegion>
   );
 }
 
@@ -267,50 +272,52 @@ export function MonitoringEditSkeleton({ kind, onBack }: MonitoringSkeletonProps
   const isQuery = kind === 'query';
 
   return (
-    <PageLayout
-      loading
-      backButton={{ label: 'Back', onClick: onBack }}
-      actions={[{ label: COPY[kind].save, variant: 'accent', disabled: true }]}
-      actionsVariant="primary-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div aria-busy="true" className="space-y-6 content-md:space-y-8">
-        {/* Name — and, on the query form, Frequency beside it. */}
-        <div
-          className={
-            isQuery ? 'flex flex-col gap-4 content-md:flex-row content-md:items-end' : 'content-md:max-w-[280px]'
-          }
-        >
-          <div className={isQuery ? 'w-full content-md:max-w-[280px]' : undefined}>
-            <Input label="Name" placeholder={COPY[kind].namePlaceholder} disabled />
-          </div>
-          {isQuery && (
-            <div className="space-y-1">
-              <Label className="!mb-0">Frequency</Label>
-              <div className="flex gap-3">
-                <Input type="number" placeholder="0" className="w-[120px]" disabled />
-                <Select disabled>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                </Select>
-              </div>
+    <LoadingRegion className="contents" label={isQuery ? 'Loading query' : 'Loading policy'}>
+      <PageLayout
+        loading
+        backButton={{ label: 'Back', onClick: onBack }}
+        actions={[{ label: COPY[kind].save, variant: 'accent', disabled: true }]}
+        actionsVariant="primary-buttons"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        <div className="space-y-6 content-md:space-y-8">
+          {/* Name — and, on the query form, Frequency beside it. */}
+          <div
+            className={
+              isQuery ? 'flex flex-col gap-4 content-md:flex-row content-md:items-end' : 'content-md:max-w-[280px]'
+            }
+          >
+            <div className={isQuery ? 'w-full content-md:max-w-[280px]' : undefined}>
+              <Input label="Name" placeholder={COPY[kind].namePlaceholder} disabled />
             </div>
-          )}
-        </div>
+            {isQuery && (
+              <div className="space-y-1">
+                <Label className="!mb-0">Frequency</Label>
+                <div className="flex gap-3">
+                  <Input type="number" placeholder="0" className="w-[120px]" disabled />
+                  <Select disabled>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
 
-        <Textarea label="Description" rows={3} placeholder={COPY[kind].descriptionPlaceholder} disabled />
+          <Textarea label="Description" rows={3} placeholder={COPY[kind].descriptionPlaceholder} disabled />
 
-        <div className="space-y-1">
-          <Label className="!mb-0">Query</Label>
-          <QueryEditorSkeleton />
-        </div>
+          <div className="space-y-1">
+            <Label className="!mb-0">Query</Label>
+            <QueryEditorSkeleton />
+          </div>
 
-        <div className="space-y-1">
-          <h2 className="text-ods-text-primary text-h2">Devices</h2>
-          <DeviceSelectorSkeleton />
+          <div className="space-y-1">
+            <h2 className="text-ods-text-primary text-h2">Devices</h2>
+            <DeviceSelectorSkeleton region={false} />
+          </div>
         </div>
-      </div>
-    </PageLayout>
+      </PageLayout>
+    </LoadingRegion>
   );
 }

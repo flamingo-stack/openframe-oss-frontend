@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type ColumnDef,
   DataTable,
@@ -10,7 +10,6 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { DateColumnHeader } from './date-column-header';
 import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-layout';
@@ -25,72 +24,6 @@ import { skeletonColumnMeta, type TableSkeletonColumn } from './table-column-lay
  * skeleton is then identical in height and column layout to the loaded page, so
  * nothing shifts when the data arrives.
  */
-
-/**
- * Exact wrapper of `DashboardInfoCard`'s own `baseClassName`. Copied rather
- * than imported because the lib doesn't export it — keep the two in step.
- * The fixed height is the part that matters: a placeholder sized by its content
- * is ~33px shorter than the real 104px card, so everything under the stats row
- * shifts when the data lands.
- */
-const INFO_CARD_CLASS =
-  'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-xsf)] content-md:p-[var(--spacing-system-m)] h-16 content-md:h-[104px] flex gap-[var(--spacing-system-s)] content-md:gap-[var(--spacing-system-m)] items-center transition-all';
-
-export interface InfoCardSkeletonProps {
-  /** Real, static card title — it isn't query-dependent, so render it verbatim. */
-  title?: string;
-  /** Node rendered in place of the title (e.g. a status tag). */
-  titleSlot?: ReactNode;
-  /** Reserve the secondary text beside the value (e.g. "12 entries"). */
-  showSubValue?: boolean;
-  showProgress?: boolean;
-  showPercentage?: boolean;
-  /** Forwarded to the value `<p>`, mirroring the real card's prop. */
-  valueClassName?: string;
-  className?: string;
-}
-
-/**
- * One `DashboardInfoCard` in its loading state, mirroring the real card's
- * markup: the title stays REAL text and only the request-dependent parts
- * (value, sub-value, percentage, progress ring) become bars — so the card is
- * identical in height to the loaded one by construction.
- */
-export function InfoCardSkeleton({
-  title,
-  titleSlot,
-  showSubValue = false,
-  showProgress = false,
-  showPercentage = false,
-  valueClassName,
-  className,
-}: InfoCardSkeletonProps) {
-  return (
-    <div className={cn(INFO_CARD_CLASS, className)}>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-[var(--spacing-system-xxs)]">
-          {titleSlot ?? <p className="truncate text-ods-text-secondary text-h5">{title}</p>}
-        </div>
-        <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className={cn('truncate text-ods-text-primary text-h3 content-md:text-h2', valueClassName)}>
-            <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-4 w-8 content-md:h-6" />
-          </p>
-          {showSubValue && (
-            <p className="text-ods-text-secondary text-h6">
-              <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-16" />
-            </p>
-          )}
-          {showPercentage && (
-            <p className="text-ods-text-secondary text-h4">
-              <UnifiedSkeleton as="span" aria-hidden className="inline-block max-w-full align-middle h-3 w-14" />
-            </p>
-          )}
-        </div>
-      </div>
-      {showProgress && <UnifiedSkeleton className="size-6 shrink-0 rounded-full content-md:size-14" />}
-    </div>
-  );
-}
 
 export type { TableSkeletonColumn } from './table-column-layout';
 
@@ -129,20 +62,28 @@ interface TableSkeletonProps {
    * skeleton pins at the same offset, so the header does not jump on load.
    */
   stickyHeaderOffset?: string;
+  /** What the screen reader hears while the table loads. */
+  label?: string;
+  /** `false` inside another loading region, which announces for the table too. Default `true`. */
+  region?: boolean;
 }
 
 /**
  * Empty `DataTable` in its loading state, shaped by `columns`. Pass the same
  * headers/widths the real table declares so the header row is pixel-identical.
  *
- * The `aria-busy` wrapper is the only element added over a bare `DataTable`:
- * `DataTableSkeleton` renders purely visual `animate-pulse` rows with no
- * `aria-busy`/`aria-live`/`role`, so without it a screen reader is given no
- * signal that the region is loading. `DataTable` takes only
- * `table`/`children`/`className`, so the attribute needs its own element. It
+ * The `LoadingRegion` around it is the table's one announcement (the rows'
+ * own region is turned off, `loadingRegion={false}`). `DataTable` takes only
+ * `table`/`children`/`className`, so the region needs its own element. It
  * wraps a single child, so the flex-item count of the parent is unchanged.
  */
-export function TableSkeleton({ columns, rows = 10, stickyHeaderOffset }: TableSkeletonProps) {
+export function TableSkeleton({
+  columns,
+  rows = 10,
+  stickyHeaderOffset,
+  label = 'Loading table',
+  region = true,
+}: TableSkeletonProps) {
   const columnDefs = useMemo<ColumnDef<unknown>[]>(() => skeletonColumnDefs<unknown>(columns), [columns]);
 
   const table = useDataTable<unknown>({
@@ -153,12 +94,12 @@ export function TableSkeleton({ columns, rows = 10, stickyHeaderOffset }: TableS
   });
 
   return (
-    <div aria-busy>
+    <LoadingRegion label={label} announce={region}>
       <DataTable table={table}>
         <DataTable.Header stickyHeader={stickyHeaderOffset !== undefined} stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body loading skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={rows} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -184,7 +125,7 @@ export function TabBarSkeleton({ widths, className }: { widths: readonly string[
 }
 
 /** The search/filter toolbar row list pages render above their table. */
-export function SearchBarSkeleton() {
+function SearchBarSkeleton() {
   return <UnifiedSkeleton className="h-12 w-full rounded-md" />;
 }
 
@@ -208,7 +149,7 @@ export interface ListPageSkeletonProps {
  */
 export function ListPageSkeleton({ title, backButton, actions, tabWidths, columns, rows }: ListPageSkeletonProps) {
   return (
-    <div className="flex w-full flex-col">
+    <LoadingRegion label={`Loading ${title.toLowerCase()}`} className="flex w-full flex-col">
       {tabWidths && (
         <div className="px-[var(--spacing-system-l)]">
           <TabBarSkeleton widths={tabWidths} />
@@ -223,8 +164,8 @@ export function ListPageSkeleton({ title, backButton, actions, tabWidths, column
         contentClassName="flex flex-col"
       >
         <SearchBarSkeleton />
-        <TableSkeleton columns={columns} rows={rows} />
+        <TableSkeleton columns={columns} rows={rows} region={false} />
       </PageLayout>
-    </div>
+    </LoadingRegion>
   );
 }

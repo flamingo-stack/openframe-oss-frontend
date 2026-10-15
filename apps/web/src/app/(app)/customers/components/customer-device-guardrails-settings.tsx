@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -75,10 +75,10 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <LoadingRegion label="Loading remote access settings" className="flex flex-col gap-[var(--spacing-system-l)]">
         <UnifiedSkeleton className="h-16 w-full rounded-md" />
         <UnifiedSkeleton className="h-14 w-full rounded-md" />
-      </div>
+      </LoadingRegion>
     );
   }
 

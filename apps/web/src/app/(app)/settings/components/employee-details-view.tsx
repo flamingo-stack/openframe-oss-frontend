@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadError, NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -44,7 +44,7 @@ function ProfileFieldSkeleton({ valueClassName }: { valueClassName: string }) {
 
 function EmployeeSummarySkeleton() {
   return (
-    <div className={CARD_CONTAINER}>
+    <LoadingRegion label="Loading employee" className={CARD_CONTAINER}>
       <div className={CARD_ROW}>
         <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
           {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
@@ -57,7 +57,7 @@ function EmployeeSummarySkeleton() {
         <ProfileFieldSkeleton valueClassName="h-6 w-24" />
         <ProfileFieldSkeleton valueClassName="h-8 w-16 rounded-md" />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 

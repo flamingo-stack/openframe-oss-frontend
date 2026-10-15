@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ComputerMouseIcon,
   Filter02Icon,
@@ -266,10 +267,12 @@ export function TenantSessionsSkeleton() {
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader />
-      <DataTable.Body loading={true} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
+    <LoadingRegion label="Loading remote sessions">
+      <DataTable table={table}>
+        <DataTable.Header stickyHeader />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+      </DataTable>
+    </LoadingRegion>
   );
 }
 

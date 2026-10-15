@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
@@ -24,7 +24,11 @@ export function MspOrganizationCard({
   const displayName = name || 'Your Organization';
 
   return (
-    <div className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]" aria-busy={isLoading}>
+    <LoadingRegion
+      label="Loading your organization"
+      announce={Boolean(isLoading)}
+      className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
+    >
       {/* The avatar is data-dependent too, so it gets a placeholder rather than being
           left live: with no tenant yet it rendered the initials of the *fallback* name
           ("YO" from "Your Organization") — a plausible-looking wrong value — and then
@@ -65,6 +69,6 @@ export function MspOrganizationCard({
           disabled={!onEditOrganization}
         />
       </div>
-    </div>
+    </LoadingRegion>
   );
 }

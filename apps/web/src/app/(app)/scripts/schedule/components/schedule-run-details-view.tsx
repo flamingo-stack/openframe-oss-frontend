@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type PageActionButton,
@@ -158,7 +158,10 @@ function RunInfoBar({ run }: { run: RunNode }) {
 /** Mirrors `RunInfoBar`'s two rows so the header keeps its height while loading. */
 function RunInfoBarSkeleton() {
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <LoadingRegion
+      label="Loading run details"
+      className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card"
+    >
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {['responded', 'by', 'status', 'spacer'].map(cell => (
           <div
@@ -189,7 +192,7 @@ function RunInfoBarSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 
@@ -263,13 +266,15 @@ function RunHeaderSkeleton() {
   const handleBack = useSafeBack(routes.scripts.schedules.list);
 
   return (
-    <TitleBlock
-      title={PAGE_TITLE}
-      loading
-      subtitleRow="while-loading"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={NO_ACTIONS}
-    />
+    <LoadingRegion className="contents" label="Loading the run">
+      <TitleBlock
+        title={PAGE_TITLE}
+        loading
+        subtitleRow="while-loading"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={NO_ACTIONS}
+      />
+    </LoadingRegion>
   );
 }
 
