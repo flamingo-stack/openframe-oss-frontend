@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DevicesList,
   type DevicesListNarrowing,
@@ -183,9 +184,9 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
 
 export function ScheduleDevicesTabSkeleton() {
   return (
-    <div className="pt-[var(--spacing-system-l)]">
+    <LoadingRegion label="Loading devices" className="pt-[var(--spacing-system-l)]">
       <DevicesList devices={[]} isLoading emptyState={EMPTY_STATE} />
-    </div>
+    </LoadingRegion>
   );
 }
 

@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, LoadError, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { AiSettingsOverview } from '@/app/(app)/settings/ai-settings/components/ai-settings-overview';
 import { ASSISTANT_QUICK_ACTIONS_CONFIG } from '@/app/(app)/settings/ai-settings/components/ai-settings-quick-actions';
@@ -23,11 +24,11 @@ interface CustomerCustomAiAssistantTabProps {
 /** Loading shape of the tab: customer card, previews, quick actions. */
 function CustomerAiTabSkeleton() {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <Skeleton className="h-16 w-full rounded-md" />
-      <Skeleton className="h-40 w-full rounded-md" />
-      <Skeleton className="h-64 w-full rounded-md" />
-    </div>
+    <LoadingRegion label="Loading the AI assistant settings" className="flex flex-col gap-[var(--spacing-system-l)]">
+      <UnifiedSkeleton className="h-16 w-full rounded-md" />
+      <UnifiedSkeleton className="h-40 w-full rounded-md" />
+      <UnifiedSkeleton className="h-64 w-full rounded-md" />
+    </LoadingRegion>
   );
 }
 

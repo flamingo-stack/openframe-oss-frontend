@@ -90,7 +90,8 @@ export interface MingoSubscriptionBindings {
   approvalStatuses: Record<string, string>;
   onConnectionChange: (dialogId: string, connected: boolean) => void;
   onMetadata: (metadata: MetadataFrame) => void;
-  initialOptStartSeq: number;
+  /** `null` = live tail (see `historyStreamFloor`). */
+  initialOptStartSeq: number | null;
   isInitialOptStartSeqReady: boolean;
 }
 
@@ -312,6 +313,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     isFetchingNextPage: isFetchingNextMessagePage,
     initialOptStartSeq,
     isMessagesFetched,
+    isMessagesFetchedAfterMount,
     dialogError,
   } = useMingoDialogSelection();
 
@@ -737,7 +739,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       onConnectionChange,
       onMetadata,
       initialOptStartSeq,
-      isInitialOptStartSeqReady: isMessagesFetched,
+      isInitialOptStartSeqReady: isMessagesFetchedAfterMount,
     }),
     [
       activeDialogId,
@@ -748,7 +750,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       onConnectionChange,
       onMetadata,
       initialOptStartSeq,
-      isMessagesFetched,
+      isMessagesFetchedAfterMount,
     ],
   );
 
