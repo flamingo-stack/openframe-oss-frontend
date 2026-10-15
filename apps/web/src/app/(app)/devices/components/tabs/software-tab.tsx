@@ -28,12 +28,14 @@ const SEARCH_PLACEHOLDER = 'Search for Software';
  * are one search box over the same rows, so the answer can at most relabel the
  * header — it never adds or removes a control.
  */
-export function SoftwareTabSkeleton() {
+export function SoftwareTabSkeleton({ region = true }: { region?: boolean } = {}) {
   const gate = useFeatureFlagGate('software-management');
   return (
     <TableTabSkeleton
       columns={gate === 'on' ? SOFTWARE_LIST_TABLE_COLUMNS : FLEET_SOFTWARE_TAB_COLUMNS}
       placeholder={SEARCH_PLACEHOLDER}
+      label="Loading software"
+      region={region}
     />
   );
 }
@@ -105,6 +107,7 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
       placeholder={SEARCH_PLACEHOLDER}
       skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
       skeletonRows={DEVICE_TAB_SKELETON_ROWS}
+      skeletonLabel="Loading software"
     >
       {list => (
         <ContentErrorBoundary label="SoftwareTab" message="Couldn't load this device's software.">

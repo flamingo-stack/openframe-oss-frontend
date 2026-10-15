@@ -33,7 +33,7 @@ function latestIncidentDialogQuery(insightId: string) {
         query: GET_MINGO_DIALOGS_QUERY,
         variables: {
           filter: { agentTypes: ['ADMIN'], statuses: ACTIVE_DIALOG_STATUSES, insightId },
-          pagination: { limit: 1 },
+          first: 1,
         },
       });
       const envelope = response.data;

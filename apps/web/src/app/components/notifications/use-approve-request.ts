@@ -2,7 +2,7 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { ticketService } from '@/app/(app)/tickets/services';
 
 /**
  * Approve or reject a Mingo tool-approval request. Toasts the outcome and returns whether it
@@ -13,14 +13,12 @@ export function useApproveRequest() {
 
   return useCallback(
     async (approvalRequestId: string, approve: boolean): Promise<boolean> => {
-      const response = await apiClient.post(
-        `/chat/api/v1/approval-requests/${encodeURIComponent(approvalRequestId)}/approve`,
-        { approve },
-      );
-      if (!response.ok) {
+      try {
+        await ticketService.resolveApprovalRequest(approvalRequestId, approve);
+      } catch (error) {
         toast({
           title: 'Error',
-          description: response.error || `Failed to ${approve ? 'approve' : 'reject'} request`,
+          description: error instanceof Error ? error.message : `Failed to ${approve ? 'approve' : 'reject'} request`,
           variant: 'destructive',
         });
         return false;

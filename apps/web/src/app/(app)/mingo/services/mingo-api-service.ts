@@ -1,78 +1,21 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
-
-export interface CreateDialogResponse {
-  id: string;
-  agentType: string;
-  currentMode: string;
-  status: string;
-  title: string;
-  createdAt: string;
-  statusUpdatedAt: string;
-  resolvedAt: string;
-}
-
-export interface SendMessageResponse {
-  messageId: string;
-}
-
-export interface ApprovalResponse {
-  requestId: string;
-  status: 'approved' | 'rejected';
-  timestamp: string;
-}
-
-export interface CreateDialogRequest {
-  agentType: 'ADMIN';
-  /** The STORED insight id when the chat is about an incident — the server lists the chat under it. */
-  insightId?: string;
-}
-
-/** Minimal entity ref carried in the message payload. */
-export interface MessageContextRef {
-  type: string;
-  id: string;
-}
-
-export interface SendMessageRequest {
-  dialogId: string;
-  content: string;
-  chatType: 'ADMIN_AI_CHAT';
-  // Field names mirror the chat service OpenAPI `SendMessageRequest`
-  // (GET /chat/v3/api-docs): contextItems[≤10], currentView, recentViews[≤5].
-  /** Entity-context items the user attached via the composer (max 10). */
-  contextItems?: MessageContextRef[];
-  /** The entity page currently open when the message was sent (or omitted). */
-  currentView?: MessageContextRef;
-  /** Up to 5 previously-open entity views, most-recent-first. */
-  recentViews?: MessageContextRef[];
-}
+import { CHAT_TYPE } from '../../tickets/constants';
+import { ticketService } from '../../tickets/services';
+import type { SendMessageContext } from '../../tickets/services/ticket-service.types';
 
 /**
- * Custom hooks for Mingo chat operations using the centralized apiClient
+ * Custom hooks for Mingo chat operations on the ai-agent GraphQL commands
  * Provides react-query mutations for dialog creation, message sending, and approvals
  */
 
 /**
- * Create a new dialog - returns mutation
+ * Create a new dialog - returns mutation resolving to the raw dialog id
  */
 export function useCreateDialogMutation() {
   return useMutation({
-    mutationFn: async ({ insightId }: Pick<CreateDialogRequest, 'insightId'> = {}): Promise<CreateDialogResponse> => {
-      const request: CreateDialogRequest = { agentType: 'ADMIN', ...(insightId && { insightId }) };
-      const response = await apiClient.post<CreateDialogResponse>('/chat/api/v1/dialogs', request);
-
-      if (!response.ok) {
-        throw new Error(response.error || `Failed to create dialog with status ${response.status}`);
-      }
-
-      if (!response.data?.id) {
-        throw new Error('Invalid response: dialog id not found');
-      }
-
-      return response.data;
-    },
+    mutationFn: ({ insightId }: { insightId?: string } = {}) =>
+      ticketService.createDialog({ agentType: 'ADMIN', ...(insightId && { insightId }) }),
   });
 }
 
@@ -81,36 +24,8 @@ export function useCreateDialogMutation() {
  */
 export function useSendMessageMutation() {
   return useMutation({
-    mutationFn: async ({
-      dialogId,
-      content,
-      contextItems,
-      currentView,
-      recentViews,
-    }: {
-      dialogId: string;
-      content: string;
-      contextItems?: MessageContextRef[];
-      currentView?: MessageContextRef;
-      recentViews?: MessageContextRef[];
-    }) => {
-      // Omit the context fields entirely when empty so the payload stays the
-      // legacy shape for plain messages.
-      const response = await apiClient.post('/chat/api/v1/messages', {
-        dialogId,
-        content,
-        chatType: 'ADMIN_AI_CHAT',
-        ...(contextItems && contextItems.length > 0 ? { contextItems } : {}),
-        ...(currentView ? { currentView } : {}),
-        ...(recentViews && recentViews.length > 0 ? { recentViews } : {}),
-      } as SendMessageRequest);
-
-      if (!response.ok) {
-        throw new Error(response.error || `Failed to send message with status ${response.status}`);
-      }
-
-      return response.data;
-    },
+    mutationFn: ({ dialogId, content, ...context }: { dialogId: string; content: string } & SendMessageContext) =>
+      ticketService.sendMessage(dialogId, content, CHAT_TYPE.ADMIN, context),
   });
 }
 
@@ -121,17 +36,7 @@ export function useApproveRequestMutation() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (requestId: string): Promise<ApprovalResponse | undefined> => {
-      const response = await apiClient.post<ApprovalResponse>(`/chat/api/v1/approval-requests/${requestId}/approve`, {
-        approve: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(response.error || 'Failed to approve request');
-      }
-
-      return response.data;
-    },
+    mutationFn: (requestId: string) => ticketService.resolveApprovalRequest(requestId, true),
     onSuccess: () => {},
     onError: error => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve request';
@@ -150,17 +55,7 @@ export function useApproveRequestMutation() {
  */
 export function useStopGenerationMutation() {
   return useMutation({
-    mutationFn: async (dialogId: string) => {
-      const response = await apiClient.post(`/chat/api/v1/dialogs/${dialogId}/stop`, {
-        chatType: 'ADMIN_AI_CHAT',
-      });
-
-      if (!response.ok) {
-        throw new Error(response.error || `Failed to stop generation with status ${response.status}`);
-      }
-
-      return response.data;
-    },
+    mutationFn: (dialogId: string) => ticketService.stopDialogGeneration(dialogId, CHAT_TYPE.ADMIN),
   });
 }
 
@@ -171,17 +66,7 @@ export function useRejectRequestMutation() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (requestId: string): Promise<ApprovalResponse | undefined> => {
-      const response = await apiClient.post<ApprovalResponse>(`/chat/api/v1/approval-requests/${requestId}/approve`, {
-        approve: false,
-      });
-
-      if (!response.ok) {
-        throw new Error(response.error || 'Failed to reject request');
-      }
-
-      return response.data;
-    },
+    mutationFn: (requestId: string) => ticketService.resolveApprovalRequest(requestId, false),
     onSuccess: () => {},
     onError: error => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reject request';

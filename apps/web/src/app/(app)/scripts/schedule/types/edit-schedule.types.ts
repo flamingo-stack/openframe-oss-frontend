@@ -1,3 +1,18 @@
+import {
+  DEFAULT_RECONNECT_WINDOW,
+  DURATION_UNIT_VALUES,
+  dateToTimeSlot,
+  EMPTY_SCHEDULE_SCRIPT_ROW,
+  earliestScheduleDay,
+  fromScheduleInstant,
+  isEventTrigger,
+  isRetryOnReconnect,
+  isStartInPastAndChanged,
+  MIN_RECONNECT_MINUTES,
+  MIN_REPEAT_MINUTES,
+  PAST_START_MESSAGE,
+  type ScheduleFormData,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import { OS_PLATFORMS } from '@flamingo-stack/openframe-frontend-core/utils';
 import { z } from 'zod';
 import { ScheduleOfflineBehavior, ScheduleTimeReference, ScriptScheduleTrigger } from '@/generated/schema-enums';
@@ -6,18 +21,7 @@ import { parseKeyValues, serializeKeyValues } from '../../shared/utils/script-ke
 import { envVarsToInput, envVarsToPairs, platformsToIds } from '../../shared/utils/script-mappers';
 import { customParamsByScriptId, effectiveScriptParams, toEnvVarInputs } from '../utils/schedule-script-params';
 import {
-  DEFAULT_RECONNECT_WINDOW,
-  DURATION_UNIT_VALUES,
-  dateToTimeSlot,
   durationToSeconds,
-  fromScheduleInstant,
-  isEventTrigger,
-  isRetryOnReconnect,
-  isStartInPastAndChanged,
-  MIN_RECONNECT_MINUTES,
-  MIN_REPEAT_MINUTES,
-  PAST_START_MESSAGE,
-  earliestScheduleDay,
   resolveOfflineBehavior,
   resolveTimeReference,
   secondsToDuration,
@@ -339,82 +343,14 @@ export const editScheduleFormSchema = z
 
 export type EditScheduleFormData = z.infer<typeof editScheduleFormSchema>;
 
-export const EMPTY_SCRIPT_ROW: EditScheduleFormData['scripts'][number] = {
-  scriptId: '',
-  name: '',
-  supportedPlatforms: [],
-  // 0 keeps the Timeout field locked and empty until a script is picked.
-  timeoutSeconds: 0,
-  args: [],
-  envVars: [],
-  defaultArgs: [],
-  defaultEnvVars: [],
-};
-
-export const TRIGGER_OPTIONS = [
-  {
-    value: ScriptScheduleTrigger.DATE_TIME,
-    label: 'Run on schedule',
-    description: 'Runs at the set date and time, whether or not the device is online.',
-  },
-  {
-    value: ScriptScheduleTrigger.DEVICE_ONLINE,
-    label: 'Run when device comes online',
-    description: "Waits for the device to connect, then runs as soon as it's reachable.",
-  },
-];
-
 /**
- * The "Timezone" dropdown (design node 793:61340), in the designer's own
- * wording: the account's clock, or each device's.
- *
- * SERVER first — it is the backend's documented default for a null
- * `timeReference`, and it is what every schedule authored before the field
- * existed already means.
+ * The fields are the core library's `ScheduleFormFields`, which read the form
+ * as its `ScheduleFormData`. This holds the schema to that shape in both
+ * directions: a field added to one and not the other stops compiling here.
  */
-export const TIME_REFERENCE_OPTIONS = [
-  { value: ScheduleTimeReference.SERVER, label: 'Your account timezone' },
-  { value: ScheduleTimeReference.DEVICE_LOCAL, label: 'Device local timezone' },
-];
-
-/**
- * The two answers to "if device is offline at scheduled time" (design node
- * 460:63425). SKIP first, because it is both the design's default and the
- * behavior every schedule authored before this field existed already has — the
- * backend reads a null `offlineBehavior` as SKIP.
- */
-export const OFFLINE_BEHAVIOR_OPTIONS = [
-  {
-    value: ScheduleOfflineBehavior.SKIP,
-    label: 'Skip this Run',
-    description: 'Next run stays on schedule. Missed runs are logged.',
-  },
-  {
-    value: ScheduleOfflineBehavior.RETRY_ON_RECONNECT,
-    label: 'Run when device comes back online',
-    description: 'Executes on the next reconnect.',
-  },
-];
-
-export const DEFAULT_SCHEDULE_VALUES: EditScheduleFormData = {
-  name: '',
-  description: '',
-  trigger: ScriptScheduleTrigger.DATE_TIME,
-  scheduledDate: null,
-  scheduledTime: '',
-  timeReference: ScheduleTimeReference.SERVER,
-  repeatEnabled: false,
-  repeatInterval: 1,
-  repeatUnit: 'day',
-  repeatSecondsStored: null,
-  startAtStored: null,
-  offlineBehavior: ScheduleOfflineBehavior.SKIP,
-  reconnectInterval: DEFAULT_RECONNECT_WINDOW.interval,
-  reconnectUnit: DEFAULT_RECONNECT_WINDOW.unit,
-  reconnectWindowSecondsStored: null,
-  supportedPlatforms: ['windows'],
-  scripts: [EMPTY_SCRIPT_ROW],
-};
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type AssertTrue<T extends true> = T;
+export type EditScheduleFormMatchesFields = AssertTrue<Same<EditScheduleFormData, ScheduleFormData>>;
 
 /** The stored schedule, in the shape the edit form holds it. */
 export function scheduleToFormValues(schedule: ScheduleDetailData): EditScheduleFormData {
@@ -470,6 +406,6 @@ export function scheduleToFormValues(schedule: ScheduleDetailData): EditSchedule
               defaultEnvVars: toEnvVarInputs(s.envVars),
             };
           })
-        : [EMPTY_SCRIPT_ROW],
+        : [EMPTY_SCHEDULE_SCRIPT_ROW],
   };
 }

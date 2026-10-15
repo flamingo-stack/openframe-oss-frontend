@@ -1,6 +1,7 @@
 'use client';
 
-import { type PageActionButton, Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ArticleDetailSummarySkeleton } from './article-detail-summary';
 import { ArticleDetailTitle } from './article-detail-title';
 
@@ -12,10 +13,10 @@ export function ArticleDetailSkeleton() {
   return (
     <>
       <ArticleDetailTitle title="Article" loading actions={LOADING_ACTIONS} loadingActions />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
+      <LoadingRegion className="flex flex-1 flex-col gap-[var(--spacing-system-l)]" label="Loading article">
         <ArticleDetailSummarySkeleton />
-        <Skeleton className="h-64 w-full" />
-      </div>
+        <UnifiedSkeleton className="h-64 w-full" />
+      </LoadingRegion>
     </>
   );
 }

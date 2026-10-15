@@ -8,7 +8,7 @@ import {
   RESET_CLIENT_VIEW_MUTATION,
   UPDATE_CLIENT_VIEW_MUTATION,
 } from '../queries/ai-settings-queries';
-import type { ApplicationTheme, ClientView, ClientViewInput } from '../types/ai-settings';
+import type { ClientView, ClientViewInput } from '../types/ai-settings';
 import type { GraphqlResponse } from './chat-graphql';
 
 export const clientViewQueryKeys = {
@@ -21,7 +21,6 @@ interface ClientViewGql {
   organizationId: string | null;
   assistantName: string;
   assistantAvatar: { imageUrl: string; hash: string | null } | null;
-  applicationTheme: ApplicationTheme;
   accentColor: string;
   createdAt: string;
   updatedAt: string | null;
@@ -35,11 +34,21 @@ function toClientView(raw: ClientViewGql): ClientView {
     assistantAvatar: raw.assistantAvatar
       ? { imageUrl: raw.assistantAvatar.imageUrl, hash: raw.assistantAvatar.hash ?? undefined }
       : null,
-    applicationTheme: raw.applicationTheme,
     accentColor: raw.accentColor,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt ?? null,
   };
+}
+
+/**
+ * The theme mode is no longer set per customer (the client picks it in the
+ * Fae app), but the chat backend still requires one when a save CREATES a view
+ * and keeps the stored value on every later partial update. A first save
+ * therefore sends the theme Fae falls back to without one; an existing view is
+ * left as it is. Drop this once the backend stops requiring the field.
+ */
+export function withClientViewCreateFields(input: ClientViewInput, isNewView: boolean): ClientViewInput {
+  return isNewView ? { ...input, applicationTheme: 'DARK' } : input;
 }
 
 interface UseClientViewOptions {

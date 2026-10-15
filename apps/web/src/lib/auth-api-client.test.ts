@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authApiClient } from './auth-api-client';
+import { authApiClient, getAuthFailureMessage } from './auth-api-client';
 
 vi.mock('./force-logout', () => ({ forceLogout: vi.fn(), clearStoredTokens: vi.fn() }));
 vi.mock('./native-shell', () => ({ nativeAuthPlugin: () => null, nativeShellVersion: () => null }));
@@ -22,6 +22,17 @@ vi.mock('./token-store', () => ({
 }));
 
 const fetchMock = vi.fn();
+
+function htmlResponse(status: number) {
+  return {
+    ok: false,
+    status,
+    headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html' : null) },
+    json: async () => {
+      throw new SyntaxError('Unexpected token <');
+    },
+  };
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return {
@@ -88,5 +99,60 @@ describe('authApiClient.authErrorMessage', () => {
       status: 0,
       error: 'Failed to fetch',
     });
+  });
+});
+
+describe('getAuthFailureMessage', () => {
+  const accept = () =>
+    authApiClient.acceptInvitation({ invitationId: 'inv-1', firstName: 'Ann', lastName: 'Lee', password: 'x' });
+
+  it("reads a rejected field's own messages instead of the field-prefixed summary", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          code: 'VALIDATION_ERROR',
+          message: 'firstName: Invalid first name, password: Password must contain at least one uppercase letter',
+          fieldErrors: [
+            { field: 'firstName', message: 'Invalid first name' },
+            { field: 'lastName', message: 'Invalid last name' },
+            { field: 'password', message: 'Password must contain at least one uppercase letter' },
+          ],
+        },
+        400,
+      ),
+    );
+
+    expect(getAuthFailureMessage(await accept(), 'Failed')).toBe(
+      'Invalid first name. Invalid last name. Password must contain at least one uppercase letter.',
+    );
+  });
+
+  it("shows a non-field rejection's message as the server wrote it", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ code: 'CONFLICT', message: 'Invitation already used or revoked' }, 409));
+
+    expect(getAuthFailureMessage(await accept(), 'Failed')).toBe('Invitation already used or revoked');
+  });
+
+  it("explains the firewall's bare 502 instead of quoting the status", async () => {
+    fetchMock.mockResolvedValue(htmlResponse(502));
+
+    const message = getAuthFailureMessage(await accept(), 'Failed');
+
+    expect(message).not.toContain('502');
+    expect(message).toContain('remove characters such as < > or "');
+  });
+
+  it('says the server was not reached when the request never got an answer', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    expect(getAuthFailureMessage(await accept(), 'Failed')).toBe(
+      'Could not reach the server. Check your connection and try again.',
+    );
+  });
+
+  it("falls back to the caller's text for a rejection that carries no message", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ code: 'SOMETHING' }, 409));
+
+    expect(getAuthFailureMessage(await accept(), 'Failed to accept invitation')).toBe('Failed to accept invitation');
   });
 });

@@ -12,7 +12,10 @@ export interface DialogTokenUsage {
 export type DialogStreamState = 'IDLE' | 'STREAMING';
 
 export interface DialogNode {
+  /** Relay global id. Use `dialogId` for anything outside GraphQL. */
   id: string;
+  /** Raw dialog id: NATS subjects, notifications, REST, `?mingoDialog=`. */
+  dialogId: string;
   title: string;
   status: string;
   streamState: DialogStreamState;
@@ -67,11 +70,7 @@ export interface DialogConnection {
   };
 }
 
-export interface DialogsResponse {
-  data: {
-    dialogs: DialogConnection;
-  };
-}
+export type DialogsResponse = GraphQlResponse<{ dialogs: DialogConnection }>;
 
 /** The `dialog(id:)` envelope. `dialog` is `null` when the id resolves to
  *  nothing this user can open — the `mingo-dialog` queryFn tells that apart
