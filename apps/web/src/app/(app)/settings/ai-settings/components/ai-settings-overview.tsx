@@ -48,7 +48,6 @@ export function AiSettingsOverview({
             assistantName={view.assistantName}
             avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
             accentColor={view.accentColor}
-            theme={view.applicationTheme}
           />
         </>
       )}

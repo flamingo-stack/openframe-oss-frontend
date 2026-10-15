@@ -27,7 +27,6 @@ const CLIENT_VIEW_FIELDS = `
     imageUrl
     hash
   }
-  applicationTheme
   accentColor
   createdAt
   updatedAt

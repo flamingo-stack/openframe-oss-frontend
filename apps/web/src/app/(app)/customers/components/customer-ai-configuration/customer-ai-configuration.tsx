@@ -1,12 +1,7 @@
 'use client';
 'use no memo';
 
-import {
-  MonitorIcon,
-  MoonStarIcon,
-  PenEditIcon,
-  Sun01Icon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   CheckboxBlock,
@@ -15,7 +10,6 @@ import {
   Input,
   LoadError,
   Skeleton,
-  TabSelector,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +32,7 @@ import {
   useClientView,
   useResetClientView,
   useUpdateClientView,
+  withClientViewCreateFields,
 } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useHubDefaultQuickActions } from '@/app/(app)/settings/ai-settings/hooks/use-hub-default-quick-actions';
 import {
@@ -140,7 +135,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
     });
 
     const assistantName = form.watch('assistantName');
-    const applicationTheme = form.watch('applicationTheme');
     const accentColor = form.watch('accentColor');
     const llmProvider = form.watch('llmProvider');
     const answerStyle = form.watch('answerStyle');
@@ -165,11 +159,13 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
           }
           const values = form.getValues();
 
-          const savedView = await updateView({
-            assistantName: values.assistantName,
-            applicationTheme: values.applicationTheme,
-            accentColor: values.accentColor,
-          });
+          // No override yet: this save creates the customer's own view.
+          const savedView = await updateView(
+            withClientViewCreateFields(
+              { assistantName: values.assistantName, accentColor: values.accentColor },
+              !orgView,
+            ),
+          );
 
           await updateAiConfig(toAgentAiConfigInput(values));
           // The update omits `quickActions` while defaults are on, and the
@@ -274,7 +270,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 fallbackDefault.assistantAvatar?.hash,
               )}
               accentColor={fallbackDefault.accentColor}
-              theme={fallbackDefault.applicationTheme}
             />
 
             {/* Quick actions stay visible while inheriting the default config —
@@ -323,42 +318,21 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
             </div>
 
             <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border p-[var(--spacing-system-l)]">
-              <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-end">
-                <div className="min-w-0 flex-1">
-                  <Controller
-                    name="applicationTheme"
-                    control={form.control}
-                    render={({ field }) => (
-                      <TabSelector
-                        label="Application Theme"
-                        variant="primary"
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        items={[
-                          { id: 'DARK', label: 'Dark', icon: <MoonStarIcon className="size-5" /> },
-                          { id: 'LIGHT', label: 'Light', icon: <Sun01Icon className="size-5" /> },
-                          { id: 'SYSTEM', label: 'System', icon: <MonitorIcon className="size-5" /> },
-                        ]}
-                      />
-                    )}
-                  />
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
-                  <p className="text-ods-text-primary text-h3">Accent Color</p>
-                  <Controller
-                    name="accentColor"
-                    control={form.control}
-                    render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
-                  />
-                </div>
+              {/* The theme mode is the client's own choice in the Fae app, so
+                  the accent is the only appearance setting here. */}
+              <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] content-md:w-1/2">
+                <p className="text-ods-text-primary text-h3">Accent Color</p>
+                <Controller
+                  name="accentColor"
+                  control={form.control}
+                  render={({ field }) => <ColorPickerInput value={field.value} onChange={field.onChange} />}
+                />
               </div>
 
               <AiSettingsPreviews
                 assistantName={assistantName || effectiveView.assistantName}
                 avatarUrl={avatarUrl}
                 accentColor={accentColor || effectiveView.accentColor}
-                theme={applicationTheme}
               />
             </div>
 

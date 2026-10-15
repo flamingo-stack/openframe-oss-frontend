@@ -1,5 +1,5 @@
 import type { IconRef } from '@flamingo-stack/openframe-frontend-core/components';
-import type { AIProvider, AnswerStyle, ApplicationTheme } from '../types/ai-settings';
+import type { AIProvider, AnswerStyle } from '../types/ai-settings';
 
 export const LLM_PROVIDER_LABEL: Record<AIProvider, string> = {
   ANTHROPIC: 'Anthropic',
@@ -15,12 +15,6 @@ export const LLM_PROVIDER_ICON: Record<AIProvider, IconRef> = {
 };
 
 export const LLM_PROVIDER_OPTIONS: AIProvider[] = ['ANTHROPIC', 'OPENAI', 'GOOGLE_GEMINI'];
-
-export const APPLICATION_THEME_LABEL: Record<ApplicationTheme, string> = {
-  DARK: 'Dark',
-  LIGHT: 'Light',
-  SYSTEM: 'System',
-};
 
 export const ANSWER_STYLE_LABEL: Record<AnswerStyle, string> = {
   SHORT: 'Short',

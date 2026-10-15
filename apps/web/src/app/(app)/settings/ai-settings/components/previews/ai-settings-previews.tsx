@@ -6,22 +6,21 @@ import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useState } from 'react';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import type { ApplicationTheme } from '../../types/ai-settings';
 import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-modal';
 import { FaeChatPreview } from './fae-chat-preview';
 import { FaeWelcomePreview } from './fae-welcome-preview';
-import { usePreviewThemeClass } from './use-resolved-theme';
+import { type PreviewTheme, previewThemeClass, PreviewThemeSwitch } from './preview-theme';
 
 interface AiSettingsPreviewsProps {
   assistantName: string;
   avatarUrl?: string;
   accentColor: string;
-  theme: ApplicationTheme;
 }
 
 /**
  * Welcome + chat previews of the Fae window, re-themed locally via
- * `.theme-light` / `.theme-dark`.
+ * `.theme-light` / `.theme-dark`. The theme is the preview's own switch, not a
+ * setting: each client picks it in the Fae app.
  *
  * Both inline forms are thumbnails — the source is the 1024×800 window, and the
  * scale that fits it into a card takes a 12px caption down to 5px. No scale
@@ -34,12 +33,14 @@ interface AiSettingsPreviewsProps {
  * (a narrow desktop window is the same problem) and `md` is 800px in the core
  * preset, exactly where the ODS type tokens step up.
  */
-export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor, theme }: AiSettingsPreviewsProps) {
+export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: AiSettingsPreviewsProps) {
   // Open state and pane are separate: collapsing them into one nullable value
   // resets the pane to 'welcome' mid-close, which is visible during ModalV2's
   // 200ms exit animation.
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPane, setPreviewPane] = useState<PreviewPane>('welcome');
+  // Dark is what Fae shows until the client picks a theme.
+  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('dark');
 
   const openPreview = (pane: PreviewPane) => {
     setPreviewPane(pane);
@@ -65,13 +66,13 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor, them
   // `--ods-system-greys-background`, so applying it to the container would turn
   // the whole container white too. Per-card scoping keeps the container on the
   // (dark) app background while only the cards re-theme.
-  const themeClass = usePreviewThemeClass(theme);
+  const themeClass = previewThemeClass(previewTheme);
 
   return (
     <>
       {/* Just the affordance: every consumer already renders the assistant's
-          name, avatar, model, theme and accent directly above this, so a
-          summary card here only repeats them. */}
+          name, avatar, model and accent directly above this, so a summary
+          card here only repeats them. The theme switch lives in the modal. */}
       <Button
         type="button"
         variant="outline"
@@ -82,21 +83,24 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor, them
         Preview Assistant
       </Button>
 
-      <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid">
-        <ThumbnailTrigger
-          themeClass={themeClass}
-          label="Open the welcome screen preview at full size"
-          onOpen={() => openPreview('welcome')}
-        >
-          <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
-        </ThumbnailTrigger>
-        <ThumbnailTrigger
-          themeClass={themeClass}
-          label="Open the chat preview at full size"
-          onOpen={() => openPreview('chat')}
-        >
-          <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
-        </ThumbnailTrigger>
+      <div className="hidden flex-col items-end gap-[var(--spacing-system-m)] content-md:flex">
+        <PreviewThemeSwitch value={previewTheme} onChange={setPreviewTheme} />
+        <div className="grid w-full grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg">
+          <ThumbnailTrigger
+            themeClass={themeClass}
+            label="Open the welcome screen preview at full size"
+            onOpen={() => openPreview('welcome')}
+          >
+            <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+          </ThumbnailTrigger>
+          <ThumbnailTrigger
+            themeClass={themeClass}
+            label="Open the chat preview at full size"
+            onOpen={() => openPreview('chat')}
+          >
+            <FaeChatPreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
+          </ThumbnailTrigger>
+        </div>
       </div>
 
       <AiSettingsPreviewModal
@@ -107,7 +111,8 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor, them
         assistantName={assistantName}
         avatarUrl={resolvedAvatarUrl}
         accentColor={accentColor}
-        theme={theme}
+        previewTheme={previewTheme}
+        onPreviewThemeChange={setPreviewTheme}
       />
     </>
   );

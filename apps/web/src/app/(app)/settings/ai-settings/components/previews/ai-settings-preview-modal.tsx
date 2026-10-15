@@ -9,10 +9,9 @@ import {
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ApplicationTheme } from '../../types/ai-settings';
 import { FaeChatPreview } from './fae-chat-preview';
 import { FaeWelcomePreview } from './fae-welcome-preview';
-import { usePreviewThemeClass } from './use-resolved-theme';
+import { type PreviewTheme, previewThemeClass, PreviewThemeSwitch } from './preview-theme';
 
 export type PreviewPane = 'welcome' | 'chat';
 
@@ -29,7 +28,8 @@ interface AiSettingsPreviewModalProps {
   assistantName: string;
   avatarUrl?: string;
   accentColor: string;
-  theme: ApplicationTheme;
+  previewTheme: PreviewTheme;
+  onPreviewThemeChange: (theme: PreviewTheme) => void;
 }
 
 /**
@@ -45,9 +45,10 @@ export function AiSettingsPreviewModal({
   assistantName,
   avatarUrl,
   accentColor,
-  theme,
+  previewTheme,
+  onPreviewThemeChange,
 }: AiSettingsPreviewModalProps) {
-  const themeClass = usePreviewThemeClass(theme);
+  const themeClass = previewThemeClass(previewTheme);
 
   return (
     <ModalV2
@@ -70,6 +71,9 @@ export function AiSettingsPreviewModal({
     >
       <div className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border px-[var(--spacing-system-l)] py-[var(--spacing-system-m)]">
         <ModalV2Title className="min-w-0 flex-1">Assistant Preview</ModalV2Title>
+        {/* Beside the title only where the row has room for both; a phone
+            gets its own row under the tabs. */}
+        <PreviewThemeSwitch value={previewTheme} onChange={onPreviewThemeChange} className="hidden md:flex" />
         {/* ModalV2Header's own close button is `hidden md:flex`, and a full-bleed
             sheet leaves no backdrop to tap, so a phone would have no visible way
             out — hardware back alone is not an affordance (and iOS has none). */}
@@ -85,6 +89,10 @@ export function AiSettingsPreviewModal({
           onTabChange={pane => onPaneChange(pane as PreviewPane)}
           stretchTabs
         />
+      </div>
+
+      <div className="flex shrink-0 justify-end px-[var(--spacing-system-l)] pt-[var(--spacing-system-s)] md:hidden">
+        <PreviewThemeSwitch value={previewTheme} onChange={onPreviewThemeChange} />
       </div>
 
       {/* Bottom inset lives here, not on the panel, so the previewed theme's
