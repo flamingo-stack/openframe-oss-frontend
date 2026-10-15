@@ -1,7 +1,7 @@
 'use client';
 
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { HubSpotMeetingScheduler } from '@flamingo-stack/openframe-frontend-core/components/meeting-scheduler';
-import { Skeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { BookingConfirmation } from '@flamingo-stack/openframe-frontend-core/schemas/meeting-booking-schema';
 import { CONTENT_BASE } from '@/app/(app)/help-center/endpoints';
@@ -11,21 +11,33 @@ import { formatDateTime } from '@/lib/format-date';
 
 /**
  * "Book an Onboarding Call": the lib's HubSpot scheduler on the hub's onboarding
- * link, in a modal. Same link and same booked toast as the dashboard promo's
- * inline scheduler; the modal closes on a confirmed booking.
+ * link, in a modal - its modal layout (host strip, timezone, calendar beside the
+ * times, Continue under the card), which the 600px window has the room for.
+ * Same link and same booked toast as the dashboard promo's inline scheduler;
+ * the modal closes on a confirmed booking, and on a phone's Cancel.
  */
 export function BookCallModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const { link, isLoading } = useOnboardingMeetingLink();
 
   return (
-    <SimpleModal isOpen={open} onClose={onClose} title="Book an Onboarding Call" className="md:max-w-[600px]">
+    <SimpleModal
+      isOpen={open}
+      onClose={onClose}
+      title="Book an Onboarding Call"
+      className="md:max-w-[600px]"
+      // The window scrolls as a whole on a phone (the scheduler's footer rides
+      // with the card); without this slot the body has no scroll box at all.
+      contentClassName="flex flex-col"
+    >
       {link ? (
         <HubSpotMeetingScheduler
+          layout="modal"
           meetingId={link.id}
           apiBaseUrl={CONTENT_BASE}
           hosts={link.hosts}
           fallbackUrl={link.link}
+          onBack={onClose}
           onBooked={(booking: BookingConfirmation) => {
             toast({
               title: 'Call booked',
@@ -36,7 +48,7 @@ export function BookCallModal({ open, onClose }: { open: boolean; onClose: () =>
           }}
         />
       ) : isLoading ? (
-        <Skeleton className="h-[420px] w-full rounded-md" />
+        <UnifiedSkeleton className="h-[420px] w-full rounded-md" />
       ) : (
         <p className="text-ods-text-secondary text-h4">No onboarding calls can be booked right now.</p>
       )}

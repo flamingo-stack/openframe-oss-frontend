@@ -3,11 +3,23 @@
 import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { AppleLogoIcon, Globe01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, DropdownButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DESKTOP_RELEASES_URL, useDesktopInstallers } from '@/app/(app)/settings/hooks/use-desktop-installers';
+import { useDownloads } from '@flamingo-stack/openframe-frontend-core/hooks';
+import type { AppDownload } from '@flamingo-stack/openframe-frontend-core/types';
+import { EP } from '@/app/(app)/help-center/endpoints';
 import { useIsDesktopShell } from '@/app/hooks/use-is-desktop-shell';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { isDesktopShell } from '@/lib/platform';
+import { routes } from '@/lib/routes';
 import { SetupHeading } from '../components/setup-heading';
+
+/** The server's installer for a system and architecture, if it offers one. */
+function installerUrl(downloads: readonly AppDownload[], os: AppDownload['os'], architecture?: string): string | null {
+  return (
+    downloads.find(
+      d => d.kind === 'binary' && d.os === os && (architecture === undefined || d.architecture === architecture),
+    )?.url ?? null
+  );
+}
 
 /**
  * The wizard's first screen. On the web it offers the walk here or the desktop
@@ -18,14 +30,22 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
   // The hook for what renders, the bare predicate for what is requested - see
   // the Download Apps view for the hydration trade behind the split.
   const desktopShell = useIsDesktopShell();
-  const { installers, isLoading } = useDesktopInstallers(!isDesktopShell());
+  // The installers come from the server's download list, the one the Download
+  // Apps page shows; an installer the list lacks sends the user to that page.
+  const { data, isLoading } = useDownloads({ endpoint: EP.downloads, enabled: !isDesktopShell() });
   const sameWindow = useSameWindowLinks();
 
+  const desktop = data?.desktop ?? [];
   const downloads = [
-    { id: 'macos', label: 'Download for macOS', url: installers?.macos },
-    { id: 'windows-x64', label: 'Download for Windows (x64)', url: installers?.windowsX64 },
-    { id: 'windows-arm64', label: 'Download for Windows (ARM)', url: installers?.windowsArm64 },
-  ].map(({ id, label, url }) => ({ id, label, href: url ?? DESKTOP_RELEASES_URL, openInNewTab: !sameWindow }));
+    { id: 'macos', label: 'Download for macOS', url: installerUrl(desktop, 'mac') },
+    { id: 'windows-x64', label: 'Download for Windows (x64)', url: installerUrl(desktop, 'windows', 'x64') },
+    { id: 'windows-arm64', label: 'Download for Windows (ARM)', url: installerUrl(desktop, 'windows', 'arm64') },
+  ].map(({ id, label, url }) => ({
+    id,
+    label,
+    href: url ?? routes.settings.downloadApps,
+    openInNewTab: url !== null && !sameWindow,
+  }));
 
   return (
     <>
