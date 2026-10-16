@@ -1,0 +1,144 @@
+'use client';
+
+import { type ReactNode, Suspense } from 'react';
+import { graphql } from 'react-relay';
+import type { dataLossModuleRowsIncidentsQuery } from '@/__generated__/dataLossModuleRowsIncidentsQuery.graphql';
+import type { dataLossModuleRowsIntegrationsQuery } from '@/__generated__/dataLossModuleRowsIntegrationsQuery.graphql';
+import type { dataLossModuleRowsRecordingsQuery } from '@/__generated__/dataLossModuleRowsRecordingsQuery.graphql';
+import type { dataLossModuleRowsRemoteSessionsQuery } from '@/__generated__/dataLossModuleRowsRemoteSessionsQuery.graphql';
+import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
+import { formatBytes } from '@/app/(app)/devices/components/remote-sessions/format';
+import { useSessionRecordingsGate } from '@/app/(app)/devices/hooks/use-session-recordings-gate';
+import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
+import { ContentErrorBoundary, QueryIsland } from '@/app/components/shared';
+import type { FeatureFlagGate } from '@/lib/feature-flags';
+import { pluralNoun } from '@/lib/pluralize';
+import { DataLossItem, DataLossStat } from './data-loss-item';
+import { DataLossRowSkeleton } from './data-loss-rows-skeleton';
+
+// One query per module, not fields on the dialog's shared query: where a module is
+// off or not deployed, its field fails the whole document and would take the end
+// date and every other count down with it.
+
+const incidentsQuery = graphql`
+  query dataLossModuleRowsIncidentsQuery {
+    insightFilters {
+      filteredCount
+    }
+  }
+`;
+
+const remoteSessionsQuery = graphql`
+  query dataLossModuleRowsRemoteSessionsQuery {
+    remoteSessions(first: 1) {
+      totalCount
+    }
+  }
+`;
+
+const recordingsQuery = graphql`
+  query dataLossModuleRowsRecordingsQuery {
+    recordingStorage {
+      usedBytes
+    }
+  }
+`;
+
+const integrationsQuery = graphql`
+  query dataLossModuleRowsIntegrationsQuery {
+    directoryConnections(first: 1) {
+      totalCount
+    }
+  }
+`;
+
+/** Nothing when the module is off, zero or failed; a loading line until both the flag and the count answer. */
+function ModuleRow({ gate, label, children }: { gate: FeatureFlagGate; label: string; children: ReactNode }) {
+  if (gate === 'off') return null;
+  const skeleton = <DataLossRowSkeleton width="w-2/5" />;
+  if (gate === 'loading') return skeleton;
+  return (
+    <ContentErrorBoundary label={label} fallback={() => <></>}>
+      <Suspense fallback={skeleton}>{children}</Suspense>
+    </ContentErrorBoundary>
+  );
+}
+
+function CountRow({ value, children }: { value: number; children: ReactNode }) {
+  if (value <= 0) return null;
+  return (
+    <DataLossItem>
+      <DataLossStat value={value} />
+      {children}
+    </DataLossItem>
+  );
+}
+
+/**
+ * Rows of the flagged modules. Sessions and recordings share the Remote Sessions
+ * page's gate but are two rows: `recordingStorage` can fail where sessions list fine.
+ */
+export function DataLossModuleRows() {
+  const incidents = useIncidentsGate();
+  const remoteSessions = useSessionRecordingsGate();
+  const integrations = useTenantManagementGate();
+
+  return (
+    <>
+      <ModuleRow gate={incidents} label="DataLossIncidents">
+        <QueryIsland<dataLossModuleRowsIncidentsQuery>
+          query={incidentsQuery}
+          variables={{}}
+          fetchPolicy="store-or-network"
+        >
+          {data => {
+            const count = data.insightFilters.filteredCount ?? 0;
+            return <CountRow value={count}>{` ${pluralNoun(count, 'incident')}`}</CountRow>;
+          }}
+        </QueryIsland>
+      </ModuleRow>
+      <ModuleRow gate={remoteSessions} label="DataLossRemoteSessions">
+        <QueryIsland<dataLossModuleRowsRemoteSessionsQuery>
+          query={remoteSessionsQuery}
+          variables={{}}
+          fetchPolicy="store-or-network"
+        >
+          {data => {
+            const count = data.remoteSessions.totalCount;
+            return <CountRow value={count}>{` remote ${pluralNoun(count, 'session')}`}</CountRow>;
+          }}
+        </QueryIsland>
+      </ModuleRow>
+      <ModuleRow gate={remoteSessions} label="DataLossRecordings">
+        <QueryIsland<dataLossModuleRowsRecordingsQuery>
+          query={recordingsQuery}
+          variables={{}}
+          fetchPolicy="store-or-network"
+        >
+          {data => {
+            const { usedBytes } = data.recordingStorage;
+            if (usedBytes <= 0) return null;
+            return (
+              <DataLossItem>
+                <DataLossStat value={formatBytes(usedBytes)} />
+                {` of remote session recordings`}
+              </DataLossItem>
+            );
+          }}
+        </QueryIsland>
+      </ModuleRow>
+      <ModuleRow gate={integrations} label="DataLossIntegrations">
+        <QueryIsland<dataLossModuleRowsIntegrationsQuery>
+          query={integrationsQuery}
+          variables={{}}
+          fetchPolicy="store-or-network"
+        >
+          {data => {
+            const count = data.directoryConnections.totalCount;
+            return <CountRow value={count}>{` connected cloud ${pluralNoun(count, 'tenant')}`}</CountRow>;
+          }}
+        </QueryIsland>
+      </ModuleRow>
+    </>
+  );
+}

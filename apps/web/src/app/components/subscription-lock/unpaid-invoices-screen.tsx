@@ -12,10 +12,12 @@ import {
   isOutstandingInvoice,
   toInvoiceRow,
 } from '@/app/(app)/settings/billing-usage/components/shared/invoice-row';
+import { SubscriptionStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
-import { LockScreenActions } from './lock-screen-actions';
+import { routes } from '@/lib/routes';
+import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**
@@ -37,28 +39,55 @@ const unpaidInvoicesScreenQuery = graphql`
   }
 `;
 
-const TITLE = 'Your Organization Has Been Suspended';
+/** The two steps of one unpaid invoice this screen is for — see `subscription-status.ts`. */
+type DebtStatus = typeof SubscriptionStatus.PAST_DUE | typeof SubscriptionStatus.SUSPENDED;
 
-/** Shown when the invoices themselves cannot be loaded — the one thing this screen is for. */
-const INVOICES_UNAVAILABLE_COPY = {
-  title: TITLE,
-  description:
-    "We couldn't load the outstanding invoices for this workspace. Try again in a moment, or contact support to have access restored.",
+interface DebtCopy {
+  title: string;
+  description: string;
+  /** The backend says money is owed, but there is no open invoice to pay. */
+  nothingOutstanding: string;
+}
+
+const DEBT_COPY: Record<DebtStatus, DebtCopy> = {
+  [SubscriptionStatus.PAST_DUE]: {
+    title: 'Your Invoice Is Overdue',
+    description:
+      "An invoice is past its due date, so the dashboard is locked until it's paid. Your agents keep working in the meantime. Pay the outstanding balance to restore access instantly.",
+    nothingOutstanding:
+      "The dashboard is locked over an overdue invoice, and we can't find an open one to settle. Contact support and we'll sort it out.",
+  },
+  [SubscriptionStatus.SUSPENDED]: {
+    title: 'Your Organization Has Been Suspended',
+    description:
+      "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly.",
+    nothingOutstanding:
+      "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out.",
+  },
 };
 
+/** Shown when the invoices themselves cannot be loaded — the one thing this screen is for. */
+const INVOICES_UNAVAILABLE_DESCRIPTION =
+  "We couldn't load the outstanding invoices for this workspace. Try again in a moment, or contact support to have access restored.";
+
+interface UnpaidInvoicesScreenProps {
+  status: DebtStatus;
+}
+
 /**
- * The lock screen for a workspace suspended over unpaid invoices.
+ * The lock screen for a workspace that owes an invoice: `PAST_DUE` (the
+ * dashboard is locked, the agents still run) or `SUSPENDED` (everything is
+ * paused).
  *
- * SUSPENDED is a locking status (see `subscription-status.ts`), and unlike the
- * other two it has a remedy that is neither a plan nor a checkout: an invoice
- * that already exists and is waiting to be paid. So this screen replaces the
- * plan picker rather than decorating it — picking a plan is not what gets this
- * workspace back.
+ * Unlike the other locks this one has a remedy that is neither a plan nor a
+ * checkout: an invoice that already exists and is waiting to be paid. So this
+ * screen replaces the plan picker rather than decorating it — picking a plan is
+ * not what gets this workspace back.
  *
  * Every outstanding invoice is listed, each openable on its own, because a
  * workspace can fall behind by more than one and only the customer knows which
  * one their finance team is asking about. The primary CTA opens the OLDEST —
- * the one the suspension is actually counting from.
+ * the one the lock is actually counting from.
  *
  * Reached only on builds where payments may be shown: `SubscriptionLockContent`
  * routes the native builds to `WorkspaceInactiveScreen` before this module is
@@ -66,18 +95,22 @@ const INVOICES_UNAVAILABLE_COPY = {
  * precisely what App Store Guideline 3.1.1 forbids there (see
  * `billing-visibility.ts`).
  */
-export function UnpaidInvoicesScreen() {
+export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
   return (
     // Same reasoning as the paywall's: this screen IS what a locked workspace
     // gets instead of the app, so a throw here would land on the root error page
     // and leave the user with no way out at all. The degraded screen still
     // carries the sign-out, the self-deletion and the support form.
-    <ErrorBoundary fallback={<WorkspaceInactiveScreen {...INVOICES_UNAVAILABLE_COPY} />}>
-      <SuspendedWorkspaceShell>
-        <Suspense fallback={<SuspendedWorkspaceMain invoices={null} />}>
-          <UnpaidInvoicesContent />
+    <ErrorBoundary
+      fallback={
+        <WorkspaceInactiveScreen title={DEBT_COPY[status].title} description={INVOICES_UNAVAILABLE_DESCRIPTION} />
+      }
+    >
+      <UnpaidInvoicesShell>
+        <Suspense fallback={<UnpaidInvoicesMain status={status} invoices={null} />}>
+          <UnpaidInvoicesContent status={status} />
         </Suspense>
-      </SuspendedWorkspaceShell>
+      </UnpaidInvoicesShell>
     </ErrorBoundary>
   );
 }
@@ -88,11 +121,11 @@ export function UnpaidInvoicesScreen() {
  * on — this is the body in its unfilled shape, which is also what the `Suspense`
  * fallback above shows, so the two waits read as one.
  */
-export function UnpaidInvoicesLoading() {
+export function UnpaidInvoicesLoading({ status }: UnpaidInvoicesScreenProps) {
   return (
-    <SuspendedWorkspaceShell>
-      <SuspendedWorkspaceMain invoices={null} />
-    </SuspendedWorkspaceShell>
+    <UnpaidInvoicesShell>
+      <UnpaidInvoicesMain status={status} invoices={null} />
+    </UnpaidInvoicesShell>
   );
 }
 
@@ -104,16 +137,18 @@ export function UnpaidInvoicesLoading() {
  * dialog unmounts the fallback — closing whatever the user had started typing
  * into it.
  */
-function SuspendedWorkspaceShell({ children }: { children: ReactNode }) {
+function UnpaidInvoicesShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col gap-[var(--spacing-system-xl)] p-[var(--spacing-system-l)]">
       {children}
-      <LockScreenActions />
+      {/* "Check Again" leads: paying happens in the Stripe tab, and the lock
+          lifts here only once the status is read again. */}
+      <LockScreenActions leading={<CheckAgainButton />} />
     </div>
   );
 }
 
-function UnpaidInvoicesContent() {
+function UnpaidInvoicesContent({ status }: UnpaidInvoicesScreenProps) {
   const data = useLazyLoadQuery<UnpaidInvoicesScreenQueryType>(
     unpaidInvoicesScreenQuery,
     {},
@@ -126,7 +161,7 @@ function UnpaidInvoicesContent() {
   );
 
   // `null` when the subscription answered without its invoices (Stripe could
-  // not be reached): the workspace is still suspended, but there is nothing to
+  // not be reached): the workspace is still locked, but there is nothing to
   // list and nothing to open — which is a different screen from "none owed".
   const pendingInvoices = data.subscription?.pendingInvoices ?? null;
   const invoices = useMemo(
@@ -134,11 +169,11 @@ function UnpaidInvoicesContent() {
     [pendingInvoices],
   );
 
-  if (invoices == null) return <SuspendedWorkspaceMain invoices={null} unavailable />;
-  return <SuspendedWorkspaceMain invoices={invoices} />;
+  if (invoices == null) return <UnpaidInvoicesMain status={status} invoices={null} unavailable />;
+  return <UnpaidInvoicesMain status={status} invoices={invoices} />;
 }
 
-interface SuspendedWorkspaceMainProps {
+interface UnpaidInvoicesMainProps extends UnpaidInvoicesScreenProps {
   /**
    * `null` while the invoices are on their way — the copy is already true then,
    * and the CTA renders as itself, disabled. Reusing the real controls rather
@@ -149,10 +184,11 @@ interface SuspendedWorkspaceMainProps {
   unavailable?: boolean;
 }
 
-function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWorkspaceMainProps) {
+function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInvoicesMainProps) {
+  const copy = DEBT_COPY[status];
   const loading = invoices == null && !unavailable;
-  // The oldest outstanding invoice with a payment link — the suspension counts
-  // from the oldest, and an invoice Stripe has not finalized has no link yet,
+  // The oldest outstanding invoice with a payment link — the lock counts from
+  // the oldest, and an invoice Stripe has not finalized has no link yet,
   // so the single big CTA opens the oldest one that can actually be paid. Every
   // other one is still reachable from its own row.
   const payUrl = invoices?.find(invoice => invoice.hostedInvoiceUrl)?.hostedInvoiceUrl ?? null;
@@ -162,13 +198,13 @@ function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWork
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[var(--spacing-system-xl)]">
       <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)] text-center">
-        <h1 className="text-ods-text-primary text-h2">{TITLE}</h1>
+        <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
         <p className="text-ods-text-secondary text-h4">
           {unavailable
-            ? INVOICES_UNAVAILABLE_COPY.description
+            ? INVOICES_UNAVAILABLE_DESCRIPTION
             : nothingOutstanding
-              ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
-              : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
+              ? copy.nothingOutstanding
+              : copy.description}
         </p>
       </div>
 
@@ -188,12 +224,21 @@ function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWork
             </p>
           )}
 
-          <Button
-            {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
-            rightIcon={<ExternalLinkIcon />}
-          >
-            Pay Invoice
-          </Button>
+          <div className="flex flex-wrap justify-center gap-[var(--spacing-system-m)]">
+            {/* PAST_DUE leaves Billing & Usage open (`isRouteOpenWhileLocked`),
+                and the nav is disabled under the lock, so this is the way there. */}
+            {status === SubscriptionStatus.PAST_DUE && (
+              <Button variant="outline" href={routes.settings.billingUsage()}>
+                Open Billing & Usage
+              </Button>
+            )}
+            <Button
+              {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
+              rightIcon={<ExternalLinkIcon />}
+            >
+              Pay Invoice
+            </Button>
+          </div>
         </>
       )}
     </div>

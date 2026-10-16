@@ -80,7 +80,13 @@ export function BillingUsageContent() {
   const data = useLazyLoadQuery<BillingUsageContentQueryType>(
     billingUsageContentQuery,
     {},
-    { fetchPolicy: 'store-and-network', fetchKey: refreshKey },
+    {
+      fetchPolicy: 'store-and-network',
+      fetchKey: refreshKey,
+      // PAST_DUE leaves this page open while the subscription gate stays shut
+      // for the rest of the app — see `subscription-gate.ts`.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
   );
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [activateModalOpen, setActivateModalOpen] = useState(false);

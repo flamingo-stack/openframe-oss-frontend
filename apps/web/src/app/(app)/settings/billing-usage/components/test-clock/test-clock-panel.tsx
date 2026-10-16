@@ -62,7 +62,16 @@ const testClockPanelQuery = graphql`
 function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
   const daysInputId = useId();
   const hoursInputId = useId();
-  const data = useLazyLoadQuery<TestClockPanelQueryType>(testClockPanelQuery, {}, { fetchPolicy: 'store-and-network' });
+  const data = useLazyLoadQuery<TestClockPanelQueryType>(
+    testClockPanelQuery,
+    {},
+    {
+      fetchPolicy: 'store-and-network',
+      // On Billing & Usage, which PAST_DUE leaves open while the subscription
+      // gate stays shut — see `subscription-gate.ts`. QA resets the clock here.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
+  );
   const advance = useAdvanceTestClock();
   const reset = useResetTestClock();
   const provisioning = useBillingProvisioningStatus();

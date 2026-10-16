@@ -20,6 +20,9 @@ export function noAccessCopy(status: SubscriptionStatus): { title: string; descr
   // Deliberately names no invoice and no amount: what this viewer can do about
   // it is identical either way, and a member has no business reading the
   // workspace's balance off a screen they cannot pay from.
+  if (status === SubscriptionStatus.PAST_DUE) {
+    return { title: 'This workspace has an overdue invoice.', description };
+  }
   if (status === SubscriptionStatus.SUSPENDED) {
     return { title: 'This workspace has been suspended.', description };
   }
