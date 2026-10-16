@@ -42,6 +42,7 @@ import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOpenframeChatProps } from '../openframe-embeddable-chat-entry';
 import { useChatPageNodeStore } from './chat-page-node-store';
+import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { type ComposerRoute, composerRouteOf, dockViewOf } from './mingo-dock-route';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
@@ -96,6 +97,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
   const chatPageNode = useChatPageNodeStore(s => s.node);
+  // Ghost text from chips drawn outside the chat (Mingo's home Quick Actions).
+  const previewText = useComposerPreviewStore(s => s.text);
 
   const target = useComposerTarget({
     route,
@@ -157,6 +160,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it
         // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
         safeAreaBottom={!isMobileShell()}
+        composerPreviewText={previewText}
       />
       {overlays}
     </>

@@ -9,6 +9,7 @@ import type { WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/c
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useComposerPreviewStore } from '@/app/components/mingo-shell/composer-preview-store';
 import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings';
 import { MingoHome } from './mingo-home';
 
@@ -72,6 +73,7 @@ beforeEach(() => {
   isSaas.value = true;
   chatState.running = true;
   quickActions.value = [];
+  useComposerPreviewStore.setState({ text: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -134,6 +136,32 @@ describe('MingoHome', () => {
     await renderHome();
     act(() => button('Machines online').click());
     expect(sendInNewDialog).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
+  });
+
+  it("previews a quick action's instructions in the docked composer while hovered or focused", async () => {
+    quickActions.value = [
+      { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine with its customer' },
+      { id: 'qa-2', name: 'Low disk', instructions: 'Which machines are low on disk?' },
+    ];
+    await renderHome();
+    const preview = () => useComposerPreviewStore.getState().text;
+
+    act(() => button('Machines online').focus());
+    expect(preview()).toBe('List every online machine with its customer');
+    // Moving to the next chip: its preview, not a cleared one.
+    act(() => button('Low disk').focus());
+    expect(preview()).toBe('Which machines are low on disk?');
+    act(() => button('Low disk').blur());
+    expect(preview()).toBeNull();
+
+    // A click sends, and nothing is left in the composer — nor once home is left.
+    act(() => button('Machines online').focus());
+    act(() => button('Machines online').click());
+    expect(preview()).toBeNull();
+    act(() => button('Machines online').focus());
+    act(() => root.unmount());
+    expect(preview()).toBeNull();
+    root = createRoot(container);
   });
 
   it('renders no quick actions section while there are none', async () => {

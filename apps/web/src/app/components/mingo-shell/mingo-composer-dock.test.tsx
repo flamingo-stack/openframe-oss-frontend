@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { useChatPageNodeStore } from './chat-page-node-store';
+import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
 
@@ -213,6 +214,17 @@ describe('MingoComposerDock', () => {
     shell.mobile = true;
     render('/mingo/');
     expect(props().safeAreaBottom).toBe(false);
+  });
+
+  it("shows the home chips' preview as ghost text in the composer", () => {
+    render('/mingo/');
+    expect(props().composerPreviewText).toBeNull();
+
+    act(() => useComposerPreviewStore.getState().show('List every online machine'));
+    expect(props().composerPreviewText).toBe('List every online machine');
+
+    act(() => useComposerPreviewStore.getState().hide('List every online machine'));
+    expect(props().composerPreviewText).toBeNull();
   });
 
   it('builds its chat with the shared builder, Compact left out of the chat menus', () => {
