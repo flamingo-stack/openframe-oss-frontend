@@ -6,8 +6,8 @@ import { routes } from '@/lib/routes';
 import type { ComposerRoute } from './mingo-dock-route';
 
 /**
- * Which chat the docked composer writes into, and where the user goes when a send
- * starts a new one (PLAN §3.7).
+ * Which chat the docked composer writes into, and where the user goes when they send
+ * (PLAN §3.7).
  *
  * - **Home is a new chat.** Entering `/mingo` deselects the open chat — once per
  *   visit, not on every render, so the chat a send from home creates is not
@@ -16,13 +16,20 @@ import type { ComposerRoute } from './mingo-dock-route';
  *   dialog change).
  * - **Every other page continues the selected chat.** Nothing to do: the
  *   selection is the session's and outlives navigation.
- * - **A send that creates a chat follows it to its page**, `routes.mingo.chat(id)`,
- *   as soon as the id is known, so the reply is on screen. That is any dock send
- *   with no chat open, the dock's quick actions and launcher prompts
- *   (`sendInNewDialog`), and, on home, ANY chat that becomes active — home is
- *   always a new chat, so one appearing there was just created, by the dock or by
- *   the home page's own quick actions. A send into the open chat stays where it is,
- *   on the chat page and everywhere else.
+ * - **Any send from a page that is not the chat page goes to its chat**,
+ *   `routes.mingo.chat(id)`: the thread renders only there, so a reply anywhere else
+ *   is invisible. A send into the open chat goes at once (its id is known); a send
+ *   that creates a chat follows it as soon as the id commits — any dock send with no
+ *   chat open, the dock's quick actions and launcher prompts (`sendInNewDialog`), and,
+ *   on home, ANY chat that becomes active: home is always a new chat, so one appearing
+ *   there was just created, by the dock or by the home page's own quick actions
+ *   (`chat.sendInNewDialog`, outside the panel).
+ * - **Sends on the chat page stay put.** A chat created there is the page's to
+ *   follow (`use-chat-page-selection.ts`).
+ *
+ * `EmbeddableChat.onDialogCreated` is not used: it reports only the panel's own
+ * sends, and the host-side ones (home chips, launcher prompts) need this
+ * selection-based follow anyway — two mechanisms would navigate twice for one send.
  */
 interface ComposerTargetOptions {
   route: ComposerRoute;
@@ -70,6 +77,8 @@ export function useComposerTarget({ route, state, sendInNewDialog, navigate }: C
     const follow = followRef.current;
     const created = follow !== null && follow.from !== activeDialogId;
     if (created) followRef.current = null;
+    // The chat page follows its selection itself (`use-chat-page-selection.ts`).
+    if (route === 'chat') return;
     if (created || route === 'home') navigate(routes.mingo.chat(activeDialogId));
   }, [activeDialogId, route, navigate]);
 
@@ -89,8 +98,13 @@ export function useComposerTarget({ route, state, sendInNewDialog, navigate }: C
 
   const mingoState: UnifiedChatState = {
     ...state,
-    sendMessage: (text, options) =>
-      state.activeDialogId ? state.sendMessage(text, options) : following(() => state.sendMessage(text, options)),
+    sendMessage: (text, options) => {
+      const open = state.activeDialogId;
+      if (!open) return following(() => state.sendMessage(text, options));
+      // The reply streams into a thread drawn only on the chat page.
+      if (route !== 'chat') navigate(routes.mingo.chat(open));
+      return state.sendMessage(text, options);
+    },
   };
 
   return {

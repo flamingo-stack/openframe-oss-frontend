@@ -1,8 +1,8 @@
 /**
  * The composer target rule (PLAN §3.7): home is a new chat, entered once per
- * visit; every other page continues the selected chat; a send that creates a chat
- * follows it to its page as soon as the id is known; a send into the open chat
- * stays put.
+ * visit; every other page continues the selected chat; any send from a page that is
+ * not the chat page goes to its chat — at once into the open one, as soon as the id
+ * is known for a created one; sends on the chat page stay put.
  */
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -124,9 +124,26 @@ describe('useComposerTarget', () => {
     expect(navigate).toHaveBeenCalledTimes(1);
   });
 
-  it('stays put for a send into the open chat', async () => {
+  it('goes to the open chat for a reply sent from any other page, where it would be invisible', async () => {
+    sendMessage.mockResolvedValue(undefined);
+    for (const route of ['page', 'full-width'] as const) {
+      navigate.mockClear();
+      select('a');
+      render(route);
+
+      await act(async () => {
+        await target().mingoState.sendMessage('and the other one?');
+      });
+
+      expect(sendMessage).toHaveBeenLastCalledWith('and the other one?', undefined);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('a'));
+    }
+  });
+
+  it('stays put for a send into the open chat on the chat page', async () => {
     select('a');
-    render('page');
+    render('chat');
     sendMessage.mockResolvedValue(undefined);
 
     await act(async () => {
@@ -134,6 +151,23 @@ describe('useComposerTarget', () => {
     });
 
     expect(sendMessage).toHaveBeenCalledWith('and the other one?', undefined);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('stays put when a send on the chat page creates a chat: the page follows it itself', async () => {
+    render('chat');
+    const { send, releaseCreate, finish } = deferredCreate('new-3');
+    sendMessage.mockImplementation(send);
+
+    let sending: Promise<unknown> = Promise.resolve();
+    act(() => {
+      sending = target().mingoState.sendMessage('a new one');
+    });
+    await act(async () => releaseCreate());
+    await act(async () => {
+      finish();
+      await sending;
+    });
     expect(navigate).not.toHaveBeenCalled();
   });
 
