@@ -1,19 +1,22 @@
 /**
- * Native-shell login: runs the gateway BFF OAuth flow in a shell-owned browser
- * context, receives the dev-ticket on the callback, exchanges it natively, and
+ * Native-shell login: runs the gateway BFF OAuth flow in a browser, receives
+ * the dev-ticket on the app's scheme, exchanges it natively, and
  * puts the tokens in the Keychain. On mobile the browser is an
  * ASWebAuthenticationSession completing on the app's custom scheme (Google
- * blocks OAuth in embedded webviews — 403 disallowed_useragent); on desktop it
- * is a shell-owned window that cancels the navigation to that same scheme and
- * reads the ticket off it. Either way the gateway 302s the devTicket straight
- * to the scheme, which only an `authMobile=true` login gets. Hardening still
- * pending on the ticket path (PKCE, POST exchange, rotation).
+ * blocks OAuth in embedded webviews — 403 disallowed_useragent), and the gateway
+ * 302s the devTicket straight to it. On desktop it is the user's default
+ * browser, and the gateway sends the ticket to a page on the shared host that
+ * shows the outcome and hands it on to the scheme (`desktop-auth-return.ts`).
+ * Only an `authMobile=true` login gets a ticket. Hardening still pending on the
+ * ticket path (PKCE, POST exchange, rotation).
  */
-import { MOBILE_AUTH_ERROR_PARAM, mobileAuthErrorMessage } from '@/lib/mobile-auth-return';
+import { MOBILE_AUTH_ERROR, MOBILE_AUTH_ERROR_PARAM, mobileAuthErrorMessage } from '@/lib/mobile-auth-return';
 import { authApiClient } from './auth-api-client';
 import { clientBundleVersion } from './client-identity';
+import { DESKTOP_APP_SCHEME, desktopAuthReturnTarget, isOutcomeCode } from './desktop-auth-return';
+import { beginDesktopSignInWait, DESKTOP_LOGIN_TIMEOUT_MS } from './desktop-sign-in-wait';
 import { type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
-import { mobilePlatform } from './platform';
+import { isDesktopShell, mobilePlatform } from './platform';
 import { runtimeEnv } from './runtime-config';
 import { setTokens } from './token-store';
 
@@ -59,6 +62,63 @@ export class AppleRegisterError extends Error {
   }
 }
 
+/** A native sign-in that ended without a session, worded for the toast the login screen shows. */
+export class NativeLoginError extends Error {
+  readonly code: string;
+  readonly title: string;
+  constructor(code: string, title: string, message: string) {
+    super(message);
+    this.name = 'NativeLoginError';
+    this.code = code;
+    this.title = title;
+  }
+}
+
+const SIGN_IN_UNFINISHED = 'Sign-in didn’t finish';
+
+/**
+ * The desktop bridge rejects with the shell's bare string, where Capacitor rejects with an Error.
+ * Normalized to an Error so `USER_CANCELED` reads as the quiet cancel it is, with the two ways the
+ * browser part can end without a result worded for the toast.
+ */
+function browserSignInError(error: unknown): unknown {
+  if (typeof error !== 'string') return error;
+  if (error === 'LOGIN_TIMEOUT') {
+    return new NativeLoginError(
+      error,
+      SIGN_IN_UNFINISHED,
+      'The browser didn’t complete sign-in within 5 minutes. Try again.',
+    );
+  }
+  if (error === 'LOGIN_INCOMPLETE') {
+    return new NativeLoginError(
+      error,
+      SIGN_IN_UNFINISHED,
+      'The browser came back without a sign-in result. Try again.',
+    );
+  }
+  return new Error(error);
+}
+
+/**
+ * An outcome code the callback carried instead of a ticket. The quiet cancel stays a bare
+ * `USER_CANCELED`; the codes the app words itself keep their sentence; anything else is an auth-server
+ * reference, answered with the server's own sentence (the one the hand-off page shows), and with the
+ * code when the server cannot be asked.
+ */
+async function outcomeError(code: string): Promise<Error> {
+  if (code === MOBILE_AUTH_ERROR.USER_CANCELED) return new Error(code);
+  if (code !== MOBILE_AUTH_ERROR.SESSION_EXPIRED && isOutcomeCode(code)) {
+    try {
+      const response = await authApiClient.authErrorMessage(code);
+      if (response.ok && response.data) return new NativeLoginError(code, 'Login Failed', response.data.message);
+    } catch {
+      // Unreachable auth server: fall through to the code.
+    }
+  }
+  return new NativeLoginError(code, 'Login Failed', mobileAuthErrorMessage(code));
+}
+
 export interface NativeLoginResult {
   /**
    * True when the callback landed on a different host than the one the app
@@ -75,6 +135,8 @@ export async function nativeLogin(options: {
   tenantId?: string;
   provider?: string;
   tenantDomain?: string;
+  /** Who is signing in, when the screen already knows: shown while the desktop waits on the browser. */
+  email?: string;
 }): Promise<NativeLoginResult> {
   const plugin = nativeAuthPlugin();
   if (!plugin) {
@@ -111,13 +173,24 @@ export async function nativeLogin(options: {
   // Both shells complete on the app's custom scheme, and both ask for
   // authMobile=true. Two gateway behaviours hang off that pair, and a native
   // login needs both: `authMobile` is what makes the callback carry a devTicket
-  // at all where dev-ticket issuance is off (prod), and the scheme is the only
-  // redirect target the gateway honours verbatim in every environment
-  // (`openframe.gateway.redirect.allowed-uris`) — an https redirectTo is
-  // rewritten to the tenant root. redirectTarget must reach the gateway —
-  // start() below resolves on nothing else — so loginUrl keeps it for any
-  // shell, saas-shared included.
-  const redirectTarget = `${appScheme}://auth`;
+  // at all where dev-ticket issuance is off (prod), and the gateway honours a
+  // redirect verbatim only when it is in `openframe.gateway.redirect.allowed-uris`
+  // — anything else is rewritten to the tenant root. redirectTarget must reach
+  // the gateway — start() below resolves on nothing else — so loginUrl keeps it
+  // for any shell, saas-shared included.
+  //
+  // Desktop finishes on the hand-off page (desktop-auth-return.ts), which
+  // launches DESKTOP_APP_SCHEME — so that is also the scheme the shell waits on.
+  let redirectTarget = `${appScheme}://auth`;
+  let callbackScheme = appScheme;
+  if (isDesktopShell()) {
+    const sharedHost = runtimeEnv.sharedHostUrl();
+    if (!sharedHost) {
+      throw new Error('No shared auth host configured — the desktop sign-in has no page to return to');
+    }
+    redirectTarget = desktopAuthReturnTarget(sharedHost);
+    callbackScheme = DESKTOP_APP_SCHEME;
+  }
   // Tenant known: use its own SSO configuration. Tenant unknown: the shared onboarding flow, which
   // resolves the tenant from the identity the provider asserts.
   const rawLoginUrl = options.tenantId
@@ -130,7 +203,18 @@ export async function nativeLogin(options: {
       });
   const loginUrl = rawLoginUrl.startsWith('http') ? rawLoginUrl : `${tenantHost}${rawLoginUrl}`;
 
-  const { callbackUrl: resultUrl } = await plugin.start({ url: loginUrl, callbackScheme: appScheme });
+  // Desktop has no sheet over the app while the browser runs: the auth screens show the wait instead.
+  const endWait = isDesktopShell()
+    ? beginDesktopSignInWait({ loginUrl, email: options.email, deadline: Date.now() + DESKTOP_LOGIN_TIMEOUT_MS })
+    : undefined;
+  let resultUrl: string;
+  try {
+    ({ callbackUrl: resultUrl } = await plugin.start({ url: loginUrl, callbackScheme }));
+  } catch (error) {
+    throw browserSignInError(error);
+  } finally {
+    endWait?.();
+  }
 
   return completeTicketFlow(plugin, resultUrl, {
     tenantHost,
@@ -246,7 +330,7 @@ async function completeTicketFlow(
   // keeps silent like a dismissed sheet; anything else is worth a message.
   const outcome = parsedResult.searchParams.get(MOBILE_AUTH_ERROR_PARAM);
   if (outcome) {
-    throw new Error(mobileAuthErrorMessage(outcome));
+    throw await outcomeError(outcome);
   }
 
   const ticket = parsedResult.searchParams.get('devTicket');
