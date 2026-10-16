@@ -54,20 +54,30 @@ interface OverviewSectionsProps {
    * the same PageLayout and dimming as the rest, so it spaces and dims like them.
    */
   incidents?: ReactNode;
+  /**
+   * Dim the sections while the tenant Initial Setup runs — the dashboard, which shows the
+   * setup card above them. Mingo's home has no setup card, so no dimming. Default true.
+   */
+  dimDuringInitialSetup?: boolean;
 }
 
 /**
  * The overview sections: Devices, Tickets (SaaS only), Customers. Shared by the
  * dashboard and Mingo's home.
  */
-export function OverviewSections({ filterTicketLinks = false, incidents }: OverviewSectionsProps) {
+export function OverviewSections({
+  filterTicketLinks = false,
+  incidents,
+  dimDuringInitialSetup = true,
+}: OverviewSectionsProps) {
   const showTickets = isSaasTenantMode();
 
   // Dim (and disable) the sections ONLY while the tenant Initial Setup is active —
   // the exact same predicate that shows the setup card and the top bar, so the
   // dimming can never appear without the card (see {@link useInitialSetupActive}). Fully
   // lit once setup is complete, before progress loads, or when there's no tenant record.
-  const dimSections = useInitialSetupActive();
+  const setupActive = useInitialSetupActive();
+  const dimSections = dimDuringInitialSetup && setupActive;
 
   return (
     <div

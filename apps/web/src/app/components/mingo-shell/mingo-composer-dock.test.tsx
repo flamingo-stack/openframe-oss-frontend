@@ -347,22 +347,22 @@ describe('MingoComposerDock', () => {
   });
 
   describe('Compact under the input', () => {
-    type CompactButton = ReactElement<{ disabled: boolean; onClick: () => void; children: ReactNode }>;
+    type CompactButton = ReactElement<{ onClick: () => void; children: ReactNode }>;
     const compact = () => (props().composerFooterActions as CompactButton).props;
 
     it('offers Compact chat memory for the open chat', () => {
       setSurface({ activeDialogId: 'd-1' });
       render('/devices/');
-      expect(compact()).toMatchObject({ disabled: false, children: 'Compact chat memory' });
+      expect(compact()).toMatchObject({ children: 'Compact chat memory' });
       act(() => compact().onClick());
       expect(compactDialog).toHaveBeenCalledWith('d-1');
       // Not in a ⋯ of the input row any more.
       expect(props().composerMenuItems).toBeUndefined();
     });
 
-    it('is disabled with no chat open', () => {
+    it('is not offered with no chat open: nothing to compact', () => {
       render('/devices/');
-      expect(compact()).toMatchObject({ disabled: true });
+      expect(props().composerFooterActions).toBeUndefined();
     });
 
     it('is absent while the compact flag is off', () => {

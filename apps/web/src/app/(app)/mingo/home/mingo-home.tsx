@@ -22,7 +22,7 @@ export function MingoHome() {
       <div className="px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden">
         <NeedsYouCard />
       </div>
-      <OverviewSections filterTicketLinks incidents={<MingoHomeIncidents />} />
+      <OverviewSections filterTicketLinks incidents={<MingoHomeIncidents />} dimDuringInitialSetup={false} />
     </div>
   );
 }

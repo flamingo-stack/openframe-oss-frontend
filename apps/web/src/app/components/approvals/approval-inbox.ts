@@ -54,6 +54,8 @@ export interface ApprovalSources {
   tickets: readonly Dialog[] | null;
   /** Requests this tab has settled, from any surface (`approval-decisions.ts`). */
   decisions: Readonly<Record<string, ApprovalDecision>>;
+  /** The session's chat titles by dialog id (the sidebar history's), to name untitled requests. */
+  chatTitles: Readonly<Record<string, string>>;
 }
 
 export interface ApprovalInbox {
@@ -204,6 +206,18 @@ function withChatTitle(card: ApprovalCard, dialog: ApprovalDialogNode): Approval
   return { ...card, notification: { ...card.notification, title: dialog.title } };
 }
 
+/**
+ * The backend titles every chat request "Approval required", and a chat that is no longer
+ * waiting (so not in `dialogs`) cannot lend its name. The session's history usually can;
+ * else the first action's title says what is asked.
+ */
+function namedRequest(card: ApprovalCard, chatTitles: Readonly<Record<string, string>>): ApprovalCard {
+  if (card.notification.title !== UNTITLED_REQUEST_TITLE) return card;
+  const chatTitle = card.dialogId ? chatTitles[card.dialogId] : undefined;
+  const title = chatTitle || getApprovalMeta(card.notification)?.toolCalls[0]?.toolTitle;
+  return title ? { ...card, notification: { ...card.notification, title } } : card;
+}
+
 /** The card as it stays on screen after a decision: the tile then shows `ApprovalStatusTag` + "by {name}". */
 export function decidedCard(
   card: ApprovalCard,
@@ -253,6 +267,6 @@ export function composeApprovalInbox(
   for (const id of Object.keys(sources.decisions)) cards.delete(id);
   for (const card of Object.values(kept)) cards.set(card.approvalRequestId, card);
 
-  const list = [...cards.values()].sort(newestFirst);
+  const list = [...cards.values()].map(card => namedRequest(card, sources.chatTitles)).sort(newestFirst);
   return { cards: list, pendingCount: list.filter(card => card.pending).length };
 }

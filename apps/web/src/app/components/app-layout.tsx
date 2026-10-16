@@ -546,9 +546,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // drawer too — a second instance.
             // Behind the paywall Mingo is hidden altogether.
             sectionSlot: chatEnabled ? ({ minimized }) => <MingoSidebarHistorySlot minimized={minimized} /> : undefined,
-            // The account row, and beside it the time tracker, the bell and the ticket
-            // alerts — the classic header's right end — as compact buttons (stacked over
-            // the avatar in the rail); the header is the logo alone. Below md the phone
+            // The account row, and beside it the time tracker and the bell — the classic
+            // header's right end — as compact buttons (stacked over the avatar in the rail;
+            // unread support replies are in the account menu); the header is the logo alone. Below md the phone
             // top bar carries them. The phone drawer draws none: it stays mounted from md
             // up, and a second tracker over the shared open state closed the first.
             footerSlot: ({ minimized, inDrawer }) => (
@@ -557,11 +557,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                   <MingoAccountPopover collapsed={minimized} locked={isLocked} />
                 </div>
                 {slots.sidebarControls && !inDrawer && (
-                  <MingoSidebarControls
-                    ownsHeaderCells={isMdUp === true}
-                    disabled={showLockContent}
-                    onTicketAlerts={openHelpCenterTickets}
-                  />
+                  <MingoSidebarControls ownsHeaderCells={isMdUp === true} disabled={showLockContent} />
                 )}
               </div>
             ),
@@ -600,7 +596,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       slots.sidebarControls,
       isMdUp,
       showLockContent,
-      openHelpCenterTickets,
     ],
   );
 

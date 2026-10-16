@@ -196,8 +196,12 @@ export function useApprovalSources(): ApprovalSourcesResult {
       }
     : SETTLED;
 
+  const chatTitles = Object.fromEntries(
+    (chat?.state.dialogs ?? NO_ROWS).flatMap(dialog => (dialog.title ? [[dialog.id, dialog.title]] : [])),
+  );
+
   return {
-    sources: { notifications, dialogs, tickets: saas ? tickets : null, decisions },
+    sources: { notifications, dialogs, tickets: saas ? tickets : null, decisions, chatTitles },
     status: combined(requestsStatus, ticketsStatus),
     techRequiredStatusId: laneId,
   };

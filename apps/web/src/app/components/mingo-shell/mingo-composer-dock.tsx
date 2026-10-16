@@ -124,18 +124,16 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const activeDialogId = chat.state.activeDialogId;
   // Compact under the input, at the end of the model row: the chat's memory is what
   // that row counts. Not on home (no chat yet), not without the flag.
+  // Only while there is a chat to compact: a page with none selected shows no dead link.
   const compactAction =
-    view.showCompact && compactDialog ? (
+    view.showCompact && compactDialog && activeDialogId ? (
       <Button
         variant="link"
         size="compact"
         font="regular"
         noPaddingX
         leftIcon={<PackageCheckIcon />}
-        disabled={!activeDialogId}
-        onClick={() => {
-          if (activeDialogId) compactDialog(activeDialogId);
-        }}
+        onClick={() => compactDialog(activeDialogId)}
       >
         Compact chat memory
       </Button>

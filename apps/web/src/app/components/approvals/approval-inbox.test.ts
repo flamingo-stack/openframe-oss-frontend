@@ -91,7 +91,7 @@ function ticket(id: string, approvalRequestId: string | null, overrides: Partial
 }
 
 function sources(overrides: Partial<ApprovalSources> = {}): ApprovalSources {
-  return { notifications: [], dialogs: [], tickets: [], decisions: {}, ...overrides };
+  return { notifications: [], dialogs: [], tickets: [], decisions: {}, chatTitles: {}, ...overrides };
 }
 
 const ids = (cards: { approvalRequestId: string }[]) => cards.map(card => card.approvalRequestId);
@@ -205,6 +205,24 @@ describe('composeApprovalInbox', () => {
       resolution: 'APPROVED',
       resolvedByName: 'Ann Lee',
     });
+  });
+
+  it("names a request the backend left as 'Approval required': its chat from the history, else its first action", () => {
+    const inbox = composeApprovalInbox(
+      sources({
+        notifications: [
+          approvalNotification('n-1', 'ar-1', { dialogId: 'd-1' }),
+          approvalNotification(
+            'n-2',
+            'ar-2',
+            { dialogId: 'd-gone' },
+            { createdAt: Date.parse('2026-10-16T09:00:00Z') },
+          ),
+        ],
+        chatTitles: { 'd-1': 'Printer on floor 2' },
+      }),
+    );
+    expect(inbox.cards.map(card => card.notification.title)).toEqual(['Printer on floor 2', 'Restart spooler']);
   });
 
   it('puts the newest request first', () => {

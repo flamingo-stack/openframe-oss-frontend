@@ -9,7 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MingoHome } from './mingo-home';
 
-const { isSaas } = vi.hoisted(() => ({ isSaas: { value: true } }));
+const { isSaas, setup } = vi.hoisted(() => ({ isSaas: { value: true }, setup: { active: false } }));
 
 vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -25,7 +25,9 @@ vi.mock('@/app/(app)/onboarding/components/initial-setup-card', () => ({
   InitialSetupCard: () => <p>setup card</p>,
   InitialSetupSkeleton: () => null,
 }));
-vi.mock('@/app/(app)/onboarding/hooks/use-initial-setup-active', () => ({ useInitialSetupActive: () => false }));
+vi.mock('@/app/(app)/onboarding/hooks/use-initial-setup-active', () => ({
+  useInitialSetupActive: () => setup.active,
+}));
 vi.mock('@/app/(app)/dashboard/components/devices-overview', () => ({
   DevicesOverviewSection: () => <p>devices section</p>,
 }));
@@ -53,6 +55,7 @@ let root: Root;
 
 beforeEach(() => {
   isSaas.value = true;
+  setup.active = false;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -106,5 +109,13 @@ describe('MingoHome', () => {
     await renderHome();
     expect(container.querySelector('[aria-label="Quick actions"]')).toBeNull();
     expect(container.textContent).not.toContain('What to ask Mingo?');
+  });
+
+  it("does not dim the sections while the tenant's Initial Setup runs: there is no setup card here", async () => {
+    setup.active = true;
+    await renderHome();
+    const devices = [...container.querySelectorAll('p')].find(node => node.textContent === 'devices section');
+    expect(devices?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(devices?.closest('.opacity-40')).toBeNull();
   });
 });

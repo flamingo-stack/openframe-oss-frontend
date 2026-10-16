@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  LifeBuoyIcon,
   Logout02Icon,
   QuestionCircleIcon,
   Settings02Icon,
@@ -9,6 +10,7 @@ import {
   AccountPopover,
   type AccountPopoverEntry,
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { buildTicketOpenHref, useOptionalTicketLive } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -25,7 +27,9 @@ interface MingoAccountPopoverProps {
 /**
  * The account row at the foot of the Mingo-first sidebar (`footerSlot`) — the avatar and
  * the name, no workspace host — and the menu it opens: Settings, Help Center and Log out (the same confirm modal the Settings page
- * opens). The "Classic layout" opt-out is in Settings › profile only. Also drawn at the
+ * opens). Unread support replies add "Support replies" with their count, opening the
+ * ticket with the newest one (as the classic header's ticket alerts cell did), and the
+ * unread dot on the avatar. The "Classic layout" opt-out is in Settings › profile only. Also drawn at the
  * foot of the phone drawer.
  */
 export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverProps) {
@@ -35,12 +39,29 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
   const imageUrl = useAuthStore(state => state.user?.image?.imageUrl);
   const imageHash = useAuthStore(state => state.user?.image?.hash);
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
+  const ticketLive = useOptionalTicketLive();
+  const unreadReplies = ticketLive?.authed ? ticketLive.unreadTotal : 0;
 
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim() || email || 'Account';
 
   // An item that navigates also closes the phone drawer it may sit in: a navigation to
   // the page already on screen does not move the location the layout closes it on.
   const items: AccountPopoverEntry[] = [
+    ...(unreadReplies > 0
+      ? [
+          {
+            id: 'support-replies',
+            label: 'Support replies',
+            icon: <LifeBuoyIcon />,
+            href: ticketLive?.nextUnreadTicketId
+              ? buildTicketOpenHref(routes.helpCenter.tickets, ticketLive.nextUnreadTicketId)
+              : routes.helpCenter.tickets,
+            count: unreadReplies,
+            onSelect: closeMobileMenu,
+            disabled: locked,
+          },
+        ]
+      : []),
     {
       id: 'settings',
       label: 'Settings',
