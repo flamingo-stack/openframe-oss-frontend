@@ -1,19 +1,18 @@
 'use client';
 
-import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { composeApprovalInbox } from '@/app/components/approvals/approval-inbox';
+import { useApprovalSources } from '@/app/components/approvals/use-approval-sources';
 
 /**
- * How many chats wait for an approval: the sidebar's "Needs approval" badge.
+ * The sidebar's "Needs approval" badge: how many approval requests wait for a decision —
+ * exactly the pending cards the Needs approval page shows, from the same sources (the
+ * drawer's approval notifications, the Mingo chats waiting on one, the Tech Required lane
+ * on SaaS), deduped the same way. A decision on any surface takes its request off at once.
  *
- * Derived from what the session already loaded — the chat list's rows, each with the
- * status the list already shows (`dialogStatusOf`: the server's `pendingApproval`, and
- * the open chat's own live stream) — so it costs no request of its own. Which also
- * bounds it: only the pages of the list loaded so far, in the scope it is on, and 0
- * while no chat surface runs the state. A count over every approval (tickets, all
- * chats) is the Needs approval page's to define (stream C1).
+ * The sources are shared caches, not requests of this hook's own: the page, this badge
+ * and (for the lane) the tickets board read the same query entries.
  */
 export function usePendingApprovalCount(): number {
-  const { chat } = useMingoChat();
-  if (!chat) return 0;
-  return chat.state.dialogs.filter(dialog => chat.dialogStatusOf(dialog) === 'approval').length;
+  const { sources } = useApprovalSources();
+  return composeApprovalInbox(sources).pendingCount;
 }
