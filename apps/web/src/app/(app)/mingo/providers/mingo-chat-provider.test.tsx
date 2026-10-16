@@ -26,11 +26,13 @@ const {
   flags,
   watchers,
   shell: shellVariant,
+  tenantHost,
 } = vi.hoisted(() => ({
   toast: vi.fn(),
   flags: new Map<string, boolean>(),
   watchers: { mounted: 0 },
   shell: { variant: 'classic' as 'loading' | 'classic' | 'mingo' },
+  tenantHost: { url: 'https://acme.openframe.ai' },
 }));
 
 vi.mock('../hooks/use-mingo-unified-chat-state', async () => ({
@@ -57,7 +59,7 @@ vi.mock('@/app/components/mingo-compaction-watchers', async () => {
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
 vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => shellVariant.variant }));
-vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => 'https://acme.openframe.ai' } }));
+vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenantHost.url } }));
 
 /** What each probe last read, by name. */
 const seen = new Map<string, MingoChat>();
@@ -130,6 +132,7 @@ describe('MingoChatProvider', () => {
     seen.clear();
     watchers.mounted = 0;
     shellVariant.variant = 'classic';
+    tenantHost.url = 'https://acme.openframe.ai';
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
     useMingoLauncherStore.setState({ pendingPrompt: null, pendingDraft: null, pendingNewChat: false });
     useMingoCompactionStore.setState({ compactingDialogIds: [] });
@@ -284,6 +287,39 @@ describe('MingoChatProvider', () => {
 
     expect(writeText).toHaveBeenCalledWith(`https://acme.openframe.ai${mingoDialogLink('d-1')}`);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' }));
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the link in the toast when the clipboard refuses it, so it can still be copied by hand', async () => {
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(async () => Promise.reject(new Error('denied'))) } });
+    render(shell([]));
+
+    await act(async () => {
+      await seen.get('reader')?.copyDialogLink({ id: 'd-1' });
+    });
+
+    expect(toast).toHaveBeenCalledWith({
+      title: "Couldn't copy the link",
+      description: `https://acme.openframe.ai${mingoDialogLink('d-1')}`,
+      variant: 'destructive',
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it('copies nothing from a shell origin (capacitor://, tauri://): such a link is dead off the device', async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    tenantHost.url = 'capacitor://localhost';
+    render(shell([]));
+
+    await act(async () => {
+      await seen.get('reader')?.copyDialogLink({ id: 'd-1' });
+    });
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Couldn't copy the link", variant: 'destructive' }),
+    );
     vi.unstubAllGlobals();
   });
 

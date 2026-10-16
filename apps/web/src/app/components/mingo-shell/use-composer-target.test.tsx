@@ -211,6 +211,34 @@ describe('useComposerTarget', () => {
     });
   });
 
+  // MISSING 1.9: the busy / send / create toasts are the session's (`useMingoDialogChat`);
+  // the wrapper must neither swallow a failure nor change what the composer is told.
+  it("hands the session's answer back to the composer: its result, and its failure", async () => {
+    select('a');
+    render('chat');
+    sendMessage.mockResolvedValueOnce(false);
+    await act(async () => {
+      await expect(target().mingoState.sendMessage('busy?')).resolves.toBe(false);
+    });
+
+    render('page');
+    const failure = new Error('Send Failed');
+    sendMessage.mockRejectedValueOnce(failure);
+    await act(async () => {
+      await expect(target().mingoState.sendMessage('again')).rejects.toBe(failure);
+    });
+
+    act(() => select(null));
+    sendInNewDialog.mockRejectedValueOnce(failure);
+    await act(async () => {
+      await expect(target().sendInNewDialog('a new one')).rejects.toBe(failure);
+    });
+    // The failed create disarmed the follow: a later pick from the sidebar does not navigate.
+    navigate.mockClear();
+    act(() => select('picked'));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('disarms when the send created nothing, so a later selection is not taken for it', async () => {
     render('page');
     const { send, releaseCreate, finish } = deferredCreate(null);

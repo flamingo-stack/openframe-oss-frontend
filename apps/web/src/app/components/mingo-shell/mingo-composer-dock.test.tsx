@@ -16,23 +16,38 @@ import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
 
-const { panel, nav, surface, builder, shell, CONTEXT_MEMORY, RESET_ONBOARDING_ITEMS, CAPABILITIES } = vi.hoisted(
-  () => ({
-    panel: {
-      props: null as Record<string, unknown> | null,
-      mounts: 0,
-      startNewChat: vi.fn(),
-      prefillDraft: vi.fn(),
-    },
-    nav: { pathname: '/devices/', push: vi.fn() },
-    surface: { value: null as unknown },
-    builder: { lastOptions: null as Record<string, unknown> | null },
-    shell: { mobile: false },
-    CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
-    RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
-    CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
-  }),
-);
+const {
+  panel,
+  nav,
+  surface,
+  builder,
+  shell,
+  identity,
+  CONTEXT_MEMORY,
+  RESET_ONBOARDING_ITEMS,
+  CAPABILITIES,
+  PENDING_APPROVALS,
+  RENDER_MENTION,
+  RENDER_CONTEXT_ITEM,
+} = vi.hoisted(() => ({
+  panel: {
+    props: null as Record<string, unknown> | null,
+    mounts: 0,
+    startNewChat: vi.fn(),
+    prefillDraft: vi.fn(),
+  },
+  nav: { pathname: '/devices/', push: vi.fn() },
+  surface: { value: null as unknown },
+  builder: { lastOptions: null as Record<string, unknown> | null },
+  shell: { mobile: false },
+  identity: { enabled: null as boolean | null },
+  CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
+  RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
+  CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
+  PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
+  RENDER_MENTION: () => null,
+  RENDER_CONTEXT_ITEM: () => null,
+}));
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
@@ -43,7 +58,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     panel.props = props;
     return null;
   }),
-  ChatIdentityProvider: ({ children }: { children: ReactNode }) => children,
+  ChatIdentityProvider: ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
+    identity.enabled = enabled;
+    return children;
+  },
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({ PackageCheckIcon: () => null }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
@@ -79,6 +97,9 @@ vi.mock('../openframe-embeddable-chat-entry', () => ({
         contextPicker: { fromBuilder: true },
         chatMenuExtraItems: RESET_ONBOARDING_ITEMS,
         mingoDialogCapabilities: CAPABILITIES,
+        pendingApprovals: PENDING_APPROVALS,
+        renderMention: RENDER_MENTION,
+        renderContextItem: RENDER_CONTEXT_ITEM,
       },
       overlays: null,
     };
@@ -87,23 +108,38 @@ vi.mock('../openframe-embeddable-chat-entry', () => ({
 
 const compactDialog = vi.fn();
 const sendInNewDialog = vi.fn(async () => {});
+/** The session's thread handlers: the dock must hand them to the chat untouched. */
+const loadMoreMessages = vi.fn();
+const approveRequest = vi.fn();
+const rejectRequest = vi.fn();
+const stopMessage = vi.fn();
 
 function setSurface({
   activeDialogId = null as string | null,
   enabled = true,
   compact = true,
   error = null as Error | null,
+  identityEnabled = true,
 } = {}) {
   surface.value = {
     chat: error
       ? null
       : {
-          state: { activeDialogId, selectDialog: vi.fn(), sendMessage: vi.fn() },
+          state: {
+            activeDialogId,
+            selectDialog: vi.fn(),
+            sendMessage: vi.fn(),
+            hasMoreMessages: true,
+            loadMoreMessages,
+            approveRequest,
+            rejectRequest,
+            stopMessage,
+          },
           sendInNewDialog,
         },
     error,
     enabled,
-    identityEnabled: true,
+    identityEnabled,
     compactDialog: compact ? compactDialog : undefined,
     copyDialogLink: vi.fn(),
   };
@@ -131,6 +167,7 @@ describe('MingoComposerDock', () => {
     panel.mounts = 0;
     builder.lastOptions = null;
     shell.mobile = false;
+    identity.enabled = null;
     setSurface();
     useChatPageNodeStore.setState({ node: null });
     useMingoLauncherStore.setState({
@@ -310,6 +347,37 @@ describe('MingoComposerDock', () => {
       render('/mingo/chat/');
       expect(props().composerMenuItems).toBeUndefined();
     });
+  });
+
+  // MISSING 3.6-3.8: the thread on the chat page is the session's, with everything the
+  // classic panel drew in it.
+  it("portals the session's thread: approvals, mention and context chips, paging, Stop", () => {
+    useChatPageNodeStore.setState({ node: document.createElement('div') });
+    setSurface({ activeDialogId: 'd-1' });
+    render('/mingo/chat/');
+    expect(props()).toMatchObject({
+      pendingApprovals: PENDING_APPROVALS,
+      renderMention: RENDER_MENTION,
+      renderContextItem: RENDER_CONTEXT_ITEM,
+    });
+    expect(props().mingoState).toMatchObject({
+      activeDialogId: 'd-1',
+      hasMoreMessages: true,
+      loadMoreMessages,
+      approveRequest,
+      rejectRequest,
+      stopMessage,
+    });
+  });
+
+  // MISSING 5.7: the native shells keep identity off (AppShell's latch); the dock obeys it.
+  it("hands the session's identity latch to its own identity provider", () => {
+    render('/devices/');
+    expect(identity.enabled).toBe(true);
+
+    setSurface({ identityEnabled: false });
+    render('/devices/');
+    expect(identity.enabled).toBe(false);
   });
 
   it('renders nothing behind the paywall or before the session', () => {
