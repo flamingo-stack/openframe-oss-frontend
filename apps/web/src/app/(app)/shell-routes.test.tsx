@@ -33,7 +33,7 @@ vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
 vi.mock('@/app/(app)/mingo/archive/mingo-archive-view', () => ({
   MingoArchiveView: () => <p>archive</p>,
 }));
-vi.mock('@/app/(app)/approvals/approvals-placeholder', () => ({ ApprovalsPlaceholder: () => <p>approvals</p> }));
+vi.mock('@/app/(app)/approvals/approvals-view', () => ({ ApprovalsView: () => <p>approvals</p> }));
 
 const RAW = '6ac4e3a3fb523d620947f238';
 
