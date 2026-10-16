@@ -14,6 +14,9 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   // Starting a paid subscription: the Activate Subscription button and the paywall checkout.
   'billing-activation',
+  // The "Test mode" banner on Settings → Billing & Usage. On in every environment
+  // until it bills through the live Stripe account.
+  'billing-test-mode',
   'test-clock',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
