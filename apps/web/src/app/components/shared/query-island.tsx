@@ -2,13 +2,15 @@
 
 import type { ReactNode } from 'react';
 import { type GraphQLTaggedNode, useLazyLoadQuery } from 'react-relay';
-import type { OperationType } from 'relay-runtime';
+import type { CacheConfig, OperationType } from 'relay-runtime';
 import { useRetryKey } from './content-error-boundary';
 
 interface QueryIslandProps<TQuery extends OperationType> {
   query: GraphQLTaggedNode;
   variables: TQuery['variables'];
   fetchPolicy?: 'store-and-network' | 'store-or-network';
+  /** Passed to the network layer as is — e.g. `skipSubscriptionGate` (see `subscription-gate.ts`). */
+  networkCacheConfig?: CacheConfig;
   children: (data: TQuery['response']) => ReactNode;
 }
 
@@ -27,9 +29,10 @@ export function QueryIsland<TQuery extends OperationType>({
   query,
   variables,
   fetchPolicy = 'store-and-network',
+  networkCacheConfig,
   children,
 }: QueryIslandProps<TQuery>) {
   const retryKey = useRetryKey();
-  const data = useLazyLoadQuery<TQuery>(query, variables, { fetchPolicy, fetchKey: retryKey });
+  const data = useLazyLoadQuery<TQuery>(query, variables, { fetchPolicy, fetchKey: retryKey, networkCacheConfig });
   return children(data);
 }

@@ -104,7 +104,12 @@ function UpgradePlanBody({ onUpdatesChange }: { onUpdatesChange: (updates: Produ
   const data = useLazyLoadQuery<UpgradePlanModalQueryType>(
     upgradePlanModalQuery,
     {},
-    { fetchPolicy: 'store-and-network' },
+    {
+      fetchPolicy: 'store-and-network',
+      // Opened from Billing & Usage, which PAST_DUE leaves open while the
+      // subscription gate stays shut — see `subscription-gate.ts`.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
   );
 
   const products = data.billingPlan?.products ?? [];

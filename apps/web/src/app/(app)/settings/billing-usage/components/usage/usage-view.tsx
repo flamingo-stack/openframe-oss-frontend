@@ -58,7 +58,16 @@ const usageViewQuery = graphql`
  */
 export function UsageView() {
   const handleBack = useSafeBack(routes.settings.root());
-  const data = useLazyLoadQuery<UsageViewQueryType>(usageViewQuery, {}, { fetchPolicy: 'store-and-network' });
+  const data = useLazyLoadQuery<UsageViewQueryType>(
+    usageViewQuery,
+    {},
+    {
+      fetchPolicy: 'store-and-network',
+      // PAST_DUE leaves this page open while the subscription gate stays shut
+      // for the rest of the app — see `subscription-gate.ts`.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
+  );
 
   const subscription = data.subscription;
   const device = subscription ? deviceAllocation(subscription) : null;
