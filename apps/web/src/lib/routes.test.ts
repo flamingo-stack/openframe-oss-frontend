@@ -88,7 +88,15 @@ describe('filtered lists', () => {
     ).toEqual(['ONLINE', 'OFFLINE']);
   });
 
+  it('narrows devices by customer, with or without a status', () => {
+    expect(routes.devices.filtered({ organizationIds: ['org-1'], statuses: ['ONLINE'] })).toBe(
+      '/devices?organizationIds=org-1&statuses=ONLINE',
+    );
+    expect(routes.devices.filtered({ organizationIds: ['org 1'] })).toBe('/devices?organizationIds=org+1');
+  });
+
   it('drops an empty filter, leaving the bare list', () => {
+    expect(routes.devices.filtered({ organizationIds: [], statuses: [] })).toBe(routes.devices.list);
     expect(routes.devices.filtered({ statuses: [] })).toBe(routes.devices.list);
     expect(routes.devices.filtered({})).toBe('/devices');
     expect(routes.tickets.filtered({})).toBe(routes.tickets.list);

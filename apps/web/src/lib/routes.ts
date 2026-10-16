@@ -320,11 +320,13 @@ export const routes = {
   devices: {
     list: DEVICES_LIST_PATH,
     /**
-     * The Devices list narrowed to some statuses (`?statuses=`, what
-     * `useDevicesUrlParams` reads). An empty list means the page default (online +
-     * offline), so it is dropped like an absent option.
+     * The Devices list narrowed to some customers and statuses (`?organizationIds=`,
+     * `?statuses=`, what `useDevicesUrlParams` reads). `organizationIds` are the RAW
+     * `Organization.organizationId` values. An empty list means the page default (every
+     * customer; online + offline), so it is dropped like an absent option.
      */
-    filtered: (o: { statuses?: readonly DeviceStatus[] }) => withQuery(DEVICES_LIST_PATH, { statuses: o.statuses }),
+    filtered: (o: { organizationIds?: readonly string[]; statuses?: readonly DeviceStatus[] }) =>
+      withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses }),
     archive: '/devices/archive',
     /** The tenant's remote sessions on every device - a page tab beside the Devices list. */
     remoteSessions: '/devices/remote-sessions',
