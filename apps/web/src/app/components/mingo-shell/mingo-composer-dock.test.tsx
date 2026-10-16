@@ -15,20 +15,23 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
 
-const { panel, nav, surface, builder, CONTEXT_MEMORY, RESET_ONBOARDING_ITEMS, CAPABILITIES } = vi.hoisted(() => ({
-  panel: {
-    props: null as Record<string, unknown> | null,
-    mounts: 0,
-    startNewChat: vi.fn(),
-    prefillDraft: vi.fn(),
-  },
-  nav: { pathname: '/devices/', push: vi.fn() },
-  surface: { value: null as unknown },
-  builder: { lastOptions: null as Record<string, unknown> | null },
-  CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
-  RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
-  CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
-}));
+const { panel, nav, surface, builder, shell, CONTEXT_MEMORY, RESET_ONBOARDING_ITEMS, CAPABILITIES } = vi.hoisted(
+  () => ({
+    panel: {
+      props: null as Record<string, unknown> | null,
+      mounts: 0,
+      startNewChat: vi.fn(),
+      prefillDraft: vi.fn(),
+    },
+    nav: { pathname: '/devices/', push: vi.fn() },
+    surface: { value: null as unknown },
+    builder: { lastOptions: null as Record<string, unknown> | null },
+    shell: { mobile: false },
+    CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
+    RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
+    CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
+  }),
+);
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
@@ -55,6 +58,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/utils', () => ({
 vi.mock('next/navigation', () => ({
   usePathname: () => nav.pathname,
   useRouter: () => ({ push: nav.push }),
+}));
+vi.mock('@/lib/platform', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  isMobileShell: () => shell.mobile,
 }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChatSurface: () => surface.value,
@@ -122,6 +129,7 @@ describe('MingoComposerDock', () => {
     panel.props = null;
     panel.mounts = 0;
     builder.lastOptions = null;
+    shell.mobile = false;
     setSurface();
     useChatPageNodeStore.setState({ node: null });
     useMingoLauncherStore.setState({
@@ -196,6 +204,15 @@ describe('MingoComposerDock', () => {
 
     act(() => (props().onModelClick as () => void)());
     expect(nav.push).toHaveBeenCalledWith(routes.settings.aiSettings({ tab: 'mingo' }));
+  });
+
+  it("leaves the bottom safe-area inset to the phone shell's layout root, keeps its own on the web", () => {
+    render('/devices/');
+    expect(props().safeAreaBottom).toBe(true);
+
+    shell.mobile = true;
+    render('/mingo/');
+    expect(props().safeAreaBottom).toBe(false);
   });
 
   it('builds its chat with the shared builder, Compact left out of the chat menus', () => {

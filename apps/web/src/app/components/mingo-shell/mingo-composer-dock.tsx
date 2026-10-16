@@ -38,6 +38,7 @@ import {
   type MingoChatState,
   useMingoChatSurface,
 } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
 import { useOpenframeChatProps } from '../openframe-embeddable-chat-entry';
 import { useChatPageNodeStore } from './chat-page-node-store';
@@ -152,6 +153,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         modelTooltip="Change in Settings → AI Settings"
         composerPlaceholder={view.placeholder}
         composerMenuItems={composerMenuItems}
+        // One bottom inset: in the phone shell the layout root already pads it (and the
+        // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it
+        // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
+        safeAreaBottom={!isMobileShell()}
       />
       {overlays}
     </>
