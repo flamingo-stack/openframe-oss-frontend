@@ -66,6 +66,13 @@ export function useMingoV2ChatGate(): FeatureFlagGate {
   return resolveMingoV2ChatGate(variant, mingoV2);
 }
 
+const REDIRECT_TRIES = 3;
+const REDIRECT_RETRY_MS = 400;
+
+function trimSlash(path: string): string {
+  return path.length > 1 ? path.replace(/\/$/, '') : path;
+}
+
 /**
  * Send a route that belongs to the OTHER shell to its equivalent in this one: replaces
  * the URL with `target` once it is non-null. Pass `null` for "stay" — including while
@@ -78,7 +85,20 @@ export function useMingoV2ChatGate(): FeatureFlagGate {
 export function useShellRedirect(target: string | null, { carryLocation = false } = {}): void {
   const router = useRouter();
   useEffect(() => {
-    if (target === null) return;
-    router.replace(carryLocation ? `${target}${window.location.search}${window.location.hash}` : target);
+    if (target === null) return undefined;
+    const href = carryLocation ? `${target}${window.location.search}${window.location.hash}` : target;
+    const targetPath = trimSlash(new URL(href, window.location.origin).pathname);
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const go = () => {
+      router.replace(href);
+      // A `replaceState` from another URL writer in the same commit (the classic drawer's
+      // `?mingoDialog=` sync, when the shell flips under an open chat) drops this navigation.
+      timer = setTimeout(() => {
+        if (trimSlash(window.location.pathname) !== targetPath && ++tries < REDIRECT_TRIES) go();
+      }, REDIRECT_RETRY_MS);
+    };
+    go();
+    return () => clearTimeout(timer);
   }, [target, carryLocation, router]);
 }

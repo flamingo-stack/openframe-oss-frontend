@@ -73,6 +73,22 @@ describe('useShellRedirect', () => {
     expect(replace).toHaveBeenCalledWith('/notifications');
   });
 
+  it('retries while another URL writer keeps the old path, and stops on the target', () => {
+    vi.useFakeTimers();
+    try {
+      window.history.replaceState(null, '', '/mingo/chat?id=d-1');
+      act(() => root.render(<Redirect target="/dashboard?mingoDialog=d-1" />));
+      expect(replace).toHaveBeenCalledTimes(1);
+      act(() => vi.advanceTimersByTime(400));
+      expect(replace).toHaveBeenCalledTimes(2);
+      window.history.replaceState(null, '', '/dashboard?mingoDialog=d-1');
+      act(() => vi.advanceTimersByTime(2000));
+      expect(replace).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('carries the live query and fragment when asked', () => {
     window.history.replaceState(null, '', '/dashboard?mingoDialog=d-1&utm_source=ad#top');
     act(() => root.render(<Redirect target="/mingo" carryLocation />));
