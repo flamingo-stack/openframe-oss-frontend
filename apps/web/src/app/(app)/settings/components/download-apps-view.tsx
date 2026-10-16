@@ -2,6 +2,7 @@
 
 import { DownloadAppsPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
 import { EP } from '@/app/(app)/help-center/endpoints';
+import { PAGE_SHELL_OVERRIDE } from '@/app/components/shared/page-shell-override';
 import { useIsDesktopShell } from '@/app/hooks/use-is-desktop-shell';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { routes } from '@/lib/routes';
@@ -11,7 +12,9 @@ import { routes } from '@/lib/routes';
  * the same page the website serves at `/download`. It self-fetches everything it
  * draws (desktop installers, install commands, store listings, the install QR code)
  * from the hub through the `/content` proxy, in one request.
- * `shell={false}` because `AppLayout` already provides the page `<main>`.
+ * `shell={false}` because `AppLayout` already provides the page `<main>`; the page
+ * still pads itself with the hub's spacing, so `PAGE_SHELL_OVERRIDE` sets it to the
+ * app's (`/help-center` gets the same from its layout).
  *
  * What stays this app's decision:
  *
@@ -29,14 +32,16 @@ export function DownloadAppsView() {
   const sameWindow = useSameWindowLinks();
   const desktopShell = useIsDesktopShell();
   return (
-    <DownloadAppsPage
-      shell={false}
-      endpoint={EP.downloads}
-      title="Get OpenFrame Apps"
-      subtitle="One account, every screen. Install OpenFrame where you work."
-      backButton={{ label: 'Back', href: routes.settings.root() }}
-      showDesktop={!desktopShell}
-      openStoresInNewTab={desktopShell || !sameWindow}
-    />
+    <div style={PAGE_SHELL_OVERRIDE}>
+      <DownloadAppsPage
+        shell={false}
+        endpoint={EP.downloads}
+        title="Get OpenFrame Apps"
+        subtitle="One account, every screen. Install OpenFrame where you work."
+        backButton={{ label: 'Back', href: routes.settings.root() }}
+        showDesktop={!desktopShell}
+        openStoresInNewTab={desktopShell || !sameWindow}
+      />
+    </div>
   );
 }
