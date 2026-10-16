@@ -6,18 +6,37 @@ import {
   PageLayout,
   type PageActionButton,
 } from '@flamingo-stack/openframe-frontend-core';
-import { KeepRecordingModal, ReleaseKeepingModal } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { LockIcon, TrashIcon, UnlockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  AssignTicketModal,
+  KeepRecordingModal,
+  ReleaseKeepingModal,
+  RemoteSessionEventList,
+  RemoteSessionTimelineMarkers,
+  UnassignTicketModal,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  LockIcon,
+  PlusCircleIcon,
+  TrashIcon,
+  UnlockIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useEffectEvent, useState } from 'react';
+import { useTicketSearchOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDate, formatDateTime } from '@/lib/format-date';
 import { loadErrorProps, queryState } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import {
+  useAssignRecordingTickets,
+  useRecordingTickets,
+  useUnassignRecordingTicket,
+} from '../../hooks/use-recording-tickets';
 import { useRemoteAccessMockTools } from '../../hooks/use-remote-access-mock-tools';
+import { useReportRecordingPlayed, useSessionEvents } from '../../hooks/use-session-events';
 import {
   useDeleteRemoteSession,
   useKeepSessionRecording,
@@ -25,6 +44,7 @@ import {
   useReleaseSessionRecording,
   useSessionRecording,
 } from '../../hooks/use-session-recordings';
+import { MAX_ASSIGNED_TICKETS } from '../../services/recording-tickets-api-service';
 import { sessionRecordingsApiService } from '../../services/session-recordings-api-service';
 import { RecordingNotFoundError } from '../../services/session-recordings-service';
 import { DeleteSessionDialog } from './delete-session-dialog';
@@ -33,7 +53,10 @@ import { PlayerControls } from './player-controls';
 import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
 import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
+import type { RecordingTicket } from './recording-tickets';
+import { RecordingTicketsSection } from './recording-tickets-section';
 import { SessionChat } from './session-chat';
+import { activeSessionEventId, placeSessionEvents } from './session-events';
 import { canDeleteSession, canKeepSession } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
@@ -44,7 +67,9 @@ interface RemoteSessionViewProps {
 /**
  * The "Remote Session Recording" page (Figma 1728-42383 with the session chat,
  * 2164-113294 without it): the metadata card, then the player with the chat
- * transcript in a column beside it when the session had a chat.
+ * transcript in a column beside it when the session had a chat, then the
+ * Session Events list (the events also mark the player's track, and both
+ * seek), then the tickets linked to the session.
  *
  * Fullscreen lives here rather than in the player so the canvas never
  * remounts: the wrapper swaps to `fixed inset-0` and PageLayout hides its
@@ -74,12 +99,27 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isKeepOpen, setIsKeepOpen] = useState(false);
   const [isReleaseOpen, setIsReleaseOpen] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [ticketSearch, setTicketSearch] = useState('');
+  const [unassignTarget, setUnassignTarget] = useState<RecordingTicket | null>(null);
   const router = useRouter();
   const deleteSession = useDeleteRemoteSession(recording?.deviceId ?? '');
   const keepRecording = useKeepSessionRecording(recording?.deviceId ?? '');
   const releaseRecording = useReleaseSessionRecording(recording?.deviceId ?? '');
   const storage = useRecordingStorage();
   const keep = recording?.keep ?? null;
+  // Read once the page has the recording: a missing one has no timeline either.
+  const events = placeSessionEvents(useSessionEvents(recording ? recordingId : null), player.timeline);
+  const hasPlayback = player.state !== 'empty';
+  const activeEventId = hasPlayback ? activeSessionEventId(events, player.currentMs) : null;
+  useReportRecordingPlayed(recording?.id ?? null, player.state);
+  const tickets = useRecordingTickets(recording ? recordingId : null).data ?? [];
+  const assignTickets = useAssignRecordingTickets(recordingId);
+  const unassignTicket = useUnassignRecordingTicket(recordingId);
+  // The picker searches the tenant's tickets only while it is open, and offers none already linked.
+  const ticketSearchResults = useTicketSearchOptions(useDebounce(ticketSearch, 300), undefined, isAssignOpen);
+  const assignedTicketIds = new Set(tickets.map(ticket => ticket.id));
+  const ticketOptions = ticketSearchResults.options.filter(option => !assignedTicketIds.has(option.value));
 
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
   const unavailableNote = unavailable ? 'The video is still being processed, check back in a moment' : null;
@@ -101,9 +141,18 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
         ]
       : [];
 
-  // Keep Recording, or Release Keeping once kept (Figma 1755-93683 / 1755-94111);
-  // outline per the design, where `menu-primary` would default to accent.
+  // Assign Ticket, then Keep Recording or Release Keeping once kept (Figma
+  // 1755-93683 / 1755-94111); outline per the design, where `menu-primary`
+  // would default to accent.
   const actions: PageActionButton[] = [];
+  if (recording) {
+    actions.push({
+      label: 'Assign Ticket',
+      icon: <PlusCircleIcon size={24} />,
+      variant: 'outline',
+      onClick: () => setIsAssignOpen(true),
+    });
+  }
   if (keep) {
     actions.push({
       label: 'Release Keeping',
@@ -248,6 +297,15 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
                     durationMs={player.durationMs}
                     speed={player.speed}
                     isFullscreen={isFullscreen}
+                    markers={
+                      events.length > 0 && (
+                        <RemoteSessionTimelineMarkers
+                          events={events}
+                          durationMs={player.durationMs}
+                          onSelect={event => player.seek(event.offsetMs)}
+                        />
+                      )
+                    }
                     onTogglePlay={player.togglePlay}
                     onSeek={player.seek}
                     onStepBack={player.stepBack}
@@ -261,7 +319,51 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           </div>
           {showChat && <SessionChat messages={recording.chat} employee={recording.employee} />}
         </div>
+        {!isFullscreen && events.length > 0 && (
+          <RemoteSessionEventList
+            events={events}
+            activeEventId={activeEventId}
+            // A row seeks only once there is a recording to seek in.
+            onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
+          />
+        )}
+        {/* With no ticket linked the whole section, title included, is left out. */}
+        {!isFullscreen && tickets.length > 0 && (
+          <RecordingTicketsSection tickets={tickets} onUnassign={setUnassignTarget} />
+        )}
       </div>
+      <AssignTicketModal
+        isOpen={isAssignOpen}
+        onClose={() => setIsAssignOpen(false)}
+        options={ticketOptions}
+        onSearch={setTicketSearch}
+        loading={ticketSearchResults.isLoading}
+        isPending={assignTickets.isPending}
+        onConfirm={ticketIds => {
+          if (!recording || ticketIds.length === 0) return;
+          if (ticketIds.length > MAX_ASSIGNED_TICKETS) {
+            toast({
+              title: 'Too many tickets',
+              description: `Assign up to ${MAX_ASSIGNED_TICKETS} tickets at a time.`,
+              variant: 'destructive',
+            });
+            return;
+          }
+          assignTickets.mutate({ sessionId: recording.id, ticketIds }, { onSuccess: () => setIsAssignOpen(false) });
+        }}
+      />
+      <UnassignTicketModal
+        isOpen={unassignTarget !== null}
+        onClose={() => setUnassignTarget(null)}
+        isPending={unassignTicket.isPending}
+        onConfirm={() => {
+          if (!recording || !unassignTarget) return;
+          unassignTicket.mutate(
+            { sessionId: recording.id, ticketId: unassignTarget.id },
+            { onSuccess: () => setUnassignTarget(null) },
+          );
+        }}
+      />
       <KeepRecordingModal
         isOpen={isKeepOpen}
         onClose={() => setIsKeepOpen(false)}

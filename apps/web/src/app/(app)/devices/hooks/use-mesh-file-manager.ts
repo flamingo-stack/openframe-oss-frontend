@@ -10,6 +10,9 @@ import { convertFileEntriesToItems, sanitizePath } from '../utils/file-manager-u
 // Global map to track active file manager instances by device ID (React Strict Mode protection)
 const activeFileManagers = new Map<string, boolean>();
 
+// The control socket retries with backoff for about 3 minutes before it reports a failure. Users leave long before that.
+const CONNECT_TIMEOUT_MS = 15000;
+
 // Extract directory path from file IDs
 function getDirectoryFromFileIds(fileIds: string[]): string {
   if (fileIds.length === 0) return '/';
@@ -63,6 +66,7 @@ interface UseMeshFileManagerReturn {
   selectFile: (fileId: string, selected: boolean) => void;
   selectAll: (selected: boolean) => void;
   handleFileAction: (action: FileAction, fileId?: string) => Promise<void>;
+  retryConnection: () => void;
 }
 
 interface ClipboardItem {
@@ -86,6 +90,7 @@ export function useMeshFileManager({
   const [downloadProgress, setDownloadProgress] = useState<FileTransferProgress | null>(null);
   const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [connectAttempt, setConnectAttempt] = useState(0);
 
   const fileManagerRef = useRef<MeshCentralFileManager | null>(null);
   const controlClientRef = useRef<MeshControlClient | null>(null);
@@ -126,6 +131,7 @@ export function useMeshFileManager({
       initializingRef.current = true;
 
       let initSucceeded = false;
+      let connectTimeout: ReturnType<typeof setTimeout> | undefined;
 
       try {
         setLoading(true);
@@ -252,7 +258,15 @@ export function useMeshFileManager({
           return;
         }
 
-        await fileManager.connect();
+        await Promise.race([
+          fileManager.connect(),
+          new Promise<never>((_, reject) => {
+            connectTimeout = setTimeout(
+              () => reject(new Error('Timed out connecting to the device')),
+              CONNECT_TIMEOUT_MS,
+            );
+          }),
+        ]);
         if (token.cancelled) {
           fileManager.disconnect();
           controlClient.close();
@@ -263,7 +277,14 @@ export function useMeshFileManager({
         }
         initSucceeded = true;
       } catch (error) {
+        // The effect cleanup closed the client. Nobody waits for this result.
+        if (token.cancelled) return;
         const err = error as Error;
+        // Stops the control socket's reconnect loop. Retry builds a new client.
+        controlClientRef.current?.close();
+        if (mounted) {
+          setConnectionState('failed');
+        }
         toastRef.current?.({
           title: 'Connection Failed',
           description: err.message || 'Failed to connect to file manager',
@@ -272,6 +293,7 @@ export function useMeshFileManager({
         });
         onErrorRef.current?.(err);
       } finally {
+        clearTimeout(connectTimeout);
         if (mounted) {
           setLoading(false);
         }
@@ -309,7 +331,10 @@ export function useMeshFileManager({
         controlClientRef.current = null;
       }
     };
-  }, [meshcentralAgentId, isRemote]);
+  }, [meshcentralAgentId, isRemote, connectAttempt]);
+
+  // A new effect key: the cleanup closes the failed client and the effect connects with a new one.
+  const retryConnection = () => setConnectAttempt(attempt => attempt + 1);
 
   const refreshCurrentDirectory = useCallback(async () => {
     const fileManager = fileManagerRef.current;
@@ -830,5 +855,6 @@ export function useMeshFileManager({
     selectFile,
     selectAll,
     handleFileAction,
+    retryConnection,
   };
 }

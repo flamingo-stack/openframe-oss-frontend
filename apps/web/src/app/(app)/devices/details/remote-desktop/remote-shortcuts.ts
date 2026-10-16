@@ -3,6 +3,9 @@
 // ('shift+win+m') — the same format `MeshDesktop.sendKeyCombo` consumes, so the
 // stored value is the wire contract and the label is always derived from it.
 
+import { isSecureAttentionCombo } from '@/lib/meshcentral/meshcentral-keys';
+import type { RemoteSessionAction } from '../../services/remote-session-actions-api-service';
+
 export interface RemoteShortcut {
   id: string;
   combo: string;
@@ -93,4 +96,14 @@ export function comboLabel(combo: string): string {
     .split('+')
     .map(token => TOKEN_LABELS[token] ?? token.toUpperCase())
     .join(' + ');
+}
+
+/**
+ * How a shortcut sent from the menu goes on the session's timeline: the
+ * secure attention sequence as its own action, any other combo by its label.
+ */
+export function shortcutAction(combo: string): RemoteSessionAction {
+  return isSecureAttentionCombo(combo)
+    ? { action: 'CTRL_ALT_DEL' }
+    : { action: 'SHORTCUT_SENT', label: comboLabel(combo), source: 'MENU' };
 }

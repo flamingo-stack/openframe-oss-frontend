@@ -18,6 +18,7 @@
  * TabNavigation) is unchanged. URL/path values themselves are not changing, so
  * existing bookmarks stay valid.
  */
+import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -34,6 +35,7 @@ export const TAB_IDS = {
     'custom-ai-assistant',
     'customer-ai-guardrails',
     'customer-device-guardrails',
+    'assigned-articles',
   ],
   customerEdit: ['details', 'ai-configuration', 'guardrails', 'device-guardrails'],
   deviceDetails: [
@@ -52,6 +54,7 @@ export const TAB_IDS = {
     'software',
     'remote-sessions',
     'device-logs',
+    'assigned-articles',
   ],
   scriptDetails: ['details', 'executions'],
   softwareDetails: ['devices', 'vulnerabilities'],
@@ -86,9 +89,6 @@ export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export const MANAGE_AI_BALANCE_ACTION = 'manageAiBalance';
 export type BillingUsageAction = typeof MANAGE_AI_BALANCE_ACTION;
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
-
-/** Legal documents the Help Center `[docType]` route prerenders. */
-export type HelpCenterLegalDoc = 'privacy' | 'terms';
 
 // --------------------------------------------------------------------------
 // Ticket prefill keys (shared with the ticket form and its page)
@@ -211,9 +211,10 @@ export const routes = {
     faqs: '/help-center/faqs',
     trustCenter: '/help-center/trust-center',
     knowledgeBase: '/help-center/knowledge-base',
-    // `[docType]` is enumerable (see the route's `generateStaticParams`), so the
-    // literal union is the typed guard ROUTES.md asks for over a bare `string`.
-    legal: (docType: HelpCenterLegalDoc) => `/help-center/legal/${docType}`,
+    // One page per legal document. `[docType]` is enumerable (the route's
+    // `generateStaticParams` prerenders the lib's `LEGAL_DOCUMENT_TYPES`); the
+    // Help Center links the ones the hub's list says are published.
+    legal: (docType: LegalDocumentType) => `/help-center/legal/${docType}`,
   },
   worktime: '/worktime',
 

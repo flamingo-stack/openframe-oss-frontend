@@ -110,6 +110,11 @@ enum AssignmentTargetType {
   KNOWLEDGE_ARTICLE
 }
 
+input AssignmentTargetInput {
+  targetType: AssignmentTargetType!
+  targetId: ID!
+}
+
 """
 Relay connection for the schedule's "Available Devices" picker. Same shape as DeviceConnection,
 but each edge additionally reports whether the device is already assigned to the schedule.
@@ -1573,6 +1578,7 @@ input KnowledgeBaseFilterInput {
   DESCENDANTS when the listing carries a search or tagIds.
   """
   scope: KnowledgeBaseScope
+  assignedTo: AssignmentTargetInput
 }
 
 type KnowledgeBaseItem implements AssignableTarget & Node {
@@ -1898,6 +1904,34 @@ type Mutation {
   call again to finish).
   """
   deleteRemoteSession(sessionId: String!): DeleteRemoteSessionPayload!
+
+  """
+  Records a console action on the caller's own ACTIVE session. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  INVALID_ACTION, REMOTE_SESSION_NOT_FOUND, REMOTE_ACCESS_FORBIDDEN, REMOTE_SESSION_ENDED.
+  """
+  recordRemoteSessionAction(input: RecordRemoteSessionActionInput!): RecordRemoteSessionActionPayload!
+
+  """
+  Call once per player open. Stored once per user, session and hour; another call in the same hour is accepted and
+  stores nothing. Refusals as userErrors: REMOTE_ACCESS_DISABLED, REMOTE_SESSION_NOT_FOUND.
+  """
+  recordRecordingPlayed(sessionId: String!): RecordRemoteSessionActionPayload!
+
+  """
+  Links tickets to a remote session, ended or the caller's own active one. Idempotent per ticket: an active link
+  is left as it is, an unassigned one is linked again. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  REMOTE_SESSION_NOT_FOUND, TICKET_NOT_FOUND (one id unknown in the tenant refuses the call and links nothing),
+  RECORDING_TICKET_LIMIT (more than 50 active links). An empty list or more than 50 ids is not a userError: the
+  request fails with a GraphQL error, extensions.code VALIDATION_ERROR, httpStatus 400.
+  """
+  assignRecordingTickets(input: AssignRecordingTicketsInput!): RemoteSessionPayload!
+
+  """
+  Removes a ticket from the session's table; the session and its access request keep their own ticket.
+  Idempotent: a ticket that is not linked answers success. Refusals as userErrors: REMOTE_ACCESS_DISABLED,
+  REMOTE_SESSION_NOT_FOUND.
+  """
+  unassignRecordingTicket(sessionId: String!, ticketId: String!): RemoteSessionPayload!
 
   """
   Keeps every file of an ended session for any technician who can see it: a GCS temporary hold per object, HELD on
@@ -3110,7 +3144,7 @@ type Query {
   scriptFilters(filter: ScriptFilterInput): ScriptFilters!
   knowledgeBaseItems(filter: KnowledgeBaseFilterInput, search: String, first: Int, after: String): KnowledgeBaseItemConnection!
   knowledgeBaseItem(id: ID!): KnowledgeBaseItem
-  knowledgeBaseTags(folderId: ID, archived: Boolean): [Tag!]!
+  knowledgeBaseTags(folderId: ID, archived: Boolean, assignedTo: AssignmentTargetInput): [Tag!]!
   knowledgeBaseFolderTree: [KnowledgeBaseItem!]!
   knowledgeBaseArticleTree: [KnowledgeBaseItem!]!
   archivedArticles(search: String, tagIds: [ID], first: Int, after: String): KnowledgeBaseItemConnection!
@@ -3471,6 +3505,35 @@ type Query {
   autoTopUpSettings: AutoTopUpSettings!
 }
 
+"""
+One console action. SHORTCUT_SENT takes label and source. MONITOR_SWITCHED takes toMonitorId, and optionally
+fromMonitorId and label. The other actions take no fields. A label matches ^[A-Za-z0-9+ ]{1,40}$, monitor ids are
+0..15, and clientEventId is a UUID: a retry with the same clientEventId is stored once.
+"""
+input RecordRemoteSessionActionInput {
+  sessionId: String!
+  action: RemoteSessionActionType!
+  label: String
+  source: RemoteSessionActionSource
+
+  fromMonitorId: Int
+  toMonitorId: Int
+
+  """
+  The browser's clock when the action happened; the server receive time orders the timeline.
+  """
+  clientTime: Instant
+  clientEventId: String
+}
+
+"""
+accepted is true when the action is stored or was already stored, false with userErrors otherwise.
+"""
+type RecordRemoteSessionActionPayload {
+  accepted: Boolean!
+  userErrors: [UserError!]!
+}
+
 enum RemoteAccessDecisionSource {
   USER
   POLICY
@@ -3558,6 +3621,150 @@ enum RemoteAccessRequestStatus {
   EXPIRED
 }
 
+"""
+A row of a session's timeline. Rows read from the request, the session, its relay legs and its chat are derived at
+read time and never stored; the rest come from the events store.
+"""
+enum RemoteSessionEventType {
+  REQUESTED
+  APPROVED
+  STARTED
+  CONNECTION_LOST
+  RECONNECTED
+  """A chat message was sent; the row carries the sender only, never the text."""
+  CHAT_MESSAGE
+  ENDED
+  INPUT_ENABLED
+  INPUT_DISABLED
+  SHORTCUT_SENT
+  CTRL_ALT_DEL
+  MONITOR_SWITCHED
+  """Written once the clipboard events are recorded (C1)."""
+  REMOTE_CLIPBOARD_COPIED
+  """Written once the clipboard events are recorded (C1)."""
+  REMOTE_CLIPBOARD_PASTED
+  RECORDING_EXPIRED
+  RECORDING_KEPT
+  RECORDING_RELEASED
+  """Never returned: a deleted session reads as not found."""
+  SESSION_DELETED
+  """Written once tickets can be linked to a recording (D7)."""
+  TICKET_ASSIGNED
+  """Written once tickets can be linked to a recording (D7)."""
+  TICKET_UNASSIGNED
+  """Someone opened the recording player; one row per user, session and hour."""
+  REMOTE_RECORDING_PLAYED
+}
+
+enum RemoteSessionActorKind {
+  TECHNICIAN
+  VIEWER
+  END_USER
+  SYSTEM
+}
+
+"""CONSOLE rows are the technician's console reporting its own actions; every other row is recorded by the server."""
+enum RemoteSessionEventSource {
+  SERVER
+  CONSOLE
+}
+
+"""Who caused the row. END_USER and SYSTEM carry no user, name or avatar."""
+type RemoteSessionEventActor {
+  kind: RemoteSessionActorKind!
+  userId: String
+  """The user's current name; the name copied on the session when the user no longer exists, else the user id."""
+  name: String
+  avatarUrl: String
+}
+
+type RemoteSessionEvent {
+  """Stored rows keep their ULID; derived rows are <sessionId>:<type>, plus :<relayId> or :<messageId>."""
+  id: ID!
+  type: RemoteSessionEventType!
+  """The server wall clock of the event, for every row."""
+  at: Instant!
+  """at - session.startedAt in milliseconds; null for rows before startedAt. It labels the row; it is not a player position."""
+  offsetMs: Long
+  source: RemoteSessionEventSource!
+  actor: RemoteSessionEventActor!
+  """SHORTCUT_SENT: the key combination. MONITOR_SWITCHED: the display label, when the console sent one."""
+  label: String
+  """SHORTCUT_SENT: sent from the console menu or typed on the keyboard."""
+  shortcutSource: RemoteSessionActionSource
+  """REMOTE_CLIPBOARD_COPIED, REMOTE_CLIPBOARD_PASTED"""
+  byteCount: Int
+  """MONITOR_SWITCHED; null when the console did not know the display it left."""
+  fromMonitorId: Int
+  """MONITOR_SWITCHED"""
+  toMonitorId: Int
+  """ENDED"""
+  endReason: RemoteSessionEndReason
+  """APPROVED"""
+  decisionSource: RemoteAccessDecisionSource
+  """RECORDING_KEPT"""
+  holdReason: RecordingHoldReason
+  """RECORDING_KEPT, TICKET_ASSIGNED, TICKET_UNASSIGNED"""
+  ticketNumber: String
+  """CONNECTION_LOST: the leg that closed. RECONNECTED: the leg that opened; it matches the recording files' relayId."""
+  relayId: String
+}
+
+type RemoteSessionEventEdge {
+  cursor: String!
+  node: RemoteSessionEvent!
+}
+
+type RemoteSessionEventConnection {
+  edges: [RemoteSessionEventEdge!]!
+  pageInfo: PageInfo!
+  """Rows matching types, whatever the cursor."""
+  totalCount: Int!
+}
+
+type RemoteSessionAudience {
+  technician: RemoteAccessTechnician!
+  """The actor of the APPROVED row: END_USER when the end user allowed it, SYSTEM when a policy or a fallback did."""
+  approvedBy: RemoteSessionEventActor
+  """Empty until live viewers are recorded."""
+  watchers: [RemoteSessionEventActor!]!
+  """Everyone who opened the recording player, by first playback."""
+  replayedBy: [RemoteSessionEventActor!]!
+}
+
+"""Where a link came from: the ticket of the access request, a technician's assign, or the ticket of a Keep."""
+enum RemoteSessionTicketSource {
+  SESSION
+  MANUAL
+  KEEP
+}
+
+"""A ticket linked to a remote session, with the ticket facts read live."""
+type RemoteSessionTicketLink {
+  """The raw ticket id, the one the ai-agent tickets query returns."""
+  ticketId: String!
+  """The ticket number; the copy taken at link time when the ticket is gone."""
+  ticketNumber: Int
+  title: String
+  """The status name from the tenant's ticket statuses; null when the status definition is gone."""
+  statusName: String
+  """AI_ASSISTANCE, TECH_REQUIRED, RESOLVED, ARCHIVED or CUSTOM."""
+  statusKind: String
+  statusColor: String
+  assignedTo: String
+  assignedName: String
+  source: RemoteSessionTicketSource!
+  linkedAt: Instant!
+  """Who linked the ticket; null when the system linked the session's own ticket."""
+  linkedBy: RemoteAccessTechnician
+}
+
+input AssignRecordingTicketsInput {
+  sessionId: String!
+  """1 to 50 raw ticket ids; duplicates count once."""
+  ticketIds: [String!]!
+}
+
 type RemoteSession {
   """A plain 26-char ULID."""
   sessionId: String!
@@ -3619,6 +3826,40 @@ type RemoteSession {
 
   """The list's SIZE column: bytes of the session's stored files (AVAILABLE and HELD); null while no file is registered."""
   recordingSizeBytes: Long
+
+  """
+  The session's timeline as a cursor connection, ascending by at. Rows at the same millisecond follow the session:
+  REQUESTED, APPROVED, STARTED, the rows during the session, ENDED, then the rows after the end; id breaks what is
+  left. first is clamped to 1..500, default 100;
+  types filters before the page is cut, and a cursor that does not decode reads INVALID_CURSOR. Same visibility as the
+  session. Times are the server wall clock: the player maps at to video time with each recording file's startedAt
+  (whole seconds) and the reconnect gaps it cut when it stitched the files; a row inside a cut gap has no position.
+  """
+  events(types: [RemoteSessionEventType!], first: Int, after: String): RemoteSessionEventConnection!
+  """Built from the same rows as events, whatever types asks for."""
+  audience: RemoteSessionAudience!
+
+  """Active links, the session's own ticket first, then by link time. Same visibility as the session."""
+  tickets: [RemoteSessionTicketLink!]!
+}
+
+"""
+How a shortcut was sent: from the console menu or typed on the keyboard.
+"""
+enum RemoteSessionActionSource {
+  MENU
+  KEYBOARD
+}
+
+"""
+A console action the technician's browser reports during a remote session.
+"""
+enum RemoteSessionActionType {
+  INPUT_ENABLED
+  INPUT_DISABLED
+  SHORTCUT_SENT
+  CTRL_ALT_DEL
+  MONITOR_SWITCHED
 }
 
 """The sessions list's recording-state filter. Each value is a query criterion matching the row's recordingState tag."""
