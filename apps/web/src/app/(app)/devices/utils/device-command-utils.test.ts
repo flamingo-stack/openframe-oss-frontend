@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildInstallCommand,
   buildRegisterCommand,
+  buildRemoteAccessModeArgs,
   buildUninstallCommand,
   isInstallMethodEnabled,
   MACHINE_ID_HEADER,
@@ -118,5 +119,19 @@ describe('package manager install methods', () => {
     const args = 'openframe-client auth --serverUrl tenant.example.com --initialKey key --orgId org --userId user';
     expect(buildRegisterCommand({ platform: 'windows', ...options })).toBe(args);
     expect(buildRegisterCommand({ platform: 'darwin', ...options })).toBe(`sudo ${args}`);
+  });
+});
+
+describe('buildRemoteAccessModeArgs', () => {
+  it("passes an explicit mode in the client's kebab-case", () => {
+    expect(buildRemoteAccessModeArgs('APPROVAL_REQUIRED')).toEqual(['--remote-access-mode approval-required']);
+    expect(buildRemoteAccessModeArgs('NOTIFY_ONLY')).toEqual(['--remote-access-mode notify-only']);
+    expect(buildRemoteAccessModeArgs('SILENT_ACCESS')).toEqual(['--remote-access-mode silent-access']);
+    expect(buildRemoteAccessModeArgs('DENY_ACCESS')).toEqual(['--remote-access-mode deny-access']);
+  });
+
+  it('adds nothing when the device follows its customer', () => {
+    expect(buildRemoteAccessModeArgs(null)).toEqual([]);
+    expect(buildRemoteAccessModeArgs(undefined)).toEqual([]);
   });
 });

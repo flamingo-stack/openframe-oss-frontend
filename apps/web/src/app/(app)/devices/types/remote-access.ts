@@ -153,6 +153,22 @@ export const REMOTE_ACCESS_MODE_META: Record<RemoteAccessMode, { label: string; 
   },
 };
 
+/** The select's entry for "no override": the device follows its customer. */
+export const CUSTOMER_DEFAULT = 'CUSTOMER_DEFAULT';
+export type RemoteAccessChoice = RemoteAccessMode | typeof CUSTOMER_DEFAULT;
+/** A device's permission select: Customer Default first, then the explicit modes. */
+export const REMOTE_ACCESS_CHOICES: readonly RemoteAccessChoice[] = [CUSTOMER_DEFAULT, ...REMOTE_ACCESS_MODES];
+
+/** Select label of a choice; Customer Default names the mode it resolves to once that is known. */
+export function remoteAccessChoiceLabel(choice: RemoteAccessChoice, customerMode?: RemoteAccessMode): string {
+  if (choice !== CUSTOMER_DEFAULT) return REMOTE_ACCESS_MODE_META[choice].label;
+  return customerMode ? `Customer Default (${REMOTE_ACCESS_MODE_META[customerMode].label})` : 'Customer Default';
+}
+
+export function remoteAccessChoiceDescription(choice: RemoteAccessChoice): string {
+  return choice === CUSTOMER_DEFAULT ? "Follows the customer's setting" : REMOTE_ACCESS_MODE_META[choice].description;
+}
+
 /**
  * Tenant-wide remote access policy: the default mode only. The approval
  * timeout (30 s), the delivery timeout and the no-client / no-answer fallbacks
