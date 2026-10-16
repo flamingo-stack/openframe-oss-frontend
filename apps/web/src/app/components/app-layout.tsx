@@ -519,6 +519,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             currentPath,
             loading: chromeLoading,
             loadingRows: NAVIGATION_LOADING_ROWS.grouped,
+            // 264 (the brief), not Figma's 224: at 224 "Needs approval" + its count and
+            // "Cloud tenants" + BETA truncate, and the chat titles get 40px more. The
+            // pre-paint seed stays 224 (the shell is unknown before the flags answer),
+            // so this sidebar snaps to 264 once, without animating.
+            expandedWidth: 264,
+            // Below this the whole sidebar body scrolls instead of squeezing the chat
+            // history to nothing under an open group on a laptop-height window.
+            sectionMinHeight: 280,
             onNavigate: handleNavigate,
             // The Mingo rows (New chat, Needs approval) above the module tree, after
             // the desktop shell's update button as in the classic sidebar.
