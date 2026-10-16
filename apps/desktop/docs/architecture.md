@@ -31,12 +31,9 @@ builds the web app in this same repository — installs its dependencies if
 missing, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies `dist/` to
 `www/`. The shell and the bundle always come from one commit.
 
-`release.yml` builds the web image and the shell from one commit under one
-version, passed to both as `OPENFRAME_BUNDLE_VERSION`. The shell build matching
-prod is the release named by `openframe-saas.frontend.image.tag` in
-openframe-saas-tenant's `manifests/tenant/values-prod.yaml`. A push to `main`
-builds the shell as workflow artifacts only, matching the dev environment's
-`latest` image.
+`release.yml` does not build the shell for now: its desktop job is commented
+out, and the shell is built and released from `openframe-saas-desktop`, whose
+releases the updater reads.
 
 `www/` is a generated artifact. `tauri.conf.json` sets `frontendDist: "../www"`,
 and `generate_context!` embeds the directory **at compile time** — so `www/` must

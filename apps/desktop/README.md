@@ -66,18 +66,12 @@ against the produced artifact, which is why `tauri.conf.json` sets
 
 ## Releasing
 
-The desktop shell has no release of its own. Every `.github/workflows/release.yml`
-dispatch builds the web image and the shell from one commit under one version:
-
-```sh
-gh workflow run release.yml [-f version=x.y.z]
-```
-
-The `x.y.z` GitHub release carries the image reference, the installers and
-`updater.json`. The build for the web version prod runs
-(`openframe-saas.frontend.image.tag` in openframe-saas-tenant's
-`manifests/tenant/values-prod.yaml`) is that version's release. Pushes to `main`
-that touch the shell build it as workflow artifacts only (`0.0.0-dev.N`).
+The shell is built and released from `openframe-saas-desktop` for now; the
+updater reads that repository's releases (`DEFAULT_MANIFEST_URL` in
+`src-tauri/src/updater.rs`). The `build_desktop` job and the `updater.json` step
+in `.github/workflows/release.yml` are commented out until the release moves
+here, so neither a dispatch nor a push to `main` builds the shell from this
+repository.
 
 ## Configuration
 
