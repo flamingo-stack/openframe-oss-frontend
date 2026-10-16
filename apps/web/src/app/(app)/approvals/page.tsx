@@ -3,7 +3,7 @@
 import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
 import { routes } from '@/lib/routes';
-import { ApprovalsPlaceholder } from './approvals-placeholder';
+import { ApprovalsView } from './approvals-view';
 
 /**
  * What needs a person's approval, a page of the Mingo-first shell. The classic shell
@@ -14,5 +14,5 @@ export default function ApprovalsPage() {
   useShellRedirect(variant === 'classic' ? routes.notifications() : null);
 
   if (variant !== 'mingo') return <CompactPageLoader />;
-  return <ApprovalsPlaceholder />;
+  return <ApprovalsView />;
 }
