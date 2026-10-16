@@ -1,8 +1,9 @@
 /**
  * The Needs approval page over its real sources (the drawer's notification state, the
  * chat service's waiting chats, the Tech Required lane) with only the network faked:
- * each request once, tickets on SaaS only, a title that opens what the request belongs
- * to, and a decision that lands on the page, the sidebar badge and the drawer at once.
+ * one list of every request (tickets on SaaS only), each once, a title that opens what
+ * the request belongs to, the next page loaded as the list scrolls, and a decision that
+ * lands on the page, the sidebar badge and the drawer at once.
  */
 
 import { type Notification, NotificationsProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -107,6 +108,29 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
+// The list's end: every observed sentinel, so a test can scroll it into view.
+const sentinels = new Set<IntersectionObserverCallback>();
+class IntersectionObserverStub {
+  private readonly callback: IntersectionObserverCallback;
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+  }
+  observe() {
+    sentinels.add(this.callback);
+  }
+  disconnect() {
+    sentinels.delete(this.callback);
+  }
+}
+globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver;
+async function scrollToEnd() {
+  await act(async () => {
+    for (const callback of [...sentinels]) {
+      callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    }
+  });
+}
+
 const TOOL_CALL = {
   toolExecutionRequestId: 'te-1',
   toolName: 'run_script',
@@ -209,16 +233,14 @@ async function renderPage(notifications: Notification[] = []) {
   await settle();
 }
 
-/** The section headings (the page title is the title block's own). */
-const headings = () => [...container.querySelectorAll('section h2')].map(heading => heading.textContent);
-/** The cards: the sections' own list items (a card's command section has lists of its own). */
-const cards = () => [...container.querySelectorAll('section > ul > li')];
+/** The cards: the list's own items (a card's command section has lists of its own). */
+const cards = () => [...container.querySelectorAll('ul[aria-label] > li')];
 const cardTitled = (title: string) => cards().find(item => item.textContent?.includes(title)) ?? null;
 const buttonIn = (element: Element | null, label: string) =>
   [...(element?.querySelectorAll('button') ?? [])].find(button => button.textContent === label) ?? null;
 
 describe('ApprovalsView', () => {
-  it('lists every request once and the tickets still waiting on a technician', async () => {
+  it('lists every request once, the tickets still waiting on a technician among them, without tabs', async () => {
     server.dialogs = [
       mingoChat('d-1', 'ar-1', '2026-10-16T10:00:00Z'),
       mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z'),
@@ -226,20 +248,19 @@ describe('ApprovalsView', () => {
     server.tickets = [techTicket('t-5', 'ar-t5'), techTicket('t-6', 'ar-2')];
     await renderPage([approvalNotification]);
 
-    expect(headings()).toEqual(['Approval requests · 2', 'Tickets waiting for a technician · 1']);
-    expect(container.textContent).toContain('2 pending');
-    // The notification's card, under its chat's name; the chat behind it is not a second card.
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+    // The notification's card, under its chat's name; the chat behind it is not a second card,
+    // nor is the ticket whose request a chat already shows.
     expect(cardTitled('Chat d-1')).not.toBeNull();
     expect(cards()).toHaveLength(3);
     expect(cardTitled('LAPTOP-7 · Acme')?.textContent).toContain('1152: Customer Service Request');
-    const boardLink = [...container.querySelectorAll('a')].find(
-      link => link.textContent === 'Tech Required on the board',
-    );
-    expect(boardLink?.getAttribute('href')).toBe(routes.tickets.filtered({ status: ['s-tech'], viewMode: 'board' }));
     expect(badge()).toBe(3);
+
+    const boardLink = [...container.querySelectorAll('a')].find(link => link.textContent === 'Open board');
+    expect(boardLink?.getAttribute('href')).toBe(routes.tickets.filtered({ status: ['s-tech'], viewMode: 'board' }));
   });
 
-  it('has no tickets section, and asks the chat service nothing, outside SaaS', async () => {
+  it('has no tickets and no board, and asks the chat service nothing, outside SaaS', async () => {
     server.saas = false;
     server.dialogs = [mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z')];
     server.tickets = [techTicket('t-5', 'ar-t5')];
@@ -247,8 +268,8 @@ describe('ApprovalsView', () => {
     vi.mocked(apiClient.post).mockClear();
     await renderPage([approvalNotification]);
 
-    expect(headings()).toEqual(['Approval requests · 1']);
-    expect(container.textContent).not.toContain('Tickets waiting for a technician');
+    expect(cards()).toHaveLength(1);
+    expect([...container.querySelectorAll('a')].some(link => link.textContent === 'Open board')).toBe(false);
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(badge()).toBe(1);
   });
@@ -258,9 +279,6 @@ describe('ApprovalsView', () => {
     server.tickets = [techTicket('t-5', 'ar-t5')];
     await renderPage();
 
-    const ticketLink = cardTitled('1152: Customer Service Request')?.querySelector('a');
-    expect(ticketLink?.getAttribute('href')).toBe(routes.tickets.dialog('t-5'));
-
     const chatLink = cardTitled('Chat d-2')?.querySelector('a');
     expect(chatLink?.getAttribute('href')).toBe(routes.mingo.chat('d-2'));
     const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
@@ -269,6 +287,9 @@ describe('ApprovalsView', () => {
     });
     expect(click.defaultPrevented).toBe(true);
     expect(openMingoDialog).toHaveBeenCalledWith('d-2', { navigate: push });
+
+    const ticketLink = cardTitled('1152: Customer Service Request')?.querySelector('a');
+    expect(ticketLink?.getAttribute('href')).toBe(routes.tickets.dialog('t-5'));
   });
 
   it('a decision here lands on the page, the badge and the drawer; one made elsewhere takes the card off', async () => {
@@ -290,7 +311,6 @@ describe('ApprovalsView', () => {
     expect(cardTitled('Chat d-1')?.textContent).toContain('Approved');
     expect(cardTitled('Chat d-1')?.textContent).toContain('by Ann Lee');
     expect(buttonIn(cardTitled('Chat d-1'), 'Approve')).toBeNull();
-    expect(container.textContent).toContain('1 pending');
     expect(badge()).toBe(2);
     // The drawer's tile is completed, as the drawer's own decision completes it.
     expect(markRead).toHaveBeenCalledWith('n-1');
@@ -301,30 +321,21 @@ describe('ApprovalsView', () => {
     expect(badge()).toBe(1);
   });
 
-  it('pages only the section it belongs to, and says how far an empty one looked', async () => {
-    server.dialogs = [mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z')];
+  it('loads the next page on its own as the end of the list shows — no paging buttons', async () => {
     // The lane's first page holds a ticket with no approval; the next one holds one.
     server.tickets = [{ ...techTicket('t-4', 'unused'), pendingApproval: null }];
     server.olderTickets = [techTicket('t-5', 'ar-t5')];
     await renderPage();
 
-    const [requestsSection, ticketsSection] = [...container.querySelectorAll('section')].filter(section =>
-      section.querySelector('h2'),
-    );
-    // Nothing more to load for the requests: no paging control there.
-    expect(buttonIn(requestsSection, 'Show more')).toBeNull();
-    expect(ticketsSection.textContent).toContain('No approvals in the latest 1 Tech Required ticket.');
-    expect(ticketsSection.textContent).not.toContain("No tickets are waiting for a technician's approval.");
-    expect(buttonIn(ticketsSection, 'Show more')).toBeNull();
+    expect(cards()).toHaveLength(0);
+    expect(container.textContent).not.toContain('Nothing needs approval');
+    expect(buttonIn(container, 'Show more')).toBeNull();
+    expect(buttonIn(container, 'Check older tickets')).toBeNull();
 
-    await act(async () => {
-      buttonIn(ticketsSection, 'Check older tickets')?.click();
-    });
+    await scrollToEnd();
     await settle();
 
     expect(cardTitled('LAPTOP-7 · Acme')).not.toBeNull();
-    expect(buttonIn(ticketsSection, 'Check older tickets')).toBeNull();
-    expect(buttonIn(ticketsSection, 'Show more')).toBeNull();
   });
 
   it('draws the ✓ "Mark notification complete" only on a card that is a notification', async () => {

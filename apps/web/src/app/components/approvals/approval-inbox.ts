@@ -17,26 +17,20 @@ import type { ApprovalDialogNode } from './approval-dialogs-query';
 
 /**
  * What needs a person's approval, composed on the client from the contracts that exist
- * (there is no server-side "approvals" list): the Needs approval page draws it, and its
- * count is the sidebar's "Needs approval" badge.
- *
- * - **Approval requests**: every pending `TICKET_APPROVAL_REQUEST` / `MINGO_APPROVAL_REQUEST`
- *   among the notifications the drawer has loaded, plus every Mingo chat in
- *   `ACTION_REQUIRED` with a pending approval (a request whose notification was read, or
- *   sits beyond the drawer's first page, still waits).
- * - **Tickets waiting for a technician**: the Tech Required lane's tickets that carry a
- *   pending technician approval and are not already a request above.
+ * (there is no server-side "approvals" list): the Needs approval page lists it, and its
+ * count is the sidebar's "Needs approval" badge. One list, whatever raised the request:
+ * every pending `TICKET_APPROVAL_REQUEST` / `MINGO_APPROVAL_REQUEST` among the
+ * notifications the drawer has loaded, plus every Mingo chat in `ACTION_REQUIRED` and
+ * every Tech Required ticket with a pending technician approval — so a request whose
+ * notification was read, or sits beyond the drawer's first page, still waits here.
  *
  * Each card is the lib's approval tile, so each is a `Notification`: the drawer's own for a
  * notification, one built here (same type, same meta) for a chat or a ticket.
  */
 
-export type ApprovalSection = 'requests' | 'tickets';
-
 export interface ApprovalCard {
   /** The approval request id: the card's key, and what two sources of one request share. */
   approvalRequestId: string;
-  section: ApprovalSection;
   /** What the tile draws; its `meta` carries the approval (`getApprovalMeta`). */
   notification: Notification;
   /** The unread notification the card is, when it is one: what its ✓ completes. */
@@ -63,18 +57,16 @@ export interface ApprovalSources {
 }
 
 export interface ApprovalInbox {
-  requests: ApprovalCard[];
-  /** Always empty where `sources.tickets` is `null`. */
-  tickets: ApprovalCard[];
-  pendingRequests: number;
-  pendingTickets: number;
+  /** Newest first. */
+  cards: ApprovalCard[];
   /** Every pending card: the sidebar badge. */
   pendingCount: number;
 }
 
 /** The labels the lib tile prints in its header, for the cards built here. */
 const MINGO_REQUEST_LABEL = 'Mingo Approval Request';
-const TECHNICIAN_REQUEST_LABEL = 'Technician Approval Required';
+/** What the backend titles a ticket's request notification: the same label, from either source. */
+const TICKET_REQUEST_LABEL = 'Ticket Approval Request';
 /** The backend's own title for a chat approval, when the chat has no title yet. */
 const UNTITLED_REQUEST_TITLE = 'Approval required';
 const NO_DEVICE = 'No device';
@@ -88,7 +80,7 @@ function isTechnicianApproval(approvalType: unknown): boolean {
   return typeof approvalType !== 'string' || approvalType.toUpperCase() !== 'CLIENT';
 }
 
-/** The tenant's system Tech Required status, the one lane section 2 reads. */
+/** The tenant's system Tech Required status, the one lane the list reads. */
 export function techRequiredStatusId(statuses: readonly TicketStatusDefinition[] | undefined): string | null {
   return statuses?.find(status => status.isSystem && status.kind === 'TECH_REQUIRED')?.id ?? null;
 }
@@ -104,7 +96,6 @@ function notificationCard(notification: Notification): ApprovalCard | null {
   if (!isTechnicianApproval(approval.approvalType)) return null;
   return {
     approvalRequestId: approval.approvalRequestId,
-    section: 'requests',
     // Settled: a page is not a pop-up, so no live countdown and no dismiss ×.
     notification: { ...notification, settled: true },
     notificationId: notification.id,
@@ -124,7 +115,6 @@ interface RequestFacts {
 
 /** A request with no notification behind it, drawn as the notification it would have been. */
 function builtCard(
-  section: ApprovalSection,
   request: RequestFacts,
   shown: Pick<Notification, 'type' | 'title' | 'description' | 'category'>,
   ids: { notificationType: string; dialogId: string | null; ticketId: string | null },
@@ -148,7 +138,6 @@ function builtCard(
   });
   return {
     approvalRequestId: request.approvalRequestId,
-    section,
     notification,
     notificationId: null,
     dialogId: ids.dialogId,
@@ -170,7 +159,6 @@ function dialogCard(dialog: ApprovalDialogNode): ApprovalCard | null {
   if (!request || !isTechnicianApproval(request.approvalType)) return null;
   const toolCalls = request.toolCalls ?? [];
   return builtCard(
-    'requests',
     {
       approvalRequestId: request.id,
       approvalType: request.approvalType ?? null,
@@ -191,7 +179,6 @@ function ticketCard(ticket: Dialog): ApprovalCard | null {
   const request = ticket.pendingApproval;
   if (!request || !isTechnicianApproval(request.approvalType)) return null;
   return builtCard(
-    'tickets',
     {
       approvalRequestId: request.id,
       approvalType: request.approvalType ?? null,
@@ -199,7 +186,7 @@ function ticketCard(ticket: Dialog): ApprovalCard | null {
       createdAt: epochOf(request.createdAt ?? ticket.statusUpdatedAt ?? ticket.createdAt),
     },
     {
-      type: TECHNICIAN_REQUEST_LABEL,
+      type: TICKET_REQUEST_LABEL,
       title: formatTicketRef(ticket, ticket.id),
       description: `${getTicketDeviceName(ticket) || NO_DEVICE} · ${ticket.organizationName || NO_CUSTOMER}`,
       category: 'TICKETS',
@@ -238,56 +225,34 @@ function newestFirst(a: ApprovalCard, b: ApprovalCard): number {
 }
 
 /**
- * The two sections from the sources. One card per approval request: a notification wins
- * over the chat that raised it (it carries the backend's own text), and a request already
- * shown as a request is not shown again as a ticket. A request settled in this tab leaves
- * both — except the cards in `kept`, decided on the page itself, which stay where they were
- * with their decision on them.
+ * The list from the sources. One card per approval request: a notification wins over the
+ * chat that raised it (it carries the backend's own text) and over the ticket it waits on.
+ * A request settled in this tab leaves the list — except the cards in `kept`, decided on
+ * the page itself, which stay with their decision on them.
  */
 export function composeApprovalInbox(
   sources: ApprovalSources,
   kept: Readonly<Record<string, ApprovalCard>> = {},
 ): ApprovalInbox {
-  const requests = new Map<string, ApprovalCard>();
+  const cards = new Map<string, ApprovalCard>();
   for (const notification of sources.notifications) {
     const card = notificationCard(notification);
-    if (card && !requests.has(card.approvalRequestId)) requests.set(card.approvalRequestId, card);
+    if (card && !cards.has(card.approvalRequestId)) cards.set(card.approvalRequestId, card);
   }
   for (const dialog of sources.dialogs) {
     const card = dialogCard(dialog);
     if (!card) continue;
-    const shown = requests.get(card.approvalRequestId);
-    requests.set(card.approvalRequestId, shown ? withChatTitle(shown, dialog) : card);
+    const shown = cards.get(card.approvalRequestId);
+    cards.set(card.approvalRequestId, shown ? withChatTitle(shown, dialog) : card);
   }
-
-  const tickets = new Map<string, ApprovalCard>();
   for (const ticket of sources.tickets ?? []) {
     const card = ticketCard(ticket);
-    if (card && !requests.has(card.approvalRequestId) && !tickets.has(card.approvalRequestId)) {
-      tickets.set(card.approvalRequestId, card);
-    }
+    if (card && !cards.has(card.approvalRequestId)) cards.set(card.approvalRequestId, card);
   }
 
-  for (const id of Object.keys(sources.decisions)) {
-    requests.delete(id);
-    tickets.delete(id);
-  }
-  for (const card of Object.values(kept)) {
-    if (card.section === 'tickets' && sources.tickets === null) continue;
-    requests.delete(card.approvalRequestId);
-    tickets.delete(card.approvalRequestId);
-    (card.section === 'requests' ? requests : tickets).set(card.approvalRequestId, card);
-  }
+  for (const id of Object.keys(sources.decisions)) cards.delete(id);
+  for (const card of Object.values(kept)) cards.set(card.approvalRequestId, card);
 
-  const requestCards = [...requests.values()].sort(newestFirst);
-  const ticketCards = [...tickets.values()].sort(newestFirst);
-  const pendingRequests = requestCards.filter(card => card.pending).length;
-  const pendingTickets = ticketCards.filter(card => card.pending).length;
-  return {
-    requests: requestCards,
-    tickets: ticketCards,
-    pendingRequests,
-    pendingTickets,
-    pendingCount: pendingRequests + pendingTickets,
-  };
+  const list = [...cards.values()].sort(newestFirst);
+  return { cards: list, pendingCount: list.filter(card => card.pending).length };
 }

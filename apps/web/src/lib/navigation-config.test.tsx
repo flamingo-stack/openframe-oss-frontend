@@ -209,13 +209,6 @@ describe('grouped navigation (Mingo-first shell)', () => {
     }
   });
 
-  it('puts the Onboarding row first while Get Started is in progress', () => {
-    setAppMode('saas-tenant');
-    const items = getGroupedNavigationItems(ALL_ON, undefined, { inProgress: true, remaining: 4 });
-    expect(items[0]).toMatchObject({ id: 'onboarding', path: '/onboarding', unreadCount: 4 });
-    expect(getGroupedNavigationItems(ALL_ON, undefined, { inProgress: false, remaining: 4 })[0].id).toBe('inventory');
-  });
-
   it('labels Cloud tenants by its Figma name and stamps the flagged modules Beta', () => {
     setAppMode('saas-tenant');
     const children = getGroupedNavigationItems(ALL_ON).flatMap(item => item.children ?? []);
@@ -255,7 +248,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
 
   it('resolves one active entry per route through the entries’ own match rules', () => {
     setAppMode('saas-tenant');
-    const items = getGroupedNavigationItems(ALL_ON, undefined, { inProgress: true, remaining: 1 });
+    const items = getGroupedNavigationItems(ALL_ON);
     const activeAt = (currentPath: string) => {
       const { activeId, groupId } = resolveNavigationActive(items, { currentPath, includeChildren: true });
       return groupId ? `${groupId}/${activeId}` : (activeId ?? '');
@@ -301,7 +294,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
       '/mingo/chat?id=d-1': '',
       '/approvals': '',
       '/dashboard': '',
-      '/onboarding': 'onboarding',
+      '/onboarding': '',
       '/customers/details?id=1': 'inventory/organizations',
       '/devices': 'inventory/devices',
       '/devicesx': '',
@@ -334,6 +327,6 @@ describe('grouped navigation (Mingo-first shell)', () => {
 
   it('is empty in the auth-only app mode', () => {
     setAppMode('saas-shared');
-    expect(getGroupedNavigationItems(ALL_ON, ALL_UNREAD, { inProgress: true, remaining: 2 })).toEqual([]);
+    expect(getGroupedNavigationItems(ALL_ON, ALL_UNREAD)).toEqual([]);
   });
 });

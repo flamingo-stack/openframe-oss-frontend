@@ -17,11 +17,9 @@ const MATRIX = VARIANTS.flatMap(variant =>
 const CLASSIC_ONLY = ['chatDrawer', 'chatSidePanel', 'dialogUrlSync'] as const satisfies ReadonlyArray<
   keyof ShellSlotPlan
 >;
-const MINGO_ONLY = [
-  'sidebarHeaderControls',
-  'mobileMingoCells',
-  'historySearchShortcut',
-] as const satisfies ReadonlyArray<keyof ShellSlotPlan>;
+const MINGO_ONLY = ['sidebarControls', 'mobileMingoCells', 'historySearchShortcut'] as const satisfies ReadonlyArray<
+  keyof ShellSlotPlan
+>;
 
 describe('resolveShellSlots', () => {
   it('fills the classic shell exactly as before: header, flat sidebar, drawer or side panel by mingo-v2', () => {
@@ -29,7 +27,7 @@ describe('resolveShellSlots', () => {
     expect(resolveShellSlots({ ...base, v2ChatGate: 'off' })).toEqual({
       sidebar: 'flat',
       desktopHeader: true,
-      sidebarHeaderControls: false,
+      sidebarControls: false,
       chatDrawer: true,
       chatSidePanel: false,
       composerDock: 'absent',
@@ -50,7 +48,7 @@ describe('resolveShellSlots', () => {
     expect(resolveShellSlots({ variant: 'mingo', v2ChatGate: 'on', chatMounted: true, locked: false })).toEqual({
       sidebar: 'grouped',
       desktopHeader: false,
-      sidebarHeaderControls: true,
+      sidebarControls: true,
       chatDrawer: false,
       chatSidePanel: false,
       composerDock: 'dock',
@@ -71,7 +69,7 @@ describe('resolveShellSlots', () => {
       expect(plan).toEqual({
         sidebar: 'flat',
         desktopHeader: true,
-        sidebarHeaderControls: false,
+        sidebarControls: false,
         chatDrawer: false,
         chatSidePanel: false,
         composerDock: 'absent',

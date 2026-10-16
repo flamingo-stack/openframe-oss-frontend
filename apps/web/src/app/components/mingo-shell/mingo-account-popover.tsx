@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  LayoutIcon,
   Logout02Icon,
   QuestionCircleIcon,
   Settings02Icon,
@@ -12,24 +11,9 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
-import { useClassicLayout } from '@/app/hooks/use-shell-variant';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
-import { runtimeEnv } from '@/lib/runtime-config';
 import { closeMobileMenu } from './mobile-menu-store';
-
-/**
- * The workspace's address, as the row's mono subtitle: the tenant host (the native
- * shells learn it at login), else the page's own origin. Host only — the scheme is noise.
- */
-export function tenantHostLabel(): string | undefined {
-  const origin = runtimeEnv.tenantHostUrl() || (typeof window === 'undefined' ? '' : window.location.origin);
-  try {
-    return new URL(origin).host || undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 interface MingoAccountPopoverProps {
   /** The 56px rail: the avatar alone, the menu beside the rail. */
@@ -39,9 +23,10 @@ interface MingoAccountPopoverProps {
 }
 
 /**
- * The account row at the foot of the Mingo-first sidebar (`footerSlot`) and the menu it
- * opens: Settings, Help Center, the "Classic layout" opt-out and Log out (the same
- * confirm modal the Settings page opens). Also drawn at the foot of the phone drawer.
+ * The account row at the foot of the Mingo-first sidebar (`footerSlot`) — the avatar and
+ * the name, no workspace host — and the menu it opens: Settings, Help Center and Log out (the same confirm modal the Settings page
+ * opens). The "Classic layout" opt-out is in Settings › profile only. Also drawn at the
+ * foot of the phone drawer.
  */
 export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverProps) {
   const firstName = useAuthStore(state => state.user?.firstName);
@@ -50,7 +35,6 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
   const imageUrl = useAuthStore(state => state.user?.image?.imageUrl);
   const imageHash = useAuthStore(state => state.user?.image?.hash);
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
-  const [, setClassicLayout] = useClassicLayout();
 
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim() || email || 'Account';
 
@@ -74,18 +58,6 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
       disabled: locked,
     },
     { type: 'divider', id: 'divider' },
-    // The per-user opt-out (`of.shell.classic`): the shell switches in place. Settings ›
-    // profile carries the way back. The drawer closes first: the classic shell does not
-    // control it, so an open state left here would reopen it on the way back.
-    {
-      id: 'classic-layout',
-      label: 'Classic layout',
-      icon: <LayoutIcon />,
-      onSelect: () => {
-        closeMobileMenu();
-        setClassicLayout(true);
-      },
-    },
     { id: 'logout', label: 'Log out', icon: <Logout02Icon />, tone: 'danger', onSelect: openLogoutConfirm },
   ];
 
@@ -94,7 +66,6 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
       collapsed={collapsed}
       name={name}
       email={email}
-      subtitle={tenantHostLabel()}
       avatarUrl={getFullImageUrl(imageUrl, imageHash) ?? null}
       items={items}
     />

@@ -55,8 +55,9 @@ import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
-import { MingoHeaderControls } from './mingo-shell/mingo-header-controls';
-import { MingoSidebarHistory } from './mingo-shell/mingo-sidebar-history';
+import { composerRouteOf } from './mingo-shell/mingo-dock-route';
+import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
+import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
 import { useMobileMenuStore } from './mingo-shell/mobile-menu-store';
 import { resolveShellSlots } from './mingo-shell/shell-slots';
@@ -430,8 +431,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // precisely what pinned this to `true` for whole sessions (see
   // `onboarding-progress-hydrator.tsx`). `useFailOpen` bounds the wait regardless
   // of which of the two signals is stuck, or why.
+  //
+  // The Mingo-first shell has no onboarding (no Get Started tour, no Initial Setup),
+  // so it neither waits for the progress nor loads it. The flags decide the variant,
+  // so `'loading'` keeps the classic shell's parallel start.
+  const withOnboarding = variant !== 'mingo';
   const flagsReady = useFeatureFlagsReady();
-  const chromeIncomplete = !flagsReady || (sessionReady && !isLocked && !onboardingLoaded);
+  const chromeIncomplete = !flagsReady || (withOnboarding && sessionReady && !isLocked && !onboardingLoaded);
   const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
@@ -462,7 +468,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     // carry their own `match` rules: the core sidebar resolves the active one from
     // `currentPath`, so they do not depend on the location.
     return grouped
-      ? getGroupedNavigationItems(navigationFlags, unreadCounts, onboarding)
+      ? getGroupedNavigationItems(navigationFlags, unreadCounts)
       : getNavigationItems(pathname, navigationFlags, unreadCounts, onboarding);
   }, [grouped, pathname, navigationFlags, unreadCounts, userOnboardingActive, userRemaining]);
 
@@ -524,9 +530,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // pre-paint seed stays 224 (the shell is unknown before the flags answer),
             // so this sidebar snaps to 264 once, without animating.
             expandedWidth: 264,
-            // Below this the whole sidebar body scrolls instead of squeezing the chat
-            // history to nothing under an open group on a laptop-height window.
-            sectionMinHeight: 280,
             onNavigate: handleNavigate,
             // The Mingo rows (New chat, Needs approval) above the module tree, after
             // the desktop shell's update button as in the classic sidebar.
@@ -536,25 +539,30 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 <MingoSidebarRows minimized={minimized} disabled={!chatEnabled} />
               </>
             ),
-            // The chat history (stream B2). A node, not a function: the sidebar hides
-            // it in the 56px rail while keeping it mounted (its scroll and search
-            // survive a toggle). Drawn in the phone drawer too — a second instance.
+            // The chat history (stream B2), in the sidebar body's one scroll; in the
+            // 56px rail a "Chats" row that opens the chat search. Drawn in the phone
+            // drawer too — a second instance.
             // Behind the paywall Mingo is hidden altogether.
-            sectionSlot: chatEnabled ? <MingoSidebarHistory /> : undefined,
-            footerSlot: ({ minimized }) => <MingoAccountPopover collapsed={minimized} locked={isLocked} />,
-            // The bell, the time tracker and the ticket alerts beside the logo (stacked
-            // under the mark in the rail) — the classic header's right end. Below md the
-            // phone top bar carries them and this slot is not drawn.
-            headerSlot: slots.sidebarHeaderControls
-              ? ({ minimized }) => (
-                  <MingoHeaderControls
-                    minimized={minimized}
+            sectionSlot: chatEnabled ? ({ minimized }) => <MingoSidebarHistorySlot minimized={minimized} /> : undefined,
+            // The account row, and beside it the time tracker, the bell and the ticket
+            // alerts — the classic header's right end — as compact buttons (stacked over
+            // the avatar in the rail); the header is the logo alone. Below md the phone
+            // top bar carries them. The phone drawer draws none: it stays mounted from md
+            // up, and a second tracker over the shared open state closed the first.
+            footerSlot: ({ minimized, inDrawer }) => (
+              <div className="flex flex-col-reverse items-center gap-[var(--spacing-system-xxs)] @[140px]/of-nav-sidebar:flex-row">
+                <div className="w-full min-w-0 @[140px]/of-nav-sidebar:flex-1">
+                  <MingoAccountPopover collapsed={minimized} locked={isLocked} />
+                </div>
+                {slots.sidebarControls && !inDrawer && (
+                  <MingoSidebarControls
                     ownsHeaderCells={isMdUp === true}
                     disabled={showLockContent}
                     onTicketAlerts={openHelpCenterTickets}
                   />
-                )
-              : undefined,
+                )}
+              </div>
+            ),
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
             revealSignal,
@@ -587,7 +595,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       sidebarCollapsed,
       setSidebarCollapsed,
       revealSignal,
-      slots.sidebarHeaderControls,
+      slots.sidebarControls,
       isMdUp,
       showLockContent,
       openHelpCenterTickets,
@@ -628,9 +636,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         }}
       />
     );
-  } else if (showOnboardingChrome) {
+  } else if (withOnboarding ? showOnboardingChrome : sessionReady && !isLocked) {
     // Loaded progress doubles as "a live, unlocked session": the hydrator behind
-    // it only runs with one, and the announcement fetches on mount.
+    // it only runs with one, and the announcement fetches on mount. The
+    // Mingo-first shell loads no progress and asks the session directly.
     topBar = <AnnouncementTopBar />;
   }
 
@@ -875,6 +884,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                   <MingoComposerDock />
                 ) : slots.composerDock === 'empty' ? null : undefined
               }
+              // A chat page: Mingo's background and glow from the top of the thread
+              // to the bottom of the window, under the docked composer too.
+              pageSurface={slots.composerDock === 'dock' && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}
             >
               {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
@@ -897,6 +909,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               arriving late costs a content swap, not a second chrome mount. */}
               <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
             </CoreAppLayout>
+            {/* The chat history's search modal, once (the section is drawn twice). */}
+            {grouped && chatEnabled && <MingoHistorySearch />}
           </MingoChatProvider>
         </TicketLiveProvider>
       </TimeTrackerHostProvider>
@@ -906,7 +920,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           never fire before `/me` has answered, and on the lock because a locked
           workspace shows no onboarding — and its request would be held by the
           subscription gate rather than answered (see `chromeLoading`). */}
-      {sessionReady && !isLocked && (
+      {sessionReady && !isLocked && withOnboarding && (
         <>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />

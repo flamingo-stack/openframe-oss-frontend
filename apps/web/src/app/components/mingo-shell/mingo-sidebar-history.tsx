@@ -4,14 +4,18 @@ import {
   ArchiveChatModal,
   type DialogItem,
   MingoChatRail,
+  MingoChatSearchModal,
   RenameChatModal,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { NavigationSidebarActionRow } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
+import { useChatPageNodeStore } from './chat-page-node-store';
 import { useHistorySearchStore } from './history-search-store';
 import { closeMobileMenu } from './mobile-menu-store';
 
@@ -34,8 +38,9 @@ const onServer = () => false;
  * A row opens its chat page, which selects it; the selected chat stays highlighted on
  * every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —
  * through the same modals, mutations and toasts as the chat's own menus; archiving
- * the open chat drops it, which takes its chat page home. The search field's open
- * state is shared with the shell, which opens it on ⌘K / Ctrl+K.
+ * the open chat drops it, which takes its chat page home. The search is a modal,
+ * `MingoHistorySearch` below, drawn once by the shell; its open state is shared with
+ * the shell, which opens it on ⌘K / Ctrl+K.
  */
 export function MingoSidebarHistory() {
   const { chat, error, enabled, copyDialogLink } = useMingoChat();
@@ -52,8 +57,19 @@ export function MingoSidebarHistory() {
   if (!enabled) return null;
   // The state's first pass, before the dock has registered — or it crashed, which
   // no retry here can restart.
+  // The search is controlled from the first pass: switching it from uncontrolled
+  // once the state registers is a React warning.
   if (!chat)
-    return <MingoChatRail variant="section" dialogs={NO_DIALOGS} isLoadingHistory={!error} loadError={!!error} />;
+    return (
+      <MingoChatRail
+        variant="section"
+        dialogs={NO_DIALOGS}
+        isLoadingHistory={!error}
+        loadError={!!error}
+        searchOpen={searchOpen}
+        onSearchOpenChange={setSearchOpen}
+      />
+    );
 
   const { state } = chat;
   const loading = state.isDialogsLoading;
@@ -153,5 +169,73 @@ function SidebarHistoryModals({
       />
       <ArchiveChatModal isOpen={archiveTarget != null} onClose={onCloseArchive} onConfirm={onConfirmArchive} />
     </>
+  );
+}
+
+/**
+ * The history's place in the sidebar (`sectionSlot`): the section from 140px of width
+ * up, and in the 56px rail a "Chats" row that opens the chat search — the whole
+ * history by day, and its search. Both stay mounted and the width decides, as for every
+ * row; a function slot, so the sidebar leaves the rail to it. The row is lit while a
+ * chat page is up (it publishes its node), the one place the rail has nothing else lit.
+ */
+export function MingoSidebarHistorySlot({ minimized }: { minimized: boolean }) {
+  const onChatPage = useChatPageNodeStore(s => s.node !== null);
+  const setSearchOpen = useHistorySearchStore(s => s.setOpen);
+  return (
+    <>
+      <div className="flex flex-col @[140px]/of-nav-sidebar:hidden">
+        <NavigationSidebarActionRow
+          icon={<ChatsIcon />}
+          label="Chats"
+          active={onChatPage}
+          minimized={minimized}
+          onClick={() => setSearchOpen(true)}
+        />
+      </div>
+      <div className="hidden flex-col duration-300 animate-in fade-in @[140px]/of-nav-sidebar:flex motion-reduce:animate-none">
+        <MingoSidebarHistory />
+      </div>
+    </>
+  );
+}
+
+/**
+ * The history's search (`MingoChatSearchModal`), once for the page: the sidebar
+ * section is drawn twice (the sidebar and the phone drawer) and leaves the modal to
+ * its host, which opens it from either one's Search, or on ⌘K / Ctrl+K. Picking a
+ * chat opens its page.
+ */
+export function MingoHistorySearch() {
+  const { chat, enabled } = useMingoChat();
+  const currentUserId = useAuthStore(s => s.user?.id ?? null);
+  const searchOpen = useHistorySearchStore(s => s.open);
+  const setSearchOpen = useHistorySearchStore(s => s.setOpen);
+  const router = useRouter();
+
+  if (!enabled || !chat) return null;
+  const { state } = chat;
+  const loading = state.isDialogsLoading;
+  return (
+    <MingoChatSearchModal
+      open={searchOpen}
+      onOpenChange={setSearchOpen}
+      dialogs={state.dialogs}
+      activeDialogId={state.activeDialogId ?? undefined}
+      statusOf={chat.dialogStatusOf}
+      currentUserId={currentUserId}
+      searchQuery={chat.searchQuery}
+      onSearchChange={chat.setSearchQuery}
+      onSelectDialog={id => {
+        closeMobileMenu();
+        router.push(routes.mingo.chat(id));
+      }}
+      hasMore={state.hasMoreDialogs}
+      isLoadingMore={loading && state.dialogs.length > 0}
+      isLoadingHistory={loading && state.dialogs.length === 0}
+      onLoadMore={() => void state.loadMoreDialogs()}
+      loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
+      onRetry={state.reloadDialogs}
+    />
   );
 }

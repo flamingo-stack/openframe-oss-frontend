@@ -423,7 +423,6 @@ function groupedLeaf(
 export const getGroupedNavigationItems = (
   flags: NavigationFlags,
   unreadCounts?: UnreadCountsByCategory,
-  onboarding?: OnboardingNavState,
 ): NavigationSidebarItem[] => {
   if (isAuthOnlyMode()) {
     return [];
@@ -446,12 +445,6 @@ export const getGroupedNavigationItems = (
     ];
   });
 
-  return [
-    // Above the groups while Get Started is in progress, as in the classic sidebar.
-    ...(onboarding?.inProgress
-      ? [{ ...groupedLeaf('onboarding', undefined, { iconSize: 20 }), unreadCount: onboarding.remaining }]
-      : []),
-    ...groups,
-    ...GROUPED_LAYOUT.leaves.filter(shown).map(id => groupedLeaf(id, unreadCounts, { iconSize: 20 })),
-  ];
+  // No Onboarding row: the Mingo-first shell has no Get Started tour.
+  return [...groups, ...GROUPED_LAYOUT.leaves.filter(shown).map(id => groupedLeaf(id, unreadCounts, { iconSize: 20 }))];
 };

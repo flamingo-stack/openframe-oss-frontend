@@ -2,7 +2,8 @@
  * The sidebar's chat history is the lib's section over the session's chat state:
  * a row opens its chat page, ⋯ "Chat archive" the archive page, and the row menu runs
  * the same rename / copy-link / archive (with its confirm) as the chat's own menus —
- * without Compact. The search field's open state is the shell's (⌘K).
+ * without Compact. The search is the shell's one modal, opened from its store (⌘K), and
+ * in the 56px rail from the "Chats" row that stands in for the section.
  */
 
 import type { DialogItem, MingoChatRailProps } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -14,7 +15,7 @@ import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/ming
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
-import { MingoSidebarHistory } from './mingo-sidebar-history';
+import { MingoHistorySearch, MingoSidebarHistory, MingoSidebarHistorySlot } from './mingo-sidebar-history';
 import { useMobileMenuStore } from './mobile-menu-store';
 
 const { push, seen } = vi.hoisted(() => ({
@@ -24,6 +25,7 @@ const { push, seen } = vi.hoisted(() => ({
     rename: null as { isOpen: boolean; initialName?: string; onSave: (name: string) => void } | null,
     archive: null as { isOpen: boolean; onConfirm: () => void } | null,
     mingo: null as MingoChat | null,
+    search: null as Record<string, unknown> | null,
   },
 }));
 
@@ -39,6 +41,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   },
   ArchiveChatModal: (props: NonNullable<typeof seen.archive>) => {
     seen.archive = props;
+    return null;
+  },
+  MingoChatSearchModal: (props: Record<string, unknown>) => {
+    seen.search = props;
     return null;
   },
 }));
@@ -106,6 +112,7 @@ beforeEach(() => {
   seen.rail = null;
   seen.rename = null;
   seen.archive = null;
+  seen.search = null;
   useHistorySearchStore.setState({ open: false });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -247,5 +254,50 @@ describe('MingoSidebarHistory', () => {
     seen.rail = null;
     render({ ...session(), chat: null, enabled: false });
     expect(seen.rail).toBeNull();
+  });
+});
+
+describe('MingoHistorySearch', () => {
+  function renderSearch(mingo: MingoChat) {
+    seen.mingo = mingo;
+    act(() => root.render(<MingoHistorySearch />));
+  }
+
+  it('is the search modal over the session list, opened by the shell store', () => {
+    renderSearch(session());
+    expect(seen.search).toMatchObject({ open: false, dialogs: [DIALOG, OTHER], activeDialogId: 'd-1' });
+
+    act(() => useHistorySearchStore.setState({ open: true }));
+    expect(seen.search).toMatchObject({ open: true });
+    act(() => (seen.search?.onOpenChange as (open: boolean) => void)(false));
+    expect(useHistorySearchStore.getState().open).toBe(false);
+  });
+
+  it('opens a picked chat on its page and searches through the session', () => {
+    renderSearch(session());
+    act(() => (seen.search?.onSelectDialog as (id: string) => void)('d-2'));
+    expect(push).toHaveBeenCalledWith(routes.mingo.chat('d-2'));
+    (seen.search?.onSearchChange as (term: string) => void)('vpn');
+    expect(spies.setSearchQuery).toHaveBeenCalledWith('vpn');
+  });
+
+  it('draws nothing while chat is off', () => {
+    renderSearch({ ...session(), chat: null, enabled: false });
+    expect(seen.search).toBeNull();
+  });
+});
+
+describe('MingoSidebarHistorySlot', () => {
+  it('stands a Chats row in for the section in the rail, which opens the chat search', () => {
+    seen.mingo = session();
+    act(() => root.render(<MingoSidebarHistorySlot minimized />));
+
+    const chats = container.querySelector<HTMLButtonElement>('button[aria-label="Chats"]');
+    expect(chats?.title).toBe('Chats');
+    // The section stays mounted beside it: the width decides which one shows.
+    expect(seen.rail).not.toBeNull();
+
+    act(() => chats?.click());
+    expect(useHistorySearchStore.getState().open).toBe(true);
   });
 });

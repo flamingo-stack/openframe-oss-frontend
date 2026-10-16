@@ -1,26 +1,15 @@
 /**
- * Mingo's home: what it renders (greeting, "Needs you", the dashboard's Initial Setup card
- * and sections — Tickets on SaaS only, with filtered links, Incidents between Tickets and
- * Customers — quick actions, "What to ask Mingo?"), and that every Mingo chip SENDS
- * through the session's chat state in a new chat instead of navigating anywhere itself.
+ * Mingo's home: what it renders (greeting, "Needs you", the dashboard's sections — Tickets
+ * on SaaS only, with filtered links, Incidents between Tickets and Customers). The quick
+ * actions are the dock's (`mingo-dock-quick-actions.test.tsx`).
  */
 
-import type { WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useComposerPreviewStore } from '@/app/components/mingo-shell/composer-preview-store';
-import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings';
 import { MingoHome } from './mingo-home';
 
-const { sendInNewDialog, isSaas, chatState, quickActions, whatToAsk } = vi.hoisted(() => ({
-  sendInNewDialog: vi.fn(async (_text: string) => {}),
-  isSaas: { value: true },
-  chatState: { running: true },
-  quickActions: { value: [] as AiQuickAction[] },
-  // Stable across renders, like the real hook's `useCallback`.
-  whatToAsk: { load: async (): Promise<WhatToAskContent> => ({ question: '', reply: '', groups: [] }) },
-}));
+const { isSaas } = vi.hoisted(() => ({ isSaas: { value: true } }));
 
 vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
@@ -51,12 +40,6 @@ vi.mock('@/app/(app)/dashboard/components/customers-overview', () => ({
 // Both run Relay queries (`graphql` needs the compiler's transform); they have tests of their own.
 vi.mock('./needs-you/needs-you-card', () => ({ NeedsYouCard: () => <p>needs you card</p> }));
 vi.mock('./mingo-home-incidents', () => ({ MingoHomeIncidents: () => <p>incidents section</p> }));
-vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({ useMingoQuickActions: () => quickActions.value }));
-// The real loader runs a Relay query (`graphql` needs the compiler's transform).
-vi.mock('@/app/(app)/mingo/hooks/use-mingo-what-to-ask', () => ({ useMingoWhatToAsk: () => whatToAsk.load }));
-vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
-  useMingoChat: () => ({ chat: chatState.running ? { sendInNewDialog } : null }),
-}));
 
 // The lib's truncation-aware labels measure themselves; jsdom has no ResizeObserver.
 globalThis.ResizeObserver ??= class {
@@ -69,11 +52,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-  sendInNewDialog.mockClear();
   isSaas.value = true;
-  chatState.running = true;
-  quickActions.value = [];
-  useComposerPreviewStore.setState({ text: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -90,22 +69,16 @@ async function renderHome() {
   });
 }
 
-function button(label: string): HTMLButtonElement {
-  const match = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(label));
-  if (!match) throw new Error(`no button "${label}"`);
-  return match;
-}
-
 describe('MingoHome', () => {
   it('greets by first name and part of the day', async () => {
     await renderHome();
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
   });
 
-  it("renders the dashboard's setup card and sections, tickets with filtered links", async () => {
+  it("renders the dashboard's sections, tickets with filtered links, and no Initial Setup card", async () => {
     await renderHome();
     const text = container.textContent ?? '';
-    expect(text).toContain('setup card');
+    expect(text).not.toContain('setup card');
     expect(text).toContain('devices section');
     expect(text).toContain('tickets section (filtered links)');
     expect(text).toContain('customers section');
@@ -117,7 +90,7 @@ describe('MingoHome', () => {
     const at = (label: string) => blocks.findIndex(text => text?.startsWith(label));
     expect(at('Morning, Ann')).toBe(0);
     expect(at('needs you card')).toBe(1);
-    expect(at('setup card')).toBeGreaterThan(at('needs you card'));
+    expect(at('devices section')).toBeGreaterThan(at('needs you card'));
     expect(at('tickets section')).toBeLessThan(at('incidents section'));
     expect(at('incidents section')).toBeLessThan(at('customers section'));
   });
@@ -129,62 +102,9 @@ describe('MingoHome', () => {
     expect(container.textContent).toContain('devices section');
   });
 
-  it('sends a quick action in a new chat', async () => {
-    quickActions.value = [
-      { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine with its customer' },
-    ];
-    await renderHome();
-    act(() => button('Machines online').click());
-    expect(sendInNewDialog).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
-  });
-
-  it("previews a quick action's instructions in the docked composer while hovered or focused", async () => {
-    quickActions.value = [
-      { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine with its customer' },
-      { id: 'qa-2', name: 'Low disk', instructions: 'Which machines are low on disk?' },
-    ];
-    await renderHome();
-    const preview = () => useComposerPreviewStore.getState().text;
-
-    act(() => button('Machines online').focus());
-    expect(preview()).toBe('List every online machine with its customer');
-    // Moving to the next chip: its preview, not a cleared one.
-    act(() => button('Low disk').focus());
-    expect(preview()).toBe('Which machines are low on disk?');
-    act(() => button('Low disk').blur());
-    expect(preview()).toBeNull();
-
-    // A click sends, and nothing is left in the composer — nor once home is left.
-    act(() => button('Machines online').focus());
-    act(() => button('Machines online').click());
-    expect(preview()).toBeNull();
-    act(() => button('Machines online').focus());
-    act(() => root.unmount());
-    expect(preview()).toBeNull();
-    root = createRoot(container);
-  });
-
-  it('renders no quick actions section while there are none', async () => {
+  it('carries no quick actions or "What to ask Mingo?" of its own: the dock holds the chips', async () => {
     await renderHome();
     expect(container.querySelector('[aria-label="Quick actions"]')).toBeNull();
-  });
-
-  it('sends a "What to ask Mingo?" prompt in a new chat', async () => {
-    whatToAsk.load = async () => ({
-      question: 'What can I ask you?',
-      reply: 'Try one:',
-      groups: [{ label: 'Check', prompts: [{ label: 'Why is LAPTOP-1 slow?', prompt: 'Why is @device:m-1 slow?' }] }],
-    });
-    await renderHome();
-    act(() => button('Why is LAPTOP-1 slow?').click());
-    expect(sendInNewDialog).toHaveBeenCalledExactlyOnceWith('Why is @device:m-1 slow?');
-  });
-
-  it('sends nothing while the chat state is not running', async () => {
-    chatState.running = false;
-    quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List machines' }];
-    await renderHome();
-    act(() => button('Machines online').click());
-    expect(sendInNewDialog).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('What to ask Mingo?');
   });
 });

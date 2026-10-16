@@ -22,13 +22,13 @@ const POLL_MS = 60_000;
 const UNFILTERED_LANE = {};
 
 export interface SourceStatus {
-  /** First load in flight: draw the section's placeholders. */
+  /** First load in flight: draw the list's placeholders. */
   isLoading: boolean;
-  /** Nothing loaded and the load failed (or the link is down): the section's strip. */
+  /** Nothing loaded and the load failed (or the link is down): the list's strip. */
   error: { message: string; onRetry?: () => void } | null;
-  /** Answered with data, so an empty section is really empty — of what is loaded (`hasMore`). */
+  /** Answered with data, so an empty list is really empty — of what is loaded (`hasMore`). */
   canClaimEmpty: boolean;
-  /** Rows of the source loaded so far: what an empty section has looked through while `hasMore`. */
+  /** Rows of the source loaded so far: what an empty list has looked through while `hasMore`. */
   loaded: number;
   hasMore: boolean;
   isLoadingMore: boolean;
@@ -37,10 +37,8 @@ export interface SourceStatus {
 
 export interface ApprovalSourcesResult {
   sources: ApprovalSources;
-  requests: SourceStatus;
-  tickets: SourceStatus;
-  /** Tickets exist in this mode (SaaS); false hides the tickets section. */
-  ticketsEnabled: boolean;
+  /** The paged sources (waiting chats, the Tech Required lane) as the one list reads them. */
+  status: SourceStatus;
   /** The tenant's Tech Required status, once the statuses answered. */
   techRequiredStatusId: string | null;
 }
@@ -55,6 +53,22 @@ const SETTLED: SourceStatus = {
   isLoadingMore: false,
   loadMore: () => {},
 };
+
+/** Two paged sources as one list: loading until both answer, more while either has more. */
+function combined(a: SourceStatus, b: SourceStatus): SourceStatus {
+  return {
+    isLoading: a.isLoading || b.isLoading,
+    error: a.error ?? b.error,
+    canClaimEmpty: a.canClaimEmpty && b.canClaimEmpty,
+    loaded: a.loaded + b.loaded,
+    hasMore: a.hasMore || b.hasMore,
+    isLoadingMore: a.isLoadingMore || b.isLoadingMore,
+    loadMore: () => {
+      if (a.hasMore) a.loadMore();
+      if (b.hasMore) b.loadMore();
+    },
+  };
+}
 
 const NO_NOTIFICATIONS: never[] = [];
 const NO_ROWS: never[] = [];
@@ -184,9 +198,7 @@ export function useApprovalSources(): ApprovalSourcesResult {
 
   return {
     sources: { notifications, dialogs, tickets: saas ? tickets : null, decisions },
-    requests: requestsStatus,
-    tickets: ticketsStatus,
-    ticketsEnabled: saas,
+    status: combined(requestsStatus, ticketsStatus),
     techRequiredStatusId: laneId,
   };
 }

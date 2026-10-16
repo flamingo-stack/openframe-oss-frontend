@@ -2,159 +2,111 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { NotificationTileSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useId } from 'react';
+import { ShieldCheckIcon, TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { type ApprovalCard, composeApprovalInbox } from '@/app/components/approvals/approval-inbox';
 import { useApprovalDecider } from '@/app/components/approvals/use-approval-decider';
 import { type SourceStatus, useApprovalSources } from '@/app/components/approvals/use-approval-sources';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
-import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { ApprovalRequestCard } from './approval-request-card';
 
+const TITLE = 'Needs approval';
 const SUBTITLE =
   'Actions Mingo prepared and tickets handed to a technician. Nothing runs on a device until someone approves it.';
+const LIST_LABEL = 'Approval requests';
+const EMPTY_TITLE = 'Nothing needs approval';
+const EMPTY_TEXT =
+  'When Mingo prepares an action on a device, in a chat or a ticket, it waits here for someone to approve it.';
 
 /**
- * Needs approval (`/approvals`), a page of the Mingo-first shell: every approval request
- * the user can decide, then the Tech Required tickets waiting on a technician's approval
- * (SaaS only — OSS has no tickets). Composition and dedupe: `approval-inbox.ts`; the
- * decision and how it reaches the drawer, the chat and the board: `use-approval-decider.ts`.
+ * Needs approval (`/approvals`), a page of the Mingo-first shell: one list of the approval
+ * requests the user can decide, whatever raised them — a Mingo chat or a ticket — loading
+ * its next page as it scrolls. Composition and dedupe: `approval-inbox.ts`; the decision
+ * and how it reaches the drawer, the chat and the board: `use-approval-decider.ts`.
  */
 export function ApprovalsView() {
-  const { sources, requests, tickets, ticketsEnabled, techRequiredStatusId } = useApprovalSources();
+  const { sources, status, techRequiredStatusId } = useApprovalSources();
   const { kept, decide, complete } = useApprovalDecider();
   const inbox = composeApprovalInbox(sources, kept);
 
-  const nothingWaiting =
-    inbox.requests.length === 0 &&
-    inbox.tickets.length === 0 &&
-    requests.canClaimEmpty &&
-    (!ticketsEnabled || tickets.canClaimEmpty);
-
-  const renderCard = (card: ApprovalCard) => (
-    <ApprovalRequestCard card={card} onDecide={decide} onComplete={complete} />
-  );
+  // The tickets waiting on a technician, on the board (SaaS: OSS has no tickets).
+  const boardHref = techRequiredStatusId
+    ? routes.tickets.filtered({ status: [techRequiredStatusId], viewMode: 'board' })
+    : null;
 
   return (
     <PageLayout
-      title="Needs approval"
+      title={TITLE}
       subtitle={SUBTITLE}
+      actions={
+        boardHref
+          ? [
+              {
+                label: 'Open board',
+                href: boardHref,
+                variant: 'outline',
+                icon: <TagIcon className="h-5 w-5 text-ods-text-secondary" />,
+              },
+            ]
+          : undefined
+      }
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      {nothingWaiting ? (
-        <NoData
-          icon={<ShieldCheckIcon />}
-          title="Nothing needs approval"
-          description="When Mingo prepares an action or a ticket waits for a technician, it shows up here."
-        />
-      ) : (
-        <div className="flex flex-col gap-[var(--spacing-system-xl)]">
-          <ApprovalSection
-            title="Approval requests"
-            cards={inbox.requests}
-            status={requests}
-            aside={<span className="shrink-0 text-ods-text-secondary text-h6">{inbox.pendingRequests} pending</span>}
-            emptyText="No approval requests are waiting."
-            emptySoFarText={loaded => `No approval requests in the latest ${pluralize(loaded, 'chat')} waiting on you.`}
-            moreLabel="Check older chats"
-            renderCard={renderCard}
-          />
-          {ticketsEnabled && (
-            <ApprovalSection
-              title="Tickets waiting for a technician"
-              cards={inbox.tickets}
-              status={tickets}
-              aside={
-                techRequiredStatusId ? (
-                  <Button
-                    variant="link"
-                    size="compact"
-                    noPaddingX
-                    href={routes.tickets.filtered({ status: [techRequiredStatusId], viewMode: 'board' })}
-                  >
-                    Tech Required on the board
-                  </Button>
-                ) : null
-              }
-              emptyText="No tickets are waiting for a technician's approval."
-              emptySoFarText={loaded => `No approvals in the latest ${pluralize(loaded, 'Tech Required ticket')}.`}
-              moreLabel="Check older tickets"
-              renderCard={renderCard}
-            />
-          )}
-        </div>
-      )}
+      <ApprovalList cards={inbox.cards} status={status} onDecide={decide} onComplete={complete} />
     </PageLayout>
   );
 }
 
-interface ApprovalSectionProps {
-  title: string;
+interface ApprovalListProps {
   cards: ApprovalCard[];
   status: SourceStatus;
-  aside: ReactNode;
-  /** Nothing waits, and the source is read to its end. */
-  emptyText: string;
-  /**
-   * Nothing waits among the loaded rows, but the source has more: its rows are filtered
-   * here (the lane's tickets with a pending approval), so an older page may still hold one.
-   */
-  emptySoFarText: (loaded: number) => string;
-  /** The paging control under that line ("Show more" under cards). */
-  moreLabel: string;
-  renderCard: (card: ApprovalCard) => ReactNode;
+  onDecide: (card: ApprovalCard, approve: boolean) => Promise<void>;
+  onComplete: (card: ApprovalCard) => void;
 }
 
-function ApprovalSection({
-  title,
-  cards,
-  status,
-  aside,
-  emptyText,
-  emptySoFarText,
-  moreLabel,
-  renderCard,
-}: ApprovalSectionProps) {
-  const headingId = useId();
-  const loadingEmpty = status.isLoading && cards.length === 0;
-  const empty = cards.length === 0 && status.canClaimEmpty;
-  // Paging belongs to the section it pages, and only to one with something on screen
-  // to page from: its cards, or the line that says how far the empty section looked.
-  const canPage = status.hasMore && !status.error && (cards.length > 0 || empty);
+/**
+ * The approvals. The next page loads as the end of the list scrolls into view; the
+ * sources are filtered here (a lane's tickets with a pending approval), so a page may add
+ * nothing and the next one loads on its own until something shows or the source ends.
+ */
+function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps) {
+  const sentinelRef = useGridInfiniteScroll({
+    enabled: !status.error,
+    hasNextPage: status.hasMore,
+    isFetchingNextPage: status.isLoadingMore,
+    fetchNextPage: status.loadMore,
+  });
+  const searching = cards.length === 0 && (status.isLoading || status.hasMore);
+
+  if (status.error && cards.length === 0) {
+    return <SectionLoadError message={status.error.message} onRetry={status.error.onRetry} />;
+  }
 
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-[var(--spacing-system-s)]">
-      <div className="flex min-h-6 items-center justify-between gap-[var(--spacing-system-s)]">
-        <h2 id={headingId} className="min-w-0 truncate text-ods-text-secondary text-h5">
-          {loadingEmpty ? title : `${title} · ${cards.length}`}
-        </h2>
-        {aside}
-      </div>
-
+    <div className="flex flex-col gap-[var(--spacing-system-sf)]">
       {status.error && <SectionLoadError message={status.error.message} onRetry={status.error.onRetry} />}
-
-      {loadingEmpty ? (
-        <div className="flex flex-col gap-[var(--spacing-system-sf)]" aria-busy>
-          <NotificationTileSkeleton variant="approval" />
-          <NotificationTileSkeleton variant="approval" />
-        </div>
-      ) : cards.length > 0 ? (
-        <ul className="flex flex-col gap-[var(--spacing-system-sf)]">
+      {cards.length > 0 && (
+        <ul aria-label={LIST_LABEL} className="flex flex-col gap-[var(--spacing-system-sf)]">
           {cards.map(card => (
-            <li key={card.approvalRequestId}>{renderCard(card)}</li>
+            <li key={card.approvalRequestId}>
+              <ApprovalRequestCard card={card} onDecide={onDecide} onComplete={onComplete} />
+            </li>
           ))}
         </ul>
-      ) : empty ? (
-        <p className="text-ods-text-secondary text-h6">{status.hasMore ? emptySoFarText(status.loaded) : emptyText}</p>
-      ) : null}
-
-      {canPage && (
-        <Button variant="outline" className="self-start" loading={status.isLoadingMore} onClick={status.loadMore}>
-          {cards.length > 0 ? 'Show more' : moreLabel}
-        </Button>
       )}
-    </section>
+      {(searching || status.isLoadingMore) && (
+        <div className="flex flex-col gap-[var(--spacing-system-sf)]" aria-busy aria-label={`Loading ${LIST_LABEL}`}>
+          <NotificationTileSkeleton variant="approval" />
+          <NotificationTileSkeleton variant="approval" />
+          {cards.length === 0 && <NotificationTileSkeleton variant="approval" />}
+        </div>
+      )}
+      {cards.length === 0 && status.canClaimEmpty && !status.hasMore && (
+        <NoData icon={<ShieldCheckIcon />} title={EMPTY_TITLE} description={EMPTY_TEXT} />
+      )}
+      {status.hasMore && <div ref={sentinelRef} className="h-px" aria-hidden />}
+    </div>
   );
 }

@@ -1,12 +1,12 @@
 /**
  * The Mingo-first composer dock: the session's one `EmbeddableChat`, laid out per
  * route — the thread portalled into the chat page's node (an element there, `null`
- * everywhere else, never `undefined`), Compact in the composer ⋯ off home, the
- * input row alone on full-width pages — plus the launcher drain, the paywall and
- * its own crash fallback.
+ * everywhere else, never `undefined`), Compact under the input off home, no memory
+ * strip on full-width pages — plus the launcher drain, the paywall and its own crash
+ * fallback.
  */
 
-import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
+import { act, forwardRef, type ReactElement, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -23,6 +23,7 @@ const {
   builder,
   shell,
   identity,
+  chips,
   CONTEXT_MEMORY,
   RESET_ONBOARDING_ITEMS,
   CAPABILITIES,
@@ -41,6 +42,7 @@ const {
   builder: { lastOptions: null as Record<string, unknown> | null },
   shell: { mobile: false },
   identity: { enabled: null as boolean | null },
+  chips: { onSend: null as ((text: string) => void) | null },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
@@ -84,6 +86,13 @@ vi.mock('@/lib/platform', async importOriginal => ({
 }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChatSurface: () => surface.value,
+}));
+// The chips have tests of their own; here: where they show and what they send through.
+vi.mock('./mingo-dock-quick-actions', () => ({
+  MingoDockQuickActions: ({ onSend }: { onSend: (text: string) => void }) => {
+    chips.onSend = onSend;
+    return null;
+  },
 }));
 // The shared builder is the classic entry's (tested there); here: what the dock asks of it.
 vi.mock('../openframe-embeddable-chat-entry', () => ({
@@ -283,36 +292,46 @@ describe('MingoComposerDock', () => {
   });
 
   describe('per route', () => {
-    it('home: a new chat — no model row, no composer ⋯, its own prompt', () => {
+    it('home: a new chat — no Compact, its own prompt, the model row, the quick actions', () => {
+      chips.onSend = null;
       render('/mingo/');
+      expect(chips.onSend).toBeTypeOf('function');
+      // The lib's default: the model row is on every route, so the composer keeps its height.
+      expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
-        showModel: false,
-        composerMenuItems: undefined,
+        composerFooterActions: undefined,
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
       expect(container.firstElementChild?.className).toContain('max-w-[880px]');
     });
 
+    it('only home carries the quick actions', () => {
+      chips.onSend = null;
+      render('/devices/');
+      expect(chips.onSend).toBeNull();
+    });
+
     it('chat: the 760px column, the model row and Compact', () => {
       setSurface({ activeDialogId: 'd-1' });
       render('/mingo/chat/');
-      expect(props()).toMatchObject({ showModel: true, composerPlaceholder: 'Reply to Mingo…' });
-      expect(props().composerMenuItems).toHaveLength(1);
+      expect(props()).toMatchObject({ composerPlaceholder: 'Reply to Mingo…' });
+      expect(props().showModel).toBeUndefined();
+      expect(props().composerFooterActions).toBeTruthy();
       expect(container.firstElementChild?.className).toContain('max-w-[760px]');
     });
 
     it('any other page: about this page, the memory strip and the model row', () => {
       render('/customers/details/');
+      expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
-        showModel: true,
         composerPlaceholder: 'Ask Mingo about this page…',
         contextMemory: CONTEXT_MEMORY,
       });
       expect(container.firstElementChild?.className).toContain('max-w-[880px]');
     });
 
-    it('full-width pages: the input row only — no model row, no memory strip', () => {
+    it('full-width pages: no memory strip, the model row kept', () => {
       for (const pathname of [
         '/devices/details/remote-desktop/',
         '/devices/details/remote-shell/',
@@ -321,31 +340,35 @@ describe('MingoComposerDock', () => {
       ]) {
         render(pathname);
         expect(composerRouteOf(pathname)).toBe('full-width');
-        expect(props()).toMatchObject({ showModel: false, contextMemory: undefined });
+        expect(props()).toMatchObject({ contextMemory: undefined });
+        expect(props().showModel).toBeUndefined();
       }
     });
   });
 
-  describe('composer ⋯', () => {
-    const compactItem = () => (props().composerMenuItems as Array<Record<string, unknown>>)[0];
+  describe('Compact under the input', () => {
+    type CompactButton = ReactElement<{ disabled: boolean; onClick: () => void; children: ReactNode }>;
+    const compact = () => (props().composerFooterActions as CompactButton).props;
 
-    it('offers Compact Chat Memory for the open chat', () => {
+    it('offers Compact chat memory for the open chat', () => {
       setSurface({ activeDialogId: 'd-1' });
       render('/devices/');
-      expect(compactItem()).toMatchObject({ id: 'compact', label: 'Compact Chat Memory', disabled: false });
-      act(() => (compactItem().onClick as () => void)());
+      expect(compact()).toMatchObject({ disabled: false, children: 'Compact chat memory' });
+      act(() => compact().onClick());
       expect(compactDialog).toHaveBeenCalledWith('d-1');
+      // Not in a ⋯ of the input row any more.
+      expect(props().composerMenuItems).toBeUndefined();
     });
 
     it('is disabled with no chat open', () => {
       render('/devices/');
-      expect(compactItem()).toMatchObject({ disabled: true });
+      expect(compact()).toMatchObject({ disabled: true });
     });
 
     it('is absent while the compact flag is off', () => {
       setSurface({ activeDialogId: 'd-1', compact: false });
       render('/mingo/chat/');
-      expect(props().composerMenuItems).toBeUndefined();
+      expect(props().composerFooterActions).toBeUndefined();
     });
   });
 

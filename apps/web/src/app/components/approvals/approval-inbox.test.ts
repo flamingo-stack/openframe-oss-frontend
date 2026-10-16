@@ -1,8 +1,8 @@
 /**
- * The Needs approval page's two sections, composed from the drawer's notifications, the
- * Mingo chats waiting on an approval and the Tech Required lane: one card per approval
- * request, nothing a technician cannot decide, nothing already decided, and no tickets
- * where tickets do not exist.
+ * The Needs approval page's one list, composed from the drawer's notifications, the Mingo
+ * chats waiting on an approval and the Tech Required lane: one card per approval request,
+ * nothing a technician cannot decide, nothing already decided, and no tickets where
+ * tickets do not exist.
  */
 
 import type { Notification } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -105,8 +105,8 @@ describe('composeApprovalInbox', () => {
       }),
     );
 
-    expect(ids(inbox.requests)).toEqual(['ar-1', 'ar-2']);
-    const [fromNotification, fromChat] = inbox.requests;
+    expect(ids(inbox.cards)).toEqual(['ar-1', 'ar-2']);
+    const [fromNotification, fromChat] = inbox.cards;
     expect(fromNotification.notificationId).toBe('n-1');
     expect(fromNotification.notification.title).toBe('Chat d-1');
     expect(fromChat.notificationId).toBeNull();
@@ -117,10 +117,10 @@ describe('composeApprovalInbox', () => {
     expect(getApprovalMeta(fromChat.notification)?.toolCalls[0].toolCallArguments).toEqual({
       script: 'Restart-Service Spooler',
     });
-    expect(inbox.pendingRequests).toBe(2);
+    expect(inbox.pendingCount).toBe(2);
   });
 
-  it('does not list a ticket again when its approval is already a request', () => {
+  it('lists a waiting ticket once: as its notification when there is one', () => {
     const inbox = composeApprovalInbox(
       sources({
         notifications: [
@@ -135,15 +135,16 @@ describe('composeApprovalInbox', () => {
       }),
     );
 
-    expect(ids(inbox.requests)).toEqual(['ar-t1']);
-    expect(ids(inbox.tickets)).toEqual(['ar-t2']);
+    expect(ids(inbox.cards)).toEqual(['ar-t1', 'ar-t2']);
+    expect(inbox.cards[0].notificationId).toBe('n-1');
+    expect(inbox.cards[1].notificationId).toBeNull();
     expect(inbox.pendingCount).toBe(2);
   });
 
-  it('draws a waiting ticket as the request a technician has to decide', () => {
-    const [card] = composeApprovalInbox(sources({ tickets: [ticket('t-2', 'ar-t2')] })).tickets;
+  it('draws a waiting ticket as the request its notification would have been', () => {
+    const [card] = composeApprovalInbox(sources({ tickets: [ticket('t-2', 'ar-t2')] })).cards;
 
-    expect(card.notification.type).toBe('Technician Approval Required');
+    expect(card.notification.type).toBe('Ticket Approval Request');
     expect(card.notification.title).toBe('1152: Customer Service Request');
     expect(card.notification.description).toBe('LAPTOP-7 · Acme');
     expect(card.ticketId).toBe('t-2');
@@ -151,7 +152,7 @@ describe('composeApprovalInbox', () => {
 
     const [bare] = composeApprovalInbox(
       sources({ tickets: [ticket('t-4', 'ar-t4', { deviceHostname: undefined, organizationName: undefined })] }),
-    ).tickets;
+    ).cards;
     expect(bare.notification.description).toBe('No device · No customer');
   });
 
@@ -169,21 +170,16 @@ describe('composeApprovalInbox', () => {
       }),
     );
 
-    expect(inbox.requests).toEqual([]);
-    expect(inbox.tickets).toEqual([]);
+    expect(inbox.cards).toEqual([]);
     expect(inbox.pendingCount).toBe(0);
   });
 
   it('has no tickets where tickets do not exist', () => {
     const inbox = composeApprovalInbox(
       sources({ notifications: [approvalNotification('n-1', 'ar-1')], tickets: null }),
-      {
-        'ar-t9': { ...composeApprovalInbox(sources({ tickets: [ticket('t-9', 'ar-t9')] })).tickets[0], pending: false },
-      },
     );
 
-    expect(ids(inbox.requests)).toEqual(['ar-1']);
-    expect(inbox.tickets).toEqual([]);
+    expect(ids(inbox.cards)).toEqual(['ar-1']);
     expect(inbox.pendingCount).toBe(1);
   });
 
@@ -196,15 +192,16 @@ describe('composeApprovalInbox', () => {
     expect(before.pendingCount).toBe(3);
 
     const decided = composeApprovalInbox({ ...live, decisions: { 'ar-2': 'rejected', 'ar-t1': 'approved' } });
-    expect(ids(decided.requests)).toEqual(['ar-1']);
-    expect(decided.tickets).toEqual([]);
+    expect(ids(decided.cards)).toEqual(['ar-1']);
     expect(decided.pendingCount).toBe(1);
 
-    const kept = { 'ar-t1': decidedCard(before.tickets[0], 'approved', 'Ann Lee') };
+    const [waiting] = before.cards.filter(card => card.approvalRequestId === 'ar-t1');
+    const kept = { 'ar-t1': decidedCard(waiting, 'approved', 'Ann Lee') };
     const onPage = composeApprovalInbox({ ...live, tickets: [], decisions: { 'ar-t1': 'approved' } }, kept);
-    expect(ids(onPage.tickets)).toEqual(['ar-t1']);
-    expect(onPage.pendingTickets).toBe(0);
-    expect(getApprovalMeta(onPage.tickets[0].notification)).toMatchObject({
+    const [keptCard] = onPage.cards.filter(card => card.approvalRequestId === 'ar-t1');
+    expect(keptCard.pending).toBe(false);
+    expect(onPage.pendingCount).toBe(2);
+    expect(getApprovalMeta(keptCard.notification)).toMatchObject({
       resolution: 'APPROVED',
       resolvedByName: 'Ann Lee',
     });
@@ -217,7 +214,7 @@ describe('composeApprovalInbox', () => {
         dialogs: [chat('d-2', 'ar-new')],
       }),
     );
-    expect(ids(inbox.requests)).toEqual(['ar-new', 'ar-old']);
+    expect(ids(inbox.cards)).toEqual(['ar-new', 'ar-old']);
   });
 });
 

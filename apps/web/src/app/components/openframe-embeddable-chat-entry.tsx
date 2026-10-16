@@ -46,6 +46,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useShellVariant } from '@/app/hooks/use-shell-variant';
 import { getFullImageUrl } from '@/lib/image-url';
 import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
@@ -231,9 +232,12 @@ export function useOpenframeChatProps({
   } = chat;
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
-  // offers it), after the chat's own actions.
+  // offers it), after the chat's own actions — in the classic shell only: the
+  // Mingo-first shell has no onboarding to replay.
   const loadWhatToAsk = useMingoWhatToAsk();
-  const canResetOnboarding = useCanResetOnboarding();
+  const hasOnboarding = useCanResetOnboarding();
+  const shellVariant = useShellVariant();
+  const canResetOnboarding = hasOnboarding && shellVariant === 'classic';
   const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
   const chatMenuExtraItems =
     v2 && canResetOnboarding
