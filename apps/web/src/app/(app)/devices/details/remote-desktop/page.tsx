@@ -43,6 +43,7 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
+import { ChatUnreadDot } from './chat-unread-dot';
 import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
 import {
@@ -263,14 +264,20 @@ function RemoteDesktopSession() {
   // the flag off), so the toggle stays hidden otherwise.
   // The panel closes with the session.
   const chatDialogId = useRemoteSessionDialogId();
-  const chat = useRemoteSessionChat(chatDialogId);
   // "Open" is remembered per dialog: a different (or absent) dialog id reads
   // as closed without any effect, so a panel can never carry over to the next
   // dialog. `showChat` is the single source for the panel AND the toggle
   // labels, so "Close Chat" never shows while nothing is open.
   const [chatOpenFor, setChatOpenFor] = useState<string | null>(null);
   const showChat = chatDialogId !== null && chatOpenFor === chatDialogId && !sessionEnded;
-  const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
+  const chat = useRemoteSessionChat(chatDialogId, showChat);
+  // The end user wrote while the panel was closed: a dot on Open Chat until the panel opens.
+  const chatUnread = chat.hasUnread && !showChat;
+  const toggleChat = () => {
+    // Opening reads what came in; closing reads what came in while it was open.
+    chat.markRead();
+    setChatOpenFor(showChat ? null : chatDialogId);
+  };
 
   useEffect(() => {
     if (remoteSessionEnd) tunnelRef.current?.stop();
@@ -724,13 +731,17 @@ function RemoteDesktopSession() {
         {deviceInfoBlock}
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
           {chatDialogId && !sessionEnded && (
-            <Button
-              variant="outline"
-              onClick={toggleChat}
-              leftIcon={<ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />}
-            >
-              {showChat ? 'Close Chat' : 'Open Chat'}
-            </Button>
+            <span className="relative inline-flex">
+              <Button
+                variant="outline"
+                onClick={toggleChat}
+                leftIcon={<ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />}
+              >
+                {showChat ? 'Close Chat' : 'Open Chat'}
+                {chatUnread && <span className="sr-only"> (new message)</span>}
+              </Button>
+              {chatUnread && <ChatUnreadDot />}
+            </span>
           )}
           <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
           <Button
@@ -890,6 +901,7 @@ function RemoteDesktopSession() {
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
             chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
+            chatUnread={chatUnread}
             onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
           />
         ) : (

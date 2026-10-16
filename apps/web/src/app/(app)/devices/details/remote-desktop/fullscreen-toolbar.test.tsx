@@ -19,7 +19,7 @@ let container: HTMLDivElement;
 let root: Root;
 const onToggleChat = vi.fn();
 
-function render(chat: { open: boolean } | null) {
+function render(chat: { open: boolean; unread?: boolean } | null) {
   act(() =>
     root.render(
       <FullscreenToolbar
@@ -30,6 +30,7 @@ function render(chat: { open: boolean } | null) {
         onOpenSettings={vi.fn()}
         onExitFullscreen={vi.fn()}
         chatOpen={chat?.open}
+        chatUnread={chat?.unread}
         onToggleChat={chat ? onToggleChat : undefined}
       />,
     ),
@@ -70,5 +71,14 @@ describe('FullscreenToolbar', () => {
   it('has no chat button for a session without a chat', () => {
     render(null);
     expect(buttonLabels()).toEqual(['Actions', 'Exit fullscreen', 'Settings']);
+  });
+
+  it('marks the chat toggle while the end user wrote with the chat closed', () => {
+    render({ open: false, unread: true });
+    expect(container.querySelector('[data-testid="chat-unread-dot"]')).not.toBeNull();
+    expect(buttonLabels()).toContain('Open chat (new message)');
+
+    render({ open: false });
+    expect(container.querySelector('[data-testid="chat-unread-dot"]')).toBeNull();
   });
 });
