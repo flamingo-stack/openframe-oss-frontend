@@ -15,6 +15,8 @@ const recordingTicketFragment = graphql`
     statusKind
     statusColor
     assignedName
+    assignedAvatarUrl
+    createdAt
   }
 `;
 
@@ -29,6 +31,10 @@ export interface RecordingTicket {
   statusColor: string | null;
   /** Null when nobody is assigned. */
   assignedName: string | null;
+  /** The assignee's photo; null without one (the row shows initials). */
+  assignedAvatarUrl: string | null;
+  /** When the ticket was created (ISO), for "3891 • 5 min ago"; null when the ticket is gone. */
+  createdAt: string | null;
 }
 
 export function toRecordingTicket(ref: RecordingTicketRef): RecordingTicket {
@@ -41,6 +47,8 @@ export function toRecordingTicket(ref: RecordingTicketRef): RecordingTicket {
     statusKind: ticket.statusKind ?? null,
     statusColor: ticket.statusColor ?? null,
     assignedName: ticket.assignedName ?? null,
+    assignedAvatarUrl: ticket.assignedAvatarUrl ?? null,
+    createdAt: ticket.createdAt != null ? String(ticket.createdAt) : null,
   };
 }
 
