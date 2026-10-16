@@ -474,10 +474,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // query answers: neither mounts, they appear a frame late.
   const isMdUp = useMdUp();
 
-  // Mingo-first only: the desktop collapse is the shell's, so ⌘K can reveal a
-  // collapsed sidebar (the classic sidebar keeps its own persisted preference — the
-  // same one, under the same key).
+  // Mingo-first only: the desktop collapse is the shell's (the classic sidebar keeps
+  // its own persisted preference — the same one, under the same key).
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  // ⌘K's reveal command (`NavigationSidebarConfig.revealSignal`): every bump shows the
+  // expanded sidebar at the current width — the tablet overlay too, which a change of
+  // `collapsed` cannot open while the desktop preference is already "expanded".
+  const [revealSignal, setRevealSignal] = useState(0);
   // Mingo-first only: the phone drawer is the shell's too (`AppLayout` `mobileMenuOpen`),
   // so the top bar's Chat history cell and ⌘K can open it and its slots can close it.
   const mobileMenuOpen = useMobileMenuStore(state => state.open);
@@ -487,7 +490,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // search. Not on a page that forwards the keyboard to a remote machine, and not
   // behind the paywall, where the history is not shown.
   useHistorySearchShortcut(slots.historySearchShortcut && chatEnabled && !forwardsKeyboard(pathname), () => {
-    setSidebarCollapsed(false);
+    // Desktop: expands a collapsed sidebar (through `onCollapsedChange`); tablet: opens
+    // the overlay without touching the desktop preference.
+    setRevealSignal(signal => signal + 1);
     // Below md the sidebar is the phone drawer; from md up the drawer is never drawn,
     // and an open state left there would show it on the way down.
     if (isMdUp === false) setMobileMenuOpen(true);
@@ -544,6 +549,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               : undefined,
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
+            revealSignal,
             className: 'h-full',
           }
         : {
@@ -572,6 +578,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isLocked,
       sidebarCollapsed,
       setSidebarCollapsed,
+      revealSignal,
       slots.sidebarHeaderControls,
       isMdUp,
       showLockContent,
