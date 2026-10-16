@@ -19,6 +19,7 @@ import {
 import type { ComponentType } from 'react';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
+import { CONTEXT_ENTITY_MARKER } from '../context/context-types';
 
 /** The conversation the tour lives in, as the chat list names it. */
 export const TOUR_DIALOG_TITLE = 'Welcome to OpenFrame';
@@ -37,8 +38,13 @@ export interface TourAction {
   id: string;
   /** The chip, as the design spells it. */
   label: string;
-  /** What the chip sends to Mingo in the tour's conversation. */
-  prompt: string;
+  /**
+   * What the chip sends to Mingo in the tour's conversation. A prompt about the
+   * workspace's first device is a function of how that device is named in the
+   * message: its `@device:<id>` mention when the device is known, else "my
+   * device" (`tourPrompt`). Mingo does not resolve "my device" on its own.
+   */
+  prompt: string | ((device: string) => string);
   /** The section the chip opens beside the chat. */
   href: string;
   /**
@@ -91,8 +97,8 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'check-device',
           label: 'Check my device',
-          prompt:
-            'Check the device I just enrolled: OS, uptime, CPU, memory and free disk. Tell me if anything needs attention.',
+          prompt: device =>
+            `Check ${device}: OS, uptime, CPU, memory and free disk. Tell me if anything needs attention.`,
           href: routes.devices.list,
           Icon: MonitorIcon,
         },
@@ -100,7 +106,8 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           ? {
               id: 'installed-software',
               label: "What's installed",
-              prompt: 'List the software installed on this device and flag anything with known vulnerabilities.',
+              prompt: device =>
+                `List the software installed on ${device} and flag anything with known vulnerabilities.`,
               href: routes.devices.list,
               Icon: PackageIcon,
             }
@@ -125,7 +132,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'create-ticket',
           label: 'Create a ticket',
-          prompt: 'Create a ticket "Post-install check" for the device I just enrolled and assign it to me.',
+          prompt: device => `Create a ticket "Post-install check" for ${device} and assign it to me.`,
           href: routes.tickets.list,
           Icon: TagIcon,
         },
@@ -151,16 +158,16 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'flush-dns',
           label: 'Flush DNS cache',
-          prompt:
-            'Write a script that flushes the DNS cache on this device, test it on my device and save it to the library.',
+          prompt: device =>
+            `Write a script that flushes the DNS cache on ${device}, test it there and save it to the library.`,
           href: routes.scripts.list,
           Icon: BracketCurlyIcon,
         },
         {
           id: 'weekly-cleanup',
           label: 'Schedule a weekly cleanup',
-          prompt:
-            'Save a temp-files cleanup script and schedule it to run on my device every Sunday at 3 AM in my timezone.',
+          prompt: device =>
+            `Save a temp-files cleanup script and schedule it to run on ${device} every Sunday at 3 AM in my timezone.`,
           href: routes.scripts.list,
           Icon: CalendarIcon,
         },
@@ -178,14 +185,14 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'disk-encryption',
           label: 'Check disk encryption',
-          prompt: 'Create a policy that checks disk encryption is on and tell me whether my device passes.',
+          prompt: device => `Create a policy that checks disk encryption is on and tell me whether ${device} passes.`,
           href: routes.monitoring.root({ tab: 'policies' }),
           Icon: ShieldLockIcon,
         },
         {
           id: 'free-disk-space',
           label: 'Watch free disk space',
-          prompt: 'Set up a scheduled query that records free disk space on my device every hour.',
+          prompt: device => `Set up a scheduled query that records free disk space on ${device} every hour.`,
           href: routes.monitoring.root({ tab: 'queries' }),
           Icon: HardDriveIcon,
         },
@@ -203,7 +210,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'errors-since-install',
           label: 'Errors since install',
-          prompt: 'Show any errors or warnings the agent logged on my device since it was installed.',
+          prompt: device => `Show any errors or warnings the agent logged on ${device} since it was installed.`,
           href: routes.logs.page,
           deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: AlertCircleIcon,
@@ -211,7 +218,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'search-logs',
           label: 'Search the logs',
-          prompt: 'Search my device\'s logs for "failed" in the last 24 hours and group what you find.',
+          prompt: device => `Search the logs of ${device} for "failed" in the last 24 hours and group what you find.`,
           href: routes.logs.page,
           deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: SearchIcon,
@@ -230,7 +237,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         {
           id: 'incidents-on-device',
           label: 'Incidents on my device',
-          prompt: 'Are there open incidents on my device? Show severity and what you saw.',
+          prompt: device => `Are there open incidents on ${device}? Show severity and what you saw.`,
           href: routes.incidents.list,
           Icon: AlertTriangleIcon,
         },
@@ -274,3 +281,17 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
 
 /** The tour with every module on - what the tests and a Software-enabled workspace see. */
 export const TOUR_STEPS: readonly TourStep[] = tourSteps({ softwareManagement: true });
+
+/** How a tour prompt names the device while the workspace has none to point at. */
+export const TOUR_DEVICE_FALLBACK = 'my device';
+
+/**
+ * The text a chip sends: a prompt about the first device names it by its
+ * `@device:<id>` mention (the token the composer's own @-mention commits, so
+ * Mingo targets that exact machine), or by "my device" without one.
+ */
+export function tourPrompt(action: TourAction, device: { mentionId: string | null } | null): string {
+  if (typeof action.prompt === 'string') return action.prompt;
+  const id = device?.mentionId;
+  return action.prompt(id ? `@${CONTEXT_ENTITY_MARKER.DEVICE}:${id}` : TOUR_DEVICE_FALLBACK);
+}

@@ -6,6 +6,7 @@ import type { Environment, FetchPolicy } from 'relay-runtime';
 import type { firstDeviceEnrollmentRelayQuery as EnrollmentQuery } from '@/__generated__/firstDeviceEnrollmentRelayQuery.graphql';
 import { DeviceStatus, SortDirection } from '@/generated/schema-enums';
 import { firstDeviceEnrollmentRelayQuery } from '@/graphql/onboarding/first-device-enrollment-relay';
+import { decodeGlobalId } from '@/lib/relay-id';
 
 /** How often the checklist asks again while the agent installs (2-3 minutes end to end). */
 const POLL_MS = 5_000;
@@ -49,6 +50,11 @@ export interface EnrollmentStages {
 export interface FirstDevice {
   /** The device page's id (`routes.devices.details`); null for a record without one. */
   machineId: string | null;
+  /**
+   * What an inline `@device:<id>` mention names it by: the raw part of its global
+   * id, as the context picker sends it (`relay-items`), else `machineId`.
+   */
+  mentionId: string | null;
   /** What the device page would call it: display name, else hostname. */
   name: string;
   /** The agent is connected right now - the "LIVE" tag. */
@@ -63,6 +69,7 @@ function toFirstDevice(node: DeviceNode | null | undefined): FirstDevice | null 
   const enrollment = node.enrollment;
   return {
     machineId: node.machineId?.trim() || null,
+    mentionId: decodeGlobalId(node.id)?.rawId ?? (node.machineId?.trim() || null),
     name: node.displayName?.trim() || node.hostname?.trim() || 'your device',
     online: node.status === DeviceStatus.ONLINE,
     stages: {
