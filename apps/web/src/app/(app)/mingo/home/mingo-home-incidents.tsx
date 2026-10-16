@@ -11,7 +11,7 @@ import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-t
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared/content-error-boundary';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
-import { InsightSeverity } from '@/generated/schema-enums';
+import { InsightSeverity, InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatCount } from '@/lib/format-number';
 import { loadErrorProps } from '@/lib/query-state';
@@ -23,9 +23,9 @@ import { routes } from '@/lib/routes';
  * severity within those statuses and `filteredCount` is their total). Snoozed, resolved
  * and archived incidents wait on nobody, so none of them counts.
  *
- * A card opens the Current tab narrowed to its severity, which also lists the RESOLVED
- * ones waiting to be archived: `routes.incidents.filtered` takes no `status` yet, though
- * the page reads `?status=`.
+ * A card opens the Current tab narrowed to its severity AND to those statuses
+ * (`UNRESOLVED`, which must match the query's literal): the tab alone also lists the
+ * RESOLVED incidents waiting to be archived, which the count leaves out.
  */
 const mingoHomeIncidentsQuery = graphql`
   query mingoHomeIncidentsQuery {
@@ -38,6 +38,13 @@ const mingoHomeIncidentsQuery = graphql`
     }
   }
 `;
+
+/** The statuses the counts cover, and the list a card opens narrows to. */
+const UNRESOLVED = [InsightStatus.NEW, InsightStatus.ACKNOWLEDGED];
+
+/** The incidents a card counts: its severity, unresolved. */
+const severityHref = (severity: InsightSeverity) =>
+  routes.incidents.filtered({ severity: [severity], status: UNRESOLVED });
 
 /** The four cards, most severe first. INFO findings count in the total only. */
 const SEVERITIES = [InsightSeverity.CRITICAL, InsightSeverity.HIGH, InsightSeverity.MEDIUM, InsightSeverity.LOW];
@@ -108,7 +115,7 @@ function IncidentsCards() {
             key={severity}
             titleSlot={<IncidentSeverityTag severity={severity} />}
             value={countOf(severity)}
-            href={routes.incidents.filtered({ severity: [severity] })}
+            href={severityHref(severity)}
           />
         ))}
       </div>
@@ -142,7 +149,7 @@ function IncidentsFailed({ isOffline, retry }: { isOffline: boolean; retry: () =
             key={severity}
             titleSlot={<IncidentSeverityTag severity={severity} />}
             value={EMPTY_VALUE}
-            href={routes.incidents.filtered({ severity: [severity] })}
+            href={severityHref(severity)}
           />
         ))}
       </div>

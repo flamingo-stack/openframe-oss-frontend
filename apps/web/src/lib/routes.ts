@@ -19,7 +19,7 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { DeviceStatus, InsightSeverity } from '@/generated/schema-enums';
+import type { DeviceStatus, InsightSeverity, InsightStatus } from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -427,11 +427,13 @@ export const routes = {
   incidents: {
     list: INCIDENTS_LIST_PATH,
     /**
-     * The Incidents list narrowed by severity (`?severity=`, `INCIDENT_FILTER_PARAMS`)
-     * on a tab (`?tab=`, default `current`).
+     * The Incidents list narrowed by severity (`?severity=`) and status (`?status=`,
+     * both `INCIDENT_FILTER_PARAMS`) on a tab (`?tab=`, default `current`). A status
+     * narrows within the tab's own statuses: on Current, `NEW` + `ACKNOWLEDGED` leaves
+     * out the resolved incidents waiting to be archived.
      */
-    filtered: (o: { severity?: readonly InsightSeverity[]; tab?: IncidentsTab }) =>
-      withQuery(INCIDENTS_LIST_PATH, { tab: o.tab, severity: o.severity }),
+    filtered: (o: { severity?: readonly InsightSeverity[]; status?: readonly InsightStatus[]; tab?: IncidentsTab }) =>
+      withQuery(INCIDENTS_LIST_PATH, { tab: o.tab, severity: o.severity, status: o.status }),
     details: (id: string | number) => withQuery('/incidents/details', { id }),
   },
 

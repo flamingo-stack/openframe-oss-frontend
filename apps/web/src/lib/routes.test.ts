@@ -100,7 +100,7 @@ describe('filtered lists', () => {
     expect(routes.devices.filtered({ statuses: [] })).toBe(routes.devices.list);
     expect(routes.devices.filtered({})).toBe('/devices');
     expect(routes.tickets.filtered({})).toBe(routes.tickets.list);
-    expect(routes.incidents.filtered({ severity: [] })).toBe(routes.incidents.list);
+    expect(routes.incidents.filtered({ severity: [], status: [] })).toBe(routes.incidents.list);
   });
 
   it('narrows tickets by status id in the table view', () => {
@@ -117,6 +117,13 @@ describe('filtered lists', () => {
     expect(routes.incidents.filtered({ tab: 'snoozed', severity: ['CRITICAL'] })).toBe(
       '/incidents?tab=snoozed&severity=CRITICAL',
     );
+  });
+
+  it('narrows incidents by status, within the tab', () => {
+    expect(routes.incidents.filtered({ severity: ['HIGH'], status: ['NEW', 'ACKNOWLEDGED'] })).toBe(
+      '/incidents?severity=HIGH&status=NEW&status=ACKNOWLEDGED',
+    );
+    expect(routes.incidents.filtered({ status: ['NEW'] })).toBe('/incidents?status=NEW');
   });
 });
 

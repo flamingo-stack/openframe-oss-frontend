@@ -73,15 +73,17 @@ const cardHrefs = () =>
     .filter(href => href?.includes('severity='));
 
 describe('MingoHomeIncidents', () => {
-  it('titles the current total and links a card per severity to the filtered list', async () => {
+  it('titles the current total and links a card per severity to the unresolved incidents it counts', async () => {
     await render();
     expect(container.querySelector('h1')?.textContent).toBe('Incidents · 7 current');
+    const unresolved = ['NEW', 'ACKNOWLEDGED'] as const;
     expect(cardHrefs()).toEqual([
-      routes.incidents.filtered({ severity: ['CRITICAL'] }),
-      routes.incidents.filtered({ severity: ['HIGH'] }),
-      routes.incidents.filtered({ severity: ['MEDIUM'] }),
-      routes.incidents.filtered({ severity: ['LOW'] }),
+      routes.incidents.filtered({ severity: ['CRITICAL'], status: unresolved }),
+      routes.incidents.filtered({ severity: ['HIGH'], status: unresolved }),
+      routes.incidents.filtered({ severity: ['MEDIUM'], status: unresolved }),
+      routes.incidents.filtered({ severity: ['LOW'], status: unresolved }),
     ]);
+    expect(cardHrefs()[0]).toBe('/incidents?severity=CRITICAL&status=NEW&status=ACKNOWLEDGED');
     const text = container.textContent ?? '';
     // A severity the facet does not list counts zero; INFO has no card.
     expect(text).toMatch(/CRITICAL\s*2/);

@@ -50,6 +50,8 @@ routes.mingo.chat(id)                                 // /mingo/chat?id=<id>
 routes.devices.filtered({ statuses: ['PENDING'] })    // /devices?statuses=PENDING
 routes.incidents.filtered({ severity: ['CRITICAL', 'HIGH'] })
                                                       // /incidents?severity=CRITICAL&severity=HIGH
+routes.incidents.filtered({ severity: ['HIGH'], status: ['NEW', 'ACKNOWLEDGED'] })
+                                                      // …&status=NEW&status=ACKNOWLEDGED (unresolved only)
 ```
 
 **A static list with filters.** `devices.list`, `tickets.list` and `incidents.list`
