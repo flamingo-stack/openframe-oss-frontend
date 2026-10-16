@@ -51,6 +51,9 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
     unreadMessagesCount: unreadCount,
     owner: dialog.owner?.userId
       ? {
+          // Who it is, not only what they are called: with the viewer's id the chat
+          // lists tell someone else's chat apart (`currentUserId`).
+          id: dialog.owner.userId,
           name: ownerName || 'Admin',
           avatarUrl: getFullImageUrl(ownerUser?.image?.imageUrl, ownerUser?.image?.hash) ?? null,
         }

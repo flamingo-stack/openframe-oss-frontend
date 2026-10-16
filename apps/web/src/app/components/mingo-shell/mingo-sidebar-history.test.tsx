@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeFakeChat } from '@/app/(app)/mingo/providers/__tests__/fake-mingo-chat';
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
 import { MingoSidebarHistory } from './mingo-sidebar-history';
@@ -142,6 +143,13 @@ describe('MingoSidebarHistory', () => {
 
     act(() => rail().onOpenArchive?.());
     expect(push).toHaveBeenLastCalledWith(routes.mingo.archive);
+  });
+
+  it("tells someone else's chats by the rows' owner ids against the viewer's", () => {
+    useAuthStore.setState({ user: { id: 'u-1', email: 'ann@example.com' } });
+    render(session());
+    expect(rail().currentUserId).toBe('u-1');
+    expect(rail().ownedByOther).toBeUndefined();
   });
 
   it('closes the phone drawer it sits in, also for the chat already open (no location change closes it)', () => {

@@ -63,7 +63,6 @@ export function makeFakeChat({
     },
     pendingApprovals: [],
     dialogStatusOf: () => undefined,
-    dialogOwnedByOther: () => false,
     dialogsLoadFailed: false,
     sendInNewDialog,
     searchQuery: '',

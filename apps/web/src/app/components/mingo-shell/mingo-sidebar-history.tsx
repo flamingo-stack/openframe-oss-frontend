@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
 import { closeMobileMenu } from './mobile-menu-store';
@@ -38,6 +39,7 @@ const onServer = () => false;
  */
 export function MingoSidebarHistory() {
   const { chat, error, enabled, copyDialogLink } = useMingoChat();
+  const currentUserId = useAuthStore(s => s.user?.id ?? null);
   const searchOpen = useHistorySearchStore(s => s.open);
   const setSearchOpen = useHistorySearchStore(s => s.setOpen);
   const router = useRouter();
@@ -89,7 +91,8 @@ export function MingoSidebarHistory() {
         activeDialogId={state.activeDialogId ?? undefined}
         onSelectDialog={id => open(routes.mingo.chat(id))}
         statusOf={chat.dialogStatusOf}
-        ownedByOther={chat.dialogOwnedByOther}
+        // A row whose `owner.id` is not the viewer's shows the owner's initials.
+        currentUserId={currentUserId}
         onRequestRename={setRenameTarget}
         onRequestCopyLink={dialog => void copyDialogLink(dialog)}
         onRequestArchive={setArchiveTarget}

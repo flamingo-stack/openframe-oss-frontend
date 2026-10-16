@@ -114,12 +114,6 @@ export interface MingoUnifiedChat {
   /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
   dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
   /**
-   * Whether a listed dialog belongs to another admin — the owner badge on the
-   * Mingo-first sidebar's rows. Read off the server rows: a `DialogItem` carries
-   * the owner's name, not who they are, and is set on the viewer's own chats too.
-   */
-  dialogOwnedByOther: (dialog: DialogItem) => boolean;
-  /**
    * The dialog list failed to load (the query is in error). Beside `state`, whose
    * `dialogsError` stays `false` so the classic panel keeps rendering as it always
    * has; the Mingo-first sidebar shows "Couldn't load your chats" from this.
@@ -377,15 +371,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     const ownerId = dialogData.owner?.userId;
     if (needsAllChatsScope(ownerId, currentUserId)) setDialogScope('all');
   }
-
-  // Memoized for its identity: the provider republishes the state only when a
-  // field changes identity, and readers re-render on every publish.
-  const dialogOwnedByOther = useMemo(() => {
-    const foreign = new Set(
-      dialogNodes.filter(node => needsAllChatsScope(node.owner?.userId, currentUserId)).map(node => node.dialogId),
-    );
-    return (dialog: DialogItem) => foreign.has(dialog.id);
-  }, [dialogNodes, currentUserId]);
 
   // ─── Live model metadata (refined per-turn by `metadata` frames) ──────────
   const [liveModel, setLiveModel] = useState<{ displayName: string; provider: string } | null>(null);
@@ -789,7 +774,6 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
      *  footer, which is why they leave this hook separately from `state`. */
     pendingApprovals,
     dialogStatusOf,
-    dialogOwnedByOther,
     dialogsLoadFailed: isDialogsError,
     sendInNewDialog,
     searchQuery,

@@ -36,23 +36,6 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     return null;
   },
 }));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
-  AlertCircleIcon: () => null,
-  Refresh01RightIcon: () => null,
-}));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
-  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
-      {children}
-    </button>
-  ),
-  NoData: ({ title, button }: { title: string; button?: ReactNode }) => (
-    <section>
-      <h2>{title}</h2>
-      {button}
-    </section>
-  ),
-}));
 vi.mock('../hooks/use-mingo-dialog-actions', () => ({ useMingoDialogActions: () => ({ fetchArchivedDialogs }) }));
 
 const FIRST: DialogItem = { id: 'd-1', title: 'Backups', archived: true };
@@ -123,14 +106,20 @@ describe('MingoArchiveView', () => {
     expect(push).toHaveBeenCalledWith(routes.mingo.chat('d-1'));
   });
 
-  it('says the archive failed to load, and tries again', async () => {
+  it("hands a failed first page to the list's own load error, and retries from it", async () => {
     fetchArchivedDialogs.mockRejectedValueOnce(new Error('down'));
     await render();
-    expect(container.textContent).toContain("Couldn't load the archive");
+    expect(archive()).toMatchObject({ loadError: true, isLoading: false, dialogs: [] });
 
-    fetchArchivedDialogs.mockResolvedValueOnce({ dialogs: [FIRST], nextCursor: null });
-    act(() => container.querySelector('button')?.click());
+    const retry = Promise.withResolvers<{ dialogs: DialogItem[]; nextCursor: string | null }>();
+    fetchArchivedDialogs.mockReturnValueOnce(retry.promise);
+    act(() => archive().onRetry?.());
     await settle();
-    expect(archive().dialogs).toEqual([FIRST]);
+    // The retry's skeleton wins over the error while it runs.
+    expect(archive().isLoading).toBe(true);
+
+    retry.resolve({ dialogs: [FIRST], nextCursor: null });
+    await settle();
+    expect(archive()).toMatchObject({ loadError: false, isLoading: false, dialogs: [FIRST] });
   });
 });

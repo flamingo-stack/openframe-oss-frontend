@@ -2,8 +2,6 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { ChatArchivePage } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { AlertCircleIcon, Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { routes } from '@/lib/routes';
@@ -22,7 +20,8 @@ const ARCHIVE_PAGE_SIZE = 20;
  * embedded form, under the page's own title) over the archived-dialog fetcher the
  * classic drawer's archive uses, paged as the reader scrolls. Only archived chats are
  * listed. A row opens the chat page, where an archived chat is read-only and its
- * header offers Unarchive (with its confirm).
+ * header offers Unarchive (with its confirm). A failed first page is the lib's own
+ * load error with Try again.
  */
 export function MingoArchiveView() {
   const router = useRouter();
@@ -42,28 +41,20 @@ export function MingoArchiveView() {
       className="h-full min-h-0 px-[var(--spacing-system-l)]"
       contentClassName="min-h-0"
     >
-      {archive.isError && dialogs.length === 0 ? (
-        <NoData
-          icon={<AlertCircleIcon />}
-          title="Couldn't load the archive"
-          description="Something went wrong reaching the server. Try again."
-          button={
-            <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={() => void archive.refetch()}>
-              Try again
-            </Button>
-          }
-        />
-      ) : (
-        <ChatArchivePage
-          embedded
-          dialogs={dialogs}
-          onSelectDialog={id => router.push(routes.mingo.chat(id))}
-          isLoading={archive.isPending || archive.isFetchingNextPage}
-          isFetching={archive.isPending}
-          hasMore={archive.hasNextPage}
-          onLoadMore={() => void archive.fetchNextPage()}
-        />
-      )}
+      <ChatArchivePage
+        embedded
+        dialogs={dialogs}
+        onSelectDialog={id => router.push(routes.mingo.chat(id))}
+        // A retry after a failed first page shows the skeleton (it wins over the error).
+        isLoading={archive.isPending || archive.isFetchingNextPage || (archive.isError && archive.isFetching)}
+        isFetching={archive.isPending}
+        hasMore={archive.hasNextPage}
+        onLoadMore={() => void archive.fetchNextPage()}
+        // "Couldn't load your chats" + Try again, only while nothing is listed: chats
+        // already on screen stay there when a later page fails.
+        loadError={archive.isError && dialogs.length === 0}
+        onRetry={() => void archive.refetch()}
+      />
     </PageLayout>
   );
 }
