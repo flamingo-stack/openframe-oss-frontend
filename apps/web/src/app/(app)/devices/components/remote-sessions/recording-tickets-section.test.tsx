@@ -36,6 +36,8 @@ const TICKETS: RecordingTicket[] = [
     statusKind: 'CUSTOM',
     statusColor: '#2890FA',
     assignedName: 'Roman Smith',
+    assignedAvatarUrl: 'https://cdn.example/roman.png',
+    createdAt: '2026-10-15T09:00:00.000Z',
   },
   {
     id: 't-2',
@@ -45,6 +47,8 @@ const TICKETS: RecordingTicket[] = [
     statusKind: 'TECH_REQUIRED',
     statusColor: null,
     assignedName: null,
+    assignedAvatarUrl: null,
+    createdAt: null,
   },
 ];
 
@@ -81,6 +85,21 @@ describe('RecordingTicketsSection', () => {
     expect(text()).toContain('Roman Smith');
     expect(text()).toContain('Printer offline');
     expect(text()).toContain('2 results');
+  });
+
+  it("shows the assignee's photo and the ticket's age beside its number, the full time on hover", () => {
+    render();
+    expect(container.querySelector('img[alt="Roman Smith"]')?.getAttribute('src')).toBe(
+      'https://cdn.example/roman.png',
+    );
+    const meta = Array.from(container.querySelectorAll<HTMLElement>('[title]')).find(el =>
+      el.textContent?.startsWith('3891 • '),
+    );
+    expect(meta?.textContent).toMatch(/^3891 • .+/);
+    expect(meta?.getAttribute('title')).toBeTruthy();
+    // A ticket with no creation time reads its number alone.
+    expect(text()).toContain('3902');
+    expect(text()).not.toContain('3902 • ');
   });
 
   it('narrows the rows by title or ticket number', () => {
