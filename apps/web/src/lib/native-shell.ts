@@ -13,13 +13,12 @@
 import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 
 /**
- * Custom URL scheme both native shells complete their login on: the gateway
- * 302s the devTicket straight to it for authMobile=true logins, and it is the
- * one redirect target the gateway honours verbatim in every environment
- * (`openframe.gateway.redirect.allowed-uris`). Mobile registers it with the OS
- * (CFBundleURLTypes / intent-filter) because its ASWebAuthenticationSession
- * matches on it; the desktop shell never hands it to the OS — it cancels the
- * navigation inside its own login window — so it registers nothing.
+ * Default custom URL scheme the mobile shell completes its login on: the
+ * gateway 302s the devTicket straight to it for authMobile=true logins, and it
+ * is honoured verbatim because it is in `openframe.gateway.redirect.allowed-uris`.
+ * Mobile registers it with the OS (CFBundleURLTypes / intent-filter) because its
+ * ASWebAuthenticationSession matches on it. The desktop shell completes on its
+ * own scheme instead (`DESKTOP_APP_SCHEME`, via the hand-off page).
  */
 export const APP_SCHEME = 'com.openframe.app';
 
@@ -61,14 +60,19 @@ export function nativeErrorCode(error: unknown): string | null {
  */
 export interface NativeAuthPlugin {
   /**
-   * Runs the OAuth login in a shell-owned browser context and resolves with
-   * the final callback URL. Both shells end the flow on `callbackScheme`:
-   * mobile runs a system browser (ASWebAuthenticationSession) that matches on
-   * it, desktop runs a dedicated window that cancels the navigation to it.
-   * Desktop additionally resolves on ANY callback carrying a `devTicket`, which
-   * is what an environment that drops the requested redirect still produces.
+   * Runs the OAuth login in a browser and resolves with the final callback URL.
+   * Both shells end the flow on `callbackScheme`: mobile runs a system browser
+   * (ASWebAuthenticationSession) that matches on it, desktop opens the user's
+   * default browser and waits for the OS to deliver the scheme URL. Desktop
+   * checks `callbackScheme` against the scheme it registered, never the login
+   * URL's `redirectTo`, which is the shared-host hand-off page there.
    */
   start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
+  /**
+   * Desktop only: ends the login `start` is waiting on, which then rejects with `USER_CANCELED` —
+   * the waiting screen's Cancel. The browser tab cannot be closed from here; it is left behind.
+   */
+  cancel?(): Promise<void>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<NativeTokens>;
   /**
