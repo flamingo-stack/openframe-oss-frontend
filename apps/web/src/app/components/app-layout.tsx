@@ -53,6 +53,7 @@ import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry'
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
+import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -245,13 +246,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // holds. It briefly did the opposite (`b13fc05` replaced the shell outright);
   // the layout is required, so the swap is back in `<main>` where it started.
   //
-  // Two different questions, and they answer differently on `/checkout/*`:
-  //   - `showLockContent` — does the lock screen belong in `<main>`? Not on the
-  //     checkout result pages: a payer lands there before the webhook flips the
-  //     subscription to ACTIVE, and the page they need is a normal one.
+  // Two different questions, and they answer differently on the pages a lock
+  // leaves open (`isRouteOpenWhileLocked`: checkout results, and Billing & Usage
+  // on PAST_DUE):
+  //   - `showLockContent` — does the lock screen belong in `<main>`? Not on
+  //     those pages.
   //   - `isLocked` — is the subscription gate holding this workspace's data? That
-  //     is route-blind, so every chrome hydrator below gates on THIS. On checkout
-  //     their requests are parked exactly as they are anywhere else.
+  //     is route-blind, so every chrome hydrator below gates on THIS. On those
+  //     pages their requests are parked exactly as they are anywhere else.
   //
   // There is deliberately NO "still resolving" placeholder for the page area.
   // `children` render immediately — before the session and before the
@@ -264,8 +266,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // the length of the subscription round-trip before the lock screen swaps in.
   // The lock is UX, not enforcement (the API refuses the data either way), and
   // the query is `store-and-network`, so the window exists only on a cold store.
-  const { isLocked } = useSubscriptionLock();
-  const showLockContent = isLocked && !(pathname?.startsWith('/checkout') ?? false);
+  const { isLocked, status: subscriptionStatus } = useSubscriptionLock();
+  const showLockContent = isLocked && !isRouteOpenWhileLocked(pathname, subscriptionStatus);
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave

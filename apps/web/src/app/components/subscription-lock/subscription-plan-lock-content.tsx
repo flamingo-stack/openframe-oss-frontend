@@ -13,7 +13,7 @@ import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**
  * The lock screen on a build that may show payments. Three of them, in fact:
- * the paywall, the outstanding invoices of a suspended workspace, and the
+ * the paywall, the outstanding invoices of a workspace in debt, and the
  * explanation for someone whose role cannot open either.
  *
  * Its own module, loaded lazily by `subscription-lock-content.tsx`, so the plan
@@ -42,16 +42,16 @@ export default function SubscriptionPlanLockContent() {
     return <WorkspaceInactiveScreen {...noAccessCopy(status)} />;
   }
 
-  // A suspension has a bill attached, so the remedy is that bill — not a plan.
-  // Decided on the status alone, which the app shell resolved before this module
-  // was fetched, so the screen is picked on the first paint and only its invoice
+  // Debt has a bill attached, so the remedy is that bill — not a plan. Decided
+  // on the status alone, which the app shell resolved before this module was
+  // fetched, so the screen is picked on the first paint and only its invoice
   // query has to land.
-  const suspended = status === SubscriptionStatus.SUSPENDED;
+  const debtStatus = status === SubscriptionStatus.PAST_DUE || status === SubscriptionStatus.SUSPENDED ? status : null;
 
   // Not yet known whether this viewer can pay — show the page they are most
   // likely about to get, unfilled. Each branch waits as ITSELF, which is why the
-  // suspension case does not borrow the paywall's loading state: the two screens
-  // are not the same screen, and reflowing from one to the other is a worse wait
+  // debt case does not borrow the paywall's loading state: the two screens are
+  // not the same screen, and reflowing from one to the other is a worse wait
   // than either.
   //
   // The invoice screen in particular must not be rendered with its DATA here.
@@ -59,8 +59,8 @@ export default function SubscriptionPlanLockContent() {
   // money, and this viewer may still turn out to be a member who never gets to
   // see it (the `denied` branch above). Waiting shows the screen, not the sum.
   if (access === 'loading') {
-    return suspended ? <UnpaidInvoicesLoading /> : <SubscriptionSettingsLoading />;
+    return debtStatus ? <UnpaidInvoicesLoading status={debtStatus} /> : <SubscriptionSettingsLoading />;
   }
 
-  return suspended ? <UnpaidInvoicesScreen /> : <SubscriptionSettingsView />;
+  return debtStatus ? <UnpaidInvoicesScreen status={debtStatus} /> : <SubscriptionSettingsView />;
 }

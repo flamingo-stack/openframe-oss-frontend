@@ -11,6 +11,7 @@ import { act, useEffect } from 'react';
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RemoteAccessMode } from '../types/remote-access';
 import { MACHINE_ID_HEADER } from '../utils/device-command-utils';
 import { useInstallCommand } from './use-install-command';
 
@@ -130,5 +131,52 @@ describe('useInstallCommand machine id', () => {
 
     expect(consoleError).not.toHaveBeenCalled();
     expect(machineIdOf(container.textContent ?? '', 'darwin')).toMatch(UUID_V4);
+  });
+});
+
+describe('useInstallCommand remote access mode', () => {
+  let root: Root | undefined;
+
+  afterEach(() => {
+    if (root) act(() => root?.unmount());
+    root = undefined;
+    document.body.innerHTML = '';
+  });
+
+  function render(remoteAccessMode: RemoteAccessMode | null): Result {
+    let result: Result | undefined;
+    function ModeProbe() {
+      const value = useInstallCommand({
+        organizationId: 'org-1',
+        platform: 'windows',
+        tags: [{ key: 'env', values: ['prod'] }],
+        remoteAccessMode,
+      });
+      useEffect(() => {
+        result = value;
+      });
+      return null;
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => root?.render(<ModeProbe />));
+    if (!result) throw new Error('probe has not rendered');
+    return result;
+  }
+
+  it('puts an explicit mode after the tags in both the install and the register command', () => {
+    const { command, registerCommand } = render('NOTIFY_ONLY');
+    for (const line of [command, registerCommand]) {
+      expect(line.endsWith(`--tag "env=prod" --remote-access-mode notify-only`)).toBe(true);
+    }
+  });
+
+  it('leaves the flag out when the device follows its customer', () => {
+    const { command, registerCommand } = render(null);
+    for (const line of [command, registerCommand]) {
+      expect(line).not.toContain('--remote-access-mode');
+      expect(line.endsWith(`--tag "env=prod"`)).toBe(true);
+    }
   });
 });

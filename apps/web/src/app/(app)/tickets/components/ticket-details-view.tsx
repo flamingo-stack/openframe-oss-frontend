@@ -797,6 +797,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           isTyping={isClientChatTyping}
           pendingApprovals={clientPendingApprovals}
           assistantType={ASSISTANT_CONFIG.FAE.type}
+          // The technician reads this thread: their turns (`admin`) are the
+          // right-hand bubbles, the end user's answer from the left, named.
+          selfAuthorType="admin"
           hasNextPage={clientChat.hasNextPage}
           isFetchingNextPage={clientChat.isFetchingNextPage}
           onLoadMore={clientChat.fetchNextPage}

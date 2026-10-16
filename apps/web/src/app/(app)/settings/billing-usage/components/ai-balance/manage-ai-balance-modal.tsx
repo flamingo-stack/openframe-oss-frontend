@@ -81,7 +81,12 @@ function ManageAiBalanceContent({ onClose }: { onClose: () => void }) {
   const data = useLazyLoadQuery<ManageAiBalanceModalQueryType>(
     manageAiBalanceModalQuery,
     {},
-    { fetchPolicy: 'store-or-network' },
+    {
+      fetchPolicy: 'store-or-network',
+      // Opened from Billing & Usage, which PAST_DUE leaves open while the
+      // subscription gate stays shut — see `subscription-gate.ts`.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
   );
 
   const aiCatalogProduct = data.billingPlan?.products.find(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? null;
