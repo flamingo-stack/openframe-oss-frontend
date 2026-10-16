@@ -4,11 +4,9 @@ import {
   FlamingoMarkIcon,
   OpenframeLogoIcon,
   OpenframeTextIcon,
-  Refresh01RightIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useCallback } from 'react';
-import { LockScreenActions } from './lock-screen-actions';
+import type { ReactNode } from 'react';
+import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 
 interface WorkspaceInactiveScreenProps {
   /** Overrides the default heading. See `SubscriptionLockContent`. */
@@ -52,13 +50,6 @@ interface WorkspaceInactiveScreenProps {
  * message.
  */
 export function WorkspaceInactiveScreen({ title, description, action }: WorkspaceInactiveScreenProps = {}) {
-  // The lock state comes from the subscription query resolved in the app shell;
-  // a full reload is the simplest way to re-resolve it once an admin has
-  // restored access elsewhere.
-  const handleRecheck = useCallback(() => {
-    window.location.reload();
-  }, []);
-
   return (
     <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
@@ -89,9 +80,7 @@ export function WorkspaceInactiveScreen({ title, description, action }: Workspac
           leading={
             <>
               {action}
-              <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={handleRecheck}>
-                Check Again
-              </Button>
+              <CheckAgainButton />
             </>
           }
         />

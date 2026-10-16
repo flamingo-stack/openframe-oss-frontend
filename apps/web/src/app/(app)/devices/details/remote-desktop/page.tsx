@@ -21,6 +21,7 @@ import {
   ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -263,14 +264,20 @@ function RemoteDesktopSession() {
   // the flag off), so the toggle stays hidden otherwise.
   // The panel closes with the session.
   const chatDialogId = useRemoteSessionDialogId();
-  const chat = useRemoteSessionChat(chatDialogId);
   // "Open" is remembered per dialog: a different (or absent) dialog id reads
   // as closed without any effect, so a panel can never carry over to the next
   // dialog. `showChat` is the single source for the panel AND the toggle
   // labels, so "Close Chat" never shows while nothing is open.
   const [chatOpenFor, setChatOpenFor] = useState<string | null>(null);
   const showChat = chatDialogId !== null && chatOpenFor === chatDialogId && !sessionEnded;
-  const toggleChat = () => setChatOpenFor(showChat ? null : chatDialogId);
+  const chat = useRemoteSessionChat(chatDialogId, showChat);
+  // The end user wrote while the panel was closed: a dot on Open Chat until the panel opens.
+  const chatUnread = chat.hasUnread && !showChat;
+  const toggleChat = () => {
+    // Opening reads what came in; closing reads what came in while it was open.
+    chat.markRead();
+    setChatOpenFor(showChat ? null : chatDialogId);
+  };
 
   useEffect(() => {
     if (remoteSessionEnd) tunnelRef.current?.stop();
@@ -727,9 +734,16 @@ function RemoteDesktopSession() {
             <Button
               variant="outline"
               onClick={toggleChat}
-              leftIcon={<ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />}
+              leftIcon={
+                // The app's unread dot (core lib), top-right of the icon, as on the header bell.
+                <span className="relative inline-flex">
+                  <ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />
+                  {chatUnread && <UnreadDot />}
+                </span>
+              }
             >
               {showChat ? 'Close Chat' : 'Open Chat'}
+              {chatUnread && <span className="sr-only"> (new message)</span>}
             </Button>
           )}
           <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
@@ -890,6 +904,7 @@ function RemoteDesktopSession() {
             onOpenSettings={() => setSettingsOpen(true)}
             onExitFullscreen={exitFullscreen}
             chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
+            chatUnread={chatUnread}
             onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
           />
         ) : (

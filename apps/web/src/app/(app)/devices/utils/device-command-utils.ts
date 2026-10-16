@@ -5,6 +5,7 @@
 
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { runtimeEnv } from '@/lib/runtime-config';
+import type { RemoteAccessMode } from '../types/remote-access';
 
 const ASSETS_DOWNLOAD_PATH = '/v0/api/assets/download';
 
@@ -71,6 +72,23 @@ function buildDownloadStep(platform: OSPlatformId, downloadBaseUrl: string, mach
 
   // macOS / darwin (and linux - same bundle, see buildAssetsDownloadUrl)
   return `cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -H '${MACHINE_ID_HEADER}: ${machineId}' -o openframe-client_macos.tar.gz '${url}' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client`;
+}
+
+/** The client's `--remote-access-mode` values: clap's kebab-case of the mode, upper case is rejected. */
+const REMOTE_ACCESS_MODE_ARG: Record<RemoteAccessMode, string> = {
+  APPROVAL_REQUIRED: 'approval-required',
+  NOTIFY_ONLY: 'notify-only',
+  SILENT_ACCESS: 'silent-access',
+  DENY_ACCESS: 'deny-access',
+};
+
+/**
+ * The install/register argument that sets the device's own remote access
+ * mode once it registers. No mode (Customer Default) adds nothing: the device
+ * follows its customer, exactly as a command without the flag always did.
+ */
+export function buildRemoteAccessModeArgs(mode: RemoteAccessMode | null | undefined): string[] {
+  return mode ? [`--remote-access-mode ${REMOTE_ACCESS_MODE_ARG[mode]}`] : [];
 }
 
 export interface InstallCommandOptions {

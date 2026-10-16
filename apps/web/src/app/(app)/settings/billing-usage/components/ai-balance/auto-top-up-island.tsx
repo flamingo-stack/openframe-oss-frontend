@@ -45,7 +45,13 @@ export function AutoTopUpIsland({ label, fallback, children }: AutoTopUpIslandPr
     // nothing to show.
     <ContentErrorBoundary label={label} fallback={() => <>{fallback}</>}>
       <Suspense fallback={fallback}>
-        <QueryIsland<AutoTopUpIslandQueryType> query={autoTopUpIslandQuery} variables={{}}>
+        {/* Billing & Usage stays open on PAST_DUE while the subscription gate
+            stays shut — see `subscription-gate.ts`. */}
+        <QueryIsland<AutoTopUpIslandQueryType>
+          query={autoTopUpIslandQuery}
+          variables={{}}
+          networkCacheConfig={{ metadata: { skipSubscriptionGate: true } }}
+        >
           {data => children(toAutoTopUpStatus(data.autoTopUpSettings))}
         </QueryIsland>
       </Suspense>

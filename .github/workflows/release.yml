@@ -115,124 +115,126 @@ jobs:
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" ./apps/web
 
-  build_desktop:
-    name: "Build Desktop: ${{ matrix.leg }}"
-    needs: [version, changes]
-    if: needs.changes.outputs.desktop == 'true'
-    runs-on: "${{ matrix.runner }}"
-    timeout-minutes: 120
-    env:
-      CARGO_INCREMENTAL: 0
-    defaults:
-      run:
-        shell: bash
-        working-directory: apps/desktop
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - leg: macos-universal
-            runner: macos-latest
-            target: universal-apple-darwin
-            archs: aarch64-apple-darwin,x86_64-apple-darwin
-            bundles: app,dmg
-          - leg: windows-x64
-            runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            archs: x86_64-pc-windows-msvc
-            bundles: nsis
-          # Cross-compiled: no Windows/ARM64 runner on this plan.
-          - leg: windows-arm64
-            runner: windows-latest
-            target: aarch64-pc-windows-msvc
-            archs: aarch64-pc-windows-msvc
-            bundles: nsis
+  # Desktop builds disabled: openframe-saas-desktop builds and releases the shell, and the updater reads its releases.
+  # To restore, uncomment build_desktop and the updater manifest step, re-add it to release needs and the Console header section.
+#  build_desktop:
+#    name: "Build Desktop: ${{ matrix.leg }}"
+#    needs: [version, changes]
+#    if: needs.changes.outputs.desktop == 'true'
+#    runs-on: "${{ matrix.runner }}"
+#    timeout-minutes: 120
+#    env:
+#      CARGO_INCREMENTAL: 0
+#    defaults:
+#      run:
+#        shell: bash
+#        working-directory: apps/desktop
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        include:
+#          - leg: macos-universal
+#            runner: macos-latest
+#            target: universal-apple-darwin
+#            archs: aarch64-apple-darwin,x86_64-apple-darwin
+#            bundles: app,dmg
+#          - leg: windows-x64
+#            runner: windows-latest
+#            target: x86_64-pc-windows-msvc
+#            archs: x86_64-pc-windows-msvc
+#            bundles: nsis
+#          # Cross-compiled: no Windows/ARM64 runner on this plan.
+#          - leg: windows-arm64
+#            runner: windows-latest
+#            target: aarch64-pc-windows-msvc
+#            archs: aarch64-pc-windows-msvc
+#            bundles: nsis
 
-    steps:
-      # `make build` runs npm and cargo over third-party code — leave it no credential.
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+#    steps:
+#      # `make build` runs npm and cargo over third-party code — leave it no credential.
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#        with:
+#          persist-credentials: false
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc  # same major as apps/web/Dockerfile; this builds the web export
-          cache: npm
-          cache-dependency-path: |
-            apps/web/package-lock.json
-            apps/desktop/package-lock.json
+#      - name: Set up Node
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version-file: .nvmrc  # same major as apps/web/Dockerfile; this builds the web export
+#          cache: npm
+#          cache-dependency-path: |
+#            apps/web/package-lock.json
+#            apps/desktop/package-lock.json
 
-      - name: Prepare Rust tools
-        uses: ./.github/steps/rust-setup
-        with:
-          path: apps/desktop/src-tauri
-          toolchain: stable
-          targets: ${{ matrix.archs }}
-          shared-key: ${{ runner.os }}-${{ matrix.target }}
+#      - name: Prepare Rust tools
+#        uses: ./.github/steps/rust-setup
+#        with:
+#          path: apps/desktop/src-tauri
+#          toolchain: stable
+#          targets: ${{ matrix.archs }}
+#          shared-key: ${{ runner.os }}-${{ matrix.target }}
 
-      - name: Setup macOS code signing
-        if: runner.os == 'macOS'
-        uses: ./.github/steps/setup-macos-signing
-        with:
-          apple_certificate_p12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-          apple_certificate_password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+#      - name: Setup macOS code signing
+#        if: runner.os == 'macOS'
+#        uses: ./.github/steps/setup-macos-signing
+#        with:
+#          apple_certificate_p12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+#          apple_certificate_password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Build desktop shell
-        env:
-          TARGET: ${{ matrix.target }}
-          BUNDLES: ${{ matrix.bundles }}
-          RELEASE_VERSION: ${{ needs.version.outputs.version }}
-          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS signing + notarization, performed by tauri during the build.
-          APPLE_SIGNING_IDENTITY: ${{ env.SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID_USERNAME }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        # Same bundle version as the image; tauri needs semver, so a push build is 0.0.0-dev.N.
-        run: |
-          OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}" \
-          OPENFRAME_VERSION="${RELEASE_VERSION:-0.0.0-dev.${GITHUB_RUN_NUMBER}}" \
-          make build
+#      - name: Build desktop shell
+#        env:
+#          TARGET: ${{ matrix.target }}
+#          BUNDLES: ${{ matrix.bundles }}
+#          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+#          OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+#          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+#          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+#          # macOS signing + notarization, performed by tauri during the build.
+#          APPLE_SIGNING_IDENTITY: ${{ env.SIGNING_IDENTITY }}
+#          APPLE_ID: ${{ secrets.APPLE_ID_USERNAME }}
+#          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+#          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+#        # Same bundle version as the image; tauri needs semver, so a push build is 0.0.0-dev.N.
+#        run: |
+#          OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}" \
+#          OPENFRAME_VERSION="${RELEASE_VERSION:-0.0.0-dev.${GITHUB_RUN_NUMBER}}" \
+#          make build
 
-      - name: Authenticode-sign Windows installer
-        if: runner.os == 'Windows'
-        uses: ./.github/steps/sign-windows-package
-        with:
-          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          signing_endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          code_signing_account_name: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT_NAME }}
-          certificate_profile_name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
-          tauri_signing_private_key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          tauri_signing_private_key_password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          target_path: ./apps/desktop/src-tauri/target
-          target: ${{ matrix.target }}
+#      - name: Authenticode-sign Windows installer
+#        if: runner.os == 'Windows'
+#        uses: ./.github/steps/sign-windows-package
+#        with:
+#          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+#          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+#          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+#          signing_endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+#          code_signing_account_name: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT_NAME }}
+#          certificate_profile_name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+#          tauri_signing_private_key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+#          tauri_signing_private_key_password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+#          target_path: ./apps/desktop/src-tauri/target
+#          target: ${{ matrix.target }}
 
-      - name: Collect artifacts
-        env:
-          TARGET: ${{ matrix.target }}
-        # Spaces out of the names: updater.json links each file by name.
-        run: |
-          shopt -s nullglob
-          bundle="src-tauri/target/${TARGET}/release/bundle"
-          mkdir -p artifacts
-          for f in "$bundle"/dmg/*.dmg "$bundle"/macos/*.app.tar.gz* "$bundle"/nsis/*-setup.exe*; do
-            cp "$f" "artifacts/$(basename "$f" | tr ' ' '-')"
-          done
-          ls -lh artifacts/
+#      - name: Collect artifacts
+#        env:
+#          TARGET: ${{ matrix.target }}
+#        # Spaces out of the names: updater.json links each file by name.
+#        run: |
+#          shopt -s nullglob
+#          bundle="src-tauri/target/${TARGET}/release/bundle"
+#          mkdir -p artifacts
+#          for f in "$bundle"/dmg/*.dmg "$bundle"/macos/*.app.tar.gz* "$bundle"/nsis/*-setup.exe*; do
+#            cp "$f" "artifacts/$(basename "$f" | tr ' ' '-')"
+#          done
+#          ls -lh artifacts/
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: "openframe-console-${{ matrix.leg }}"
-          path: apps/desktop/artifacts/
-          if-no-files-found: error
-          retention-days: 30
+#      - name: Upload artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: "openframe-console-${{ matrix.leg }}"
+#          path: apps/desktop/artifacts/
+#          if-no-files-found: error
+#          retention-days: 30
 
   # Mobile builds disabled: to restore, uncomment both jobs, re-add them to release needs and the Mobile header section.
 #  # Signed store builds, attached to the release for manual upload to App Store Connect / Play.
@@ -336,7 +338,7 @@ jobs:
   # A failed leg leaves the pushed image without a release; re-run the failed jobs.
   release:
     name: 'Create Release'
-    needs: [version, build_image, build_desktop]  # + build_ios, build_android
+    needs: [version, build_image]  # + build_desktop, build_ios, build_android
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
@@ -349,40 +351,40 @@ jobs:
           path: final-artifacts
           merge-multiple: true
 
-      - name: Generate updater manifest (updater.json)
-        env:
-          VERSION: ${{ needs.version.outputs.version }}
-          REPO: ${{ github.repository }}
-          SERVER: ${{ github.server_url }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob   # a glob matching nothing must vanish, not pass itself through
+#      - name: Generate updater manifest (updater.json)
+#        env:
+#          VERSION: ${{ needs.version.outputs.version }}
+#          REPO: ${{ github.repository }}
+#          SERVER: ${{ github.server_url }}
+#        run: |
+#          set -euo pipefail
+#          shopt -s nullglob   # a glob matching nothing must vanish, not pass itself through
 
-          base="$SERVER/$REPO/releases/download/$VERSION"
-          entries=""
+#          base="$SERVER/$REPO/releases/download/$VERSION"
+#          entries=""
 
-          # $1=platform key, rest=glob expansion, which must land on exactly one file.
-          emit() {
-            local key=$1; shift
-            [ $# -eq 1 ] || { echo "::error::$key: expected 1 artifact, found $#. Did tauri's naming change?"; ls -1 final-artifacts/; exit 1; }
-            [ -f "$1.sig" ] || { echo "::error::$(basename "$1") has no .sig"; exit 1; }
-            entries+=$(jq -nc --arg k "$key" --arg sig "$(cat "$1.sig")" --arg url "$base/$(basename "$1")" \
-              '{key: $k, value: {signature: $sig, url: $url}}')$'\n'
-            echo "$key -> $(basename "$1")"
-          }
+#          # $1=platform key, rest=glob expansion, which must land on exactly one file.
+#          emit() {
+#            local key=$1; shift
+#            [ $# -eq 1 ] || { echo "::error::$key: expected 1 artifact, found $#. Did tauri's naming change?"; ls -1 final-artifacts/; exit 1; }
+#            [ -f "$1.sig" ] || { echo "::error::$(basename "$1") has no .sig"; exit 1; }
+#            entries+=$(jq -nc --arg k "$key" --arg sig "$(cat "$1.sig")" --arg url "$base/$(basename "$1")" \
+#              '{key: $k, value: {signature: $sig, url: $url}}')$'\n'
+#            echo "$key -> $(basename "$1")"
+#          }
 
-          # tauri resolves '{os}-{arch}' only, never 'darwin-universal', so the one
-          # universal tarball is listed under both mac arches.
-          emit darwin-aarch64  final-artifacts/*.app.tar.gz
-          emit darwin-x86_64   final-artifacts/*.app.tar.gz
-          emit windows-x86_64  final-artifacts/*_x64-setup.exe
-          emit windows-aarch64 final-artifacts/*_arm64-setup.exe
+#          # tauri resolves '{os}-{arch}' only, never 'darwin-universal', so the one
+#          # universal tarball is listed under both mac arches.
+#          emit darwin-aarch64  final-artifacts/*.app.tar.gz
+#          emit darwin-x86_64   final-artifacts/*.app.tar.gz
+#          emit windows-x86_64  final-artifacts/*_x64-setup.exe
+#          emit windows-aarch64 final-artifacts/*_arm64-setup.exe
 
-          jq -s --arg version "$VERSION" --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{version: $version, notes: "OpenFrame Console \($version)", pub_date: $pub_date, platforms: from_entries}' \
-            <<< "$entries" > final-artifacts/updater.json
+#          jq -s --arg version "$VERSION" --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+#            '{version: $version, notes: "OpenFrame Console \($version)", pub_date: $pub_date, platforms: from_entries}' \
+#            <<< "$entries" > final-artifacts/updater.json
 
-          jq '.platforms |= map_values(.signature |= "<\(. | length) bytes>")' final-artifacts/updater.json
+#          jq '.platforms |= map_values(.signature |= "<\(. | length) bytes>")' final-artifacts/updater.json
 
       - name: Generate release header
         env:
@@ -392,11 +394,6 @@ jobs:
           cat > RELEASE_HEADER.md <<EOF
           ## Image
           - \`${IMAGE}:${VERSION}\`
-
-          ## OpenFrame Console
-          - **macOS** (Universal): \`.dmg\` to install, \`.app.tar.gz\` for the updater
-          - **Windows** (x64, arm64): \`_x64-setup.exe\`, \`_arm64-setup.exe\`
-          - Updater manifest: \`updater.json\`
 
           ---
           EOF
