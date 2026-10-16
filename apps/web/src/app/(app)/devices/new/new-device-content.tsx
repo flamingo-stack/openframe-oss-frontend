@@ -202,8 +202,11 @@ export function NewDeviceContent() {
     >
       <div className="flex flex-col gap-6">
         {/* Mockups 504-46017/46069/46131: one column on mobile, two on tablet,
-            all four selectors in a single row on desktop. */}
-        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2 content-lg:grid-cols-4">
+            all four selectors in a single row on desktop. Desktop columns are
+            plain `1fr` (min = content), not `grid-cols-4`'s `minmax(0,1fr)`: the
+            platform tabs don't shrink, and just past the content-lg step a
+            quarter of the row is narrower than Windows + macOS. */}
+        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2 content-lg:grid-cols-[repeat(4,1fr)]">
           <Controller
             name="organizationId"
             control={form.control}
