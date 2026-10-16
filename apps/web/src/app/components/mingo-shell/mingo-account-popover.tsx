@@ -16,7 +16,7 @@ import { useClassicLayout } from '@/app/hooks/use-shell-variant';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
-import { setMobileMenuOpen } from './mobile-menu';
+import { closeMobileMenu } from './mobile-menu-store';
 
 /**
  * The workspace's address, as the row's mono subtitle: the tenant host (the native
@@ -53,17 +53,16 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
   const [, setClassicLayout] = useClassicLayout();
 
   const name = `${firstName ?? ''} ${lastName ?? ''}`.trim() || email || 'Account';
-  // An item that navigates also closes the phone drawer it may sit in; a navigation to
-  // the page already on screen would not move the location the drawer closes on.
-  const closeDrawer = () => setMobileMenuOpen(false);
 
+  // An item that navigates also closes the phone drawer it may sit in: a navigation to
+  // the page already on screen does not move the location the layout closes it on.
   const items: AccountPopoverEntry[] = [
     {
       id: 'settings',
       label: 'Settings',
       icon: <Settings02Icon />,
       href: routes.settings.root(),
-      onSelect: closeDrawer,
+      onSelect: closeMobileMenu,
       disabled: locked,
     },
     {
@@ -71,13 +70,22 @@ export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverPr
       label: 'Help Center',
       icon: <QuestionCircleIcon />,
       href: routes.helpCenter.root,
-      onSelect: closeDrawer,
+      onSelect: closeMobileMenu,
       disabled: locked,
     },
     { type: 'divider', id: 'divider' },
     // The per-user opt-out (`of.shell.classic`): the shell switches in place. Settings ›
-    // profile carries the way back.
-    { id: 'classic-layout', label: 'Classic layout', icon: <LayoutIcon />, onSelect: () => setClassicLayout(true) },
+    // profile carries the way back. The drawer closes first: the classic shell does not
+    // control it, so an open state left here would reopen it on the way back.
+    {
+      id: 'classic-layout',
+      label: 'Classic layout',
+      icon: <LayoutIcon />,
+      onSelect: () => {
+        closeMobileMenu();
+        setClassicLayout(true);
+      },
+    },
     { id: 'logout', label: 'Log out', icon: <Logout02Icon />, tone: 'danger', onSelect: openLogoutConfirm },
   ];
 

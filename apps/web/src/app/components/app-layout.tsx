@@ -7,7 +7,7 @@ import {
   MINGO_V2_SPLIT_WIDTH,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ClockHistoryIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   AppLayoutDrawer,
   AppLayoutDrawerContent,
@@ -58,7 +58,7 @@ import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoContentCorner } from './mingo-shell/mingo-content-corner';
 import { MingoSidebarHistory } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
-import { setMobileMenuOpen } from './mingo-shell/mobile-menu';
+import { useMobileMenuStore } from './mingo-shell/mobile-menu-store';
 import { resolveShellSlots } from './mingo-shell/shell-slots';
 import { forwardsKeyboard, useHistorySearchShortcut } from './mingo-shell/use-history-search-shortcut';
 import { useSidebarCollapsed } from './mingo-shell/use-sidebar-collapsed';
@@ -280,19 +280,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   //
   // The Mingo-first shell counts a query change as a navigation too: its chat pages
   // differ only by `?id=`, and moving to another chat from the sidebar history must
-  // not leave the drawer over it. That shell's phone drawer closes on the same
-  // trigger — a chat row, New chat or an account menu item navigates from inside it,
-  // and only the drawer's own nav rows close it on the way out.
+  // not leave the drawer over it. (That shell's phone drawer closes on the same
+  // trigger inside the layout, which watches `sidebarConfig.currentPath`.)
   //
   // `locationKey` is the intentional trigger but isn't read in the body — the
-  // close actions are read imperatively, so it isn't a dependency of theirs.
+  // close action is read imperatively, so it isn't a dependency of it.
   const locationKey = variant === 'mingo' ? `${pathname}?${search}` : pathname;
   useEffect(() => {
     closeNotificationsRef.current?.();
   }, [locationKey]);
-  useEffect(() => {
-    if (variant === 'mingo') setMobileMenuOpen(false);
-  }, [locationKey, variant]);
 
   // The lock screen renders INSIDE this shell — the chrome stays up on every lock
   // screen, `disabled`, since nothing it leads to is reachable while the lock
@@ -470,17 +466,31 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       : getNavigationItems(pathname, navigationFlags, unreadCounts, onboarding);
   }, [grouped, pathname, navigationFlags, unreadCounts, userOnboardingActive, userRemaining]);
 
+  // The breakpoint in JS, for the decisions CSS cannot make in the Mingo-first shell:
+  // which of two places MOUNTS the time tracker and the ticket alerts (the phone top bar
+  // below md, the sidebar header from md) — both exist in the DOM at every width, and
+  // the time tracker's popover follows a shared open state, so a second instance would
+  // open a second panel — and whether ⌘K opens the phone drawer. `undefined` until the
+  // query answers: neither mounts, they appear a frame late.
+  const isMdUp = useMdUp();
+
   // Mingo-first only: the desktop collapse is the shell's, so ⌘K can reveal a
   // collapsed sidebar (the classic sidebar keeps its own persisted preference — the
   // same one, under the same key).
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  // Mingo-first only: the phone drawer is the shell's too (`AppLayout` `mobileMenuOpen`),
+  // so the top bar's Chat history cell and ⌘K can open it and its slots can close it.
+  const mobileMenuOpen = useMobileMenuStore(state => state.open);
+  const setMobileMenuOpen = useMobileMenuStore(state => state.setOpen);
   const setHistorySearchOpen = useHistorySearchStore(state => state.setOpen);
   // ⌘K / Ctrl+K anywhere: the sidebar (or the phone drawer) opens on the chat-history
   // search. Not on a page that forwards the keyboard to a remote machine, and not
   // behind the paywall, where the history is not shown.
   useHistorySearchShortcut(slots.historySearchShortcut && chatEnabled && !forwardsKeyboard(pathname), () => {
     setSidebarCollapsed(false);
-    setMobileMenuOpen(true);
+    // Below md the sidebar is the phone drawer; from md up the drawer is never drawn,
+    // and an open state left there would show it on the way down.
+    if (isMdUp === false) setMobileMenuOpen(true);
     setHistorySearchOpen(true);
   });
   const currentPath = search ? `${pathname}?${search}` : pathname;
@@ -599,14 +609,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
-  // The breakpoint in JS, for the one decision CSS cannot make: which of two
-  // places MOUNTS the time tracker and the ticket alerts in the Mingo-first shell
-  // (the phone top bar below md, the content corner from md). Both places exist in
-  // the DOM at every width, and the time tracker's popover follows a shared open
-  // state, so a second instance would open a second panel. `undefined` until the
-  // query answers: neither mounts, they appear a frame late.
-  const isMdUp = useMdUp();
-
   const headerProps = useMemo(
     () => ({
       // Placeholder cells until the flags answer — and, as a side effect, until the
@@ -650,7 +652,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           ? [
               {
                 id: 'chat-history',
-                icon: <ClockHistoryIcon className="h-6 w-6" />,
+                // Not the clock: the time tracker beside it is one.
+                icon: <ChatsIcon className="h-6 w-6" />,
                 label: 'Chat history',
                 onClick: () => setMobileMenuOpen(true),
                 mobileOnly: true,
@@ -659,7 +662,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           : [],
       }),
     }),
-    [chromeLoading, chatEnabled, toggleChat, chatOpen, openHelpCenterTickets, slots.mobileMingoCells, isMdUp, router],
+    [
+      chromeLoading,
+      chatEnabled,
+      toggleChat,
+      chatOpen,
+      openHelpCenterTickets,
+      slots.mobileMingoCells,
+      isMdUp,
+      router,
+      setMobileMenuOpen,
+    ],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -806,6 +819,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               sidebarConfig={sidebarConfig}
               mobileBurgerMenuProps={mobileBurgerMenuProps}
               headerProps={headerProps}
+              // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
+              // layout still reports every open and close, and closes it on a change of
+              // `sidebarConfig.currentPath`. The classic shell leaves it to the layout.
+              mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
+              onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
               // Greys the header and nav rail out for the lock: they stay legible —
               // the user can still see where they are and reach the account menu —
               // but nothing they lead to is reachable until the workspace is paid for.

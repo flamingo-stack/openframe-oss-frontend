@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
+import { closeMobileMenu } from './mobile-menu-store';
 
 const NO_DIALOGS: DialogItem[] = [];
 const subscribeToNothing = () => () => {};
@@ -54,6 +55,12 @@ export function MingoSidebarHistory() {
 
   const { state } = chat;
   const loading = state.isDialogsLoading;
+  // In the phone drawer a navigation closes it (the layout watches the location), but
+  // the chat already open, or the archive page already on screen, moves nothing.
+  const open = (href: string) => {
+    closeMobileMenu();
+    router.push(href);
+  };
 
   const confirmRename = (title: string) => {
     if (renameTarget) void state.renameDialog(renameTarget.id, title);
@@ -80,13 +87,13 @@ export function MingoSidebarHistory() {
         variant="section"
         dialogs={state.dialogs}
         activeDialogId={state.activeDialogId ?? undefined}
-        onSelectDialog={id => router.push(routes.mingo.chat(id))}
+        onSelectDialog={id => open(routes.mingo.chat(id))}
         statusOf={chat.dialogStatusOf}
         ownedByOther={chat.dialogOwnedByOther}
         onRequestRename={setRenameTarget}
         onRequestCopyLink={dialog => void copyDialogLink(dialog)}
         onRequestArchive={setArchiveTarget}
-        onOpenArchive={() => router.push(routes.mingo.archive)}
+        onOpenArchive={() => open(routes.mingo.archive)}
         scope={state.dialogScope}
         onScopeChange={state.setDialogScope}
         searchQuery={chat.searchQuery}

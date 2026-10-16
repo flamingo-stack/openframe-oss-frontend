@@ -14,6 +14,7 @@ import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/ming
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
 import { MingoSidebarHistory } from './mingo-sidebar-history';
+import { useMobileMenuStore } from './mobile-menu-store';
 
 const { push, seen } = vi.hoisted(() => ({
   push: vi.fn<(href: string) => void>(),
@@ -141,6 +142,15 @@ describe('MingoSidebarHistory', () => {
 
     act(() => rail().onOpenArchive?.());
     expect(push).toHaveBeenLastCalledWith(routes.mingo.archive);
+  });
+
+  it('closes the phone drawer it sits in, also for the chat already open (no location change closes it)', () => {
+    render(session());
+    useMobileMenuStore.setState({ open: true });
+
+    act(() => rail().onSelectDialog?.('d-1'));
+    expect(useMobileMenuStore.getState().open).toBe(false);
+    expect(push).toHaveBeenLastCalledWith(routes.mingo.chat('d-1'));
   });
 
   it('passes scope, search and paging through to the session', () => {
