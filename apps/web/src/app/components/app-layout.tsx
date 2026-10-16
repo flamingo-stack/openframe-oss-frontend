@@ -55,7 +55,7 @@ import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
-import { MingoContentCorner } from './mingo-shell/mingo-content-corner';
+import { MingoHeaderControls } from './mingo-shell/mingo-header-controls';
 import { MingoSidebarHistory } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
 import { useMobileMenuStore } from './mingo-shell/mobile-menu-store';
@@ -495,6 +495,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   });
   const currentPath = search ? `${pathname}?${search}` : pathname;
 
+  // Receives the FULL href computed by TicketAlertsButton
+  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
+  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
+  const openHelpCenterTickets = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
+  );
+
   const sidebarConfig: NavigationSidebarConfig = useMemo(
     () =>
       grouped
@@ -519,6 +529,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // Behind the paywall Mingo is hidden altogether.
             sectionSlot: chatEnabled ? <MingoSidebarHistory /> : undefined,
             footerSlot: ({ minimized }) => <MingoAccountPopover collapsed={minimized} locked={isLocked} />,
+            // The bell, the time tracker and the ticket alerts beside the logo (stacked
+            // under the mark in the rail) — the classic header's right end. Below md the
+            // phone top bar carries them and this slot is not drawn.
+            headerSlot: slots.sidebarHeaderControls
+              ? ({ minimized }) => (
+                  <MingoHeaderControls
+                    minimized={minimized}
+                    ownsHeaderCells={isMdUp === true}
+                    disabled={showLockContent}
+                    onTicketAlerts={openHelpCenterTickets}
+                  />
+                )
+              : undefined,
             collapsed: sidebarCollapsed,
             onCollapsedChange: setSidebarCollapsed,
             className: 'h-full',
@@ -549,6 +572,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isLocked,
       sidebarCollapsed,
       setSidebarCollapsed,
+      slots.sidebarHeaderControls,
+      isMdUp,
+      showLockContent,
+      openHelpCenterTickets,
     ],
   );
 
@@ -595,16 +622,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),
     [userFirstName, userLastName],
-  );
-
-  // Receives the FULL href computed by TicketAlertsButton
-  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
-  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
-  const openHelpCenterTickets = useCallback(
-    (href: string) => {
-      router.push(href);
-    },
-    [router],
   );
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
@@ -831,22 +848,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               drawer={chatDrawer}
               sidePanel={chatSidePanel}
               topBar={topBar}
-              // The Mingo-first shell: no desktop header (the phone top bar stays);
-              // the bell, the time tracker and the ticket alerts float in the page
-              // column's corner instead; the composer is docked under every page —
-              // `null` behind the paywall, which keeps the slot (and the page's
-              // layout) while drawing nothing. All three are plain props on the same
-              // element, so switching shells never remounts the page.
+              // The Mingo-first shell: no desktop header (the phone top bar stays; the
+              // bell, the time tracker and the ticket alerts move into the sidebar
+              // header, `headerSlot` above); the composer is docked under every page —
+              // `null` behind the paywall, which keeps the slot (and the page's layout)
+              // while drawing nothing. Both are plain props on the same element, so
+              // switching shells never remounts the page.
               desktopHeader={slots.desktopHeader}
-              contentCorner={
-                slots.contentCorner ? (
-                  <MingoContentCorner
-                    ownsHeaderCells={isMdUp === true}
-                    disabled={showLockContent}
-                    onTicketAlerts={openHelpCenterTickets}
-                  />
-                ) : undefined
-              }
               composerDock={
                 slots.composerDock === 'dock' ? (
                   <MingoComposerDock />

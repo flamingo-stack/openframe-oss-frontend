@@ -16,10 +16,13 @@ export interface ShellSlotPlan {
    * placeholders either way until the chrome has its answers.
    */
   sidebar: 'flat' | 'grouped';
-  /** `AppLayout.desktopHeader`. Off in the Mingo-first shell: the bell moves to the content corner. */
+  /** `AppLayout.desktopHeader`. Off in the Mingo-first shell: the bell moves to the sidebar header. */
   desktopHeader: boolean;
-  /** The bell, time tracker and Help Center ticket alerts floating in the content corner (desktop). */
-  contentCorner: boolean;
+  /**
+   * The bell, time tracker and Help Center ticket alerts in the sidebar header beside
+   * the logo (`NavigationSidebarConfig.headerSlot`, desktop; the phone top bar keeps them).
+   */
+  sidebarHeaderControls: boolean;
   /** The classic overlay chat drawer (`mingo-v2` off). */
   chatDrawer: boolean;
   /** The classic docked chat side panel (`mingo-v2` on). */
@@ -54,7 +57,7 @@ export function resolveShellSlots({ variant, v2ChatGate, chatMounted, locked }: 
   return {
     sidebar: mingo ? 'grouped' : 'flat',
     desktopHeader: !mingo,
-    contentCorner: mingo,
+    sidebarHeaderControls: mingo,
     // While the variant is `'loading'` neither chat surface is drawn: which one it would
     // be is exactly what has not been answered yet, and a wrong first answer mounts one
     // surface and then swaps it out.
