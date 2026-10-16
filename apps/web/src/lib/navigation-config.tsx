@@ -278,10 +278,12 @@ interface NavGroup {
 
 /**
  * The Mingo-first sidebar (Figma `navigation-sidebar`, node 3741:24946): four groups,
- * then Knowledge Base / Help Center / Settings at the bottom. No Dashboard — the
- * Mingo home replaces it.
+ * then Knowledge Base as the last primary row. No Dashboard — the Mingo home replaces
+ * it — and no bottom block: Help Center and Settings live in the account menu
+ * (`MingoAccountPopover`), so the chat history below the tree gets the height (PLAN
+ * §3.6, revised after the browser pass).
  */
-const GROUPED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModuleId[] } = {
+const GROUPED_LAYOUT: { groups: readonly NavGroup[]; leaves: readonly NavModuleId[] } = {
   groups: [
     {
       id: 'inventory',
@@ -298,7 +300,7 @@ const GROUPED_LAYOUT: { groups: readonly NavGroup[]; secondary: readonly NavModu
     },
     { id: 'monitor', label: 'Monitor', icon: ActivityIcon, children: ['incidents', 'vulnerabilities', 'logs'] },
   ],
-  secondary: ['knowledge-base', 'help-center', 'settings'],
+  leaves: ['knowledge-base'],
 };
 
 /** Placeholder rows per section while the chrome loads, so the handoff moves nothing. */
@@ -306,8 +308,8 @@ export const NAVIGATION_LOADING_ROWS = {
   // 7 primary (Dashboard, Customers, Devices, Scripts, Monitoring, Logs, Tickets)
   // and 2 secondary (Knowledge Base, Settings).
   flat: { primary: 7, secondary: 2 },
-  // The four groups, and the bottom block.
-  grouped: { primary: GROUPED_LAYOUT.groups.length, secondary: GROUPED_LAYOUT.secondary.length },
+  // The four groups and Knowledge Base; no bottom block.
+  grouped: { primary: GROUPED_LAYOUT.groups.length + GROUPED_LAYOUT.leaves.length, secondary: 0 },
 } as const;
 
 function moduleShown(entry: NavModule, flags: NavigationFlags): boolean {
@@ -390,7 +392,7 @@ export const getNavigationItems = (
 function groupedLeaf(
   id: NavModuleId,
   unreadCounts: UnreadCountsByCategory | undefined,
-  { iconSize, section }: { iconSize: 16 | 20; section?: 'secondary' },
+  { iconSize }: { iconSize: 16 | 20 },
 ): NavigationSidebarItem {
   const entry: NavModule = NAV_MODULES[id];
   const Icon = entry.icon;
@@ -406,7 +408,6 @@ function groupedLeaf(
     match: entry.match ?? entry.prefixes,
     ...(entry.beta ? { badge: BETA_BADGE } : {}),
     ...(unreadCount ? { unreadCount } : {}),
-    ...(section ? { section } : {}),
   };
 }
 
@@ -451,8 +452,6 @@ export const getGroupedNavigationItems = (
       ? [{ ...groupedLeaf('onboarding', undefined, { iconSize: 20 }), unreadCount: onboarding.remaining }]
       : []),
     ...groups,
-    ...GROUPED_LAYOUT.secondary
-      .filter(shown)
-      .map(id => groupedLeaf(id, unreadCounts, { iconSize: 20, section: 'secondary' })),
+    ...GROUPED_LAYOUT.leaves.filter(shown).map(id => groupedLeaf(id, unreadCounts, { iconSize: 20 })),
   ];
 };

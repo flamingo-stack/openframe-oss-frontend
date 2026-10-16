@@ -7,6 +7,7 @@ import { NotificationCategory } from '@/generated/schema-enums';
 import {
   getGroupedNavigationItems,
   getNavigationItems,
+  NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
   type OnboardingNavState,
 } from './navigation-config';
@@ -151,17 +152,26 @@ function outline(items: NavigationSidebarItem[]): string[] {
 }
 
 describe('grouped navigation (Mingo-first shell)', () => {
-  it('arranges every module of the saas tenant in the Figma groups, with no Dashboard', () => {
+  it('arranges every module of the saas tenant in the Figma groups, then Knowledge Base, with no Dashboard', () => {
     setAppMode('saas-tenant');
     expect(outline(getGroupedNavigationItems(ALL_ON))).toEqual([
       'inventory: organizations, devices, software, integrations',
       'service-desk: tickets, worktime',
       'automation: scripts, schedules, policies, queries',
       'monitor: incidents, vulnerabilities, logs',
-      '[secondary] knowledge-base',
-      '[secondary] help-center',
-      '[secondary] settings',
+      'knowledge-base',
     ]);
+  });
+
+  it('has no bottom block: Help Center and Settings are in the account menu, so the chat history gets the height', () => {
+    setAppMode('saas-tenant');
+    const items = getGroupedNavigationItems(ALL_ON, ALL_UNREAD);
+    const ids = items.flatMap(item => [item, ...(item.children ?? [])]).map(item => item.id);
+    expect(items.some(item => item.section === 'secondary')).toBe(false);
+    expect(ids).not.toContain('help-center');
+    expect(ids).not.toContain('settings');
+    // The placeholder is as tall as the loaded tree: four groups and Knowledge Base.
+    expect(NAVIGATION_LOADING_ROWS.grouped).toEqual({ primary: 5, secondary: 0 });
   });
 
   it('keeps an oss tenant with every flag off to the ungated modules', () => {
@@ -171,9 +181,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
       'service-desk: worktime',
       'automation: scripts, schedules, policies, queries',
       'monitor: logs',
-      '[secondary] knowledge-base',
-      '[secondary] help-center',
-      '[secondary] settings',
+      'knowledge-base',
     ]);
   });
 
@@ -317,8 +325,9 @@ describe('grouped navigation (Mingo-first shell)', () => {
       '/logs-page': 'monitor/logs',
       '/log-details?id=1': 'monitor/logs',
       '/knowledge-base': 'knowledge-base',
-      '/help-center/knowledge-base': 'help-center',
-      '/settings/billing-usage': 'settings',
+      // Help Center and Settings are account-menu entries in this shell, not rows.
+      '/help-center/knowledge-base': '',
+      '/settings/billing-usage': '',
       '/notifications': '',
     });
   });
