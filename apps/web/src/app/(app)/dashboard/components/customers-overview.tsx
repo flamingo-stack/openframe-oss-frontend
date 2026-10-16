@@ -1,6 +1,7 @@
 'use client';
 
 import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
@@ -82,11 +83,10 @@ export function CustomersOverviewSection() {
             showProgress
             progressVariant="success"
             percentageDisplay="plain"
-            href={
-              org.active > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=ONLINE`
-                : `/devices?organizationIds=${org.organizationId}`
-            }
+            href={routes.devices.filtered({
+              organizationIds: [org.organizationId],
+              statuses: org.active > 0 ? [DEVICE_STATUS.ONLINE] : undefined,
+            })}
           />
 
           {/* Inactive devices */}
@@ -97,11 +97,10 @@ export function CustomersOverviewSection() {
             showProgress
             progressVariant="error"
             percentageDisplay="plain"
-            href={
-              org.inactive > 0
-                ? `/devices?organizationIds=${org.organizationId}&statuses=OFFLINE`
-                : `/devices?organizationIds=${org.organizationId}`
-            }
+            href={routes.devices.filtered({
+              organizationIds: [org.organizationId],
+              statuses: org.inactive > 0 ? [DEVICE_STATUS.OFFLINE] : undefined,
+            })}
           />
         </div>
       );

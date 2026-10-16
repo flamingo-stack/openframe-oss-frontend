@@ -2,7 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense } from 'react';
+import { type ReactNode, Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -49,13 +49,18 @@ interface OverviewSectionsProps {
    * bare list, which is what the dashboard has always linked.
    */
   filterTicketLinks?: boolean;
+  /**
+   * A section between Tickets and Customers — Mingo's home puts its Incidents here. Inside
+   * the same PageLayout and dimming as the rest, so it spaces and dims like them.
+   */
+  incidents?: ReactNode;
 }
 
 /**
  * The overview sections: Devices, Tickets (SaaS only), Customers. Shared by the
  * dashboard and Mingo's home.
  */
-export function OverviewSections({ filterTicketLinks = false }: OverviewSectionsProps) {
+export function OverviewSections({ filterTicketLinks = false, incidents }: OverviewSectionsProps) {
   const showTickets = isSaasTenantMode();
 
   // Dim (and disable) the sections ONLY while the tenant Initial Setup is active —
@@ -74,6 +79,7 @@ export function OverviewSections({ filterTicketLinks = false }: OverviewSections
       <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
         <DevicesOverviewSection />
         {showTickets && <TicketsOverviewSection filterLinks={filterTicketLinks} />}
+        {incidents}
         <CustomersOverviewSection />
       </PageLayout>
     </div>
