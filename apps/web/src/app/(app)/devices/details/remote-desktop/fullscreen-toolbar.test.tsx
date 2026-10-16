@@ -37,6 +37,11 @@ function render(chat: { open: boolean; unread?: boolean } | null) {
   );
 }
 
+const chatButton = () =>
+  Array.from(container.querySelectorAll('button')).find(button =>
+    button.getAttribute('aria-label')?.startsWith('Open chat'),
+  );
+
 const buttonLabels = () =>
   Array.from(container.querySelectorAll('button')).map(button => button.getAttribute('aria-label'));
 
@@ -75,10 +80,11 @@ describe('FullscreenToolbar', () => {
 
   it('marks the chat toggle while the end user wrote with the chat closed', () => {
     render({ open: false, unread: true });
-    expect(container.querySelector('[data-testid="chat-unread-dot"]')).not.toBeNull();
+    // The core lib's UnreadDot on the chat icon.
+    expect(chatButton()?.querySelector('.bg-ods-warning')).not.toBeNull();
     expect(buttonLabels()).toContain('Open chat (new message)');
 
     render({ open: false });
-    expect(container.querySelector('[data-testid="chat-unread-dot"]')).toBeNull();
+    expect(chatButton()?.querySelector('.bg-ods-warning')).toBeNull();
   });
 });

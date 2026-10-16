@@ -10,7 +10,7 @@ import {
   MonitorIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ChatUnreadDot } from './chat-unread-dot';
+import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 
 interface FullscreenToolbarProps {
   deviceName: string;
@@ -95,17 +95,19 @@ export function FullscreenToolbar({
             }
           />
           {onToggleChat && (
-            <span className="relative inline-flex">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                aria-label={chatOpen ? 'Close chat' : chatUnread ? 'Open chat (new message)' : 'Open chat'}
-                aria-pressed={chatOpen}
-                onClick={onToggleChat}
-                leftIcon={<ChatBlankIcon className="h-4 w-4" />}
-              />
-              {chatUnread && <ChatUnreadDot />}
-            </span>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label={chatOpen ? 'Close chat' : chatUnread ? 'Open chat (new message)' : 'Open chat'}
+              aria-pressed={chatOpen}
+              onClick={onToggleChat}
+              leftIcon={
+                <span className="relative inline-flex">
+                  <ChatBlankIcon className="h-4 w-4" />
+                  {chatUnread && <UnreadDot />}
+                </span>
+              }
+            />
           )}
           <Button
             variant="outline"

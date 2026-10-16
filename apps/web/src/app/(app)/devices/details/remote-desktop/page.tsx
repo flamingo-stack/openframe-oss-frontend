@@ -21,6 +21,7 @@ import {
   ScanXmarkIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -43,7 +44,6 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
-import { ChatUnreadDot } from './chat-unread-dot';
 import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
 import {
@@ -731,17 +731,20 @@ function RemoteDesktopSession() {
         {deviceInfoBlock}
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
           {chatDialogId && !sessionEnded && (
-            <span className="relative inline-flex">
-              <Button
-                variant="outline"
-                onClick={toggleChat}
-                leftIcon={<ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />}
-              >
-                {showChat ? 'Close Chat' : 'Open Chat'}
-                {chatUnread && <span className="sr-only"> (new message)</span>}
-              </Button>
-              {chatUnread && <ChatUnreadDot />}
-            </span>
+            <Button
+              variant="outline"
+              onClick={toggleChat}
+              leftIcon={
+                // The app's unread dot (core lib), top-right of the icon, as on the header bell.
+                <span className="relative inline-flex">
+                  <ChatsIcon className="h-4 w-4 text-ods-text-secondary md:h-6 md:w-6" />
+                  {chatUnread && <UnreadDot />}
+                </span>
+              }
+            >
+              {showChat ? 'Close Chat' : 'Open Chat'}
+              {chatUnread && <span className="sr-only"> (new message)</span>}
+            </Button>
           )}
           <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
           <Button
