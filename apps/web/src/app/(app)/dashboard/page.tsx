@@ -1,20 +1,18 @@
 'use client';
 
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
+import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import DashboardContent from './components/dashboard-content';
 
 /**
- * The classic shell's home. The Mingo-first shell's home is Mingo's, so there this
- * forwards to it, query and fragment kept (`/` and old links land here). Until the
- * variant answers it shows neither: rendering the dashboard first would flash it, and
- * start its queries, for every Mingo-first user.
+ * An OSS tenant's home. A SaaS tenant's home is Mingo's, with the same sections, so
+ * there this forwards to it, query and fragment kept (old links land here).
  */
 export default function Dashboard() {
-  const variant = useShellVariant();
-  useShellRedirect(variant === 'mingo' ? routes.mingo.home : null, { carryLocation: true });
+  const mingoHome = isSaasTenantMode();
+  useAppModeRedirect(mingoHome ? routes.mingo.home : null, { carryLocation: true });
 
-  if (variant !== 'classic') return <CompactPageLoader />;
+  if (mingoHome) return null;
   return <DashboardContent />;
 }

@@ -12,8 +12,8 @@ export interface MingoChatSnapshot {
   /** Null while nothing runs: no surface registered, the provider disabled, or the state failed. */
   chat: MingoChatState | null;
   /**
-   * Why the state stopped. Kept until every surface is gone — the same "close the
-   * panel and try again" a crash inside the drawer has always meant.
+   * Why the state stopped. Kept until every surface is gone, so a remounted surface
+   * (the dock's retry) starts a fresh state.
    */
   error: Error | null;
 }

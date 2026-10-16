@@ -5,7 +5,6 @@ import { Component, type ReactNode, useEffect, useLayoutEffect, useRef } from 'r
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { DialogSubscription } from '../hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../hooks/use-mingo-unified-chat-state';
-import { useMingoLauncherStore } from '../stores/mingo-launcher-store';
 import type { MingoChatState, MingoChatStore } from './mingo-chat-store';
 
 /**
@@ -50,36 +49,8 @@ function useDialogErrorToast({ dialogError, state: { activeDialogId, selectDialo
 }
 
 /**
- * Queued launcher prompt (`sendToMingo(prompt)` — the onboarding "Meet Mingo" chips,
- * the Help Center "Ask Mingo" card): drained straight into a fresh dialog. It needs
- * the chat state and nothing a surface draws, so it runs once per session, here.
- *
- * `sendToMingo` also opens the drawer, which is what registers a surface and starts
- * this, so in the classic shell it still fires on that open — and re-fires when a new
- * prompt is queued while the chat is already up. `consumePendingPrompt` nulls the
- * prompt as it reads it, so an open with no prompt and StrictMode's double-invoke
- * are both no-ops.
- *
- * The other two launcher requests — a draft and "start a new chat" — stay with the
- * surface: they go through the chat panel's imperative handle.
- */
-function useLauncherPromptDrain({ sendInNewDialog }: MingoChatState): void {
-  const pendingPrompt = useMingoLauncherStore(s => s.pendingPrompt);
-  const consumePendingPrompt = useMingoLauncherStore(s => s.consumePendingPrompt);
-
-  useEffect(() => {
-    if (!pendingPrompt) return;
-    const text = consumePendingPrompt();
-    if (!text) return;
-    void sendInNewDialog(text);
-  }, [pendingPrompt, consumePendingPrompt, sendInNewDialog]);
-}
-
-/**
  * The one `useMingoUnifiedChatState()` of the session, mounted by `MingoChatProvider`
- * only while a surface is registered — its mount and unmount are the surfaces', so
- * every request, poll and live tail starts and stops exactly where it did when the
- * state lived inside the drawer.
+ * only while a surface is registered — its mount and unmount are the surfaces'.
  */
 export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; onScreen: boolean }) {
   const { subscription, ...chat } = useMingoUnifiedChatState();
@@ -94,7 +65,6 @@ export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; on
   useLayoutEffect(() => () => store.reset(), [store]);
 
   useDialogErrorToast(chat);
-  useLauncherPromptDrain(chat);
 
   // Realtime tail for the active dialog — writes chunks into the shared store.
   // Gated on active + subscribed; on a remount it resubscribes and replays missed
@@ -119,11 +89,11 @@ export function MingoChatRunner({ store, onScreen }: { store: MingoChatStore; on
 }
 
 /**
- * The state now runs beside the layout instead of inside a surface, so a throw in it
- * would otherwise take the whole shell with it. Caught here and handed to the
- * surfaces (`MingoChatSnapshot.error`), which rethrow into their own boundary — the
- * same "Mingo is unavailable" panel a crash inside the drawer showed. Unmounting
- * with the last surface clears it, so closing the panel is still the retry.
+ * The state runs beside the layout, not inside a surface, so a throw in it would
+ * otherwise take the whole shell with it. Caught here and handed to the surfaces
+ * (`MingoChatSnapshot.error`), which rethrow into their own boundary — the dock's
+ * "Mingo is unavailable". Unmounting with the last surface clears it, so the dock's
+ * retry starts a fresh state.
  */
 export class MingoChatRunnerBoundary extends Component<
   { store: MingoChatStore; children: ReactNode },

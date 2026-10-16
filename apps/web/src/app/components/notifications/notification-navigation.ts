@@ -59,10 +59,9 @@ const TICKET_CHAT_TYPES = new Set<string>([
  * push, and the only thing a transport that runs OUTSIDE React (a push tap, an OS
  * toast) can act on.
  *
- * A Mingo dialog additionally carries `mingoDialogId`, because in-app it goes through
- * the dialog-open seam (`openMingoDialog` in `./open-mingo-dialog`), which decides at
- * CLICK time between the classic drawer and the chat page. Its `route` is the
- * canonical chat link, which resolves in either shell on its own.
+ * A Mingo dialog additionally carries `mingoDialogId`, for a caller that opens it
+ * through the dialog-open seam (`openMingoDialog` in `./open-mingo-dialog`). Its
+ * `route` is the canonical chat link.
  */
 export type NotificationAction = { label: string; route: string; mingoDialogId?: string };
 
@@ -76,13 +75,7 @@ const incidentAction = (insightId: string): NotificationAction => ({
   route: routes.incidents.details(ensureGlobalIdForType('Insight', insightId)),
 });
 
-/**
- * Action for a Mingo dialog: the canonical route ALWAYS, plus the dialog id.
- *
- * The route is what a transport with no seam follows (push tap, OS toast); in-app the
- * seam decides drawer vs page when the user actually acts, rather than here, where the
- * shell variant may not have answered yet.
- */
+/** Action for a Mingo dialog: the canonical chat link, plus the dialog id. */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
   label: 'Open Chat',
   route: mingoDialogRoute(dialogId),

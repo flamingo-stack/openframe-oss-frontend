@@ -86,12 +86,10 @@ import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
-  type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
 } from './notification-navigation';
-import { openMingoDialog } from './open-mingo-dialog';
 import { useApproveRequest } from './use-approve-request';
 
 const SHOW_POPUPS_STORAGE_KEY = 'of.notifications:showPopups';
@@ -233,33 +231,6 @@ interface TileHelpers {
   liveDurationMs?: number;
 }
 
-/**
- * Open what a notification points at, from either imperative surface — a clicked tile
- * or a desktop OS banner. A Mingo dialog goes through the dialog-open seam
- * (`openMingoDialog`): the classic drawer, or the chat page in the Mingo-first shell.
- *
- * Shared because the drawer branch carries a compensating step that is easy to omit:
- * it changes no URL of its own here (the sync hook stamps one a commit later), so the
- * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
- * to mark the notification read itself. Written out twice, one copy drifted from the
- * other within a single review pass. The chat page needs no such step: it is a route,
- * and the auto-reader sees the user arrive on it.
- *
- * The table's action cell does NOT use this — it needs the same decision split across
- * an `href` and an `onClick` rather than run as one statement.
- */
-function openNotificationTarget(
-  action: NotificationAction,
-  notificationId: string,
-  { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
-): void {
-  if (!action.mingoDialogId) {
-    navigate(action.route);
-    return;
-  }
-  if (openMingoDialog(action.mingoDialogId, { navigate }) === 'drawer') markRead(notificationId);
-}
-
 interface NavigationTileWrapperProps {
   notification: Notification;
   helpers: TileHelpers;
@@ -269,7 +240,7 @@ interface NavigationTileWrapperProps {
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */
 function NavigationTileWrapper({ notification, helpers, children }: NavigationTileWrapperProps) {
   const router = useRouter();
-  const { close, markRead } = useNotifications();
+  const { close } = useNotifications();
   const action = resolveNotificationAction(notification);
 
   const navigate = useCallback(
@@ -284,9 +255,9 @@ function NavigationTileWrapper({ notification, helpers, children }: NavigationTi
       close();
       // Settle (dismiss the live tile) but keep it unread until the user acts on the entity.
       helpers.onSettle(notification.id);
-      openNotificationTarget(action, notification.id, { markRead, navigate: router.push });
+      router.push(action.route);
     },
-    [action, close, markRead, helpers, notification, router],
+    [action, close, helpers, notification, router],
   );
 
   if (!action) return <>{children}</>;
@@ -578,7 +549,6 @@ function maybeShowDesktopNotification(
   title: string,
   description: string | null,
   navigate: (route: string) => void,
-  markRead: (notificationId: string) => void,
 ): void {
   // Deliberately still `visibilityState`, not `isSessionActive`: this decides whether
   // to MIRROR a notification to the OS, which is reversible and costs nothing when
@@ -613,7 +583,7 @@ function maybeShowDesktopNotification(
     });
     notification.onclick = () => {
       window.focus();
-      if (action) openNotificationTarget(action, relayId, { markRead, navigate });
+      if (action) navigate(action.route);
       notification.close();
     };
   } catch {
@@ -624,7 +594,7 @@ function maybeShowDesktopNotification(
 function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   const environment = useRelayEnvironment();
   const router = useRouter();
-  const { showDesktopPopups, markRead } = useNotifications();
+  const { showDesktopPopups } = useNotifications();
   const subject = `${NOTIFICATION_SUBJECT_PREFIX}.${userId}.${NOTIFICATION_SUBJECT_SUFFIX}`;
   const environmentRef = useRef(environment);
   // Latest-value refs, written after the commit rather than during render:
@@ -635,14 +605,12 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   });
   // Refs keep the NATS subscription callback dependency-free (no resubscribe on toggle/navigation).
   const showDesktopPopupsRef = useRef(showDesktopPopups);
-  const markReadRef = useRef(markRead);
   const routerRef = useRef(router);
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     showDesktopPopupsRef.current = showDesktopPopups;
-    markReadRef.current = markRead;
     routerRef.current = router;
   });
 
@@ -803,14 +771,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       }
 
       if (showDesktopPopupsRef.current) {
-        maybeShowDesktopNotification(
-          payload,
-          relayId,
-          title,
-          description,
-          route => routerRef.current.push(route),
-          id => markReadRef.current(id),
-        );
+        maybeShowDesktopNotification(payload, relayId, title, description, route => routerRef.current.push(route));
       }
 
       // The bucket was already bumped locally (above) so the sidebar is instantly consistent

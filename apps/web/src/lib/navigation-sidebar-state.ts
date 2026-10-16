@@ -9,6 +9,8 @@
 
 const SIDEBAR_MINIMIZED_WIDTH = 56;
 export const SIDEBAR_EXPANDED_WIDTH = 224;
+/** The Mingo-first sidebar's expanded width — a SaaS tenant's (see `AppShell`). */
+export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 
 /**
@@ -64,6 +66,10 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
 /**
  * Inline FOUC-prevention script. Runs synchronously in `<head>` before first
  * paint: reads the persisted collapse state and seeds the sidebar width var.
+ * `grouped`: the Mingo-first sidebar (a SaaS tenant), which is wider. The root
+ * layout answers it from the app mode on the SERVER: in the browser the runtime env
+ * (`window.__ENV`) lands after this script — `PublicEnvScript` goes through Next's
+ * `beforeInteractive` queue — so the script cannot ask it.
  *
  * This is the whole mechanism by which a preference that only `localStorage`
  * knows reaches the first frame. It cannot travel through React: the server
@@ -81,7 +87,10 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * `lg`, so a viewport check here would poison the DESKTOP value for anyone who
  * loaded at tablet width and then widened the window.
  */
-export const sidebarWidthFoucScript = runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${SIDEBAR_EXPANDED_WIDTH}px');}catch(e){}})();`;
+export function sidebarWidthFoucScript(grouped: boolean): string {
+  const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
+  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${expanded}px');}catch(e){}})();`;
+}
 
 // --------------------------------------------------------------------------
 // The persisted preference as a store — for a host that CONTROLS the collapse

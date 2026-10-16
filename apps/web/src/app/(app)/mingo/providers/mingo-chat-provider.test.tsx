@@ -1,17 +1,15 @@
 /**
  * Pins the session contract of `MingoChatProvider`: one chat state however many
- * surfaces read it, running only while a surface is registered (that is what keeps
- * the classic drawer's network traffic where it was), and the per-session effects —
- * launcher prompt, dialog-error toast, compaction — happening once.
+ * surfaces read it, running only while a surface is registered, and the per-session
+ * effects — dialog-error toast, compaction — happening once.
  */
 
 import { act, Component, type ReactNode, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ChatDrawerErrorBoundary } from '@/app/components/chat-drawer-error-boundary';
+import { MingoDockErrorBoundary } from '@/app/components/mingo-shell/mingo-dock-error-boundary';
 import { mingoDialogLink } from '@/lib/routes';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
-import { useMingoLauncherStore } from '../stores/mingo-launcher-store';
 import { fakeChatProbe, makeFakeChat, resetFakeChatProbe } from './__tests__/fake-mingo-chat';
 import {
   type MingoChat,
@@ -21,17 +19,10 @@ import {
   useMingoChatThreadOnScreen,
 } from './mingo-chat-provider';
 
-const {
-  toast,
-  flags,
-  watchers,
-  shell: shellVariant,
-  tenantHost,
-} = vi.hoisted(() => ({
+const { toast, flags, watchers, tenantHost } = vi.hoisted(() => ({
   toast: vi.fn(),
   flags: new Map<string, boolean>(),
   watchers: { mounted: 0 },
-  shell: { variant: 'classic' as 'loading' | 'classic' | 'mingo' },
   tenantHost: { url: 'https://acme.openframe.ai' },
 }));
 
@@ -58,7 +49,6 @@ vi.mock('@/app/components/mingo-compaction-watchers', async () => {
 });
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: (name: string) => flags.get(name) ?? false }));
-vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => shellVariant.variant }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => tenantHost.url } }));
 
 /** What each probe last read, by name. */
@@ -131,10 +121,8 @@ describe('MingoChatProvider', () => {
     flags.clear();
     seen.clear();
     watchers.mounted = 0;
-    shellVariant.variant = 'classic';
     tenantHost.url = 'https://acme.openframe.ai';
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1' }));
-    useMingoLauncherStore.setState({ pendingPrompt: null, pendingDraft: null, pendingNewChat: false });
     useMingoCompactionStore.setState({ compactingDialogIds: [] });
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -158,22 +146,22 @@ describe('MingoChatProvider', () => {
   });
 
   it('runs one chat state for two surfaces, and both read it', () => {
-    render(shell(['drawer', 'dock']));
+    render(shell(['page', 'dock']));
 
     expect(fakeChatProbe.created).toBe(1);
     expect(fakeChatProbe.mounted).toBe(1);
     expect(fakeChatProbe.liveTails).toEqual(['d-1']);
     const state = fakeChatProbe.result?.state;
-    expect(seen.get('drawer')?.chat?.state).toBe(state);
+    expect(seen.get('page')?.chat?.state).toBe(state);
     expect(seen.get('dock')?.chat?.state).toBe(state);
     // A reader beside them sees the same state without registering.
     expect(seen.get('reader')?.chat?.state).toBe(state);
     // The live tail is the provider's alone.
-    expect(seen.get('drawer')?.chat).not.toHaveProperty('subscription');
+    expect(seen.get('page')?.chat).not.toHaveProperty('subscription');
   });
 
   it('starts with the first surface and stops with the last', () => {
-    render(shell(['drawer']));
+    render(shell(['page']));
     expect(fakeChatProbe.mounted).toBe(1);
     expect(fakeChatProbe.liveTails).toEqual(['d-1']);
 
@@ -182,15 +170,15 @@ describe('MingoChatProvider', () => {
     expect(fakeChatProbe.liveTails).toEqual([]);
     expect(seen.get('reader')?.chat).toBeNull();
 
-    // A new open is a fresh state, as a remounted drawer was: nothing local carries over.
-    render(shell(['drawer']));
+    // A new surface is a fresh state: nothing local carries over.
+    render(shell(['page']));
     expect(fakeChatProbe.created).toBe(2);
     expect(fakeChatProbe.mounted).toBe(1);
     expect(fakeChatProbe.liveTails).toEqual(['d-1']);
   });
 
   it('keeps running while any surface is left', () => {
-    render(shell(['drawer', 'dock']));
+    render(shell(['page', 'dock']));
     render(shell(['dock']));
 
     expect(fakeChatProbe.created).toBe(1);
@@ -199,11 +187,11 @@ describe('MingoChatProvider', () => {
   });
 
   it('runs nothing while disabled, not even the compaction watchers', () => {
-    render(shell(['drawer'], { enabled: false }));
+    render(shell(['page'], { enabled: false }));
 
     expect(fakeChatProbe.created).toBe(0);
     expect(watchers.mounted).toBe(0);
-    expect(seen.get('drawer')).toMatchObject({ chat: null, enabled: false });
+    expect(seen.get('page')).toMatchObject({ chat: null, enabled: false });
   });
 
   it('refuses to be read outside the provider', () => {
@@ -223,38 +211,24 @@ describe('MingoChatProvider', () => {
     render(
       <MingoChatProvider enabled identityEnabled={false}>
         <p>page</p>
-        <ChatDrawerErrorBoundary>
+        <MingoDockErrorBoundary>
           <CrashingSurface />
-        </ChatDrawerErrorBoundary>
+        </MingoDockErrorBoundary>
         <Reader name="reader" />
       </MingoChatProvider>,
     );
 
     expect(container.textContent).toContain('page');
-    expect(container.textContent).toContain('Mingo is unavailable right now');
-    // The failed surface left, so nothing is registered: closing the panel is the retry.
+    expect(container.textContent).toContain('Mingo is unavailable');
+    // The failed surface left, so nothing is registered: its retry starts a fresh state.
     expect(seen.get('reader')).toMatchObject({ chat: null, error: null });
-  });
-
-  it('sends a queued launcher prompt once, into a new dialog', () => {
-    const sendInNewDialog = vi.fn(async () => {});
-    resetFakeChatProbe(makeFakeChat({ sendInNewDialog }));
-    act(() => {
-      useMingoLauncherStore.getState().sendToMingo('Check the backups');
-    });
-
-    render(shell(['drawer', 'dock']));
-
-    expect(sendInNewDialog).toHaveBeenCalledTimes(1);
-    expect(sendInNewDialog).toHaveBeenCalledWith('Check the backups');
-    expect(useMingoLauncherStore.getState().pendingPrompt).toBeNull();
   });
 
   it('toasts a dialog that does not exist once, and drops the selection', () => {
     const selectDialog = vi.fn();
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-gone', dialogError: 'MINGO_DIALOG_NOT_FOUND', selectDialog }));
 
-    render(shell(['drawer', 'dock']));
+    render(shell(['page', 'dock']));
 
     expect(toast).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Conversation not available' }));
@@ -262,12 +236,12 @@ describe('MingoChatProvider', () => {
   });
 
   it('offers compaction behind its flag, and says when one is already running', () => {
-    render(shell(['drawer']));
-    expect(seen.get('drawer')?.compactDialog).toBeUndefined();
+    render(shell(['page']));
+    expect(seen.get('page')?.compactDialog).toBeUndefined();
 
     flags.set('mingo-compact-memory', true);
-    render(shell(['drawer']));
-    const compactDialog = seen.get('drawer')?.compactDialog;
+    render(shell(['page']));
+    const compactDialog = seen.get('page')?.compactDialog;
     act(() => compactDialog?.('d-1'));
     act(() => compactDialog?.('d-1'));
 
@@ -324,22 +298,14 @@ describe('MingoChatProvider', () => {
   });
 
   describe('which dialog counts as on screen (popups, auto-read)', () => {
-    it('in the classic shell, the open dialog of any running surface', () => {
-      render(shell(['drawer']));
-
-      expect(fakeChatProbe.onScreenTails).toEqual(['d-1']);
-    });
-
-    it('in the Mingo-first shell, not while only the dock keeps the tail running', () => {
-      shellVariant.variant = 'mingo';
+    it('not while only the dock keeps the tail running', () => {
       render(shell(['dock']));
 
       expect(fakeChatProbe.liveTails).toEqual(['d-1']);
       expect(fakeChatProbe.onScreenTails).toEqual([]);
     });
 
-    it('in the Mingo-first shell, while the chat page shows the thread, and no longer once it leaves', () => {
-      shellVariant.variant = 'mingo';
+    it('the open dialog while the chat page shows the thread, and no longer once it leaves', () => {
       const withPage = (page: boolean) => (
         <MingoChatProvider enabled identityEnabled={false}>
           <Surface name="dock" />

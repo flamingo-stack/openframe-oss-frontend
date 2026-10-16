@@ -1,19 +1,15 @@
 'use client';
 
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
+import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { MingoHome } from './home/mingo-home';
 
-/**
- * Mingo's home: the landing page of the Mingo-first shell. In the classic shell it
- * is the dashboard, query and fragment kept (a `?mingoDialog=` rides along to the
- * drawer there). While the variant is unanswered it decides nothing.
- */
+/** Mingo's home: a SaaS tenant's landing page. An OSS tenant has no Mingo: there it is the dashboard. */
 export default function MingoHomePage() {
-  const variant = useShellVariant();
-  useShellRedirect(variant === 'classic' ? routes.dashboard : null, { carryLocation: true });
+  const mingo = isSaasTenantMode();
+  useAppModeRedirect(mingo ? null : routes.dashboard);
 
-  if (variant !== 'mingo') return <CompactPageLoader />;
+  if (!mingo) return null;
   return <MingoHome />;
 }

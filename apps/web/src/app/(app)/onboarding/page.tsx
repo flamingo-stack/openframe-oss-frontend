@@ -1,21 +1,18 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
+import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { OnboardingContent } from './components/onboarding-content';
 import { OnboardingSkeleton } from './components/onboarding-skeleton';
 
-/**
- * The Get Started tour — every tenant has this route. The Mingo-first shell has no
- * onboarding, so there it forwards to Mingo's home; until the variant answers it
- * shows the tour's skeleton.
- */
+/** The Get Started tour. A SaaS tenant has no onboarding: there it forwards to Mingo's home. */
 export default function OnboardingPage() {
-  const variant = useShellVariant();
-  useShellRedirect(variant === 'mingo' ? routes.mingo.home : null);
+  const mingoHome = isSaasTenantMode();
+  useAppModeRedirect(mingoHome ? routes.mingo.home : null);
 
-  if (variant !== 'classic') return <OnboardingSkeleton />;
+  if (mingoHome) return null;
   return (
     <Suspense fallback={<OnboardingSkeleton />}>
       <OnboardingContent />

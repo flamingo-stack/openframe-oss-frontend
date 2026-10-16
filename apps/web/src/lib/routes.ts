@@ -153,11 +153,10 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 // --------------------------------------------------------------------------
 
 /**
- * Query param naming the dialog open in the Mingo chat drawer.
- *
- * Not an entry in {@link routes} because it belongs to no single route: the drawer
- * floats over whatever page is showing, so this rides the CURRENT URL rather than
- * producing one. See ROUTES.md § *Cross-cutting overlay params* for the policy.
+ * Query param that named the dialog open in the Mingo chat drawer the app once had.
+ * Links written then (copied links, old bundles' notifications, bookmarks) still
+ * carry it, on any route; `MingoDialogParamBridge` forwards them to the chat page.
+ * Nothing writes it any more. See ROUTES.md § *Cross-cutting overlay params*.
  */
 export const MINGO_DIALOG_PARAM = 'mingoDialog';
 
@@ -209,15 +208,9 @@ export const routes = {
   dashboard: '/dashboard',
   onboarding: '/onboarding',
 
-  /**
-   * The Mingo-first shell (flag `mingo-first`, read through `useShellVariant()`).
-   * Each page resolves itself per variant: in the classic shell it redirects to its
-   * classic equivalent (`home` and `archive` → `/dashboard`, `chat` →
-   * `/dashboard?mingoDialog=`, where the drawer opens it), so a link to any of them
-   * is safe whichever shell the recipient runs.
-   */
+  /** Mingo — a SaaS tenant's (an OSS tenant's pages redirect to `/dashboard`). */
   mingo: {
-    /** Mingo's home — the Mingo-first shell's landing page (`/dashboard` redirects here). */
+    /** Mingo's home — a SaaS tenant's landing page (`/dashboard` redirects here). */
     home: '/mingo',
     /**
      * One conversation as a page. The dialog id rides `?id=` like every detail page
@@ -229,7 +222,7 @@ export const routes = {
     archive: '/mingo/archive',
   },
 
-  /** What needs a person's approval. Mingo-first only; the classic shell redirects it to `/notifications`. */
+  /** What needs a person's approval. SaaS only; an OSS tenant redirects it to `/notifications`. */
   approvals: '/approvals',
   helpCenter: {
     root: '/help-center',
@@ -489,14 +482,9 @@ export const routes = {
  * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
  * what "Copy chat link" writes and what a notification tap navigates to.
  *
- * It is the chat ROUTE, whichever shell the recipient runs: a sender — a push
- * payload, an OS toast, a copied link — cannot know that, so the link must resolve
- * in both. In the Mingo-first shell the page IS the chat; in the classic shell it
- * redirects to `withMingoDialog(routes.dashboard, id)`, the drawer's resting URL,
- * which the drawer's URL sync adopts. Links written by older bundles
- * (`/dashboard?mingoDialog=`) keep working the other way round: the classic shell
- * adopts them as before, and the Mingo-first shell's `MingoDialogParamBridge`
- * forwards `?mingoDialog=` on any route to this page.
+ * It is the chat ROUTE. Links written by older bundles (`/dashboard?mingoDialog=`)
+ * keep working: `MingoDialogParamBridge` forwards `?mingoDialog=` on any route to
+ * this page.
  */
 export function mingoDialogLink(dialogId: string): string {
   return routes.mingo.chat(dialogId);

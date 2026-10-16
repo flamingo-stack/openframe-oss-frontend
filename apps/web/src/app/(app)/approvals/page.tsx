@@ -1,18 +1,15 @@
 'use client';
 
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
+import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { ApprovalsView } from './approvals-view';
 
-/**
- * What needs a person's approval, a page of the Mingo-first shell. The classic shell
- * surfaces approval requests as notifications, so there this lands on Notifications.
- */
+/** What needs a person's approval. An OSS tenant has no approval requests: there it is Notifications. */
 export default function ApprovalsPage() {
-  const variant = useShellVariant();
-  useShellRedirect(variant === 'classic' ? routes.notifications() : null);
+  const saas = isSaasTenantMode();
+  useAppModeRedirect(saas ? null : routes.notifications());
 
-  if (variant !== 'mingo') return <CompactPageLoader />;
+  if (!saas) return null;
   return <ApprovalsView />;
 }

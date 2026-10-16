@@ -60,7 +60,7 @@ describe('settleApprovalCaches', () => {
   it('takes the request off the board lane and the chat list, and refreshes its ticket', () => {
     const queryClient = new QueryClient();
     const laneKey = dialogsQueryKeys.boardColumn('s-tech', {});
-    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all', withPendingApproval: true });
+    const listKey = mingoDialogQueryKeys.list({ limit: 20, scope: 'all' });
     queryClient.setQueryData(laneKey, lanePage('ar-1'));
     queryClient.setQueryData(listKey, chatList);
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');

@@ -6,8 +6,8 @@ import { Component, type ReactNode } from 'react';
 /**
  * The composer dock's guard: a crash in the chat (the lib panel, or the session's
  * chat state rethrown by the dock) shows "Mingo is unavailable" in the dock's place
- * instead of taking the shell with it — the drawer's `ChatDrawerErrorBoundary`
- * message, with a retry, because the dock cannot be closed and reopened.
+ * instead of taking the shell with it, with a retry, because the dock cannot be
+ * closed and reopened.
  *
  * Retry remounts the dock. A crashed chat STATE recovers with it: the crash
  * unmounted the dock, the last surface, so the provider has already dropped the

@@ -2,8 +2,8 @@
 
 import { PlusCircleIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { NavigationSidebarActionRow } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { usePathname, useRouter } from 'next/navigation';
-import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { usePathname } from 'next/navigation';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { closeMobileMenu } from './mobile-menu-store';
 import { usePendingApprovalCount } from './use-pending-approval-count';
@@ -24,18 +24,16 @@ interface MingoSidebarRowsProps {
  * which New chat on home and Needs approval on its own page are not).
  */
 export function MingoSidebarRows({ minimized, disabled }: MingoSidebarRowsProps) {
-  const router = useRouter();
   const pathname = usePathname();
-  const { chat } = useMingoChat();
   const pendingApprovals = usePendingApprovalCount();
   const onApprovals = pathname === routes.approvals || (pathname?.startsWith(`${routes.approvals}/`) ?? false);
 
-  // "New chat": the composer stops continuing the chat selected in the sidebar (the
-  // dock's continue-vs-new rule) and the user lands on Mingo's home with it empty.
+  // "New chat": Mingo's home with a new, empty chat. Through the dock, which goes home
+  // first and resets the chat there: reset here, the chat page still on screen would
+  // draw the empty new chat until the navigation lands.
   const startNewChat = () => {
-    void chat?.state.startNewDialog();
+    useMingoLauncherStore.getState().startNewChat();
     closeMobileMenu();
-    router.push(routes.mingo.home);
   };
 
   return (

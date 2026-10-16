@@ -26,11 +26,10 @@ interface MingoAccountPopoverProps {
 
 /**
  * The account row at the foot of the Mingo-first sidebar (`footerSlot`) — the avatar and
- * the name, no workspace host — and the menu it opens: Settings, Help Center and Log out (the same confirm modal the Settings page
- * opens). Unread support replies add "Support replies" with their count, opening the
- * ticket with the newest one (as the classic header's ticket alerts cell did), and the
- * unread dot on the avatar. The "Classic layout" opt-out is in Settings › profile only. Also drawn at the
- * foot of the phone drawer.
+ * the name, no workspace host — and the menu it opens: Settings, Help Center and Log out
+ * (the same confirm modal the Settings page opens). Unread support replies add "Support
+ * replies" with their count, opening the ticket with the newest one, and the unread dot
+ * on the avatar. Also drawn at the foot of the phone drawer.
  */
 export function MingoAccountPopover({ collapsed, locked }: MingoAccountPopoverProps) {
   const firstName = useAuthStore(state => state.user?.firstName);

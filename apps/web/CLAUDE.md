@@ -220,7 +220,7 @@ Helper functions: `isOssTenantMode()`, `isSaasTenantMode()`, `isSaasSharedMode()
 
 ### Feature Flags
 
-Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `cancel-subscription`, `insights`, `software-management`, `remote-access-approval`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`. `mingo-first` is the one flag never read directly: see Mingo-first Shell below.
+Flags are **server-loaded**, not env-based. Names defined in `src/lib/feature-flags.ts` (e.g. `billings`, `cancel-subscription`, `insights`, `software-management`, `remote-access-approval`); fetched via the `feFeatureFlags(names:)` GraphQL query (`src/app/hooks/use-feature-flags-query.ts`) into `src/stores/feature-flags-store.ts`. `src/components/feature-flags-loader.tsx` runs that query but does NOT gate render: read a flag through `useFeatureFlagGate` (tri-state `loading | on | off`) wherever a wrong value would be visible or would redirect, and render the loading branch — see `src/app/hooks/use-feature-flag.ts`.
 
 ### Route Registry (MANDATORY)
 
@@ -255,15 +255,15 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). The Mingo-first shell forwards it to `/mingo`, whose home carries the same sections
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). An OSS tenant's home; a SaaS tenant forwards both to `/mingo`, whose home carries the same sections
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
 - **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`, Schedules under `/scripts/schedules/*` (not feature-flagged)
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
-- **Mingo** — Admin AI assistant chat. Classic shell: the in-layout drawer, or the docked side panel with flag `mingo-v2`. Mingo-first shell: `/mingo` (home), `/mingo/chat?id=`, `/mingo/archive` — see below
-- **Needs approval** (`/approvals`) — Mingo-first shell only: pending Mingo and ticket approval requests
+- **Mingo** (`/mingo` home, `/mingo/chat?id=`, `/mingo/archive`) — Admin AI assistant chat (saas-tenant only) — see Mingo-first Shell below
+- **Needs approval** (`/approvals`) — saas-tenant only: pending Mingo and ticket approval requests
 - **Knowledge Base** (`/knowledge-base`) — Articles/folders (fully Relay)
 - **Help Center** (`/help-center/*`) — Content pages via core-lib `help-center-pages`
 - **Worktime** (`/worktime`) — Time entries
@@ -272,27 +272,20 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Settings** (`/settings/*`) — ai-settings, api-keys, architecture (OSS-only), billing-usage (flag `billings`), employees, sso
 - **Checkout** (`/checkout/success|cancel`) — Stripe checkout result pages
 
-### Mingo-first Shell (flag `mingo-first`)
+### Mingo-first Shell (SaaS tenants)
 
-The app opens on Mingo (`/mingo`), chats are pages, and the composer is docked under every page. With
-the flag off, or the user opted out, the classic shell renders exactly as before.
+A SaaS tenant opens on Mingo (`/mingo`), chats are pages, and the composer is docked under every page.
+An OSS tenant has no Mingo and keeps the dashboard shell (flat sidebar, desktop header, onboarding).
+There is no switch between the two: `AppShell` picks by `isSaasTenantMode()`, known before the first
+paint, so nothing waits for a flag and no page shows a loader on the way.
 
-- **Never read the flag directly.** `useShellVariant(): 'loading' | 'classic' | 'mingo'`
-  (`app/hooks/use-shell-variant.ts`, pure logic in `lib/shell-variant.ts`) folds in the per-user
-  **"Classic layout"** opt-out (`useClassicLayout()`, offered in the account popover and the Settings
-  profile card) and a dev-only override, `localStorage['of.dev.shell'] = 'mingo' | 'classic'` (ignored
-  in production builds; it replaces the flag's value, never its wait). `'loading'` renders a loading
-  state and never redirects. "Is the v2 chat look on" is `useMingoV2ChatGate()`, not `mingo-v2`.
-- **One layout, per-variant slots.** `AppShell` renders one `CoreAppLayout` in every variant and
-  `resolveShellSlots()` (`components/mingo-shell/shell-slots.ts`) picks each slot: sidebar variant,
-  desktop header, sidebar header controls, composer dock, drawer / side panel, the `?mingoDialog=`
-  owner. Never swap the layout element per variant — that remounts the page.
-- **Routes**: `/mingo`, `/mingo/chat?id=`, `/mingo/archive`, `/approvals`; each resolves to its
-  classic counterpart in the other shell (ROUTES.md, "Shell-specific routes"). Open a chat only through
-  `openMingoDialog(id)` (`components/notifications/open-mingo-dialog.ts`: the drawer in classic, the
-  chat page otherwise); a link to one is `mingoDialogLink(id)`.
+- **Routes**: `/mingo`, `/mingo/chat?id=`, `/mingo/archive`, `/approvals`; on an OSS tenant each
+  redirects (`useAppModeRedirect`, ROUTES.md "App-mode routes"). Open a chat only through
+  `openMingoDialog(id)` (`components/notifications/open-mingo-dialog.ts`); a link to one is
+  `mingoDialogLink(id)`. "Start a new chat", a prompt or a draft goes through the launcher store
+  (`mingo-launcher-store.ts`), which the dock drains.
 - **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
-  `AppShell` in both shells) runs the dialog list, the open dialog, its live tail and the compaction
+  `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
   watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is
   mounted); a reader beside it calls `useMingoChat()`. Nothing else calls `useMingoUnifiedChatState()`:
   a second call is a second poll and a second live tail applying every chunk twice.
@@ -301,7 +294,7 @@ the flag off, or the user opted out, the classic shell renders exactly as before
   the dock portals the header and thread into it: `threadContainer` is that node or `null`, **never
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
-  goes into `useOpenframeChatProps()`, which every chat surface of both shells shares.
+  goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
   history, account popover); Mingo's home in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`
   and `components/approvals/`.
@@ -319,7 +312,7 @@ src/
 │   │   ├── mingo/         # chat state (providers/, hooks/, stores/) + Mingo-first home/, chat/, archive/
 │   │   ├── approvals/     # Mingo-first Needs approval page
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
-│   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, use-shell-variant, …)
+│   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, use-app-mode-redirect, …)
 │   └── components/        # Shared components (notifications provider, subscription-lock, shared tables,
 │                          #   app-layout.tsx = AppShell, mingo-shell/ = Mingo-first shell UI)
 ├── components/            # Root-level shared (route-guard, feature-flags-loader, assignments/)
@@ -1066,14 +1059,12 @@ from the installed package. Edit the rules in the core lib, not here:
 
 ### Content Area Breakpoints (page content follows its own width)
 
-With flag `mingo-v2` Mingo is docked into `AppLayout` as a resizable right column (`sidePanel`,
-`src/app/components/mingo-side-panel.tsx`): the window stays wide while the page gets narrow; the
-Mingo-first shell's composer dock makes `<main>` a content area too. Page content therefore lays out
-by the width of `<main>`, not the window. The full rule is "Content area breakpoints" in the ODS rules
+The Mingo-first shell's composer dock makes `<main>` a content area: page content lays out by the
+width of `<main>`, not the window. The full rule is "Content area breakpoints" in the ODS rules
 above; what it means here:
 
 - **Page content uses `content-md:` / `content-lg:`** (720 / 1024px of content; also `content-sm/xl/2xl`,
-  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (flag off, overlays portalled to
+  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (an OSS tenant, overlays portalled to
   `<body>`) they fall back to the viewport's 800 / 1280px, so they are always safe in page content.
 - **Window chrome keeps `md:` / `lg:`**: header, navigation, modals, sheets, drawers, dropdowns,
   toasts, fixed bars. Never mix `md:` and `content-md:` on one property of one element.

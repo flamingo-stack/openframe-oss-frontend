@@ -244,6 +244,15 @@ export default defineConfig([
   },
 
   {
+    // The sidebar's pre-paint seed is a string the root layout inlines into `<head>`;
+    // its test runs that string the way the browser does. `no-new-func` assumes the
+    // source is untrusted or dynamic; here it is our own constant.
+    name: 'openframe-frontend/inline-head-script-test',
+    files: ['src/lib/navigation-sidebar-state.test.ts'],
+    rules: { 'no-new-func': 'off' },
+  },
+
+  {
     // The MSP logo is a static SVG served from /public, and the component's whole
     // contract is that the CALLER sizes it through `className`. `next/image`
     // refuses to render without intrinsic width/height and does not optimize SVG

@@ -1,7 +1,8 @@
 /**
- * The routes that belong to one shell resolve themselves in the other: each renders
- * its page in its own variant, redirects to its classic equivalent on a definite
- * classic answer, and decides nothing while the variant is unanswered.
+ * The routes that exist in one app mode resolve themselves in the other: a SaaS
+ * tenant's home is Mingo's (the dashboard and the tour forward to it), and an OSS
+ * tenant has no Mingo (its pages forward to the dashboard, approvals to notifications).
+ * App mode is synchronous, so nothing waits and nothing draws a loader.
  */
 
 import type { ComponentType } from 'react';
@@ -9,23 +10,27 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import ApprovalsPage from './approvals/page';
 import Dashboard from './dashboard/page';
 import MingoArchivePage from './mingo/archive/page';
 import MingoChatPage from './mingo/chat/page';
 import MingoHomePage from './mingo/page';
+import OnboardingPage from './onboarding/page';
 
-const replace = vi.hoisted(() => vi.fn<(href: string) => void>());
+const { replace, mode } = vi.hoisted(() => ({
+  replace: vi.fn<(href: string) => void>(),
+  mode: { saas: true },
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace }),
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOriginal => ({
+vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
-  CompactPageLoader: () => <p>loader</p>,
+  isSaasTenantMode: () => mode.saas,
 }));
 vi.mock('@/app/(app)/dashboard/components/dashboard-content', () => ({ default: () => <p>dashboard</p> }));
+vi.mock('@/app/(app)/onboarding/components/onboarding-content', () => ({ OnboardingContent: () => <p>tour</p> }));
 vi.mock('@/app/(app)/mingo/home/mingo-home', () => ({ MingoHome: () => <p>mingo home</p> }));
 vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
   MingoChatView: ({ dialogId }: { dialogId: string }) => <p>chat {dialogId}</p>,
@@ -42,7 +47,6 @@ let root: Root;
 
 beforeEach(() => {
   replace.mockReset();
-  useFeatureFlagsStore.getState().reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -54,30 +58,14 @@ afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 
-function renderAt(url: string, Page: ComponentType, mingoFirst?: boolean) {
+function renderAt(url: string, Page: ComponentType, saas: boolean) {
+  mode.saas = saas;
   window.history.replaceState(null, '', url);
-  if (mingoFirst !== undefined) {
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-first', enabled: mingoFirst }]);
-  }
   act(() => root.render(<Page />));
 }
 
-describe('while the variant is unanswered', () => {
-  it.each([
-    ['/mingo', MingoHomePage],
-    [`/mingo/chat?id=${RAW}`, MingoChatPage],
-    ['/mingo/archive', MingoArchivePage],
-    ['/approvals', ApprovalsPage],
-    ['/dashboard', Dashboard],
-  ] as const)('%s shows a loader and redirects nowhere', (url, Page) => {
-    renderAt(url, Page);
-    expect(container.textContent).toBe('loader');
-    expect(replace).not.toHaveBeenCalled();
-  });
-});
-
-describe('the Mingo-first shell', () => {
-  it('renders its own pages', () => {
+describe('a SaaS tenant', () => {
+  it('renders the Mingo pages', () => {
     renderAt('/mingo', MingoHomePage, true);
     expect(container.textContent).toBe('mingo home');
     renderAt(`/mingo/chat?id=${RAW}`, MingoChatPage, true);
@@ -89,14 +77,21 @@ describe('the Mingo-first shell', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('forwards the dashboard to Mingo home, query and fragment kept', () => {
+  it('forwards the dashboard to Mingo home, query and fragment kept, drawing nothing', () => {
     renderAt('/dashboard?mingoDialog=d-1#top', Dashboard, true);
-    expect(container.textContent).toBe('loader');
+    expect(container.textContent).toBe('');
     expect(replace).toHaveBeenCalledWith('/mingo?mingoDialog=d-1#top');
+  });
+
+  it('forwards the tour to Mingo home', () => {
+    renderAt('/onboarding', OnboardingPage, true);
+    expect(container.textContent).toBe('');
+    expect(replace).toHaveBeenCalledWith('/mingo');
   });
 
   it('swaps a Relay global chat id in the URL for the raw one', () => {
     renderAt(`/mingo/chat?id=${toGlobalId('Dialog', RAW)}`, MingoChatPage, true);
+    expect(container.textContent).toBe('');
     expect(replace).toHaveBeenCalledWith(`/mingo/chat?id=${RAW}`);
   });
 
@@ -106,27 +101,24 @@ describe('the Mingo-first shell', () => {
   });
 });
 
-describe('the classic shell', () => {
-  it('renders the dashboard', () => {
+describe('an OSS tenant', () => {
+  it('renders the dashboard and the tour', () => {
     renderAt('/dashboard', Dashboard, false);
     expect(container.textContent).toBe('dashboard');
+    renderAt('/onboarding', OnboardingPage, false);
+    expect(container.textContent).toBe('tour');
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('sends Mingo home to the dashboard, query and fragment kept', () => {
-    renderAt('/mingo?mingoDialog=d-1#top', MingoHomePage, false);
-    expect(replace).toHaveBeenCalledWith('/dashboard?mingoDialog=d-1#top');
-  });
-
-  it('opens a chat link in the drawer over the dashboard', () => {
-    renderAt(`/mingo/chat?id=${toGlobalId('Dialog', RAW)}`, MingoChatPage, false);
-    expect(replace).toHaveBeenCalledWith(`/dashboard?mingoDialog=${RAW}`);
-  });
-
-  it('sends the archive to the dashboard and approvals to notifications', () => {
+  it('sends the Mingo pages to the dashboard and approvals to notifications', () => {
+    renderAt('/mingo', MingoHomePage, false);
+    expect(replace).toHaveBeenLastCalledWith('/dashboard');
+    renderAt(`/mingo/chat?id=${RAW}`, MingoChatPage, false);
+    expect(replace).toHaveBeenLastCalledWith('/dashboard');
     renderAt('/mingo/archive', MingoArchivePage, false);
     expect(replace).toHaveBeenLastCalledWith('/dashboard');
     renderAt('/approvals', ApprovalsPage, false);
     expect(replace).toHaveBeenLastCalledWith('/notifications');
+    expect(container.textContent).toBe('');
   });
 });

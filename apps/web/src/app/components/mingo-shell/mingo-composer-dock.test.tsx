@@ -2,8 +2,8 @@
  * The Mingo-first composer dock: the session's one `EmbeddableChat`, laid out per
  * route — the thread portalled into the chat page's node (an element there, `null`
  * everywhere else, never `undefined`), Compact under the input off home, no memory
- * strip on full-width pages — plus the launcher drain, the paywall and its own crash
- * fallback.
+ * strip on full-width pages — plus the launcher drain, the locked composer that holds
+ * its place while the chat loads, and its own crash fallback.
  */
 
 import { act, forwardRef, type ReactElement, type ReactNode, useEffect, useImperativeHandle } from 'react';
@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
@@ -25,7 +26,6 @@ const {
   identity,
   chips,
   CONTEXT_MEMORY,
-  RESET_ONBOARDING_ITEMS,
   CAPABILITIES,
   PENDING_APPROVALS,
   RENDER_MENTION,
@@ -34,6 +34,10 @@ const {
   panel: {
     props: null as Record<string, unknown> | null,
     mounts: 0,
+    /** The chat module has loaded: the handle exists. */
+    loaded: true,
+    /** The locked composer's props, while it draws. */
+    loading: null as Record<string, unknown> | null,
     startNewChat: vi.fn(),
     prefillDraft: vi.fn(),
   },
@@ -44,7 +48,6 @@ const {
   identity: { enabled: null as boolean | null },
   chips: { onSend: null as ((text: string) => void) | null },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
-  RESET_ONBOARDING_ITEMS: [{ id: 'reset-onboarding', label: 'Reset Onboarding' }],
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
   PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
   RENDER_MENTION: () => null,
@@ -53,7 +56,12 @@ const {
 
 vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   EmbeddableChat: forwardRef<unknown, Record<string, unknown>>(function FakeEmbeddableChat(props, ref) {
-    useImperativeHandle(ref, () => ({ startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft }), []);
+    const { loaded } = panel;
+    useImperativeHandle(
+      ref,
+      () => (loaded ? { startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft } : null),
+      [loaded],
+    );
     useEffect(() => {
       panel.mounts += 1;
     }, []);
@@ -64,6 +72,14 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     identity.enabled = enabled;
     return children;
   },
+  ChatComposer: (props: Record<string, unknown>) => {
+    panel.loading = props;
+    return <p>locked composer</p>;
+  },
+  ModelDisplaySkeleton: () => null,
+}));
+vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
+  LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({ PackageCheckIcon: () => null }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
@@ -94,23 +110,18 @@ vi.mock('./mingo-dock-quick-actions', () => ({
     return null;
   },
 }));
-// The shared builder is the classic entry's (tested there); here: what the dock asks of it.
-vi.mock('../openframe-embeddable-chat-entry', () => ({
-  OpenframeEmbeddableChatEntry: () => null,
+// The props builder has tests of its own; here: what the dock asks of it.
+vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {
     builder.lastOptions = options;
     return {
-      props: {
-        mingoState: { fromBuilder: true },
-        contextMemory: CONTEXT_MEMORY,
-        contextPicker: { fromBuilder: true },
-        chatMenuExtraItems: RESET_ONBOARDING_ITEMS,
-        mingoDialogCapabilities: CAPABILITIES,
-        pendingApprovals: PENDING_APPROVALS,
-        renderMention: RENDER_MENTION,
-        renderContextItem: RENDER_CONTEXT_ITEM,
-      },
-      overlays: null,
+      mingoState: { fromBuilder: true },
+      contextMemory: CONTEXT_MEMORY,
+      contextPicker: { fromBuilder: true },
+      mingoDialogCapabilities: CAPABILITIES,
+      pendingApprovals: PENDING_APPROVALS,
+      renderMention: RENDER_MENTION,
+      renderContextItem: RENDER_CONTEXT_ITEM,
     };
   },
 }));
@@ -174,18 +185,15 @@ describe('MingoComposerDock', () => {
     vi.clearAllMocks();
     panel.props = null;
     panel.mounts = 0;
+    panel.loaded = true;
+    panel.loading = null;
     builder.lastOptions = null;
     shell.mobile = false;
     identity.enabled = null;
     setSurface();
-    useChatPageNodeStore.setState({ node: null });
-    useMingoLauncherStore.setState({
-      dockMounted: false,
-      dockRequest: null,
-      pendingDraft: null,
-      pendingPrompt: null,
-      pendingNewChat: false,
-    });
+    useChatPageNodeStore.setState({ node: null, chatMounted: false });
+    useFeatureFlagsStore.getState().reset();
+    useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -273,9 +281,8 @@ describe('MingoComposerDock', () => {
     expect(props().composerPreviewText).toBeNull();
   });
 
-  it('builds its chat with the shared builder, Compact left out of the chat menus', () => {
+  it('builds its chat with the props builder, through its own send', () => {
     render('/devices/');
-    expect(builder.lastOptions).toMatchObject({ v2: true, compactDialog: undefined });
     // Quick actions start their chat through the follow-wrapped send, not the raw one.
     expect(typeof builder.lastOptions?.sendInNewDialog).toBe('function');
     expect(builder.lastOptions?.sendInNewDialog).not.toBe(sendInNewDialog);
@@ -284,10 +291,9 @@ describe('MingoComposerDock', () => {
     expect(props().mingoState).not.toHaveProperty('fromBuilder');
   });
 
-  it("hands the chat page header the builder's ⋯ extras and dialog actions (Reset Onboarding, Unarchive)", () => {
+  it("hands the chat page header the builder's dialog actions (Unarchive)", () => {
     useChatPageNodeStore.setState({ node: document.createElement('div') });
     render('/mingo/chat/');
-    expect(props().chatMenuExtraItems).toBe(RESET_ONBOARDING_ITEMS);
     expect(props().mingoDialogCapabilities).toBe(CAPABILITIES);
   });
 
@@ -347,13 +353,12 @@ describe('MingoComposerDock', () => {
   });
 
   describe('Compact under the input', () => {
-    type CompactButton = ReactElement<{ onClick: () => void; children: ReactNode }>;
+    type CompactButton = ReactElement<{ onClick: () => void }>;
     const compact = () => (props().composerFooterActions as CompactButton).props;
 
     it('offers Compact chat memory for the open chat', () => {
       setSurface({ activeDialogId: 'd-1' });
       render('/devices/');
-      expect(compact()).toMatchObject({ children: 'Compact chat memory' });
       act(() => compact().onClick());
       expect(compactDialog).toHaveBeenCalledWith('d-1');
       // Not in a ⋯ of the input row any more.
@@ -366,9 +371,16 @@ describe('MingoComposerDock', () => {
     });
 
     it('is absent while the compact flag is off', () => {
+      useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-compact-memory', enabled: false }]);
       setSurface({ activeDialogId: 'd-1', compact: false });
       render('/mingo/chat/');
       expect(props().composerFooterActions).toBeUndefined();
+    });
+
+    it("keeps Compact's height while its flag has not answered, so the row does not grow", () => {
+      setSurface({ activeDialogId: 'd-1', compact: false });
+      render('/mingo/chat/');
+      expect((props().composerFooterActions as ReactElement<{ className: string }>).props.className).toContain('h-6');
     });
   });
 
@@ -403,10 +415,32 @@ describe('MingoComposerDock', () => {
     expect(identity.enabled).toBe(false);
   });
 
-  it('renders nothing behind the paywall or before the session', () => {
-    setSurface({ enabled: false });
-    render('/devices/');
-    expect(panel.props).toBeNull();
+  describe('while the chat is not up', () => {
+    it('holds its place with the composer, locked, before the session', () => {
+      setSurface({ enabled: false });
+      render('/devices/');
+
+      expect(panel.props).toBeNull();
+      expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo about this page…' } });
+      expect(container.textContent).toBe('locked composer');
+    });
+
+    it('keeps it until the chat module has loaded, then hands over — and tells the chat page', () => {
+      panel.loaded = false;
+      render('/mingo/');
+      expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo or describe a task…' } });
+      expect(container.textContent).toContain('locked composer');
+      expect(useChatPageNodeStore.getState().chatMounted).toBe(false);
+
+      panel.loaded = true;
+      render('/mingo/');
+      expect(container.textContent).not.toContain('locked composer');
+      expect(useChatPageNodeStore.getState().chatMounted).toBe(true);
+
+      act(() => root.unmount());
+      root = createRoot(container);
+      expect(useChatPageNodeStore.getState().chatMounted).toBe(false);
+    });
   });
 
   it('shows "Mingo is unavailable" with a retry when the chat crashes, not a blank shell', () => {
@@ -448,7 +482,17 @@ describe('MingoComposerDock', () => {
       expect(panel.prefillDraft).toHaveBeenCalledTimes(1);
       expect(panel.prefillDraft).toHaveBeenCalledWith(draft);
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
-      expect(useMingoLauncherStore.getState().isOpen).toBe(false);
+    });
+
+    it('New chat from a chat page: home first, the reset only there — the page never draws the empty chat', () => {
+      render('/mingo/chat/');
+      act(() => useMingoLauncherStore.getState().startNewChat());
+
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.home);
+      expect(panel.startNewChat).not.toHaveBeenCalled();
+
+      render('/mingo/');
+      expect(panel.startNewChat).toHaveBeenCalledTimes(1);
     });
 
     it('start a new chat: already on home, stays there', () => {
@@ -462,7 +506,7 @@ describe('MingoComposerDock', () => {
       render('/onboarding/');
       act(() => useMingoLauncherStore.getState().sendToMingo('What can you do?'));
       expect(sendInNewDialog).toHaveBeenCalledWith('What can you do?');
-      expect(useMingoLauncherStore.getState().pendingPrompt).toBeNull();
+      expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });
   });
 });

@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { ChatMessageListSkeleton } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   ChatExclamationIcon,
   ChatXmarkIcon,
@@ -88,11 +90,41 @@ export function MingoChatView({ dialogId }: { dialogId: string }) {
  * real height (the thread scrolls inside it) and nothing clipping above it: the
  * thread's own menus and modals open inside it. The ref callback publishes the node
  * on mount and `null` on unmount, which hands the dock back its composer-only form.
+ * Until the dock's chat has loaded (a cold start on a chat link) nothing portals in,
+ * so the slot draws the chat's skeleton.
  */
 function ChatThreadSlot() {
   useMingoChatThreadOnScreen();
   const setNode = useChatPageNodeStore(s => s.setNode);
-  return <div ref={setNode} data-testid="mingo-chat-thread-slot" className="flex h-full min-h-0 flex-1 flex-col" />;
+  const chatMounted = useChatPageNodeStore(s => s.chatMounted);
+  return (
+    <div ref={setNode} data-testid="mingo-chat-thread-slot" className="flex h-full min-h-0 flex-1 flex-col">
+      {!chatMounted && <ChatThreadSkeleton />}
+    </div>
+  );
+}
+
+/**
+ * The portalled chat's header and thread, loading: the 56px header row (title, then the
+ * ⋯ cell) and the lib's message skeleton in the thread's padding — the chat's own
+ * geometry, so nothing moves when it lands.
+ */
+function ChatThreadSkeleton() {
+  return (
+    <LoadingRegion label="Loading the conversation" className="flex h-full min-h-0 w-full min-w-0 flex-col">
+      <div className="flex h-14 w-full shrink-0 border-b border-ods-border">
+        <div className="flex min-w-0 flex-1 items-center px-[var(--spacing-system-m)]">
+          <UnifiedSkeleton className="h-5 w-48 max-w-full" />
+        </div>
+        <div className="flex size-14 shrink-0 items-center justify-center border-l border-ods-border">
+          <UnifiedSkeleton className="size-6" />
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-[var(--spacing-system-m)]">
+        <ChatMessageListSkeleton region={false} fullWidth className="flex-1" />
+      </div>
+    </LoadingRegion>
+  );
 }
 
 function ChatPageState({

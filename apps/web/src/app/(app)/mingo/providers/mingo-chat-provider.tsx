@@ -4,11 +4,9 @@
  * MingoChatProvider — the Mingo chat state, once per session, for every surface
  * that shows it.
  *
- * The state used to be built inside the chat panel (`OpenframeEmbeddableChatEntry`
- * called `useMingoUnifiedChatState()` and rendered `<DialogSubscription>`), so it
- * existed only while that panel was mounted, and a second surface would have built
- * a second copy — two list polls, two live tails applying every chunk twice. The
- * provider owns the one copy; a surface registers itself (`useMingoChatSurface`)
+ * A second copy of the state would be a second list poll and a second live tail
+ * applying every chunk twice, so the provider owns the one copy; a surface — the
+ * composer dock, for the whole session — registers itself (`useMingoChatSurface`)
  * and reads it.
  *
  * ## What runs when
@@ -17,30 +15,22 @@
  *   watchers, which send nothing until a compaction is started.
  * - `enabled` and at least one surface registered: the state — the dialog list
  *   (polled), the open dialog and its history, the slash-command catalog, the AI
- *   model, the live tail of the open dialog (which also marks it "on screen" for
- *   the notification popups), the dialog-error toast and the launcher-prompt drain.
- *   It mounts with the first surface and unmounts with the last, and does not keep
- *   its local state in between (search term, list scope, live model): exactly the
- *   lifetime it had inside the drawer.
- *
- * The classic shell's only surface is the chat panel, registered while it is
- * mounted (the overlay drawer while open, the docked v2 panel while shown), so the
- * network traffic is the same as before. A surface that stays mounted for the whole
- * session keeps all of it running for the whole session.
+ *   model, the live tail of the open dialog and the dialog-error toast. It mounts
+ *   with the first surface and unmounts with the last, and does not keep its local
+ *   state in between (search term, list scope, live model).
  *
  * ## Subscribed is not on screen
  *
  * The live tail also marks the open dialog "on screen" (`active-dialog-views`): its
- * notifications skip the popup and are read on arrival. In the classic shell every
- * surface shows the thread, so that holds while the tail runs. In the Mingo-first
- * shell the dock keeps the tail running on every page but shows the thread only on
- * the chat page, so there the dialog is on screen only while that page says so
- * (`useMingoChatThreadOnScreen`); everywhere else its popups show.
+ * notifications skip the popup and are read on arrival. The dock keeps the tail
+ * running on every page but shows the thread only on the chat page, so the dialog
+ * is on screen only while that page says so (`useMingoChatThreadOnScreen`);
+ * everywhere else its popups show.
  *
  * ## Chat identity
  *
- * `identityEnabled` is AppShell's latch (first open, or the docked panel; never in
- * the native shells), carried here for surfaces to hand to their own
+ * `identityEnabled` is AppShell's (never in the native shells), carried here for
+ * surfaces to hand to their own
  * `<ChatIdentityProvider>`. The provider does not mount one itself: it wraps the
  * page as well, and a `ChatIdentityProvider` there would answer the Help Center's
  * `useChatIdentity()` with its deferred (anon) identity instead of letting it fetch.
@@ -59,7 +49,6 @@ import {
 } from 'react';
 import { MingoCompactionWatchers } from '@/app/components/mingo-compaction-watchers';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
-import { useShellVariant } from '@/app/hooks/use-shell-variant';
 import { mingoDialogLink } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { useMingoCompactionStore } from '../stores/mingo-compaction-store';
@@ -123,7 +112,7 @@ interface MingoChatProviderProps {
 
 /**
  * Mount ONCE, unconditionally (gate it through `enabled`), around everything a
- * surface can live in — the chat drawer / side panel and the page. Its children
+ * surface can live in — the layout, the dock and the page. Its children
  * keep their tree position whether the state runs or not; only the state itself
  * mounts and unmounts beside them.
  */
@@ -141,9 +130,8 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
     setThreadViewCount(count => count + 1);
     return () => setThreadViewCount(count => count - 1);
   }, []);
-  // See "Subscribed is not on screen". Not `'mingo'` (classic, or still loading —
-  // when no Mingo-first dock exists yet): every running surface shows the thread.
-  const onScreen = useShellVariant() !== 'mingo' || threadViewCount > 0;
+  // See "Subscribed is not on screen".
+  const onScreen = threadViewCount > 0;
 
   const { toast } = useToast();
 
@@ -268,10 +256,9 @@ export function useMingoChatSurface(): MingoChat {
 }
 
 /**
- * Says the open dialog's thread is on screen while the caller is mounted — the
- * Mingo-first chat page, the one place that shell shows it. Its notifications then
- * skip the popup and are read on arrival, as in the classic drawer. Needed only in
- * that shell: in the classic one every surface is on screen while it is mounted.
+ * Says the open dialog's thread is on screen while the caller is mounted — the chat
+ * page, the one place the thread shows. Its notifications then skip the popup and
+ * are read on arrival.
  */
 export function useMingoChatThreadOnScreen(): void {
   const registerThreadView = useContext(MingoChatSessionContext)?.registerThreadView;

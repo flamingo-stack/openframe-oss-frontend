@@ -80,6 +80,6 @@ describe('useSidebarCollapsed', () => {
   });
 
   it('writes the key the pre-paint width seed reads', () => {
-    expect(sidebarWidthFoucScript).toContain(`'${KEY}'`);
+    expect(sidebarWidthFoucScript(true)).toContain(`'${KEY}'`);
   });
 });

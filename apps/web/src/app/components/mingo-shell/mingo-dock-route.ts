@@ -1,5 +1,22 @@
 import { routes } from '@/lib/routes';
-import { isFullWidthPage } from '../mingo-side-panel';
+
+/**
+ * Pages that need the whole content width (a remote screen, a terminal, the file
+ * manager, the script editor): the dock drops its memory strip there. Path prefixes,
+ * matched against the pathname, so they carry no query.
+ */
+const FULL_WIDTH_PATHS = [
+  '/devices/details/remote-desktop',
+  '/devices/details/remote-shell',
+  '/devices/details/remote-session',
+  '/devices/details/file-manager',
+  '/scripts/new',
+  '/scripts/edit',
+] as const;
+
+function isFullWidthPage(pathname: string): boolean {
+  return FULL_WIDTH_PATHS.some(path => pathname.startsWith(path));
+}
 
 /**
  * Where the Mingo-first composer dock is, as far as the dock is concerned:

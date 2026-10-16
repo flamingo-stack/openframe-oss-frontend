@@ -11,12 +11,7 @@
  * conversation as context, the picker does not offer one, and it has no entry
  * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
  *
- * Unlike every entity chip, the target opens through the dialog-open seam
- * (`openMingoDialog`) — the same path a notification click takes. In the classic
- * shell that is the drawer, in place, over whatever page it floats, so the reader
- * keeps their page and their place; in the Mingo-first shell it is the chat page.
- * The `href` (`mingoDialogLink`, the canonical chat route) stays on the anchor for a
- * middle-click or a copy, and resolves in either shell on a fresh load.
+ * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *
  * The title comes from `conversationMemoryChatReference(id)` on the ai-agent
  * GraphQL. `null` is the backend refusing to name the chat for this caller — not
@@ -27,7 +22,6 @@
 
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { type ReactNode, Suspense } from 'react';
-import { openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
@@ -82,9 +76,9 @@ interface ChatReferenceChipProps {
   icon?: ReactNode;
 }
 
-/** The linked form: the same in-place open whether the title resolved or not. */
+/** The linked form: the chat's page, whether the title resolved or not. */
 function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} onOpen={() => openMingoDialog(id)} />;
+  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
 }
 
 function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {

@@ -3,23 +3,17 @@
  *
  * Pins the three answers the ai-agent's `conversationMemoryChatReference` can
  * give and what each becomes in the sentence: a title → a linked chip that
- * opens the dialog through the dialog-open seam — IN THE DRAWER in the classic
- * shell (no page navigation, no new tab, even on the desktop web where entity
- * chips open a tab), the chat PAGE in the Mingo-first shell; `null` → the
- * backend will not name the chat for this caller, so an unlinked chip that
- * says so; a failed request → the link kept under a generic label, because
- * the chat resolves the dialog on its own.
+ * opens the chat page in this window; `null` → the backend will not name the
+ * chat for this caller, so an unlinked chip that says so; a failed request →
+ * the link kept under a generic label, because the chat resolves the dialog on
+ * its own.
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
 import { mingoDialogLink, routes } from '@/lib/routes';
-import { registerShellNavigator } from '@/lib/shell-navigator';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { ChatReferenceChip } from './chat-reference-chip';
 
 type ApiResponse = { ok: boolean; data?: unknown; error?: string; status: number };
@@ -31,8 +25,6 @@ const spies = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }) }));
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: spies.post }, REQUEST_TIMEOUT_MS: 30_000 }));
-// Desktop web: an entity chip would open a NEW TAB here. The chat chip must not.
-vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => false }));
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
 // `ResizeObserver`, and nothing here depends on the measurement.
@@ -51,16 +43,10 @@ function graphql(reference: { id: string; title: string | null } | null): ApiRes
 
 let container: HTMLDivElement;
 let root: Root;
-let unregisterNavigator: () => void;
 
 beforeEach(() => {
   spies.push.mockReset();
   spies.post.mockReset();
-  // The classic shell, with a drawer mounted: where the chip opens in place.
-  useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-first', enabled: false }]);
-  useMingoLauncherStore.setState({ isOpen: true, canOpen: true, closedForNavigation: false });
-  useMingoMessagesStore.getState().setActiveDialogId('other-dialog');
-  unregisterNavigator = registerShellNavigator(spies.push);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -69,8 +55,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
-  unregisterNavigator();
-  useFeatureFlagsStore.getState().reset();
 });
 
 async function renderChip() {
@@ -113,7 +97,7 @@ describe('ChatReferenceChip', () => {
     expect(body?.variables).toEqual({ id: DIALOG_ID });
   });
 
-  it('shows the original title and opens the chat in the drawer, in place', async () => {
+  it('shows the original title and opens the chat page in this window', async () => {
     spies.post.mockResolvedValue(graphql({ id: DIALOG_ID, title: 'Weak passwords review' }));
     await renderChip();
 
@@ -121,31 +105,12 @@ describe('ChatReferenceChip', () => {
     if (!anchor) throw new Error('chip rendered no anchor');
     expect(anchor.textContent).toContain('Weak passwords review');
     expect(anchor.getAttribute('href')).toBe(mingoDialogLink(DIALOG_ID));
-    // In place: never a new tab, even where entity chips open one.
     expect(anchor.getAttribute('target')).toBeNull();
 
     const event = primaryClick(anchor);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(spies.push).not.toHaveBeenCalled();
-    expect(useMingoMessagesStore.getState().activeDialogId).toBe(DIALOG_ID);
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
-  });
-
-  it('opens the chat page in the Mingo-first shell, through the app router', async () => {
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-first', enabled: true }]);
-    useMingoLauncherStore.setState({ isOpen: false });
-    spies.post.mockResolvedValue(graphql({ id: DIALOG_ID, title: 'Weak passwords review' }));
-    await renderChip();
-
-    const anchor = container.querySelector('a');
-    if (!anchor) throw new Error('chip rendered no anchor');
-    const event = primaryClick(anchor);
-
-    expect(event.defaultPrevented).toBe(true);
     expect(spies.push).toHaveBeenCalledWith(routes.mingo.chat(DIALOG_ID));
-    expect(useMingoLauncherStore.getState().isOpen).toBe(false);
-    expect(useMingoMessagesStore.getState().activeDialogId).toBe('other-dialog');
   });
 
   it('leaves a modifier click to the browser, with the href to open elsewhere', async () => {
@@ -160,7 +125,7 @@ describe('ChatReferenceChip', () => {
     });
 
     expect(event.defaultPrevented).toBe(false);
-    expect(useMingoMessagesStore.getState().activeDialogId).toBe('other-dialog');
+    expect(spies.push).not.toHaveBeenCalled();
   });
 
   it('names a chat the backend left untitled', async () => {
@@ -190,7 +155,7 @@ describe('ChatReferenceChip', () => {
     expect(anchor.getAttribute('href')).toBe(mingoDialogLink(DIALOG_ID));
 
     primaryClick(anchor);
-    expect(useMingoMessagesStore.getState().activeDialogId).toBe(DIALOG_ID);
+    expect(spies.push).toHaveBeenCalledWith(routes.mingo.chat(DIALOG_ID));
   });
 
   it('treats a GraphQL error the same as a failed request', async () => {

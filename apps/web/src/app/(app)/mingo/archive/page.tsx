@@ -1,18 +1,15 @@
 'use client';
 
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useShellRedirect, useShellVariant } from '@/app/hooks/use-shell-variant';
+import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 import { MingoArchiveView } from './mingo-archive-view';
 
-/**
- * Archived chats, a page of the Mingo-first shell. The classic shell keeps its archive
- * inside the chat drawer, so there this lands on the dashboard.
- */
+/** Archived chats. An OSS tenant has no Mingo: there it is the dashboard. */
 export default function MingoArchivePage() {
-  const variant = useShellVariant();
-  useShellRedirect(variant === 'classic' ? routes.dashboard : null);
+  const mingo = isSaasTenantMode();
+  useAppModeRedirect(mingo ? null : routes.dashboard);
 
-  if (variant !== 'mingo') return <CompactPageLoader />;
+  if (!mingo) return null;
   return <MingoArchiveView />;
 }

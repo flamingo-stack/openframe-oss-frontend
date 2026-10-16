@@ -43,10 +43,7 @@ describe('withMingoDialog', () => {
 });
 
 describe('the canonical Mingo dialog deep link', () => {
-  it('is the chat route, which resolves in either shell', () => {
-    // The Mingo-first shell shows the chat there; the classic shell redirects it to
-    // the drawer's resting URL (`/dashboard?mingoDialog=`). A sender cannot know which
-    // shell the recipient runs, so the link must be the one that works in both.
+  it('is the chat route', () => {
     expect(mingoDialogLink('d-1')).toBe('/mingo/chat?id=d-1');
     expect(mingoDialogLink('a b&c=1')).toBe('/mingo/chat?id=a+b%26c%3D1');
     expect(mingoDialogLink('d-1')).toBe(routes.mingo.chat('d-1'));

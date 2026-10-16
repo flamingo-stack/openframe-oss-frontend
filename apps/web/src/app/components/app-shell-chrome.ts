@@ -1,5 +1,4 @@
 import type { HeaderLoadingCell } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * Shell constants the LIVE `AppLayout` needs. The chrome has no separate placeholder
@@ -12,29 +11,24 @@ import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * The trailing header cells the live header reserves while the chrome loads, in the
- * order it renders them: time tracker, notifications, then the Mingo launcher. No
- * avatar — the header carries no user cell (`showUser: false`), and reserving one
- * would leave a cell that never fills in.
- *
- * `'wide'` for Mingo is not cosmetic: that cell is content-width (icon + "Mingo AI"
- * wordmark, `gap-2 px-4`), roughly twice a square cell, so reserving a square for it
- * leaves the cluster short and shifts it when the real header lands.
- *
- * Derived from app mode only, which IS known synchronously: Mingo is a SaaS-tenant
- * surface.
+ * order it renders them: the time tracker, then notifications (an OSS tenant has no
+ * Mingo cell). No avatar — the header carries no user cell (`showUser: false`), and
+ * reserving one would leave a cell that never fills in.
  */
 export function headerLoadingCells(): HeaderLoadingCell[] {
-  return isSaasTenantMode() ? ['icon', 'icon', 'wide'] : ['icon', 'icon'];
+  return ['icon', 'icon'];
 }
 
 /**
  * The same for the Mingo-first shell, whose header is the phone top bar only
  * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
- * `'icon-max-md'` like every phone-only cell), then the classic cells. The desktop
- * header these would reserve is hidden in CSS from md up, placeholder included.
+ * `'icon-max-md'` like every phone-only cell), then the time tracker, notifications
+ * and the Mingo launcher. `'wide'` for Mingo is not cosmetic: that cell is
+ * content-width (icon + "Mingo AI" wordmark), roughly twice a square cell, so a
+ * square would leave the cluster short and shift it when the real header lands.
  */
 export function mingoHeaderLoadingCells(): HeaderLoadingCell[] {
-  return ['icon-max-md', ...headerLoadingCells()];
+  return ['icon-max-md', 'icon', 'icon', 'wide'];
 }
 
 /**
@@ -55,9 +49,8 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
-  // The Mingo-first chat and archive pages fill `<main>` (`h-full`): the default
-  // bottom padding would add its height as a scroll under them. In the classic shell
-  // both routes only redirect, so the override costs nothing there.
+  // The Mingo chat and archive pages fill `<main>` (`h-full`): the default bottom
+  // padding would add its height as a scroll under them.
   if (pathname.startsWith('/mingo/chat') || pathname.startsWith('/mingo/archive')) return 'pb-0 md:pb-0';
   return undefined;
 }

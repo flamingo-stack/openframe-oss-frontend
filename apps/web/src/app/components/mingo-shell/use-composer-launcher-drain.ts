@@ -7,12 +7,8 @@ import { routes } from '@/lib/routes';
 import type { ComposerRoute } from './mingo-dock-route';
 
 /**
- * Publishes the dock to the launcher store while it is mounted, so the launchers
- * (Fix with Mingo, Meet Mingo, Help Center "Ask Mingo", Start New Chat) queue a
- * request for it instead of opening a drawer this shell does not have. A layout
- * effect: it lands before the chat state starts, so a request queued for the
- * classic drawer just before the dock mounted is adopted, not left to the classic
- * prompt drain.
+ * Publishes the dock to the launcher store while it is mounted: the launchers (Fix
+ * with Mingo, Help Center "Ask Mingo") offer themselves only while it is.
  */
 export function usePublishComposerDock(): void {
   const setDockMounted = useMingoLauncherStore(s => s.setDockMounted);
@@ -37,7 +33,9 @@ interface ComposerLauncherDrainOptions {
  *    "start a new chat" land on home — a new chat — with the composer prefilled or
  *    empty; the user's send then follows the new chat to its page. The request
  *    waits until the dock is on home, so the page it was raised from (a chat page
- *    re-selecting its `?id=`) cannot take the new chat back before it is left;
+ *    re-selecting its `?id=`) cannot take the new chat back before it is left — and
+ *    the chat page never draws the empty new chat on its way out. The way home does
+ *    not wait for the chat module to load;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
  *    and that send follows the chat to its page. Not through home: the end state is
  *    the same, and a hop there would only flash home and put it in Back's way.
@@ -54,7 +52,7 @@ export function useComposerLauncherDrain({
   const sentHomeRef = useRef<MingoDockRequest | null>(null);
 
   useEffect(() => {
-    if (!dockRequest || !handle) return;
+    if (!dockRequest) return;
     if (dockRequest.kind !== 'prompt' && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
         sentHomeRef.current = dockRequest;
@@ -62,6 +60,7 @@ export function useComposerLauncherDrain({
       }
       return;
     }
+    if (!handle) return;
     const request = consumeDockRequest();
     if (!request) return;
     if (request.kind === 'prompt') void sendInNewDialog(request.prompt);

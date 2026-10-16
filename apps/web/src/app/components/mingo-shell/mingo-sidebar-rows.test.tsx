@@ -1,33 +1,29 @@
 /**
  * The Mingo rows on top of the Mingo-first sidebar are the lib's action rows: "New chat"
- * (outline) starts a new chat on home, "Needs approval" links to its page with the
- * pending count and the active pill there. Both close the phone drawer they may sit in.
+ * (outline) asks the dock for a new chat on home, "Needs approval" links to its page with
+ * the pending count and the active pill there. Both close the phone drawer they may sit in.
  */
 
 import type { NavigationSidebarActionRowProps } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { MingoSidebarRows } from './mingo-sidebar-rows';
 import { useMobileMenuStore } from './mobile-menu-store';
 
-const { push, rows, nav, startNewDialog } = vi.hoisted(() => ({
-  push: vi.fn<(href: string) => void>(),
+const { rows, nav } = vi.hoisted(() => ({
   rows: [] as NavigationSidebarActionRowProps[],
   nav: { pathname: '/devices', pending: 0 },
-  startNewDialog: vi.fn(async () => {}),
 }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }), usePathname: () => nav.pathname }));
+vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/navigation', () => ({
   NavigationSidebarActionRow: (props: NavigationSidebarActionRowProps) => {
     rows.push(props);
     return null;
   },
-}));
-vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
-  useMingoChat: () => ({ chat: { state: { startNewDialog } } }),
 }));
 vi.mock('./use-pending-approval-count', () => ({ usePendingApprovalCount: () => nav.pending }));
 
@@ -50,6 +46,7 @@ beforeEach(() => {
   nav.pathname = '/devices';
   nav.pending = 0;
   useMobileMenuStore.setState({ open: false });
+  useMingoLauncherStore.setState({ dockRequest: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -75,14 +72,14 @@ describe('MingoSidebarRows', () => {
     expect(render().approvals.active).toBe(true);
   });
 
-  it('starts a new chat on home and closes the phone drawer', () => {
+  it('asks the dock for a new chat (it goes home first) and closes the phone drawer', () => {
+    nav.pathname = routes.mingo.chat('d-1');
     const { newChat } = render();
     useMobileMenuStore.setState({ open: true });
 
     act(() => newChat.onClick?.({} as never));
 
-    expect(startNewDialog).toHaveBeenCalledTimes(1);
-    expect(push).toHaveBeenCalledWith(routes.mingo.home);
+    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'newChat' });
     expect(useMobileMenuStore.getState().open).toBe(false);
   });
 

@@ -1,7 +1,7 @@
 /**
  * The chat page draws no chat: it publishes the node the docked chat portals its
- * thread into, and counts as the one place the open chat is on screen in the
- * Mingo-first shell. When the dialog does not exist or fails to load, it shows that
+ * thread into (with the chat's skeleton in it until the chat has loaded), and counts
+ * as the one place the open chat is on screen. When the dialog does not exist or fails to load, it shows that
  * instead of the node — so the dock falls back to its composer.
  */
 
@@ -18,10 +18,14 @@ import { MingoChatView } from './mingo-chat-view';
 
 const replace = vi.hoisted(() => vi.fn<(href: string) => void>());
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
-vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => 'mingo' }));
 vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: () => false }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }),
+}));
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({ ChatMessageListSkeleton: () => null }));
+vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
+  LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
+  UnifiedSkeleton: () => null,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
   ChatExclamationIcon: () => null,
@@ -75,7 +79,7 @@ function render(page: boolean) {
 beforeEach(() => {
   replace.mockReset();
   selectDialog.mockReset();
-  useChatPageNodeStore.setState({ node: null });
+  useChatPageNodeStore.setState({ node: null, chatMounted: false });
   queryClient = new QueryClient();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -102,6 +106,16 @@ describe('MingoChatView', () => {
 
     render(false);
     expect(useChatPageNodeStore.getState().node).toBeNull();
+  });
+
+  it("draws the chat's skeleton in the slot until the dock's chat has loaded", () => {
+    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1', selectDialog }));
+    render(true);
+    const slot = () => container.querySelector('[data-testid="mingo-chat-thread-slot"]');
+    expect(slot()?.querySelector('[aria-busy="true"]')).not.toBeNull();
+
+    act(() => useChatPageNodeStore.getState().setChatMounted(true));
+    expect(slot()?.childElementCount).toBe(0);
   });
 
   it('shows a dialog that does not exist as such, with the way home, and no thread', () => {
