@@ -47,3 +47,18 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
   return undefined;
 }
+
+/**
+ * The routes the shell renders BARE - no header, sidebar or Mingo panel: the
+ * setup wizard, which the design draws as a full-screen page of its own. A
+ * prefix match of the kind ROUTES.md allows for active-state checks; the
+ * trailing-slash form is what the static export serves.
+ */
+export function isBareChromeRoute(pathname: string | null): boolean {
+  return pathname === '/setup' || (pathname?.startsWith('/setup/') ?? false);
+}
+
+/** The dashboard itself - the one page the onboarding redirect moves away from. */
+export function isDashboardRoute(pathname: string | null): boolean {
+  return pathname === '/dashboard' || pathname === '/dashboard/';
+}

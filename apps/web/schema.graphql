@@ -1751,7 +1751,25 @@ input LogSortInput {
 """"""
 scalar Long
 
+"""First-device enrollment progress: each stamp is set once its stage is reached and never cleared."""
+type DeviceEnrollment {
+  """Machine record created (initial key accepted)."""
+  registeredAt: Instant!
+
+  """First NATS connection; Mingo can run commands from here."""
+  connectedAt: Instant
+
+  """Fleet confirmed the host; inventory and vulnerabilities are queryable."""
+  inventoryConnectedAt: Instant
+
+  """connectedAt and inventoryConnectedAt both set."""
+  ready: Boolean!
+}
+
 type Machine implements Node & AssignableTarget {
+  """How far this machine's enrollment has come; null only on a transient read error."""
+  enrollment: DeviceEnrollment
+
   id: ID!
   machineId: String!
   ip: String
@@ -2018,6 +2036,9 @@ type Mutation {
   Reset personal onboarding to a clean state (no steps, not skipped, not completed).
   """
   resetUserOnboarding: UserOnboardingProgress!
+
+  """Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it."""
+  setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
 
   """
   Create a new schedule. Returns the created schedule with its server-assigned id.
@@ -5954,14 +5975,19 @@ type UserOnboardingProgress {
 
   """When skipped was set; null while not skipped."""
   skippedAt: Instant
+
+  """The Mingo conversation the Get Started tour lives in; null until "Start with Mingo"."""
+  tourDialogId: String
 }
 
 enum UserOnboardingStep {
   MEET_MINGO
+  DEVICES
   TICKETS
   SCRIPTING
   MONITORING
   LOGGING
+  INCIDENTS
   KNOWLEDGE_MANAGEMENT
 }
 
