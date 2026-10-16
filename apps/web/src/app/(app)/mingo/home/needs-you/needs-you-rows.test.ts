@@ -231,6 +231,20 @@ describe('row builders', () => {
     expect(result?.href).toBe(mingoDialogLink('d-1'));
   });
 
+  it("names a Mingo request the backend left as 'Approval required': its chat, else its first action", () => {
+    const untitled = (dialogId: string) =>
+      approval(
+        {
+          notificationType: 'MINGO_APPROVAL_REQUEST',
+          dialogId,
+          toolCalls: [{ toolName: 'runCommand', toolTitle: 'Run command' }],
+        },
+        { title: 'Approval required' },
+      );
+    expect(approvalRow(untitled('d-1'), { 'd-1': 'Disk Space Cleanup' })?.name).toBe('Disk Space Cleanup');
+    expect(approvalRow(untitled('d-gone'), { 'd-1': 'Disk Space Cleanup' })?.name).toBe('Run command');
+  });
+
   it('skips a decided approval and a notification that is not one', () => {
     expect(
       approvalRow(approval({ notificationType: 'TICKET_APPROVAL_REQUEST', ticketId: 't-1', resolution: 'APPROVED' })),

@@ -207,14 +207,23 @@ function withChatTitle(card: ApprovalCard, dialog: ApprovalDialogNode): Approval
 }
 
 /**
- * The backend titles every chat request "Approval required", and a chat that is no longer
- * waiting (so not in `dialogs`) cannot lend its name. The session's history usually can;
- * else the first action's title says what is asked.
+ * A better name for a request the backend titled "Approval required" (it titles every chat
+ * request so): its chat's, from the session's history (a chat no longer waiting is not in
+ * `dialogs`), else its first action's title. Undefined when the title is the backend's own
+ * real one, or nothing better is known. The Needs approval page and the home's Needs you.
  */
+export function untitledRequestName(
+  notification: Notification,
+  chatTitles: Readonly<Record<string, string>>,
+): string | undefined {
+  if (notification.title !== UNTITLED_REQUEST_TITLE) return undefined;
+  const approval = getApprovalMeta(notification);
+  const chatTitle = approval?.dialogId ? chatTitles[approval.dialogId] : undefined;
+  return chatTitle || approval?.toolCalls[0]?.toolTitle || undefined;
+}
+
 function namedRequest(card: ApprovalCard, chatTitles: Readonly<Record<string, string>>): ApprovalCard {
-  if (card.notification.title !== UNTITLED_REQUEST_TITLE) return card;
-  const chatTitle = card.dialogId ? chatTitles[card.dialogId] : undefined;
-  const title = chatTitle || getApprovalMeta(card.notification)?.toolCalls[0]?.toolTitle;
+  const title = untitledRequestName(card.notification, chatTitles);
   return title ? { ...card, notification: { ...card.notification, title } } : card;
 }
 

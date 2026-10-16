@@ -8,6 +8,7 @@ import type { IncidentRow } from '@/app/(app)/incidents/utils/incident-transform
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
 import { getTicketDeviceName } from '@/app/(app)/tickets/utils/ticket-device-name';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
+import { untitledRequestName } from '@/app/components/approvals/approval-inbox';
 import { resolveNotificationRoute } from '@/app/components/notifications/notification-navigation';
 import { isApprovalResolved } from '@/graphql/notifications/notification-attributes';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
@@ -194,7 +195,10 @@ const textOf = (value: unknown): string => (typeof value === 'string' ? value : 
  * waiting for a decision, as the notifications drawer lists it. Opens where the request is
  * decided: its ticket, else its Mingo chat (the drawer's own route mapping).
  */
-export function approvalRow(notification: Notification): NeedsYouRow | null {
+export function approvalRow(
+  notification: Notification,
+  chatTitles: Readonly<Record<string, string>> = {},
+): NeedsYouRow | null {
   const approval = getApprovalMeta(notification);
   if (!approval || isApprovalResolved(approval.resolution)) return null;
   const href = resolveNotificationRoute(notification);
@@ -204,7 +208,7 @@ export function approvalRow(notification: Notification): NeedsYouRow | null {
   return {
     key: `approval:${approval.approvalRequestId}`,
     entity: 'approval',
-    name: textOf(notification.title) || 'Approval required',
+    name: untitledRequestName(notification, chatTitles) || textOf(notification.title) || 'Approval required',
     detail: textOf(notification.description) || tools.join(' · '),
     reason: 'Needs approval',
     tone: 'warning',

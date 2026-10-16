@@ -4,8 +4,11 @@ import { apiClient } from '@/lib/api-client';
 
 /**
  * The Mingo chats that wait on an approval, for the Needs approval page: every admin's
- * (approval notifications go to all active admins, so any of them may decide), in
- * `ACTION_REQUIRED`, each with its pending request and the tool calls it would run.
+ * (approval notifications go to all active admins, so any of them may decide), each with
+ * its pending request and the tool calls it would run. `ACTIVE` as well as
+ * `ACTION_REQUIRED`: a chat whose request waits can stay `ACTIVE` (seen on the 4016
+ * tenant), and there is no `pendingApproval` filter — the inbox keeps the chats that have
+ * one (BACKEND_ASKS #9).
  *
  * `/chat/graphql`, the saas-ai-agent's schema — raw POST by the app's rule for that
  * service. `Dialog.pendingApproval` is the same `PendingApproval` type the tickets lane
@@ -88,7 +91,7 @@ export async function fetchApprovalDialogs(after: string | undefined): Promise<A
   const response = await apiClient.post<GraphQlResponse<ApprovalDialogsData>>(API_ENDPOINTS.GRAPHQL, {
     query: APPROVAL_DIALOGS_QUERY,
     variables: {
-      filter: { agentTypes: ['ADMIN'], statuses: ['ACTION_REQUIRED'], scope: 'ALL' },
+      filter: { agentTypes: ['ADMIN'], statuses: ['ACTION_REQUIRED', 'ACTIVE'], scope: 'ALL' },
       first: APPROVAL_DIALOGS_PAGE_SIZE,
       after,
     },
