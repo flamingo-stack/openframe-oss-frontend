@@ -19,7 +19,7 @@ let container: HTMLDivElement;
 let root: Root;
 const onToggleChat = vi.fn();
 
-function render(chat: { open: boolean } | null) {
+function render(chat: { open: boolean; unread?: boolean } | null) {
   act(() =>
     root.render(
       <FullscreenToolbar
@@ -30,11 +30,17 @@ function render(chat: { open: boolean } | null) {
         onOpenSettings={vi.fn()}
         onExitFullscreen={vi.fn()}
         chatOpen={chat?.open}
+        chatUnread={chat?.unread}
         onToggleChat={chat ? onToggleChat : undefined}
       />,
     ),
   );
 }
+
+const chatButton = () =>
+  Array.from(container.querySelectorAll('button')).find(button =>
+    button.getAttribute('aria-label')?.startsWith('Open chat'),
+  );
 
 const buttonLabels = () =>
   Array.from(container.querySelectorAll('button')).map(button => button.getAttribute('aria-label'));
@@ -70,5 +76,15 @@ describe('FullscreenToolbar', () => {
   it('has no chat button for a session without a chat', () => {
     render(null);
     expect(buttonLabels()).toEqual(['Actions', 'Exit fullscreen', 'Settings']);
+  });
+
+  it('marks the chat toggle while the end user wrote with the chat closed', () => {
+    render({ open: false, unread: true });
+    // The core lib's UnreadDot on the chat icon.
+    expect(chatButton()?.querySelector('.bg-ods-warning')).not.toBeNull();
+    expect(buttonLabels()).toContain('Open chat (new message)');
+
+    render({ open: false });
+    expect(chatButton()?.querySelector('.bg-ods-warning')).toBeNull();
   });
 });
