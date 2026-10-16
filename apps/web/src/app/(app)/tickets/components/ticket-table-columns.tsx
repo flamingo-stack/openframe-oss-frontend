@@ -257,7 +257,7 @@ export function TicketTableBody({
   sort,
   onSortChange,
 }: TicketTableBodyProps) {
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
   const sortable = !!onSortChange;
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {

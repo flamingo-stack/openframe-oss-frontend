@@ -1,97 +1,51 @@
 'use client';
 
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Button,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SquareAvatar,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { graphql, useMutation } from 'react-relay';
+import type { deleteAccountModalDeleteMutation } from '@/__generated__/deleteAccountModalDeleteMutation.graphql';
+import type { deleteAccountModalTransferMutation } from '@/__generated__/deleteAccountModalTransferMutation.graphql';
+import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useOwnerGate } from '@/app/hooks/use-owner-gate';
-import { getFullImageUrl } from '@/lib/image-url';
-import { useDeleteOwnAccount } from '../hooks/use-account-deletion';
-import { UserStatus, useUsers } from '../hooks/use-users';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { toGlobalId } from '@/lib/relay-id';
+import { useLeaveDeletedAccount } from '../hooks/use-account-deletion';
+import { NewOwnerSelect } from './new-owner/new-owner-select';
+
+const transferMutation = graphql`
+  mutation deleteAccountModalTransferMutation($newOwnerId: ID!) {
+    transferOwnership(input: { newOwnerId: $newOwnerId }) {
+      previousOwner {
+        id
+        roles
+      }
+      newOwner {
+        id
+        roles
+      }
+    }
+  }
+`;
+
+const deleteMutation = graphql`
+  mutation deleteAccountModalDeleteMutation($id: ID!) {
+    deleteUser(input: { id: $id }) {
+      user {
+        id
+        status
+      }
+    }
+  }
+`;
 
 interface DeleteAccountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-interface NewOwnerSelectProps {
-  currentUserId: string;
-  organizationName: string;
-  value: string;
-  onChange: (id: string) => void;
-  disabled: boolean;
-}
-
-const SUPPORT_EMAIL = 'hello@openframe.ai';
-
-/**
- * "New Owner" picker for the owner variant. A separate component so the users
- * request fires only while the owner actually has the modal open — it mounts
- * conditionally from the parent. Candidates are ACTIVE users other than the
- * caller; DELETED users and pending invitations can't receive the OWNER role.
- *
- * With no candidate at all (a sole-member workspace) the picker is replaced by
- * the two ways out — invite someone, or ask support to delete the workspace —
- * rather than a select nothing can be chosen from: a confirm that stays disabled
- * with no explanation is the dead end App Review reads as "no account deletion".
- */
-function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disabled }: NewOwnerSelectProps) {
-  const { users, isLoading } = useUsers(0, 1000);
-  const candidates = users.filter(u => u.id !== currentUserId && u.status === UserStatus.Active);
-
-  if (!isLoading && candidates.length === 0) {
-    return (
-      <p className="text-ods-text-primary text-h4">
-        You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
-        another member and make them the owner, or email{' '}
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-          {SUPPORT_EMAIL}
-        </a>{' '}
-        to delete the workspace together with your account.
-      </p>
-    );
-  }
-
-  const placeholder = isLoading ? 'Loading users...' : 'Select new owner';
-
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-      <Label htmlFor="new-owner-select">New Owner</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id="new-owner-select">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {candidates.map(candidate => {
-            const name = `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email;
-            return (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                <span className="flex items-center gap-[var(--spacing-system-xs)]">
-                  <SquareAvatar
-                    src={getFullImageUrl(candidate.image?.imageUrl, candidate.image?.hash)}
-                    fallback={name}
-                    size="sm"
-                    variant="round"
-                  />
-                  {name}
-                </span>
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 /**
@@ -104,24 +58,64 @@ function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disa
  *   disabled until a successor is chosen (the backend refuses to delete a
  *   user still holding OWNER).
  *
- * The mutation owns the aftermath (logout + redirect to /account-deleted), so
- * on success this modal never needs to close itself — the page under it is
- * replaced. While the gate is still 'loading' the confirm is disabled rather
- * than guessing a variant.
+ * The owner's two steps are sequential, not atomic: a delete that fails after the
+ * transfer leaves the caller an ADMIN, signed in. The transfer re-asks `/me`, so
+ * the gate drops the owner variant and a retry is the delete alone.
+ *
+ * A successful delete hands over to the account-deleted flow (logout + redirect),
+ * so the modal never closes itself — the page under it is replaced. While the
+ * gate is still 'loading' the confirm is disabled rather than guessing a variant.
  */
 export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const user = useAuthStore(state => state.user);
   const ownerGate = useOwnerGate();
-  const deleteAccount = useDeleteOwnAccount();
+  const leaveDeletedAccount = useLeaveDeletedAccount();
+  const [commitTransfer, isTransferring] = useMutation<deleteAccountModalTransferMutation>(transferMutation);
+  const [commitDelete, isDeleting] = useMutation<deleteAccountModalDeleteMutation>(deleteMutation);
+  /** The account is gone and the flow is signing out: nothing here is clickable any more. */
+  const [isLeaving, setIsLeaving] = useState(false);
   const [newOwnerId, setNewOwnerId] = useState('');
 
   const isOwner = ownerGate === 'owner';
   const organizationName = user?.organizationName || 'your organization';
-  const isPending = deleteAccount.isPending;
+  const isPending = isTransferring || isDeleting || isLeaving;
   const canConfirm = ownerGate !== 'loading' && !isPending && (!isOwner || newOwnerId.length > 0);
 
+  const onError = (error: Error) => {
+    toast({
+      title: 'Error',
+      description: getRelayErrorMessage(error, 'Failed to delete account'),
+      variant: 'destructive',
+    });
+  };
+
+  const deleteOwnAccount = () => {
+    if (!user?.id) return;
+    commitDelete({
+      variables: { id: toGlobalId('User', user.id) },
+      onCompleted: () => {
+        setIsLeaving(true);
+        void leaveDeletedAccount();
+      },
+      onError,
+    });
+  };
+
   const handleConfirm = () => {
-    deleteAccount.mutate({ newOwnerId: isOwner ? newOwnerId : undefined });
+    if (!isOwner) {
+      deleteOwnAccount();
+      return;
+    }
+    commitTransfer({
+      variables: { newOwnerId },
+      onCompleted: () => {
+        queryClient.invalidateQueries({ queryKey: authSessionQueryKey });
+        deleteOwnAccount();
+      },
+      onError,
+    });
   };
 
   const handleClose = () => {

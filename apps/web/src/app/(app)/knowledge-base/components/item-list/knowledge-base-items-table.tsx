@@ -24,6 +24,7 @@ import type {
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -34,7 +35,6 @@ import {
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
 import { OpenItemButton } from '../shared/open-item-button';
-import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
 import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';

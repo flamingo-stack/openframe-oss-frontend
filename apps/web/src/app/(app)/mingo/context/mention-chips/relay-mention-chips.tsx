@@ -16,9 +16,9 @@ import { type ReactNode, Suspense } from 'react';
  *
  * Three fetch paths, because the backend `node(id:)` resolver only knows the
  * types in its `NodeType` enum:
- *   - device + organization → `node(id:)` (Machine / Organization ARE in the
- *     enum). Detail-page href uses the RAW id (the route segment those pages
- *     expect).
+ *   - device, organization, user → `node(id:)` (Machine / Organization / User
+ *     ARE in the enum). Detail-page href uses the RAW id (the route segment those
+ *     pages expect).
  *   - kb article + folder   → `knowledgeBaseItem(id:)` (KnowledgeBaseItem is NOT
  *     in `NodeType` → `node(id:)` throws "Unknown Node type"). This query takes a
  *     GLOBAL id (server decodes it), and the KB detail + folder routes ALSO key on
@@ -40,13 +40,14 @@ import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChi
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentionChipsSoftwareQuery.graphql';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
 import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
 
 interface GraphqlMentionChipProps {
-  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
+  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
    *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
   kind: ContextEntityKind;
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
@@ -58,7 +59,7 @@ interface GraphqlMentionChipProps {
   fallbackLabel?: string;
 }
 
-/** device + organization — both are in the backend `NodeType` enum.
+/** device, organization and user — all in the backend `NodeType` enum.
  *  The Machine selection is exactly what `getDeviceName` reads, so a chip shows
  *  the same name as the device page (nickname → displayName → hostname). */
 const NODE_QUERY = graphql`
@@ -72,6 +73,9 @@ const NODE_QUERY = graphql`
       }
       ... on Organization {
         name
+      }
+      ... on User {
+        ...userSummaryFields_user
       }
     }
   }
@@ -138,6 +142,8 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
       return routes.customers.details(rawId);
     case CONTEXT_ENTITY_KIND.SOFTWARE:
       return routes.software.details(rawId);
+    case CONTEXT_ENTITY_KIND.USER:
+      return routes.settings.employeeDetails(rawId);
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.KB_FOLDER:
@@ -172,6 +178,9 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         break;
       case 'Organization':
         label = node.name || label;
+        break;
+      case 'User':
+        label = toUserSummary(node).name || label;
         break;
     }
   }

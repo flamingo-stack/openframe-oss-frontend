@@ -19,7 +19,7 @@ import { DEVICE_INCIDENTS_TABLE_COLUMNS } from '@/app/(app)/incidents/components
 import { LogsTableSkeleton } from '@/app/(app)/logs-page/components/logs-table-skeleton';
 import { DEVICE_TICKET_COLUMNS } from '@/app/(app)/tickets/components/ticket-table-layout';
 import { QueriesTable, type QueryTableRow } from '@/app/components/shared';
-import { DeviceAddedByCellSkeleton } from './device-added-by-cell';
+import { DeviceAddedByCellSkeleton } from './device-added-by-cell-skeleton';
 import { DeviceLogsTabSkeleton } from './tabs/device-logs/device-logs-skeleton';
 import { REMOTE_SESSIONS_TAB_COLUMNS, USERS_TAB_COLUMNS } from './tabs/device-tab-columns';
 import { useDeviceTabs } from './tabs/device-tabs';

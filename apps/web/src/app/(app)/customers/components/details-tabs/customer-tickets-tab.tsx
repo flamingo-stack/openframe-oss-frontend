@@ -49,7 +49,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     organizationIds: [organizationId],
   });
 
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
   const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false, isUserDeleted }), [isUserDeleted]);
 
   const columns = useMemo<ColumnDef<Dialog>[]>(

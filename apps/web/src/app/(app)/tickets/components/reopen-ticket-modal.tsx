@@ -6,9 +6,9 @@ import {
   type TakeOverStatusOption,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
+import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useReopenTicket } from '../hooks/use-reopen-ticket';
 import { useTicketDetail } from '../hooks/use-ticket-detail';
-import { useAssigneeOptions } from '../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { formatTicketRef } from '../utils/ticket-ref';
 import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
@@ -52,7 +52,7 @@ interface ReopenTicketModalProps {
  */
 export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketModalProps) {
   const { ticket } = useTicketDetail(target?.ticketId);
-  const assigneeOptions = useAssigneeOptions(target !== null);
+  const assigneeOptions = useAssigneeOptions({ enabled: target !== null, selectedIds: [ticket?.assignedTo] });
   const { data: statusesData } = useTicketStatusesQuery();
   const reopen = useReopenTicket();
 
@@ -96,6 +96,7 @@ export function ReopenTicketModal({ target, onClose, onSuccess }: ReopenTicketMo
       statusOptions={statusOptions}
       assigneeOptions={assigneeOptions.options.map(o => ({ label: o.label, value: o.value, imageUrl: o.imageUrl }))}
       assigneesLoading={assigneeOptions.isLoading}
+      onAssigneeSearchChange={assigneeOptions.onSearchChange}
       initialStatusId={initialStatusId}
       // Design default: restore the previous assignee. Both Status and
       // Assigned are required — with no assignee the CTA stays locked.
