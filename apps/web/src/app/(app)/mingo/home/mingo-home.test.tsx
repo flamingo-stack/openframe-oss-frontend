@@ -1,8 +1,8 @@
 /**
- * Mingo's home: what it renders (greeting, the dashboard's Initial Setup card and
- * sections — Tickets on SaaS only, with filtered links — quick actions, "What to ask
- * Mingo?"), and that every Mingo chip SENDS through the session's chat state in a new
- * chat instead of navigating anywhere itself.
+ * Mingo's home: what it renders (greeting, "Needs you", the dashboard's Initial Setup card
+ * and sections — Tickets on SaaS only, with filtered links, Incidents between Tickets and
+ * Customers — quick actions, "What to ask Mingo?"), and that every Mingo chip SENDS
+ * through the session's chat state in a new chat instead of navigating anywhere itself.
  */
 
 import type { WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -47,6 +47,9 @@ vi.mock('@/app/(app)/dashboard/components/tickets-overview', () => ({
 vi.mock('@/app/(app)/dashboard/components/customers-overview', () => ({
   CustomersOverviewSection: () => <p>customers section</p>,
 }));
+// Both run Relay queries (`graphql` needs the compiler's transform); they have tests of their own.
+vi.mock('./needs-you/needs-you-card', () => ({ NeedsYouCard: () => <p>needs you card</p> }));
+vi.mock('./mingo-home-incidents', () => ({ MingoHomeIncidents: () => <p>incidents section</p> }));
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({ useMingoQuickActions: () => quickActions.value }));
 // The real loader runs a Relay query (`graphql` needs the compiler's transform).
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-what-to-ask', () => ({ useMingoWhatToAsk: () => whatToAsk.load }));
@@ -104,6 +107,17 @@ describe('MingoHome', () => {
     expect(text).toContain('devices section');
     expect(text).toContain('tickets section (filtered links)');
     expect(text).toContain('customers section');
+  });
+
+  it('puts Needs you under the greeting, and Incidents between Tickets and Customers', async () => {
+    await renderHome();
+    const blocks = Array.from(container.querySelectorAll('h1, p')).map(node => node.textContent);
+    const at = (label: string) => blocks.findIndex(text => text?.startsWith(label));
+    expect(at('Morning, Ann')).toBe(0);
+    expect(at('needs you card')).toBe(1);
+    expect(at('setup card')).toBeGreaterThan(at('needs you card'));
+    expect(at('tickets section')).toBeLessThan(at('incidents section'));
+    expect(at('incidents section')).toBeLessThan(at('customers section'));
   });
 
   it('hides Tickets outside SaaS', async () => {
