@@ -26,8 +26,10 @@ export interface SourceStatus {
   isLoading: boolean;
   /** Nothing loaded and the load failed (or the link is down): the section's strip. */
   error: { message: string; onRetry?: () => void } | null;
-  /** Answered with data, so an empty section is really empty. */
+  /** Answered with data, so an empty section is really empty — of what is loaded (`hasMore`). */
   canClaimEmpty: boolean;
+  /** Rows of the source loaded so far: what an empty section has looked through while `hasMore`. */
+  loaded: number;
   hasMore: boolean;
   isLoadingMore: boolean;
   loadMore: () => void;
@@ -48,6 +50,7 @@ const SETTLED: SourceStatus = {
   isLoading: false,
   error: null,
   canClaimEmpty: true,
+  loaded: 0,
   hasMore: false,
   isLoadingMore: false,
   loadMore: () => {},
@@ -149,6 +152,7 @@ export function useApprovalSources(): ApprovalSourcesResult {
               )
             : null,
         canClaimEmpty: dialogsState.canClaimEmpty,
+        loaded: dialogs.length,
         hasMore: dialogsQuery.hasNextPage,
         isLoadingMore: dialogsQuery.isFetchingNextPage,
         loadMore: () => void dialogsQuery.fetchNextPage(),
@@ -171,6 +175,7 @@ export function useApprovalSources(): ApprovalSourcesResult {
               )
             : null,
         canClaimEmpty: noLane || laneState.canClaimEmpty,
+        loaded: tickets.length,
         hasMore: laneQuery.hasNextPage,
         isLoadingMore: laneQuery.isFetchingNextPage,
         loadMore: () => void laneQuery.fetchNextPage(),

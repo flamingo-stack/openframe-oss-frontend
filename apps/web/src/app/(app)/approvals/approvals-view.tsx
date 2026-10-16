@@ -9,6 +9,7 @@ import { type ApprovalCard, composeApprovalInbox } from '@/app/components/approv
 import { useApprovalDecider } from '@/app/components/approvals/use-approval-decider';
 import { type SourceStatus, useApprovalSources } from '@/app/components/approvals/use-approval-sources';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
+import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { ApprovalRequestCard } from './approval-request-card';
 
@@ -56,6 +57,8 @@ export function ApprovalsView() {
             status={requests}
             aside={<span className="shrink-0 text-ods-text-secondary text-h6">{inbox.pendingRequests} pending</span>}
             emptyText="No approval requests are waiting."
+            emptySoFarText={loaded => `No approval requests in the latest ${pluralize(loaded, 'chat')} waiting on you.`}
+            moreLabel="Check older chats"
             renderCard={renderCard}
           />
           {ticketsEnabled && (
@@ -76,6 +79,8 @@ export function ApprovalsView() {
                 ) : null
               }
               emptyText="No tickets are waiting for a technician's approval."
+              emptySoFarText={loaded => `No approvals in the latest ${pluralize(loaded, 'Tech Required ticket')}.`}
+              moreLabel="Check older tickets"
               renderCard={renderCard}
             />
           )}
@@ -90,13 +95,34 @@ interface ApprovalSectionProps {
   cards: ApprovalCard[];
   status: SourceStatus;
   aside: ReactNode;
+  /** Nothing waits, and the source is read to its end. */
   emptyText: string;
+  /**
+   * Nothing waits among the loaded rows, but the source has more: its rows are filtered
+   * here (the lane's tickets with a pending approval), so an older page may still hold one.
+   */
+  emptySoFarText: (loaded: number) => string;
+  /** The paging control under that line ("Show more" under cards). */
+  moreLabel: string;
   renderCard: (card: ApprovalCard) => ReactNode;
 }
 
-function ApprovalSection({ title, cards, status, aside, emptyText, renderCard }: ApprovalSectionProps) {
+function ApprovalSection({
+  title,
+  cards,
+  status,
+  aside,
+  emptyText,
+  emptySoFarText,
+  moreLabel,
+  renderCard,
+}: ApprovalSectionProps) {
   const headingId = useId();
   const loadingEmpty = status.isLoading && cards.length === 0;
+  const empty = cards.length === 0 && status.canClaimEmpty;
+  // Paging belongs to the section it pages, and only to one with something on screen
+  // to page from: its cards, or the line that says how far the empty section looked.
+  const canPage = status.hasMore && !status.error && (cards.length > 0 || empty);
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-[var(--spacing-system-s)]">
@@ -120,13 +146,13 @@ function ApprovalSection({ title, cards, status, aside, emptyText, renderCard }:
             <li key={card.approvalRequestId}>{renderCard(card)}</li>
           ))}
         </ul>
-      ) : status.canClaimEmpty ? (
-        <p className="text-ods-text-secondary text-h6">{emptyText}</p>
+      ) : empty ? (
+        <p className="text-ods-text-secondary text-h6">{status.hasMore ? emptySoFarText(status.loaded) : emptyText}</p>
       ) : null}
 
-      {status.hasMore && (
+      {canPage && (
         <Button variant="outline" className="self-start" loading={status.isLoadingMore} onClick={status.loadMore}>
-          Show more
+          {cards.length > 0 ? 'Show more' : moreLabel}
         </Button>
       )}
     </section>

@@ -21,7 +21,9 @@ interface ApprovalRequestCardProps {
  * One approval on the Needs approval page: the lib's approval tile (Approve / Reject, the
  * decision tag once decided, the expandable commands), with its title linking to what the
  * request belongs to — the ticket, or the Mingo chat through the dialog-open seam — by the
- * same mapping a notification tile follows.
+ * same mapping a notification tile follows. The ✓ "Mark notification complete" is drawn
+ * only on a card that IS an unread notification: a card built from a chat or a ticket has
+ * none behind it to complete.
  */
 export function ApprovalRequestCard({ card, onDecide, onComplete }: ApprovalRequestCardProps) {
   const action = resolveNotificationAction(card.notification);
@@ -35,7 +37,7 @@ export function ApprovalRequestCard({ card, onDecide, onComplete }: ApprovalRequ
       notification={notification}
       onApprove={() => onDecide(card, true)}
       onReject={() => onDecide(card, false)}
-      onComplete={() => onComplete(card)}
+      onComplete={card.notificationId ? () => onComplete(card) : undefined}
     />
   );
 }

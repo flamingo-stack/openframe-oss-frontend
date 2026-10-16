@@ -21,6 +21,8 @@ const { server, push, openMingoDialog, toast } = vi.hoisted(() => ({
     saas: true,
     dialogs: [] as unknown[],
     tickets: [] as unknown[],
+    /** The lane's second page; while non-empty the first one says there is more. */
+    olderTickets: [] as unknown[],
     resolved: [] as Array<{ id: string; approve: boolean }>,
   },
   push: vi.fn<(href: string) => void>(),
@@ -32,7 +34,7 @@ vi.mock('@/lib/api-client', () => {
   const ok = (data: unknown) => ({ ok: true, status: 200, data: { data } });
   return {
     apiClient: {
-      post: vi.fn(async (_url: string, body: { query: string; variables?: { input?: never } }) => {
+      post: vi.fn(async (_url: string, body: { query: string; variables?: { input?: never; cursor?: string } }) => {
         if (body.query.includes('GetApprovalDialogs')) {
           return ok({
             dialogs: {
@@ -50,11 +52,19 @@ vi.mock('@/lib/api-client', () => {
           });
         }
         if (body.query.includes('GetBoardColumnTickets')) {
+          const older = body.variables?.cursor === 'page-2';
+          const page = older ? server.olderTickets : server.tickets;
+          const hasNextPage = !older && server.olderTickets.length > 0;
           return ok({
             tickets: {
-              edges: server.tickets.map(node => ({ cursor: 'c', node })),
-              pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
-              filteredCount: server.tickets.length,
+              edges: page.map(node => ({ cursor: 'c', node })),
+              pageInfo: {
+                hasNextPage,
+                hasPreviousPage: older,
+                startCursor: null,
+                endCursor: hasNextPage ? 'page-2' : null,
+              },
+              filteredCount: server.tickets.length + server.olderTickets.length,
             },
           });
         }
@@ -159,6 +169,7 @@ beforeEach(() => {
   server.saas = true;
   server.dialogs = [];
   server.tickets = [];
+  server.olderTickets = [];
   server.resolved = [];
   push.mockReset();
   openMingoDialog.mockReset();
@@ -288,6 +299,43 @@ describe('ApprovalsView', () => {
     act(() => noteApprovalDecision('ar-2', false));
     expect(cardTitled('Chat d-2')).toBeNull();
     expect(badge()).toBe(1);
+  });
+
+  it('pages only the section it belongs to, and says how far an empty one looked', async () => {
+    server.dialogs = [mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z')];
+    // The lane's first page holds a ticket with no approval; the next one holds one.
+    server.tickets = [{ ...techTicket('t-4', 'unused'), pendingApproval: null }];
+    server.olderTickets = [techTicket('t-5', 'ar-t5')];
+    await renderPage();
+
+    const [requestsSection, ticketsSection] = [...container.querySelectorAll('section')].filter(section =>
+      section.querySelector('h2'),
+    );
+    // Nothing more to load for the requests: no paging control there.
+    expect(buttonIn(requestsSection, 'Show more')).toBeNull();
+    expect(ticketsSection.textContent).toContain('No approvals in the latest 1 Tech Required ticket.');
+    expect(ticketsSection.textContent).not.toContain("No tickets are waiting for a technician's approval.");
+    expect(buttonIn(ticketsSection, 'Show more')).toBeNull();
+
+    await act(async () => {
+      buttonIn(ticketsSection, 'Check older tickets')?.click();
+    });
+    await settle();
+
+    expect(cardTitled('LAPTOP-7 · Acme')).not.toBeNull();
+    expect(buttonIn(ticketsSection, 'Check older tickets')).toBeNull();
+    expect(buttonIn(ticketsSection, 'Show more')).toBeNull();
+  });
+
+  it('draws the ✓ "Mark notification complete" only on a card that is a notification', async () => {
+    server.dialogs = [mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z')];
+    server.tickets = [techTicket('t-5', 'ar-t5')];
+    await renderPage([approvalNotification]);
+
+    const complete = (card: Element | null) => card?.querySelector('button[aria-label="Mark notification complete"]');
+    expect(complete(cardTitled('Approval required'))).not.toBeNull();
+    expect(complete(cardTitled('Chat d-2'))).toBeNull();
+    expect(complete(cardTitled('1152: Customer Service Request'))).toBeNull();
   });
 
   it('says nothing is waiting when nothing is', async () => {
