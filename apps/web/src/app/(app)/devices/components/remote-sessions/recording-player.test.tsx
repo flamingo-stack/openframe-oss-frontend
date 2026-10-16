@@ -17,6 +17,7 @@ function player(state: UseRecordingPlayerResult['state']): UseRecordingPlayerRes
     durationMs: 105_000,
     speed: 1,
     protocol: 2,
+    timeline: null,
     canvasRef: { current: null },
     terminalHostRef: { current: null },
     loadSegments: vi.fn(),

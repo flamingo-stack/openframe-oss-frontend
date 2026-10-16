@@ -12,5 +12,7 @@ export {
   type RecordingPlaybackSpeed,
   type RecordingPlayerState,
   type RecordingRenderer,
+  type RecordingSpan,
 } from './mcrec-types';
 export { DesktopRecordingRenderer, TerminalRecordingRenderer } from './renderers';
+export { type RecordingTimeline, toPlaybackMs } from './mcrec-timeline';
