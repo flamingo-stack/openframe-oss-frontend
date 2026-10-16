@@ -2,12 +2,12 @@ import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
-// The "Test mode" banner, behind `billing-test-mode`. Shared by the live view and
-// its loading skeleton so the copy/chrome are defined once. Nothing until the flag
-// answers: a live account must never flash "no real charges".
+// The "Test mode" banner, until `billing-live-mode` is on. Shared by the live view
+// and its loading skeleton so the copy/chrome are defined once. Nothing until the
+// flag answers: a live account must never flash "no real charges".
 export function TestModeBanner() {
-  const gate = useFeatureFlagGate('billing-test-mode');
-  if (gate !== 'on') return null;
+  const gate = useFeatureFlagGate('billing-live-mode');
+  if (gate !== 'off') return null;
 
   return (
     <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent">

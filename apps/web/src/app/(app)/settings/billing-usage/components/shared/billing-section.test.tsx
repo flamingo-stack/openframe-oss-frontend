@@ -27,13 +27,13 @@ describe('TestModeBanner', () => {
     container.remove();
   });
 
-  it('shows when billing-test-mode is on', () => {
-    useFeatureFlagsStore.getState().setFlags([{ name: 'billing-test-mode', enabled: true }]);
+  it('shows while billing-live-mode is off', () => {
+    useFeatureFlagsStore.getState().setFlags([{ name: 'billing-live-mode', enabled: false }]);
     expect(renderBanner()).toContain('Test mode');
   });
 
-  it('renders nothing when the flag is off', () => {
-    useFeatureFlagsStore.getState().setFlags([{ name: 'billing-test-mode', enabled: false }]);
+  it('renders nothing once billing is live', () => {
+    useFeatureFlagsStore.getState().setFlags([{ name: 'billing-live-mode', enabled: true }]);
     renderBanner();
     expect(container.childElementCount).toBe(0);
   });
