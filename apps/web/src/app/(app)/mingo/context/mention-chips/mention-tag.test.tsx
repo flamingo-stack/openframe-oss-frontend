@@ -28,11 +28,15 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 let sameWindow = true;
 vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => sameWindow }));
 
+let shellVariant: 'loading' | 'classic' | 'mingo' = 'classic';
+vi.mock('@/app/hooks/use-shell-variant', () => ({ useShellVariant: () => shellVariant }));
+
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
   push.mockReset();
+  shellVariant = 'classic';
   useMingoLauncherStore.setState({ isOpen: true, closedForNavigation: false });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -111,5 +115,22 @@ describe('MentionTag click', () => {
     expect(event.defaultPrevented).toBe(false);
     expect(push).not.toHaveBeenCalled();
     expect(useMingoLauncherStore.getState().isOpen).toBe(true);
+  });
+});
+
+describe('MentionTag in the Mingo-first shell', () => {
+  it('opens the entity in this window on a wide screen, where classic opens a new tab', () => {
+    sameWindow = false;
+    shellVariant = 'mingo';
+    const anchor = renderChip('/devices/details?id=m-1');
+    expect(anchor.getAttribute('target')).toBeNull();
+    primaryClick(anchor);
+    expect(push).toHaveBeenCalledWith('/devices/details?id=m-1');
+  });
+
+  it('keeps the new tab in the classic shell on a wide screen', () => {
+    sameWindow = false;
+    shellVariant = 'classic';
+    expect(renderChip('/devices/details?id=m-1').getAttribute('target')).toBe('_blank');
   });
 });

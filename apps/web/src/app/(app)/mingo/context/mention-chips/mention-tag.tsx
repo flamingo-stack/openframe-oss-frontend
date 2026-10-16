@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
+import { useShellVariant } from '@/app/hooks/use-shell-variant';
 import { navigatesCurrentWindow } from '@/lib/link-click';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
@@ -56,7 +57,12 @@ interface MentionTagProps {
 }
 
 export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
-  const sameWindow = useSameWindowLinks();
+  // The Mingo-first shell keeps the chat in the sidebar and the composer docked under every
+  // page, so an entity opens IN this window and Back returns to the conversation — the new tab
+  // only exists to keep a drawer conversation beside the page, and there is no drawer there.
+  const windowOnly = useSameWindowLinks();
+  const shellVariant = useShellVariant();
+  const sameWindow = windowOnly || shellVariant === 'mingo';
   const router = useRouter();
   const newTab = !sameWindow && !onOpen;
 
