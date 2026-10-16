@@ -286,6 +286,7 @@ mod run {
     }
 
     /// A path inside a single-quoted shell word.
+    #[cfg(target_os = "macos")]
     fn sh_quote(path: &Path) -> String {
         format!("'{}'", path.display().to_string().replace('\'', "'\\''"))
     }
@@ -527,6 +528,7 @@ mod run {
             assert!(pending.is_empty());
         }
 
+        #[cfg(target_os = "macos")]
         #[test]
         fn sh_quote_survives_an_apostrophe() {
             let quoted = sh_quote(Path::new("/tmp/o'brien/run.sh"));
