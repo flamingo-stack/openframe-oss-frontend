@@ -2,7 +2,7 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense } from 'react';
+import { type ReactNode, Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -16,51 +16,94 @@ import { TicketsOverviewSection } from './tickets-overview';
 const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden';
 
 /**
- * Dashboard content component - extracted for dynamic import with loading skeleton
- * Contains all dashboard sections: Onboarding, Devices, Tickets (SaaS only), Organizations
+ * The tenant Initial Setup card, as the dashboard shows it — and Mingo's home, which
+ * renders this same block (MISSING 5.3). Deliberately OUTSIDE the sections' PageLayout.
+ *
+ * Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
+ * `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
+ * bubbling to the route-level `loading.tsx` and re-flashing the whole page skeleton.
+ * Fallback is the card skeleton (not `null`) so the suspend doesn't flash an empty
+ * gap between the card's own count-loading skeleton and its content — the same
+ * skeleton carries through while onboarding progress (the tenant step-detection
+ * round-trips) loads.
  */
-export default function DashboardContent() {
+export function InitialSetupSection() {
+  return (
+    <Suspense
+      fallback={
+        <div className={ONBOARDING_WRAPPER_CLASS}>
+          <InitialSetupSkeleton />
+        </div>
+      }
+    >
+      <div className={ONBOARDING_WRAPPER_CLASS}>
+        <InitialSetupCard />
+      </div>
+    </Suspense>
+  );
+}
+
+interface OverviewSectionsProps {
+  /**
+   * The Tickets cards open the list narrowed to their status (Mingo's home). Off: the
+   * bare list, which is what the dashboard has always linked.
+   */
+  filterTicketLinks?: boolean;
+  /**
+   * A section between Tickets and Customers — Mingo's home puts its Incidents here. Inside
+   * the same PageLayout and dimming as the rest, so it spaces and dims like them.
+   */
+  incidents?: ReactNode;
+  /**
+   * Dim the sections while the tenant Initial Setup runs — the dashboard, which shows the
+   * setup card above them. Mingo's home has no setup card, so no dimming. Default true.
+   */
+  dimDuringInitialSetup?: boolean;
+}
+
+/**
+ * The overview sections: Devices, Tickets (SaaS only), Customers. Shared by the
+ * dashboard and Mingo's home.
+ */
+export function OverviewSections({
+  filterTicketLinks = false,
+  incidents,
+  dimDuringInitialSetup = true,
+}: OverviewSectionsProps) {
   const showTickets = isSaasTenantMode();
 
-  // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup is
-  // active — the exact same predicate that shows the setup card and the top bar, so the
+  // Dim (and disable) the sections ONLY while the tenant Initial Setup is active —
+  // the exact same predicate that shows the setup card and the top bar, so the
   // dimming can never appear without the card (see {@link useInitialSetupActive}). Fully
   // lit once setup is complete, before progress loads, or when there's no tenant record.
-  const dimDashboard = useInitialSetupActive();
+  const setupActive = useInitialSetupActive();
+  const dimSections = dimDuringInitialSetup && setupActive;
 
   return (
+    <div
+      className={cn('transition-opacity duration-300', dimSections && 'pointer-events-none select-none opacity-40')}
+      aria-hidden={dimSections || undefined}
+    >
+      {/* Standard page chrome: PageLayout supplies the gap between sections; each
+          section renders its own TitleBlock header (with the TitleBlock's own pt/mb). */}
+      <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+        <DevicesOverviewSection />
+        {showTickets && <TicketsOverviewSection filterLinks={filterTicketLinks} />}
+        {incidents}
+        <CustomersOverviewSection />
+      </PageLayout>
+    </div>
+  );
+}
+
+/**
+ * The classic shell's dashboard: the Initial Setup card, then the overview sections.
+ */
+export default function DashboardContent() {
+  return (
     <>
-      {/* Onboarding — deliberately OUTSIDE the PageLayout below.
-          Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
-          `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
-          bubbling to the route-level `loading.tsx` and re-flashing the whole dashboard
-          skeleton. Fallback is the card skeleton (not `null`) so the suspend doesn't
-          flash an empty gap between the card's own count-loading skeleton and its
-          content — the same skeleton carries through while onboarding progress
-          (the tenant step-detection round-trips) loads. */}
-      <Suspense
-        fallback={
-          <div className={ONBOARDING_WRAPPER_CLASS}>
-            <InitialSetupSkeleton />
-          </div>
-        }
-      >
-        <div className={ONBOARDING_WRAPPER_CLASS}>
-          <InitialSetupCard />
-        </div>
-      </Suspense>
-      <div
-        className={cn('transition-opacity duration-300', dimDashboard && 'pointer-events-none select-none opacity-40')}
-        aria-hidden={dimDashboard || undefined}
-      >
-        {/* Standard page chrome: PageLayout supplies the gap between sections; each
-            section renders its own TitleBlock header (with the TitleBlock's own pt/mb). */}
-        <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-          <DevicesOverviewSection />
-          {showTickets && <TicketsOverviewSection />}
-          <CustomersOverviewSection />
-        </PageLayout>
-      </div>
+      <InitialSetupSection />
+      <OverviewSections />
     </>
   );
 }

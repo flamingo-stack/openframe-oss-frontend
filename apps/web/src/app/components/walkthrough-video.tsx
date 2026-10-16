@@ -41,8 +41,7 @@ import {
  * long before the card's 3s appear delay elapses.
  *
  * The right corner needs no clearance: nothing is pinned there, and the panels
- * that open on that side simply layer over the card (see WALKTHROUGH_OVERLAP_Z
- * in `app-layout.tsx`).
+ * that open on that side simply layer over the card.
  */
 // The var name is spelled out instead of interpolated from
 // SIDEBAR_LIVE_WIDTH_CSS_VAR: Tailwind extracts class names by scanning source
@@ -112,8 +111,8 @@ export function WalkthroughVideo() {
   // A page rendering the video inline owns it for as long as it is mounted.
   const inlineElsewhere = useHasInlineWalkthrough();
 
-  // No "hide while a panel is open" handling on purpose: an open side panel is
-  // layered OVER the card (see WALKTHROUGH_OVERLAP_Z in `app-layout.tsx`).
+  // No "hide while a panel is open" handling on purpose: a panel that opens on
+  // the right is layered OVER the card.
   //
   // The corner is content-managed; mirrored here only for sidebar clearance.
   const side = video?.position ?? 'left';

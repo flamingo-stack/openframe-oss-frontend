@@ -1,3 +1,4 @@
+import { noteApprovalDecision } from '@/app/components/approvals/approval-decisions';
 import { apiClient } from '@/lib/api-client';
 import type { ChatType, DialogModeValue } from '../constants';
 import { API_ENDPOINTS } from '../constants';
@@ -458,5 +459,8 @@ export class TicketService implements TicketServiceInterface {
 
   async resolveApprovalRequest(requestId: string, approve: boolean): Promise<void> {
     await runCommand('resolveApprovalRequest', RESOLVE_APPROVAL_REQUEST_MUTATION, { id: requestId, approve });
+    // Every surface decides through here, so this is where the Needs approval page and its
+    // badge learn that a request is settled, whichever surface settled it.
+    noteApprovalDecision(requestId, approve);
   }
 }

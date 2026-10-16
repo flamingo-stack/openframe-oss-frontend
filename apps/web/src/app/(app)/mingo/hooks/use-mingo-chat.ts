@@ -49,7 +49,7 @@ export type ProcessedMessage = CoreMessage & {
   timestamp: Date;
 };
 
-interface UseMingoChat {
+interface UseMingoDialogChat {
   // Messages
   messages: ProcessedMessage[];
   isLoading: boolean;
@@ -113,7 +113,7 @@ function shallowEqualExcept<T extends object>(a: T, b: T, skip: ReadonlySet<stri
   return keys.every(key => skip.has(key) || a[key as keyof T] === b[key as keyof T]);
 }
 
-export function useMingoChat(dialogId: string | null): UseMingoChat {
+export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const user = useAuthStore(selectUser);

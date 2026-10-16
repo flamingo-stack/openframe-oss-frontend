@@ -49,14 +49,10 @@ export const FEATURE_FLAG_NAMES = [
   // module's tables over `deviceSoftware` / `deviceVulnerabilities` when on,
   // the Fleet host payload when off (`devices/components/tabs/software-tab.tsx`).
   'software-management',
-  // "Compact Chat Memory" in the Mingo chat ⋯ menus: summarizes a
-  // dialog's AI context on demand. Off = the item is absent; auto-compaction is
+  // "Compact chat memory" under the Mingo composer: summarizes a dialog's AI
+  // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
-  // Mingo docked into the layout (Mingo v2): a resizable column beside the page
-  // instead of the overlay drawer, the page laying out by the room it leaves
-  // (`content-md:` / `content-lg:`). Off = the overlay drawer.
-  'mingo-v2',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

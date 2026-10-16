@@ -20,7 +20,7 @@ import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 import { DeleteAccountModal } from './delete-account-modal';
@@ -74,10 +74,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
-  // one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
-  // here only once the flag has answered "off".
-  const mingoV2 = useFeatureFlagGate('mingo-v2');
-  const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
+  // one to replay. A SaaS tenant has no tour.
+  const canResetOnboarding = useCanResetOnboarding() && !isSaasTenantMode();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);

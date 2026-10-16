@@ -188,6 +188,8 @@ export default defineConfig([
     //  - `vulnerability-devices-table` is the same shape once more: its rows are
     //    `Machine` nodes drawn by the shared devices table, so it spreads the
     //    ladder's row step for `machineRowToDevice` and reads nothing itself.
+    //  - `needs-you-insights-source` (Mingo's home) spreads the Incidents table's row
+    //    step for `toIncidentRow`, renders nothing, and reports the mapped rows.
     //
     // Everywhere else the rule stays on, which is where it earns its place: a
     // component-owned fragment spread far from the component that reads it is how
@@ -197,6 +199,7 @@ export default defineConfig([
       'src/graphql/**/*.ts',
       'src/app/(app)/software/components/action-form/*-picker-lists.tsx',
       'src/app/(app)/software/components/vulnerability-detail/vulnerability-devices-table.tsx',
+      'src/app/(app)/mingo/home/needs-you/needs-you-insights-source.tsx',
     ],
     rules: { 'relay/must-colocate-fragment-spreads': 'off' },
   },
@@ -238,6 +241,15 @@ export default defineConfig([
     name: 'openframe-frontend/control-chars-are-the-payload',
     files: ['src/lib/meshcentral/file-operations.ts'],
     rules: { 'no-control-regex': 'off' },
+  },
+
+  {
+    // The sidebar's pre-paint seed is a string the root layout inlines into `<head>`;
+    // its test runs that string the way the browser does. `no-new-func` assumes the
+    // source is untrusted or dynamic; here it is our own constant.
+    name: 'openframe-frontend/inline-head-script-test',
+    files: ['src/lib/navigation-sidebar-state.test.ts'],
+    rules: { 'no-new-func': 'off' },
   },
 
   {

@@ -19,6 +19,7 @@
  * existing bookmarks stay valid.
  */
 import type { LegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { DeviceStatus, InsightSeverity, InsightStatus } from '@/generated/schema-enums';
 
 // --------------------------------------------------------------------------
 // Tab ids (single source of truth, shared with the tab-component arrays)
@@ -123,18 +124,25 @@ export type TicketPrefill = Partial<Record<(typeof TICKET_PREFILL_KEYS)[number],
 // Query-string helper
 // --------------------------------------------------------------------------
 
-type QueryValue = string | number | boolean | undefined | null;
+type QueryValue = string | number | boolean | readonly string[] | undefined | null;
 
 /**
  * Append a typed query object to a base path. Skips `undefined`/`null` values
  * and URL-encodes the rest, so every parametrized route shares identical query
- * semantics.
+ * semantics. An array becomes one repeated key per value (`?statuses=A&statuses=B`),
+ * the form `useApiParams` writes and reads for its `array` params; an empty array
+ * is skipped like `undefined`.
  */
 function withQuery(base: string, query?: Record<string, QueryValue>): string {
   if (!query) return base;
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== null) qs.set(key, String(value));
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) qs.append(key, item);
+    } else {
+      qs.set(key, String(value));
+    }
   }
   const serialized = qs.toString();
   return serialized ? `${base}?${serialized}` : base;
@@ -145,11 +153,10 @@ function withQuery(base: string, query?: Record<string, QueryValue>): string {
 // --------------------------------------------------------------------------
 
 /**
- * Query param naming the dialog open in the Mingo chat drawer.
- *
- * Not an entry in {@link routes} because it belongs to no single route: the drawer
- * floats over whatever page is showing, so this rides the CURRENT URL rather than
- * producing one. See ROUTES.md § *Cross-cutting overlay params* for the policy.
+ * Query param that named the dialog open in the Mingo chat drawer the app once had.
+ * Links written then (copied links, old bundles' notifications, bookmarks) still
+ * carry it, on any route; `MingoDialogParamBridge` forwards them to the chat page.
+ * Nothing writes it any more. See ROUTES.md § *Cross-cutting overlay params*.
  */
 export const MINGO_DIALOG_PARAM = 'mingoDialog';
 
@@ -187,10 +194,36 @@ export function withMingoDialog(url: string, dialogId: string | null): string {
 // The route registry
 // --------------------------------------------------------------------------
 
+/*
+ * List paths that are both a plain string (`list`, ~30 call sites incl. the
+ * navigation config) and the base of a `filtered(...)` builder — named once here so
+ * the path still lives in exactly one place.
+ */
+const DEVICES_LIST_PATH = '/devices';
+const TICKETS_LIST_PATH = '/tickets';
+const INCIDENTS_LIST_PATH = '/incidents';
+
 export const routes = {
   root: '/',
   dashboard: '/dashboard',
   onboarding: '/onboarding',
+
+  /** Mingo — a SaaS tenant's (an OSS tenant's pages redirect to `/dashboard`). */
+  mingo: {
+    /** Mingo's home — a SaaS tenant's landing page (`/dashboard` redirects here). */
+    home: '/mingo',
+    /**
+     * One conversation as a page. The dialog id rides `?id=` like every detail page
+     * (static export: no dynamic segment, see ROUTES.md). The canonical link to a chat
+     * is {@link mingoDialogLink}, which builds this.
+     */
+    chat: (id: string | number) => withQuery('/mingo/chat', { id }),
+    /** Archived chats. */
+    archive: '/mingo/archive',
+  },
+
+  /** What needs a person's approval. SaaS only; an OSS tenant redirects it to `/notifications`. */
+  approvals: '/approvals',
   helpCenter: {
     root: '/help-center',
     onboardingGuides: '/help-center/onboarding-guides',
@@ -278,7 +311,15 @@ export const routes = {
   },
 
   devices: {
-    list: '/devices',
+    list: DEVICES_LIST_PATH,
+    /**
+     * The Devices list narrowed to some customers and statuses (`?organizationIds=`,
+     * `?statuses=`, what `useDevicesUrlParams` reads). `organizationIds` are the RAW
+     * `Organization.organizationId` values. An empty list means the page default (every
+     * customer; online + offline), so it is dropped like an absent option.
+     */
+    filtered: (o: { organizationIds?: readonly string[]; statuses?: readonly DeviceStatus[] }) =>
+      withQuery(DEVICES_LIST_PATH, { organizationIds: o.organizationIds, statuses: o.statuses }),
     archive: '/devices/archive',
     /** The tenant's remote sessions on every device - a page tab beside the Devices list. */
     remoteSessions: '/devices/remote-sessions',
@@ -349,7 +390,15 @@ export const routes = {
   },
 
   tickets: {
-    list: '/tickets',
+    list: TICKETS_LIST_PATH,
+    /**
+     * The Tickets list with the view it reads from its URL (`TicketsView`): `status`
+     * holds ticket STATUS IDS (the tenant's own statuses, not an enum) and narrows the
+     * TABLE only — the board ignores it, so a status filter needs `viewMode: 'table'`
+     * to show. No `viewMode` = the page default (the board).
+     */
+    filtered: (o: { status?: readonly string[]; viewMode?: 'table' | 'board' }) =>
+      withQuery(TICKETS_LIST_PATH, { status: o.status, viewMode: o.viewMode }),
     /** `edit` opens an existing ticket; a `TicketPrefill` starts a NEW one — one or the other, never both. */
     new: (o?: { edit: string } | TicketPrefill) => withQuery('/tickets/new', o),
     dialog: (id: string | number, o?: { tab?: 'chat' }) => withQuery('/tickets/dialog', { id, tab: o?.tab }),
@@ -369,7 +418,15 @@ export const routes = {
   // UI says "incident"; the API says "insight". `id` is `Insight.id`, the opaque
   // handle the `insight(id:)` query takes.
   incidents: {
-    list: '/incidents',
+    list: INCIDENTS_LIST_PATH,
+    /**
+     * The Incidents list narrowed by severity (`?severity=`) and status (`?status=`,
+     * both `INCIDENT_FILTER_PARAMS`) on a tab (`?tab=`, default `current`). A status
+     * narrows within the tab's own statuses: on Current, `NEW` + `ACKNOWLEDGED` leaves
+     * out the resolved incidents waiting to be archived.
+     */
+    filtered: (o: { severity?: readonly InsightSeverity[]; status?: readonly InsightStatus[]; tab?: IncidentsTab }) =>
+      withQuery(INCIDENTS_LIST_PATH, { tab: o.tab, severity: o.severity, status: o.status }),
     details: (id: string | number) => withQuery('/incidents/details', { id }),
   },
 
@@ -425,12 +482,10 @@ export const routes = {
  * Canonical, page-independent URL for SHARING or deep-linking a Mingo dialog —
  * what "Copy chat link" writes and what a notification tap navigates to.
  *
- * The chat has no route of its own: it is a drawer floating over whatever page is
- * showing, so the shareable shape is the drawer's resting state on a fixed landing
- * page. A sender — a push payload, an OS toast, a copied link — cannot know which
- * route the recipient is on, so this is the only shape it can produce, and a pasted
- * link adopts on first commit with nothing rendered in between.
+ * It is the chat ROUTE. Links written by older bundles (`/dashboard?mingoDialog=`)
+ * keep working: `MingoDialogParamBridge` forwards `?mingoDialog=` on any route to
+ * this page.
  */
 export function mingoDialogLink(dialogId: string): string {
-  return withMingoDialog(routes.dashboard, dialogId);
+  return routes.mingo.chat(dialogId);
 }

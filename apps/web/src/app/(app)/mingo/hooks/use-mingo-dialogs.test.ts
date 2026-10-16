@@ -39,6 +39,6 @@ describe('transformToDialogItem', () => {
     const item = transformToDialogItem(
       dialog({ owner: { type: 'ADMIN', userId: 'u-1', user: { id: 'u-1', firstName: 'Firsto', lastName: 'Lasto' } } }),
     );
-    expect(item.owner).toMatchObject({ name: 'Firsto Lasto' });
+    expect(item.owner).toMatchObject({ id: 'u-1', name: 'Firsto Lasto' });
   });
 });

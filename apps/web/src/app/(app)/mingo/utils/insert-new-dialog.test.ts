@@ -27,8 +27,7 @@ const page = (...dialogIds: string[]): DialogsData => ({
   pageParams: [undefined],
 });
 
-const key = (params: { search?: string; scope: string }) =>
-  mingoDialogQueryKeys.list({ limit: 20, withPendingApproval: true, ...params });
+const key = (params: { search?: string; scope: string }) => mingoDialogQueryKeys.list({ limit: 20, ...params });
 
 const ids = (client: QueryClient, params: { search?: string; scope: string }) =>
   client.getQueryData<DialogsData>(key(params))?.pages.flatMap(p => p.dialogs.map(d => d.dialogId));

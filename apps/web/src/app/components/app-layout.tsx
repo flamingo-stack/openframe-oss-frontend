@@ -1,26 +1,16 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
-import {
-  ChatIdentityProvider,
-  MINGO_V2_RAIL_WIDTH,
-  MINGO_V2_SPLIT_WIDTH,
-} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import {
-  AppLayoutDrawer,
-  AppLayoutDrawerContent,
-  AppLayout as CoreAppLayout,
-  SIDE_PANEL_FRAME_WIDTH,
-} from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import type { AppLayoutSidePanelConfig } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AppLayout as CoreAppLayout } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -28,7 +18,7 @@ import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-s
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
-import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
+import { useFeatureFlag, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
 import { isBillingHidden, isBillingReadOnly } from '@/lib/billing-visibility';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -37,19 +27,31 @@ import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
 import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
-import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
+import {
+  getGroupedNavigationItems,
+  getNavigationItems,
+  NAVIGATION_LOADING_ROWS,
+  type NavigationFlags,
+} from '../../lib/navigation-config';
+import { GROUPED_SIDEBAR_EXPANDED_WIDTH } from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
-import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
+import { APP_MAIN_CLASS_NAME, headerLoadingCells, mingoHeaderLoadingCells } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
-import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
-import { MingoCompactionWatchers } from './mingo-compaction-watchers';
-import { isFullWidthPage, MingoSidePanel } from './mingo-side-panel';
+import { useHistorySearchStore } from './mingo-shell/history-search-store';
+import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
+import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
+import { composerRouteOf } from './mingo-shell/mingo-dock-route';
+import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
+import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
+import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
+import { useMobileMenuStore } from './mingo-shell/mobile-menu-store';
+import { forwardsKeyboard, useHistorySearchShortcut } from './mingo-shell/use-history-search-shortcut';
+import { useSidebarCollapsed } from './mingo-shell/use-sidebar-collapsed';
 import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
-import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
@@ -57,35 +59,6 @@ import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status'
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
-
-/**
- * Layer the Mingo drawer OVER the floating walkthrough video card.
- *
- * The card is a viewport-`fixed` `z-[9980]` element the lib owns. The drawer is
- * `absolute` inside AppLayout's main-area container, which is `relative` with
- * NO z-index and so starts no stacking context — the two therefore compare
- * directly in the root context, and the drawer's default `z-[103]` lost. The
- * promo card sat on top of the chat, over its message input included.
- *
- * The raise MUST go on the drawer's `Content` node, which is what carries that
- * `z-[103]` and hence OWNS the stacking context. `panelClassName` lands on a
- * div INSIDE it, where any z-index is scoped to that context and can never
- * out-rank the card — and raising the overlay alone then puts the scrim above
- * the panel and dims the chat itself.
- *
- * `Content` exposes no className seam, but it does forward `style`, so the
- * z-index goes there. The overlay stays just under the panel and above the
- * card, so the card dims with the rest of the page instead of staying lit over
- * the scrim. 9990 is the tier the lib's own comment reserves for a chat dock;
- * both stay below toasts (`z-[9999]`).
- *
- * NOTE: this covers the drawer this app mounts. The lib's `NotificationDrawer`
- * renders inside `AppLayout` with no seam at all, so it keeps its own layer.
- */
-const WALKTHROUGH_OVERLAP_Z = {
-  content: { zIndex: 9990 },
-  overlay: '!z-[9985]',
-} as const;
 
 /**
  * How long the chrome may wait for the answers it renders from before giving up
@@ -138,6 +111,12 @@ function useFailOpen(loading: boolean, afterMs: number): boolean {
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const search = useSearchParams().toString();
+  // Which shell this is: a SaaS tenant's is Mingo-first (Mingo home, chats as pages,
+  // the composer docked under every page); an OSS tenant has no Mingo and keeps the
+  // dashboard shell. App mode is known before the first paint, so the chrome never
+  // waits for it.
+  const mingoShell = isSaasTenantMode();
 
   // The shell now mounts BEFORE the session resolves (see `AppLayoutInner`), so it
   // owns two things it used to get for free from being rendered only afterwards:
@@ -154,42 +133,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const userImageUrl = useAuthStore(state => state.user?.image?.imageUrl);
   const userImageHash = useAuthStore(state => state.user?.image?.hash);
 
-  // Mingo chat open state — shared between the header trigger below and the
-  // in-layout `AppLayoutDrawer` + `OpenframeEmbeddableChatEntry` in the
-  // `drawer` slot. The chat runs shell-less inside the drawer, so the drawer
-  // (not the chat) owns the panel chrome.
-  //
-  // Lifted into a global store (`mingo-launcher-store`) so pages can open the
-  // drawer from anywhere — e.g. the onboarding "Meet Mingo" chips call
-  // `sendToMingo(prompt)`, which flips `isOpen` here and queues a prompt the
-  // chat embedder auto-sends on open.
-  const chatOpen = useMingoLauncherStore(state => state.isOpen);
-  const setChatOpen = useMingoLauncherStore(state => state.setOpen);
-  const toggleChat = useMingoLauncherStore(state => state.toggle);
-
-  // Defer chat-identity resolution until the drawer is FIRST opened — the
-  // `ChatIdentityProvider` lives in the app shell (so it survives the drawer
-  // remounting), which meant it hit `/content/api/auth/identity` on every page
-  // even while the chat was closed. Latch on first open so identity still
-  // resolves ONCE and survives close/reopen, but never fetches before the user
-  // opens the chat at all.
-  const [chatIdentityEnabled, setChatIdentityEnabled] = useState(false);
-  // Mingo v2 docks the chat into the layout, so it is on screen from the first
-  // paint: nothing to defer the identity to. Gated (not a plain boolean): which
-  // chat surface renders hangs on it, and a wrong first answer would mount the
-  // overlay drawer and then swap it out.
-  const mingoV2 = useFeatureFlagGate('mingo-v2');
-  // Latched during render, not in an effect: the provider below reads this flag,
-  // so an effect would render the drawer's first frame with identity still off
-  // and start the fetch one paint later than the user opened it.
-  //
-  // In the native shell, identity rides the `/content` proxy which
-  // `embedAuthedFetch` refuses from the capacitor:// origin — a SYNCHRONOUS
-  // throw inside the resolver effect that unmounts the whole shell. Leave
-  // identity disabled there; the lib's designed fallback is anon identity.
-  if ((chatOpen || mingoV2 === 'on') && !chatIdentityEnabled && !isAppShell()) {
-    setChatIdentityEnabled(true);
-  }
+  // The chat identity, for the dock's `ChatIdentityProvider`. Not in the native
+  // shells: identity rides the `/content` proxy, which `embedAuthedFetch` refuses
+  // from the capacitor:// origin — a SYNCHRONOUS throw inside the resolver effect
+  // that unmounts the whole shell. The lib's designed fallback is anon identity.
+  const chatIdentityEnabled = !isAppShell();
 
   const handleNavigate = useCallback(
     (path: string) => {
@@ -208,8 +156,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   // Android hardware/gesture back dismisses an open overlay before navigating
   // the SPA history (native-back.ts). iOS uses the WKWebView edge-swipe.
-  const closeChat = useCallback(() => setChatOpen(false), [setChatOpen]);
-  useNativeBackDismissible(chatOpen, closeChat);
   useNativeBackDismissible(logoutOpen, closeLogout);
 
   // Notifications context (provided by NotificationsDataProvider in the root
@@ -231,15 +177,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // we own it here. Runs on `pathname` change; the initial no-op (already
   // closed) is harmless - React bails on a same-value `setState`.
   //
-  // The Mingo chat drawer used to be closed here too; it now belongs to
-  // `useMingoDialogUrlSync` below — why it can't be its own effect is on the
-  // resolver's step 1.
+  // The Mingo-first shell counts a query change as a navigation too: its chat pages
+  // differ only by `?id=`, and moving to another chat from the sidebar history must
+  // not leave the drawer over it. (That shell's phone drawer closes on the same
+  // trigger inside the layout, which watches `sidebarConfig.currentPath`.)
   //
-  // `pathname` is the intentional trigger but isn't read in the body — the
-  // close action is read imperatively via a ref, so it isn't a dependency.
+  // `locationKey` is the intentional trigger but isn't read in the body — the
+  // close action is read imperatively, so it isn't a dependency of it.
+  const locationKey = mingoShell ? `${pathname}?${search}` : pathname;
   useEffect(() => {
     closeNotificationsRef.current?.();
-  }, [pathname]);
+  }, [locationKey]);
 
   // The lock screen renders INSIDE this shell — the chrome stays up on every lock
   // screen, `disabled`, since nothing it leads to is reachable while the lock
@@ -309,33 +257,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
    */
   const showBillingBars = billingsEnabled && !isBillingHidden() && !isBillingReadOnly() && sessionReady && !isLocked;
 
-  // The Mingo sidebar (header launcher + in-layout chat drawer) is the only chat
-  // surface there is. It is meaningful only inside the full, unlocked app shell
-  // (it hits authed endpoints), so the subscription lock suppresses both the
-  // launcher and the drawer.
+  // Mingo — the composer dock, the chat history, the Mingo rows — is meaningful only
+  // inside the full, unlocked app shell (it hits authed endpoints), so the
+  // subscription lock suppresses it.
   const chatEnabled = !isLocked;
 
-  // Mirrors the drawer's open conversation into `?mingoDialog=` and adopts one
-  // from the URL — what makes a dialog shareable by link and reachable from a
-  // push/OS-notification deep link. Also owns the drawer's close-on-navigate
-  // (see the notifications effect above). Passed `chatEnabled` so an instruction
-  // is HELD rather than applied into a shell that renders no drawer.
-  useMingoDialogUrlSync(chatEnabled);
+  // The chat reads its content (empty state, identity, commands) the moment it
+  // mounts. Before the session is in place those reads are refused, and each
+  // refusal starts a token refresh that is refused too (a dev-ticket landing
+  // mounts the shell before the ticket is exchanged).
+  const chatMounted = mingoShell && chatEnabled && sessionReady;
 
-  // Same answer, published for the non-React callers that need it — notification
-  // clicks decide drawer-vs-navigate through `mingoDrawerDialogId`, which has no
-  // hooks and cannot see the subscription lock.
-  const setChatCanOpen = useMingoLauncherStore(state => state.setCanOpen);
-  useEffect(() => {
-    setChatCanOpen(chatEnabled);
-    // Unpublish with the shell that owns it. `forceLogout` on a SaaS tenant returns
-    // without a reload, so this shell unmounts while the root-layout notifications
-    // provider keeps running — and a desktop toast raised moments earlier still holds
-    // a live `onclick`. Without this, that click reads a latched `true` and opens into
-    // a drawer that no longer exists. Cleanup and re-run share an effect phase, so a
-    // `chatEnabled` change has no observable false→true window.
-    return () => setChatCanOpen(false);
-  }, [chatEnabled, setChatCanOpen]);
   const [unreadCounts, setUnreadCounts] = useState<UnreadCountsByCategory>({});
 
   // Onboarding chrome: the sidebar "Onboarding" tab/badge. Progress comes from the
@@ -378,8 +310,12 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // precisely what pinned this to `true` for whole sessions (see
   // `onboarding-progress-hydrator.tsx`). `useFailOpen` bounds the wait regardless
   // of which of the two signals is stuck, or why.
+  //
+  // The Mingo-first shell has no onboarding (no Get Started tour, no Initial Setup),
+  // so it neither waits for the progress nor loads it.
+  const withOnboarding = !mingoShell;
   const flagsReady = useFeatureFlagsReady();
-  const chromeIncomplete = !flagsReady || (sessionReady && !isLocked && !onboardingLoaded);
+  const chromeIncomplete = !flagsReady || (withOnboarding && sessionReady && !isLocked && !onboardingLoaded);
   const chromeLoading = useFailOpen(chromeIncomplete, CHROME_LOADING_FAIL_OPEN_MS);
 
   const userDone = countCompleted(USER_ONBOARDING_STEPS, userProgress?.completedSteps ?? []);
@@ -403,35 +339,136 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [insightsEnabled, softwareManagementEnabled, tenantManagementEnabled],
   );
 
-  const navigationItems = useMemo(
-    () =>
-      getNavigationItems(
-        pathname,
-        navigationFlags,
-        unreadCounts,
-        userOnboardingActive ? { inProgress: true, remaining: userRemaining } : undefined,
-      ),
-    [pathname, navigationFlags, unreadCounts, userOnboardingActive, userRemaining],
+  const grouped = mingoShell;
+  const navigationItems = useMemo(() => {
+    const onboarding = userOnboardingActive ? { inProgress: true, remaining: userRemaining } : undefined;
+    // Both from the one module table in `navigation-config.tsx`. The grouped entries
+    // carry their own `match` rules: the core sidebar resolves the active one from
+    // `currentPath`, so they do not depend on the location.
+    return grouped
+      ? getGroupedNavigationItems(navigationFlags, unreadCounts)
+      : getNavigationItems(pathname, navigationFlags, unreadCounts, onboarding);
+  }, [grouped, pathname, navigationFlags, unreadCounts, userOnboardingActive, userRemaining]);
+
+  // The breakpoint in JS, for the decisions CSS cannot make in the Mingo-first shell:
+  // which of two places MOUNTS the time tracker and the ticket alerts (the phone top bar
+  // below md, the sidebar header from md) — both exist in the DOM at every width, and
+  // the time tracker's popover follows a shared open state, so a second instance would
+  // open a second panel — and whether ⌘K opens the phone drawer. `undefined` until the
+  // query answers: neither mounts, they appear a frame late.
+  const isMdUp = useMdUp();
+
+  // Mingo-first only: the desktop collapse is the shell's (the classic sidebar keeps
+  // its own persisted preference — the same one, under the same key).
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  // ⌘K's reveal command (`NavigationSidebarConfig.revealSignal`): every bump shows the
+  // expanded sidebar at the current width — the tablet overlay too, which a change of
+  // `collapsed` cannot open while the desktop preference is already "expanded".
+  const [revealSignal, setRevealSignal] = useState(0);
+  // Mingo-first only: the phone drawer is the shell's too (`AppLayout` `mobileMenuOpen`),
+  // so the top bar's Chat history cell and ⌘K can open it and its slots can close it.
+  const mobileMenuOpen = useMobileMenuStore(state => state.open);
+  const setMobileMenuOpen = useMobileMenuStore(state => state.setOpen);
+  const setHistorySearchOpen = useHistorySearchStore(state => state.setOpen);
+  // ⌘K / Ctrl+K anywhere: the sidebar (or the phone drawer) opens on the chat-history
+  // search. Not on a page that forwards the keyboard to a remote machine, and not
+  // behind the paywall, where the history is not shown.
+  useHistorySearchShortcut(mingoShell && chatEnabled && !forwardsKeyboard(pathname), () => {
+    // Desktop: expands a collapsed sidebar (through `onCollapsedChange`); tablet: opens
+    // the overlay without touching the desktop preference.
+    setRevealSignal(signal => signal + 1);
+    // Below md the sidebar is the phone drawer; from md up the drawer is never drawn,
+    // and an open state left there would show it on the way down.
+    if (isMdUp === false) setMobileMenuOpen(true);
+    setHistorySearchOpen(true);
+  });
+  const currentPath = search ? `${pathname}?${search}` : pathname;
+
+  // Receives the FULL href computed by TicketAlertsButton
+  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
+  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
+  const openHelpCenterTickets = useCallback(
+    (href: string) => {
+      router.push(href);
+    },
+    [router],
   );
 
   const sidebarConfig: NavigationSidebarConfig = useMemo(
-    () => ({
-      items: navigationItems,
-      loading: chromeLoading,
-      // The counts this app's nav settles on, so the placeholder is the same height
-      // as the loaded rail: 7 primary (Dashboard, Customers, Devices, Scripts,
-      // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
-      loadingRows: { primary: 7, secondary: 2 },
-      onNavigate: handleNavigate,
-      // Desktop shell only: renders nothing until the shell reports an update
-      // waiting. The slot is a render prop because the same node also draws in
-      // the mobile burger menu, where there is no rail to collapse into.
-      topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
-      // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
-      // optional top bar rather than overflowing the viewport by its height.
-      className: 'h-full',
-    }),
-    [navigationItems, chromeLoading, handleNavigate],
+    () =>
+      grouped
+        ? {
+            variant: 'grouped',
+            items: navigationItems,
+            currentPath,
+            loading: chromeLoading,
+            loadingRows: NAVIGATION_LOADING_ROWS.grouped,
+            // 264 (the brief), not Figma's 224: at 224 "Needs approval" + its count and
+            // "Cloud tenants" + BETA truncate, and the chat titles get 40px more. The
+            // pre-paint seed (`sidebarWidthFoucScript`) reads the app mode too, so the
+            // first frame is already this wide.
+            expandedWidth: GROUPED_SIDEBAR_EXPANDED_WIDTH,
+            onNavigate: handleNavigate,
+            // The Mingo rows (New chat, Needs approval) above the module tree, after
+            // the desktop shell's update button as in the classic sidebar.
+            topSlot: ({ minimized }) => (
+              <>
+                <SidebarUpdateButton minimized={minimized} />
+                <MingoSidebarRows minimized={minimized} disabled={!chatEnabled} />
+              </>
+            ),
+            // The chat history (stream B2), in the sidebar body's one scroll; in the
+            // 56px rail a "Chats" row that opens the chat search. Drawn in the phone
+            // drawer too — a second instance.
+            // Behind the paywall Mingo is hidden altogether.
+            sectionSlot: chatEnabled ? ({ minimized }) => <MingoSidebarHistorySlot minimized={minimized} /> : undefined,
+            // The account row, and beside it the time tracker and the bell — the classic
+            // header's right end — as compact buttons (stacked over the avatar in the rail;
+            // unread support replies are in the account menu); the header is the logo alone. Below md the phone
+            // top bar carries them. The phone drawer draws none: it stays mounted from md
+            // up, and a second tracker over the shared open state closed the first.
+            footerSlot: ({ minimized, inDrawer }) => (
+              <div className="flex flex-col-reverse items-center gap-[var(--spacing-system-xxs)] @[140px]/of-nav-sidebar:flex-row">
+                <div className="w-full min-w-0 @[140px]/of-nav-sidebar:flex-1">
+                  <MingoAccountPopover collapsed={minimized} locked={isLocked} />
+                </div>
+                {!inDrawer && <MingoSidebarControls ownsHeaderCells={isMdUp === true} disabled={showLockContent} />}
+              </div>
+            ),
+            collapsed: sidebarCollapsed,
+            onCollapsedChange: setSidebarCollapsed,
+            revealSignal,
+            className: 'h-full',
+          }
+        : {
+            items: navigationItems,
+            loading: chromeLoading,
+            // The counts this app's nav settles on, so the placeholder is the same
+            // height as the loaded rail (see `NAVIGATION_LOADING_ROWS`).
+            loadingRows: NAVIGATION_LOADING_ROWS.flat,
+            onNavigate: handleNavigate,
+            // Desktop shell only: renders nothing until the shell reports an update
+            // waiting. The slot is a render prop because the same node also draws in
+            // the mobile burger menu, where there is no rail to collapse into.
+            topSlot: ({ minimized }) => <SidebarUpdateButton minimized={minimized} />,
+            // `h-full` (not `h-screen`) so the sidebar fills the layout row below the
+            // optional top bar rather than overflowing the viewport by its height.
+            className: 'h-full',
+          },
+    [
+      grouped,
+      navigationItems,
+      currentPath,
+      chromeLoading,
+      handleNavigate,
+      chatEnabled,
+      isLocked,
+      sidebarCollapsed,
+      setSidebarCollapsed,
+      revealSignal,
+      isMdUp,
+      showLockContent,
+    ],
   );
 
   // Single `topBar` slot, one bar at a time: the billing bars first, since they
@@ -468,25 +505,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         }}
       />
     );
-  } else if (showOnboardingChrome) {
+  } else if (withOnboarding ? showOnboardingChrome : sessionReady && !isLocked) {
     // Loaded progress doubles as "a live, unlocked session": the hydrator behind
-    // it only runs with one, and the announcement fetches on mount.
+    // it only runs with one, and the announcement fetches on mount. The
+    // Mingo-first shell loads no progress and asks the session directly.
     topBar = <AnnouncementTopBar />;
   }
 
   const displayName = useMemo(
     () => `${userFirstName || ''} ${userLastName || ''}`.trim(),
     [userFirstName, userLastName],
-  );
-
-  // Receives the FULL href computed by TicketAlertsButton
-  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
-  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
-  const openHelpCenterTickets = useCallback(
-    (href: string) => {
-      router.push(href);
-    },
-    [router],
   );
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
@@ -508,106 +536,61 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // menu — which is why the user props below are gone rather than kept unused:
       // the core header only reads them under `showUser`.
       showUser: false,
-      // `showMingoAI` / `onMingoAI` / `isMingoAIActive` below are core
-      // `AppHeader` prop names — external API, not ours.
       // Support-ticket alerts cell — Help Center unread indication.
       // Attention-only: renders nothing unless <TicketLiveProvider> is
       // enabled (below), the viewer is authed, AND there are unread replies.
       showTicketAlerts: true,
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
-      showMingoAI: chatEnabled,
-      onMingoAI: toggleChat,
-      isMingoAIActive: chatOpen,
+      // The Mingo-first shell draws this header below md only (`desktopHeader`): the
+      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts,
+      // Mingo. Chat history opens the drawer, where the history section lives (the
+      // active chats, not only the archive); Mingo goes home. (`showMingoAI` /
+      // `onMingoAI` are core `AppHeader` prop names — external API, not ours.)
+      ...(mingoShell && {
+        loadingActionCells: mingoHeaderLoadingCells(),
+        showTimeTracker: isMdUp === false,
+        showTicketAlerts: isMdUp === false,
+        showMingoAI: chatEnabled,
+        onMingoAI: () => router.push(routes.mingo.home),
+        customCells: chatEnabled
+          ? [
+              {
+                id: 'chat-history',
+                // Not the clock: the time tracker beside it is one.
+                icon: <ChatsIcon className="h-6 w-6" />,
+                label: 'Chat history',
+                onClick: () => setMobileMenuOpen(true),
+                mobileOnly: true,
+              },
+            ]
+          : [],
+      }),
     }),
-    [chromeLoading, chatEnabled, toggleChat, chatOpen, openHelpCenterTickets],
+    [chromeLoading, chatEnabled, openHelpCenterTickets, mingoShell, isMdUp, router, setMobileMenuOpen],
   );
 
   const mobileBurgerMenuProps = useMemo(
-    () => ({
-      user: {
-        userName: displayName,
-        userEmail,
-        userAvatarUrl: avatarUrl || null,
-        userRole,
-      },
-      onLogout: handleLogout,
-    }),
-    [displayName, userEmail, avatarUrl, userRole, handleLogout],
+    () =>
+      // The grouped drawer carries the account row in its footer slot instead
+      // (`MingoAccountPopover`, with Log out in its menu).
+      grouped
+        ? {}
+        : {
+            user: {
+              userName: displayName,
+              userEmail,
+              userAvatarUrl: avatarUrl || null,
+              userRole,
+            },
+            onLogout: handleLogout,
+          },
+    [grouped, displayName, userEmail, avatarUrl, userRole, handleLogout],
   );
 
-  // The chat reads its content (empty state, identity, commands) the moment it
-  // mounts. Before the session is in place those reads are refused, and each
-  // refusal starts a token refresh that is refused too (a dev-ticket landing
-  // mounts the shell before the ticket is exchanged).
-  const chatMounted = chatEnabled && sessionReady;
-
-  const chatDrawer =
-    chatMounted && mingoV2 === 'off' ? (
-      // ChatIdentityProvider wraps the drawer (not the remounting panel content)
-      // so chat identity resolves ONCE for the session and survives the drawer
-      // closing/reopening. Without it, EmbeddableChat self-fetches identity on
-      // every open (the panel unmounts on close). Must sit inside the chat
-      // runtime context (provided higher up by OpenframeChatRuntimeProvider).
-      <ChatIdentityProvider enabled={chatIdentityEnabled}>
-        <AppLayoutDrawer open={chatOpen} onOpenChange={setChatOpen}>
-          <AppLayoutDrawerContent
-            side="right"
-            flush
-            resizable
-            minSize={480}
-            // Default ~920px so every user opens the Mingo panel in its
-            // two-column "Current Chats" split (320px history rail + ~600px chat
-            // block, both well above their minimums); narrower resizes fall back
-            // to the stacked single-column layout. `storageKey` is versioned so
-            // this new default reaches users who had the old width persisted.
-            defaultSize={920}
-            storageKey="openframe:mingo-chat-width-v2"
-            panelClassName="!bg-ods-bg"
-            // No `AppLayoutDrawerTitle` is rendered (see below), so Radix's
-            // `aria-labelledby` points at an id that doesn't exist and the dialog has
-            // no accessible name. That was survivable while the drawer only ever
-            // opened from a click; a deep link opens it with no user gesture, moving
-            // focus into an unnamed dialog.
-            aria-label="Mingo AI chat"
-            // See WALKTHROUGH_OVERLAP_Z: the z-index belongs on Content (which
-            // owns the stacking context), not on the panel inside it.
-            style={WALKTHROUGH_OVERLAP_Z.content}
-            overlayClassName={WALKTHROUGH_OVERLAP_Z.overlay}
-          >
-            {/* No AppLayoutDrawerHeader/Title — EmbeddableChat renders its own
-              header + X button; a wrapper header would double it up. */}
-            <ChatDrawerErrorBoundary>
-              <OpenframeEmbeddableChatEntry open={chatOpen} onOpenChange={setChatOpen} />
-            </ChatDrawerErrorBoundary>
-          </AppLayoutDrawerContent>
-        </AppLayoutDrawer>
-        <MingoCompactionWatchers />
-      </ChatIdentityProvider>
-    ) : null;
-
-  // Mingo v2: the chat docked beside the page as the layout's side panel. Not an
-  // overlay, so it neither closes on navigation nor offers a close button while
-  // docked; the launcher's `isOpen` only means "opened from the header", which is
-  // how it shows when there is no room to dock (and on a phone). The compaction
-  // watchers stay in the `drawer` slot: they must outlive the panel, which
-  // unmounts while hidden.
-  const chatSidePanel: AppLayoutSidePanelConfig | undefined =
-    chatMounted && mingoV2 === 'on'
-      ? {
-          label: 'Mingo AI chat',
-          minWidth: MINGO_V2_RAIL_WIDTH,
-          // A first launch opens the list beside a new chat, as much of it as fits.
-          defaultWidth: MINGO_V2_SPLIT_WIDTH + SIDE_PANEL_FRAME_WIDTH,
-          // v2: widths chosen before the default existed start over at it.
-          storageKey: 'openframe:mingo-panel-v2',
-          collapsed: isFullWidthPage(pathname),
-          open: chatOpen,
-          onOpenChange: setChatOpen,
-          children: state => <MingoSidePanel {...state} identityEnabled={chatIdentityEnabled} />,
-        }
-      : undefined;
-  const chatWatchers = chatEnabled && mingoV2 === 'on' ? <MingoCompactionWatchers /> : null;
+  // An OSS tenant has no slot; behind the paywall it is kept, empty.
+  let composerDock: React.ReactNode;
+  if (mingoShell) composerDock = chatEnabled ? <MingoComposerDock /> : null;
 
   return (
     <>
@@ -659,23 +642,39 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             CoreAppLayout so BOTH the header's TicketAlertsButton and the
             /help-center/tickets page (children) read one provider. */}
         <TicketLiveProvider enabled={sessionReady && !isLocked}>
-          <CoreAppLayout
-            // Hook for the native-shell safe-area CSS in globals.css: the layout
-            // root owns the top inset (see `.app-shell-root`). Inert on the web.
-            className="app-shell-root"
-            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-            sidebarConfig={sidebarConfig}
-            mobileBurgerMenuProps={mobileBurgerMenuProps}
-            headerProps={headerProps}
-            // Greys the header and nav rail out for the lock: they stay legible —
-            // the user can still see where they are and reach the account menu —
-            // but nothing they lead to is reachable until the workspace is paid for.
-            disabled={showLockContent}
-            drawer={chatDrawer ?? chatWatchers}
-            sidePanel={chatSidePanel}
-            topBar={topBar}
-          >
-            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+          {/* The Mingo chat state, once for the session, around every surface that
+              can show it (the dock, the sidebar history, the page). It runs only
+              while one of them is mounted. */}
+          <MingoChatProvider enabled={chatMounted} identityEnabled={chatIdentityEnabled}>
+            <CoreAppLayout
+              // Hook for the native-shell safe-area CSS in globals.css: the layout
+              // root owns the top inset (see `.app-shell-root`). Inert on the web.
+              className="app-shell-root"
+              mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+              sidebarConfig={sidebarConfig}
+              mobileBurgerMenuProps={mobileBurgerMenuProps}
+              headerProps={headerProps}
+              // The Mingo-first shell owns the phone drawer (see `useMobileMenuStore`); the
+              // layout still reports every open and close, and closes it on a change of
+              // `sidebarConfig.currentPath`. The OSS shell leaves it to the layout.
+              mobileMenuOpen={grouped ? mobileMenuOpen : undefined}
+              onMobileMenuOpenChange={grouped ? setMobileMenuOpen : undefined}
+              // Greys the header and nav rail out for the lock: they stay legible —
+              // the user can still see where they are and reach the account menu —
+              // but nothing they lead to is reachable until the workspace is paid for.
+              disabled={showLockContent}
+              topBar={topBar}
+              // The Mingo-first shell: no desktop header (the phone top bar stays; the
+              // bell and the time tracker move into the sidebar footer); the composer is
+              // docked under every page — `null` behind the paywall, which keeps the slot
+              // (and the page's layout) while drawing nothing.
+              desktopHeader={!mingoShell}
+              composerDock={composerDock}
+              // A chat page: Mingo's background and glow from the top of the thread
+              // to the bottom of the window, under the docked composer too.
+              pageSurface={mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}
+            >
+              {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -694,8 +693,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header — which also means the lock
               arriving late costs a content swap, not a second chrome mount. */}
-            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-          </CoreAppLayout>
+              <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
+            </CoreAppLayout>
+            {/* The chat history's search modal, once (the section is drawn twice). */}
+            {grouped && chatEnabled && <MingoHistorySearch />}
+          </MingoChatProvider>
         </TicketLiveProvider>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
@@ -704,7 +706,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           never fire before `/me` has answered, and on the lock because a locked
           workspace shows no onboarding — and its request would be held by the
           subscription gate rather than answered (see `chromeLoading`). */}
-      {sessionReady && !isLocked && (
+      {sessionReady && !isLocked && withOnboarding && (
         <>
           <OnboardingProgressHydrator />
           <OnboardingCoachMark />
