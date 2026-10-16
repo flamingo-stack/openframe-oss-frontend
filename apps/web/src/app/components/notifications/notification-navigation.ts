@@ -3,8 +3,11 @@ import {
   INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isIncidentNotificationType,
+  isRecordingNotificationType,
+  isRecordingStorageNotificationType,
   NEW_PERMISSIONS_REQUIRED_TYPE,
   NOTIFICATION_ATTR,
+  RECORDING_NOTIFICATION_TYPES,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
@@ -74,6 +77,14 @@ const incidentAction = (insightId: string): NotificationAction => ({
   label: 'Incident Details',
   route: routes.incidents.details(ensureGlobalIdForType('Insight', insightId)),
 });
+const recordingAction = (recordingId: string): NotificationAction => ({
+  label: 'Open Recording',
+  route: routes.devices.remoteSessionRecording(recordingId),
+});
+const deviceRemoteSessionsAction = (deviceId: string): NotificationAction => ({
+  label: 'Remote Sessions',
+  route: routes.devices.details(deviceId, { tab: 'remote-sessions' }),
+});
 
 /** Action for a Mingo dialog: the canonical chat link, plus the dialog id. */
 const mingoDialogAction = (dialogId: string): NotificationAction => ({
@@ -87,11 +98,18 @@ const nonEmptyString = (value: unknown): string | null => (typeof value === 'str
 /** Backend `NotificationCategory` for Mingo — the signal that an unknown type's dialog is an admin one. */
 const MINGO_CATEGORY = 'MINGO';
 
+/** The entity ids a notification can carry, read from `attributes` (or the flat push keys). */
+interface NotificationIds {
+  ticketId: string | null;
+  dialogId: string | null;
+  insightId: string | null;
+  recordingId: string | null;
+  deviceId: string | null;
+}
+
 function resolveAction(
   type: string | null,
-  ticketId: string | null,
-  dialogId: string | null,
-  insightId: string | null,
+  { ticketId, dialogId, insightId, recordingId, deviceId }: NotificationIds,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -121,6 +139,25 @@ function resolveAction(
     return { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
   }
 
+  // A recording about to expire, about to be deleted, or released by someone else opens the
+  // recording; without its id, the device's sessions are the nearest place to find it.
+  if (isRecordingNotificationType(type)) {
+    if (recordingId) return recordingAction(recordingId);
+    if (deviceId) return deviceRemoteSessionsAction(deviceId);
+    return null;
+  }
+
+  // No file arrived, so there is no recording to open: the device's sessions show the
+  // session as failed.
+  if (type === RECORDING_NOTIFICATION_TYPES.failed) {
+    return deviceId ? deviceRemoteSessionsAction(deviceId) : null;
+  }
+
+  // The storage is the tenant's: every device's sessions are where space is freed.
+  if (isRecordingStorageNotificationType(type)) {
+    return { label: 'Remote Sessions', route: routes.devices.remoteSessions };
+  }
+
   // Unknown type. The contract requires new types to reach users without a client release —
   // "an unfamiliar string still routes by ids, never drops the message silently" — so route
   // by the entity ids rather than giving up.
@@ -132,6 +169,7 @@ function resolveAction(
   // An incident id outranks a Mingo dialog: a chat ABOUT an incident still names the incident.
   if (insightId) return incidentAction(insightId);
   if (dialogId && category === MINGO_CATEGORY) return mingoDialogAction(dialogId);
+  if (recordingId) return recordingAction(recordingId);
 
   return null;
 }
@@ -144,9 +182,13 @@ export function resolveNotificationAction(notification: Notification): Notificat
   const meta = notification.meta ?? {};
   return resolveAction(
     nonEmptyString(meta.notificationType),
-    nonEmptyString(meta.ticketId),
-    nonEmptyString(meta.dialogId),
-    nonEmptyString(meta.insightId),
+    {
+      ticketId: nonEmptyString(meta.ticketId),
+      dialogId: nonEmptyString(meta.dialogId),
+      insightId: nonEmptyString(meta.insightId),
+      recordingId: nonEmptyString(meta.recordingId),
+      deviceId: nonEmptyString(meta.deviceId),
+    },
     nonEmptyString(notification.category),
   );
 }
@@ -167,12 +209,17 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
   // puts them (see resolvePushNotificationRoute). Read the map first and fall back to the
   // flat keys.
   const attributes = readNotificationAttributes(fields.attributes);
+  const id = (key: keyof NotificationIds) => attributes[NOTIFICATION_ATTR[key]] ?? nonEmptyString(fields[key]);
   return actionRoute(
     resolveAction(
       nonEmptyString(fields.type),
-      attributes[NOTIFICATION_ATTR.ticketId] ?? nonEmptyString(fields.ticketId),
-      attributes[NOTIFICATION_ATTR.dialogId] ?? nonEmptyString(fields.dialogId),
-      attributes[NOTIFICATION_ATTR.insightId] ?? nonEmptyString(fields.insightId),
+      {
+        ticketId: id('ticketId'),
+        dialogId: id('dialogId'),
+        insightId: id('insightId'),
+        recordingId: id('recordingId'),
+        deviceId: id('deviceId'),
+      },
       nonEmptyString(fields.category),
     ),
   );

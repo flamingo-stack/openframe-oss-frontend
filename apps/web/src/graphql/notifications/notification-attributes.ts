@@ -37,6 +37,42 @@ const INCIDENT_TYPE_PREFIX = 'INCIDENT_';
 export const NEW_PERMISSIONS_REQUIRED_TYPE = 'NEW_PERMISSIONS_REQUIRED';
 
 /**
+ * The Remote Sessions recording family, by what each card opens: a recording that is about
+ * to go or was released by someone else opens that recording (`recordingId`); a session that
+ * left no recording opens its device's Remote Sessions tab (`deviceId`); the tenant's
+ * recording storage opens the Remote Sessions page of every device.
+ */
+export const RECORDING_NOTIFICATION_TYPES = {
+  expiresIn7Days: 'RECORDING_EXPIRES_IN_7_DAYS',
+  aboutToBeDeleted: 'RECORDING_ABOUT_TO_BE_DELETED',
+  keepReleasedBySomeoneElse: 'KEEP_RELEASED_BY_SOMEONE_ELSE',
+  failed: 'RECORDING_FAILED',
+  storageNearlyFull: 'RECORDING_STORAGE_NEARLY_FULL',
+  storageFull: 'RECORDING_STORAGE_FULL',
+} as const;
+
+const RECORDING_TYPES: ReadonlySet<string> = new Set([
+  RECORDING_NOTIFICATION_TYPES.expiresIn7Days,
+  RECORDING_NOTIFICATION_TYPES.aboutToBeDeleted,
+  RECORDING_NOTIFICATION_TYPES.keepReleasedBySomeoneElse,
+]);
+
+const RECORDING_STORAGE_TYPES: ReadonlySet<string> = new Set([
+  RECORDING_NOTIFICATION_TYPES.storageNearlyFull,
+  RECORDING_NOTIFICATION_TYPES.storageFull,
+]);
+
+/** A card about one recording; it carries the recording's `recordingId`. */
+export function isRecordingNotificationType(type: unknown): type is string {
+  return typeof type === 'string' && RECORDING_TYPES.has(type);
+}
+
+/** A card about the tenant's recording storage; it names no entity. */
+export function isRecordingStorageNotificationType(type: unknown): type is string {
+  return typeof type === 'string' && RECORDING_STORAGE_TYPES.has(type);
+}
+
+/**
  * True for any member of the family, including one this release has never heard of: the
  * family shares a prefix by backend convention, and a transition added later should still
  * look and route like its siblings rather than fall back to a generic tile.
@@ -67,6 +103,10 @@ export const NOTIFICATION_ATTR = {
   resolution: 'resolution',
   resolvedByName: 'resolvedByName',
   toolCalls: 'toolCalls',
+  /** The file a recording card opens: the session's first one. */
+  recordingId: 'recordingId',
+  /** The device (machine id) a recording card is about. */
+  deviceId: 'deviceId',
 } as const;
 
 /**

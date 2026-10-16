@@ -24,6 +24,8 @@ describe('toRecordingTicket', () => {
           statusKind: 'TECH_REQUIRED',
           statusColor: '#F5A524',
           assignedName: 'Roman Smith',
+          assignedAvatarUrl: 'https://cdn.example/roman.png',
+          createdAt: '2026-10-15T09:00:00.000Z',
         }),
       ),
     ).toEqual({
@@ -34,6 +36,8 @@ describe('toRecordingTicket', () => {
       statusKind: 'TECH_REQUIRED',
       statusColor: '#F5A524',
       assignedName: 'Roman Smith',
+      assignedAvatarUrl: 'https://cdn.example/roman.png',
+      createdAt: '2026-10-15T09:00:00.000Z',
     });
   });
 
@@ -48,9 +52,18 @@ describe('toRecordingTicket', () => {
           statusKind: null,
           statusColor: null,
           assignedName: null,
+          assignedAvatarUrl: null,
+          createdAt: null,
         }),
       ),
-    ).toMatchObject({ title: 'Untitled Ticket', ticketNumber: null, assignedName: null, statusName: null });
+    ).toMatchObject({
+      title: 'Untitled Ticket',
+      ticketNumber: null,
+      assignedName: null,
+      assignedAvatarUrl: null,
+      createdAt: null,
+      statusName: null,
+    });
   });
 });
 
@@ -63,6 +76,8 @@ describe('matchesTicketSearch', () => {
     statusKind: null,
     statusColor: null,
     assignedName: null,
+    assignedAvatarUrl: null,
+    createdAt: null,
   };
 
   it('matches any ticket while the box is empty', () => {

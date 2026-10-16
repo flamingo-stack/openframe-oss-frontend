@@ -15,6 +15,7 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
@@ -63,16 +64,23 @@ function recordingTicketColumns({
       id: RECORDING_TICKET_COLUMNS.ticket.id,
       header: RECORDING_TICKET_COLUMNS.ticket.header,
       accessorFn: ticket => ticket.ticketNumber ?? -1,
-      cell: ({ row }: { row: Row<RecordingTicket> }) => (
-        <div className="flex min-w-0 flex-col justify-center">
-          <TruncateText>{row.original.title}</TruncateText>
-          {row.original.ticketNumber != null && (
-            <TruncateText variant="h6" tone="secondary">
-              {formatTicketRowMeta(row.original)}
-            </TruncateText>
-          )}
-        </div>
-      ),
+      cell: ({ row }: { row: Row<RecordingTicket> }) => {
+        const { title, createdAt } = row.original;
+        const meta = formatTicketRowMeta(row.original);
+        return (
+          <div className="flex min-w-0 flex-col justify-center">
+            <TruncateText>{title}</TruncateText>
+            {/* "3891 • 5 min ago" as in the tickets table, the full creation time on hover. */}
+            {meta && (
+              <div className="min-w-0" title={createdAt ? formatTicketFullTimestamp(createdAt) : undefined}>
+                <TruncateText variant="h6" tone="secondary">
+                  {meta}
+                </TruncateText>
+              </div>
+            )}
+          </div>
+        );
+      },
       enableSorting: true,
       meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.ticket),
     },
@@ -94,6 +102,7 @@ function recordingTicketColumns({
             <SquareAvatar
               variant="round"
               size="sm"
+              src={row.original.assignedAvatarUrl ?? undefined}
               fallback={initials(name)}
               alt={name}
               className="shrink-0"
