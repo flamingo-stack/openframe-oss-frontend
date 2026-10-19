@@ -56,6 +56,8 @@ import type {
   SortInput,
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
   DateColumnHeader,
   EmptyState,
@@ -808,6 +810,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
 
   // Archived list has no header actions (back button only); the active list
   // shows Archive (→ archived page) + Add Schedule.
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_SCRIPT_SCHEDULE);
   const actions = useMemo(
     () =>
       archived
@@ -826,9 +829,10 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
                 <PlusCircleIcon size={24} className={isEmpty ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'} />
               ),
               onClick: handleNewSchedule,
+              iconAction: generateWithAi,
             },
           ],
-    [archived, handleOpenArchive, handleNewSchedule, isEmpty],
+    [archived, handleOpenArchive, handleNewSchedule, isEmpty, generateWithAi],
   );
 
   const mobileFilterButton = (

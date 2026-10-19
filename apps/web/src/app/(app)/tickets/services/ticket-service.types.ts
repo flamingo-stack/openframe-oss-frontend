@@ -1,4 +1,4 @@
-import type { ChatType, DialogModeValue } from '../constants';
+import type { ChatType, DialogIntent, DialogModeValue } from '../constants';
 import type { CursorPageInfo, Dialog, Message, TicketActivityFilter } from '../types/dialog.types';
 
 export interface TicketsPage {
@@ -93,6 +93,8 @@ export interface CreateDialogParams {
   insightId?: string;
   /** Honoured for admin callers only. */
   mode?: DialogModeValue;
+  /** ADMIN dialogs in AI mode only; the server opens the dialog with its greeting. */
+  intent?: DialogIntent;
 }
 
 /** Minimal entity ref carried in the message payload (`ContextItemInput`). */

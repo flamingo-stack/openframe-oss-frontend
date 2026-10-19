@@ -40,6 +40,7 @@ describe('mingo launcher: closedForNavigation', () => {
       () => store().toggle(),
       () => store().sendToMingo('hi'),
       () => store().startNewChat(),
+      () => store().startIntentChat('CREATE_SCRIPT'),
     ]) {
       useMingoLauncherStore.setState({ isOpen: false, closedForNavigation: true });
       open();
@@ -54,5 +55,42 @@ describe('mingo launcher: closedForNavigation', () => {
     store().close();
 
     expect(store().closedForNavigation).toBe(false);
+  });
+});
+
+/**
+ * "Generate with AI" queues an intent the chat entry drains into a new dialog. It
+ * must fire once, and no other launcher may leave a stale request behind it.
+ */
+describe('mingo launcher: startIntentChat', () => {
+  beforeEach(() => {
+    useMingoLauncherStore.setState({
+      isOpen: false,
+      pendingIntent: null,
+      pendingPrompt: null,
+      pendingDraft: null,
+      pendingNewChat: false,
+    });
+  });
+
+  it('opens the drawer and is consumed exactly once', () => {
+    const store = () => useMingoLauncherStore.getState();
+    store().startIntentChat('CREATE_POLICY');
+
+    expect(store().isOpen).toBe(true);
+    expect(store().consumePendingIntent()).toBe('CREATE_POLICY');
+    expect(store().consumePendingIntent()).toBeNull();
+  });
+
+  it('clears the other launchers and is cleared by them', () => {
+    const store = () => useMingoLauncherStore.getState();
+    store().sendToMingo('hi');
+    store().startIntentChat('CREATE_TICKET');
+
+    expect(store().pendingPrompt).toBeNull();
+    expect(store().pendingIntent).toBe('CREATE_TICKET');
+
+    store().startNewChat();
+    expect(store().pendingIntent).toBeNull();
   });
 });

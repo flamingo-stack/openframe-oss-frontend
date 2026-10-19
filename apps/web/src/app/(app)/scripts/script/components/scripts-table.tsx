@@ -49,7 +49,9 @@ import type {
 } from '@/__generated__/scriptsTableRelayQuery.graphql';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
   EmptyState,
   liveColumnMeta,
@@ -742,6 +744,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
 
   // Archived list has no header actions (back button only); the active list shows
   // Archive (→ archived page) + Add Script. "Edit Categories" is intentionally omitted.
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_SCRIPT);
   const actions = useMemo(
     () =>
       archived
@@ -760,9 +763,10 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
                 <PlusCircleIcon size={24} className={isEmpty ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'} />
               ),
               onClick: handleNewScript,
+              iconAction: generateWithAi,
             },
           ],
-    [archived, handleNewScript, handleOpenArchive, isEmpty],
+    [archived, handleNewScript, handleOpenArchive, isEmpty, generateWithAi],
   );
 
   const mobileFilterButton = (
