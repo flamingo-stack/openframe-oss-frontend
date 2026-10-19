@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DESKTOP_APP_SCHEME, desktopAuthReturnTarget, readDesktopAuthReturn } from './desktop-auth-return';
+import {
+  DESKTOP_APP_SCHEME,
+  desktopAuthReturnTarget,
+  landingLocation,
+  readDesktopAuthReturn,
+} from './desktop-auth-return';
 
 const SHARED_HOST = 'https://auth.openframe.example';
 
@@ -82,6 +87,40 @@ describe('readDesktopAuthReturn', () => {
 
     expect(appUrl.protocol).toBe(`${DESKTOP_APP_SCHEME}:`);
     expect([...appUrl.searchParams]).toEqual([['devTicket', 'a&redirectTo=evil']]);
+  });
+});
+
+describe('landingLocation', () => {
+  const target = desktopAuthReturnTarget(SHARED_HOST);
+  const page = `${SHARED_HOST}/auth/desktop-return/`;
+  /** The address bar after the app router's rewrite on hydration: a bare `#` is gone. */
+  const rewritten = new URL(page);
+
+  it('reads a bare landing from the navigation entry once the router has dropped the `#`', () => {
+    expect(readDesktopAuthReturn(landingLocation(rewritten, { name: target }))).toEqual({
+      kind: 'incomplete',
+      appUrl: 'openframe-console://auth',
+    });
+  });
+
+  it('reads the address while it still has a fragment, whatever the entry holds', () => {
+    const landed = gatewayLanding(target, 'devTicket=T-1');
+
+    expect(landingLocation(landed, { name: page })).toBe(landed);
+  });
+
+  it('ignores the entry of another page, which is what a client-side navigation here leaves', () => {
+    expect(readDesktopAuthReturn(landingLocation(rewritten, { name: `${SHARED_HOST}/auth/#` }))).toEqual({
+      kind: 'none',
+    });
+  });
+
+  it('stays a stray visit on a reload after the strip, whose entry has no fragment', () => {
+    expect(readDesktopAuthReturn(landingLocation(rewritten, { name: page }))).toEqual({ kind: 'none' });
+  });
+
+  it('reads the address when the browser has no navigation entry', () => {
+    expect(landingLocation(rewritten, undefined)).toBe(rewritten);
   });
 });
 

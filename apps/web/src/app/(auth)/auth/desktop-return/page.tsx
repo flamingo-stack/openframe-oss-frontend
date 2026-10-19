@@ -4,7 +4,12 @@ import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { type DesktopAuthReturn, launchDesktopApp, readDesktopAuthReturn } from '@/lib/desktop-auth-return';
+import {
+  type DesktopAuthReturn,
+  landingLocation,
+  launchDesktopApp,
+  readDesktopAuthReturn,
+} from '@/lib/desktop-auth-return';
 import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
 import { SsoJoinCardLayout } from '../components/sso-join-card-layout';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
@@ -20,7 +25,7 @@ function subscribe(): () => void {
 }
 
 function getSnapshot(): DesktopAuthReturn {
-  captured ??= readDesktopAuthReturn(window.location);
+  captured ??= readDesktopAuthReturn(landingLocation(window.location, performance.getEntriesByType('navigation')[0]));
   return captured;
 }
 

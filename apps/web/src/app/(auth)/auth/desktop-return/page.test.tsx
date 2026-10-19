@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, StrictMode } from 'react';
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 const launch = vi.hoisted(() => vi.fn());
 const client = vi.hoisted(() => ({ authErrorMessage: vi.fn() }));
@@ -170,6 +170,21 @@ describe('DesktopReturnPage', () => {
 
   it('sends a bare callback when the gateway landed the page with nothing, so the app stops waiting', async () => {
     await render('/auth/desktop-return/#');
+
+    expect(container.textContent).toContain('Sign-in didn’t finish');
+    expect(launch).toHaveBeenCalledTimes(1);
+    expect(launch).toHaveBeenCalledWith('openframe-console://auth');
+  });
+
+  // jsdom keeps a bare `#` in the address; a browser running the app router does not, and only the
+  // navigation entry still has it.
+  it('reads a bare landing from the navigation entry after the router dropped the `#`', async () => {
+    const entries = vi
+      .spyOn(performance, 'getEntriesByType')
+      .mockReturnValue([{ name: new URL('/auth/desktop-return/#', window.location.origin).href } as PerformanceEntry]);
+    onTestFinished(() => entries.mockRestore());
+
+    await render('/auth/desktop-return/');
 
     expect(container.textContent).toContain('Sign-in didn’t finish');
     expect(launch).toHaveBeenCalledTimes(1);

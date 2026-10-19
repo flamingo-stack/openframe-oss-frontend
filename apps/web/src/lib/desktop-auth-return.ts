@@ -56,6 +56,23 @@ function schemeUrl(key: string, value: string): string {
   return `${DESKTOP_APP_SCHEME}://auth?${new URLSearchParams({ [key]: value })}`;
 }
 
+/**
+ * The address the page was loaded at, which is what `readDesktopAuthReturn` has to read. On hydration the
+ * app router rewrites the address bar from `pathname + search + hash`, and `hash` is '' for a bare `#`:
+ * a landing with nothing has lost its fragment, and reads as a stray visit, before the page looks. The
+ * navigation entry keeps the URL as loaded. It is consulted only when the address has no fragment left,
+ * so a browser that records the entry without one cannot cost a landing that kept it, and only when it
+ * is this page's: after a client-side navigation here it belongs to the page the app was loaded at.
+ */
+export function landingLocation(
+  location: Pick<Location, 'hash' | 'href' | 'pathname'>,
+  navigation: Pick<PerformanceEntry, 'name'> | undefined,
+): Pick<Location, 'hash' | 'href'> {
+  if (location.href.includes('#') || !navigation) return location;
+  const loaded = new URL(navigation.name);
+  return loaded.pathname === location.pathname ? loaded : location;
+}
+
 /** Reads the hand-off the gateway put in the page's fragment and builds the scheme URL that carries it on to the app. */
 export function readDesktopAuthReturn(location: Pick<Location, 'hash' | 'href'>): DesktopAuthReturn {
   // `hash` is '' both without a fragment and for a bare `#`, which is what a landing with nothing looks like.
