@@ -47,9 +47,13 @@ function mount() {
   );
 }
 
-async function settle() {
-  await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0));
+/** Lets the query settle until the assertion holds; a loaded CI box needs more than one tick. */
+async function until(assertion: () => void) {
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    assertion();
   });
 }
 
@@ -70,15 +74,13 @@ describe('useRecordingTickets', () => {
   it('re-reads the tickets when the page is opened again within the minute', async () => {
     service.fetch.mockResolvedValueOnce([ticket('Firsto Lasto')]);
     mount();
-    await settle();
-    expect(container.textContent).toBe('Firsto Lasto');
+    await until(() => expect(container.textContent).toBe('Firsto Lasto'));
 
     act(() => root.unmount());
     service.fetch.mockResolvedValueOnce([ticket('Mikhail Matsykh')]);
     mount();
-    await settle();
+    await until(() => expect(container.textContent).toBe('Mikhail Matsykh'));
 
     expect(service.fetch).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toBe('Mikhail Matsykh');
   });
 });
