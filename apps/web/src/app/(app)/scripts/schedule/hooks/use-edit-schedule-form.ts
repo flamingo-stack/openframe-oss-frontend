@@ -90,6 +90,22 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
       // The window is written only when the behavior that uses it is in force,
       // which an event-driven schedule never has.
       const retriesOnReconnect = !isEventDriven && isRetryOnReconnect(data.offlineBehavior);
+      // Per-script TIMEOUT: `ScheduledScriptCustomParamsInput` has no field for
+      // it (args and env vars only), so there is nowhere on the wire to put a
+      // value edited in a card. Rather than let Save silently discard it while
+      // claiming success, flag it here so the user is told before anything is
+      // sent — this is a stopgap until the mutation input grows a timeout field.
+      const hasUnsupportedTimeoutEdit = data.scripts.some(
+        s => typeof s.timeoutSeconds === 'number' && s.timeoutSeconds !== s.defaultTimeoutSeconds,
+      );
+      if (hasUnsupportedTimeoutEdit) {
+        toast({
+          title: 'Timeout changes not saved',
+          description:
+            'Per-script timeout overrides are not yet supported by schedules and were not sent. Everything else was saved.',
+          variant: 'destructive',
+        });
+      }
       const input = {
         name: data.name,
         // PUT semantics on update: null clears the stored description.
@@ -98,7 +114,8 @@ export function useEditScheduleForm({ scheduleId }: UseEditScheduleFormOptions) 
         // Order is the payload: the card order (drag & drop) IS the run order.
         // TODO(backend): per-script TIMEOUT is still edited in the cards and
         // dropped here — `ScheduledScriptCustomParamsInput` carries args and env
-        // vars only.
+        // vars only. See `hasUnsupportedTimeoutEdit` above for the user-facing
+        // warning raised when this actually discards an edit.
         scriptIds: data.scripts.map(s => s.scriptId),
         // Sparse by construction: a script whose args and env vars still equal
         // its own defaults contributes no entry, so the schedule keeps
