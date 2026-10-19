@@ -3,7 +3,7 @@
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ReactNode, useState } from 'react';
-import { formatDateTime } from '@/lib/format-date';
+import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
@@ -93,13 +93,15 @@ export function HardwareTab({ device }: HardwareTabProps) {
   const systemSubtitle = device.hardware_vendor || device.manufacturer;
   const hasSystem = Boolean(systemTitle || systemSubtitle || systemItems.length > 0);
 
-  // BOOT — last restart / boot time / derived uptime.
+  // BOOT — last restart / boot time / derived uptime, on the device's own clock
+  // (these events happened there), on the viewer's when it reported no zone.
   const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
+  const onDevice = (at: string | number | undefined) => (at ? formatDateTimeOnDevice(at, device.timezone) : undefined);
   const bootItems = toItems([
     { label: 'Uptime', value: formatUptime(uptimeSeconds) },
-    { label: 'Last Restarted', value: device.last_restarted_at ? formatDateTime(device.last_restarted_at) : undefined },
-    { label: 'Boot Time', value: device.boot_time ? formatDateTime(device.boot_time * 1000) : undefined },
-    { label: 'Enrolled', value: device.last_enrolled_at ? formatDateTime(device.last_enrolled_at) : undefined },
+    { label: 'Last Restarted', value: onDevice(device.last_restarted_at) },
+    { label: 'Boot Time', value: onDevice(device.boot_time ? device.boot_time * 1000 : undefined) },
+    { label: 'Enrolled', value: onDevice(device.last_enrolled_at) },
   ]);
 
   // CPU — model + architecture/cores/threads.

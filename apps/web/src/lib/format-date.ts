@@ -1,3 +1,4 @@
+import { format as formatPattern } from 'date-fns';
 import { EMPTY_VALUE } from './empty-value';
 import { parseInstant, parseLocalDate } from './graphql-scalars';
 
@@ -60,6 +61,38 @@ export const formatDateTimeInZone = (
   const day = inZone(timeZone, { dateStyle: 'short' });
   const time = inZone(timeZone, { timeStyle: 'short' });
   return date && day && time ? `${day.format(date)} ${time.format(date)}` : EMPTY_VALUE;
+};
+
+/**
+ * A moment on the DEVICE's clock — for events the device itself timestamps
+ * (boot, restart, enrolment), which are read as "when did this happen there".
+ * The zone is named after the time (`19/10/2026 09:05 AEDT`, or `GMT+11` where
+ * the locale has no abbreviation for it) so the value is not mistaken for the
+ * viewer's own clock. Falls back to the viewer's clock, unlabelled, when the
+ * device's zone is unknown or unresolvable — a wrong zone must not blank a row.
+ */
+export const formatDateTimeOnDevice = (
+  input: DateInput | null | undefined,
+  deviceTimeZone: string | null | undefined,
+): string => {
+  const date = toValidDate(input);
+  if (!date) return EMPTY_VALUE;
+  const zoneName = inZone(deviceTimeZone, { timeZoneName: 'short' })
+    ?.formatToParts(date)
+    .find(part => part.type === 'timeZoneName')?.value;
+  const onDevice = zoneName ? formatDateTimeInZone(date, deviceTimeZone) : EMPTY_VALUE;
+  return onDevice === EMPTY_VALUE ? formatDateTime(date) : `${onDevice} ${zoneName}`;
+};
+
+/**
+ * The value of an `<input type="datetime-local">` for an instant: the viewer's
+ * wall-clock time, which is what the field shows and parses back. Slicing
+ * `toISOString()` instead puts the UTC clock in the field, hours off for
+ * everyone outside UTC. Empty for a missing or unparseable instant.
+ */
+export const toDateTimeLocalValue = (input: DateInput | null | undefined): string => {
+  const date = toValidDate(input);
+  return date ? formatPattern(date, "yyyy-MM-dd'T'HH:mm") : '';
 };
 
 // Renamed by IANA; Chrome and agents on older tzdata still report the old id.

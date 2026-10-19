@@ -3,7 +3,7 @@
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type ReactNode, useState } from 'react';
-import { formatDateTime } from '@/lib/format-date';
+import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
@@ -75,19 +75,24 @@ export function OsTab({ device }: OsTabProps) {
   ]);
   const hasOs = Boolean(osTitle || osSubtitle || osItems.length > 0);
 
-  // BOOT & TIME — boot/uptime + locale + current session.
+  // BOOT & TIME — boot/uptime + locale + current session. Boot and enrolment
+  // happened on the device, so they read on the device's clock (its zone is the
+  // row below), on the viewer's only when the device has not reported a zone.
   const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
   const lastBoot = device.last_restarted_at
-    ? formatDateTime(device.last_restarted_at)
+    ? formatDateTimeOnDevice(device.last_restarted_at, device.timezone)
     : device.boot_time
-      ? formatDateTime(device.boot_time * 1000)
+      ? formatDateTimeOnDevice(device.boot_time * 1000, device.timezone)
       : undefined;
   const bootItems = toItems([
     { label: 'Last Boot', value: lastBoot },
     { label: 'Uptime', value: formatUptime(uptimeSeconds) },
     { label: 'Timezone', value: device.timezone },
     { label: 'Current User', value: device.logged_in_username },
-    { label: 'Enrolled', value: device.last_enrolled_at ? formatDateTime(device.last_enrolled_at) : undefined },
+    {
+      label: 'Enrolled',
+      value: device.last_enrolled_at ? formatDateTimeOnDevice(device.last_enrolled_at, device.timezone) : undefined,
+    },
   ]);
 
   // MANAGEMENT — Fleet team + labels (host grouping from the Fleet host payload).
