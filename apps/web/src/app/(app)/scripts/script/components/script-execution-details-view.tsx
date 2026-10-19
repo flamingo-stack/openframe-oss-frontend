@@ -99,10 +99,15 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
   // the node so the status flips and the output streams in without a manual
   // reload. The refetched payload lands in the Relay store, so this component
   // re-renders from it; the interval stops itself once the status is final.
+  // While the document is hidden (tab backgrounded / app minimized), the poll
+  // is paused rather than firing every 5s against an unwatched tab; it resumes
+  // (with an immediate refresh) on visibilitychange once visible again.
   const isInFlight = isExecutionInFlight(execution?.status);
   useEffect(() => {
     if (!isInFlight) return undefined;
-    const interval = setInterval(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+
+    const poll = () => {
       fetchQuery(
         environment,
         scriptExecutionDetailRelayQuery,
@@ -111,8 +116,37 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
           fetchPolicy: 'network-only',
         },
       ).subscribe({});
-    }, IN_FLIGHT_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    };
+
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(poll, IN_FLIGHT_POLL_INTERVAL_MS);
+    };
+
+    const stop = () => {
+      if (!interval) return;
+      clearInterval(interval);
+      interval = undefined;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        poll();
+        start();
+      }
+    };
+
+    if (!document.hidden) {
+      start();
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stop();
+    };
   }, [isInFlight, environment, executionId]);
 
   // `scriptId` is the raw DB id, but Script Details resolves its `?id=` through `node(id:)`.
