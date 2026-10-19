@@ -26,6 +26,8 @@ const LINK = {
   statusKind: 'CUSTOM',
   statusColor: '#2890FA',
   assignedName: 'Roman Smith',
+  assignedAvatarUrl: null,
+  createdAt: '2026-10-15T09:00:00.000Z',
 };
 
 describe('assignRecordingTickets', () => {
@@ -42,6 +44,8 @@ describe('assignRecordingTickets', () => {
         statusKind: 'CUSTOM',
         statusColor: '#2890FA',
         assignedName: 'Roman Smith',
+        assignedAvatarUrl: null,
+        createdAt: '2026-10-15T09:00:00.000Z',
       },
     ]);
     expect(relay.commitMutation).toHaveBeenCalledWith(expect.anything(), {
