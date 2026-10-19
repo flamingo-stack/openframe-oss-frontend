@@ -19,9 +19,11 @@ import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DashboardPageSkeleton } from '@/app/(app)/dashboard/components/dashboard-skeletons';
 import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
+import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
@@ -39,7 +41,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { AnnouncementTopBar } from './announcement-top-bar';
-import { APP_MAIN_CLASS_NAME, headerLoadingCells, isBareChromeRoute } from './app-shell-chrome';
+import { APP_MAIN_CLASS_NAME, headerLoadingCells, holdsDashboard, isBareChromeRoute } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
@@ -287,6 +289,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // The wizard renders without the chrome - unless the workspace is locked, in
   // which case the lock screen takes `<main>` inside the usual (disabled) chrome.
   const bareChrome = onboardingV2 === 'on' && !showLockContent && isBareChromeRoute(pathname);
+  // The dashboard waits for the same answer the redirect acts on, so a session
+  // bound for `/setup` never sees a frame of it. Bounded like the chrome's own
+  // wait: a progress request that never settles releases the page, and the
+  // redirect still fires if the answer lands later.
+  const setupPending = useSetupPending();
+  const dashboardHeld = useFailOpen(
+    holdsDashboard(pathname, onboardingV2, setupPending, showLockContent),
+    CHROME_LOADING_FAIL_OPEN_MS,
+  );
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -630,7 +641,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   // The page segment's boundary - what the chrome, bare or not, puts in its
   // content slot. Its placement rules are on the core layout below.
-  const pageContent = <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>;
+  const pageContent = (
+    <Suspense fallback={null}>
+      {showLockContent ? <SubscriptionLockContent /> : dashboardHeld ? <DashboardPageSkeleton /> : children}
+    </Suspense>
+  );
 
   return (
     <>
@@ -698,7 +713,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               // but nothing they lead to is reachable until the workspace is paid for.
               disabled={showLockContent}
               drawer={chatDrawer ?? chatWatchers}
-              sidePanel={chatSidePanel}
+              // Held with the page: the docked Mingo panel is part of what a
+              // session bound for the wizard must not see first.
+              sidePanel={dashboardHeld ? undefined : chatSidePanel}
               // The super user strip is not one of the bars above: it is a
               // statement about the session, not a notice, so it stacks over
               // whichever bar won the slot (or none), lock screen included.

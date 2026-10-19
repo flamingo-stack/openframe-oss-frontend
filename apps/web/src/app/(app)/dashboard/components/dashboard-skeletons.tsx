@@ -1,9 +1,10 @@
 'use client';
 
-import { TicketStatusTag } from '@flamingo-stack/openframe-frontend-core';
+import { PageLayout, TicketStatusTag } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DashboardInfoCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * Single source of truth for the dashboard section skeletons.
@@ -171,5 +172,21 @@ export function CustomersOverviewSkeleton() {
       <OverviewHeaderSkeleton title="Customers Overview" />
       <CustomersRowsSkeleton />
     </LoadingRegion>
+  );
+}
+
+/**
+ * The whole dashboard in its loading state - the three sections above inside the
+ * same `PageLayout` padding `DashboardContent` uses, so the shell can hold this in
+ * the page slot (while the onboarding answer is pending, see `holdsDashboard`) and
+ * hand over to the real page without anything moving.
+ */
+export function DashboardPageSkeleton() {
+  return (
+    <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+      <DevicesOverviewSkeleton />
+      {isSaasTenantMode() && <TicketsOverviewSkeleton />}
+      <CustomersOverviewSkeleton />
+    </PageLayout>
   );
 }
