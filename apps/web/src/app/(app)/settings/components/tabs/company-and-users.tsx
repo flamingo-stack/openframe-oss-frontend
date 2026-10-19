@@ -64,17 +64,6 @@ const employeeRowHref = (record: UnifiedUserRecord) =>
 
 export function CompanyAndUsersTab() {
   const handleBack = useSafeBack(routes.settings.root());
-  const {
-    records,
-    isLoading,
-    error,
-    revokeInvitation,
-    revokeInvitationMutation,
-    resendInvitation,
-    resendInvitationMutation,
-    inviteUsers,
-    // get all users and invitations without pagination TODO: add pagination in the future
-  } = useUsersAndInvitations(0, 1000);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -90,18 +79,17 @@ export function CompanyAndUsersTab() {
   } = useSearchParam(params.search, value => setParam('search', value));
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  // The full list is already on the client (fetched unpaginated above), so the
-  // search filters in memory - by name or email, matching what the row shows.
-  const filteredRecords = useMemo(() => {
-    const query = debouncedSearch.trim().toLowerCase();
-    if (!query) return records;
-    return records.filter(record => {
-      const name = `${record.firstName || ''} ${record.lastName || ''}`.trim().toLowerCase();
-      // SELF_DELETED emails are synthetic and hidden in the row - don't match them.
-      const email = isSelfDeletedUserStatus(record.status) ? '' : record.email.toLowerCase();
-      return name.includes(query) || email.includes(query);
-    });
-  }, [records, debouncedSearch]);
+  const {
+    records,
+    isLoading,
+    error,
+    revokeInvitation,
+    revokeInvitationMutation,
+    resendInvitation,
+    resendInvitationMutation,
+    inviteUsers,
+    // get all users and invitations without pagination TODO: add pagination in the future
+  } = useUsersAndInvitations(0, 1000, debouncedSearch);
 
   const [selectedInvitation, setSelectedInvitation] = useState<UnifiedUserRecord | null>(null);
   const [isRevokeOpen, setIsRevokeOpen] = useState(false);
@@ -298,7 +286,7 @@ export function CompanyAndUsersTab() {
   );
 
   const table = useDataTable<UnifiedUserRecord>({
-    data: filteredRecords,
+    data: records,
     columns,
     getRowId: (row: UnifiedUserRecord) => row.id,
     enableSorting: false,
@@ -371,3 +359,4 @@ export function CompanyAndUsersTab() {
     </PageLayout>
   );
 }
+

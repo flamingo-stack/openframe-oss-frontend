@@ -4,7 +4,7 @@ import { PageLayout, ServiceCard } from '@flamingo-stack/openframe-frontend-core
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useIntegratedTools } from '../../hooks/use-integrated-tools';
@@ -19,31 +19,16 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    fetchIntegratedTools({ enabled: true, category: null }).catch(() => {});
-  }, [fetchIntegratedTools]);
+    const term = searchTerm.trim();
+    const handle = setTimeout(() => {
+      fetchIntegratedTools({ enabled: true, category: null, search: term || null }).catch(() => {});
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [fetchIntegratedTools, searchTerm]);
 
-  const filteredTools = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return tools;
-    return tools.filter(t => {
-      const name = t.name?.toLowerCase() || '';
-      const description = t.description?.toLowerCase() || '';
-      const category = (t.category as unknown as string)?.toLowerCase?.() || '';
-      const layer = (t.layer as unknown as string)?.toLowerCase?.() || '';
-      const urls = (t.toolUrls || []).map(u => (u?.url || '').toLowerCase());
-      return (
-        name.includes(term) ||
-        description.includes(term) ||
-        category.includes(term) ||
-        layer.includes(term) ||
-        urls.some(u => u.includes(term))
-      );
-    });
-  }, [tools, searchTerm]);
-
-  // Group by layer (after filtering)
+  // Group by layer (server already filtered by search term)
   const grouped: Record<string, typeof tools> = {};
-  for (const t of filteredTools) {
+  for (const t of tools) {
     const layer = (t.layer as unknown as string) || 'Other';
     (grouped[layer] ??= []).push(t);
   }
