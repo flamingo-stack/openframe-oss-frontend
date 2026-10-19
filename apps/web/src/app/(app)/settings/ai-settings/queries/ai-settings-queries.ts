@@ -101,7 +101,10 @@ export const UPDATE_CLIENT_VIEW_MUTATION = `
  * none exists) so the caller can re-render in a single round-trip.
  *
  * NOTE: requires the backend `resetClientView(organizationId: ID!)` mutation
- * (the per-org counterpart to `updateClientView`).
+ * (the per-org counterpart to `updateClientView`). This mutation has not been
+ * confirmed to exist in the backend schema yet. DO NOT reference this export
+ * from any caller/UI action until the backend mutation has shipped and been
+ * verified against the schema.
  */
 export const RESET_CLIENT_VIEW_MUTATION = `
   mutation ResetClientView($organizationId: ID!) {
