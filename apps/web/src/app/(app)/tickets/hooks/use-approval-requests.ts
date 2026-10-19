@@ -1,8 +1,9 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { APPROVAL_STATUS, type ApprovalStatus } from '../constants';
 import { ticketService } from '../services';
+import { toast } from 'sonner';
 
 export type ApprovalRequestAction = {
   requestId: string;
@@ -10,9 +11,21 @@ export type ApprovalRequestAction = {
 };
 
 export function useApprovalRequests() {
+  const queryClient = useQueryClient();
+
   const approvalMutation = useMutation({
     mutationFn: ({ requestId, approve }: ApprovalRequestAction) =>
       ticketService.resolveApprovalRequest(requestId, approve),
+    onSuccess: (_data, variables) => {
+      toast.success(
+        variables.approve ? 'Request approved' : 'Request rejected',
+      );
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['approvalRequests'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to resolve approval request');
+    },
   });
 
   const handleApproveRequest = async (
