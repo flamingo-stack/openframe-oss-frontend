@@ -6,6 +6,7 @@ import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/ut
 import { useRouter } from 'next/navigation';
 import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
@@ -81,6 +82,10 @@ const STEP_BODY: Record<UserOnboardingStepId, ComponentType<StepBodyProps>> = {
  */
 export function OnboardingContent() {
   const router = useRouter();
+  // Under onboarding v2 the tour lives in the Mingo panel and this page is gone:
+  // a visit (bookmark, old link) lands on the dashboard. Gated so the page is
+  // not drawn for a v2 user while the flag is still unanswered.
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
   const tenant = useOnboardingStore(state => state.tenant);
   const user = useOnboardingStore(state => state.user);
   const isLoaded = useOnboardingStore(state => state.isLoaded);
@@ -105,12 +110,12 @@ export function OnboardingContent() {
   // link / stale tab before setup; a revisit after completing), send them back to the
   // dashboard where the Initial Setup card lives.
   useEffect(() => {
-    if (isLoaded && (!initialSetupComplete || lockedOut)) {
+    if (onboardingV2 === 'on' || (isLoaded && (!initialSetupComplete || lockedOut))) {
       router.replace(routes.dashboard);
     }
-  }, [isLoaded, initialSetupComplete, lockedOut, router]);
+  }, [onboardingV2, isLoaded, initialSetupComplete, lockedOut, router]);
 
-  if (!isLoaded || !initialSetupComplete || lockedOut) {
+  if (onboardingV2 !== 'off' || !isLoaded || !initialSetupComplete || lockedOut) {
     return <OnboardingSkeleton />;
   }
 

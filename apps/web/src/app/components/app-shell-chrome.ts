@@ -47,3 +47,38 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
   return undefined;
 }
+
+/**
+ * The routes the shell renders BARE - no header, sidebar or Mingo panel: the
+ * setup wizard, which the design draws as a full-screen page of its own. A
+ * prefix match of the kind ROUTES.md allows for active-state checks; the
+ * trailing-slash form is what the static export serves.
+ */
+export function isBareChromeRoute(pathname: string | null): boolean {
+  return pathname === '/setup' || (pathname?.startsWith('/setup/') ?? false);
+}
+
+/** The dashboard itself - the one page the onboarding redirect moves away from. */
+export function isDashboardRoute(pathname: string | null): boolean {
+  return pathname === '/dashboard' || pathname === '/dashboard/';
+}
+
+/**
+ * Whether the dashboard must stay on its skeleton for now: under onboarding v2
+ * the dashboard is where a login lands, and whether this session belongs there
+ * or on `/setup` is known only once the flag and the onboarding progress have
+ * answered (`useSetupPending`). Until then the page would render in full - stat
+ * cards, the Mingo panel - and be torn down a moment later by the redirect.
+ * Held while the answer is `unknown` AND once it is `setup`, so no frame of the
+ * dashboard shows before the wizard; released on `none`, on the flag `off`
+ * (the old flow lives on the dashboard itself) and on a locked workspace (the
+ * lock screen takes the slot, and the progress request is parked there anyway).
+ */
+export function holdsDashboard(
+  pathname: string | null,
+  onboardingV2: 'loading' | 'on' | 'off',
+  pending: 'unknown' | 'setup' | 'none',
+  locked: boolean,
+): boolean {
+  return !locked && onboardingV2 !== 'off' && pending !== 'none' && isDashboardRoute(pathname);
+}
