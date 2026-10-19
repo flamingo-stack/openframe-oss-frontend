@@ -160,6 +160,9 @@ export function useAuth() {
 
       return data;
     } catch (error) {
+      if (latestDiscovery.current !== userEmail) {
+        return null;
+      }
       toast({
         title: 'Discovery Failed',
         description: error instanceof Error ? error.message : 'Unable to check for existing accounts',
