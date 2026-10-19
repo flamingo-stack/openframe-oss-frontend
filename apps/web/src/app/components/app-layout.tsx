@@ -55,6 +55,7 @@ import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
+import { SuperUserBanner } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
@@ -698,7 +699,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               disabled={showLockContent}
               drawer={chatDrawer ?? chatWatchers}
               sidePanel={chatSidePanel}
-              topBar={topBar}
+              // The super user strip is not one of the bars above: it is a
+              // statement about the session, not a notice, so it stacks over
+              // whichever bar won the slot (or none), lock screen included.
+              // Only once the session has answered, so a flag persisted from a
+              // previous session cannot flash it ahead of `/me`.
+              topBar={
+                <>
+                  {sessionResolved && <SuperUserBanner />}
+                  {topBar}
+                </>
+              }
             >
               {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it

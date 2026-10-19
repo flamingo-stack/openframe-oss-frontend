@@ -64,6 +64,11 @@ interface MeResponse {
     roles?: string[];
     tenantId?: string;
     tenantName?: string;
+    /**
+     * The session belongs to the super tenant. `tenantId`/`tenantName` above
+     * are then the super tenant's, not the tenant whose host answered.
+     */
+    isSuperUser?: boolean;
     organizationId?: string;
     organizationName?: string;
     status?: string;
@@ -173,6 +178,7 @@ export function useAuthSession() {
         roles: userData.roles,
         tenantId: userData.tenantId,
         tenantName: userData.tenantName,
+        isSuperUser: userData.isSuperUser === true,
         organizationId: userData.organizationId,
         organizationName: userData.organizationName,
         status: userData.status,

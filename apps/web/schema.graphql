@@ -3753,9 +3753,13 @@ type RemoteSessionTicketLink {
   statusColor: String
   assignedTo: String
   assignedName: String
+  """The assignee's photo, as RemoteAccessTechnician.avatarUrl; null without a photo or an assignee."""
+  assignedAvatarUrl: String
+  """When the ticket was created, which is not the link time; null when the ticket is gone."""
+  createdAt: Instant
   source: RemoteSessionTicketSource!
   linkedAt: Instant!
-  """Who linked the ticket; null when the system linked the session's own ticket."""
+  """Who linked the ticket, by profile name and photo; null when the system linked the session's own ticket."""
   linkedBy: RemoteAccessTechnician
 }
 

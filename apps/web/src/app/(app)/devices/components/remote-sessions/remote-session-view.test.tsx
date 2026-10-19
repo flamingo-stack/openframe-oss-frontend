@@ -225,6 +225,8 @@ describe('RemoteSessionView tickets', () => {
         statusKind: 'CUSTOM',
         statusColor: '#2890FA',
         assignedName: 'Roman Smith',
+        assignedAvatarUrl: null,
+        createdAt: null,
       },
     ];
     render();
