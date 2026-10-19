@@ -230,6 +230,18 @@ test('the shell’s timeout becomes the “didn’t finish” toast', async () =
   );
 });
 
+test('a callback with no outcome becomes the same “didn’t finish” toast', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => Promise.reject('LOGIN_INCOMPLETE');
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error =>
+      error instanceof NativeLoginError &&
+      error.title === 'Sign-in didn’t finish' &&
+      /without a sign-in result/.test(error.message),
+  );
+});
+
 test('the app’s Cancel ends the login with the quiet cancel code', async () => {
   globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => Promise.reject('USER_CANCELED');
 
@@ -265,7 +277,38 @@ test('a failure code is worded with the auth server’s own sentence', async () 
 
   await assert.rejects(
     () => nativeLogin({ tenantId: 'tenant-1' }),
-    error => error instanceof NativeLoginError && error.message === 'Use your organization’s sign-in.',
+    error => !(error instanceof NativeLoginError) && error.message === 'Use your organization’s sign-in.',
+  );
+});
+
+// Not an auth-server code: asked about it, the server would answer with its generic sentence.
+test('an outcome the app words itself is worded without asking the auth server', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=SESSION_EXPIRED`,
+  });
+  let asked = false;
+  globalThis.fetch = async () => {
+    asked = true;
+    return new Response(
+      JSON.stringify({ data: { authErrorMessage: { code: 'UNEXPECTED', message: 'An unexpected error occurred.' } } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  };
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /^Error: Your sign-in session expired/);
+  assert.equal(asked, false, 'SESSION_EXPIRED is worded by the app, never looked up');
+});
+
+// On desktop any page can launch the scheme while a login waits, so the `error` value is not the
+// app's to repeat: a sentence there would become a "Login Failed" toast in the app's own voice.
+test('an outcome that is not a code is never shown', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=Your+account+is+locked.+Call+555-0100`,
+  });
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error => error instanceof NativeLoginError && error.title === 'Sign-in didn’t finish' && !/555/.test(error.message),
   );
 });
 

@@ -2,20 +2,9 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useSyncExternalStore } from 'react';
+import { useNow } from '@/app/hooks/use-now';
 import type { DesktopSignInWait } from '@/lib/desktop-sign-in-wait';
 import { nativeAuthPlugin } from '@/lib/native-shell';
-
-/** The countdown's only clock: a tick a second while the screen is up. */
-function subscribeEverySecond(onTick: () => void): () => void {
-  const timer = setInterval(onTick, 1000);
-  return () => clearInterval(timer);
-}
-
-/** Prerendered HTML is never mid-sign-in, so there is no time to show. */
-function noTimeOnServer(): null {
-  return null;
-}
 
 function formatTimeLeft(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -29,11 +18,9 @@ function formatTimeLeft(seconds: number): string {
  */
 export function DesktopSignInWaiting({ wait }: { wait: DesktopSignInWait }) {
   const { toast } = useToast();
-  const secondsLeft = useSyncExternalStore(
-    subscribeEverySecond,
-    () => Math.max(0, Math.ceil((wait.deadline - Date.now()) / 1000)),
-    noTimeOnServer,
-  );
+  // Never prerendered: a wait exists only in the running app, so the clock has no server value to match.
+  const now = useNow(1000);
+  const secondsLeft = Math.max(0, Math.ceil((wait.deadline - now) / 1000));
 
   const reopen = () => {
     // The shell sends an https window.open to the default browser, the same exit billing uses.
@@ -41,8 +28,10 @@ export function DesktopSignInWaiting({ wait }: { wait: DesktopSignInWait }) {
   };
 
   const cancel = async () => {
-    await nativeAuthPlugin()?.cancel?.();
-    toast({ title: 'Sign-in canceled', description: 'You can close the browser tab it opened.' });
+    // False when the browser's result or the timeout got there first: that outcome is the one to show.
+    if (await nativeAuthPlugin()?.cancel?.()) {
+      toast({ title: 'Sign-in canceled', description: 'You can close the browser tab it opened.' });
+    }
   };
 
   // The same card as the core lib's LoginForm, which this stands in for.
@@ -56,11 +45,9 @@ export function DesktopSignInWaiting({ wait }: { wait: DesktopSignInWait }) {
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
         {wait.email && <p className="text-ods-text-primary text-h4">Signing in as {wait.email}</p>}
-        {secondsLeft !== null && (
-          <p className="text-ods-text-secondary text-h6" aria-live="off">
-            {formatTimeLeft(secondsLeft)} left
-          </p>
-        )}
+        <p className="text-ods-text-secondary text-h6" aria-live="off">
+          {formatTimeLeft(secondsLeft)} left
+        </p>
       </div>
       <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
         <Button type="button" variant="outline" fullWidth onClick={reopen}>

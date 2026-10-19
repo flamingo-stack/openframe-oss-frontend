@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   container = document.createElement('div');
   root = createRoot(container);
-  plugin.cancel.mockReset().mockResolvedValue(undefined);
+  plugin.cancel.mockReset().mockResolvedValue(true);
   toast.mockReset();
 });
 
@@ -76,5 +76,16 @@ describe('DesktopSignInWaiting', () => {
     expect(plugin.cancel).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sign-in canceled' }));
     expect(toast.mock.calls[0][0].variant).toBeUndefined();
+  });
+
+  // The browser's result landed in the same instant: the sign-in it finishes is what the user sees next.
+  it('claims no cancel when the shell had nothing left to cancel', async () => {
+    plugin.cancel.mockResolvedValue(false);
+    render();
+
+    await act(async () => buttonNamed('Cancel')?.click());
+
+    expect(plugin.cancel).toHaveBeenCalledTimes(1);
+    expect(toast).not.toHaveBeenCalled();
   });
 });

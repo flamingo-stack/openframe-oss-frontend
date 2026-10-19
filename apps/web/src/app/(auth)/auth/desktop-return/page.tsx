@@ -2,15 +2,15 @@
 
 import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import {
   type DesktopAuthReturn,
   landingLocation,
   launchDesktopApp,
   readDesktopAuthReturn,
 } from '@/lib/desktop-auth-return';
-import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
+import { appWordedMessage, MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
 import { SsoJoinCardLayout } from '../components/sso-join-card-layout';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
 
@@ -34,10 +34,10 @@ function getServerSnapshot(): null {
   return null;
 }
 
-interface Copy {
+interface Outcome {
   title: string;
   body: string;
-  /** Why it failed, under the body: the auth server's sentence for a reference, or the page's own. */
+  /** Why it failed, under the body: the auth server's sentence for a reference, or the app's own. */
   reason: { serverRef: string } | { text: string } | null;
   /** A failure with a code, which an administrator can be handed. */
   failureCode: string | null;
@@ -45,7 +45,7 @@ interface Copy {
 
 const FAILURE_BODY = `We couldn’t sign you in. Return to ${DESKTOP_APP_NAME} to try again, or sign in with a different account. You can close this tab.`;
 
-function copyFor(handoff: DesktopAuthReturn): Copy {
+function outcomeFor(handoff: DesktopAuthReturn): Outcome {
   if (handoff.kind === 'signed-in') {
     return {
       title: 'You’re signed in',
@@ -72,13 +72,11 @@ function copyFor(handoff: DesktopAuthReturn): Copy {
     };
   }
   if (handoff.kind === 'error') {
+    const appWorded = appWordedMessage(handoff.code);
     return {
       title: 'Login failed',
       body: FAILURE_BODY,
-      reason:
-        handoff.code === MOBILE_AUTH_ERROR.SESSION_EXPIRED
-          ? { text: 'Your sign-in session expired.' }
-          : { serverRef: handoff.code },
+      reason: appWorded ? { text: appWorded } : { serverRef: handoff.code },
       failureCode: handoff.code,
     };
   }
@@ -102,16 +100,22 @@ function copyFor(handoff: DesktopAuthReturn): Copy {
  * Where a desktop sign-in ends in the browser (see `lib/desktop-auth-return.ts`). Shows the outcome,
  * takes the ticket out of the address bar, and launches the app's scheme once. Every landing from the
  * gateway launches, a cancel or an empty one included: the app is waiting on it and would otherwise
- * sit out its five-minute timeout. The button is for a browser that blocked the launch or a prompt the
- * user dismissed. The shell cannot tell attempts apart, so a press from a tab left over from an
- * earlier attempt resolves whichever sign-in is waiting, with a ticket that is likely spent.
+ * sit out its timeout. The button is for a browser that blocked the launch or a prompt the user
+ * dismissed. The shell cannot tell attempts apart, so a tab left over from an earlier attempt resolves
+ * whichever sign-in is waiting with its own result - a ticket that is still good when the user
+ * canceled and retried within its lifetime.
  */
 export default function DesktopReturnPage() {
   const handoff = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const copy = handoff ? copyFor(handoff) : null;
-  const serverRef = copy?.reason && 'serverRef' in copy.reason ? copy.reason.serverRef : null;
+  const outcome = handoff ? outcomeFor(handoff) : null;
+  const serverRef = outcome?.reason && 'serverRef' in outcome.reason ? outcome.reason.serverRef : null;
   const serverError = useAuthErrorMessage(serverRef);
-  const { toast } = useToast();
+  const { copy } = useCopyToClipboard({
+    successTitle: 'Details copied',
+    successDescription: 'Paste them to your administrator.',
+    errorTitle: 'Couldn’t copy',
+    errorDescription: 'Your browser blocked the clipboard.',
+  });
   const launched = useRef(false);
 
   useEffect(() => {
@@ -121,38 +125,33 @@ export default function DesktopReturnPage() {
     launchDesktopApp(handoff.appUrl);
   }, [handoff]);
 
-  if (!handoff || !copy) {
+  if (!handoff || !outcome) {
     return <SsoJoinCardLayout>{null}</SsoJoinCardLayout>;
   }
 
-  const reasonText = !copy.reason ? null : 'text' in copy.reason ? copy.reason.text : serverError.description;
-  const { failureCode } = copy;
+  const reasonLoading = serverError.isLoading;
+  const reasonText = !outcome.reason ? null : 'text' in outcome.reason ? outcome.reason.text : serverError.description;
+  const { failureCode } = outcome;
 
-  const copyDetails = async () => {
-    try {
-      await navigator.clipboard.writeText(
-        [
-          `${DESKTOP_APP_NAME} sign-in failed`,
-          `Code: ${failureCode}`,
-          `Reason: ${reasonText}`,
-          `Time: ${new Date().toISOString()}`,
-        ].join('\n'),
-      );
-      toast({ title: 'Details copied', description: 'Paste them to your administrator.', variant: 'success' });
-    } catch {
-      toast({ title: 'Couldn’t copy', description: 'Your browser blocked the clipboard.', variant: 'destructive' });
-    }
-  };
+  const copyDetails = () =>
+    copy(
+      [
+        `${DESKTOP_APP_NAME} sign-in failed`,
+        `Code: ${failureCode}`,
+        `Reason: ${reasonText}`,
+        `Time: ${new Date().toISOString()}`,
+      ].join('\n'),
+    );
 
   return (
     <SsoJoinCardLayout>
       <div className="flex flex-col gap-[var(--spacing-system-l)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
-          <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
-          <p className="text-ods-text-secondary text-h4">{copy.body}</p>
+          <h1 className="text-ods-text-primary text-h2">{outcome.title}</h1>
+          <p className="text-ods-text-secondary text-h4">{outcome.body}</p>
         </div>
-        {copy.reason &&
-          (serverRef && serverError.isLoading ? (
+        {outcome.reason &&
+          (reasonLoading ? (
             <LoadingRegion label="Loading the error details" className="flex flex-col gap-[var(--spacing-system-xsf)]">
               <TextSkeleton.Body />
             </LoadingRegion>
@@ -166,7 +165,7 @@ export default function DesktopReturnPage() {
             <Button type="button" variant="outline" fullWidth onClick={() => launchDesktopApp(handoff.appUrl)}>
               Open {DESKTOP_APP_NAME}
             </Button>
-            {failureCode && (
+            {failureCode && !reasonLoading && (
               <Button type="button" variant="transparent" fullWidth onClick={() => void copyDetails()}>
                 Copy details
               </Button>

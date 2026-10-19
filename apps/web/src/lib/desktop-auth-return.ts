@@ -13,7 +13,7 @@
  * fragment is read. A ticket in the query would also be redeemed by the root layout's
  * `DevTicketObserver` wherever that is enabled, spending it in the browser before the app gets it.
  */
-import { MOBILE_AUTH_ERROR_PARAM } from './mobile-auth-return';
+import { isAuthErrorRef, MOBILE_AUTH_ERROR_PARAM } from './mobile-auth-return';
 import { routes } from './routes';
 
 /**
@@ -23,6 +23,9 @@ import { routes } from './routes';
  * our page in front of it.
  */
 export const DESKTOP_APP_SCHEME = 'openframe-console';
+
+/** Where the shell takes a login's result: `<URI_SCHEME>://<AUTH_CALLBACK_HOST>` in lib.rs. */
+const DESKTOP_AUTH_CALLBACK = `${DESKTOP_APP_SCHEME}://auth`;
 
 /**
  * What the gateway sends back: a sign-in, an identity with no account yet, or an outcome code.
@@ -38,11 +41,6 @@ export type DesktopAuthReturn =
   | { kind: 'incomplete'; appUrl: string }
   | { kind: 'none' };
 
-/** An outcome code reaches the app's toast and the auth server's lookup: an identifier, never a sentence. */
-export function isOutcomeCode(code: string): boolean {
-  return /^[A-Z0-9_]{1,64}$/.test(code);
-}
-
 /**
  * The `redirectTo` a desktop login asks the gateway for. The SaaS gateway honours it only when it is in
  * `openframe.gateway.redirect.allowed-uris` character for character, trailing `/#` included; anything
@@ -53,7 +51,7 @@ export function desktopAuthReturnTarget(sharedHostUrl: string): string {
 }
 
 function schemeUrl(key: string, value: string): string {
-  return `${DESKTOP_APP_SCHEME}://auth?${new URLSearchParams({ [key]: value })}`;
+  return `${DESKTOP_AUTH_CALLBACK}?${new URLSearchParams({ [key]: value })}`;
 }
 
 /**
@@ -86,11 +84,11 @@ export function readDesktopAuthReturn(location: Pick<Location, 'hash' | 'href'>)
   if (signupTicket) return { kind: 'signup', appUrl: schemeUrl('signupTicket', signupTicket) };
 
   const code = params.get(MOBILE_AUTH_ERROR_PARAM);
-  if (code && isOutcomeCode(code)) {
+  if (isAuthErrorRef(code)) {
     return { kind: 'error', code, appUrl: schemeUrl(MOBILE_AUTH_ERROR_PARAM, code) };
   }
 
-  return { kind: 'incomplete', appUrl: `${DESKTOP_APP_SCHEME}://auth` };
+  return { kind: 'incomplete', appUrl: DESKTOP_AUTH_CALLBACK };
 }
 
 /**

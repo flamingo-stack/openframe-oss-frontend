@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
+import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
 import {
   AppleRegistrationRequiredError,
   nativeLogin,
@@ -12,6 +13,7 @@ import {
   SsoRegistrationRequiredError,
 } from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isAppShell, isMobileShell } from '@/lib/platform';
 import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
 import { collectRegistrationAttribution } from '@/lib/registration-attribution';
@@ -68,12 +70,12 @@ interface RegisterRequest {
  */
 function isUserCanceled(error: unknown): boolean {
   return (
-    (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
-    (error instanceof Error && error.message === 'USER_CANCELED')
+    nativeErrorCode(error) === MOBILE_AUTH_ERROR.USER_CANCELED ||
+    (error instanceof Error && error.message === MOBILE_AUTH_ERROR.USER_CANCELED)
   );
 }
 
-/** A native sign-in failure names its own toast title ("Sign-in didn’t finish" for a timeout). */
+/** A browser sign-in that never finished gets `NativeLoginError`'s title instead of the generic one. */
 function loginFailureTitle(error: unknown): string {
   return error instanceof NativeLoginError ? error.title : 'Login Failed';
 }

@@ -10,12 +10,12 @@
  * Only an `authMobile=true` login gets a ticket. Hardening still pending on the
  * ticket path (PKCE, POST exchange, rotation).
  */
-import { MOBILE_AUTH_ERROR, MOBILE_AUTH_ERROR_PARAM, mobileAuthErrorMessage } from '@/lib/mobile-auth-return';
+import { appWordedMessage, isAuthErrorRef, MOBILE_AUTH_ERROR, MOBILE_AUTH_ERROR_PARAM } from '@/lib/mobile-auth-return';
 import { authApiClient } from './auth-api-client';
 import { clientBundleVersion } from './client-identity';
-import { DESKTOP_APP_SCHEME, desktopAuthReturnTarget, isOutcomeCode } from './desktop-auth-return';
+import { DESKTOP_APP_SCHEME, desktopAuthReturnTarget } from './desktop-auth-return';
 import { beginDesktopSignInWait, DESKTOP_LOGIN_TIMEOUT_MS } from './desktop-sign-in-wait';
-import { type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
+import { DESKTOP_LOGIN_ERROR, type NativeAuthPlugin, nativeAuthPlugin, storeTenantHost } from './native-shell';
 import { isDesktopShell, mobilePlatform } from './platform';
 import { runtimeEnv } from './runtime-config';
 import { setTokens } from './token-store';
@@ -62,19 +62,18 @@ export class AppleRegisterError extends Error {
   }
 }
 
-/** A native sign-in that ended without a session, worded for the toast the login screen shows. */
+/** A browser sign-in that ended without a result, toasted under its own title rather than the generic one. */
 export class NativeLoginError extends Error {
-  readonly code: string;
-  readonly title: string;
-  constructor(code: string, title: string, message: string) {
+  readonly title = 'Sign-in didn’t finish';
+  constructor(message: string) {
     super(message);
     this.name = 'NativeLoginError';
-    this.code = code;
-    this.title = title;
   }
 }
 
-const SIGN_IN_UNFINISHED = 'Sign-in didn’t finish';
+function noSignInResult(): NativeLoginError {
+  return new NativeLoginError('The browser came back without a sign-in result. Try again.');
+}
 
 /**
  * The desktop bridge rejects with the shell's bare string, where Capacitor rejects with an Error.
@@ -83,20 +82,12 @@ const SIGN_IN_UNFINISHED = 'Sign-in didn’t finish';
  */
 function browserSignInError(error: unknown): unknown {
   if (typeof error !== 'string') return error;
-  if (error === 'LOGIN_TIMEOUT') {
+  if (error === DESKTOP_LOGIN_ERROR.TIMEOUT) {
     return new NativeLoginError(
-      error,
-      SIGN_IN_UNFINISHED,
-      'The browser didn’t complete sign-in within 5 minutes. Try again.',
+      `The browser didn’t complete sign-in within ${DESKTOP_LOGIN_TIMEOUT_MS / 60_000} minutes. Try again.`,
     );
   }
-  if (error === 'LOGIN_INCOMPLETE') {
-    return new NativeLoginError(
-      error,
-      SIGN_IN_UNFINISHED,
-      'The browser came back without a sign-in result. Try again.',
-    );
-  }
+  if (error === DESKTOP_LOGIN_ERROR.INCOMPLETE) return noSignInResult();
   return new Error(error);
 }
 
@@ -104,19 +95,21 @@ function browserSignInError(error: unknown): unknown {
  * An outcome code the callback carried instead of a ticket. The quiet cancel stays a bare
  * `USER_CANCELED`; the codes the app words itself keep their sentence; anything else is an auth-server
  * reference, answered with the server's own sentence (the one the hand-off page shows), and with the
- * code when the server cannot be asked.
+ * code when the server cannot be asked. A value that is no code is never shown: on desktop any page can
+ * launch the scheme, so it counts as a callback without a result.
  */
 async function outcomeError(code: string): Promise<Error> {
   if (code === MOBILE_AUTH_ERROR.USER_CANCELED) return new Error(code);
-  if (code !== MOBILE_AUTH_ERROR.SESSION_EXPIRED && isOutcomeCode(code)) {
-    try {
-      const response = await authApiClient.authErrorMessage(code);
-      if (response.ok && response.data) return new NativeLoginError(code, 'Login Failed', response.data.message);
-    } catch {
-      // Unreachable auth server: fall through to the code.
-    }
+  if (!isAuthErrorRef(code)) return noSignInResult();
+  const appWorded = appWordedMessage(code);
+  if (appWorded) return new Error(appWorded);
+  try {
+    const response = await authApiClient.authErrorMessage(code);
+    if (response.ok && response.data) return new Error(response.data.message);
+  } catch {
+    // Unreachable auth server: fall through to the code.
   }
-  return new NativeLoginError(code, 'Login Failed', mobileAuthErrorMessage(code));
+  return new Error(`Sign-in could not be completed (${code}).`);
 }
 
 export interface NativeLoginResult {

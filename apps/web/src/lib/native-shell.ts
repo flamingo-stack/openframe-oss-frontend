@@ -22,6 +22,17 @@ import { isAppShell, isDesktopShell, isMobileShell } from './platform';
  */
 export const APP_SCHEME = 'com.openframe.app';
 
+/**
+ * What the desktop shell's `start` rejects with when the browser part ends without a result, besides
+ * `USER_CANCELED`: the `*_ERROR` strings in its lib.rs, which a web test reads.
+ */
+export const DESKTOP_LOGIN_ERROR = {
+  /** No callback within the shell's login window (`DESKTOP_LOGIN_TIMEOUT_MS`). */
+  TIMEOUT: 'LOGIN_TIMEOUT',
+  /** A callback with no outcome on it: the hand-off page landed with nothing. */
+  INCOMPLETE: 'LOGIN_INCOMPLETE',
+} as const;
+
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
 
@@ -40,10 +51,11 @@ export type CapacitorListenerHandle =
   Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
 
 /**
- * Either shell surfaces a rejected bridge call as an Error whose `code` carries
- * the native error string (Capacitor's `CAPError.code`; the desktop commands
- * reject with the same shape). Read it defensively — a generic failure has no
- * code.
+ * The native error string a rejected Capacitor call carries as its `code`
+ * (`CAPError.code`). Desktop rejections have none: the auth commands reject with
+ * a bare string (`start`'s is normalized by `browserSignInError` in
+ * native-login.ts), the updater and autostart ones with `{ kind, message }`. Read
+ * it defensively — a generic failure has no code.
  */
 export function nativeErrorCode(error: unknown): string | null {
   const code = (error as { code?: unknown } | null)?.code;
@@ -66,13 +78,17 @@ export interface NativeAuthPlugin {
    * default browser and waits for the OS to deliver the scheme URL. Desktop
    * checks `callbackScheme` against the scheme it registered, never the login
    * URL's `redirectTo`, which is the shared-host hand-off page there.
+   *
+   * Rejects with `USER_CANCELED` when the user backs out or a newer `start`
+   * replaces it; desktop also with a `DESKTOP_LOGIN_ERROR`, as a bare string.
    */
   start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
   /**
    * Desktop only: ends the login `start` is waiting on, which then rejects with `USER_CANCELED` —
-   * the waiting screen's Cancel. The browser tab cannot be closed from here; it is left behind.
+   * the waiting screen's Cancel. Resolves false when nothing was waiting any more: the callback (or
+   * the timeout) got there first. The browser tab cannot be closed from here; it is left behind.
    */
-  cancel?(): Promise<void>;
+  cancel?(): Promise<boolean>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<NativeTokens>;
   /**

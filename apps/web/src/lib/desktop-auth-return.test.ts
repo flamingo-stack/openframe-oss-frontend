@@ -7,6 +7,8 @@ import {
   landingLocation,
   readDesktopAuthReturn,
 } from './desktop-auth-return';
+import { MOBILE_AUTH_ERROR } from './mobile-auth-return';
+import { DESKTOP_LOGIN_ERROR } from './native-shell';
 
 const SHARED_HOST = 'https://auth.openframe.example';
 
@@ -124,17 +126,29 @@ describe('landingLocation', () => {
   });
 });
 
-describe('the scheme URL the page launches', () => {
+describe('the desktop shell contract', () => {
+  const shell = readFileSync(resolve(import.meta.dirname, '../../../desktop/src-tauri/src/lib.rs'), 'utf8');
+  const rustConst = (name: string) => shell.match(new RegExp(`const ${name}: &str = "([^"]+)"`))?.[1];
+
   // The shell routes only `<URI_SCHEME>://<AUTH_CALLBACK_HOST>` to the pending login. Drift is
   // silent: every desktop sign-in would hang until the shell's timeout.
-  it('is the scheme and host the desktop shell registers', () => {
-    const shell = readFileSync(resolve(import.meta.dirname, '../../../desktop/src-tauri/src/lib.rs'), 'utf8');
-    const rustConst = (name: string) => shell.match(new RegExp(`const ${name}: &str = "([^"]+)"`))?.[1];
-    const handoff = readDesktopAuthReturn(gatewayLanding(desktopAuthReturnTarget(SHARED_HOST), 'devTicket=T-1'));
-    if (handoff.kind === 'none') throw new Error('expected a hand-off');
+  it('launches the scheme and host the desktop shell registers, bare callback included', () => {
+    const target = desktopAuthReturnTarget(SHARED_HOST);
+    const launched = [gatewayLanding(target, 'devTicket=T-1'), new URL(target)].map(readDesktopAuthReturn);
 
-    expect(new URL(handoff.appUrl).protocol).toBe(`${rustConst('URI_SCHEME')}:`);
-    expect(new URL(handoff.appUrl).host).toBe(rustConst('AUTH_CALLBACK_HOST'));
+    for (const handoff of launched) {
+      if (handoff.kind === 'none') throw new Error('expected a hand-off');
+      expect(new URL(handoff.appUrl).protocol).toBe(`${rustConst('URI_SCHEME')}:`);
+      expect(new URL(handoff.appUrl).host).toBe(rustConst('AUTH_CALLBACK_HOST'));
+    }
     expect(DESKTOP_APP_SCHEME).toBe(rustConst('URI_SCHEME'));
+  });
+
+  // The bridge rejects with these as bare strings and the app matches them by value: a renamed code
+  // would turn the quiet cancel into a toast, or a timeout into a raw "LOGIN_TIMEOUT".
+  it('rejects a login with the codes the app matches', () => {
+    expect(rustConst('USER_CANCELED_ERROR')).toBe(MOBILE_AUTH_ERROR.USER_CANCELED);
+    expect(rustConst('LOGIN_TIMEOUT_ERROR')).toBe(DESKTOP_LOGIN_ERROR.TIMEOUT);
+    expect(rustConst('LOGIN_INCOMPLETE_ERROR')).toBe(DESKTOP_LOGIN_ERROR.INCOMPLETE);
   });
 });

@@ -140,6 +140,28 @@ describe('DesktopReturnPage', () => {
     expect([...container.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Open OpenFrame Console']);
   });
 
+  // Copied mid-lookup, the details would carry the generic fallback instead of the server's reason.
+  it('offers the details to copy only once the reason is known', async () => {
+    client.authErrorMessage.mockReturnValue(new Promise(() => {}));
+
+    await render('/auth/desktop-return/#?error=SSO_LOGIN_FAILED');
+
+    expect(container.textContent).toContain('Login failed');
+    expect([...container.querySelectorAll('button')].map(b => b.textContent)).toEqual(['Open OpenFrame Console']);
+  });
+
+  it('words a code the app has copy for in the app’s own sentence, without asking the auth server', async () => {
+    await render('/auth/desktop-return/#?error=SESSION_EXPIRED');
+
+    expect(container.textContent).toContain('Your sign-in session expired. Please sign in again.');
+    expect(client.authErrorMessage).not.toHaveBeenCalled();
+    // Nothing to wait for, so the details can be copied straight away.
+    expect([...container.querySelectorAll('button')].map(b => b.textContent)).toEqual([
+      'Open OpenFrame Console',
+      'Copy details',
+    ]);
+  });
+
   // What the browser actually runs: prerendered HTML with no URL to read, hydrated, then re-rendered
   // with the hand-off. The first effect run sees nothing and must not use up the single launch.
   it('launches once after hydrating the prerendered frame', async () => {
