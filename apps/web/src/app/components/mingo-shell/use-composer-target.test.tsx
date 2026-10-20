@@ -22,6 +22,7 @@ const selectDialog = vi.fn(select);
 const navigate = vi.fn();
 const sendMessage = vi.fn<UnifiedChatState['sendMessage']>();
 const sendInNewDialog = vi.fn<(text: string) => Promise<void>>();
+const createIntentDialog = vi.fn(async () => null);
 
 const probe = { target: null as ReturnType<typeof useComposerTarget> | null };
 const target = () => {
@@ -32,7 +33,7 @@ const target = () => {
 function Harness({ route }: { route: ComposerRoute }) {
   const active = selection(s => s.active);
   const state = { activeDialogId: active, selectDialog, sendMessage } as unknown as UnifiedChatState;
-  const result = useComposerTarget({ route, state, sendInNewDialog, navigate });
+  const result = useComposerTarget({ route, state, sendInNewDialog, createIntentDialog, navigate });
   useEffect(() => {
     probe.target = result;
   });

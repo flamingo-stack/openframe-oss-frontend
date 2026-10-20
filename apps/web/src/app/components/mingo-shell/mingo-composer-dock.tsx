@@ -212,9 +212,16 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     route,
     state: tour.state,
     sendInNewDialog: chat.sendInNewDialog,
+    createIntentDialog: chat.createIntentDialog,
     navigate,
   });
-  useComposerLauncherDrain({ handle, route, sendInNewDialog: target.sendInNewDialog, navigate });
+  useComposerLauncherDrain({
+    handle,
+    route,
+    sendInNewDialog: target.sendInNewDialog,
+    createIntentDialog: target.createIntentDialog,
+    navigate,
+  });
 
   const chatProps = useOpenframeChatProps({ chat, copyDialogLink, sendInNewDialog: target.sendInNewDialog });
 

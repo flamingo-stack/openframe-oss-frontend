@@ -12,6 +12,8 @@ import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -127,6 +129,7 @@ export function Policies() {
     router.push(routes.monitoring.policyNew);
   }, [router]);
 
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_POLICY);
   const actions = useMemo(
     () => [
       {
@@ -139,9 +142,10 @@ export function Policies() {
           />
         ),
         onClick: handleAddPolicy,
+        iconAction: generateWithAi,
       },
     ],
-    [handleAddPolicy, showEmptyState],
+    [handleAddPolicy, showEmptyState, generateWithAi],
   );
 
   return (

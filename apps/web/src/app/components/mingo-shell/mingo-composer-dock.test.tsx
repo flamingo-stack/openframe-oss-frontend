@@ -140,6 +140,7 @@ vi.mock('./use-openframe-chat-props', () => ({
 
 const compactDialog = vi.fn();
 const sendInNewDialog = vi.fn(async () => {});
+const createIntentDialog = vi.fn(async () => null);
 /** The session's thread handlers: the dock must hand them to the chat untouched. */
 const loadMoreMessages = vi.fn();
 const approveRequest = vi.fn();
@@ -168,6 +169,7 @@ function setSurface({
             stopMessage,
           },
           sendInNewDialog,
+          createIntentDialog,
         },
     error,
     enabled,
@@ -518,6 +520,14 @@ describe('MingoComposerDock', () => {
       render('/onboarding/');
       act(() => useMingoLauncherStore.getState().sendToMingo('What can you do?'));
       expect(sendInNewDialog).toHaveBeenCalledWith('What can you do?');
+      expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
+    });
+
+    it('Generate with AI: the intent chat is created at once, from the page it was raised on', () => {
+      render('/scripts/');
+      act(() => useMingoLauncherStore.getState().startIntentChat('CREATE_SCRIPT'));
+      expect(createIntentDialog).toHaveBeenCalledWith('CREATE_SCRIPT');
+      expect(nav.push).not.toHaveBeenCalledWith(routes.mingo.home);
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
     });
   });

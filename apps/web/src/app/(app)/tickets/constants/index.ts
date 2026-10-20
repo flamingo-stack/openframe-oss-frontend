@@ -39,6 +39,21 @@ export const DIALOG_MODE = {
 
 export type DialogModeValue = (typeof DIALOG_MODE)[keyof typeof DIALOG_MODE];
 
+/**
+ * Why an ADMIN dialog was opened (`CreateDialogInput.intent`). The server greets
+ * with a canned first message for it and steers every turn toward creating that
+ * one entity; a dialog without an intent is an ordinary chat.
+ */
+export const DIALOG_INTENT = {
+  CREATE_SCRIPT: 'CREATE_SCRIPT',
+  CREATE_SCRIPT_SCHEDULE: 'CREATE_SCRIPT_SCHEDULE',
+  CREATE_POLICY: 'CREATE_POLICY',
+  CREATE_TICKET: 'CREATE_TICKET',
+  CREATE_KB_ARTICLE: 'CREATE_KB_ARTICLE',
+} as const;
+
+export type DialogIntent = (typeof DIALOG_INTENT)[keyof typeof DIALOG_INTENT];
+
 export const ASSISTANT_CONFIG = {
   FAE: {
     type: 'fae' as const,

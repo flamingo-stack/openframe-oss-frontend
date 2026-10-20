@@ -1,6 +1,6 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from '@tanstack/react-query';
-import { CHAT_TYPE } from '../../tickets/constants';
+import { CHAT_TYPE, type DialogIntent } from '../../tickets/constants';
 import { ticketService } from '../../tickets/services';
 import type { SendMessageContext } from '../../tickets/services/ticket-service.types';
 
@@ -14,9 +14,17 @@ import type { SendMessageContext } from '../../tickets/services/ticket-service.t
  */
 export function useCreateDialogMutation() {
   return useMutation({
-    mutationFn: ({ insightId }: { insightId?: string } = {}) =>
-      ticketService.createDialog({ agentType: 'ADMIN', ...(insightId && { insightId }) }),
+    mutationFn: ({ insightId, intent }: CreateMingoDialogOptions = {}) =>
+      ticketService.createDialog({ agentType: 'ADMIN', ...(insightId && { insightId }), ...(intent && { intent }) }),
   });
+}
+
+/** What a new Mingo dialog is opened with — both optional, an ordinary chat takes neither. */
+export interface CreateMingoDialogOptions {
+  /** The stored insight id when the chat is about an incident. */
+  insightId?: string;
+  /** The entity the chat is opened to create; the server greets for it. */
+  intent?: DialogIntent;
 }
 
 /**

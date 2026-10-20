@@ -2,6 +2,7 @@
 
 import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useRef } from 'react';
+import type { DialogIntent } from '@/app/(app)/tickets/constants';
 import { routes } from '@/lib/routes';
 import type { ComposerRoute } from './mingo-dock-route';
 
@@ -36,6 +37,8 @@ interface ComposerTargetOptions {
   state: UnifiedChatState;
   /** The session's always-new send (`MingoChatState.sendInNewDialog`). */
   sendInNewDialog: (text: string) => Promise<void>;
+  /** A new chat created to make one entity (`MingoChatState.createIntentDialog`). */
+  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   navigate: (href: string) => void;
 }
 
@@ -44,6 +47,8 @@ interface ComposerTarget {
   mingoState: UnifiedChatState;
   /** `sendInNewDialog` that follows the chat it creates. */
   sendInNewDialog: (text: string) => Promise<void>;
+  /** `createIntentDialog` that follows the chat it creates. */
+  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
 }
 
 /** A send that will create a chat; `from` is the chat open when it started. */
@@ -51,7 +56,13 @@ interface PendingFollow {
   from: string | null;
 }
 
-export function useComposerTarget({ route, state, sendInNewDialog, navigate }: ComposerTargetOptions): ComposerTarget {
+export function useComposerTarget({
+  route,
+  state,
+  sendInNewDialog,
+  createIntentDialog,
+  navigate,
+}: ComposerTargetOptions): ComposerTarget {
   const activeDialogId = state.activeDialogId ?? null;
   const { selectDialog } = state;
 
@@ -110,5 +121,6 @@ export function useComposerTarget({ route, state, sendInNewDialog, navigate }: C
   return {
     mingoState,
     sendInNewDialog: text => following(() => sendInNewDialog(text)),
+    createIntentDialog: intent => following(() => createIntentDialog(intent)),
   };
 }

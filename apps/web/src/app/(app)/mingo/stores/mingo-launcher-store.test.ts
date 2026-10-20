@@ -16,6 +16,7 @@ describe('mingo launcher', () => {
       [() => store().sendToMingo('hi'), { kind: 'prompt', prompt: 'hi' }],
       [() => store().draftToMingo(draft), { kind: 'draft', draft }],
       [() => store().startNewChat(), { kind: 'newChat' }],
+      [() => store().startIntentChat('CREATE_SCRIPT'), { kind: 'intent', intent: 'CREATE_SCRIPT' }],
     ] as const) {
       launch();
       expect(store().dockRequest).toEqual(request);

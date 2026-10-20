@@ -3,6 +3,7 @@
 import type { EmbeddableChatHandle } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { type MingoDockRequest, useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import type { DialogIntent } from '@/app/(app)/tickets/constants';
 import { routes } from '@/lib/routes';
 import type { ComposerRoute } from './mingo-dock-route';
 
@@ -24,6 +25,8 @@ interface ComposerLauncherDrainOptions {
   route: ComposerRoute;
   /** The follow-wrapped always-new send (`useComposerTarget`). */
   sendInNewDialog: (text: string) => Promise<void>;
+  /** The follow-wrapped intent chat (`useComposerTarget`). */
+  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   navigate: (href: string) => void;
 }
 
@@ -38,12 +41,15 @@ interface ComposerLauncherDrainOptions {
  *    not wait for the chat module to load;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
  *    and that send follows the chat to its page. Not through home: the end state is
- *    the same, and a hop there would only flash home and put it in Back's way.
+ *    the same, and a hop there would only flash home and put it in Back's way;
+ *  - an intent ("Generate with AI" on a create button) creates its chat at once —
+ *    Mingo greets in it, nothing is sent — and follows it to its page, as a prompt.
  */
 export function useComposerLauncherDrain({
   handle,
   route,
   sendInNewDialog,
+  createIntentDialog,
   navigate,
 }: ComposerLauncherDrainOptions): void {
   const dockRequest = useMingoLauncherStore(s => s.dockRequest);
@@ -53,7 +59,9 @@ export function useComposerLauncherDrain({
 
   useEffect(() => {
     if (!dockRequest) return;
-    if (dockRequest.kind !== 'prompt' && route !== 'home') {
+    // A prompt and an intent create their chat at once, from wherever they were raised.
+    const atOnce = dockRequest.kind === 'prompt' || dockRequest.kind === 'intent';
+    if (!atOnce && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
         sentHomeRef.current = dockRequest;
         navigate(routes.mingo.home);
@@ -64,7 +72,8 @@ export function useComposerLauncherDrain({
     const request = consumeDockRequest();
     if (!request) return;
     if (request.kind === 'prompt') void sendInNewDialog(request.prompt);
+    else if (request.kind === 'intent') void createIntentDialog(request.intent);
     else if (request.kind === 'draft') handle.prefillDraft(request.draft);
     else handle.startNewChat();
-  }, [dockRequest, handle, consumeDockRequest, sendInNewDialog, route, navigate]);
+  }, [dockRequest, handle, consumeDockRequest, sendInNewDialog, createIntentDialog, route, navigate]);
 }

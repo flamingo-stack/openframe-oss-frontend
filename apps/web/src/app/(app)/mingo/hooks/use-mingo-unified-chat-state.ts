@@ -55,6 +55,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
+import type { DialogIntent } from '../../tickets/constants';
 import {
   CONTEXT_ENTITY_KIND,
   CONTEXT_ENTITY_MARKER,
@@ -132,6 +133,13 @@ export interface MingoUnifiedChat {
    * Resolves to the dialog id, or null when it could not be created.
    */
   createNamedDialog: (title: string) => Promise<string | null>;
+  /**
+   * Create a dialog opened to create one entity ("Generate with AI") and open
+   * it - nothing is sent. The server writes Mingo's greeting as the first
+   * message before answering, so the history load shows it; no client-side
+   * welcome is added.
+   */
+  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   /** Current server-side dialog-search term. */
   searchQuery: string;
   /** Set the dialog-search term (already debounced by the chat's search bar). */
@@ -499,7 +507,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       const insightId =
         context?.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
         INSIGHT_MENTION.exec(trimmed)?.[1];
-      const newId = await createDialog(insightId);
+      const newId = await createDialog({ insightId });
       if (!newId) return;
       addMessage(newId, {
         id: `welcome-${newId}`,
@@ -537,6 +545,19 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       return newId;
     },
     [createDialog, renameDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
+  );
+
+  const createIntentDialog = useCallback(
+    async (intent: DialogIntent): Promise<string | null> => {
+      const newId = await createDialog({ intent });
+      if (!newId) return null;
+      setActiveDialogId(newId);
+      resetUnread(newId);
+      subscribeToDialog(newId);
+      selectDialogMut(newId);
+      return newId;
+    },
+    [createDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 
   // Snapshot the live navigation context (open view + recent views) from the
@@ -804,6 +825,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     dialogsLoadFailed: isDialogsError,
     sendInNewDialog,
     createNamedDialog,
+    createIntentDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,

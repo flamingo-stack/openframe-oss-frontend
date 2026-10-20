@@ -11,6 +11,7 @@ import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
 import {
+  type CreateMingoDialogOptions,
   useCreateDialogMutation,
   useSendMessageMutation,
   useStopGenerationMutation,
@@ -55,8 +56,8 @@ interface UseMingoDialogChat {
   isLoading: boolean;
 
   // Actions
-  /** `insightId`: the stored id of the incident the chat is about, for the server to list it under. */
-  createDialog: (insightId?: string) => Promise<string | null>;
+  /** `insightId` lists the chat under an incident; `intent` opens it to create one entity. */
+  createDialog: (options?: CreateMingoDialogOptions) => Promise<string | null>;
   sendMessage: (content: string, targetDialogId?: string, context?: MingoSendContext) => Promise<boolean>;
   stopGeneration: () => Promise<void>;
 
@@ -220,13 +221,13 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
   }, [dialogId, messagesByDialog]);
 
   const createDialog = useCallback(
-    async (insightId?: string): Promise<string | null> => {
+    async (options?: CreateMingoDialogOptions): Promise<string | null> => {
       if (isCreatingDialog) return null;
 
       try {
         setCreatingDialog(true);
 
-        const newDialogId = await createDialogMutation.mutateAsync({ insightId });
+        const newDialogId = await createDialogMutation.mutateAsync(options ?? {});
         // Listed at once (a list read still in flight would drop it again, so
         // it is cancelled first); the refetch then brings the server's row.
         await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
