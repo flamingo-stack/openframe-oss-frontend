@@ -81,7 +81,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
 vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
 }));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({ PackageCheckIcon: () => null }));
+vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
+  PackageCheckIcon: () => null,
+  Refresh01RightIcon: () => null,
+}));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
@@ -109,6 +112,15 @@ vi.mock('./mingo-dock-quick-actions', () => ({
     chips.onSend = onSend;
     return null;
   },
+}));
+// The tour has tests of its own (and its Relay reads need the compiler): no tour here,
+// the state passes through.
+vi.mock('@/app/(app)/mingo/tour/use-mingo-tour', () => ({
+  useMingoTour: ({ state }: { state: unknown }) => ({ state, aboveComposer: null, onWhatToAsk: undefined }),
+}));
+vi.mock('../reset-onboarding-dialog', () => ({
+  ResetOnboardingDialog: () => null,
+  useCanResetOnboarding: () => false,
 }));
 // The props builder has tests of its own; here: what the dock asks of it.
 vi.mock('./use-openframe-chat-props', () => ({

@@ -53,6 +53,13 @@ export const FEATURE_FLAG_NAMES = [
   // context on demand. Off = the action is absent; auto-compaction is
   // unaffected either way.
   'mingo-compact-memory',
+  // AI-first onboarding: the full-screen `/setup` wizard in place of the
+  // dashboard's Initial Setup card, and the Getting Started tour in Mingo (the
+  // block above the docked composer, in the tour's conversation) in place of
+  // `/onboarding`. The tour needs Mingo, so an OSS tenant gets the wizard alone.
+  // Off = the old flow on an OSS tenant (the card, the page, the sidebar entry,
+  // the coach marks) and no onboarding at all in the Mingo-first shell.
+  'onboarding-v2',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

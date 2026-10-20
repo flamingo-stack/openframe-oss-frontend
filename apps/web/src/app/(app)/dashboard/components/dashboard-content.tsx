@@ -5,19 +5,24 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
+import { MingoIntroBanner } from './mingo-intro-banner';
 import { TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
  *  renders `null` (dismissed walkthrough / completed setup). */
 const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden';
+/** The v2 banner's wrapper: below it the same gap the PageLayout keeps between its
+ *  sections, so the banner reads as one of them. */
+const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-system-l)]`;
 
 /**
- * The tenant Initial Setup card, as the dashboard shows it — and Mingo's home, which
- * renders this same block (MISSING 5.3). Deliberately OUTSIDE the sections' PageLayout.
+ * The tenant Initial Setup card, as the classic dashboard shows it while onboarding v2
+ * is off. Deliberately OUTSIDE the sections' PageLayout.
  *
  * Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
  * `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
@@ -27,7 +32,7 @@ const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing
  * skeleton carries through while onboarding progress (the tenant step-detection
  * round-trips) loads.
  */
-export function InitialSetupSection() {
+function InitialSetupSection() {
   return (
     <Suspense
       fallback={
@@ -40,6 +45,22 @@ export function InitialSetupSection() {
         <InitialSetupCard />
       </div>
     </Suspense>
+  );
+}
+
+/**
+ * Onboarding v2's welcome ("OpenFrame isn't your typical RMM") above the overview,
+ * until the user closes it — the dashboard's and Mingo's home's. The same wrapper as
+ * the setup card, so a dismissed banner collapses the gap. Nothing while the flag is
+ * unanswered or off.
+ */
+export function IntroBannerSection() {
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  if (onboardingV2 !== 'on') return null;
+  return (
+    <div className={BANNER_WRAPPER_CLASS}>
+      <MingoIntroBanner />
+    </div>
   );
 }
 
@@ -76,8 +97,12 @@ export function OverviewSections({
   // the exact same predicate that shows the setup card and the top bar, so the
   // dimming can never appear without the card (see {@link useInitialSetupActive}). Fully
   // lit once setup is complete, before progress loads, or when there's no tenant record.
+  //
+  // Under onboarding v2 the Initial Setup lives on `/setup` and nothing is dimmed.
+  // Gated: the card renders only once the flag answers `off`.
+  const legacySetup = useFeatureFlagGate('onboarding-v2') === 'off';
   const setupActive = useInitialSetupActive();
-  const dimSections = dimDuringInitialSetup && setupActive;
+  const dimSections = dimDuringInitialSetup && legacySetup && setupActive;
 
   return (
     <div
@@ -97,12 +122,16 @@ export function OverviewSections({
 }
 
 /**
- * The classic shell's dashboard: the Initial Setup card, then the overview sections.
+ * The classic shell's dashboard: the v2 welcome banner or, with onboarding v2 off, the
+ * Initial Setup card, then the overview sections. A v2 workspace never sees the old card
+ * for a frame: it waits for the flag's answer.
  */
 export default function DashboardContent() {
+  const legacySetup = useFeatureFlagGate('onboarding-v2') === 'off';
   return (
     <>
-      <InitialSetupSection />
+      <IntroBannerSection />
+      {legacySetup && <InitialSetupSection />}
       <OverviewSections />
     </>
   );

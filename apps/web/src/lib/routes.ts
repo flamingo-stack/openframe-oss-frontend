@@ -224,6 +224,9 @@ export const routes = {
 
   /** What needs a person's approval. SaaS only; an OSS tenant redirects it to `/notifications`. */
   approvals: '/approvals',
+
+  /** The AI-first setup wizard (flag `onboarding-v2`): the tenant Initial Setup, full screen. */
+  setup: '/setup',
   helpCenter: {
     root: '/help-center',
     onboardingGuides: '/help-center/onboarding-guides',

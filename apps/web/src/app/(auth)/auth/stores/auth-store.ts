@@ -26,6 +26,8 @@ interface User {
   role?: string;
   tenantId?: string;
   tenantName?: string;
+  /** A super tenant session looking at another tenant's host (`/me` `user.isSuperUser`). */
+  isSuperUser?: boolean;
   // Fields populated from full profile fetch
   status?: string;
   image?: UserImage;

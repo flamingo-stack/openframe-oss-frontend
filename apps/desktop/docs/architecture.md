@@ -120,13 +120,13 @@ to discover against, are out of scope for this shell.
 `~/Library/LaunchAgents/com.openframe.console.plist` on macOS, an `HKCU`
 `…\CurrentVersion\Run` value on Windows, a `~/.config/autostart` desktop entry on
 Linux — and carries `--autostart`, which is the shell's only signal that a launch
-came from the OS rather than the user. That flag suppresses two things: building
-the main window, and — on macOS — the Regular activation policy, which would
-otherwise leave a dock icon with nothing behind it. Everything a login start
-exists for (tray, token refresh, NATS, notifications) is already wired
-independently of any window; the tray's **Show** builds one on demand, and so
-does a notification click, which would otherwise do nothing for the life of the
-process.
+came from the OS rather than the user. That flag (or **Always Start Hidden**,
+below) suppresses two things: building the main window, and — on macOS — the
+Regular activation policy, which would otherwise leave a dock icon with nothing
+behind it. Everything a login start exists for (tray, token refresh, NATS,
+notifications) is already wired independently of any window; the tray's
+**Show** builds one on demand, and so does a notification click, which would
+otherwise do nothing for the life of the process.
 
 `tauri`'s `restart()` re-spawns with the process's own argv, so an update taken
 silently at login relaunches still headless. When the user *does* have a window
@@ -172,6 +172,44 @@ and `write_atomic`, which the crate already has.
   `autostart_status` / `autostart_set` commands for the frontend. Both go through
   the same state, so either moves the same check mark. As app-defined commands
   they need no capability entry.
+- **Always Start Hidden** (tray check item, `start_hidden` in config.json) makes
+  every cold start headless, not only a flagged one. The flag marks only the
+  launches our own registration makes; a login item the user added by hand, an
+  MDM or startup-folder script, or the OS restoring the session start the app
+  without it, and from inside the process they are indistinguishable from the
+  user opening it. So the setting covers a manual launch too — the tray icon, a
+  notification click or a second launch brings the window up. Two things still
+  win over it: an update's `autostart_show_window_next_start`, and on Windows a
+  toast click that cold-started the app, whose payload setup has just stashed
+  for a window only setup builds. When the hidden copy started first and our
+  registration starts a second one, the single-instance plugin forwards that
+  launch's `--autostart`, and a forwarded flag raises nothing. The opposite
+  order is not covered — see Known gaps.
+
+## Local agent install
+
+"Deploy on this Device" on the setup wizard's Deploy First Device screen
+(`src-tauri/src/installer.rs`, command `agent_install_start`). The web app hands
+over the same install command it offers to copy; the shell adds the two things a
+browser tab cannot - an elevation prompt and a place to run it.
+
+- **Elevation is the OS's own prompt**, never a password of ours: `osascript …
+  with administrator privileges` on macOS, `Start-Process -Verb RunAs` (UAC) on
+  Windows. A declined prompt ends the run as `cancelled`.
+- **The command runs from a per-run temp directory** (`openframe-install-<uuid>`
+  under the user's temp dir, `0700` on macOS): the command as a script, a runner
+  script the elevated process executes, `install.log` and `status`. The command
+  carries the workspace's registration secret, so the directory is readable by
+  this user only and removed when the run ends, however it ends.
+- **Output is tailed, not piped.** An elevated process's stdio is not ours to
+  read, so the runner redirects everything into `install.log` and a thread polls
+  it every 200 ms, emitting whole lines as `agent-install:output` to the main
+  window; `agent-install:done` carries the exit code the runner wrote to `status`
+  (zero = success), or the error when the command never ran.
+- **One run at a time** (`InstallerState`): a second start while one is running
+  is refused as `busy` rather than raising a second prompt.
+- Linux has no elevation path here and answers `unsupported`; the UI never
+  offers the button outside the desktop shell.
 
 ## Security model
 
@@ -231,3 +269,12 @@ logs a boot marker with the injected `window.__ENV` and the page origin.
   plist are written at runtime. On Windows the leftover is a silent no-op; on
   macOS launchd logs a failure each login. Windows could be fixed with an NSIS
   uninstall hook; macOS has no uninstaller to hook.
+- **Always Start Hidden cannot hold back a flagless launch that reaches a
+  running copy.** When our registration's copy starts first and a login item
+  added by hand starts second, the second arrives as a forwarded launch without
+  the flag (Windows) or as a `RunEvent::Reopen` (macOS: a Login Items entry or a
+  session restore reopening the launchd copy). Both are exactly what the user
+  opening the app looks like, so the window comes up. On Windows this is the
+  usual order for a Startup-folder entry, which Explorer generally starts after
+  the Run keys. A hand-added entry should replace **Start at Login**, not sit
+  beside it.

@@ -295,6 +295,15 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
+- **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
+  entry. A session that owes its setup lands on the bare `/setup` wizard instead of
+  `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a
+  skeleton until the answer); "Start with Mingo" goes home, where the dock creates the
+  tour's conversation and follows it. The dock runs `useMingoTour` UNDER
+  `useComposerTarget`: its Getting Started block stays above the composer on every page
+  while the tour's chat is open, and a step chip opens its section without following to
+  the chat page. "Reset Onboarding" is in the chat's ⋯; Mingo's home shows the intro
+  banner above its sections, as the dashboard does.
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
   history, account popover); Mingo's home in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`
   and `components/approvals/`.

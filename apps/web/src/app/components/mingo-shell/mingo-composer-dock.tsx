@@ -13,6 +13,11 @@
  *   button under the input (not on home: no chat yet).
  * - Which chat it writes into, and the navigation a new chat triggers:
  *   `useComposerTarget`. Launcher requests: `useComposerLauncherDrain`.
+ * - The Getting Started tour (onboarding v2): `useMingoTour` — Mingo's greeting at the
+ *   head of the tour's conversation and its step block above the composer, on every
+ *   page while that conversation is the open one. A step chip sends into it and opens
+ *   its section; it does not follow to the chat page, the block stays over the dock.
+ *   "Reset Onboarding" in the chat's ⋯ once the tour is over.
  * - Per route (`dockViewOf`): width, placeholder, memory strip, Compact. The model row
  *   is on every route, so the composer keeps its height from page to page.
  * - Until the chat is up (the session resolving, the chat module loading) the composer's
@@ -32,7 +37,7 @@ import {
   type EmbeddableChatHandle,
   ModelDisplaySkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { PackageCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PackageCheckIcon, Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
@@ -43,9 +48,11 @@ import {
   type MingoChatState,
   useMingoChatSurface,
 } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
+import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
@@ -193,15 +200,40 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // Ghost text from chips drawn outside the chat (Mingo's home Quick Actions).
   const previewText = useComposerPreviewStore(s => s.text);
 
+  // The tour decorates the session's state before the send target wraps it: its step
+  // chips send through the bare state (the section they open is where the user goes,
+  // not the chat page), while the composer's own sends follow to the chat as ever.
+  const tour = useMingoTour({
+    state: chat.state,
+    createNamedDialog: chat.createNamedDialog,
+    dialogError: chat.dialogError,
+  });
   const target = useComposerTarget({
     route,
-    state: chat.state,
+    state: tour.state,
     sendInNewDialog: chat.sendInNewDialog,
     navigate,
   });
   useComposerLauncherDrain({ handle, route, sendInNewDialog: target.sendInNewDialog, navigate });
 
   const chatProps = useOpenframeChatProps({ chat, copyDialogLink, sendInNewDialog: target.sendInNewDialog });
+
+  // "Reset Onboarding" replays the Getting Started tour once it is over (finished or
+  // skipped) — in the chat's ⋯, after the chat's own actions, as the v2 panel had it.
+  // Only with onboarding v2: without it this shell has no tour to replay.
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  const canResetOnboarding = useCanResetOnboarding() && onboardingV2 === 'on';
+  const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
+  const chatMenuExtraItems = canResetOnboarding
+    ? [
+        {
+          id: 'reset-onboarding',
+          label: 'Reset Onboarding',
+          icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
+          onClick: () => setResetOnboardingOpen(true),
+        },
+      ]
+    : undefined;
 
   const activeDialogId = chat.state.activeDialogId;
   // Compact under the input, at the end of the model row: the chat's memory is what
@@ -235,6 +267,11 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         closable={false}
         {...chatProps}
         mingoState={target.mingoState}
+        // The Getting Started tour: its block above the composer while its
+        // conversation is open, and "What to ask Mingo?" leading back to it.
+        aboveComposer={tour.aboveComposer}
+        onWhatToAsk={tour.onWhatToAsk}
+        chatMenuExtraItems={chatMenuExtraItems}
         contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
         // An element on the chat page, `null` everywhere else — never `undefined`,
         // which switches the chat back to its in-place layout and remounts the
@@ -254,6 +291,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         safeAreaBottom={!isMobileShell()}
         composerPreviewText={previewText}
       />
+      <ResetOnboardingDialog open={resetOnboardingOpen} onOpenChange={setResetOnboardingOpen} />
     </>
   );
 }

@@ -65,6 +65,7 @@ export function makeFakeChat({
     dialogStatusOf: () => undefined,
     dialogsLoadFailed: false,
     sendInNewDialog,
+    createNamedDialog: async () => null,
     searchQuery: '',
     setSearchQuery: noop,
     fetchArchivedDialogs: async () => ({ dialogs: [], nextCursor: null }),

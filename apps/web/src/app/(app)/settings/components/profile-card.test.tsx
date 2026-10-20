@@ -58,6 +58,7 @@ const FINISHED_TOUR = {
   completedAt: null,
   skipped: false,
   skippedAt: null,
+  tourDialogId: null,
 };
 
 describe('ProfileCard - Reset Onboarding', () => {
@@ -82,7 +83,7 @@ describe('ProfileCard - Reset Onboarding', () => {
     expect(menuLabels()).toContain('Reset Onboarding');
   });
 
-  it('is not offered on a SaaS tenant, which has no tour', () => {
+  it('is not offered on a SaaS tenant, whose tour resets from the Mingo chat', () => {
     mode.saas = true;
     useOnboardingStore.getState().setUser(FINISHED_TOUR);
     renderCard();
