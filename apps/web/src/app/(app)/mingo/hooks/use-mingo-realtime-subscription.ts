@@ -12,6 +12,7 @@ import type { ChatModelMetadata } from '@/lib/chat-stream-thread';
 import { featureFlags } from '@/lib/feature-flags';
 import { useNatsAppConfig } from '@/lib/nats/nats-app-config';
 import { useChatChunkProcessor } from '@/lib/use-chat-chunk-processor';
+import { noteMingoToolExecuted } from '../stores/mingo-created-entities-store';
 import { bindMingoDialog, setMingoChatHandlers, useMingoMessagesStore } from '../stores/mingo-messages-store';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
@@ -247,6 +248,8 @@ export function DialogSubscription({
         recordHighestStreamSeq(dialogId, chunk.streamSeq);
       }
       processorRef.current(chunk);
+      // A create Mingo just ran adds a row to a list the page behind the chat may show.
+      noteMingoToolExecuted(chunk);
     },
     [recordHighestStreamSeq, dialogId],
   );
