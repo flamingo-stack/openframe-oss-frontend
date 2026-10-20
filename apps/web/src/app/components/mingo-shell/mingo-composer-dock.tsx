@@ -70,6 +70,7 @@ import { useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
+import { useOpenViewChip } from './use-open-view-chip';
 import { useOpenframeChatProps } from './use-openframe-chat-props';
 
 /** Whether `href` points at the page `pathname` is on (query aside; `trailingSlash` puts a slash after paths). */
@@ -77,6 +78,9 @@ function samePath(href: string, pathname: string | null): boolean {
   const trim = (path: string) => path.replace(/\/+$/, '') || '/';
   return pathname !== null && trim(href.split(/[?#]/)[0]) === trim(pathname);
 }
+
+/** The chat page's thread column: the composer's width there. */
+const CHAT_COLUMN_WIDTH = dockViewOf('chat').widthClassName;
 
 /** The chat's title for the "Continue" chip: shortened, so the chip leaves room for the strip. */
 const CONTINUE_TITLE_MAX = 34;
@@ -304,6 +308,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const openTitle = chat.state.dialogs.find(dialog => dialog.id === openDialogId)?.title ?? 'chat';
   const shortTitle = openTitle.length > CONTINUE_TITLE_MAX ? `${openTitle.slice(0, CONTINUE_TITLE_MAX)}…` : openTitle;
   const messageCount = chat.state.messages.length;
+  const openViewChip = useOpenViewChip(route);
   const continueChip = continuing ? (
     <Button
       variant="outline"
@@ -381,7 +386,20 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // The chat page's node on the chat page, the sheet's while it is up over a page.
         threadContainer={route === 'chat' ? chatPageNode : sheetOpen ? sheetNode : null}
         threadHeaderActions={threadHeaderActions}
-        composerContextLeading={continueChip}
+        // On the chat page the thread is a column at the composer's width under a full-width
+        // header; in the sheet it fills the sheet.
+        threadContentClassName={route === 'chat' ? cn('mx-auto w-full', CHAT_COLUMN_WIDTH) : undefined}
+        // "Continue …" for the chat behind the page, then the entity the page shows.
+        composerContextLeading={
+          continueChip && openViewChip ? (
+            <>
+              {continueChip}
+              {openViewChip}
+            </>
+          ) : (
+            (continueChip ?? openViewChip ?? undefined)
+          )
+        }
         rail="none"
         renameMode="inline"
         onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}

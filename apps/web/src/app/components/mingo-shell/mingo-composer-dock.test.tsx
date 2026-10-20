@@ -128,6 +128,8 @@ vi.mock('../reset-onboarding-dialog', () => ({
   ResetOnboardingDialog: () => null,
   useCanResetOnboarding: () => false,
 }));
+// The chip has tests of its own (its sources import Relay queries); none here.
+vi.mock('./use-open-view-chip', () => ({ useOpenViewChip: () => null }));
 // The props builder has tests of its own; here: what the dock asks of it.
 vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {
@@ -281,6 +283,15 @@ describe('MingoComposerDock', () => {
         expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
         expect(props().composerPlaceholder).toBe('Reply to Mingo…');
       }
+    });
+
+    it("centres the thread at the composer's width on the chat page only", () => {
+      setSurface({ activeDialogId: 'a' });
+      render('/mingo/chat/');
+      expect(props().threadContentClassName).toBe('mx-auto w-full max-w-[760px]');
+      useMingoSheetStore.setState({ open: true, node: document.createElement('div') });
+      render('/devices/');
+      expect(props().threadContentClassName).toBeUndefined();
     });
 
     it('ignores an open sheet on home and on the chat page', () => {

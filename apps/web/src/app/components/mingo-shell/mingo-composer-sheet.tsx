@@ -9,6 +9,13 @@ import { useNativeBackDismissible } from '@/lib/native-back';
 import { composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
 import { useMingoSheetStore } from './mingo-sheet-store';
 
+/**
+ * Where the sheet opens on a desktop until the user drags it elsewhere: tall enough for a
+ * few turns of the chat, short enough to leave the page's top in view. Clamped to the room
+ * there is. A phone opens it at a share of the screen instead.
+ */
+export const SHEET_DEFAULT_HEIGHT = 500;
+
 /** Says the chat's thread is on screen while the sheet is up: its notifications skip the popup. */
 function SheetThreadOnScreen() {
   useMingoChatThreadOnScreen();
@@ -36,7 +43,8 @@ function escapeIsTaken(): boolean {
  * Android back, and on any navigation — the next page is a different context;
  * "Continue" brings it back. Only on plain pages: Mingo's home is always a new chat
  * and the chat page is the thread itself. Full width on a phone, the composer's
- * width elsewhere.
+ * width elsewhere; `SHEET_DEFAULT_HEIGHT` tall on a desktop until dragged, the
+ * dragged height after that.
  */
 export function MingoComposerSheet() {
   const pathname = usePathname();
@@ -74,9 +82,9 @@ export function MingoComposerSheet() {
     <ComposerSheet
       open={shown}
       onDismiss={hide}
-      height={height}
+      height={height ?? (phone ? null : SHEET_DEFAULT_HEIGHT)}
       onHeightChange={setHeight}
-      defaultShare={phone ? 0.88 : 0.64}
+      defaultShare={0.88}
       className={phone ? undefined : dockViewOf(route).widthClassName}
       aria-label="Mingo chat"
     >

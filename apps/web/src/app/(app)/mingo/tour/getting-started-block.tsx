@@ -28,20 +28,26 @@ export interface GettingStartedBlockProps {
  *
  * - the list: one row per step, opening into its description and "try asking"
  *   chips (one open at a time). This is where the tour starts.
- * - the grid: two columns of step chips, what the block folds into once a chip
- *   has been used so the conversation gets the room. The chevron in the title
+ * - the grid: two columns of step chips, whatever the width the composer has (a
+ *   docked page composer is wide enough for four), what the block folds into once
+ *   a chip has been used so the conversation gets the room. The chevron in the title
  *   row unfolds it; a step chip unfolds it on that step.
  *
- * A step is done once any of its chips has been used; the title row counts
- * them. Which steps are done is the host's (it merges the server's record with
+ * It opens as the grid once any step is done (a tour picked up again — a reload,
+ * another device), as the list before the first one; after that the user's own
+ * folding and unfolding decide. A step is done once any of its chips has been
+ * used; the title row counts them. Which steps are done is the host's (it merges the server's record with
  * this device's); the shape and the open step are the block's own.
  */
 export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: GettingStartedBlockProps) {
-  const [folded, setFolded] = useState(false);
+  // null until the user folds or unfolds it: the progress decides, and it may land
+  // after the block has mounted.
+  const [foldedByUser, setFolded] = useState<boolean | null>(null);
   const [openId, setOpenId] = useState<TourStepId | null>(null);
 
   const total = steps.length;
   const done = steps.filter(step => doneStepIds.has(step.id)).length;
+  const folded = foldedByUser ?? done > 0;
 
   const openStep = (id: TourStepId) => {
     setFolded(false);
@@ -79,13 +85,13 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
       {folded ? (
         <ul
           data-testid="getting-started-grid"
-          className="flex flex-wrap gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]"
+          className="grid grid-cols-2 gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]"
         >
           {steps.map(step => {
             const isDone = doneStepIds.has(step.id);
-            // The chips wrap two to a row; an odd last one takes the whole row.
+            // Two to a row; an odd last one takes the whole row.
             return (
-              <li key={step.id} className="min-w-[160px] flex-1">
+              <li key={step.id} className="min-w-0 last:odd:col-span-2">
                 <button
                   type="button"
                   onClick={() => openStep(step.id)}

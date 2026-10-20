@@ -8,9 +8,11 @@ import {
   Refresh01RightIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
+import { dockViewOf } from '@/app/components/mingo-shell/mingo-dock-route';
 import { routes } from '@/lib/routes';
 import { useMingoChatSurface, useMingoChatThreadOnScreen } from '../providers/mingo-chat-provider';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
@@ -106,8 +108,9 @@ function ChatThreadSlot() {
 
 /**
  * The portalled chat's header and thread, loading: the 56px header row (title, then the
- * ⋯ cell) and the lib's message skeleton in the thread's padding — the chat's own
- * geometry, so nothing moves when it lands.
+ * ⋯ cell) and the lib's message skeleton in the thread's padding and column (the
+ * composer's width, which the dock gives the thread here) — the chat's own geometry,
+ * so nothing moves when it lands.
  */
 function ChatThreadSkeleton() {
   return (
@@ -121,7 +124,11 @@ function ChatThreadSkeleton() {
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-[var(--spacing-system-m)]">
-        <ChatMessageListSkeleton region={false} fullWidth className="flex-1" />
+        <ChatMessageListSkeleton
+          region={false}
+          fullWidth
+          className={cn('mx-auto w-full flex-1', dockViewOf('chat').widthClassName)}
+        />
       </div>
     </LoadingRegion>
   );
