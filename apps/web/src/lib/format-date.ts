@@ -18,13 +18,25 @@ export function toValidDate(input: DateInput | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/**
+ * The locale every date here is written in: the language the user put first in
+ * the browser's own Languages setting (`navigator.language`), not `Intl`'s
+ * default. The two differ on macOS, where Chrome's default locale is the OS
+ * language: a user with an English (US) Mac who chose English (Australia) in
+ * Chrome gets `en-AU` here and `en-US` from a bare `Intl.DateTimeFormat()`.
+ * Undefined off the client (SSR, tests without a navigator), i.e. the runtime's
+ * own default.
+ */
+export const viewerLocale = (): string | undefined =>
+  typeof navigator === 'undefined' ? undefined : navigator.language || undefined;
+
 // A missing or unparseable input renders as `EMPTY_VALUE`. `Intl.DateTimeFormat.format`
 // throws `RangeError: Invalid time value` on an invalid Date, so every formatter
 // here guards first — callers can pass raw API values without a per-call check.
 
-const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'short' });
-const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
-const timeWithSecondsFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' });
+const dateFmt = new Intl.DateTimeFormat(viewerLocale(), { dateStyle: 'short' });
+const timeFmt = new Intl.DateTimeFormat(viewerLocale(), { timeStyle: 'short' });
+const timeWithSecondsFmt = new Intl.DateTimeFormat(viewerLocale(), { timeStyle: 'medium' });
 
 const format = (input: DateInput | null | undefined, fmt: Intl.DateTimeFormat): string => {
   const date = toValidDate(input);
@@ -45,9 +57,10 @@ export const formatDateTime = (input: DateInput | null | undefined): string => {
 export const viewerTimeZone = (): string => new Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // Null for a missing zone or one the runtime does not know — `Intl` throws on those.
+// Written in the viewer's locale unless the caller pins one.
 function inZone(timeZone: string | null | undefined, options: Intl.DateTimeFormatOptions, locale?: string) {
   try {
-    return timeZone ? new Intl.DateTimeFormat(locale, { ...options, timeZone }) : null;
+    return timeZone ? new Intl.DateTimeFormat(locale ?? viewerLocale(), { ...options, timeZone }) : null;
   } catch {
     return null;
   }
@@ -119,7 +132,7 @@ export const formatTimeZone = (timeZone: string | null | undefined, at: DateInpu
 };
 
 // Fixed-width 24-hour time with milliseconds, so log lines align in a column.
-const logTimeFmt = new Intl.DateTimeFormat(undefined, {
+const logTimeFmt = new Intl.DateTimeFormat(viewerLocale(), {
   hourCycle: 'h23',
   hour: '2-digit',
   minute: '2-digit',
