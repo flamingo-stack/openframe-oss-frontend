@@ -224,6 +224,18 @@ describe('MingoChatProvider', () => {
     expect(seen.get('reader')).toMatchObject({ chat: null, error: null });
   });
 
+  it('starts the state again on retry while a surface stays up (the chat page)', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    fakeChatProbe.crash = new Error('boom');
+    render(shell(['page']));
+    expect(seen.get('page')).toMatchObject({ chat: null, error: expect.any(Error) });
+
+    fakeChatProbe.crash = null;
+    act(() => seen.get('page')?.retry());
+    expect(seen.get('page')?.error).toBeNull();
+    expect(seen.get('page')?.chat).not.toBeNull();
+  });
+
   it('toasts a dialog that does not exist once, and drops the selection', () => {
     const selectDialog = vi.fn();
     resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-gone', dialogError: 'MINGO_DIALOG_NOT_FOUND', selectDialog }));

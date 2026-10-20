@@ -1,9 +1,10 @@
-/** The dialog-open seam: a conversation opens on its chat page. */
+/** The dialog-open seam: a conversation opens over the page when the dock can, else on its chat page. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { toGlobalId } from '@/lib/relay-id';
 import { registerShellNavigator } from '@/lib/shell-navigator';
-import { normalizeMingoDialogId, openMingoDialog } from './open-mingo-dialog';
+import { canOpenMingoDialogOverPage, normalizeMingoDialogId, openMingoDialog } from './open-mingo-dialog';
 
 describe('openMingoDialog', () => {
   const push = vi.fn<(href: string) => void>();
@@ -12,11 +13,22 @@ describe('openMingoDialog', () => {
   beforeEach(() => {
     push.mockReset();
     unregister = registerShellNavigator(push);
+    useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
   });
 
   afterEach(() => unregister());
 
-  it('navigates to the chat page', () => {
+  it('asks the dock to open it over the page while the dock is mounted', () => {
+    useMingoLauncherStore.setState({ dockMounted: true });
+    expect(canOpenMingoDialogOverPage()).toBe(true);
+
+    openMingoDialog('d-1');
+    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'open', dialogId: 'd-1' });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('navigates to the chat page without a dock', () => {
+    expect(canOpenMingoDialogOverPage()).toBe(false);
     openMingoDialog('d-1');
     expect(push).toHaveBeenCalledWith('/mingo/chat?id=d-1');
   });

@@ -11,7 +11,8 @@ export type MingoDockRequest =
   | { kind: 'prompt'; prompt: string }
   | { kind: 'draft'; draft: MingoDraft }
   | { kind: 'newChat' }
-  | { kind: 'intent'; intent: DialogIntent };
+  | { kind: 'intent'; intent: DialogIntent }
+  | { kind: 'open'; dialogId: string };
 
 /**
  * Lets any page hand Mingo something to do, through the composer dock under every page:
@@ -20,7 +21,9 @@ export type MingoDockRequest =
  *     and nothing sent: the user decides ("Fix with Mingo" on an incident);
  *   - `startNewChat()` — land on Mingo's home with a new, empty chat;
  *   - `startIntentChat(intent)` — a new chat created to make one entity ("Generate with
- *     AI" on a create button): the server greets in it, nothing is sent.
+ *     AI" on a create button): the server greets in it, nothing is sent;
+ *   - `openDialog(id)` — an existing chat, over the page it was asked from (a notification,
+ *     "Open Mingo Session"), as the classic shell's drawer opened it.
  *
  * Each queues ONE `dockRequest`, replacing a pending one, and the dock drains it
  * (`useComposerLauncherDrain`). A request raised before the dock mounts waits for it.
@@ -45,6 +48,7 @@ interface MingoLauncherStore {
   draftToMingo: (draft: MingoDraft) => void;
   startNewChat: () => void;
   startIntentChat: (intent: DialogIntent) => void;
+  openDialog: (dialogId: string) => void;
 }
 
 export const useMingoLauncherStore = create<MingoLauncherStore>()(
@@ -65,6 +69,7 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       draftToMingo: draft => set({ dockRequest: { kind: 'draft', draft } }, false, 'draftToMingo'),
       startNewChat: () => set({ dockRequest: { kind: 'newChat' } }, false, 'startNewChat'),
       startIntentChat: intent => set({ dockRequest: { kind: 'intent', intent } }, false, 'startIntentChat'),
+      openDialog: dialogId => set({ dockRequest: { kind: 'open', dialogId } }, false, 'openDialog'),
     }),
     { name: 'mingo-launcher-store' },
   ),

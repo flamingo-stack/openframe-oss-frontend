@@ -92,8 +92,8 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
   XmarkIcon: () => null,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
-  Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
+  Button: ({ children, onClick, ...rest }: { children: ReactNode; onClick?: () => void; 'aria-label'?: string }) => (
+    <button type="button" onClick={onClick} aria-label={rest['aria-label']}>
       {children}
     </button>
   ),
@@ -149,6 +149,7 @@ vi.mock('./use-openframe-chat-props', () => ({
 const compactDialog = vi.fn();
 const sendInNewDialog = vi.fn(async () => {});
 const createIntentDialog = vi.fn(async () => null);
+const selectDialog = vi.fn();
 /** The session's thread handlers: the dock must hand them to the chat untouched. */
 const loadMoreMessages = vi.fn();
 const approveRequest = vi.fn();
@@ -170,7 +171,7 @@ function setSurface({
             activeDialogId,
             dialogs: [],
             messages: [],
-            selectDialog: vi.fn(),
+            selectDialog,
             sendMessage: vi.fn(),
             hasMoreMessages: true,
             loadMoreMessages,
@@ -204,6 +205,17 @@ const props = () => {
   return panel.props;
 };
 
+/** The chat draws the leading context node; here it lands in a node of its own. */
+const leadingRoots: Root[] = [];
+function renderLeading(): HTMLElement {
+  const node = document.createElement('div');
+  container.appendChild(node);
+  const leadingRoot = createRoot(node);
+  leadingRoots.push(leadingRoot);
+  act(() => leadingRoot.render(props().composerContextLeading as ReactNode));
+  return node;
+}
+
 interface HeaderAction {
   label: string;
   onClick: () => void;
@@ -232,6 +244,9 @@ describe('MingoComposerDock', () => {
   });
 
   afterEach(() => {
+    act(() => {
+      for (const leadingRoot of leadingRoots.splice(0)) leadingRoot.unmount();
+    });
     act(() => root.unmount());
     container.remove();
     vi.restoreAllMocks();
@@ -348,13 +363,23 @@ describe('MingoComposerDock', () => {
     it('offers "Continue" at the start of the context strip, and says the reply continues it', () => {
       setSurface({ activeDialogId: 'a' });
       render('/devices/');
-      const chip = props().composerContextLeading as ReactElement<{ onClick: () => void }>;
-      expect(chip).toBeTruthy();
       expect(props().composerPlaceholder).toBe('Reply, or ask something else about this page…');
+      const chip = renderLeading();
+      expect(chip.textContent).toContain('Continue “chat”');
 
-      act(() => chip.props.onClick());
+      act(() => chip.querySelector<HTMLButtonElement>('button:not([aria-label])')?.click());
       expect(useMingoSheetStore.getState().open).toBe(true);
       expect(props().composerContextLeading).toBeUndefined();
+    });
+
+    it('lets the chat go from its ×, so the next send from the page starts a new one', () => {
+      setSurface({ activeDialogId: 'a' });
+      render('/devices/');
+      const chip = renderLeading();
+
+      act(() => chip.querySelector<HTMLButtonElement>('[aria-label="Start a new chat instead"]')?.click());
+      expect(panel.startNewChat).toHaveBeenCalledTimes(1);
+      expect(useMingoSheetStore.getState().open).toBe(false);
     });
 
     it('offers nothing with no chat open, on home or on the chat page', () => {
@@ -591,23 +616,43 @@ describe('MingoComposerDock', () => {
       expect(useMingoLauncherStore.getState().dockMounted).toBe(false);
     });
 
-    it('Fix with Mingo: goes home, then a new chat there with the draft in the composer', () => {
+    it('Fix with Mingo: a new chat with the draft, in the composer under the page it was raised on', () => {
       render('/incidents/');
       const draft = { text: 'Fix the disk space incident' };
       act(() => useMingoLauncherStore.getState().draftToMingo(draft));
 
-      // Not applied over the page it was raised from.
+      expect(nav.push).not.toHaveBeenCalled();
+      expect(panel.prefillDraft).toHaveBeenCalledTimes(1);
+      expect(panel.prefillDraft).toHaveBeenCalledWith(draft);
+      expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
+    });
+
+    it('Fix with Mingo from a chat page: goes home, then the draft there', () => {
+      render('/mingo/chat/');
+      const draft = { text: 'Fix the disk space incident' };
+      act(() => useMingoLauncherStore.getState().draftToMingo(draft));
+
       expect(nav.push).toHaveBeenCalledTimes(1);
       expect(nav.push).toHaveBeenCalledWith(routes.mingo.home);
       expect(panel.prefillDraft).not.toHaveBeenCalled();
 
-      render('/incidents/');
-      expect(nav.push).toHaveBeenCalledTimes(1);
-
       render('/mingo/');
-      expect(panel.prefillDraft).toHaveBeenCalledTimes(1);
       expect(panel.prefillDraft).toHaveBeenCalledWith(draft);
+    });
+
+    it('opens an existing chat over the page, and on its own page from home', () => {
+      render('/devices/');
+      act(() => useMingoLauncherStore.getState().openDialog('b'));
+      expect(selectDialog).toHaveBeenCalledWith('b');
+      expect(useMingoSheetStore.getState().open).toBe(true);
+      expect(nav.push).not.toHaveBeenCalled();
       expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
+
+      act(() => useMingoSheetStore.setState({ open: false }));
+      render('/mingo/');
+      act(() => useMingoLauncherStore.getState().openDialog('c'));
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('c'));
+      expect(useMingoSheetStore.getState().open).toBe(false);
     });
 
     it('New chat from a chat page: home first, the reset only there — the page never draws the empty chat', () => {

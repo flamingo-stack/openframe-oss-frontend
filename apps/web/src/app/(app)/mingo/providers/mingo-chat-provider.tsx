@@ -86,6 +86,8 @@ export interface MingoChat {
   compactDialog: ((dialogId: string) => void) | undefined;
   /** Puts the dialog's canonical link on the clipboard, with toast feedback. */
   copyDialogLink: (dialog: { id: string }) => Promise<void>;
+  /** Starts the state again after it crashed (`error`): a surface's "Try again". */
+  retry: () => void;
 }
 
 interface MingoChatSession {
@@ -98,6 +100,7 @@ interface MingoChatSession {
   identityEnabled: boolean;
   compactDialog: MingoChat['compactDialog'];
   copyDialogLink: MingoChat['copyDialogLink'];
+  retry: MingoChat['retry'];
 }
 
 const MingoChatSessionContext = createContext<MingoChatSession | null>(null);
@@ -132,6 +135,10 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
   }, []);
   // See "Subscribed is not on screen".
   const onScreen = threadViewCount > 0;
+  // A new key remounts the runner: the crashed one unmounts and resets the store, and
+  // the next starts a fresh state. Without it a crash lasts while any surface is up.
+  const [runKey, setRunKey] = useState(0);
+  const retry = useCallback(() => setRunKey(key => key + 1), []);
 
   const { toast } = useToast();
 
@@ -191,13 +198,14 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
     identityEnabled,
     compactDialog,
     copyDialogLink,
+    retry,
   };
   const running = enabled && surfaceCount > 0;
 
   return (
     <MingoChatSessionContext.Provider value={session}>
       {running ? (
-        <MingoChatRunnerBoundary store={store}>
+        <MingoChatRunnerBoundary key={runKey} store={store}>
           {/* Nothing in the state suspends today. If something ever does, it must
               not reach the shell's own boundary, which would blank the whole app. */}
           <Suspense fallback={null}>
@@ -240,6 +248,7 @@ export function useMingoChat(): MingoChat {
     identityEnabled: session.identityEnabled,
     compactDialog: session.compactDialog,
     copyDialogLink: session.copyDialogLink,
+    retry: session.retry,
   };
 }
 

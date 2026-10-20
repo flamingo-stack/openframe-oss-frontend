@@ -31,7 +31,7 @@ import { useChatPageSelection } from './use-chat-page-selection';
 export function MingoChatView({ dialogId }: { dialogId: string }) {
   // A surface: the page shows the chat, so the session runs while it is up even
   // before the dock registers.
-  const { chat, error } = useMingoChatSurface();
+  const { chat, error, retry: restartChat } = useMingoChatSurface();
   const status = useChatPageSelection(dialogId, error ? null : chat);
   const queryClient = useQueryClient();
 
@@ -40,7 +40,12 @@ export function MingoChatView({ dialogId }: { dialogId: string }) {
       <ChatPageState
         icon={<ChatExclamationIcon />}
         title="Mingo is unavailable right now"
-        description="Reload the app to try again."
+        description="Something went wrong in the chat."
+        action={
+          <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={restartChat}>
+            Try again
+          </Button>
+        }
       />
     );
   }

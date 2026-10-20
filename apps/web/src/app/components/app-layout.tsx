@@ -472,7 +472,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             footerSlot: ({ minimized, inDrawer }) => (
               <div className="flex flex-col-reverse items-center gap-[var(--spacing-system-xxs)] @[140px]/of-nav-sidebar:flex-row">
                 <div className="w-full min-w-0 @[140px]/of-nav-sidebar:flex-1">
-                  <MingoAccountPopover collapsed={minimized} locked={isLocked} />
+                  <MingoAccountPopover collapsed={minimized} locked={showLockContent} />
                 </div>
                 {!inDrawer && <MingoSidebarControls ownsHeaderCells={isMdUp === true} disabled={showLockContent} />}
               </div>
@@ -504,7 +504,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       chromeLoading,
       handleNavigate,
       chatEnabled,
-      isLocked,
       sidebarCollapsed,
       setSidebarCollapsed,
       revealSignal,
@@ -634,7 +633,16 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // landing page: the composer is part of what a session bound for the wizard must
   // not see first.
   let composerDock: React.ReactNode;
-  if (mingoShell) composerDock = chatEnabled && !dashboardHeld ? <MingoComposerDock /> : null;
+  // Wrapped so the floating walkthrough card can rise above it (`COMPOSER_DOCK_ATTRIBUTE`
+  // in walkthrough-video.tsx).
+  if (mingoShell) {
+    composerDock =
+      chatEnabled && !dashboardHeld ? (
+        <div data-composer-dock="">
+          <MingoComposerDock />
+        </div>
+      ) : null;
+  }
   // The open chat over a page, raised from the dock: only with it.
   const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
 

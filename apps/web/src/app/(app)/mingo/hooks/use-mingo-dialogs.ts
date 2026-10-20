@@ -6,10 +6,15 @@ import { useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import { GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
-import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
+import type { DialogConnection, DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { keepCreatedDialogs } from '../utils/insert-new-dialog';
+import {
+  isMissingPendingApprovalError,
+  notePendingApprovalUnsupported,
+  pendingApprovalSupported,
+} from '../utils/pending-approval-support';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
@@ -96,12 +101,21 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         search,
       };
 
-      const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
-        query: GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
-        variables,
-      });
-
-      const { edges, pageInfo } = extractGraphQlData(response).dialogs;
+      const fetchDialogs = async (queryText: string) =>
+        extractGraphQlData(await apiClient.post<DialogsResponse>('/chat/graphql', { query: queryText, variables }))
+          .dialogs;
+      // Each row's pending approval rides along, unless this backend does not serve the
+      // field: then the list loads without it (`pending-approval-support.ts`).
+      let dialogs: DialogConnection | null = null;
+      if (pendingApprovalSupported()) {
+        try {
+          dialogs = await fetchDialogs(GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY);
+        } catch (error) {
+          if (!isMissingPendingApprovalError(error)) throw error;
+          notePendingApprovalUnsupported();
+        }
+      }
+      const { edges, pageInfo } = dialogs ?? (await fetchDialogs(GET_MINGO_DIALOGS_QUERY));
       const page = { dialogs: edges.map(edge => edge.node), pageInfo };
       // A dialog created moments ago may not be in the server's answer yet; the
       // first page of an unsearched list keeps it on top until it is.

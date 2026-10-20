@@ -16,8 +16,10 @@ import {
   TruncateText,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { getNotificationIcon } from '@/app/components/notifications/notification-category-icons';
 import { resolveNotificationAction } from '@/app/components/notifications/notification-navigation';
+import { canOpenMingoDialogOverPage, openMingoDialog } from '@/app/components/notifications/open-mingo-dialog';
 
 export interface NotificationRow {
   id: string;
@@ -132,17 +134,31 @@ export function buildNotificationColumns({
       cell: ({ row }: { row: Row<NotificationRow> }) => {
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
-        const { id, archived } = row.original;
+        const { id, read, archived } = row.original;
+        const dialogId = action.mingoDialogId ?? null;
         // Any open of an archived row clears its flag: only ticket and dialog pages
         // auto-read on arrival, and the new-tab half leaves this row on screen.
         const onOpen = archived ? () => onMarkRead?.(id) : undefined;
+        // A Mingo chat opens over this page when the composer dock can (the sheet, as the
+        // classic drawer did), unless the click asks for a new tab or window. No URL
+        // changes then, so opening clears the row's unread here.
+        const onOpenHere = (event: ReactMouseEvent<HTMLElement>) => {
+          const newTab = event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0;
+          if (dialogId && !newTab && canOpenMingoDialogOverPage()) {
+            event.preventDefault();
+            openMingoDialog(dialogId);
+            if (!read || archived) onMarkRead?.(id);
+            return;
+          }
+          onOpen?.();
+        };
         return (
           <div data-no-row-click className="flex w-full justify-end">
             <SplitButton
               className="hidden content-md:inline-flex"
               variant="outline"
               href={action.route}
-              onClick={onOpen}
+              onClick={onOpenHere}
               groupAriaLabel={action.label}
               iconAction={{
                 icon: <ArrowRightUpIcon className="text-ods-text-secondary" />,
@@ -160,7 +176,7 @@ export function buildNotificationColumns({
               variant="outline"
               size="icon"
               href={action.route}
-              onClick={onOpen}
+              onClick={onOpenHere}
               aria-label={action.label}
               leftIcon={<ArrowRightUpIcon />}
             />

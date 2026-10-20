@@ -20,7 +20,11 @@ import { closeMobileMenu } from './mobile-menu-store';
 interface MingoAccountPopoverProps {
   /** The 56px rail: the avatar alone, the menu beside the rail. */
   collapsed: boolean;
-  /** Behind the subscription lock: the pages the menu leads to are not reachable. Log out and the layout switch still are. */
+  /**
+   * The lock screen is on: the pages the menu leads to are behind it. Log out still works.
+   * Not on the pages a lock leaves open (Billing & Usage on PAST_DUE), as the classic
+   * sidebar's Settings and Help Center rows were not.
+   */
   locked: boolean;
 }
 

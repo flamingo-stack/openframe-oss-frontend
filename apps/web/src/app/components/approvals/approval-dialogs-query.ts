@@ -1,3 +1,8 @@
+import {
+  isMissingPendingApprovalError,
+  notePendingApprovalUnsupported,
+  pendingApprovalSupported,
+} from '@/app/(app)/mingo/utils/pending-approval-support';
 import { API_ENDPOINTS } from '@/app/(app)/tickets/constants';
 import { extractGraphQlData, type GraphQlResponse } from '@/app/(app)/tickets/utils/graphql';
 import { apiClient } from '@/lib/api-client';
@@ -87,7 +92,22 @@ interface ApprovalDialogsData {
   };
 }
 
+/** What a backend without `Dialog.pendingApproval` answers: no chat is known to wait. */
+const NO_APPROVAL_DIALOGS: ApprovalDialogsPage = { dialogs: [], pageInfo: { hasNextPage: false } };
+
 export async function fetchApprovalDialogs(after: string | undefined): Promise<ApprovalDialogsPage> {
+  // Without the field the query cannot ask anything (`pending-approval-support.ts`).
+  if (!pendingApprovalSupported()) return NO_APPROVAL_DIALOGS;
+  try {
+    return await fetchApprovalDialogsPage(after);
+  } catch (error) {
+    if (!isMissingPendingApprovalError(error)) throw error;
+    notePendingApprovalUnsupported();
+    return NO_APPROVAL_DIALOGS;
+  }
+}
+
+async function fetchApprovalDialogsPage(after: string | undefined): Promise<ApprovalDialogsPage> {
   const response = await apiClient.post<GraphQlResponse<ApprovalDialogsData>>(API_ENDPOINTS.GRAPHQL, {
     query: APPROVAL_DIALOGS_QUERY,
     variables: {

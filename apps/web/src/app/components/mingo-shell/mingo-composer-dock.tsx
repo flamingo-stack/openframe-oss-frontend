@@ -263,6 +263,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     route,
     sendInNewDialog: target.sendInNewDialog,
     createIntentDialog: target.createIntentDialog,
+    selectDialog: chat.state.selectDialog,
+    openSheet: showSheet,
     navigate,
   });
 
@@ -271,6 +273,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // Over a page: the open chat is one click away. Up, its header leads to the chat's
   // own page or back to this one; down, a chip at the start of the composer's context
   // strip brings it back ("Continue …"), and the prompt says the reply continues it.
+  // Its × lets the chat go: the next send from the page starts a new one in the sheet.
   const openDialogId = chat.state.activeDialogId ?? null;
   const onSheetRoute = isSheetRoute(route);
   // A chat opened in full from a page leads back to it, raised over it again.
@@ -310,19 +313,33 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const messageCount = chat.state.messages.length;
   const openViewChip = useOpenViewChip(route);
   const continueChip = continuing ? (
-    <Button
-      variant="outline"
-      size="compact"
-      leftIcon={<MessageTextIcon />}
-      rightIcon={<Chevron02UpIcon />}
-      onClick={showSheet}
-      title="Reopen this chat"
-      className="min-w-0 max-w-full shrink"
-    >
-      <span className="truncate">
-        Continue “{shortTitle}”{messageCount > 0 ? ` · ${messageCount} messages` : ''}
-      </span>
-    </Button>
+    <div role="group" aria-label="Chat behind this page" className="flex min-w-0 max-w-full shrink">
+      <Button
+        variant="outline"
+        size="compact"
+        attach="start"
+        leftIcon={<MessageTextIcon />}
+        rightIcon={<Chevron02UpIcon />}
+        onClick={showSheet}
+        title="Reopen this chat"
+        className="min-w-0 shrink"
+      >
+        <span className="truncate">
+          Continue “{shortTitle}”{messageCount > 0 ? ` · ${messageCount} messages` : ''}
+        </span>
+      </Button>
+      <Button
+        variant="outline"
+        size="compact"
+        attach="end"
+        onClick={() => handle?.startNewChat()}
+        aria-label="Start a new chat instead"
+        title="Start a new chat instead"
+        className="shrink-0 px-[var(--spacing-system-xsf)]"
+      >
+        <XmarkIcon />
+      </Button>
+    </div>
   ) : undefined;
 
   // "Reset Onboarding" replays the Getting Started tour once it is over (finished or

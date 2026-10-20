@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { type MingoDockRequest, useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import type { DialogIntent } from '@/app/(app)/tickets/constants';
 import { routes } from '@/lib/routes';
-import type { ComposerRoute } from './mingo-dock-route';
+import { type ComposerRoute, isSheetRoute } from './mingo-dock-route';
 
 /**
  * Publishes the dock to the launcher store while it is mounted: the launchers (Fix
@@ -27,29 +27,37 @@ interface ComposerLauncherDrainOptions {
   sendInNewDialog: (text: string) => Promise<void>;
   /** The follow-wrapped intent chat (`useComposerTarget`). */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
+  /** Selects a chat for the session (`UnifiedChatState.selectDialog`). */
+  selectDialog: (dialogId: string) => void;
+  /** Raise the chat over the page (`useMingoSheetStore.show`). */
+  openSheet: () => void;
   navigate: (href: string) => void;
 }
 
 /**
  * Drains the launcher's dock request:
- *  - a draft (Fix with Mingo: the incident's prompt + its `@insight` chip) and
- *    "start a new chat" land on home — a new chat — with the composer prefilled or
- *    empty; the user's send then follows the new chat to its page. The request
- *    waits until the dock is on home, so the page it was raised from (a chat page
- *    re-selecting its `?id=`) cannot take the new chat back before it is left — and
- *    the chat page never draws the empty new chat on its way out. The way home does
- *    not wait for the chat module to load;
+ *  - a draft (Fix with Mingo: the incident's prompt + its `@insight` chip) lands in
+ *    the composer under the page it was raised on, as a new chat, and the user's send
+ *    opens that chat over the page — as the classic drawer took it beside the page.
+ *    From home and the chat page it goes home, as "start a new chat" always does:
+ *    home is a new chat, and the chat page re-selects its `?id=` (it would take the new
+ *    chat back before it is left, and draw the empty new chat on its way out). The
+ *    request waits until the dock is there; the way home does not wait for the chat
+ *    module to load;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
- *    and that send follows the chat to its page. Not through home: the end state is
- *    the same, and a hop there would only flash home and put it in Back's way;
+ *    which then opens over the page (or, from home, on its own page: `useComposerTarget`);
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
- *    Mingo greets in it, nothing is sent — and follows it to its page, as a prompt.
+ *    Mingo greets in it, nothing is sent — and opens it as a prompt does;
+ *  - an existing chat (a notification, "Open Mingo Session") opens over the page; from
+ *    home and the chat page, on its own page.
  */
 export function useComposerLauncherDrain({
   handle,
   route,
   sendInNewDialog,
   createIntentDialog,
+  selectDialog,
+  openSheet,
   navigate,
 }: ComposerLauncherDrainOptions): void {
   const dockRequest = useMingoLauncherStore(s => s.dockRequest);
@@ -59,9 +67,23 @@ export function useComposerLauncherDrain({
 
   useEffect(() => {
     if (!dockRequest) return;
-    // A prompt and an intent create their chat at once, from wherever they were raised.
-    const atOnce = dockRequest.kind === 'prompt' || dockRequest.kind === 'intent';
-    if (!atOnce && route !== 'home') {
+    if (dockRequest.kind === 'open') {
+      consumeDockRequest();
+      if (isSheetRoute(route)) {
+        selectDialog(dockRequest.dialogId);
+        openSheet();
+      } else {
+        navigate(routes.mingo.chat(dockRequest.dialogId));
+      }
+      return;
+    }
+    // A prompt and an intent create their chat at once, from wherever they were raised;
+    // a draft fills the composer of the page it was raised on.
+    const inPlace =
+      dockRequest.kind === 'prompt' ||
+      dockRequest.kind === 'intent' ||
+      (dockRequest.kind === 'draft' && isSheetRoute(route));
+    if (!inPlace && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
         sentHomeRef.current = dockRequest;
         navigate(routes.mingo.home);
@@ -74,6 +96,16 @@ export function useComposerLauncherDrain({
     if (request.kind === 'prompt') void sendInNewDialog(request.prompt);
     else if (request.kind === 'intent') void createIntentDialog(request.intent);
     else if (request.kind === 'draft') handle.prefillDraft(request.draft);
-    else handle.startNewChat();
-  }, [dockRequest, handle, consumeDockRequest, sendInNewDialog, createIntentDialog, route, navigate]);
+    else if (request.kind === 'newChat') handle.startNewChat();
+  }, [
+    dockRequest,
+    handle,
+    consumeDockRequest,
+    sendInNewDialog,
+    createIntentDialog,
+    selectDialog,
+    openSheet,
+    route,
+    navigate,
+  ]);
 }

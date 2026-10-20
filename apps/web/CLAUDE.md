@@ -281,9 +281,12 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
 
 - **Routes**: `/mingo`, `/mingo/chat?id=`, `/mingo/archive`, `/approvals`; on an OSS tenant each
   redirects (`useAppModeRedirect`, ROUTES.md "App-mode routes"). Open a chat only through
-  `openMingoDialog(id)` (`components/notifications/open-mingo-dialog.ts`); a link to one is
-  `mingoDialogLink(id)`. "Start a new chat", a prompt or a draft goes through the launcher store
-  (`mingo-launcher-store.ts`), which the dock drains.
+  `openMingoDialog(id)` (`components/notifications/open-mingo-dialog.ts`): over the page in the
+  sheet while the dock is mounted (as the classic drawer did; the caller marks the notification
+  read, no URL changes), else on its chat page; a link to one is `mingoDialogLink(id)`. "Start
+  a new chat", a prompt, a draft or an open goes through the launcher store
+  (`mingo-launcher-store.ts`), which the dock drains; a draft fills the composer of the page it
+  was raised on.
 - **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
   `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
   watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is
@@ -299,7 +302,8 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   every page but home and the chat page, a send opens the chat over the page instead of leaving
   it (`useComposerTarget` → `useMingoSheetStore.show`); the dock portals the thread into the
   sheet's node. It closes on its ×, the scrim, Esc and any navigation, leaving a "Continue …"
-  chip at the start of the composer's context strip. "Open as full chat" goes to the chat page,
+  chip at the start of the composer's context strip; the chip's × lets the chat go
+  (`startNewChat`), so the next send from the page starts a new one. "Open as full chat" goes to the chat page,
   whose header then offers "Back to page" (`fullFrom`). The chat behind the pages survives a
   reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
   `localStorage` convenience.

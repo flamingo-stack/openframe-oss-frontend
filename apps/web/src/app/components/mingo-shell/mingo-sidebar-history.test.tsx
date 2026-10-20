@@ -91,6 +91,7 @@ function session(state: Partial<MingoChatState['state']> = {}, extra: Partial<Mi
     identityEnabled: false,
     compactDialog: vi.fn(),
     copyDialogLink: spies.copyDialogLink,
+    retry: vi.fn(),
   };
 }
 

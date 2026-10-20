@@ -50,6 +50,18 @@ import {
 const SIDEBAR_CLEARANCE = 'ml-[var(--of-sidebar-live-width,0px)] transition-[margin] duration-300';
 
 /**
+ * The Mingo-first shell's composer dock (AppShell wraps it in this attribute). The card
+ * is pinned to the bottom of the window and the dock sits at the bottom of the page
+ * column, so the card would cover the composer, its input included — what the classic
+ * shell's drawer once fixed by layering over it. The card rises by the dock's height
+ * instead, followed live (the composer grows with a longer draft or an attachment).
+ */
+const COMPOSER_DOCK_ATTRIBUTE = 'data-composer-dock';
+const COMPOSER_DOCK_HEIGHT_CSS_VAR = '--of-composer-dock-live-height';
+// Spelled out for Tailwind, as SIDEBAR_CLEARANCE is.
+const COMPOSER_DOCK_CLEARANCE = 'mb-[var(--of-composer-dock-live-height,0px)]';
+
+/**
  * Styling hook for the "hide me while a modal is open" rule in
  * `app/globals.css` (which is where the reasoning lives). Needed because the
  * lib pins the card's wrapper at `z-[9980]`, above every hand-rolled overlay
@@ -105,6 +117,31 @@ function useSidebarWidthVar(enabled: boolean): void {
   }, [enabled]);
 }
 
+/**
+ * Mirror the composer dock's height into a CSS variable for the margin above; 0 where
+ * there is no dock (an OSS tenant, a locked workspace). Re-queried on navigation: the
+ * dock is held back on some routes.
+ */
+function useComposerDockHeightVar(pathname: string | null): void {
+  useEffect(() => {
+    const root = document.documentElement;
+    const write = (px: number) => root.style.setProperty(COMPOSER_DOCK_HEIGHT_CSS_VAR, `${px}px`);
+    const dock = document.querySelector(`[${COMPOSER_DOCK_ATTRIBUTE}]`);
+    if (!dock) {
+      write(0);
+      return () => root.style.removeProperty(COMPOSER_DOCK_HEIGHT_CSS_VAR);
+    }
+    const measure = () => write(dock.getBoundingClientRect().height);
+    measure();
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(dock);
+    return () => {
+      ro?.disconnect();
+      root.style.removeProperty(COMPOSER_DOCK_HEIGHT_CSS_VAR);
+    };
+  }, [pathname]);
+}
+
 export function WalkthroughVideo() {
   const pathname = usePathname();
   const { video } = useWalkthroughVideoData();
@@ -119,6 +156,7 @@ export function WalkthroughVideo() {
   // Only while a left-hand card is actually on screen — nothing to clear on the
   // right, before the video lands, or once an inline mount has taken over.
   useSidebarWidthVar(side === 'left' && video !== null && !inlineElsewhere);
+  useComposerDockHeightVar(pathname);
 
   if (inlineElsewhere) {
     return null;
@@ -131,7 +169,7 @@ export function WalkthroughVideo() {
       // hide target after a soft nav.
       pathname={pathname ?? undefined}
       dismissal={{ storageKey: WALKTHROUGH_DISMISS_STORAGE_KEY }}
-      className={cn(MODAL_SUPPRESSION_HOOK, side === 'left' && SIDEBAR_CLEARANCE)}
+      className={cn(MODAL_SUPPRESSION_HOOK, COMPOSER_DOCK_CLEARANCE, side === 'left' && SIDEBAR_CLEARANCE)}
     />
   );
 }

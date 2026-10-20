@@ -396,9 +396,9 @@ export const routes = {
     list: TICKETS_LIST_PATH,
     /**
      * The Tickets list with the view it reads from its URL (`TicketsView`): `status`
-     * holds ticket STATUS IDS (the tenant's own statuses, not an enum) and narrows the
-     * TABLE only — the board ignores it, so a status filter needs `viewMode: 'table'`
-     * to show. No `viewMode` = the page default (the board).
+     * holds ticket STATUS IDS (the tenant's own statuses, not an enum) and narrows both
+     * views: the table's rows, and the board's lanes to the named statuses. No
+     * `viewMode` = the page default (the board).
      */
     filtered: (o: { status?: readonly string[]; viewMode?: 'table' | 'board' }) =>
       withQuery(TICKETS_LIST_PATH, { status: o.status, viewMode: o.viewMode }),
