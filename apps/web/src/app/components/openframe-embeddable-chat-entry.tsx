@@ -95,6 +95,7 @@ export function OpenframeEmbeddableChatEntry({
     dialogStatusOf,
     sendInNewDialog,
     createNamedDialog,
+    createIntentDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,
@@ -246,6 +247,19 @@ export function OpenframeEmbeddableChatEntry({
     if (!consumePendingNewChat()) return;
     chatHandle.current?.startNewChat();
   }, [pendingNewChat, consumePendingNewChat]);
+
+  // Queued "Generate with AI" (`startIntentChat` — a create button's Mingo
+  // segment): a new dialog created with the intent and opened. The server has
+  // already written Mingo's greeting into it, so the history load renders it.
+  const pendingIntent = useMingoLauncherStore(s => s.pendingIntent);
+  const consumePendingIntent = useMingoLauncherStore(s => s.consumePendingIntent);
+
+  useEffect(() => {
+    if (!pendingIntent) return;
+    const intent = consumePendingIntent();
+    if (!intent) return;
+    void createIntentDialog(intent);
+  }, [pendingIntent, consumePendingIntent, createIntentDialog]);
 
   // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
   // a fresh chat with the composer prefilled and nothing sent. Same one-shot
