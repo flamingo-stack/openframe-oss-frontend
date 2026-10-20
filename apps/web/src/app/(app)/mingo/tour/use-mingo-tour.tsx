@@ -25,6 +25,8 @@ export interface MingoTourInput {
   createNamedDialog: (title: string) => Promise<string | null>;
   /** Why the open conversation could not be fetched, or null. */
   dialogError: string | null;
+  /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
+  onStepOpened?: (href: string) => void;
 }
 
 export interface MingoTour {
@@ -51,7 +53,7 @@ export interface MingoTour {
  * server. "Finish tour" completes the user's onboarding, which takes the block
  * away.
  */
-export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
+export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpened }: MingoTourInput): MingoTour {
   const router = useRouter();
   const environment = useRelayEnvironment();
   const { toast } = useToast();
@@ -131,7 +133,9 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
       void fetchFirstDevice(environment)
         .catch(() => null)
         .then(device => {
-          router.push(deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href);
+          const href = deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href;
+          router.push(href);
+          onStepOpened?.(href);
           return sendMessage(tourPrompt(action, device));
         })
         .then(sent => {
@@ -140,7 +144,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
         });
       return true;
     },
-    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground, environment],
+    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground, environment, onStepOpened],
   );
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);

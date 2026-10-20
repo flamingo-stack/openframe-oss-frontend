@@ -16,6 +16,7 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
+import { useMingoSheetStore } from './mingo-sheet-store';
 
 const {
   panel,
@@ -82,8 +83,13 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
+  Chevron02UpIcon: () => null,
+  MessageTextIcon: () => null,
   PackageCheckIcon: () => null,
   Refresh01RightIcon: () => null,
+  SidebarFlipIcon: () => null,
+  SidebarIcon: () => null,
+  XmarkIcon: () => null,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
@@ -160,6 +166,8 @@ function setSurface({
       : {
           state: {
             activeDialogId,
+            dialogs: [],
+            messages: [],
             selectDialog: vi.fn(),
             sendMessage: vi.fn(),
             hasMoreMessages: true,
@@ -194,6 +202,13 @@ const props = () => {
   return panel.props;
 };
 
+interface HeaderAction {
+  label: string;
+  onClick: () => void;
+}
+/** The sheet's header actions the dock handed the chat. */
+const headerActions = () => (props().threadHeaderActions as HeaderAction[] | undefined) ?? [];
+
 describe('MingoComposerDock', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -208,6 +223,7 @@ describe('MingoComposerDock', () => {
     useChatPageNodeStore.setState({ node: null, chatMounted: false });
     useFeatureFlagsStore.getState().reset();
     useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
+    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, fullFrom: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -253,6 +269,91 @@ describe('MingoComposerDock', () => {
       act(() => useChatPageNodeStore.setState({ node }));
       expect(props().threadContainer).toBe(node);
       expect(panel.mounts).toBe(1);
+    });
+
+    it("is the sheet's node over a page while the sheet is up, with its two header actions", () => {
+      setSurface({ activeDialogId: 'a' });
+      const node = document.createElement('div');
+      useMingoSheetStore.setState({ open: true, node });
+      for (const pathname of ['/devices/', '/devices/details/remote-shell/']) {
+        render(pathname);
+        expect(props().threadContainer).toBe(node);
+        expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
+        expect(props().composerPlaceholder).toBe('Reply to Mingo…');
+      }
+    });
+
+    it('ignores an open sheet on home and on the chat page', () => {
+      setSurface({ activeDialogId: 'a' });
+      const sheetNode = document.createElement('div');
+      useMingoSheetStore.setState({ open: true, node: sheetNode });
+      render('/mingo/');
+      expect(props().threadContainer).toBeNull();
+      expect(props().threadHeaderActions).toBeUndefined();
+      const pageNode = document.createElement('div');
+      useChatPageNodeStore.setState({ node: pageNode });
+      render('/mingo/chat/');
+      expect(props().threadContainer).toBe(pageNode);
+    });
+
+    it("leads to the chat's page from the sheet, or back to the page", () => {
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ open: true, node: document.createElement('div') });
+      render('/devices/');
+      const [full, back] = headerActions();
+      act(() => back.onClick());
+      expect(useMingoSheetStore.getState().open).toBe(false);
+      expect(nav.push).not.toHaveBeenCalled();
+
+      act(() => useMingoSheetStore.setState({ open: true }));
+      act(() => full.onClick());
+      expect(useMingoSheetStore.getState().open).toBe(false);
+      expect(useMingoSheetStore.getState().fullFrom?.dialogId).toBe('a');
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('a'));
+    });
+
+    it('leads a chat opened in full back to its page, raised over it again', () => {
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ fullFrom: { href: '/devices/?statuses=ONLINE', dialogId: 'a' } });
+      render('/mingo/chat/');
+      const [back] = headerActions();
+      expect(back.label).toBe('Back to page');
+      act(() => back.onClick());
+      expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
+      expect(useMingoSheetStore.getState()).toMatchObject({ fullFrom: null, openAfterNavigation: true });
+    });
+
+    it('offers no way back on the chat page of another chat, or without one', () => {
+      setSurface({ activeDialogId: 'b' });
+      useMingoSheetStore.setState({ fullFrom: { href: '/devices/', dialogId: 'a' } });
+      render('/mingo/chat/');
+      expect(headerActions()).toEqual([]);
+      act(() => useMingoSheetStore.setState({ fullFrom: null }));
+      expect(headerActions()).toEqual([]);
+    });
+  });
+
+  describe('a chat behind the page', () => {
+    it('offers "Continue" at the start of the context strip, and says the reply continues it', () => {
+      setSurface({ activeDialogId: 'a' });
+      render('/devices/');
+      const chip = props().composerContextLeading as ReactElement<{ onClick: () => void }>;
+      expect(chip).toBeTruthy();
+      expect(props().composerPlaceholder).toBe('Reply, or ask something else about this page…');
+
+      act(() => chip.props.onClick());
+      expect(useMingoSheetStore.getState().open).toBe(true);
+      expect(props().composerContextLeading).toBeUndefined();
+    });
+
+    it('offers nothing with no chat open, on home or on the chat page', () => {
+      render('/devices/');
+      expect(props().composerContextLeading).toBeUndefined();
+      setSurface({ activeDialogId: 'a' });
+      for (const pathname of ['/mingo/', '/mingo/chat/']) {
+        render(pathname);
+        expect(props().composerContextLeading).toBeUndefined();
+      }
     });
   });
 

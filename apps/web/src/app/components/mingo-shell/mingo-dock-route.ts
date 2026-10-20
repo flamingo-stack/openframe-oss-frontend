@@ -52,6 +52,14 @@ export function composerRouteOf(pathname: string | null): ComposerRoute {
   return 'page';
 }
 
+/**
+ * Where the chat opens over the page (`MingoComposerSheet`) rather than taking it:
+ * every page but Mingo's home (always a new chat) and the chat page (the thread itself).
+ */
+export function isSheetRoute(route: ComposerRoute): boolean {
+  return route === 'page' || route === 'full-width';
+}
+
 /** How the dock draws itself on a route. */
 export interface DockView {
   /** Max width, centred: the chat column in the chat, the page column elsewhere (FE_PROMPT §2.1). */

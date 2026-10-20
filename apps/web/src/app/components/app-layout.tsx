@@ -49,6 +49,7 @@ import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
+import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
 import { composerRouteOf } from './mingo-shell/mingo-dock-route';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
@@ -634,6 +635,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // not see first.
   let composerDock: React.ReactNode;
   if (mingoShell) composerDock = chatEnabled && !dashboardHeld ? <MingoComposerDock /> : null;
+  // The open chat over a page, raised from the dock: only with it.
+  const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
   // slot. Its placement rules are on the core layout below.
@@ -734,6 +737,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 // (and the page's layout) while drawing nothing.
                 desktopHeader={!mingoShell}
                 composerDock={composerDock}
+                composerSheet={composerSheet}
                 // A chat page: Mingo's background and glow from the top of the thread
                 // to the bottom of the window, under the docked composer too.
                 pageSurface={mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}

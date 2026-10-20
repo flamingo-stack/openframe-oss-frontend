@@ -4,7 +4,7 @@ import type { UnifiedChatState } from '@flamingo-stack/openframe-frontend-core/c
 import { useEffect, useRef } from 'react';
 import type { DialogIntent } from '@/app/(app)/tickets/constants';
 import { routes } from '@/lib/routes';
-import type { ComposerRoute } from './mingo-dock-route';
+import { type ComposerRoute, isSheetRoute } from './mingo-dock-route';
 
 /**
  * Which chat the docked composer writes into, and where the user goes when they send
@@ -17,14 +17,14 @@ import type { ComposerRoute } from './mingo-dock-route';
  *   dialog change).
  * - **Every other page continues the selected chat.** Nothing to do: the
  *   selection is the session's and outlives navigation.
- * - **Any send from a page that is not the chat page goes to its chat**,
- *   `routes.mingo.chat(id)`: the thread renders only there, so a reply anywhere else
- *   is invisible. A send into the open chat goes at once (its id is known); a send
- *   that creates a chat follows it as soon as the id commits — any dock send with no
- *   chat open, the dock's quick actions and launcher prompts (`sendInNewDialog`), and,
- *   on home, ANY chat that becomes active: home is always a new chat, so one appearing
- *   there was just created, by the dock or by the home page's own quick actions
- *   (`chat.sendInNewDialog`, outside the panel).
+ * - **A send from a page opens the chat over it** (`openSheet`, the conversation
+ *   sheet): the page stays where it is, under the reply. A send into the open chat
+ *   opens it at once (its id is known); a send that creates a chat opens it as soon
+ *   as the id commits — any dock send with no chat open, launcher prompts and intent
+ *   chats (`sendInNewDialog`, `createIntentDialog`).
+ * - **A send from home goes to its chat**, `routes.mingo.chat(id)`: home is always a
+ *   new chat, so ANY chat that becomes active there was just created, by the dock or
+ *   by the home page's own quick actions (`chat.sendInNewDialog`, outside the panel).
  * - **Sends on the chat page stay put.** A chat created there is the page's to
  *   follow (`use-chat-page-selection.ts`).
  *
@@ -40,6 +40,8 @@ interface ComposerTargetOptions {
   /** A new chat created to make one entity (`MingoChatState.createIntentDialog`). */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   navigate: (href: string) => void;
+  /** Raise the chat over the page (`useMingoSheetStore.show`). */
+  openSheet: () => void;
 }
 
 interface ComposerTarget {
@@ -62,6 +64,7 @@ export function useComposerTarget({
   sendInNewDialog,
   createIntentDialog,
   navigate,
+  openSheet,
 }: ComposerTargetOptions): ComposerTarget {
   const activeDialogId = state.activeDialogId ?? null;
   const { selectDialog } = state;
@@ -90,8 +93,9 @@ export function useComposerTarget({
     if (created) followRef.current = null;
     // The chat page follows its selection itself (`use-chat-page-selection.ts`).
     if (route === 'chat') return;
-    if (created || route === 'home') navigate(routes.mingo.chat(activeDialogId));
-  }, [activeDialogId, route, navigate]);
+    if (route === 'home') navigate(routes.mingo.chat(activeDialogId));
+    else if (created && isSheetRoute(route)) openSheet();
+  }, [activeDialogId, route, navigate, openSheet]);
 
   // Wraps a send that may create a chat. A send that ends with no new chat (the
   // create failed) disarms, so a later selection is not taken for its chat. One
@@ -112,8 +116,9 @@ export function useComposerTarget({
     sendMessage: (text, options) => {
       const open = state.activeDialogId;
       if (!open) return following(() => state.sendMessage(text, options));
-      // The reply streams into a thread drawn only on the chat page.
-      if (route !== 'chat') navigate(routes.mingo.chat(open));
+      // The reply streams into the thread: over the page, or on the chat's own page.
+      if (isSheetRoute(route)) openSheet();
+      else if (route !== 'chat') navigate(routes.mingo.chat(open));
       return state.sendMessage(text, options);
     },
   };

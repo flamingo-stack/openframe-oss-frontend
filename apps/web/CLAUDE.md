@@ -295,14 +295,22 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
+- **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). On
+  every page but home and the chat page, a send opens the chat over the page instead of leaving
+  it (`useComposerTarget` → `useMingoSheetStore.show`); the dock portals the thread into the
+  sheet's node. It closes on its ×, the scrim, Esc and any navigation, leaving a "Continue …"
+  chip at the start of the composer's context strip. "Open as full chat" goes to the chat page,
+  whose header then offers "Back to page" (`fullFrom`). The chat behind the pages survives a
+  reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
+  `localStorage` convenience.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
   entry. A session that owes its setup lands on the bare `/setup` wizard instead of
   `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a
   skeleton until the answer); "Start with Mingo" goes home, where the dock creates the
   tour's conversation and follows it. The dock runs `useMingoTour` UNDER
   `useComposerTarget`: its Getting Started block stays above the composer on every page
-  while the tour's chat is open, and a step chip opens its section without following to
-  the chat page. "Reset Onboarding" is in the chat's ⋯; Mingo's home shows the intro
+  while the tour's chat is open, and a step chip opens its section with Mingo's answer in the
+  sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; Mingo's home shows the intro
   banner above its sections, as the dashboard does.
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
   history, account popover); Mingo's home in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`

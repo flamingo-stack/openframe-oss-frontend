@@ -37,7 +37,15 @@ import {
   type EmbeddableChatHandle,
   ModelDisplaySkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { PackageCheckIcon, Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Chevron02UpIcon,
+  MessageTextIcon,
+  PackageCheckIcon,
+  Refresh01RightIcon,
+  SidebarFlipIcon,
+  SidebarIcon,
+  XmarkIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
@@ -57,10 +65,21 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
-import { type ComposerRoute, composerRouteOf, dockViewOf } from './mingo-dock-route';
+import { type ComposerRoute, composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
+import { useMingoSheetStore } from './mingo-sheet-store';
+import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
 import { useOpenframeChatProps } from './use-openframe-chat-props';
+
+/** Whether `href` points at the page `pathname` is on (query aside; `trailingSlash` puts a slash after paths). */
+function samePath(href: string, pathname: string | null): boolean {
+  const trim = (path: string) => path.replace(/\/+$/, '') || '/';
+  return pathname !== null && trim(href.split(/[?#]/)[0]) === trim(pathname);
+}
+
+/** The chat's title for the "Continue" chip: shortened, so the chip leaves room for the strip. */
+const CONTINUE_TITLE_MAX = 34;
 
 /** Nothing closes the dock: the lib still reports a same-tab navigation from a thread card as a close. */
 const ignoreClose = () => {};
@@ -185,8 +204,18 @@ interface DockChatProps {
 
 function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const navigate = (href: string) => router.push(href);
   const view = dockViewOf(route);
+  // The chat over the page (`MingoComposerSheet`): open on plain pages only.
+  const sheetOpen = useMingoSheetStore(s => s.open) && isSheetRoute(route);
+  const sheetNode = useMingoSheetStore(s => s.node);
+  const showSheet = useMingoSheetStore(s => s.show);
+  const hideSheet = useMingoSheetStore(s => s.hide);
+  const showSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
+  const openFull = useMingoSheetStore(s => s.openFull);
+  const fullFrom = useMingoSheetStore(s => s.fullFrom);
+  const clearFullFrom = useMingoSheetStore(s => s.clearFullFrom);
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
   // Tells the chat page whether a chat will portal into it (it draws a skeleton until then).
@@ -200,6 +229,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // Ghost text from chips drawn outside the chat (Mingo's home Quick Actions).
   const previewText = useComposerPreviewStore(s => s.text);
 
+  // A reload of this tab keeps the chat behind the pages (and their "Continue" chip).
+  useChatBehindPage({ route, state: chat.state });
+
   // The tour decorates the session's state before the send target wraps it: its step
   // chips send through the bare state (the section they open is where the user goes,
   // not the chat page), while the composer's own sends follow to the chat as ever.
@@ -207,6 +239,12 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     state: chat.state,
     createNamedDialog: chat.createNamedDialog,
     dialogError: chat.dialogError,
+    // A chip's answer opens over the section it opened: at once when that is this
+    // page, else on the page the navigation lands on.
+    onStepOpened: href => {
+      if (samePath(href, pathname)) showSheet();
+      else showSheetAfterNavigation();
+    },
   });
   const target = useComposerTarget({
     route,
@@ -214,6 +252,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     sendInNewDialog: chat.sendInNewDialog,
     createIntentDialog: chat.createIntentDialog,
     navigate,
+    openSheet: showSheet,
   });
   useComposerLauncherDrain({
     handle,
@@ -224,6 +263,62 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   });
 
   const chatProps = useOpenframeChatProps({ chat, copyDialogLink, sendInNewDialog: target.sendInNewDialog });
+
+  // Over a page: the open chat is one click away. Up, its header leads to the chat's
+  // own page or back to this one; down, a chip at the start of the composer's context
+  // strip brings it back ("Continue …"), and the prompt says the reply continues it.
+  const openDialogId = chat.state.activeDialogId ?? null;
+  const onSheetRoute = isSheetRoute(route);
+  // A chat opened in full from a page leads back to it, raised over it again.
+  const backFromFull =
+    route === 'chat' && fullFrom !== null && fullFrom.dialogId === openDialogId ? fullFrom.href : null;
+  let threadHeaderActions;
+  if (sheetOpen && openDialogId) {
+    threadHeaderActions = [
+      {
+        id: 'open-full-chat',
+        label: 'Open as full chat',
+        icon: <SidebarIcon size={24} />,
+        onClick: () => {
+          openFull(`${window.location.pathname}${window.location.search}`, openDialogId);
+          navigate(routes.mingo.chat(openDialogId));
+        },
+      },
+      { id: 'back-to-page', label: 'Back to page', icon: <XmarkIcon size={24} />, onClick: hideSheet },
+    ];
+  } else if (backFromFull !== null) {
+    threadHeaderActions = [
+      {
+        id: 'back-to-page',
+        label: 'Back to page',
+        icon: <SidebarFlipIcon size={24} />,
+        onClick: () => {
+          clearFullFrom();
+          showSheetAfterNavigation();
+          navigate(backFromFull);
+        },
+      },
+    ];
+  }
+  const continuing = onSheetRoute && !sheetOpen && openDialogId !== null;
+  const openTitle = chat.state.dialogs.find(dialog => dialog.id === openDialogId)?.title ?? 'chat';
+  const shortTitle = openTitle.length > CONTINUE_TITLE_MAX ? `${openTitle.slice(0, CONTINUE_TITLE_MAX)}…` : openTitle;
+  const messageCount = chat.state.messages.length;
+  const continueChip = continuing ? (
+    <Button
+      variant="outline"
+      size="compact"
+      leftIcon={<MessageTextIcon />}
+      rightIcon={<Chevron02UpIcon />}
+      onClick={showSheet}
+      title="Reopen this chat"
+      className="min-w-0 max-w-full shrink"
+    >
+      <span className="truncate">
+        Continue “{shortTitle}”{messageCount > 0 ? ` · ${messageCount} messages` : ''}
+      </span>
+    </Button>
+  ) : undefined;
 
   // "Reset Onboarding" replays the Getting Started tour once it is over (finished or
   // skipped) — in the chat's ⋯, after the chat's own actions, as the v2 panel had it.
@@ -283,12 +378,22 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // An element on the chat page, `null` everywhere else — never `undefined`,
         // which switches the chat back to its in-place layout and remounts the
         // composer (draft and all).
-        threadContainer={route === 'chat' ? chatPageNode : null}
+        // The chat page's node on the chat page, the sheet's while it is up over a page.
+        threadContainer={route === 'chat' ? chatPageNode : sheetOpen ? sheetNode : null}
+        threadHeaderActions={threadHeaderActions}
+        composerContextLeading={continueChip}
         rail="none"
         renameMode="inline"
         onModelClick={() => navigate(routes.settings.aiSettings({ tab: 'mingo' }))}
         modelTooltip="Change in Settings → AI Settings"
-        composerPlaceholder={view.placeholder}
+        // Over the page the thread is the chat's: its prompt; behind it, "continue or ask anew".
+        composerPlaceholder={
+          sheetOpen
+            ? dockViewOf('chat').placeholder
+            : continuing
+              ? 'Reply, or ask something else about this page…'
+              : view.placeholder
+        }
         composerFooterActions={
           compactAction ?? (compactPending ? <span aria-hidden className="block h-6" /> : undefined)
         }

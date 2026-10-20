@@ -23,6 +23,7 @@ const navigate = vi.fn();
 const sendMessage = vi.fn<UnifiedChatState['sendMessage']>();
 const sendInNewDialog = vi.fn<(text: string) => Promise<void>>();
 const createIntentDialog = vi.fn(async () => null);
+const openSheet = vi.fn();
 
 const probe = { target: null as ReturnType<typeof useComposerTarget> | null };
 const target = () => {
@@ -33,7 +34,7 @@ const target = () => {
 function Harness({ route }: { route: ComposerRoute }) {
   const active = selection(s => s.active);
   const state = { activeDialogId: active, selectDialog, sendMessage } as unknown as UnifiedChatState;
-  const result = useComposerTarget({ route, state, sendInNewDialog, createIntentDialog, navigate });
+  const result = useComposerTarget({ route, state, sendInNewDialog, createIntentDialog, navigate, openSheet });
   useEffect(() => {
     probe.target = result;
   });
@@ -103,7 +104,7 @@ describe('useComposerTarget', () => {
     expect(selection.getState().active).toBe('a');
   });
 
-  it('follows a chat created by a send from a page to its chat page, once its id is known', async () => {
+  it('opens a chat created by a send from a page over that page, once its id is known', async () => {
     render('page');
     const { send, releaseCreate, finish } = deferredCreate('new-1');
     sendMessage.mockImplementation(send);
@@ -112,23 +113,23 @@ describe('useComposerTarget', () => {
     act(() => {
       sending = target().mingoState.sendMessage('Why is it offline?');
     });
-    expect(navigate).not.toHaveBeenCalled();
+    expect(openSheet).not.toHaveBeenCalled();
 
     await act(async () => releaseCreate());
-    expect(navigate).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('new-1'));
+    expect(openSheet).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
 
     await act(async () => {
       finish();
       await sending;
     });
-    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(openSheet).toHaveBeenCalledTimes(1);
   });
 
-  it('goes to the open chat for a reply sent from any other page, where it would be invisible', async () => {
+  it('opens the open chat over the page for a reply sent from any other page, and stays on it', async () => {
     sendMessage.mockResolvedValue(undefined);
     for (const route of ['page', 'full-width'] as const) {
-      navigate.mockClear();
+      openSheet.mockClear();
       select('a');
       render(route);
 
@@ -137,8 +138,8 @@ describe('useComposerTarget', () => {
       });
 
       expect(sendMessage).toHaveBeenLastCalledWith('and the other one?', undefined);
-      expect(navigate).toHaveBeenCalledTimes(1);
-      expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('a'));
+      expect(openSheet).toHaveBeenCalledTimes(1);
+      expect(navigate).not.toHaveBeenCalled();
     }
   });
 
@@ -193,7 +194,7 @@ describe('useComposerTarget', () => {
     expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('quick-1'));
   });
 
-  it('follows an always-new send away from the chat open on a page', async () => {
+  it('opens an always-new send over the page, away from the chat open there', async () => {
     select('a');
     render('page');
     const { send, releaseCreate, finish } = deferredCreate('new-2');
@@ -204,7 +205,8 @@ describe('useComposerTarget', () => {
       sending = target().sendInNewDialog('Meet Mingo');
     });
     await act(async () => releaseCreate());
-    expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('new-2'));
+    expect(openSheet).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
 
     await act(async () => {
       finish();
