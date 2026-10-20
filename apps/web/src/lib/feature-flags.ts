@@ -17,6 +17,10 @@ export const FEATURE_FLAG_NAMES = [
   // Billing runs on the live Stripe account: hides the "Test mode" banner on
   // Settings → Billing & Usage. Absent = the sandbox, banner shown.
   'billing-live-mode',
+  // More actions → Customer Portal on Settings → Billing & Usage: the
+  // Stripe-hosted portal (billing address, tax IDs, payment methods, invoice
+  // history). On for dev / qa, absent elsewhere, which reads as off.
+  'customer-portal',
   'test-clock',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
