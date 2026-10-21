@@ -120,18 +120,14 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
         render={({ field, fieldState }) => (
           <Select value={field.value} onValueChange={field.onChange}>
             <SelectTrigger label="Default Remote Access Permission" error={fieldState.error?.message}>
-              {/* Children override Radix's default item mirror: the closed
-                  trigger shows only the label (per the design), while the open
-                  list keeps the two-line label + description items. */}
+              {/* Children override Radix's item mirror, so the closed trigger
+                  reads the label straight from the mode, not from a mounted item. */}
               <SelectValue placeholder="Select a permission">{REMOTE_ACCESS_MODE_META[field.value].label}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {REMOTE_ACCESS_MODES.map(mode => (
-                <SelectItem key={mode} value={mode}>
-                  <span className="flex flex-col text-left">
-                    <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
-                    <span className="text-ods-text-secondary text-h6">{REMOTE_ACCESS_MODE_META[mode].description}</span>
-                  </span>
+                <SelectItem key={mode} value={mode} description={REMOTE_ACCESS_MODE_META[mode].description}>
+                  {REMOTE_ACCESS_MODE_META[mode].label}
                 </SelectItem>
               ))}
             </SelectContent>
