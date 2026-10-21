@@ -146,6 +146,13 @@ jobs:
         working-directory: apps/web
         run: npm run lint:ci
 
+      # The loading standard (ported from the hub): no screen draws a skeleton, one
+      # switch per component, no spinner or "Loading…" text, and a list skeleton
+      # draws its full page. Headers of the two scripts state each rule.
+      - name: Loading gates
+        working-directory: apps/web
+        run: npm run check:loading
+
   unit_test:
     name: 'Unit Test'
     runs-on: ubuntu-latest
