@@ -40,6 +40,7 @@ const {
     /** The locked composer's props, while it draws. */
     loading: null as Record<string, unknown> | null,
     startNewChat: vi.fn(),
+    showWhatToAsk: vi.fn(),
     prefillDraft: vi.fn(),
   },
   nav: { pathname: '/devices/', push: vi.fn() },
@@ -60,7 +61,10 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     const { loaded } = panel;
     useImperativeHandle(
       ref,
-      () => (loaded ? { startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft } : null),
+      () =>
+        loaded
+          ? { startNewChat: panel.startNewChat, prefillDraft: panel.prefillDraft, showWhatToAsk: panel.showWhatToAsk }
+          : null,
       [loaded],
     );
     useEffect(() => {
@@ -87,8 +91,8 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/icons-v2', () => ({
   MessageTextIcon: () => null,
   PackageCheckIcon: () => null,
   Refresh01RightIcon: () => null,
-  SidebarFlipIcon: () => null,
-  SidebarIcon: () => null,
+  Collapse02Icon: () => null,
+  Expand02Icon: () => null,
   XmarkIcon: () => null,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
@@ -321,17 +325,37 @@ describe('MingoComposerDock', () => {
       expect(props().threadContentClassName).toBeUndefined();
     });
 
-    it('ignores an open sheet on home and on the chat page', () => {
+    it('ignores an open sheet on the chat page', () => {
       setSurface({ activeDialogId: 'a' });
-      const sheetNode = document.createElement('div');
-      useMingoSheetStore.setState({ open: true, node: sheetNode });
-      render('/mingo/');
-      expect(props().threadContainer).toBeNull();
-      expect(props().threadHeaderActions).toBeUndefined();
+      useMingoSheetStore.setState({ open: true, node: document.createElement('div') });
       const pageNode = document.createElement('div');
       useChatPageNodeStore.setState({ node: pageNode });
       render('/mingo/chat/');
       expect(props().threadContainer).toBe(pageNode);
+    });
+
+    it('raises a chat not created yet over home ("What to ask Mingo?"), with only a way back', () => {
+      const sheetNode = document.createElement('div');
+      useMingoSheetStore.setState({ open: true, node: sheetNode });
+      render('/mingo/');
+      expect(props().threadContainer).toBe(sheetNode);
+      expect(headerActions().map(action => action.label)).toEqual(['Back to page']);
+      act(() => headerActions()[0].onClick());
+      expect(useMingoSheetStore.getState().open).toBe(false);
+    });
+
+    it('shows "What to ask Mingo?" over the page, and in place on the chat page', () => {
+      render('/devices/');
+      act(() => useMingoLauncherStore.getState().showWhatToAsk());
+      expect(panel.showWhatToAsk).toHaveBeenCalledTimes(1);
+      expect(useMingoSheetStore.getState().open).toBe(true);
+      expect(useMingoLauncherStore.getState().dockRequest).toBeNull();
+
+      act(() => useMingoSheetStore.setState({ open: false }));
+      render('/mingo/chat/');
+      act(() => useMingoLauncherStore.getState().showWhatToAsk());
+      expect(panel.showWhatToAsk).toHaveBeenCalledTimes(2);
+      expect(useMingoSheetStore.getState().open).toBe(false);
     });
 
     it("leads to the chat's page from the sheet, or back to the page", () => {
@@ -345,9 +369,25 @@ describe('MingoComposerDock', () => {
 
       act(() => useMingoSheetStore.setState({ open: true }));
       act(() => full.onClick());
-      expect(useMingoSheetStore.getState().open).toBe(false);
+      // Up over the page until the chat page comes: the page never shows undimmed meanwhile.
+      expect(useMingoSheetStore.getState().open).toBe(true);
       expect(useMingoSheetStore.getState().fullFrom?.dialogId).toBe('a');
       expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('a'));
+      render('/mingo/chat/');
+      expect(props().threadContainer).not.toBe(useMingoSheetStore.getState().node);
+    });
+
+    it('is up from the first frame of the page it was asked to open on', () => {
+      setSurface({ activeDialogId: 'a' });
+      const sheetNode = document.createElement('div');
+      useMingoSheetStore.setState({
+        open: false,
+        openAfterNavigation: true,
+        askedFrom: '/mingo/chat',
+        node: sheetNode,
+      });
+      render('/devices/');
+      expect(props().threadContainer).toBe(sheetNode);
     });
 
     it('leads a chat opened in full back to its page, raised over it again', () => {
@@ -358,7 +398,9 @@ describe('MingoComposerDock', () => {
       expect(back.label).toBe('Back to page');
       act(() => back.onClick());
       expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
-      expect(useMingoSheetStore.getState()).toMatchObject({ fullFrom: null, openAfterNavigation: true });
+      expect(useMingoSheetStore.getState()).toMatchObject({ openAfterNavigation: true });
+      // The button stays until the page is reached (the sheet drops the way back there).
+      expect(headerActions().map(action => action.label)).toEqual(['Back to page']);
     });
 
     it('offers no way back on the chat page of another chat, or without one', () => {

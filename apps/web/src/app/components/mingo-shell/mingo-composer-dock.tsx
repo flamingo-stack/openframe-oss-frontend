@@ -39,11 +39,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   Chevron02UpIcon,
+  Collapse02Icon,
+  Expand02Icon,
   MessageTextIcon,
   PackageCheckIcon,
   Refresh01RightIcon,
-  SidebarFlipIcon,
-  SidebarIcon,
   XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -56,6 +56,7 @@ import {
   type MingoChatState,
   useMingoChatSurface,
 } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
@@ -65,8 +66,8 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
-import { type ComposerRoute, composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
-import { useMingoSheetStore } from './mingo-sheet-store';
+import { canShowSheet, type ComposerRoute, composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
+import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
 import { useComposerTarget } from './use-composer-target';
@@ -211,15 +212,15 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const pathname = usePathname();
   const navigate = (href: string) => router.push(href);
   const view = dockViewOf(route);
-  // The chat over the page (`MingoComposerSheet`): open on plain pages only.
-  const sheetOpen = useMingoSheetStore(s => s.open) && isSheetRoute(route);
+  // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
+  // "What to ask Mingo?" only (`canShowSheet`).
+  const sheetOpen = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
   const sheetNode = useMingoSheetStore(s => s.node);
   const showSheet = useMingoSheetStore(s => s.show);
   const hideSheet = useMingoSheetStore(s => s.hide);
   const showSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
   const openFull = useMingoSheetStore(s => s.openFull);
   const fullFrom = useMingoSheetStore(s => s.fullFrom);
-  const clearFullFrom = useMingoSheetStore(s => s.clearFullFrom);
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
   // Tells the chat page whether a chat will portal into it (it draws a skeleton until then).
@@ -281,17 +282,22 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const backFromFull =
     route === 'chat' && fullFrom !== null && fullFrom.dialogId === openDialogId ? fullFrom.href : null;
   let threadHeaderActions;
-  if (sheetOpen && openDialogId) {
+  if (sheetOpen) {
+    // A chat not created yet (the suggestions of "What to ask Mingo?") has no page of its own.
     threadHeaderActions = [
-      {
-        id: 'open-full-chat',
-        label: 'Open as full chat',
-        icon: <SidebarIcon size={24} />,
-        onClick: () => {
-          openFull(`${window.location.pathname}${window.location.search}`, openDialogId);
-          navigate(routes.mingo.chat(openDialogId));
-        },
-      },
+      ...(openDialogId
+        ? [
+            {
+              id: 'open-full-chat',
+              label: 'Open as full chat',
+              icon: <Expand02Icon size={24} />,
+              onClick: () => {
+                openFull(`${window.location.pathname}${window.location.search}`, openDialogId);
+                navigate(routes.mingo.chat(openDialogId));
+              },
+            },
+          ]
+        : []),
       { id: 'back-to-page', label: 'Back to page', icon: <XmarkIcon size={24} />, onClick: hideSheet },
     ];
   } else if (backFromFull !== null) {
@@ -299,9 +305,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
       {
         id: 'back-to-page',
         label: 'Back to page',
-        icon: <SidebarFlipIcon size={24} />,
+        icon: <Collapse02Icon size={24} />,
+        // The way back stays until the page is reached (`MingoComposerSheet` drops it
+        // there): cleared here, the button left the header before the page came.
         onClick: () => {
-          clearFullFrom();
           showSheetAfterNavigation();
           navigate(backFromFull);
         },
@@ -378,7 +385,12 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   return (
     <>
       {/* Home: Mingo's quick actions over the composer, sent through the dock's own send. */}
-      {route === 'home' && <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />}
+      {route === 'home' && (
+        <MingoDockQuickActions
+          onSend={text => void target.sendInNewDialog(text)}
+          onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}
+        />
+      )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && (
         <DockComposerLoading route={route} compact={compactAction ? true : compactPending ? 'unknown' : false} />

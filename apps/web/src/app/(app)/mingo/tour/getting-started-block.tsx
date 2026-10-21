@@ -31,7 +31,7 @@ export interface GettingStartedBlockProps {
  * - the grid: two columns of step chips, whatever the width the composer has (a
  *   docked page composer is wide enough for four), what the block folds into once
  *   a chip has been used so the conversation gets the room. The chevron in the title
- *   row unfolds it; a step chip unfolds it on that step.
+ *   row unfolds it and folds it back; a step chip unfolds it on that step.
  *
  * It opens as the grid once any step is done (a tour picked up again — a reload,
  * another device), as the list before the first one; after that the user's own
@@ -70,16 +70,19 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
         <p className="text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
-        {folded && (
-          <button
-            type="button"
-            aria-label="Show the steps"
-            onClick={() => setFolded(false)}
-            className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
-          >
-            <Chevron02UpIcon size={24} />
-          </button>
-        )}
+        {/* Unfolds the grid into the list, and folds the list back into the grid. */}
+        <button
+          type="button"
+          aria-label={folded ? 'Show the steps' : 'Hide the steps'}
+          aria-expanded={!folded}
+          onClick={() => {
+            if (!folded) setOpenId(null);
+            setFolded(!folded);
+          }}
+          className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+        >
+          {folded ? <Chevron02UpIcon size={24} /> : <Chevron02DownIcon size={24} />}
+        </button>
       </header>
 
       {folded ? (

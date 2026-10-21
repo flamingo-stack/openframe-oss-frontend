@@ -57,7 +57,7 @@ describe('GettingStartedBlock', () => {
   it('starts as the list with every step closed and the count at zero', () => {
     render();
     expect(header()).toContain('0 of 7 steps');
-    expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
     expect(container.textContent).not.toContain('Try asking:');
   });
 
@@ -80,6 +80,20 @@ describe('GettingStartedBlock', () => {
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     render(['devices', 'tickets']);
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+  });
+
+  it('folds the list back into the grid from the same chevron', () => {
+    render(['devices']);
+    const toggle = () => container.querySelector('header button') as Element;
+    expect(toggle().getAttribute('aria-label')).toBe('Show the steps');
+    click(toggle());
+    expect(toggle().getAttribute('aria-label')).toBe('Hide the steps');
+    click(button('TicketsTickets and time logs'));
+    click(toggle());
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).not.toBeNull();
+    // Unfolded again, no step is left open.
+    click(toggle());
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
   });
 
   it('opens one step at a time, with its description and chips', () => {
@@ -125,7 +139,7 @@ describe('GettingStartedBlock', () => {
 
     click(container.querySelector('button[aria-label="Show the steps"]') as Element);
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
-    expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
 
     click(button('LogsDevice and platform activity'));
     click(button('Errors since install'));

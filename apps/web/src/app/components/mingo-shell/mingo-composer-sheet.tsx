@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import { composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
-import { useMingoSheetStore } from './mingo-sheet-store';
+import { canShowSheet, composerRouteOf, SHEET_WIDTH_CLASS_NAME } from './mingo-dock-route';
+import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 
 /**
  * Where the sheet opens on a desktop until the user drags it elsewhere: tall enough for a
@@ -42,22 +42,24 @@ function escapeIsTaken(): boolean {
  * It closes with its ×, the scrim, Esc (unless a menu or a draft takes it) and
  * Android back, and on any navigation — the next page is a different context;
  * "Continue" brings it back. Only on plain pages: Mingo's home is always a new chat
- * and the chat page is the thread itself. Full width on a phone, the composer's
- * width elsewhere; `SHEET_DEFAULT_HEIGHT` tall on a desktop until dragged, the
+ * and the chat page is the thread itself. Full width on a phone, the composer card's
+ * width elsewhere (its edges meet the composer's); `SHEET_DEFAULT_HEIGHT` tall on a desktop until dragged, the
  * dragged height after that.
  */
 export function MingoComposerSheet() {
   const pathname = usePathname();
   const route = composerRouteOf(pathname);
-  const open = useMingoSheetStore(s => s.open);
+  // Up on the first frame of a page it was asked to open on, not only once `navigated` ran.
+  const up = useMingoSheetStore(s => isSheetUp(s, pathname));
   const height = useMingoSheetStore(s => s.height);
   const hide = useMingoSheetStore(s => s.hide);
   const setHeight = useMingoSheetStore(s => s.setHeight);
+  const resetHeight = useMingoSheetStore(s => s.resetHeight);
   const setNode = useMingoSheetStore(s => s.setNode);
   const navigated = useMingoSheetStore(s => s.navigated);
   const clearFullFrom = useMingoSheetStore(s => s.clearFullFrom);
   const phone = useMdUp() === false;
-  const shown = open && isSheetRoute(route);
+  const shown = up && canShowSheet(route);
 
   // Every location change closes it, or opens it there when that was asked for. The
   // way back from a chat opened in full lasts only while the chat page is on screen.
@@ -84,8 +86,9 @@ export function MingoComposerSheet() {
       onDismiss={hide}
       height={height ?? (phone ? null : SHEET_DEFAULT_HEIGHT)}
       onHeightChange={setHeight}
+      onResetHeight={resetHeight}
       defaultShare={0.88}
-      className={phone ? undefined : dockViewOf(route).widthClassName}
+      className={phone ? undefined : SHEET_WIDTH_CLASS_NAME}
       aria-label="Mingo chat"
     >
       <div ref={setNode} className="flex min-h-0 flex-1 flex-col" />

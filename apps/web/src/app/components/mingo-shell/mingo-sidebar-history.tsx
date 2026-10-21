@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
 import { useChatPageNodeStore } from './chat-page-node-store';
@@ -116,6 +117,8 @@ export function MingoSidebarHistory() {
         onRequestCopyLink={dialog => void copyDialogLink(dialog)}
         onRequestArchive={setArchiveTarget}
         onOpenArchive={() => open(routes.mingo.archive)}
+        // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, over the page.
+        onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}
         scope={state.dialogScope}
         onScopeChange={state.setDialogScope}
         searchQuery={chat.searchQuery}

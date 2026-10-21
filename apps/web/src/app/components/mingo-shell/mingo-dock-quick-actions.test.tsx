@@ -1,7 +1,8 @@
 /**
- * Mingo's quick actions over the docked composer on the home: a click SENDS the action
- * in a new chat through the dock's send, hover or focus previews its instructions in the
- * composer, and nothing renders while there are none.
+ * Mingo's quick actions over the docked composer on the home, as the design places them:
+ * a "Quick actions" caption with "What to ask Mingo?", over the quick-action wall. A
+ * chip's click SENDS the action in a new chat through the dock's send, hover or focus
+ * previews its instructions in the composer; with no actions only the caption row stays.
  */
 
 import { act } from 'react';
@@ -21,12 +22,27 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 };
 
+// The wall's marquee asks for reduced motion; jsdom has no matchMedia.
+window.matchMedia ??= (query: string) =>
+  ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }) as MediaQueryList;
+
 const onSend = vi.fn<(text: string) => void>();
+const onWhatToAsk = vi.fn();
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
   onSend.mockClear();
+  onWhatToAsk.mockClear();
   quickActions.value = [];
   useComposerPreviewStore.setState({ text: null });
   container = document.createElement('div');
@@ -40,7 +56,7 @@ afterEach(() => {
 });
 
 function render() {
-  act(() => root.render(<MingoDockQuickActions onSend={onSend} />));
+  act(() => root.render(<MingoDockQuickActions onSend={onSend} onWhatToAsk={onWhatToAsk} />));
 }
 
 function chip(label: string): HTMLButtonElement {
@@ -86,8 +102,12 @@ describe('MingoDockQuickActions', () => {
     root = createRoot(container);
   });
 
-  it('renders nothing while there are none', () => {
+  it('offers "What to ask Mingo?" beside the caption, with or without actions', () => {
     render();
-    expect(container.childElementCount).toBe(0);
+    expect(container.querySelector('h2')?.textContent).toBe('Quick actions');
+    expect(container.querySelectorAll('button')).toHaveLength(1);
+    act(() => chip('What to ask Mingo?').click());
+    expect(onWhatToAsk).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
   });
 });

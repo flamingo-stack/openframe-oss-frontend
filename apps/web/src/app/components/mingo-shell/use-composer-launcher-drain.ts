@@ -49,7 +49,10 @@ interface ComposerLauncherDrainOptions {
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
  *    Mingo greets in it, nothing is sent — and opens it as a prompt does;
  *  - an existing chat (a notification, "Open Mingo Session") opens over the page; from
- *    home and the chat page, on its own page.
+ *    home and the chat page, on its own page;
+ *  - "What to ask Mingo?" puts the suggestions in the open chat, or a new one, and shows
+ *    it: over the page or home (the sheet), in place on the chat page. The suggestions
+ *    are local until one is picked, so home cannot send them to a chat page of their own.
  */
 export function useComposerLauncherDrain({
   handle,
@@ -78,10 +81,12 @@ export function useComposerLauncherDrain({
       return;
     }
     // A prompt and an intent create their chat at once, from wherever they were raised;
-    // a draft fills the composer of the page it was raised on.
+    // a draft fills the composer of the page it was raised on; the suggestions show where
+    // they were asked for.
     const inPlace =
       dockRequest.kind === 'prompt' ||
       dockRequest.kind === 'intent' ||
+      dockRequest.kind === 'whatToAsk' ||
       (dockRequest.kind === 'draft' && isSheetRoute(route));
     if (!inPlace && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
@@ -97,6 +102,10 @@ export function useComposerLauncherDrain({
     else if (request.kind === 'intent') void createIntentDialog(request.intent);
     else if (request.kind === 'draft') handle.prefillDraft(request.draft);
     else if (request.kind === 'newChat') handle.startNewChat();
+    else if (request.kind === 'whatToAsk') {
+      handle.showWhatToAsk();
+      if (route !== 'chat') openSheet();
+    }
   }, [
     dockRequest,
     handle,

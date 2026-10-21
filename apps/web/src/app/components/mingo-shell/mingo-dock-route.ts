@@ -60,6 +60,15 @@ export function isSheetRoute(route: ComposerRoute): boolean {
   return route === 'page' || route === 'full-width';
 }
 
+/**
+ * Where the sheet may be up: every sheet route, and home — "What to ask Mingo?" shows its
+ * suggestions there in a chat not created yet, which has no chat page to go to (the pick
+ * that creates it then follows it there). Nothing else opens it on home.
+ */
+export function canShowSheet(route: ComposerRoute): boolean {
+  return isSheetRoute(route) || route === 'home';
+}
+
 /** How the dock draws itself on a route. */
 export interface DockView {
   /** Max width, centred: the chat column in the chat, the page column elsewhere (FE_PROMPT §2.1). */
@@ -73,6 +82,15 @@ export interface DockView {
 
 const CHAT_WIDTH = 'max-w-[760px]';
 const PAGE_WIDTH = 'max-w-[880px]';
+
+/**
+ * The sheet over a page: the composer card's width, not the dock column's. The chat
+ * insets its composer by \`spacing-system-m\` on each side of the column, so the sheet
+ * does the same (the column is \`PAGE_WIDTH\` at most): its edges meet the composer's
+ * and the blocks above it (Getting Started), as the design's sheet holds its composer.
+ */
+export const SHEET_WIDTH_CLASS_NAME =
+  'w-[calc(100%-2*var(--spacing-system-m))] max-w-[calc(880px-2*var(--spacing-system-m))]';
 
 const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
   home: {

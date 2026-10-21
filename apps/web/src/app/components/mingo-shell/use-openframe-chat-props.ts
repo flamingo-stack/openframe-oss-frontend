@@ -3,9 +3,7 @@
 import type {
   ChatContextPickerConfig,
   EmbeddableChatProps,
-  MingoQuickAction,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { getAgentAccent, renderQuickActionIcon } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMemo } from 'react';
 import { KNOWLEDGE_BASE_ROUTE } from '@/app/(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
@@ -13,11 +11,11 @@ import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
-import { useMingoQuickActions } from '@/app/(app)/mingo/hooks/use-mingo-quick-actions';
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { getFullImageUrl } from '@/lib/image-url';
+import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 /**
  * What OpenFrame's chat can do, as `EmbeddableChat` props: the context picker, `@`,
@@ -103,35 +101,10 @@ export function useOpenframeChatProps({
   // droppable from the `⋯` dropdown.
   const contextMemory = useMingoContextMemory();
 
-  // Admin-configured Mingo quick actions (AI Settings → "Mingo AI Chat" tab)
-  // become starter chips in the empty state. Clicking one opens a new dialog
-  // seeded with the action's instructions — same path the launcher prompt uses.
-  const quickActions = useMingoQuickActions();
-  const mingoQuickActions = useMemo<MingoQuickAction[]>(
-    () =>
-      quickActions.map(action => ({
-        id: action.id,
-        label: action.name,
-        variant: 'outline',
-        // Product Hub defaults carry a glyph (iconName/iconUrl/iconProps) and
-        // tenant customs the `iconName` picked in AI Settings; render it into
-        // the chip node. No icon → undefined → a text-only chip. `mingo` accent
-        // tints registry glyphs unless the hub icon sets its own color.
-        icon: renderQuickActionIcon({
-          name: action.iconName ?? undefined,
-          url: action.iconUrl ?? undefined,
-          props: action.iconProps ?? undefined,
-          accent: getAgentAccent('mingo'),
-        }),
-        // Hover/focus previews the full instruction (what's actually sent) as
-        // ghost text in the composer; the chip `label` is just the short name.
-        prompt: action.instructions,
-        onClick: () => {
-          void sendInNewDialog(action.instructions);
-        },
-      })),
-    [quickActions, sendInNewDialog],
-  );
+  // Admin-configured Mingo quick actions become starter chips in the empty state.
+  // Clicking one opens a new dialog seeded with the action's instructions — same path
+  // the launcher prompt uses.
+  const mingoQuickActions = useMingoQuickActionChips(sendInNewDialog);
 
   return {
     dialogStatusOf,
