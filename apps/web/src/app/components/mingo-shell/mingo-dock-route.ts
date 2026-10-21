@@ -78,6 +78,12 @@ export interface DockView {
   showContextMemory: boolean;
   /** Compact chat memory under the input — not on home: there is no chat to compact (PLAN §2.3). */
   showCompact: boolean;
+  /**
+   * The dock lies over the page's end (`AppLayout`'s `composerDockFloats`): the page runs
+   * on under it and fades out. Not on the chat page (one surface with the thread) nor on
+   * full-width pages (a remote screen or an editor must not lose its bottom edge).
+   */
+  floats: boolean;
 }
 
 const CHAT_WIDTH = 'max-w-[760px]';
@@ -98,24 +104,28 @@ const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
     placeholder: 'Ask Mingo or describe a task…',
     showContextMemory: true,
     showCompact: false,
+    floats: true,
   },
   chat: {
     widthClassName: CHAT_WIDTH,
     placeholder: 'Reply to Mingo…',
     showContextMemory: true,
     showCompact: true,
+    floats: false,
   },
   'full-width': {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo about this page…',
     showContextMemory: false,
     showCompact: true,
+    floats: false,
   },
   page: {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo about this page…',
     showContextMemory: true,
     showCompact: true,
+    floats: true,
   },
 };
 

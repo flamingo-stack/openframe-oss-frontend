@@ -170,7 +170,11 @@ export function MingoComposerDock() {
     // here: an inline chat names itself through its host's region.
     <section
       aria-label="Mingo AI chat"
-      className={cn('mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]', dockViewOf(route).widthClassName)}
+      // `pointer-events-auto`: a floating dock leaves the pointer to the page around it.
+      className={cn(
+        'pointer-events-auto mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]',
+        dockViewOf(route).widthClassName,
+      )}
     >
       <MingoDockErrorBoundary>
         <DockSurface route={route} />
@@ -450,6 +454,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
         safeAreaBottom={!isMobileShell()}
         composerPreviewText={previewText}
+        // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
+        composerEdgeLight
       />
       <ResetOnboardingDialog open={resetOnboardingOpen} onOpenChange={setResetOnboardingOpen} />
     </>

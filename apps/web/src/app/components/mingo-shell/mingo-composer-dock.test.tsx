@@ -475,6 +475,13 @@ describe('MingoComposerDock', () => {
     expect(props().safeAreaBottom).toBe(false);
   });
 
+  it("lights the composer's edge on every route", () => {
+    for (const path of ['/mingo/', '/devices/', '/mingo/chat/']) {
+      render(path);
+      expect(props().composerEdgeLight).toBe(true);
+    }
+  });
+
   it("shows the home chips' preview as ghost text in the composer", () => {
     render('/mingo/');
     expect(props().composerPreviewText).toBeNull();

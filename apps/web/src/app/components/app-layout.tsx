@@ -50,7 +50,7 @@ import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
-import { composerRouteOf } from './mingo-shell/mingo-dock-route';
+import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
@@ -584,16 +584,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       // The Mingo-first shell draws this header below md only (`desktopHeader`): the
-      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts,
-      // Mingo. Chat history opens the drawer, where the history section lives (the
-      // active chats, not only the archive); Mingo goes home. (`showMingoAI` /
-      // `onMingoAI` are core `AppHeader` prop names — external API, not ours.)
+      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts.
+      // Chat history opens the drawer, where the history section lives (the active
+      // chats, not only the archive). No Mingo button: the composer is docked under
+      // every page, and the drawer's "New chat" goes to Mingo's home.
       ...(mingoShell && {
         loadingActionCells: mingoHeaderLoadingCells(),
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
-        showMingoAI: chatEnabled,
-        onMingoAI: () => router.push(routes.mingo.home),
         customCells: chatEnabled
           ? [
               {
@@ -608,7 +606,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           : [],
       }),
     }),
-    [chromeLoading, chatEnabled, openHelpCenterTickets, mingoShell, isMdUp, router, setMobileMenuOpen],
+    [chromeLoading, chatEnabled, openHelpCenterTickets, mingoShell, isMdUp, setMobileMenuOpen],
   );
 
   const mobileBurgerMenuProps = useMemo(
@@ -746,6 +744,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
                 desktopHeader={!mingoShell}
                 composerDock={composerDock}
                 composerSheet={composerSheet}
+                // Over the page's end on plain pages and home: the page runs on under it.
+                composerDockFloats={mingoShell && dockViewOf(composerRouteOf(pathname)).floats}
                 // A chat page: Mingo's background and glow from the top of the thread
                 // to the bottom of the window, under the docked composer too.
                 pageSurface={mingoShell && chatEnabled && composerRouteOf(pathname) === 'chat' ? 'mingo' : undefined}

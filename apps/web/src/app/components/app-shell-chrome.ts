@@ -22,13 +22,12 @@ export function headerLoadingCells(): HeaderLoadingCell[] {
 /**
  * The same for the Mingo-first shell, whose header is the phone top bar only
  * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
- * `'icon-max-md'` like every phone-only cell), then the time tracker, notifications
- * and the Mingo launcher. `'wide'` for Mingo is not cosmetic: that cell is
- * content-width (icon + "Mingo AI" wordmark), roughly twice a square cell, so a
- * square would leave the cluster short and shift it when the real header lands.
+ * `'icon-max-md'` like every phone-only cell), then the time tracker and
+ * notifications. No Mingo launcher: the composer is docked under every page, and
+ * Mingo's home is the drawer's "New chat".
  */
 export function mingoHeaderLoadingCells(): HeaderLoadingCell[] {
-  return ['icon-max-md', 'icon', 'icon', 'wide'];
+  return ['icon-max-md', 'icon', 'icon'];
 }
 
 /**
