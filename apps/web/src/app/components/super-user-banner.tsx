@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SuperUserBannerView } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Component, type ReactNode, Suspense } from 'react';
+import { Component, type ReactNode } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { superUserBannerQuery as SuperUserBannerQueryType } from '@/__generated__/superUserBannerQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -90,9 +91,13 @@ export function SuperUserBanner() {
 
   return (
     <SuperUserBannerBoundary>
-      <Suspense fallback={<SuperUserBannerView loading tenantName="" environmentLabel={hostLabel()} />}>
+      <LoadingSuspense
+        label="Loading tenant"
+        className="contents"
+        fallback={<SuperUserBannerView loading tenantName="" environmentLabel={hostLabel()} />}
+      >
         <SuperUserBannerContent />
-      </Suspense>
+      </LoadingSuspense>
     </SuperUserBannerBoundary>
   );
 }

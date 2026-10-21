@@ -1,7 +1,6 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { packageManagerLabel, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
@@ -66,13 +65,7 @@ export function ActionDetailSummary({ action }: { action: actionDetailSummary_ac
           },
         ]}
       />
-      <ActionDetailLogsHeading>
-        {data ? (
-          (softwareActionCopy(data.action)?.logsHeading ?? 'Logs')
-        ) : (
-          <TextLineSkeleton type="h2" as="span" className="w-48" />
-        )}
-      </ActionDetailLogsHeading>
+      <ActionDetailLogsHeading text={data ? (softwareActionCopy(data.action)?.logsHeading ?? 'Logs') : null} />
     </LoadingWhen>
   );
 }

@@ -32,14 +32,13 @@ export function DeviceDetailsButton({
 }: DeviceDetailsButtonProps) {
   const id = machineId || deviceId;
 
-  if (!id) {
-    return null;
-  }
-
+  // No device to open yet (its id is read, or the record has none): the same button, inert, so nothing moves when the
+  // id arrives.
   return (
     <Button
       variant={variant}
-      href={routes.devices.details(id)}
+      href={id ? routes.devices.details(id) : undefined}
+      disabled={!id}
       openInNewTab={openInNewTab}
       className={className}
       onClick={event => {

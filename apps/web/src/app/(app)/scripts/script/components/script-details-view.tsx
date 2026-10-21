@@ -19,7 +19,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { EmptyValue, useRetryKey } from '@/app/components/shared';
+import { useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -220,9 +220,7 @@ function ScriptTags({ tags }: { tags: ReadonlyArray<{ id: string; key: string }>
       ) : tags.length > 0 ? (
         tags.map(tag => <Tag key={tag.id} data-loading-item variant="outline" label={tag.key} />)
       ) : (
-        <span className="text-h4">
-          <EmptyValue />
-        </span>
+        <ValueText value={null} />
       )}
     </div>
   );

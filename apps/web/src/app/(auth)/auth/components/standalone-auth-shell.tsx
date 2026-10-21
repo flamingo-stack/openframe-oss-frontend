@@ -23,7 +23,7 @@ interface StandaloneAuthShellProps {
  * login screen there. `AuthShell` cannot simply be told "no benefits" — a nullish `benefits` prop
  * falls back to the default panel.
  */
-export function StandaloneAuthShell({ children, footer }: StandaloneAuthShellProps) {
+function StandaloneAuthShell({ children, footer }: StandaloneAuthShellProps) {
   if (useLoginOnlyMobileShell()) {
     return <CompactAuthShell tagline={null}>{children}</CompactAuthShell>;
   }

@@ -105,9 +105,8 @@ export function QueriesTab({ device }: QueriesTabProps) {
       <QueriesTable
         rows={rows}
         isLoading={loading}
-        skeletonRows={QUERIES_TAB_SKELETON_ROWS}
+        pageSize={QUERIES_TAB_SKELETON_ROWS}
         rowAsLink
-        stickyHeader
         stickyHeaderOffset={stickyHeaderOffset}
         emptyState={{
           icon: <BracketCurlyEllipsisVrIcon />,

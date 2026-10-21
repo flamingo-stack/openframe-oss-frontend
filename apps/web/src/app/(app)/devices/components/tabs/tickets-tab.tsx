@@ -3,7 +3,7 @@
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
+  LoadingWhen,
   PageError,
   SearchInput,
   useDataTable,
@@ -11,6 +11,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
@@ -132,17 +133,15 @@ export function TicketsTab({ device }: TicketsTabProps) {
         </div>
       )}
 
-      <DataTable table={table}>
-        {(loading || !isEmpty) && (
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
-          />
-        )}
-        <DataTable.Body
-          loading={loading}
-          skeletonRows={TICKETS_PAGE_SIZE}
+      {/* The first page is a client read: the table draws its own loading state in this scope. */}
+      <LoadingWhen loading={loading}>
+        <LiveTable
+          table={table}
+          pageSize={TICKETS_PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          showHeader={loading || !isEmpty}
+          itemName="ticket"
+          totalCount={filteredCount}
           emptyState={{
             icon: <TagIcon />,
             title: 'No tickets found',
@@ -151,15 +150,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
               : 'Tickets linked to this device will appear here.',
           }}
           rowHref={ticketRowHref}
-          rowClassName="mb-1"
+          footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
         />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={handleLoadMore}
-          skeletonRows={TICKETS_PAGE_SIZE}
-        />
-      </DataTable>
+      </LoadingWhen>
     </div>
   );
 }

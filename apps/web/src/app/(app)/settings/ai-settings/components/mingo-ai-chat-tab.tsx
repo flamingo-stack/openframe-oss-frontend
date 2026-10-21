@@ -77,6 +77,8 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
   // customs); shown in view mode and as the editor's dimmed preview/seed.
   const hubDefaults = useHubDefaultQuickActions(MINGO_QUICK_ACTIONS_CONFIG.agentSlug);
+  // `undefined` until the hub answers: the lists draw their own loading state, never an empty list.
+  const defaultActions = hubDefaults.loaded ? hubDefaults.actions : undefined;
 
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
@@ -84,7 +86,7 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
       <MingoAiChatOverview
         aiConfig={aiConfig}
         providerModelLabel={modelLabel}
-        actions={aiConfig.quickActionsIsDefault ? hubDefaults.actions : aiConfig.quickActions}
+        actions={aiConfig.quickActionsIsDefault ? defaultActions : aiConfig.quickActions}
       />
     );
   }
@@ -93,7 +95,7 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
     <MingoAiChatEditor
       form={form}
       modelsByProvider={modelsByProvider}
-      defaultActions={hubDefaults.actions}
+      defaultActions={defaultActions}
       onSubmit={form.handleSubmit(values => onSubmit(toMingoAiChatSubmit(values)))}
     />
   );
@@ -102,14 +104,7 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
 /** The editor before the configuration is read: the same form, unseeded, every field drawing its own loading state. */
 function MingoAiChatLoadingEditor() {
   const form = useForm<MingoAiChatFormValues>();
-  return (
-    <MingoAiChatEditor
-      form={form}
-      modelsByProvider={undefined}
-      defaultActions={[]}
-      onSubmit={event => event.preventDefault()}
-    />
-  );
+  return <MingoAiChatEditor form={form} modelsByProvider={undefined} onSubmit={event => event.preventDefault()} />;
 }
 
 function MingoAiChatEditor({
@@ -120,7 +115,8 @@ function MingoAiChatEditor({
 }: {
   form: UseFormReturn<MingoAiChatFormValues>;
   modelsByProvider: ReturnType<typeof useSupportedModels>['modelsByProvider'];
-  defaultActions: AiQuickAction[];
+  /** `undefined` while the hub defaults are read. */
+  defaultActions?: AiQuickAction[];
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const llmProvider = form.watch('llmProvider');

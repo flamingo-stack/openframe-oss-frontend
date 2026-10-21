@@ -65,6 +65,14 @@ import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
 
 /**
+ * The rail's loading rows: the counts the nav typically settles on, so the placeholder is the loaded rail's height.
+ * Typical, not a page: which items show depends on feature flags that are not known while the chrome loads.
+ * 7 primary (Dashboard, Customers, Devices, Scripts, Monitoring, Logs, Tickets), 2 secondary (Knowledge Base, Settings).
+ */
+const NAV_SKELETON_PRIMARY_ROWS = 7;
+const NAV_SKELETON_SECONDARY_ROWS = 2;
+
+/**
  * Layer the Mingo drawer OVER the floating walkthrough video card.
  *
  * The card is a viewport-`fixed` `z-[9980]` element the lib owns. The drawer is
@@ -450,10 +458,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     () => ({
       items: navigationItems,
       loading: chromeLoading,
-      // The counts this app's nav settles on, so the placeholder is the same height
-      // as the loaded rail: 7 primary (Dashboard, Customers, Devices, Scripts,
-      // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
-      loadingRows: { primary: 7, secondary: 2 },
+      loadingRows: { primary: NAV_SKELETON_PRIMARY_ROWS, secondary: NAV_SKELETON_SECONDARY_ROWS },
       onNavigate: handleNavigate,
       // Desktop shell only: renders nothing until the shell reports an update
       // waiting. The slot is a render prop because the same node also draws in
@@ -647,7 +652,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // own boundaries), so this one only keeps a read that escapes a page from
   // suspending the chrome around it: it has no page of its own to draw.
   const pageContent = (
-    <Suspense fallback={null /* loading-standard-ok: a backstop under the pages' own boundaries */}>
+    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
       {showLockContent ? (
         <SubscriptionLockContent />
       ) : dashboardHeld ? (
@@ -679,7 +684,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         // and the root layout's are gone as vestigial RSC-era wrappers — so without it the
         // wait for a decorative badge count is served by Next's root and holds the whole
         // app. `null` because there is nothing to draw: the count simply appears.
-        <ErrorBoundary fallback={null /* loading-standard-ok: an error boundary; a failed count draws nothing */}>
+        <ErrorBoundary fallback={null}>
           <HydratorBoundary>
             <UnreadCountsHydrator onChange={setUnreadCounts} />
           </HydratorBoundary>
@@ -876,7 +881,11 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // prerender, and Next requires a Suspense boundary to bail out to. Without one
     // `next build` fails on every statically generated page under `(app)` — and
     // only in a production build, so a dev-mode build won't tell you.
-    <Suspense fallback={null /* loading-standard-ok: the prerender bail-out boundary, never shown on the client */}>
+    <Suspense
+      fallback={
+        null /* loading-standard-ok(SUSPENSE_FALLBACK): the prerender bail-out boundary, never shown on the client */
+      }
+    >
       {/* The admin look for every tab strip; the lib's `default` is the hub's. */}
       <TabNavigationVariantProvider variant="admin">
         <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>

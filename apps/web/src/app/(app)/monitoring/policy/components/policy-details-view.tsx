@@ -117,13 +117,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   };
   const statusColumn = {
     key: 'status',
-    content: (
-      <InfoCell
-        value={<PolicyStatusTag policy={policy} />}
-        valueSkeleton={<PolicyStatusTag policy={null} />}
-        label="Status"
-      />
-    ),
+    content: <InfoCell value={<PolicyStatusTag policy={policy} />} label="Status" />,
   };
   const authorColumn = {
     key: 'author',

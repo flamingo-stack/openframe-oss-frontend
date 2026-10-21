@@ -92,8 +92,10 @@ function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displ
       <div className={`${CARD_ROW} border-t border-ods-border`}>
         <InfoCell skeletonWidth="w-24" value={role} label="Role" />
         <InfoCell
-          valueSkeleton={<Tag label="" />}
-          value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
+          // No label while the employee loads: the tag draws its own skeleton in the cell's scope.
+          value={
+            <Tag label={user ? (isActive ? 'ACTIVE' : 'DELETED') : null} variant={isActive ? 'success' : 'grey'} />
+          }
           label="Status"
         />
       </div>

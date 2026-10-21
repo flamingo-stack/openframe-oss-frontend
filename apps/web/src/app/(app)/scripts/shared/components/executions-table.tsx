@@ -488,26 +488,23 @@ export function ExecutionsTable({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in
-          flight — the subtle fade is the pending feedback. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <LiveTable
-          table={table}
-          pageSize={EXECUTIONS_PAGE_SIZE}
-          stickyHeaderOffset={stickyHeaderOffset}
-          showHeader={showHeader}
-          emptyState={resolvedEmptyState}
-          rowHref={executionHref}
-          // Kept mounted on an EMPTY list too, as long as more pages exist — that only happens under client-side
-          // narrowing, and there the sentinel is what walks the rest of the pages so the term ends up searching the
-          // whole list instead of just the first page.
-          footer={
-            executions.length > 0 || hasNext
-              ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore, loadedCount }
-              : null
-          }
-        />
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={EXECUTIONS_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        showHeader={showHeader}
+        emptyState={resolvedEmptyState}
+        rowHref={executionHref}
+        // Kept mounted on an EMPTY list too, as long as more pages exist — that only happens under client-side
+        // narrowing, and there the sentinel is what walks the rest of the pages so the term ends up searching the
+        // whole list instead of just the first page.
+        footer={
+          executions.length > 0 || hasNext
+            ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore, loadedCount }
+            : null
+        }
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

@@ -1,8 +1,9 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { tagsEditor_keySuggestions$key as KeySuggestionsFragmentKey } from '@/__generated__/tagsEditor_keySuggestions.graphql';
 import { noop } from '../no-next-page';
 import { TagValueAutocomplete } from './tag-value-autocomplete';
@@ -119,7 +120,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
       <div className="flex w-full min-w-0 items-end gap-[var(--spacing-system-s)] content-md:flex-1">
         <div className="min-w-0 flex-1">
           {tag.key ? (
-            <Suspense fallback={disabledValueAutocomplete}>
+            <LoadingSuspense label="Loading tag values" className="contents" fallback={disabledValueAutocomplete}>
               <div ref={focusInputOnMount}>
                 <TagValueAutocomplete
                   tagKey={tag.key}
@@ -131,7 +132,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
                   className={labelClassName}
                 />
               </div>
-            </Suspense>
+            </LoadingSuspense>
           ) : (
             disabledValueAutocomplete
           )}

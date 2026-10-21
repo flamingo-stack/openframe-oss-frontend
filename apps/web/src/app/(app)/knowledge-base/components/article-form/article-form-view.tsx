@@ -79,8 +79,9 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
       actions={actions}
     >
       {isEdit && (
-        // The record's island renders nothing; while it loads, its fallback is the one "Loading article" announcement.
-        <LoadingSuspense label="Loading article">
+        // The record's island renders nothing; while it loads, its fallback is the one "Loading article" announcement,
+        // its region `contents` so it takes no slot (and no gap) in the page's column.
+        <LoadingSuspense label="Loading article" className="contents">
           <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
         </LoadingSuspense>
       )}

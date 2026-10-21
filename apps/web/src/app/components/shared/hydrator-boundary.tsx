@@ -10,5 +10,9 @@ import { type ReactNode, Suspense } from 'react';
  * scope (`LoadingFallback`).
  */
 export function HydratorBoundary({ children }: { children: ReactNode }) {
-  return <Suspense fallback={null /* loading-standard-ok: nothing to draw */}>{children}</Suspense>;
+  return (
+    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a hydrator draws nothing */}>
+      {children}
+    </Suspense>
+  );
 }

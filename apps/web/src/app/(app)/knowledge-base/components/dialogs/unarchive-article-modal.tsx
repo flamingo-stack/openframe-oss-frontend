@@ -15,6 +15,7 @@ import {
   invalidateFolderListing,
   removeFromListings,
 } from '../shared/knowledge-base-listings';
+import { NO_LISTING_IDS } from '../shared/knowledge-base-table';
 
 const unarchiveArticleModalFragment = graphql`
   fragment unarchiveArticleModal_article on KnowledgeBaseItem {
@@ -37,8 +38,6 @@ const unarchiveArticleModalMutation = graphql`
   }
 `;
 
-const NO_LISTINGS: readonly string[] = [];
-
 interface UnarchiveArticleModalProps {
   article: unarchiveArticleModal_article$key;
   isOpen: boolean;
@@ -51,7 +50,7 @@ export function UnarchiveArticleModal({
   article,
   isOpen,
   onClose,
-  listingIds = NO_LISTINGS,
+  listingIds = NO_LISTING_IDS,
 }: UnarchiveArticleModalProps) {
   const { toast } = useToast();
   const data = useFragment(unarchiveArticleModalFragment, article);

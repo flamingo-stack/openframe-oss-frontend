@@ -1,11 +1,11 @@
 'use client';
 
-import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { DashboardInfoCard, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usageViewQuery as UsageViewQueryType, usageViewQuery$data } from '@/__generated__/usageViewQuery.graphql';
+import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { formatCount } from '@/lib/format-number';
@@ -59,12 +59,10 @@ const usageViewQuery = graphql`
  */
 export function UsageView({ loading = false }: { loading?: boolean }) {
   // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
-  const view = <UsageScreen data={null} />;
-  if (loading) return <LoadingFallback label="Loading usage">{view}</LoadingFallback>;
   return (
-    <LoadingSuspense label="Loading usage" fallback={view}>
+    <GatedSuspense gated={loading} label="Loading usage" view={<UsageScreen data={null} />}>
       <UsageQuery />
-    </LoadingSuspense>
+    </GatedSuspense>
   );
 }
 
@@ -83,7 +81,7 @@ function UsageQuery() {
 }
 
 /** The page drawn from its query's answer; `data` is `null` while it loads (it draws itself in a loading scope). */
-export function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
+function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
   const loading = useLoadingScope() || data == null;
   const handleBack = useSafeBack(routes.settings.root());
   const subscription = data?.subscription ?? null;
@@ -138,18 +136,6 @@ export function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
         {hasAi && <DashboardInfoCard loading={loading} title="AI Usage" value={aiTokensUsed} />}
       </div>
 
-      {deviceOverLimit && (
-        <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
-          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
-            <p className="text-ods-text-secondary text-h4">
-              Your workspace administrator can raise the limit for your team.
-            </p>
-          </div>
-        </div>
-      )}
-
       <div
         className={cn(
           'grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]',
@@ -166,6 +152,21 @@ export function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
           </SectionBlock>
         )}
       </div>
+      {/* Below the sections it would otherwise push: only a workspace over its limit has it. */}
+      {deviceOverLimit && (
+        <div
+          data-loading-optional
+          className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]"
+        >
+          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
+            <p className="text-ods-text-secondary text-h4">
+              Your workspace administrator can raise the limit for your team.
+            </p>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

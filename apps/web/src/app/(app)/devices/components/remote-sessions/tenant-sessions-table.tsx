@@ -9,7 +9,6 @@ import {
 import {
   Button,
   type ColumnDef,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -25,8 +24,9 @@ import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@
 import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { noop, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -69,8 +69,6 @@ const NO_SESSIONS: NoDataProps = {
   description: 'Remote sessions on your devices will appear here.',
 };
 
-const EMPTY_ROWS: TenantSessionRow[] = [];
-
 // ----------------------------------------------------------------
 // Table
 // ----------------------------------------------------------------
@@ -78,9 +76,7 @@ const EMPTY_ROWS: TenantSessionRow[] = [];
 interface TenantSessionsTableProps {
   rows: TenantSessionRow[];
   totalCount: number;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
   isPending: boolean;
   tableFilters: Record<FilterKey, string[]>;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -112,9 +108,7 @@ function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
 function TenantSessionsTable({
   rows,
   totalCount,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   isPending,
   tableFilters,
   onFilterChange,
@@ -196,31 +190,17 @@ function TenantSessionsTable({
           filters button opens the same filters as a modal. */}
       <MobileFiltersButton onClick={loading ? undefined : () => setMobileFilterOpen(true)} />
 
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header
-              stickyHeader
-              rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-            />
-          )}
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyState={emptyState}
-            rowClassName="mb-1"
-            rowHref={recordingHref}
-          />
-          {rows.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={onLoadMore}
-              skeletonRows={PAGE_SIZE}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        table={table}
+        pageSize={PAGE_SIZE}
+        showHeader={showHeader}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={emptyState}
+        rowHref={recordingHref}
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}
@@ -267,10 +247,7 @@ function TenantSessionsTable({
 // Relay content - inside the shell's Suspense boundary
 // ----------------------------------------------------------------
 
-interface TenantSessionsContentProps extends Omit<
-  TenantSessionsTableProps,
-  'rows' | 'totalCount' | 'hasNext' | 'isLoadingNext' | 'onLoadMore'
-> {
+interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'rows' | 'totalCount' | 'infiniteScroll'> {
   variables: ReturnType<typeof tenantSessionsVariables>;
   refreshKey: number;
 }
@@ -280,11 +257,9 @@ function TenantSessionsContent(props: TenantSessionsContentProps) {
   if (useLoadingScope()) {
     return (
       <TenantSessionsTable
-        rows={EMPTY_ROWS}
+        rows={NO_ITEMS}
         totalCount={0}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
+        infiniteScroll={NO_NEXT_PAGE}
         isPending={false}
         tableFilters={props.tableFilters}
         onFilterChange={props.onFilterChange}
@@ -321,9 +296,7 @@ function TenantSessionsContentQuery({ variables, refreshKey, ...tableProps }: Te
     <TenantSessionsTable
       rows={rows}
       totalCount={data.remoteSessions.totalCount}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={loadMore}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: loadMore }}
       {...tableProps}
     />
   );

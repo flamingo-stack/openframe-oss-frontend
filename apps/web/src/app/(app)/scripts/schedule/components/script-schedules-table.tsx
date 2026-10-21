@@ -554,24 +554,21 @@ function SchedulesTableContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in
-          flight — the subtle fade is the pending feedback. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <LiveTable
-          table={table}
-          pageSize={PAGE_SIZE}
-          stickyHeaderOffset={stickyHeaderOffset}
-          sort={sortState}
-          onSortChange={onSortChange}
-          emptyState={{
-            title: debouncedSearch
-              ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No schedules found. Try adjusting your filters or add a new schedule.',
-          }}
-          rowHref={scheduleRowHref}
-          footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
-        />
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        sort={sortState}
+        onSortChange={onSortChange}
+        emptyState={{
+          title: debouncedSearch
+            ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No schedules found. Try adjusting your filters or add a new schedule.',
+        }}
+        rowHref={scheduleRowHref}
+        footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, LoadingItems, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -16,6 +15,7 @@ import { SubscriptionStatus } from '@/generated/schema-enums';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { GatedSuspense } from '../shared/gated-suspense';
 import { InfoCell } from '../shared/info-cell';
 import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
@@ -101,7 +101,7 @@ interface UnpaidInvoicesScreenProps {
  * precisely what App Store Guideline 3.1.1 forbids there (see
  * `billing-visibility.ts`).
  */
-export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
+export function UnpaidInvoicesScreen({ status, loading = false }: UnpaidInvoicesScreenProps & { loading?: boolean }) {
   return (
     // Same reasoning as the paywall's: this screen IS what a locked workspace
     // gets instead of the app, so a throw here would land on the root error page
@@ -113,27 +113,17 @@ export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
       }
     >
       <UnpaidInvoicesShell>
-        <LoadingSuspense label="Loading invoices" fallback={<UnpaidInvoicesMain status={status} invoices={null} />}>
+        {/* One body for every wait: a gate above it (the role check: `loading`, its query not sent yet) and the
+            invoice query. */}
+        <GatedSuspense
+          gated={loading}
+          label="Loading invoices"
+          view={<UnpaidInvoicesMain status={status} invoices={null} />}
+        >
           <UnpaidInvoicesContent status={status} />
-        </LoadingSuspense>
+        </GatedSuspense>
       </UnpaidInvoicesShell>
     </ErrorBoundary>
-  );
-}
-
-/**
- * The same screen while a gate ABOVE it is still resolving (today: the role
- * check). Its own query has not been issued yet, so there is nothing to suspend
- * on — this is the body in its unfilled shape, which is also what the `Suspense`
- * fallback above shows, so the two waits read as one.
- */
-export function UnpaidInvoicesLoading({ status }: UnpaidInvoicesScreenProps) {
-  return (
-    <UnpaidInvoicesShell>
-      <LoadingFallback label="Loading invoices">
-        <UnpaidInvoicesMain status={status} invoices={null} />
-      </LoadingFallback>
-    </UnpaidInvoicesShell>
   );
 }
 
@@ -290,9 +280,11 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow | null }) {
       />
       <InfoCell
         loading={loading}
-        value={<Tag variant={overdue ? 'error' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />}
+        // No label while the invoice loads: the tag draws its own skeleton in the cell's scope.
+        value={
+          <Tag variant={overdue ? 'error' : 'warning'} label={invoice ? (overdue ? 'Overdue' : 'Unpaid') : null} />
+        }
         label="Status"
-        valueSkeleton={<Tag label="" loading />}
       />
       {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the row keeps its shape. */}
       <Button

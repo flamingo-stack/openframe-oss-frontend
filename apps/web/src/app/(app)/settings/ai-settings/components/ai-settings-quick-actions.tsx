@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getAgentAccent,
   type QuickActionAccent,
@@ -61,37 +60,35 @@ export interface QuickActionsBannerCopy {
  * uses it because there "default" means "inherited from the global config".
  */
 export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: boolean; copy?: QuickActionsBannerCopy }) {
-  // Whose actions are in effect is read: while loading, the same row (its padding and its icon) with its two lines as
-  // bars of their own type steps.
+  // Whose actions are in effect is read: while loading, the same row (its padding and its icon), its two cells null,
+  // which the panel draws as bars of their own type steps in the scope.
   const loading = useLoadingScope() || isDefault == null;
   return (
-    <StackedRowsPanel
-      rows={[
-        {
-          id: 'source',
-          className: 'p-[var(--spacing-system-s)]',
-          columns: [
-            {
-              key: 'source',
-              leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
-              value: loading ? (
-                <TextLineSkeleton type="inherit" as="span" className="w-56 max-w-full" />
-              ) : (
-                (copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions'))
-              ),
-              label: loading ? (
-                <TextLineSkeleton type="inherit" as="span" className="w-80 max-w-full" />
-              ) : (
-                (copy?.label ??
-                (isDefault
-                  ? 'These quick actions are curated and approved by OpenFrame.'
-                  : 'These quick actions were configured by your organization.'))
-              ),
-            },
-          ],
-        },
-      ]}
-    />
+    <LoadingWhen loading={isDefault == null}>
+      <StackedRowsPanel
+        rows={[
+          {
+            id: 'source',
+            className: 'p-[var(--spacing-system-s)]',
+            columns: [
+              {
+                key: 'source',
+                leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
+                value: loading
+                  ? null
+                  : (copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions')),
+                label: loading
+                  ? null
+                  : (copy?.label ??
+                    (isDefault
+                      ? 'These quick actions are curated and approved by OpenFrame.'
+                      : 'These quick actions were configured by your organization.')),
+              },
+            ],
+          },
+        ]}
+      />
+    </LoadingWhen>
   );
 }
 
@@ -169,11 +166,9 @@ export function AiSettingsQuickActions({
     () => [
       {
         accessorKey: 'name',
-        // Whose list it is (OpenFrame's or the organization's) is read: a bar of the header's own line while loading.
-        header:
-          isDefault == null
-            ? () => <TextLineSkeleton type="inherit" as="span" className="w-56 max-w-full" />
-            : `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
+        // Whose list it is (OpenFrame's or the organization's) is read: the header draws its own bar while loading.
+        header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
+        meta: { headerLoading: isDefault == null },
         cell: ({ row }: { row: Row<AiQuickAction> }) => {
           const icon = renderQuickActionIcon({
             name: row.original.iconName ?? undefined,

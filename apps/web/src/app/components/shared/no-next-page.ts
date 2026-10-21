@@ -10,3 +10,6 @@ export interface InfiniteScroll {
 
 /** The infinite scroll of a list whose rows have not answered yet: nothing to load on. */
 export const NO_NEXT_PAGE: InfiniteScroll = { hasNextPage: false, isFetchingNextPage: false, onLoadMore: noop };
+
+/** The one empty item list, for a list whose items have not answered yet (a loading form) or a list with none. */
+export const NO_ITEMS: never[] = [];

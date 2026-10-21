@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useId } from 'react';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatWholeCurrency } from '@/lib/format-currency';
 import { formatCompactCount } from '@/lib/format-number';
@@ -66,20 +66,10 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading: loading
                 selected={topUp.selection === usd}
                 disabled={disabled}
                 title={formatWholeCurrency(usd)}
-                // The count is a catalog figure: a bar holds its line until it
-                // lands rather than letting the tile grow a second row. Landed
-                // without a rate, the line says there is no figure.
-                subtitle={
-                  loading ? (
-                    <LoadingRegion as="span" status={false} className="contents">
-                      <TextLineSkeleton type="inherit" as="span" className="w-16" />
-                    </LoadingRegion>
-                  ) : tokens == null ? (
-                    EMPTY_VALUE
-                  ) : (
-                    `${formatCompactCount(tokens)} tokens`
-                  )
-                }
+                // The count is a catalog figure: `null` while it loads, which the
+                // tile draws as a bar of its line. Landed without a rate, the line
+                // says there is no figure.
+                subtitle={loading ? null : tokens == null ? EMPTY_VALUE : `${formatCompactCount(tokens)} tokens`}
                 onSelect={() => topUp.selectPreset(usd)}
               />
             );
@@ -129,14 +119,16 @@ interface TopUpTileProps {
   selected: boolean;
   disabled: boolean;
   title: ReactNode;
-  subtitle: ReactNode;
+  /** `null` while it is read: the tile draws a bar of its line. */
+  subtitle: ReactNode | null;
   onSelect: () => void;
 }
 
 /**
  * One amount, as a button rather than a radio: the grid is four independent
  * choices of the same shape, and the check mark on the chosen one is the whole
- * selected state — there is no list semantics here for a radio group to carry.
+ * selected state — there is no list semantics here for a radio group to carry. It draws its own subtitle bar while
+ * the subtitle is read (`null`).
  */
 function TopUpTile({ selected, disabled, title, subtitle, onSelect }: TopUpTileProps) {
   return (
@@ -154,7 +146,11 @@ function TopUpTile({ selected, disabled, title, subtitle, onSelect }: TopUpTileP
       <span className="flex min-w-0 flex-1 flex-col justify-center">
         <span className="truncate text-ods-text-primary text-h4">{title}</span>
         <span className={cn('truncate text-h6', selected ? 'text-ods-accent' : 'text-ods-text-secondary')}>
-          {subtitle}
+          {subtitle == null ? (
+            <LoadingLine type="inherit" as="span" className="w-16" regionClassName="contents" />
+          ) : (
+            subtitle
+          )}
         </span>
       </span>
       {selected && <CheckCircleIcon className="size-6 shrink-0 text-ods-accent" />}

@@ -11,8 +11,8 @@ import {
 import type { tenantRemoteSessionsRelay_query$data as TenantSessionsData } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayQuery$variables as TenantSessionsVariables } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { RemoteSessionListState, RemoteSessionSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -139,11 +139,7 @@ export interface TenantSessionColumnsOptions {
 
 function DeviceCell({ row }: { row: TenantSessionRow }) {
   if (!row.device) {
-    return (
-      <span className="text-h4">
-        <EmptyValue />
-      </span>
-    );
+    return <ValueText value={null} />;
   }
   const { name, hostname } = row.device;
   return (
@@ -163,11 +159,7 @@ function DeviceCell({ row }: { row: TenantSessionRow }) {
 
 function CustomerCell({ row }: { row: TenantSessionRow }) {
   if (!row.customer?.name) {
-    return (
-      <span className="text-h4">
-        <EmptyValue />
-      </span>
-    );
+    return <ValueText value={null} />;
   }
   const { name, logoUrl } = row.customer;
   return (

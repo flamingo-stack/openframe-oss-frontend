@@ -2,7 +2,7 @@
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { ValueText } from '@/app/components/shared/value-text';
 import type { Device } from '../types/device.types';
 
 /** How many tag chips the row draws while the device is read (a typical device's tags; the list has no limit). */
@@ -34,9 +34,7 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
             {() => <Tag as="span" variant="badge" label="" loading data-loading-item />}
           </LoadingItems>
         ) : tagValues.length === 0 ? (
-          <span className="text-h4">
-            <EmptyValue />
-          </span>
+          <ValueText value={null} />
         ) : (
           tagValues.map(tag => (
             // `badge` is the DS tag-badge skin (ods-card + border, mono uppercase); the string

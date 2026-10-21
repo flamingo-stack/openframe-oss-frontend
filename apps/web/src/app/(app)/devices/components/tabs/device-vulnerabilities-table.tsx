@@ -8,7 +8,7 @@ import type { deviceVulnerabilitiesTablePaginationQuery as DeviceVulnerabilities
 import type { deviceVulnerabilitiesTableQuery as DeviceVulnerabilitiesTableQueryType } from '@/__generated__/deviceVulnerabilitiesTableQuery.graphql';
 import { VULNERABILITY_LIST_PAGE_SIZE } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { VulnerabilityTable } from '@/app/(app)/software/components/vulnerability-list/vulnerability-table';
-import { NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { useRetryKey } from '@/app/components/shared';
 
 /**
  * Device → Vulnerabilities: the CVEs present on this machine, one row per CVE —
@@ -59,27 +59,12 @@ interface DeviceVulnerabilitiesTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: never[] = [];
-
 /**
  * The Vulnerabilities tab's rows. In a loading scope (the device or the module's flag has not answered, or the Suspense
  * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
  */
 export function DeviceVulnerabilitiesTable(props: DeviceVulnerabilitiesTableProps) {
-  if (useLoadingScope()) {
-    return (
-      <VulnerabilityTable
-        rows={NO_ROWS}
-        totalCount={0}
-        debouncedSearch={props.debouncedSearch}
-        isPending={false}
-        emptyState={props.emptyState}
-        onEmptyChange={props.onEmptyChange}
-        stickyHeaderOffset={props.stickyHeaderOffset}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
-    );
-  }
+  if (useLoadingScope()) return <VulnerabilityTable stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <DeviceVulnerabilitiesTableQuery {...props} />;
 }
 

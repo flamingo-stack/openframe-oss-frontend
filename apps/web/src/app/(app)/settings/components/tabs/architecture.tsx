@@ -139,9 +139,14 @@ const ARCHITECTURE_SKELETON_TAG = { label: '' };
 function ArchitectureToolCard({ tool }: { tool: IntegratedTool | null }) {
   if (useLoadingScope() || tool == null) {
     return (
-      <div data-loading-item>
-        <ServiceCard title="" subtitle="" tag={ARCHITECTURE_SKELETON_TAG} rows={ARCHITECTURE_SKELETON_ROWS} loading />
-      </div>
+      <ServiceCard
+        data-loading-item
+        title=""
+        subtitle=""
+        tag={ARCHITECTURE_SKELETON_TAG}
+        rows={ARCHITECTURE_SKELETON_ROWS}
+        loading
+      />
     );
   }
   const rows: Array<{
@@ -184,13 +189,12 @@ function ArchitectureToolCard({ tool }: { tool: IntegratedTool | null }) {
     });
 
   return (
-    <div data-loading-item>
-      <ServiceCard
-        title={tool.name}
-        subtitle={tool.description || ''}
-        tag={tool.category ? { label: tool.category } : undefined}
-        rows={rows}
-      />
-    </div>
+    <ServiceCard
+      data-loading-item
+      title={tool.name}
+      subtitle={tool.description || ''}
+      tag={tool.category ? { label: tool.category } : undefined}
+      rows={rows}
+    />
   );
 }

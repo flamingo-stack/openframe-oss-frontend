@@ -118,8 +118,8 @@ export function ArticleDetailSummary({ article }: { article: articleDetailSummar
           <InfoCell
             className={CELL_CLASSES}
             label={LABELS.status}
-            value={<Tag variant={ARTICLE_STATUS_VARIANT[articleStatus]} label={articleStatus} />}
-            valueSkeleton={<Tag label="" />}
+            // No label while the article loads: the tag draws its own skeleton in the cell's scope.
+            value={<Tag variant={ARTICLE_STATUS_VARIANT[articleStatus]} label={data ? articleStatus : null} />}
           />
         }
       />

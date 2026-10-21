@@ -52,8 +52,8 @@ function isAiSettingsTabId(id: string | null): id is AiSettingsTabId {
 
 /**
  * The page waits for the flags that shape its tab set before showing a tab other than the two every set has: until
- * then it renders itself in its loading scope (the tab bar and the tab a link names, `customer`, else `mingo`, each
- * drawing its own loading state) and no tab's query starts. The tab a link names is kept from the first render and
+ * then it renders itself in its loading scope (the tab bar and the tab a link names, else `mingo`, each drawing its
+ * own loading state) and no tab's query starts. The tab a link names is kept from the first render and
  * shown once the set is known, so `?tab=device-guardrails` lands on its tab even though the set starts without it.
  */
 export function AiSettings() {
@@ -73,10 +73,9 @@ export function AiSettings() {
   const [isEditMode, setIsEditMode] = useState(searchParams.get('edit') === 'true');
 
   // Fall back to a visible tab if the active one is hidden by a flag (or not chosen).
+  // While the set is read, the tab a link names is kept (it draws its own loading state), else `mingo`.
   const effectiveTab: AiSettingsTabId = tabsLoading
-    ? activeTab === 'customer'
-      ? 'customer'
-      : 'mingo'
+    ? (activeTab ?? 'mingo')
     : activeTab && tabs.some(tab => tab.id === activeTab)
       ? activeTab
       : firstTabId;

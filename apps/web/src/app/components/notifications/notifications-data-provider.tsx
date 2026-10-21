@@ -432,7 +432,7 @@ function NotificationsDataInner({
     >
       {enabled && (
         <>
-          <ErrorBoundary fallback={null /* loading-standard-ok: an error boundary; the hydrator draws nothing */}>
+          <ErrorBoundary fallback={null}>
             <HydratorBoundary>
               <NotificationsDrawerHydrator onPaginationChange={setPagination} />
             </HydratorBoundary>

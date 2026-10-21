@@ -3,7 +3,6 @@
 import { ClipboardListIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   FilterModal,
   type NoDataProps,
   type Row,
@@ -21,7 +20,8 @@ import type { softwareLogsTablePaginationQuery as SoftwareLogsTablePaginationQue
 import type { softwareLogsTableQuery as SoftwareLogsTableQueryType } from '@/__generated__/softwareLogsTableQuery.graphql';
 import { EXECUTIONS_PAGE_SIZE, type ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
-import { type InfiniteScroll, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import type { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../shared/column-filters';
@@ -137,7 +137,6 @@ const EMPTY_STATE: NoDataProps = {
 };
 
 const getRowId = (row: SoftwareLogRow) => row.id;
-const NO_ROWS: readonly SoftwareLogRow[] = [];
 
 interface SoftwareLogsTableProps {
   packageManager: PackageManagerType;
@@ -199,7 +198,7 @@ export function SoftwareLogsTable({
 
   return (
     <SoftwareLogsRows
-      allRows={data.softwareExecutions?.edges.map(edge => edge.node) ?? NO_ROWS}
+      allRows={data.softwareExecutions?.edges.map(edge => edge.node) ?? NO_ITEMS}
       statusFacets={queryData.softwareExecutionFilters?.statuses ?? null}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
       actionLabel={actionLabel}
@@ -315,10 +314,7 @@ export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, action
 
   // An open row sits on the page ground, cells and output alike (design 409:47460).
   const rowClassName = (row: SoftwareLogRow) =>
-    cn(
-      'mb-1 transition-colors duration-200 motion-reduce:transition-none',
-      phases.get(row.id) === 'open' && 'bg-ods-bg',
-    );
+    cn('transition-colors duration-200 motion-reduce:transition-none', phases.get(row.id) === 'open' && 'bg-ods-bg');
 
   // Header, empty copy and the toolbar hand-off follow the script Execution
   // History table (`executions-table.tsx`), which reasons through each case.
@@ -346,34 +342,22 @@ export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, action
 
   return (
     <ResultPhasesContext.Provider value={{ phases, toggle }}>
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header
-              stickyHeader
-              stickyHeaderOffset={stickyHeaderOffset}
-              rightSlot={<DataTable.RowCount itemName="result" />}
-            />
-          )}
-          <DataTable.Body
-            skeletonRows={EXECUTIONS_PAGE_SIZE}
-            emptyState={resolvedEmptyState}
-            rowClassName={rowClassName}
-            renderSubRow={renderSubRow}
-          />
-          {/* The rows are narrowed client-side, so a page can come back empty
-              and still have more behind it: keep loading until the run is done. */}
-          {(logs.length > 0 || infiniteScroll.hasNextPage) && (
-            <DataTable.InfiniteFooter
-              {...infiniteScroll}
-              skeletonRows={EXECUTIONS_PAGE_SIZE}
-              // The search narrows the loaded rows on the client, so a page can
-              // arrive and add no match: progress is read off this count instead.
-              loadedCount={allRows.length}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        table={table}
+        pageSize={EXECUTIONS_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        showHeader={showHeader}
+        itemName="result"
+        isPending={isPending}
+        emptyState={resolvedEmptyState}
+        rowClassName={rowClassName}
+        renderSubRow={renderSubRow}
+        // The rows are narrowed client-side, so a page can come back empty and still have more behind it: keep loading
+        // until the run is done. Progress is read off the loaded count, since a page can arrive and add no match.
+        footer={
+          logs.length > 0 || infiniteScroll.hasNextPage ? { ...infiniteScroll, loadedCount: allRows.length } : null
+        }
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

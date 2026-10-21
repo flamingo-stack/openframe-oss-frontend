@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   LoadingItems,
@@ -212,29 +211,25 @@ function NotificationSettingsFormView({
           <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
           {loading ? (
             <LoadingItems count={NOTIFICATION_GROUPS_SKELETON_ROWS}>
-              {() => (
-                <div data-loading-item>
-                  <CheckboxBlock label={<TextLineSkeleton type="inherit" as="span" className="w-40" />} loading />
-                </div>
-              )}
+              {() => <CheckboxBlock data-loading-item label={null} loading />}
             </LoadingItems>
           ) : (
             groups.map(({ group, label, enabled: on }) => (
-              <div key={group} data-loading-item>
-                <CheckboxBlock
-                  id={`notification-group-${group}`}
-                  label={label}
-                  checked={on}
-                  // The master switch owns everything below it, so the per-group rows go
-                  // inert while it is off rather than implying they still have an effect.
-                  disabled={isSaving || !enabled}
-                  onCheckedChange={checked =>
-                    setGroups(prev =>
-                      prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)),
-                    )
-                  }
-                />
-              </div>
+              <CheckboxBlock
+                key={group}
+                data-loading-item
+                id={`notification-group-${group}`}
+                label={label}
+                checked={on}
+                // The master switch owns everything below it, so the per-group rows go
+                // inert while it is off rather than implying they still have an effect.
+                disabled={isSaving || !enabled}
+                onCheckedChange={checked =>
+                  setGroups(prev =>
+                    prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)),
+                  )
+                }
+              />
             ))
           )}
         </div>

@@ -8,7 +8,7 @@ import type { deviceSoftwareTablePaginationQuery as DeviceSoftwareTablePaginatio
 import type { deviceSoftwareTableQuery as DeviceSoftwareTableQueryType } from '@/__generated__/deviceSoftwareTableQuery.graphql';
 import { SOFTWARE_LIST_PAGE_SIZE } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { SoftwareTable } from '@/app/(app)/software/components/software-list/software-table';
-import { NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { useRetryKey } from '@/app/components/shared';
 
 /**
  * Device → Software: what is installed on this machine, one row per title —
@@ -59,27 +59,12 @@ interface DeviceSoftwareTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: never[] = [];
-
 /**
  * The Software tab's rows. In a loading scope (the device or the module's flag has not answered, or the Suspense
  * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
  */
 export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
-  if (useLoadingScope()) {
-    return (
-      <SoftwareTable
-        rows={NO_ROWS}
-        totalCount={0}
-        debouncedSearch={props.debouncedSearch}
-        isPending={false}
-        emptyState={props.emptyState}
-        onEmptyChange={props.onEmptyChange}
-        stickyHeaderOffset={props.stickyHeaderOffset}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
-    );
-  }
+  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <DeviceSoftwareTableQuery {...props} />;
 }
 

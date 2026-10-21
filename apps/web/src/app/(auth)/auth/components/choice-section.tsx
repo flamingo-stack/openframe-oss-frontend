@@ -14,7 +14,7 @@ import {
 import { ForgotPasswordModal } from './forgot-password-modal';
 
 /** A field's live availability status under the input, not a loading state. */
-const CHECKING_AVAILABILITY = 'Checking availability…'; // loading-standard-ok: a field's live status
+const CHECKING_AVAILABILITY = 'Checking availability…'; // loading-standard-ok(LOADING_TEXT): a field's live status
 
 interface AuthChoiceSectionProps {
   onCreateOrganization: (orgName: string, domain: string, email: string) => void;

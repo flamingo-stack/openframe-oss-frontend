@@ -3,7 +3,6 @@
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type DataTableSortState,
   type Row,
   useDataTable,
@@ -21,7 +20,15 @@ import type {
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -169,7 +176,7 @@ interface SoftwareDevicesTableProps {
  */
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
   if (useLoadingScope()) {
-    return <SoftwareDevicesTableRows {...props} rows={[]} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
   }
   return <SoftwareDevicesTableQuery {...props} />;
 }
@@ -270,28 +277,23 @@ function SoftwareDevicesTableRows({
   }
 
   return (
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          sort={sortState}
-          onSortChange={onSortChange}
-        />
-        <DataTable.Body
-          skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
-          emptyState={{
-            title: debouncedSearch
-              ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No devices with the selected status. Try adjusting your filter.',
-          }}
-          rowClassName="mb-1"
-          rowHref={deviceHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE} />}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      sort={sortState}
+      onSortChange={onSortChange}
+      isPending={isPending}
+      emptyState={{
+        title: debouncedSearch
+          ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
+          : 'No devices with the selected status. Try adjusting your filter.',
+      }}
+      rowHref={deviceHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

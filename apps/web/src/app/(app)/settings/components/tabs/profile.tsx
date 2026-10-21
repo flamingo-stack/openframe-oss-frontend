@@ -2,7 +2,7 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { PageError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -19,7 +19,6 @@ const editIcon = <PenEditIcon className="h-5 w-5" />;
 export function ProfileTab() {
   const { toast } = useToast();
   const user = useAuthStore(state => state.user);
-  const isLoadingProfile = useAuthStore(state => state.isLoadingProfile);
   const updateUser = useAuthStore(state => state.updateUser);
   const fetchFullProfile = useAuthStore(state => state.fetchFullProfile);
 
@@ -95,15 +94,9 @@ export function ProfileTab() {
     fetchFullProfile();
   }, [fetchFullProfile]);
 
-  const loading = useLoadingScope() || (isLoadingProfile && !user);
-
-  if (!loading && !user) {
-    return (
-      <div className="pt-6">
-        <PageError message="No user data available" />
-      </div>
-    );
-  }
+  // The page is only reached in a signed-in session, so a missing user is one the session has not read yet: loading
+  // until it answers (never an error card that a moment later becomes the profile).
+  const loading = useLoadingScope() || !user;
 
   return (
     <div className="pt-6">

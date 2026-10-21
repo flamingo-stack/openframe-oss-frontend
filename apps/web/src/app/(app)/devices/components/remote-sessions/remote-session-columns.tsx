@@ -11,8 +11,8 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { RecordingSummary } from '../../types/session-recording';
@@ -80,11 +80,7 @@ function ExpiresCell({ row, now }: { row: RecordingSummary; now: number }) {
   if (row.recordingState === 'expired') return <TruncateText tone="secondary">Expired</TruncateText>;
   if (row.recordingState === 'deleted') return <TruncateText tone="secondary">Deleted</TruncateText>;
   if (row.recordingState !== 'ready' || !row.expiresAt) {
-    return (
-      <span className="text-h4">
-        <EmptyValue />
-      </span>
-    );
+    return <ValueText value={null} />;
   }
   const soon = expiresSoonLabel(row.expiresAt, now);
   return (
@@ -177,11 +173,7 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       cell: ({ row }: { row: Row<T> }) => {
         const { durationMs, sizeBytes } = row.original;
         if (durationMs == null) {
-          return (
-            <span className="text-h4">
-              <EmptyValue />
-            </span>
-          );
+          return <ValueText value={null} />;
         }
         return (
           <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">

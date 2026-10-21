@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { dataLossCoreRows_query$key } from '@/__generated__/dataLossCoreRows_query.graphql';
 import { pluralNoun } from '@/lib/pluralize';
@@ -49,9 +49,9 @@ const CORE_ROW_SKELETON_WIDTHS = ['w-1/2', 'w-1/3', 'w-3/4', 'w-2/3', 'w-2/5', '
 function DataLossCoreRowsSkeleton() {
   return (
     <LoadingWhen loading>
-      {CORE_ROW_SKELETON_WIDTHS.map((width, i) => (
-        <DataLossItem key={i} skeletonWidth={width} />
-      ))}
+      <LoadingItems count={CORE_ROW_SKELETON_WIDTHS.length}>
+        {index => <DataLossItem skeletonWidth={CORE_ROW_SKELETON_WIDTHS[index]} />}
+      </LoadingItems>
     </LoadingWhen>
   );
 }

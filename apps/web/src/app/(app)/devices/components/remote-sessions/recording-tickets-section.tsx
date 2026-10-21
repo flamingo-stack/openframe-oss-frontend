@@ -19,8 +19,8 @@ import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-co
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
-import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
@@ -91,11 +91,7 @@ function recordingTicketColumns({
       cell: ({ row }: { row: Row<RecordingTicket> }) => {
         const name = row.original.assignedName;
         if (!name) {
-          return (
-            <span className="text-h4">
-              <EmptyValue />
-            </span>
-          );
+          return <ValueText value={null} />;
         }
         return (
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">

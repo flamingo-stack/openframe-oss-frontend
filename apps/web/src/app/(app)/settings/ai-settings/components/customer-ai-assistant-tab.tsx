@@ -70,6 +70,8 @@ function CustomerAiAssistantTabContent({
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
   // customs); shown in view mode and as the editor's dimmed preview/seed.
   const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug);
+  // `undefined` until the hub answers: the lists draw their own loading state, never an empty list.
+  const defaultActions = hubDefaults.loaded ? hubDefaults.actions : undefined;
 
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
@@ -78,7 +80,7 @@ function CustomerAiAssistantTabContent({
         aiConfig={aiConfig}
         view={view}
         providerModelLabel={modelLabel}
-        quickActions={aiConfig.quickActionsIsDefault ? hubDefaults.actions : aiConfig.quickActions}
+        quickActions={aiConfig.quickActionsIsDefault ? defaultActions : aiConfig.quickActions}
       />
     );
   }
@@ -88,7 +90,7 @@ function CustomerAiAssistantTabContent({
       form={form}
       view={view}
       modelsByProvider={modelsByProvider}
-      defaultActions={hubDefaults.actions}
+      defaultActions={defaultActions}
       avatarUrl={avatarUrl}
       onAvatarChange={handleAvatarChange}
       onAvatarRemove={handleAvatarRemove}
@@ -105,7 +107,6 @@ function CustomerAiAssistantLoadingEditor() {
       form={form}
       view={null}
       modelsByProvider={undefined}
-      defaultActions={[]}
       avatarUrl={undefined}
       onAvatarChange={noop}
       onAvatarRemove={noop}
@@ -128,7 +129,8 @@ function CustomerAiAssistantEditor({
   /** `null` while the configuration loads. */
   view: ClientView | null;
   modelsByProvider: SupportedModelsByProvider | undefined;
-  defaultActions: AiQuickAction[];
+  /** `undefined` while the hub defaults are read. */
+  defaultActions?: AiQuickAction[];
   avatarUrl: string | undefined;
   onAvatarChange: (file: File) => void;
   onAvatarRemove: () => void;

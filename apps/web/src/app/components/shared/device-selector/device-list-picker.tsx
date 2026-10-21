@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadError } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   DeviceSelector,
@@ -8,7 +9,7 @@ import {
   ErrorBoundary,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { DEVICE_LIST_LIMIT, useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 
@@ -115,9 +116,9 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
       key={retryNonce}
       fallback={<LoadError message="Couldn't load devices." onRetry={() => setRetryNonce(nonce => nonce + 1)} />}
     >
-      <Suspense fallback={loadingPicker}>
+      <LoadingSuspense label="Loading devices" className="contents" fallback={loadingPicker}>
         <DeviceListPickerContent {...props} retryKey={retryNonce} />
-      </Suspense>
+      </LoadingSuspense>
     </ErrorBoundary>
   );
 }

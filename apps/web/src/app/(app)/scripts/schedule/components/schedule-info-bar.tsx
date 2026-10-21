@@ -119,7 +119,7 @@ export function ScheduleInfoBarFromData({
             <InfoCell label="Repeat" value={repeat} skeletonWidth="w-16" className={cell()} />
           </>
         )}
-        <InfoCell label="Supported Platform" value={platformIcons} valueSkeleton={platformIcons} className={cell()} />
+        <InfoCell label="Supported Platform" value={platformIcons} className={cell()} />
       </div>
       {/* A row of its own, not extra cells in the grid above — the design keeps
           the offline rule and authorship on a separate line from the timing,

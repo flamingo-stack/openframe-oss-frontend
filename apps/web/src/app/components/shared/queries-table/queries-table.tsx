@@ -4,7 +4,7 @@ import { ArrowRightUpIcon } from '@flamingo-stack/openframe-frontend-core/compon
 import {
   Button,
   type ColumnDef,
-  DataTable,
+  LoadingWhen,
   MoreActionsMenu,
   type NoDataProps,
   type Row,
@@ -12,8 +12,10 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { openInNewTab } from '@/lib/open-in-new-tab';
+import { LiveTable } from '../live-table';
+import type { InfiniteScroll } from '../no-next-page';
 import type { QueryTableRow } from './query-table-row';
 
 /** Schedule interval (seconds) → human label. Matches the /monitoring queries view. */
@@ -27,21 +29,23 @@ export function formatQueryInterval(seconds: number): string {
 
 export interface QueriesTableProps {
   rows: QueryTableRow[];
+  /** The rows are a client read that has not answered: the table draws its own loading state. */
   isLoading?: boolean;
-  emptyMessage?: string;
-  /** Rich empty state (icon + title + description) — overrides `emptyMessage`. */
+  /** What the body says when there are no rows (icon + title + description). */
   emptyState?: NoDataProps;
   /** Make each row a link to its `href`. */
   rowAsLink?: boolean;
-  stickyHeader?: boolean;
+  /** Pins the column header below the page's sticky toolbar. */
   stickyHeaderOffset?: string;
-  /** Rendered at the right edge of the header (e.g. a row count). */
-  rightSlot?: ReactNode;
-  /** Rows the loading table draws: the caller's page size (the list it shows), never a fold. */
-  skeletonRows: number;
-  /** Infinite "load more" footer. */
-  hasMore?: boolean;
-  onLoadMore?: () => void;
+  /** Show the row count at the header's right edge. Default `false`. */
+  showRowCount?: boolean;
+  /**
+   * The list's page size (a list shown whole: its declared typical count): the loading table and the next page draw
+   * that many rows, never a fold.
+   */
+  pageSize: number;
+  /** The next page (a list revealed page by page); omitted for a list shown whole. */
+  infiniteScroll?: InfiniteScroll;
 }
 
 /**
@@ -53,15 +57,12 @@ export interface QueriesTableProps {
 export function QueriesTable({
   rows,
   isLoading: isLoadingProp = false,
-  emptyMessage,
   emptyState,
   rowAsLink = false,
-  stickyHeader = false,
   stickyHeaderOffset,
-  rightSlot,
-  skeletonRows,
-  hasMore = false,
-  onLoadMore,
+  showRowCount = false,
+  pageSize,
+  infiniteScroll,
 }: QueriesTableProps) {
   const isLoading = useLoadingScope() || isLoadingProp;
   // Reserve the actions column while loading so the column count stays stable across
@@ -148,27 +149,17 @@ export function QueriesTable({
   const showHeader = isLoading || rows.length > 0;
 
   return (
-    <DataTable table={table}>
-      {showHeader && (
-        <DataTable.Header stickyHeader={stickyHeader} stickyHeaderOffset={stickyHeaderOffset} rightSlot={rightSlot} />
-      )}
-      <DataTable.Body
-        loading={isLoading}
-        skeletonRows={skeletonRows}
-        emptyMessage={emptyMessage}
+    <LoadingWhen loading={isLoading}>
+      <LiveTable
+        table={table}
+        pageSize={pageSize}
+        stickyHeaderOffset={stickyHeaderOffset}
+        showHeader={showHeader}
+        showRowCount={showRowCount}
         emptyState={emptyState}
-        rowClassName="mb-1"
         rowHref={rowHref}
+        footer={infiniteScroll?.hasNextPage ? infiniteScroll : null}
       />
-      {hasMore && onLoadMore && (
-        <DataTable.InfiniteFooter
-          hasNextPage
-          isFetchingNextPage={false}
-          onLoadMore={onLoadMore}
-          // The next page it waits on is one page of the list.
-          skeletonRows={skeletonRows}
-        />
-      )}
-    </DataTable>
+    </LoadingWhen>
   );
 }

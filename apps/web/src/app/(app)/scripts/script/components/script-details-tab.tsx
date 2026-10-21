@@ -76,7 +76,8 @@ function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+    // Only some scripts carry defaults, so the cards are left out while the script is read (they sit below the editor).
+    <div data-loading-optional className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
       {argRows.length > 0 ? <ScriptArgumentsCard title="Default Script Arguments" rows={argRows} /> : <div />}
       {envRows.length > 0 && <ScriptArgumentsCard title="Default Environment Vars" rows={envRows} />}
     </div>

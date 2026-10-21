@@ -14,11 +14,13 @@ import { ValueText } from './value-text';
  * - `<InfoCell value="Laptop" label="Type" icon={<LaptopIcon />} />`
  * - `<InfoCell value="example.com" label="Website" href="https://example.com" />`
  *
- * Loading: in a loading scope (or with `loading`) the cell draws itself with its label real and its value a text bar
- * of the value's own line (`skeletonWidth`). A text value (a string or a number) is the shared `ValueText`. A plain
- * icon is replaced by an icon box while loading when the caller states its size (`iconSkeleton`), so a caller passes
- * only the REAL icon; an icon that switches itself, and a non-text value (`valueSkeleton`), are drawn in a loading
- * scope where they draw their own skeleton. Callers render the cell, never a copy of it.
+ * Loading: in a loading scope (or with `loading`) the cell draws itself with its label real. A text value (a string
+ * or a number) is the shared `ValueText`, a bar of the value's own line (`skeletonWidth`). A non-text value (a status
+ * tag) is rendered as it is, inside the cell's own loading scope, where it switches itself: the caller passes it ONCE,
+ * with no data while it is read. `valueSkeleton` is only for a value that is ABSENT while loading (the caller has no
+ * element to give yet): it is drawn in that scope instead of the bar. A plain icon is replaced by an icon box while
+ * loading when the caller states its size (`iconSkeleton`), so a caller passes only the REAL icon; an icon that switches
+ * itself is drawn in the scope. Callers render the cell, never a copy of it.
  */
 export interface InfoCellProps {
   /** The value — missing, blank or a formatter's empty mark draws the muted empty mark, so callers pass the raw field. */
@@ -35,8 +37,9 @@ export interface InfoCellProps {
   loading?: boolean;
   /** The value bar's width while loading (a Tailwind width class). */
   skeletonWidth?: string;
-  /** The value while it loads when it is not text: the REAL component (a status tag) with no data, drawn in a loading
-   *  scope where it draws its own skeleton. */
+  /** Only for a value that is ABSENT while loading (`value` is missing): the REAL component with no data (a status tag
+   *  with no label), drawn in the cell's loading scope where it draws its own skeleton. A non-text `value` is never
+   *  passed here again: the cell draws it in the scope itself. */
   valueSkeleton?: React.ReactNode;
   /** The label is read too (a date under an identifier): while loading it is a text bar of this width. */
   labelSkeletonWidth?: string;
@@ -55,9 +58,9 @@ export function InfoCell({
   labelSkeletonWidth,
 }: InfoCellProps) {
   const isLoading = useLoadingScope() || !!loading;
+  const missing = isEmptyValue(value);
   /** The value when it is text (or missing): drawn by `ValueText`, like every text value. */
-  const text = typeof value === 'string' || typeof value === 'number' || isEmptyValue(value) ? value : undefined;
-  const isText = isLoading || text !== undefined || isEmptyValue(value);
+  const isText = missing || typeof value === 'string' || typeof value === 'number';
   const content = (
     <div className={`flex min-w-0 flex-1 flex-col justify-center ${className ?? ''}`}>
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
@@ -67,13 +70,18 @@ export function InfoCell({
           ) : (
             icon && <span className="shrink-0">{icon}</span>
           )}
-          {isLoading && valueSkeleton ? (
+          {isLoading && missing && valueSkeleton ? (
             <div className="min-w-0 flex-1">{valueSkeleton}</div>
           ) : isText ? (
             <div className="min-w-0 flex-1">
-              <ValueText value={isLoading ? null : text} loading={isLoading} skeletonWidth={skeletonWidth} />
+              <ValueText
+                value={isLoading || missing ? null : (value as string | number)}
+                loading={isLoading}
+                skeletonWidth={skeletonWidth}
+              />
             </div>
           ) : (
+            // A non-text value switches itself in this scope while loading: the same box in both forms.
             <div className="truncate text-ods-text-primary text-h4">{value}</div>
           )}
         </LoadingWhen>

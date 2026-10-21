@@ -554,23 +554,20 @@ function IncidentsTableContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in
-          flight — the subtle fade is the pending feedback. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <LiveTable
-          table={table}
-          pageSize={PAGE_SIZE}
-          stickyHeaderOffset={stickyHeaderOffset}
-          totalCount={filteredCount}
-          emptyState={{
-            title: debouncedSearch
-              ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No incidents found. Try adjusting your filters.',
-          }}
-          rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
-          footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
-        />
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        totalCount={filteredCount}
+        emptyState={{
+          title: debouncedSearch
+            ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No incidents found. Try adjusting your filters.',
+        }}
+        rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
+        footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

@@ -17,6 +17,7 @@ import {
   removeFromFolderTree,
   removeFromListings,
 } from '../shared/knowledge-base-listings';
+import { NO_LISTING_IDS } from '../shared/knowledge-base-table';
 
 const deleteFolderModalFragment = graphql`
   fragment deleteFolderModal_folder on KnowledgeBaseItem {
@@ -33,7 +34,6 @@ const deleteFolderModalMutation = graphql`
 `;
 
 const ARCHIVE_LABEL = "Don't Move and Archive";
-const NO_LISTINGS: readonly string[] = [];
 
 interface DeleteFolderModalProps {
   folder: deleteFolderModal_folder$key;
@@ -49,7 +49,7 @@ export function DeleteFolderModal({
   folder,
   isOpen,
   onClose,
-  listingIds = NO_LISTINGS,
+  listingIds = NO_LISTING_IDS,
   onDeleted,
 }: DeleteFolderModalProps) {
   const { toast } = useToast();

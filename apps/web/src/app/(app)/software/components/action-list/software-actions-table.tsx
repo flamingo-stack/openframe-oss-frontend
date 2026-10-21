@@ -3,7 +3,6 @@
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   TruncateText,
   useDataTable,
@@ -20,7 +19,15 @@ import type {
   SoftwareActionFilterInput,
   softwareActionsTableQuery as SoftwareActionsTableQueryType,
 } from '@/__generated__/softwareActionsTableQuery.graphql';
-import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -187,7 +194,7 @@ export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
     return (
       <SoftwareActionsRows
         {...props}
-        rows={[]}
+        rows={NO_ITEMS}
         totalCount={0}
         filterOptions={UNREAD_FILTER_OPTIONS}
         infiniteScroll={NO_NEXT_PAGE}
@@ -286,27 +293,21 @@ function SoftwareActionsRows({
   }
 
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-        />
-        <DataTable.Body
-          skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE}
-          emptyState={{
-            title: debouncedSearch
-              ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software actions match the selected filters. Try adjusting your filters.',
-          }}
-          rowClassName="mb-1"
-          rowHref={detailsHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE} />}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      isPending={isPending}
+      emptyState={{
+        title: debouncedSearch
+          ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
+          : 'No software actions match the selected filters. Try adjusting your filters.',
+      }}
+      rowHref={detailsHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

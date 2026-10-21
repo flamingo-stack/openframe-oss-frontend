@@ -15,7 +15,6 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   DashboardInfoCard,
-  DataTable,
   type DataTableFilterOption,
   DatePicker,
   type DateRange,
@@ -59,7 +58,8 @@ import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
-import { noop } from '../no-next-page';
+import { LiveTable } from '../live-table';
+import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, noop } from '../no-next-page';
 
 const PAGE_SIZE = 20;
 
@@ -86,9 +86,6 @@ const STAT_CARDS: ReadonlyArray<{
   { title: 'PERIOD TOTAL', seconds: stats => stats.periodTotalSeconds, entries: stats => stats.periodEntryCount },
   { title: 'AVG. PER DAY', seconds: stats => stats.averagePerDaySeconds },
 ];
-const EMPTY_ROWS: WorkTimeRow[] = [];
-const NO_FILTER_OPTIONS: DataTableFilterOption[] = [];
-const NO_COLUMN_FILTERS: ColumnFiltersState = [];
 const DAY_PARAM_FORMAT = 'yyyy-MM-dd';
 
 function formatDayParam(date: Date | undefined): string | null {
@@ -361,9 +358,11 @@ function WorkTimeTableData({ vars, fetchKey, ...viewProps }: WorkTimeTableDataPr
       stats={queryData.employeeTimeStats}
       rows={rows}
       totalCount={data.employeeTimeEntries.filteredCount}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadNext={() => loadNext(PAGE_SIZE)}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: () => loadNext(PAGE_SIZE),
+      }}
     />
   );
 }
@@ -378,9 +377,7 @@ function WorkTimeTableView({
   stats,
   rows,
   totalCount,
-  hasNext,
-  isLoadingNext,
-  onLoadNext,
+  infiniteScroll,
   onEdit,
   onDelete,
   employeeFilterOptions,
@@ -393,9 +390,7 @@ function WorkTimeTableView({
   stats: WorkTimeStats | null;
   rows: WorkTimeRow[];
   totalCount?: number;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadNext: () => void;
+  infiniteScroll: InfiniteScroll;
 }) {
   const loading = useLoadingScope();
   const columns = useMemo(
@@ -442,17 +437,15 @@ function WorkTimeTableView({
           ]}
         />
       ) : (
-        <DataTable table={table}>
-          <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
-          <DataTable.Body emptyState={{ title: 'No work time entries for this period.' }} skeletonRows={PAGE_SIZE} />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={onLoadNext}
-            // The next page it waits on is one page.
-            skeletonRows={PAGE_SIZE}
-          />
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={PAGE_SIZE}
+          stickyHeader={false}
+          itemName="result"
+          totalCount={totalCount}
+          emptyState={{ title: 'No work time entries for this period.' }}
+          footer={infiniteScroll}
+        />
       )}
     </>
   );
@@ -465,15 +458,13 @@ function WorkTimeTableViewPending({ showEmployee, showCustomer }: { showEmployee
       showEmployee={showEmployee}
       showCustomer={showCustomer}
       stats={null}
-      rows={EMPTY_ROWS}
-      hasNext={false}
-      isLoadingNext={false}
-      onLoadNext={noop}
+      rows={NO_ITEMS}
+      infiniteScroll={NO_NEXT_PAGE}
       onEdit={noop}
       onDelete={noop}
-      employeeFilterOptions={NO_FILTER_OPTIONS}
-      customerFilterOptions={NO_FILTER_OPTIONS}
-      columnFilters={NO_COLUMN_FILTERS}
+      employeeFilterOptions={NO_ITEMS}
+      customerFilterOptions={NO_ITEMS}
+      columnFilters={NO_ITEMS}
       onColumnFiltersChange={noop}
       richEmptyState={false}
     />

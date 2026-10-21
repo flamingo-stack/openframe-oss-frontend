@@ -85,18 +85,11 @@ function RunInfoBar({ run }: { run?: RunNode }) {
           skeletonWidth="w-20"
           className={runCell(DIVIDED_CELL_CLASS)}
         />
-        <InfoCell
-          label="Executed by"
-          value={executedBy}
-          valueSkeleton={executedBy}
-          loading={loading}
-          className={runCell(DIVIDED_CELL_CLASS)}
-        />
+        <InfoCell label="Executed by" value={executedBy} loading={loading} className={runCell(DIVIDED_CELL_CLASS)} />
         <InfoCell
           label="Status"
-          value={<Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />}
-          // A tag with no label yet: it draws its own skeleton in the loading scope.
-          valueSkeleton={<Tag label="" />}
+          // No label while the run is read: the tag draws its own skeleton in the cell's loading scope.
+          value={<Tag label={loading ? '' : executionStatusLabel(status)} variant={executionStatusVariant(status)} />}
           loading={loading}
           className={runCell()}
         />

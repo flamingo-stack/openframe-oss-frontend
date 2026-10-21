@@ -16,7 +16,7 @@ import { EmptyState, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
-export const TENANTS_PAGE_SIZE = 20;
+const TENANTS_PAGE_SIZE = 20;
 
 const tenantsTableQuery = graphql`
   query tenantsTableQuery($search: String, $first: Int!, $after: String) {

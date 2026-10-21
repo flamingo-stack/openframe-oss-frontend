@@ -11,6 +11,7 @@ import {
   removeFromFolderListing,
   removeFromListings,
 } from '../shared/knowledge-base-listings';
+import { NO_LISTING_IDS } from '../shared/knowledge-base-table';
 
 const archiveArticleModalFragment = graphql`
   fragment archiveArticleModal_article on KnowledgeBaseItem {
@@ -30,8 +31,6 @@ const archiveArticleModalMutation = graphql`
   }
 `;
 
-const NO_LISTINGS: readonly string[] = [];
-
 interface ArchiveArticleModalProps {
   article: archiveArticleModal_article$key;
   isOpen: boolean;
@@ -40,7 +39,12 @@ interface ArchiveArticleModalProps {
   listingIds?: readonly string[];
 }
 
-export function ArchiveArticleModal({ article, isOpen, onClose, listingIds = NO_LISTINGS }: ArchiveArticleModalProps) {
+export function ArchiveArticleModal({
+  article,
+  isOpen,
+  onClose,
+  listingIds = NO_LISTING_IDS,
+}: ArchiveArticleModalProps) {
   const { toast } = useToast();
   const data = useFragment(archiveArticleModalFragment, article);
   const [commit, isInFlight] = useMutation<ArchiveArticleModalMutationType>(archiveArticleModalMutation);

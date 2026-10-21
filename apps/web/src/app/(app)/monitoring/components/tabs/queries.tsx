@@ -7,7 +7,7 @@ import {
   PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -166,10 +166,9 @@ export function Queries() {
             rows={rows}
             isLoading={isLoading}
             rowAsLink
-            stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount />}
-            skeletonRows={PAGE_SIZE}
+            showRowCount
+            pageSize={PAGE_SIZE}
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No queries found." under the strip
             // above. Same rule, one component down.
@@ -180,8 +179,12 @@ export function Queries() {
                   : 'No queries found.'
                 : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
             }}
-            hasMore={visibleCount < filteredQueries.length}
-            onLoadMore={handleLoadMore}
+            infiniteScroll={{
+              hasNextPage: visibleCount < filteredQueries.length,
+              // The next page is revealed from the rows in hand: nothing is fetched.
+              isFetchingNextPage: false,
+              onLoadMore: handleLoadMore,
+            }}
           />
         </div>
       )}

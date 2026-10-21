@@ -1,6 +1,7 @@
 'use client';
 
-import { type ReactNode, Suspense, useMemo } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import { noop, TagFilterBar, useRetryKey } from '@/app/components/shared';
@@ -27,16 +28,17 @@ const NO_IDS: string[] = [];
  * Scripts list tag filter — the shared `TagFilterBar` fed by `scriptsTags` (tags
  * actually assigned to scripts). `archived` scopes the set: `true` → tags on
  * archived scripts (the Archived page), null → tags on active scripts.
- * Owns its Suspense boundary: while the tag list loads the same bar draws its
- * tag row as a skeleton and keeps the search live.
+ * Owns its Suspense boundary: while the tag list loads the same bar, with no
+ * tags, is drawn in the boundary's loading scope, where it draws its own
+ * skeleton (the search keeps its typed value).
  */
 export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
   const { search, onSearchChange, filterButton } = props;
   return (
-    <Suspense
+    <LoadingSuspense
+      label="Loading script tags"
       fallback={
         <TagFilterBar
-          loading
           tags={NO_TAGS}
           search={search}
           onSearchChange={onSearchChange}
@@ -48,7 +50,7 @@ export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
       }
     >
       <ScriptsTagFilterContent {...props} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

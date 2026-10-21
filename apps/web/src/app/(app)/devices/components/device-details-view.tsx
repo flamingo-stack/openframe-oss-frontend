@@ -224,23 +224,23 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
           {tabId => (
             <>
-              {/* First-connect indication: shown only until every agent has registered per design; a later
-                disconnect never re-triggers it. Only some devices are still connecting, so it sits below the tab
-                strip, over the open tab, where its arrival moves nothing above it. The design is a bare warning
-                strip, so the component's outer card is neutralized — tailwind-merge keeps the overrides. */}
-              {normalizedDevice && isDeviceStillConnecting(normalizedDevice) && (
-                <div data-loading-optional>
-                  <WarningBlock
-                    title="Device is still connecting — some data and features aren't available yet."
-                    className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
-                  />
-                </div>
-              )}
               <TabContent
                 activeTab={tabId}
                 TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
                 componentProps={{ device: normalizedDevice }}
               />
+              {/* First-connect indication: shown only until every agent has registered per design; a later
+                disconnect never re-triggers it. Only some devices are still connecting, so it sits below the open
+                tab's content, where its arrival moves nothing on screen. The design is a bare warning strip, so the
+                component's outer card is neutralized — tailwind-merge keeps the overrides. */}
+              {normalizedDevice && isDeviceStillConnecting(normalizedDevice) && (
+                <div data-loading-optional>
+                  <WarningBlock
+                    title="Device is still connecting — some data and features aren't available yet."
+                    className="mt-[var(--spacing-system-l)] border-0 bg-transparent p-0"
+                  />
+                </div>
+              )}
             </>
           )}
         </TabNavigation>

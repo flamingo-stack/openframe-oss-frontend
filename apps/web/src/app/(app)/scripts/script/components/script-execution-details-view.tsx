@@ -44,20 +44,18 @@ const IN_FLIGHT_POLL_INTERVAL_MS = 5000;
 type ExecutionNode = NonNullable<ScriptExecutionDetailQueryType['response']['node']>;
 
 /**
- * A value-over-label cell: the shared {@link InfoCell}, which draws its value as a bar in a loading scope, or as
- * `valueSkeleton` when the value is not text.
+ * A value-over-label cell: the shared {@link InfoCell}, which draws a text value as a bar in a loading scope and a
+ * non-text value in its own scope, where it switches itself.
  */
 function DetailCell({
   value,
   label,
   icon,
-  valueSkeleton,
   labelSkeletonWidth,
 }: {
   value: ReactNode;
   label: string;
   icon?: ReactNode;
-  valueSkeleton?: ReactNode;
   /** The label is read too: while loading it is a bar of this width. */
   labelSkeletonWidth?: string;
 }) {
@@ -67,7 +65,6 @@ function DetailCell({
         value={value}
         label={label}
         icon={icon}
-        valueSkeleton={valueSkeleton}
         labelSkeletonWidth={labelSkeletonWidth}
         className={DETAIL_CELL_GAP_CLASS}
       />
@@ -150,16 +147,11 @@ function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionN
           label={org || 'Device'}
           labelSkeletonWidth="w-24"
         />
-        <DetailCell
-          label="Executed by"
-          value={<ExecutedByValue execution={execution} />}
-          valueSkeleton={<ExecutedByValue execution={execution} />}
-        />
+        <DetailCell label="Executed by" value={<ExecutedByValue execution={execution} />} />
         <DetailCell
           label="Status"
+          // No status while the execution is read: its tag draws its own skeleton in the cell's loading scope.
           value={<ExecutionStatusCell status={execution?.status} />}
-          // The real status cell with no status: its tag draws its own skeleton in the loading scope.
-          valueSkeleton={<ExecutionStatusCell status={null} />}
         />
         <DetailCell value={formatCount(execution?.executionTimeMs)} label="Execution Time (ms)" />
       </div>

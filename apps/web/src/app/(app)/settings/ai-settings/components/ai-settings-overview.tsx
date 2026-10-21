@@ -66,7 +66,8 @@ export function AiSettingsOverview({
           />
         </>
       )}
-      {quickActions && aiConfig && (
+      {/* `quickActions` is undefined while the defaults are still read: the section draws its own skeleton. */}
+      {aiConfig && (
         <AiSettingsQuickActionsSection
           title="Assistant Quick Actions"
           actions={quickActions}

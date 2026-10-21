@@ -24,16 +24,18 @@ import {
   EmptyState,
   type InfiniteScroll,
   liveColumnMeta,
+  NO_ITEMS,
   NO_NEXT_PAGE,
   noop,
   useRetryKey,
 } from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { KnowledgeBaseTable, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { type AssignedArticlesTarget, targetNoun } from './assigned-articles-target';
 
@@ -171,7 +173,13 @@ export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
   if (useLoadingScope() || target == null) {
     return (
       <LoadingWhen loading>
-        <AssignedArticlesRows {...props} rows={[]} totalCount={0} onUnassign={noop} infiniteScroll={NO_NEXT_PAGE} />
+        <AssignedArticlesRows
+          {...props}
+          rows={NO_ITEMS}
+          totalCount={0}
+          onUnassign={noop}
+          infiniteScroll={NO_NEXT_PAGE}
+        />
       </LoadingWhen>
     );
   }
@@ -299,18 +307,18 @@ function AssignedArticlesRows({
   }
 
   return (
-    <KnowledgeBaseTable
+    <LiveTable
       table={table}
-      rowCount={rows.length}
+      pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
       totalCount={totalCount}
       itemName="article"
-      emptyTitle={
-        listing.search
+      emptyState={{
+        title: listing.search
           ? `No articles found matching "${listing.search}". Try adjusting your search.`
-          : 'No articles match the selected tags. Try adjusting your filters.'
-      }
+          : 'No articles match the selected tags. Try adjusting your filters.',
+      }}
       rowHref={rowHref}
-      infiniteScroll={infiniteScroll}
+      footer={rows.length > 0 ? infiniteScroll : null}
       isPending={isPending}
       stickyHeaderOffset={stickyHeaderOffset}
     />

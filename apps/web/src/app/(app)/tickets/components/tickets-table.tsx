@@ -4,7 +4,6 @@ import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components
 import {
   Button,
   type ColumnFiltersState,
-  DataTable,
   type DataTableSortState,
   type OnChangeFn,
   PageError,
@@ -295,13 +294,7 @@ export function TicketsTable({
               getUnreadCount={getUnreadCount}
               sort={sortState}
               onSortChange={handleSortChange}
-              footerSlot={
-                <DataTable.InfiniteFooter
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  onLoadMore={handleFetchNextPage}
-                />
-              }
+              infiniteScroll={{ hasNextPage, isFetchingNextPage, onLoadMore: handleFetchNextPage }}
             />
           )}
         </div>

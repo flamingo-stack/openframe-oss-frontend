@@ -7,6 +7,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { deviceLogRow_entry$key } from '@/__generated__/deviceLogRow_entry.graphql';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatLogTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import type { Instant } from '@/lib/graphql-scalars';
@@ -61,7 +62,8 @@ interface DeviceLogRowProps {
 /**
  * One log line: time · level · message. Opens the Log Details drawer, the same one the Logs page uses. Written once:
  * while the line is read (a loading scope, or no entry) the same row draws its time and message as bars and its level
- * as a tag-shaped bar; the hostname and count chips, which only some lines carry, come with the values.
+ * as a tag-shaped bar, and on a list spanning several devices the hostname chip too; the count chip (and the hostname
+ * on one device's list), which only some lines carry, come with the values.
  */
 export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: DeviceLogRowProps) {
   const data = useFragment(deviceLogRowFragment, entry);
@@ -113,15 +115,31 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
         <span className="min-w-0 flex-1 truncate text-ods-text-primary text-code">
           {loading ? <TextLineSkeleton type="code" as="span" className="w-full" /> : data.message}
         </span>
-        {!loading && data.hostname && data.hostname !== deviceHostname && (
+        {/* On a list spanning several devices every line names its device: the chip is drawn in both forms (the
+            empty mark for a line written before its agent reported one). On one device's list only a line from
+            another host carries it, so it comes with the values. */}
+        {multiDevice ? (
           <Tag
             as="span"
             variant="outline"
-            data-loading-optional
-            label={<span>{data.hostname}</span>}
+            label={loading ? '' : <span>{data.hostname || EMPTY_VALUE}</span>}
+            loading={loading}
             labelClassName="truncate"
-            className={cn('shrink-0', multiDevice ? 'max-w-[12rem]' : 'hidden content-md:inline-flex')}
+            className="max-w-[12rem] shrink-0"
           />
+        ) : (
+          !loading &&
+          data.hostname &&
+          data.hostname !== deviceHostname && (
+            <Tag
+              as="span"
+              variant="outline"
+              data-loading-optional
+              label={<span>{data.hostname}</span>}
+              labelClassName="truncate"
+              className="hidden shrink-0 content-md:inline-flex"
+            />
+          )
         )}
         {!loading && data.count != null && data.count > 1 && (
           <Tag

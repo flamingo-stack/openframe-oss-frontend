@@ -3,7 +3,6 @@
 import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type DataTableSortState,
   type Row,
   TruncateText,
@@ -21,7 +20,15 @@ import type {
   softwareVulnerabilitiesTableQuery as SoftwareVulnerabilitiesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
-import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { OpenRowButton } from '../../shared/open-row-button';
@@ -151,7 +158,7 @@ interface SoftwareVulnerabilitiesTableProps {
  */
 export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
   if (useLoadingScope()) {
-    return <SoftwareVulnerabilitiesTableRows {...props} rows={[]} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    return <SoftwareVulnerabilitiesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
   }
   return <SoftwareVulnerabilitiesTableQuery {...props} />;
 }
@@ -234,26 +241,19 @@ function SoftwareVulnerabilitiesTableRows({
   }
 
   return (
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          sort={sortState}
-          onSortChange={onSortChange}
-        />
-        <DataTable.Body
-          skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
-          emptyState={{ title: `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.` }}
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE} />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      sort={sortState}
+      onSortChange={onSortChange}
+      isPending={isPending}
+      emptyState={{ title: `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.` }}
+      rowHref={rowHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

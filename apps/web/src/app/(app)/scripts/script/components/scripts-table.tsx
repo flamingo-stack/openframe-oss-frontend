@@ -598,23 +598,19 @@ function ScriptsTableContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in
-          flight — the subtle fade is the pending feedback. Swapping to skeletons
-          is exactly the flash the deferral avoids. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <LiveTable
-          table={table}
-          pageSize={PAGE_SIZE}
-          stickyHeaderOffset={stickyHeaderOffset}
-          emptyState={{
-            title: debouncedSearch
-              ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No scripts found. Try adjusting your filters or add a new script.',
-          }}
-          rowHref={scriptRowHref}
-          footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
-        />
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        emptyState={{
+          title: debouncedSearch
+            ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No scripts found. Try adjusting your filters or add a new script.',
+        }}
+        rowHref={scriptRowHref}
+        footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

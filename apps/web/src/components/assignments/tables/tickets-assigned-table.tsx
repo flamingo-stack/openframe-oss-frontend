@@ -40,7 +40,7 @@ export function TicketsAssignedTable({ tickets, isLoading }: TicketsAssignedTabl
         tickets={filtered}
         isLoading={isLoading}
         emptyState={{ title: 'No tickets assigned.' }}
-        skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
+        pageSize={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>
   );

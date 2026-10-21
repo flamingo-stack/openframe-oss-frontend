@@ -219,22 +219,20 @@ function ScheduleRunsContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <LiveTable
-          table={table}
-          pageSize={RUNS_PAGE_SIZE}
-          stickyHeaderOffset={stickyHeaderOffset}
-          showHeader={showHeader}
-          emptyState={emptyState}
-          rowHref={runDetailsHref}
-          footer={
-            runs.length > 0
-              ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }
-              : null
-          }
-        />
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={RUNS_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        showHeader={showHeader}
+        emptyState={emptyState}
+        rowHref={runDetailsHref}
+        footer={
+          runs.length > 0
+            ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }
+            : null
+        }
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}

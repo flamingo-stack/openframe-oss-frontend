@@ -40,9 +40,10 @@ export function DashboardOverviews({ live = false }: { live?: boolean }) {
   // never dimmed. Gated, and the card rendered only once the flag answers `off`:
   // a v2 workspace must not see the old card for a frame.
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
-  // While the flag is read, its likely answer's slot is reserved: the flag reads as off wherever it is not
-  // registered, so the legacy card's slot, drawn in its loading form (it never mounts its content, so a v2
-  // workspace never sees the old card) and empty when the store says setup is done.
+  // While the flag is read, its likely answer's slot is kept: the flag reads as off wherever it is not registered, so
+  // the legacy card's slot. The card draws nothing until the onboarding store says setup is ACTIVE, and while the
+  // flag is read it draws only its loading form (it never mounts its content, so a v2 workspace never sees the old
+  // card).
   const legacySetup = onboardingV2 !== 'on';
   const dimDashboard = useInitialSetupActive() && onboardingV2 === 'off';
 

@@ -80,12 +80,11 @@ const STEP_META: readonly StepMeta[] = [
 ];
 
 /**
- * Tenant "Initial Setup" block on the Dashboard. Mount gate only: while onboarding progress
- * is read (or in a loading scope) it is {@link InitialSetupCardView} with no progress in a
- * loading scope, where every row draws its own state; it is permanently hidden once Initial
- * Setup is complete (a one-time surface). When active, it renders
- * {@link InitialSetupCardContent}, which suspends on its step counts behind the same view in
- * a `LoadingFallback`, so the whole load shows one loading state, not two.
+ * Tenant "Initial Setup" block on the Dashboard. Mount gate only: it draws nothing until the onboarding store says
+ * setup is ACTIVE (most workspaces finished it, so a loading form in its slot would only vanish again); it is
+ * permanently hidden once Initial Setup is complete (a one-time surface). When active, it renders
+ * {@link InitialSetupCardContent}, which suspends on its step counts behind {@link InitialSetupCardView} in a
+ * `LoadingFallback` (and in a loading scope draws that view), so the whole load shows one loading state, not two.
  */
 export function InitialSetupCard() {
   const inScope = useLoadingScope();
@@ -100,16 +99,15 @@ export function InitialSetupCard() {
     setShown(true);
   }
 
-  const pending = inScope || !isLoaded;
-  // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
-  // the content fires its queries the instant it mounts. Decided from the store even in a
-  // loading scope: a card that will not show draws no loading form either.
-  if (isLoaded && (!tenant || (tenant.completed && !shown))) {
+  // Decided from the store even in a loading scope: a card that will not show draws no loading form either, and
+  // nothing is drawn before the store answers. `!tenant` matters on its own: the store is marked loaded even on a
+  // failed fetch, and the content fires its queries the instant it mounts.
+  if (!isLoaded || !tenant || (tenant.completed && !shown)) {
     return null;
   }
 
   return (
-    <OnboardingLoadGate pending={pending} label="Loading setup steps" view={<InitialSetupCardView />}>
+    <OnboardingLoadGate pending={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
       <InitialSetupCardContent />
     </OnboardingLoadGate>
   );

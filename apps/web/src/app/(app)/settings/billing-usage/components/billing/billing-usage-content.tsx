@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -10,6 +9,7 @@ import type {
   billingUsageContentQuery as BillingUsageContentQueryType,
   billingUsageContentQuery$data,
 } from '@/__generated__/billingUsageContentQuery.graphql';
+import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { noop } from '@/app/components/shared/no-next-page';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
@@ -65,12 +65,14 @@ const billingUsageContentQuery = graphql`
  * skeleton.
  */
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
-  const view = <BillingUsageScreen data={null} onRefetch={noop} />;
-  if (loading) return <LoadingFallback label="Loading billing and usage">{view}</LoadingFallback>;
   return (
-    <LoadingSuspense label="Loading billing and usage" fallback={view}>
+    <GatedSuspense
+      gated={loading}
+      label="Loading billing and usage"
+      view={<BillingUsageScreen data={null} onRefetch={noop} />}
+    >
       <BillingUsageQuery />
-    </LoadingSuspense>
+    </GatedSuspense>
   );
 }
 
@@ -210,10 +212,7 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
                 nothing if it cannot be loaded — a notice is not worth an error. */}
             {autoTopUpOffered && (
               <div data-loading-optional className="contents">
-                <AutoTopUpIsland
-                  label="AutoTopUpNotice"
-                  fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
-                >
+                <AutoTopUpIsland label="AutoTopUpNotice" fallback={null}>
                   {autoTopUp => (
                     <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />
                   )}

@@ -53,6 +53,31 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
 }
 
 /**
+ * The customer card's title line: the name and its device count, both read. While loading (`org` null, or a loading
+ * scope) each is a bar of its own type step.
+ */
+function CustomerTitle({ org }: { org: CustomerRow | null }) {
+  const loading = useLoadingScope() || org == null;
+  return (
+    <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
+      {loading || org == null ? (
+        <>
+          <TextLineSkeleton type="h3" className="w-40 min-w-0" />
+          <TextLineSkeleton type="h4" className="w-20 shrink-0" />
+        </>
+      ) : (
+        <>
+          <div className="min-w-0">
+            <TruncateText variant="h3">{org.name}</TruncateText>
+          </div>
+          <span className="shrink-0 text-ods-text-secondary text-h4">({pluralize(org.total, 'device')})</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
  * One customer's row, loaded or loading (`org` null): the customer card, then its two device cards. While loading the
  * customer's logo, name and device count are read, so its icon and title line are bars.
  */
@@ -75,23 +100,7 @@ function CustomerOverviewRow({ org }: { org: CustomerRow | null }) {
             />
           )
         }
-        titleSlot={
-          <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
-            {org ? (
-              <>
-                <div className="min-w-0">
-                  <TruncateText variant="h3">{org.name}</TruncateText>
-                </div>
-                <span className="shrink-0 text-ods-text-secondary text-h4">({pluralize(org.total, 'device')})</span>
-              </>
-            ) : (
-              <>
-                <TextLineSkeleton type="h3" className="w-40 min-w-0" />
-                <TextLineSkeleton type="h4" className="w-20 shrink-0" />
-              </>
-            )}
-          </div>
-        }
+        titleSlot={<CustomerTitle org={org} />}
         value={org ? org.websiteUrl || 'Organization' : ''}
         valueClassName={CUSTOMER_VALUE_CLASS}
         href={org ? routes.customers.details(org.organizationId) : undefined}

@@ -4,7 +4,7 @@ import { InfoCard, type InfoCardData, Tag } from '@flamingo-stack/openframe-fron
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { EMPTY_CARD } from '@/app/components/shared/info-card-loading';
@@ -59,10 +59,7 @@ function agentRowLabels(toolType: string): string[] {
  */
 const AGENT_CARD_SKELETONS = Object.entries(agentTypeToToolType)
   .sort(([a], [b]) => a.localeCompare(b))
-  .map(([agentType, toolType]) => ({
-    agentType,
-    shape: { rows: agentRowLabels(toolType), title: false, footer: getAgentFooter(toolType) ?? false },
-  }));
+  .map(([, toolType]) => ({ rows: agentRowLabels(toolType), title: false, footer: getAgentFooter(toolType) ?? false }));
 
 function getAgentDisplayStatus(
   toolType: string,
@@ -230,11 +227,11 @@ export function AgentsTab({ device }: AgentsTabProps) {
     // The data is not touched: each slot is a card with no rows, drawn in its agent's loading shape.
     return (
       <AgentCards>
-        {AGENT_CARD_SKELETONS.map(({ agentType, shape }) => (
-          <div key={agentType} data-loading-item className="h-full">
-            <InfoCard data={EMPTY_CARD} skeleton={shape} className="h-full" />
-          </div>
-        ))}
+        <LoadingItems count={AGENT_CARD_SKELETONS.length}>
+          {index => (
+            <InfoCard data={EMPTY_CARD} skeleton={AGENT_CARD_SKELETONS[index]} className="h-full" data-loading-item />
+          )}
+        </LoadingItems>
       </AgentCards>
     );
   }
@@ -253,9 +250,12 @@ export function AgentsTab({ device }: AgentsTabProps) {
   return (
     <AgentCards>
       {agents.map((agent, idx) => (
-        <div key={`${agent.agentType}-${agent.agentToolId || idx}`} data-loading-item className="h-full">
-          <InfoCard data={agentCardData(agent)} className="h-full" />
-        </div>
+        <InfoCard
+          key={`${agent.agentType}-${agent.agentToolId || idx}`}
+          data={agentCardData(agent)}
+          className="h-full"
+          data-loading-item
+        />
       ))}
     </AgentCards>
   );

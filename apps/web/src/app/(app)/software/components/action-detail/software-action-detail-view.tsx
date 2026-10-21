@@ -1,11 +1,9 @@
 'use client';
 
-import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import type { ReactNode } from 'react';
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
 import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
-import { QueryIsland } from '@/app/components/shared';
+import { GatedSuspense, QueryIsland } from '@/app/components/shared';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';
@@ -42,29 +40,6 @@ interface SoftwareActionDetailViewProps {
  * their own `QueryIsland` — one request between them — and the logs' search
  * toolbar between the last two is real from the first frame.
  */
-/**
- * One island of the page: its view with no record in a loading scope stands in twice, for the flag's own window
- * (`loading`, when the query is not sent at all) and while its query is in flight (the boundary's fallback).
- */
-function ActionIsland({
-  label,
-  loading,
-  view,
-  children,
-}: {
-  label: string;
-  loading: boolean;
-  view: ReactNode;
-  children: ReactNode;
-}) {
-  if (loading) return <LoadingFallback label={label}>{view}</LoadingFallback>;
-  return (
-    <LoadingSuspense label={label} fallback={view}>
-      {children}
-    </LoadingSuspense>
-  );
-}
-
 export function SoftwareActionDetailView({ actionId, loading = false }: SoftwareActionDetailViewProps) {
   const variables = { id: actionId };
 
@@ -73,26 +48,26 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
     // `ContentErrorBoundary`, so a thrown query keeps the fallback indented.
     <div className="flex w-full flex-col">
       {/* The bar stands for the title: whether this is an update or an install is the record's answer. */}
-      <ActionIsland label="Loading action" loading={loading} view={<ActionDetailHeader action={null} />}>
+      <GatedSuspense label="Loading action" gated={loading} view={<ActionDetailHeader action={null} />}>
         <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
           {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
         </QueryIsland>
-      </ActionIsland>
+      </GatedSuspense>
 
       <div className="flex flex-1 flex-col">
-        <ActionIsland label="Loading action" loading={loading} view={<ActionDetailSummary action={null} />}>
+        <GatedSuspense label="Loading action" gated={loading} view={<ActionDetailSummary action={null} />}>
           <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
             {({ softwareAction }) => <ActionDetailSummary action={softwareAction} />}
           </QueryIsland>
-        </ActionIsland>
+        </GatedSuspense>
 
         <ExecutionsTabShell clientSearch searchPlaceholder="Search for Logs">
           {state => (
             // Its own boundary, so loading draws this table's columns rather
             // than the shell's script-execution loading state.
-            <ActionIsland
+            <GatedSuspense
               label="Loading the action log"
-              loading={loading}
+              gated={loading}
               view={<ActionDetailLogs action={null} state={state} />}
             >
               <QueryIsland<SoftwareActionDetailViewQueryType>
@@ -102,7 +77,7 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
               >
                 {({ softwareAction }) => <ActionDetailLogs action={softwareAction} state={state} />}
               </QueryIsland>
-            </ActionIsland>
+            </GatedSuspense>
           )}
         </ExecutionsTabShell>
       </div>

@@ -1,7 +1,6 @@
 'use client';
 'use no memo';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
   LoadingWhen,
@@ -10,6 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,20 +53,13 @@ interface DeviceGuardrailsTabProps {
  * The mode card follows the access-level designs.
  */
 export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTabProps) {
-  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too.
+  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too. A page's
+  // loading scope is loading as well.
   const { data: policy, isPending, error, refetch } = useTenantRemoteAccessPolicy();
+  const loading = useLoadingScope() || isPending;
 
-  if (isPending) {
-    return (
-      <LoadingRegion label="Loading remote access settings">
-        <LoadingWhen loading>
-          <DeviceGuardrailsPolicyCard policy={null} />
-        </LoadingWhen>
-      </LoadingRegion>
-    );
-  }
-
-  if (error || !policy) {
+  // An error is said only once the read has answered.
+  if (!loading && (error || !policy)) {
     return (
       <LoadError
         message="Couldn't load remote access settings. The service may be temporarily unavailable."
@@ -75,10 +68,15 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
     );
   }
 
-  return isEditMode ? (
-    <DeviceGuardrailsForm policy={policy} onSaved={onSaved} />
-  ) : (
-    <DeviceGuardrailsPolicyCard policy={policy} />
+  // Always mounted, so nothing remounts when the read answers: the card draws its own bar while loading.
+  return (
+    <LoadingWhen loading={loading} label="Loading remote access settings">
+      {isEditMode && !loading && policy ? (
+        <DeviceGuardrailsForm policy={policy} onSaved={onSaved} />
+      ) : (
+        <DeviceGuardrailsPolicyCard policy={loading ? null : (policy ?? null)} />
+      )}
+    </LoadingWhen>
   );
 }
 

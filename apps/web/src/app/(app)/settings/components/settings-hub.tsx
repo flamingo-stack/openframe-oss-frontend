@@ -1,7 +1,6 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChartDonutIcon,
   ClipboardListIcon,
@@ -244,31 +243,29 @@ export function SettingsHub() {
       {/* Navigation Cards Grid: until every gate has answered, the full default set this build can show (the app
           mode and the shell are known synchronously, so only Billing's presence is in question), each card drawing
           itself in the loading scope, rather than a lone cell wedged between real cards. */}
-      <LoadingRegion
+      <LoadingWhen
+        loading={!gatesResolved}
         label="Loading settings"
-        announce={!gatesResolved}
         className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2"
       >
-        <LoadingWhen loading={!gatesResolved}>
-          {(gatesResolved ? visibleItems : defaultItems).map(item => {
-            const {
-              icon: Icon,
-              title,
-              description,
-            } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
-            return (
-              <SettingMenuItem
-                key={item.href}
-                href={item.href}
-                icon={<Icon size={24} />}
-                title={title}
-                description={description}
-                badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
-              />
-            );
-          })}
-        </LoadingWhen>
-      </LoadingRegion>
+        {(gatesResolved ? visibleItems : defaultItems).map(item => {
+          const {
+            icon: Icon,
+            title,
+            description,
+          } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
+          return (
+            <SettingMenuItem
+              key={item.href}
+              href={item.href}
+              icon={<Icon size={24} />}
+              title={title}
+              description={description}
+              badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
+            />
+          );
+        })}
+      </LoadingWhen>
 
       {/* Log Out — pinned to the bottom-left of the page */}
       <div className="mt-auto">

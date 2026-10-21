@@ -5,7 +5,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { graphql, useFragment } from 'react-relay';
 import type { actionDetailLogs_action$key } from '@/__generated__/actionDetailLogs_action.graphql';
 import type { ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
-import { NO_NEXT_PAGE } from '@/app/components/shared';
+import { NO_ITEMS, NO_NEXT_PAGE } from '@/app/components/shared';
 import { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
 import { SoftwareLogsRows, SoftwareLogsTable } from './software-logs-table';
@@ -35,7 +35,13 @@ export function ActionDetailLogs({ action, state }: ActionDetailLogsProps) {
   const data = useFragment(actionDetailLogsFragment, action);
   if (loading) {
     return (
-      <SoftwareLogsRows allRows={[]} statusFacets={null} infiniteScroll={NO_NEXT_PAGE} actionLabel="" state={state} />
+      <SoftwareLogsRows
+        allRows={NO_ITEMS}
+        statusFacets={null}
+        infiniteScroll={NO_NEXT_PAGE}
+        actionLabel=""
+        state={state}
+      />
     );
   }
   const softwareAction = knownValue(SoftwareAction, data?.action);

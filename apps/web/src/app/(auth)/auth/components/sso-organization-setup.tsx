@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type AuthSsoProvider,
   CreateOrganizationForm,
@@ -56,9 +55,6 @@ interface SsoOrganizationSetupProps {
   onBack?: () => void;
 }
 
-/** The read subtitle's line while the identity is read ("Continuing as … via …"). */
-const SUBTITLE_SKELETON_CLASS = 'w-80 max-w-full';
-
 /**
  * Organization form for an SSO identity that authenticated successfully but has no account yet.
  *
@@ -107,14 +103,13 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
   return (
     <CreateOrganizationForm
       title="Finish setting up"
+      // Read ("Continuing as … via …"): `null` while the identity is read, which the form draws as a bar of its line.
       subtitle={
-        loading || !identity ? (
-          <TextLineSkeleton type="inherit" as="span" className={SUBTITLE_SKELETON_CLASS} />
-        ) : identity.email ? (
-          `Continuing as ${identity.email} via ${label}.`
-        ) : (
-          `Continuing via ${label}.`
-        )
+        loading || !identity
+          ? null
+          : identity.email
+            ? `Continuing as ${identity.email} via ${label}.`
+            : `Continuing via ${label}.`
       }
       email={email}
       emailReadOnly={email !== undefined}

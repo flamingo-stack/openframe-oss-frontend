@@ -13,12 +13,13 @@ import type {
 } from '@/__generated__/archivedArticlesTable_query.graphql';
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import { type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { KnowledgeBaseTable, NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
+import { NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
@@ -120,7 +121,7 @@ export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
     return (
       <ArchivedArticlesRows
         {...props}
-        rows={[]}
+        rows={NO_ITEMS}
         totalCount={0}
         listingIds={NO_LISTING_IDS}
         infiniteScroll={NO_NEXT_PAGE}
@@ -197,14 +198,14 @@ function ArchivedArticlesRows({
 
   return (
     <>
-      <KnowledgeBaseTable
+      <LiveTable
         table={table}
-        rowCount={rows.length}
+        pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
         totalCount={totalCount}
         itemName="article"
-        emptyTitle={isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.'}
+        emptyState={{ title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.' }}
         rowHref={rowHref}
-        infiniteScroll={infiniteScroll}
+        footer={rows.length > 0 ? infiniteScroll : null}
         isPending={isPending}
         stickyHeaderOffset={stickyHeaderOffset}
       />

@@ -120,7 +120,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           already-open panel) — do not add one here, it would swallow the whole modal
           and put us back to nothing rendering until the round-trip finished. */}
       {isNotificationSettingsOpen && (
-        <ErrorBoundary fallback={null /* loading-standard-ok: an error boundary's fallback, not a loading state */}>
+        <ErrorBoundary fallback={null}>
           <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
         </ErrorBoundary>
       )}

@@ -14,6 +14,9 @@ export default function BillingUsagePage() {
   // Billing is for the people who run the workspace — owners and admins. Same
   // three-state discipline: only a resolved "denied" closes the page.
   const access = useBillingAccessGate();
+  // The page's "Test mode" banner waits on its own flag: the page waits with it, so the banner is there (or not) when
+  // the page first draws its data, never inserted above it afterwards.
+  const liveMode = useFeatureFlagGate('billing-live-mode');
 
   // A missing feature 404s; a role refusal explains itself instead — the hub hides
   // the card, so whoever lands here followed a bookmark or a shared link.
@@ -24,5 +27,5 @@ export default function BillingUsagePage() {
     return <BillingRestrictedScreen />;
   }
 
-  return <BillingUsageView loading={gate === 'loading' || access === 'loading'} />;
+  return <BillingUsageView loading={gate === 'loading' || access === 'loading' || liveMode === 'loading'} />;
 }

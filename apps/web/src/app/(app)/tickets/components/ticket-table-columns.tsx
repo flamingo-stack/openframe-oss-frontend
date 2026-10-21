@@ -3,9 +3,9 @@ import {
   Button,
   type ColumnDef,
   type ColumnFiltersState,
-  DataTable,
   type DataTableSortState,
   DeviceCardCompact,
+  LoadingWhen,
   type NoDataProps,
   type OnChangeFn,
   type Row,
@@ -16,8 +16,10 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, useMemo } from 'react';
+import { useMemo } from 'react';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { LiveTable } from '@/app/components/shared/live-table';
+import type { InfiniteScroll } from '@/app/components/shared/no-next-page';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -222,15 +224,16 @@ const DEFAULT_EMPTY_STATE: NoDataProps = { title: 'No tickets found.' };
 
 interface TicketTableBodyProps {
   tickets: Dialog[];
+  /** The first page is a client read that has not answered: the table draws its own loading state. */
   isLoading?: boolean;
   /** The empty state's copy (`NoData`): a title, and a description when the table has one. */
   emptyState?: NoDataProps;
-  /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
-  skeletonRows?: number;
-  /** The list's page size: its loading state (body and infinite footer) draws one full page. */
-  pageSize?: number;
+  /** The list's page size (an unpaged list: its declared typical count): its loading state draws that many rows. */
+  pageSize: number;
+  /** Pins the column header below the page's sticky toolbar; without it the header scrolls with the rows. */
   stickyHeaderOffset?: string;
-  footerSlot?: ReactNode;
+  /** The next page's infinite scroll. */
+  infiniteScroll?: InfiniteScroll;
   isArchived?: boolean;
   actionsColumn?: ColumnDef<Dialog>;
   columnFilters?: ColumnFiltersState;
@@ -251,10 +254,9 @@ export function TicketTableBody({
   tickets,
   isLoading,
   emptyState = DEFAULT_EMPTY_STATE,
-  skeletonRows,
   pageSize,
   stickyHeaderOffset,
-  footerSlot,
+  infiniteScroll,
   isArchived,
   actionsColumn,
   columnFilters,
@@ -280,28 +282,22 @@ export function TicketTableBody({
     getRowId: row => String(row.id),
     enableSorting: false,
     state: columnFilters !== undefined ? { columnFilters } : undefined,
-    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
-    initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     onColumnFiltersChange,
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header
+    <LoadingWhen loading={!!isLoading}>
+      <LiveTable
+        table={table}
+        pageSize={pageSize}
         stickyHeader={!!stickyHeaderOffset}
         stickyHeaderOffset={stickyHeaderOffset}
-        rightSlot={<DataTable.RowCount />}
-        sort={sort ?? null}
+        sort={sort}
         onSortChange={onSortChange}
-      />
-      <DataTable.Body
-        loading={isLoading}
-        skeletonRows={skeletonRows}
         emptyState={emptyState}
-        rowClassName="mb-1"
         rowHref={ticketRowHref}
+        footer={infiniteScroll}
       />
-      {footerSlot}
-    </DataTable>
+    </LoadingWhen>
   );
 }

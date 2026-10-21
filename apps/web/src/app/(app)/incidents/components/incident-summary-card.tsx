@@ -118,12 +118,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
 
       <Row>
         <Cell>
-          <InfoCell
-            loading={loading}
-            valueSkeleton={<IncidentSeverityTag />}
-            value={<IncidentSeverityTag severity={incident?.severity} />}
-            label="Severity"
-          />
+          <InfoCell loading={loading} value={<IncidentSeverityTag severity={incident?.severity} />} label="Severity" />
         </Cell>
         <Cell>
           <InfoCell
@@ -140,12 +135,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           />
         </Cell>
         <Cell>
-          <InfoCell
-            loading={loading}
-            valueSkeleton={<IncidentStatusTag />}
-            value={<IncidentStatusTag status={incident?.status} />}
-            label="Status"
-          />
+          <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
         </Cell>
         {/* Always drawn, so the strip keeps its cells: the empty mark unless the incident is snoozed. */}
         <Cell>

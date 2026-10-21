@@ -13,7 +13,7 @@ import {
   PenEditIcon,
   Refresh01RightIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -76,13 +76,11 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // openframe-saas-ai-agent service (/chat/graphql), so they're saas-tenant only.
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   // Remote access policy: not saas-gated - MeshCentral runs in
-  // the OSS tenant too. Tri-state gate: a deep link to the tab keeps it while the gate reads (drawn in a loading
-  // scope below); it hides only on 'off'.
+  // the OSS tenant too. Tri-state gate: the tab is kept while the gate reads (its likely answer; a deep link to it
+  // draws it in a loading scope below); it hides only on 'off'.
   const deviceGuardrailsGate = useRemoteAccessApprovalGate();
   const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
-  const showDeviceGuardrails =
-    deviceGuardrailsGate === 'on' ||
-    (deviceGuardrailsGateLoading && requestedTab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID);
+  const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
@@ -201,7 +199,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // While the customer loads the page draws itself in a loading scope (`LoadingWhen` below): the header its own
   // skeleton, the tab strip for real (static labels), and the open tab its own loading state. A tab that needs only
   // the id has it from the URL, so its read starts at once.
-  const loading = isLoading;
+  const loading = useLoadingScope() || isLoading;
 
   if (!loading && error) {
     return <LoadError message={`Error loading customer: ${error}`} />;

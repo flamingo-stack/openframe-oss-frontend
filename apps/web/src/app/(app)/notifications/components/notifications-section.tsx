@@ -4,7 +4,6 @@ import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openfra
 import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BellCheckIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  DataTable,
   Input,
   type NoDataProps,
   type PageActionButton,
@@ -19,7 +18,8 @@ import type { notificationsSectionRelay_query$key as NotificationsSectionFragmen
 import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPaginationQueryType } from '@/__generated__/notificationsSectionRelayPaginationQuery.graphql';
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { EmptyState } from '@/app/components/shared';
+import { EmptyState, type InfiniteScroll, NO_ITEMS } from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { NotificationReadStatus } from '@/generated/schema-enums';
 import {
@@ -36,7 +36,6 @@ import { NotificationApprovalSubRow } from './notification-approval-subrow';
 import { buildNotificationColumns, type NotificationRow } from './notifications-columns';
 
 export const NOTIFICATIONS_SECTION_PAGE_SIZE = 50;
-const EMPTY_ROWS: NotificationRow[] = [];
 const HISTORY_RETENTION_NOTE = 'Notification history is retained for 30 days, then permanently deleted.';
 
 interface NotificationsSectionProps {
@@ -185,9 +184,7 @@ function SectionTable({
       searchValue={searchValue}
       onMarkRead={onMarkRead}
       onDelete={onDelete}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={onLoadMore}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore }}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
@@ -206,14 +203,7 @@ function SectionTableLoading({
   stickyHeaderOffset: string;
 }) {
   return (
-    <SectionTableView
-      rows={EMPTY_ROWS}
-      rowVariant={rowVariant}
-      searchValue=""
-      hasNext={false}
-      isLoadingNext={false}
-      stickyHeaderOffset={stickyHeaderOffset}
-    />
+    <SectionTableView rows={NO_ITEMS} rowVariant={rowVariant} searchValue="" stickyHeaderOffset={stickyHeaderOffset} />
   );
 }
 
@@ -223,15 +213,14 @@ interface SectionTableViewProps {
   searchValue: string;
   onMarkRead?: (id: string) => void;
   onDelete?: (id: string) => void;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore?: () => void;
+  /** The next page's infinite scroll; omitted while the first page is read. */
+  infiniteScroll?: InfiniteScroll;
   stickyHeaderOffset: string;
 }
 
 /**
  * The notifications table, from props only. In a loading scope it draws one full page of skeleton rows
- * (`NOTIFICATIONS_SECTION_PAGE_SIZE`, through the table's page size) under its real header.
+ * (`NOTIFICATIONS_SECTION_PAGE_SIZE`) under its real header.
  */
 export function SectionTableView({
   rows,
@@ -239,9 +228,7 @@ export function SectionTableView({
   searchValue,
   onMarkRead,
   onDelete,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   stickyHeaderOffset,
 }: SectionTableViewProps) {
   const loading = useLoadingScope();
@@ -273,8 +260,6 @@ export function SectionTableView({
     data: rows,
     columns,
     getRowId: row => row.id,
-    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
-    initialState: { pagination: { pageIndex: 0, pageSize: NOTIFICATIONS_SECTION_PAGE_SIZE } },
   });
 
   const trimmedSearch = searchValue.trim();
@@ -296,17 +281,14 @@ export function SectionTableView({
 
   return (
     <>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" />}
-        />
-        <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} />
-        {onLoadMore && (
-          <DataTable.InfiniteFooter hasNextPage={hasNext} isFetchingNextPage={isLoadingNext} onLoadMore={onLoadMore} />
-        )}
-      </DataTable>
+      <LiveTable
+        table={table}
+        pageSize={NOTIFICATIONS_SECTION_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        renderSubRow={renderSubRow}
+        footer={infiniteScroll}
+      />
       {rowVariant === 'read' && (
         <p className="mt-[var(--spacing-system-l)] text-center text-ods-text-secondary text-h6">
           {HISTORY_RETENTION_NOTE}

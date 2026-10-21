@@ -23,7 +23,15 @@ import type {
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
-import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -33,7 +41,7 @@ import {
   type KnowledgeBaseListing,
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
-import { KnowledgeBaseTable, NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
+import { NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
@@ -157,7 +165,7 @@ export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
     return (
       <KnowledgeBaseItemsRows
         {...props}
-        rows={[]}
+        rows={NO_ITEMS}
         totalCount={0}
         listingIds={NO_LISTING_IDS}
         infiniteScroll={NO_NEXT_PAGE}
@@ -260,18 +268,18 @@ function KnowledgeBaseItemsRows({
           description="Create your first article or folder to start building your knowledge base"
         />
       ) : (
-        <KnowledgeBaseTable
+        <LiveTable
           table={table}
-          rowCount={rows.length}
+          pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
           totalCount={totalCount}
           itemName="item"
-          emptyTitle={
-            listing.search
+          emptyState={{
+            title: listing.search
               ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
-              : 'No articles match the selected tags. Try adjusting your filters.'
-          }
+              : 'No articles match the selected tags. Try adjusting your filters.',
+          }}
           rowHref={rowHref}
-          infiniteScroll={infiniteScroll}
+          footer={rows.length > 0 ? infiniteScroll : null}
           isPending={isPending}
           stickyHeaderOffset={stickyHeaderOffset}
         />

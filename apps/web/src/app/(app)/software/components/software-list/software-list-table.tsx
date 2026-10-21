@@ -6,7 +6,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
-import { EmptyState, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { EmptyState, useRetryKey } from '@/app/components/shared';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareTable } from './software-table';
 
@@ -64,21 +64,7 @@ interface SoftwareListTableProps {
  * suspends, so it lives under the frame's `<Suspense>`.
  */
 export function SoftwareListTable(props: SoftwareListTableProps) {
-  if (useLoadingScope()) {
-    return (
-      <SoftwareTable
-        rows={[]}
-        totalCount={0}
-        debouncedSearch={props.debouncedSearch}
-        isPending={props.isPending}
-        // Never drawn while loading: the table shows its loading rows, not the empty state.
-        emptyState={null}
-        onEmptyChange={props.onEmptyChange}
-        stickyHeaderOffset={props.stickyHeaderOffset}
-        infiniteScroll={NO_NEXT_PAGE}
-      />
-    );
-  }
+  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <SoftwareListTableQuery {...props} />;
 }
 

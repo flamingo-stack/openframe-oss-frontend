@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatCurrency } from '@/lib/format-currency';
 import type { SelectionTotal } from './plan-selection';
 
@@ -39,31 +39,36 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
   return (
     <div className={cn('flex flex-col text-ods-text-secondary text-h4', className)}>
       {showAiNote && <p>Devices and AI balance are billed together at checkout.</p>}
-      {/* The total's line: the figure inside it is set in h3, which is the line's height. The label is a bar too: it
-          says prepaid or not, and the plan mode is chosen from the catalog (`buildInitialDevicePlan`), still loading. */}
-      {isLoading && (
-        <LoadingRegion status={false}>
-          <TextLineSkeleton type="h3" className="w-56" />
-        </LoadingRegion>
-      )}
-      {!isLoading && total && total.prepaid && (
+      {/* Each figure is set in h3, which is its line's height. While loading each line is a bar of it: the label too, as
+          it says prepaid or not, and the plan mode is chosen from the catalog, still loading. */}
+      {isLoading ? (
+        <LoadingLine type="h3" className="w-56" />
+      ) : total?.prepaid ? (
         <p>
           Total due today: <span className="text-ods-text-primary text-h3">{formatCurrency(total.amount + topUp)}</span>
         </p>
+      ) : (
+        total && (
+          <p>
+            Estimated total:{' '}
+            <span className="text-ods-text-primary text-h3">
+              {formatCurrency(total.amount)} / {total.period}
+            </span>
+          </p>
+        )
       )}
-      {!isLoading && total && !total.prepaid && (
-        <p>
-          Estimated total:{' '}
-          <span className="text-ods-text-primary text-h3">
-            {formatCurrency(total.amount)} / {total.period}
-          </span>
-        </p>
-      )}
-      {/* Only a metered month with a top-up chosen has this line: optional, below the total. */}
-      {!isLoading && total && !total.prepaid && topUp > 0 && (
-        <p data-loading-optional>
-          AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
-        </p>
+      {/* A metered month with a top-up chosen: the typical paywall (pay-as-you-go, a top-up preset), so its line is
+          drawn while loading too, below the total. */}
+      {isLoading ? (
+        <LoadingLine type="h3" className="w-48" />
+      ) : (
+        total &&
+        !total.prepaid &&
+        topUp > 0 && (
+          <p>
+            AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
+          </p>
+        )
       )}
     </div>
   );
