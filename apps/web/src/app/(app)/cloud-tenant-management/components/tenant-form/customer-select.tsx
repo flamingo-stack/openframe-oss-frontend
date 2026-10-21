@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Select,
   SelectContent,
@@ -11,7 +11,7 @@ import {
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { customerSelect_query$key } from '@/__generated__/customerSelect_query.graphql';
 import type { customerSelectPaginationQuery } from '@/__generated__/customerSelectPaginationQuery.graphql';
@@ -174,9 +174,8 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
  */
 export function CustomerSelect(props: CustomerSelectProps) {
   const { enabled = true, includeOrganization, ...shellProps } = props;
-  const inScope = useLoadingScope();
-  if (!enabled || inScope) {
-    return <CustomerSelectShell {...shellProps} options={NO_OPTIONS} placeholder="Select Customer" disabled />;
+  if (!enabled) {
+    return <CustomerSelectLocked {...shellProps} />;
   }
 
   return (
@@ -191,15 +190,21 @@ export function CustomerSelect(props: CustomerSelectProps) {
         />
       )}
     >
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading customers">
-            <CustomerSelect {...props} />
-          </LoadingFallback>
-        }
-      >
-        <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />
-      </Suspense>
+      <LoadingSuspense label="Loading customers">
+        <CustomerSelectBody {...shellProps} includeOrganization={includeOrganization} />
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
+}
+
+function CustomerSelectBody({ includeOrganization, ...shellProps }: Omit<CustomerSelectProps, 'enabled'>) {
+  if (useLoadingScope()) {
+    return <CustomerSelectLocked {...shellProps} />;
+  }
+  return <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />;
+}
+
+/** The real field, locked, with no options: what it is before its list is read. */
+function CustomerSelectLocked(shellProps: Omit<CustomerSelectProps, 'enabled' | 'includeOrganization'>) {
+  return <CustomerSelectShell {...shellProps} options={NO_OPTIONS} placeholder="Select Customer" disabled />;
 }

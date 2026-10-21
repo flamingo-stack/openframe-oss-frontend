@@ -2,16 +2,15 @@
 
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { StackedRowsPanel, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, StackedRowsPanel, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ValueText } from '@/app/components/shared/value-text';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { buildCustomerContactRows, buildCustomerInfoRows, buildNoContactsRow } from './customer-details-rows';
 
-/** A cell value: the text with the truncation tooltip, or the muted empty mark. */
-const cell = (value?: string | null) => <ValueText value={value} />;
-
-/** A cell value while the customer loads: a bar of the cell's own type step (`text-h4`). */
-const bar = (width: string) => <TextLineSkeleton type="h4" as="span" className={width} />;
+/** A cell value: the text with the truncation tooltip, or the muted empty mark; in a loading scope, its own bar. */
+const cell = (value: string | null | undefined, skeletonWidth?: string) => (
+  <ValueText value={value} skeletonWidth={skeletonWidth} />
+);
 
 /** The notes card's frame. */
 const NOTES_CARD_CLASS =
@@ -19,9 +18,6 @@ const NOTES_CARD_CLASS =
 
 /** Contacts drawn while the customer loads (typical: one contact; a customer with more moves the content below it). */
 const CONTACTS_SKELETON_ROWS = 1;
-
-/** One contact row while the customer loads: every value a `text-h4` bar. */
-const SKELETON_CONTACT = { contactName: bar('w-28'), title: bar('w-28'), email: bar('w-40'), phone: bar('w-28') };
 
 /** Lines of the notes text drawn while the customer loads (a typical note). */
 const NOTES_SKELETON_LINES = 2;
@@ -59,31 +55,36 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
   const websiteHref = website ? (website.startsWith('http') ? website : `https://${website}`) : undefined;
 
   const infoRows = buildCustomerInfoRows({
-    website: customer ? cell(customer.website) : bar('w-40'),
+    website: cell(customer?.website, 'w-40'),
     websiteHref,
     websiteIcon: <ExternalLinkIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />,
-    physicalAddress: customer ? cell(customer.physicalAddress) : bar('w-72'),
-    mailingAddress: customer ? cell(customer.mailingAddress) : bar('w-72'),
+    physicalAddress: cell(customer?.physicalAddress, 'w-72'),
+    mailingAddress: cell(customer?.mailingAddress, 'w-72'),
   });
 
-  const contactRows = !customer
-    ? buildCustomerContactRows(Array.from({ length: CONTACTS_SKELETON_ROWS }, () => SKELETON_CONTACT))
-    : customer.contacts.length > 0
-      ? buildCustomerContactRows(
-          customer.contacts.map(contact => ({
-            contactName: cell(contact.contactName),
-            title: cell(contact.title),
-            email: cell(contact.email),
-            phone: cell(contact.phone),
-          })),
-        )
-      : [buildNoContactsRow()];
-
+  // While the customer loads, a typical customer's contacts, each cell drawing its own bar in the scope.
+  const contacts = customer?.contacts ?? Array.from({ length: CONTACTS_SKELETON_ROWS }, () => null);
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <StackedRowsPanel rows={infoRows} />
-      <StackedRowsPanel rows={contactRows} listItems={!customer || customer.contacts.length > 0} />
-      <CustomerNotesCard notes={customer?.notes.join('\n') ?? ''} loading={!customer} />
-    </div>
+    <LoadingWhen loading={!customer}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <StackedRowsPanel rows={infoRows} />
+        <StackedRowsPanel
+          listItems={contacts.length > 0}
+          rows={
+            contacts.length > 0
+              ? buildCustomerContactRows(
+                  contacts.map(contact => ({
+                    contactName: cell(contact?.contactName, 'w-28'),
+                    title: cell(contact?.title, 'w-28'),
+                    email: cell(contact?.email, 'w-40'),
+                    phone: cell(contact?.phone, 'w-28'),
+                  })),
+                )
+              : [buildNoContactsRow()]
+          }
+        />
+        <CustomerNotesCard notes={customer?.notes.join('\n') ?? ''} loading={!customer} />
+      </div>
+    </LoadingWhen>
   );
 }

@@ -94,10 +94,30 @@
  *   - no stand-in data: the retired `standIn` / `Hold` family is never used
  *     again (a loading state draws skeletons, never made-up words);
  *   - no spinner as a loading state: `animate-spin` only on an action's
- *     progress icon (`Loader2`, `RefreshCw`), never a hand-made spinner.
+ *     progress icon (`Loader2`, `RefreshCw`), never a hand-made spinner, and
+ *     never one of the lib's loader components (`PageLoader`, `CompactPageLoader`,
+ *     `ContentLoader`, `CardLoader`, `DetailLoader`, `FormLoader`, `ListLoader`,
+ *     `ChatCardLoader`, `OpenmspHeartbeatLoader`) or a `Spinner`;
+ *   - never nothing: `loading ? null : <X />` and `if (loading) return null` leave
+ *     the slot empty (render X in a loading scope), and a `<Suspense>` with no
+ *     fallback is the same (use the lib's `LoadingSuspense`);
+ *   - never "Loading" text, with or without an ellipsis, as a text node;
+ *   - never a skeleton the installed lib marks `@deprecated` (read from its source,
+ *     so a skeleton the lib retires is refused here the day the pin moves).
+ *
+ * The `next/dynamic` exemption holds only for a `loading:` arrow INSIDE a
+ * `dynamic(` (or `dynamic<Props>(`) call, never a `loading:` key of another object.
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve, relative, basename } from 'node:path';
+import {
+  declarationIndex,
+  dynamicLoadingSpans,
+  enclosingDeclaration,
+  isComment,
+  optedOut,
+  walkFiles,
+} from './lib/source-scan.mjs';
 
 const root = process.env.PAGE_SKELETON_GATE_ROOT || resolve(dirname(new URL(import.meta.url).pathname), '..', 'src');
 
@@ -115,14 +135,9 @@ const PRIMITIVES = [
 const ROUTE_FILE = /^(page|layout|loading|template|not-found|error)\.tsx$/;
 const SCREEN_FILE = /-page(-ssr|-client)?\.tsx$/;
 
-function* files(dir, withTs = false) {
-  if (!existsSync(dir)) return;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.') || entry.name === '__tests__') continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) yield* files(full, withTs);
-    else if (entry.name.endsWith('.tsx') || (withTs && entry.name.endsWith('.ts'))) yield full;
-  }
+/** Every `.tsx` (and, with `withTs`, `.ts`) file under `dir`, tests included (callers filter them). */
+function files(dir, withTs = false) {
+  return walkFiles(dir, { ts: withTs, tests: true });
 }
 
 /** Whether a file under `app/` is page code (see the header). */
@@ -137,17 +152,6 @@ const MEMORY =
   /\b(?:pageFirstPaint|firstPaintKvStore|createFirstPaintMemory|careersSeed|refreshCareersSeed|lastKnownHomeLayout|rememberHomeLayout)\b/g;
 const SCREEN_SKELETON =
   /\b(?:function|const)\s+([A-Z][A-Za-z0-9]*(?:(?:Page|Screen|Detail|Article|View|Home|Deck|Editor|Center|Catalog)Skeleton|LoadingLayout))\b/;
-
-/** The name of the top-level declaration (`function X`, `const X =`, `class X`) that encloses `index`. */
-function enclosingDeclaration(source, index) {
-  const before = source.slice(0, index);
-  const declarations = [
-    ...before.matchAll(
-      /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\s*\*?\s*|const\s+|let\s+|class\s+)([A-Za-z_$][A-Za-z0-9_$]*)/gm,
-    ),
-  ];
-  return declarations.at(-1)?.[1] ?? null;
-}
 
 /**
  * ONE SWITCH, PER COMPONENT (see the header): `<XSkeleton />` rendered outside X's own module and outside a
@@ -175,22 +179,12 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
     }
   }
   // Where each component is declared, and whether that module switches itself.
-  const declaredIn = new Map();
-  for (const [full, { source }] of sources) {
-    for (const m of source.matchAll(/\b(?:function|const|class)\s+([A-Z][A-Za-z0-9]*)\b/g)) {
-      if (!declaredIn.has(m[1])) declaredIn.set(m[1], new Set());
-      declaredIn.get(m[1]).add(full);
-    }
-  }
+  const declaredIn = declarationIndex(new Map([...sources].map(([full, { source }]) => [full, source])));
   const switches = full => /\buseLoadingScope\s*\(/.test(sources.get(full)?.source ?? '');
   for (const [full, { rel, source }] of sources) {
     if (indexOnly.has(full)) continue;
     const lines = source.split('\n');
-    const dynamicSpans = [];
-    for (const m of source.matchAll(/\bloading:\s*\(\)\s*=>/g)) {
-      const end = source.indexOf('\n', m.index);
-      dynamicSpans.push([m.index, end === -1 ? source.length : end]);
-    }
+    const dynamicSpans = dynamicLoadingSpans(source);
     // AND ONE REGISTRY SLOT (see the header): a `skeleton:` arrow up to its entry's `render:`, with the components
     // that `render` draws.
     const registrySlots = [];
@@ -215,7 +209,7 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
       if (!modules.length) continue;
       const switched = modules.some(switches);
       if (dynamicSpans.some(([start, end]) => m.index > start && m.index < end)) continue;
-      const enclosing = enclosingDeclaration(source, m.index) ?? '';
+      const enclosing = enclosingDeclaration(source, m.index);
       const line = source.slice(0, m.index).split('\n').length;
       if (/Skeleton$/.test(enclosing)) {
         // A parent's own skeleton may compose a child's, UNLESS the parent itself renders `<Child />` (in this module)
@@ -247,7 +241,23 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
   return { violations, warnings };
 }
 
+/** The `*Skeleton` components the lib's source marks `@deprecated` (the JSDoc above their export, line comments between). */
+function deprecatedLibSkeletons(libSrc) {
+  const names = new Set();
+  for (const full of files(libSrc, true)) {
+    const source = readFileSync(full, 'utf8');
+    for (const m of source.matchAll(
+      /\/\*\*((?:(?!\*\/)[\s\S])*)\*\/\s*(?:\/\/[^\n]*\n\s*)*export\s+(?:function|const)\s+([A-Z][A-Za-z0-9]*Skeleton)\b/g,
+    )) {
+      if (m[1].includes('@deprecated')) names.add(m[2]);
+    }
+  }
+  return names;
+}
+
 /** What breaks the standard (`violations`, exit 1) and what is reported only (`warnings`: NO SCOPE SWITCH). */
+export { deprecatedLibSkeletons };
+
 export function pageSkeletonReport(base = root) {
   const violations = [];
   const wholeViewRoots = ['app', 'components', 'lib'].map(dir => ({ dir: join(base, dir), label: `${dir}/` }));
@@ -277,6 +287,23 @@ export function pageSkeletonReport(base = root) {
     existsSync(installedLib) ? [{ dir: installedLib, label: 'lib/' }] : [],
   );
   violations.push(...foreign.violations);
+  // A skeleton the installed lib marks `@deprecated` is never used: its replacement is the component in a scope.
+  const deprecated = existsSync(installedLib) ? deprecatedLibSkeletons(installedLib) : new Set();
+  if (deprecated.size) {
+    const pattern = new RegExp(`<(${[...deprecated].join('|')})\\b`, 'g');
+    for (const dir of ['app', 'components']) {
+      for (const full of files(join(base, dir), true)) {
+        if (/\.(test|stories)\.tsx?$/.test(full)) continue;
+        const source = readFileSync(full, 'utf8');
+        for (const m of source.matchAll(pattern)) {
+          const line = source.slice(0, m.index).split('\n').length;
+          violations.push(
+            `${relative(base, full)}:${line}: <${m[1]}> is deprecated in the lib (render the component in a loading scope)`,
+          );
+        }
+      }
+    }
+  }
   for (const dir of ['app', 'components', 'lib', 'hooks']) {
     for (const full of files(join(base, dir), true)) {
       const rel = relative(base, full);
@@ -318,18 +345,30 @@ export function pageSkeletonReport(base = root) {
       />\s*(Loading|Checking)\b[^<{]*(\.\.\.|\u2026)\s*<|['"`](Loading|Checking)\b[^'"`]*(\.\.\.|\u2026)['"`]/,
       '"Loading…" text as a loading state (draw the component skeleton)',
     ],
+    [/>\s*Loading\b[^<{]*</, '"Loading" text as a loading state (draw the component skeleton)'],
+    [
+      /<(?:PageLoader|CompactPageLoader|ContentLoader|CardLoader|DetailLoader|FormLoader|ListLoader|ChatCardLoader|OpenmspHeartbeatLoader|Spinner)\b/,
+      'a loader component as a loading state (render the components in a loading scope)',
+    ],
+    [
+      /\b(?:loading|isLoading|isPending)\s*\?\s*null\s*:\s*</,
+      'nothing drawn while loading (render the component in a loading scope)',
+    ],
+    [
+      /if\s*\(\s*(?:loading|isLoading|isPending)\s*\)\s*(?:\{\s*)?return\s+null\b/,
+      'nothing drawn while loading (render the component in a loading scope)',
+    ],
+    [/<Suspense>/, 'a Suspense with no fallback (use LoadingSuspense / LoadingFallback)'],
   ];
   for (const dir of ['app', 'components', 'lib', 'hooks']) {
     for (const full of files(join(base, dir), true)) {
       const rel = relative(base, full);
-      if (rel.startsWith(join('components', 'examples'))) continue;
-      readFileSync(full, 'utf8')
-        .split('\n')
-        .forEach((line, index) => {
-          if (/^\s*(\/\/|\*|\/\*)/.test(line) || /loading-standard-ok:/.test(line)) return;
-          for (const [pattern, name] of STANDARD)
-            if (pattern.test(line)) violations.push(`${rel}:${index + 1}: ${name}`);
-        });
+      if (rel.startsWith(join('components', 'examples')) || /\.(test|stories)\.tsx?$/.test(full)) continue;
+      const standardLines = readFileSync(full, 'utf8').split('\n');
+      standardLines.forEach((line, index) => {
+        if (isComment(line) || optedOut(standardLines, index, 'loading-standard-ok:')) return;
+        for (const [pattern, name] of STANDARD) if (pattern.test(line)) violations.push(`${rel}:${index + 1}: ${name}`);
+      });
     }
   }
   // "Loading…" text split over JSX lines (`>\n  Loading thread…\n<`) (the lib
@@ -370,11 +409,7 @@ export function pageSkeletonReport(base = root) {
     const source = readFileSync(full, 'utf8');
     const lines = source.split('\n');
     // `next/dynamic`'s `loading: () => …` is the fallback while a component's code loads (one line): exempt.
-    const dynamicSpans = [];
-    for (const m of source.matchAll(/\bloading:\s*\(\)\s*=>/g)) {
-      const end = source.indexOf('\n', m.index);
-      dynamicSpans.push([m.index, end === -1 ? source.length : end]);
-    }
+    const dynamicSpans = dynamicLoadingSpans(source);
     for (const m of source.matchAll(/<([A-Z][A-Za-z0-9.]*Skeleton)\b/g)) {
       if (dynamicSpans.some(([start, end]) => m.index > start && m.index < end)) continue;
       const line = source.slice(0, m.index).split('\n').length;

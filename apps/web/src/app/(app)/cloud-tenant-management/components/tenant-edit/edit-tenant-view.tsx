@@ -1,16 +1,15 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
   LoadingWhen,
-  PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useState } from 'react';
 import { routes } from '@/lib/routes';
+import { TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import { TenantRecordLoader, type TenantRecordState } from './tenant-record-loader';
 import { useEditTenantForm } from './use-edit-tenant-form';
@@ -24,7 +23,6 @@ const RECORD_LOADING: TenantRecordState = { status: 'loading' };
  */
 export function EditTenantView({ id }: { id: string }) {
   const router = useRouter();
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const [record, setRecord] = useState<TenantRecordState>(RECORD_LOADING);
   const ready = record.status === 'ready';
   const { form, isSubmitting, handleSave } = useEditTenantForm(id, ready ? record.values : null);
@@ -40,21 +38,10 @@ export function EditTenantView({ id }: { id: string }) {
   ];
 
   return (
-    <PageLayout
-      title="Edit Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-    >
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading tenant">
-            <TenantRecordLoader id={id} onResolved={setRecord} />
-          </LoadingFallback>
-        }
-      >
+    <TenantFormFrame title="Edit Tenant Integration" actions={actions}>
+      <LoadingSuspense label="Loading tenant">
         <TenantRecordLoader id={id} onResolved={setRecord} />
-      </Suspense>
+      </LoadingSuspense>
       {record.status === 'missing' ? (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       ) : (
@@ -69,6 +56,6 @@ export function EditTenantView({ id }: { id: string }) {
           />
         </LoadingWhen>
       )}
-    </PageLayout>
+    </TenantFormFrame>
   );
 }

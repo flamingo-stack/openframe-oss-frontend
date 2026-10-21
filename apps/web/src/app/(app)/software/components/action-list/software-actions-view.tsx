@@ -1,11 +1,11 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { SoftwareActionFilterInput } from '@/__generated__/softwareActionsTableQuery.graphql';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -111,9 +111,7 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
         {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
             itself, in a loading scope, where it draws its own loading state and does not fetch. */}
         <LoadingWhen loading={loading}>
-          <Suspense fallback={<LoadingFallback label="Loading software actions">{rows}</LoadingFallback>}>
-            {rows}
-          </Suspense>
+          <LoadingSuspense label="Loading software actions">{rows}</LoadingSuspense>
         </LoadingWhen>
       </div>
     </PageLayout>

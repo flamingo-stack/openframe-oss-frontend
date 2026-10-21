@@ -101,9 +101,9 @@ interface EntityTagPickerProps {
  * new name and confirming creates the tag immediately and swaps the optimistic
  * entry for the persisted id. Shared by the script and article editors.
  *
- * Suspends on the vocabulary query — render inside a `<Suspense>` boundary whose
- * fallback is the same picker in a loading scope (`LoadingFallback`), where it draws
- * its field disabled and runs no query.
+ * Suspends on the vocabulary query — render it inside the lib's `LoadingSuspense`, whose
+ * fallback is the same picker in a loading scope, where it draws its field disabled and
+ * runs no query.
  */
 export function EntityTagPicker(props: EntityTagPickerProps) {
   if (useLoadingScope()) {

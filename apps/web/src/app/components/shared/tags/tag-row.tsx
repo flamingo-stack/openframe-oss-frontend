@@ -4,6 +4,7 @@ import { TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/ic
 import { Autocomplete, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useCallback, useMemo } from 'react';
 import type { tagsEditor_keySuggestions$key as KeySuggestionsFragmentKey } from '@/__generated__/tagsEditor_keySuggestions.graphql';
+import { noop } from '../no-next-page';
 import { TagValueAutocomplete } from './tag-value-autocomplete';
 import type { TagEntry } from './types';
 import { useTagKeySuggestions } from './use-tag-key-suggestions';
@@ -76,7 +77,7 @@ export function TagRow({ tag, onChange, onDelete, existingKeys, keySuggestionsRe
       multiple
       options={[]}
       value={tag.values}
-      onChange={() => {}}
+      onChange={noop}
       placeholder="Enter value..."
       label={isFirst ? 'Tag Values' : undefined}
       labelVariant="large"

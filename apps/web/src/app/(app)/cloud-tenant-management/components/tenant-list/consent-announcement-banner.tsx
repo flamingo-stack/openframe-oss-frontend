@@ -1,9 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CloudIcon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Alert, Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { consentAnnouncementBannerQuery as BannerQueryType } from '@/__generated__/consentAnnouncementBannerQuery.graphql';
 import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
@@ -26,12 +25,17 @@ const consentAnnouncementBannerQuery = graphql`
  * nothing is read: a placeholder would be a box that most often vanishes. It sits under the list, so its arrival
  * moves nothing above it.
  */
-function AnnouncementAlert() {
-  if (useLoadingScope()) return null;
-  return <AnnouncementAlertQuery />;
+/** `data-loading-optional`: a part only some workspaces have, measured without by the loading gate. */
+interface OptionalMarkProps {
+  'data-loading-optional'?: boolean;
 }
 
-function AnnouncementAlertQuery() {
+function AnnouncementAlert(props: OptionalMarkProps) {
+  if (useLoadingScope()) return null;
+  return <AnnouncementAlertQuery {...props} />;
+}
+
+function AnnouncementAlertQuery(props: OptionalMarkProps) {
   const retryKey = useRetryKey();
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<BannerQueryType>(
@@ -48,6 +52,7 @@ function AnnouncementAlertQuery() {
 
   return (
     <Alert
+      {...props}
       variant="warning"
       role="status"
       className="mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-s)]"
@@ -76,7 +81,7 @@ function AnnouncementAlertQuery() {
  * providers; each connection re-authorizes through its own Reconnect. Owners and admins only — the
  * query refuses everyone else — and a failure here is a strip, never the page.
  */
-export function ConsentAnnouncementBanner() {
+export function ConsentAnnouncementBanner(props: OptionalMarkProps) {
   const gate = useAdminGate();
   if (gate !== 'admin') return null;
 
@@ -87,15 +92,9 @@ export function ConsentAnnouncementBanner() {
         <SectionLoadError {...loadErrorProps(isOffline, "Couldn't check for re-authorization notices.", retry)} />
       )}
     >
-      <Suspense
-        fallback={
-          <LoadingFallback label="Checking for re-authorization notices">
-            <AnnouncementAlert />
-          </LoadingFallback>
-        }
-      >
-        <AnnouncementAlert />
-      </Suspense>
+      <LoadingSuspense label="Checking for re-authorization notices">
+        <AnnouncementAlert {...props} />
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
 }

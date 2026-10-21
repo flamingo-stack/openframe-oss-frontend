@@ -1,13 +1,16 @@
 'use client';
 
 import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { AlertCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  LoadingWhen,
   SquareAvatar,
+  Tag,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import type { User } from '@/app/(auth)/auth/stores';
+import { getFullImageUrl } from '@/lib/image-url';
 
 interface IdentityRowProps {
   /** The row's frame (padding, gap, border). */
@@ -57,10 +60,13 @@ export function IdentityRow({
 
   const body = (
     <>
-      {/* The avatar switches itself in a scope: with `loading` from a prop, it is given one. */}
-      <LoadingWhen loading={loading}>
-        <SquareAvatar src={loading ? undefined : avatarSrc} fallback={name} size="lg" variant={avatarVariant} />
-      </LoadingWhen>
+      <SquareAvatar
+        src={loading ? undefined : avatarSrc}
+        fallback={name}
+        size="lg"
+        variant={avatarVariant}
+        loading={loading}
+      />
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className={`flex items-center gap-2 ${nameAside === undefined ? '' : 'min-h-8'}`}>
           {loading ? (
@@ -97,5 +103,60 @@ export function IdentityRow({
     </LoadingRegion>
   ) : (
     <div className={className}>{body}</div>
+  );
+}
+
+/** The signed-in user's row frame: the profile card's, unless a caller sets its own. */
+const USER_ROW_CLASS = 'flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]';
+
+interface UserIdentityRowProps {
+  /** The signed-in user; `null` while it is read. */
+  user: User | null;
+  loading: boolean;
+  /** Opens the email verification flow from the "Not verified" button. */
+  onVerifyEmail: () => void;
+  action: ReactNode;
+  className?: string;
+}
+
+/**
+ * The signed-in user's identity row, the same on the profile card and the profile tab: the round avatar, the display
+ * name (the email when there is none) with a lib `Tag` per role, the email and, while it is unverified, the button
+ * that resends the verification.
+ */
+export function UserIdentityRow({
+  user,
+  loading,
+  onVerifyEmail,
+  action,
+  className = USER_ROW_CLASS,
+}: UserIdentityRowProps) {
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
+  return (
+    <IdentityRow
+      className={className}
+      loading={loading}
+      loadingLabel="Loading your profile"
+      name={displayName}
+      avatarSrc={user ? getFullImageUrl(user.image?.imageUrl, user.image?.hash) : undefined}
+      avatarVariant="round"
+      nameAside={user?.roles?.map(role => <Tag key={role} variant="outline" label={role} />) ?? null}
+      subline={user?.email}
+      sublineWhileLoading
+      sublineAside={
+        user?.emailVerified === false && (
+          <button
+            type="button"
+            onClick={onVerifyEmail}
+            className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
+            title="Email not verified - click to resend verification"
+          >
+            <AlertCircleIcon className="h-4 w-4" />
+            <span className="text-h6">Not verified</span>
+          </button>
+        )
+      }
+      action={action}
+    />
   );
 }

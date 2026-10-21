@@ -33,7 +33,7 @@ interface UsageStatCardProps {
   trailing?: ReactNode;
 }
 
-/** The card's frame and its two rows, shared by the loaded card and its skeleton so both are one box. */
+/** The card's frame and its two rows. */
 const CARD_CLASS =
   'group/stat relative flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xsf)] rounded-md border p-[var(--spacing-system-mf)]';
 const TITLE_CLASS = 'truncate text-h5';
@@ -67,47 +67,48 @@ const TONE_VALUE: Record<UsageStatTone, string> = {
  * no ring, which it has no variant for. So the composition lives here, in the
  * page that needs it, on the same ODS tokens the card is built from.
  */
-export function UsageStatCard({ title, value, caption, tone = 'default', trailing, loading }: UsageStatCardProps) {
-  if (useLoadingScope() || loading) return <UsageStatCardSkeleton title={title} trailing={trailing} />;
+export function UsageStatCard({
+  title,
+  value,
+  caption,
+  tone = 'default',
+  trailing,
+  loading: loadingProp,
+}: UsageStatCardProps) {
+  // While its figure is on its way: the title and the trailing control are fixed and stay real; the figure and the
+  // caption (as query-dependent as the figure: a trial's end date, "Annual Prepaid", "Pay as you go") are bars, on the
+  // default tone (the tone is read data too).
+  const loading = useLoadingScope() || !!loadingProp;
+  const shownTone = loading ? 'default' : tone;
   return (
     // The state travels to the value/caption slots as an attribute rather than a
     // prop: both are nodes built by the caller, so the card cannot pass anything
     // into them — and a `StatSuffix`/`StatEmphasis` left on its own grey is the
     // one part of a recoloured card that stays unrecoloured.
-    <div data-tone={tone} className={cn(CARD_CLASS, TONE_CARD[tone])}>
+    <div data-tone={shownTone} className={cn(CARD_CLASS, TONE_CARD[shownTone])}>
       <div className="flex flex-col">
-        <p className={cn(TITLE_CLASS, TONE_TEXT[tone])}>{title}</p>
-        <p className={cn(VALUE_CLASS, TONE_VALUE[tone])}>{value}</p>
+        <p className={cn(TITLE_CLASS, TONE_TEXT[shownTone])}>{title}</p>
+        {loading ? (
+          <TextLineSkeleton type="h2" className="w-24" />
+        ) : (
+          <p className={cn(VALUE_CLASS, TONE_VALUE[shownTone])}>{value}</p>
+        )}
       </div>
-      <p className={cn(CAPTION_CLASS, TONE_TEXT[tone])}>{caption}</p>
-      <UsageStatTrailing tone={tone}>{trailing}</UsageStatTrailing>
-    </div>
-  );
-}
-
-/** The card's top-right slot, the same loading and loaded (a static control: it is drawn for real while loading). */
-function UsageStatTrailing({ tone, children }: { tone: UsageStatTone; children: ReactNode }) {
-  if (!children) return null;
-  return (
-    <div className={cn('absolute right-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)]', TONE_TEXT[tone])}>
-      {children}
-    </div>
-  );
-}
-
-/**
- * The card while its figure is on its way: the title and the trailing control are fixed and stay real; the figure and
- * the caption (as query-dependent as the figure: a trial's end date, "Annual Prepaid", "Pay as you go") are bars.
- */
-function UsageStatCardSkeleton({ title, trailing }: { title: string; trailing?: ReactNode }) {
-  return (
-    <div className={cn(CARD_CLASS, TONE_CARD.default)}>
-      <div className="flex flex-col">
-        <p className={cn(TITLE_CLASS, TONE_TEXT.default)}>{title}</p>
-        <TextLineSkeleton type="h2" className="w-24" />
-      </div>
-      <TextLineSkeleton type="h6" className="w-32" />
-      <UsageStatTrailing tone="default">{trailing}</UsageStatTrailing>
+      {loading ? (
+        <TextLineSkeleton type="h6" className="w-32" />
+      ) : (
+        <p className={cn(CAPTION_CLASS, TONE_TEXT[shownTone])}>{caption}</p>
+      )}
+      {trailing && (
+        <div
+          className={cn(
+            'absolute right-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)]',
+            TONE_TEXT[shownTone],
+          )}
+        >
+          {trailing}
+        </div>
+      )}
     </div>
   );
 }

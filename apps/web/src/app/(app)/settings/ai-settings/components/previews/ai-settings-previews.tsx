@@ -10,6 +10,7 @@ import { AiSettingsPreviewModal, type PreviewPane } from './ai-settings-preview-
 import { FaeChatPreview } from './fae-chat-preview';
 import { FaeWelcomePreview } from './fae-welcome-preview';
 import { PREVIEW_THEME_CLASS } from './preview-theme';
+import { PREVIEW_FRAME_CLASS } from './scaled-preview-frame';
 
 interface AiSettingsPreviewsProps {
   /** Unread while loading (with `accentColor`). */
@@ -33,8 +34,8 @@ function AiSettingsPreviewsSkeleton() {
         {MOBILE_BUTTON_LABEL}
       </Button>
       <div className={THUMBNAILS_CLASS}>
-        <UnifiedSkeleton className="aspect-[1024/800] w-full rounded-md" />
-        <UnifiedSkeleton className="aspect-[1024/800] w-full rounded-md" />
+        <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
+        <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
       </div>
     </>
   );

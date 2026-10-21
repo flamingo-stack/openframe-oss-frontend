@@ -1,8 +1,8 @@
 'use client';
 
-import { InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { InteractiveSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import React from 'react';
 
@@ -46,15 +46,20 @@ export interface OnboardingAccordionItemProps {
    */
   id?: string;
   /**
-   * Loading state: renders the row frame exactly as an `active` step with its real
-   * (static) icon, title and description; only the trailing status control, the one
-   * thing that is read, is a skeleton, and the body is not mounted. Inside a loading
-   * scope the row switches to it by itself. @default false
+   * Loading state: renders the row frame with its real (static) icon, title and description; the trailing control
+   * keeps the box the loaded one has for the `status`/`next` the caller passes (a status tag and the chevron button,
+   * or the requirement hint's width), as skeletons. A collapsed body is not mounted; an expanded one is, and draws its
+   * own loading form. Inside a loading scope the row switches to it by itself. @default false
    */
   loading?: boolean;
   /** Expanded body. Not implemented yet — the step body is wired up later. */
   children?: React.ReactNode;
 }
+
+/** The trailing status tag + chevron group, loaded and loading. */
+const TRAILING_CLASS = 'flex shrink-0 items-center gap-[var(--spacing-system-s)]';
+/** The requirement hint of a locked step, loaded and loading. */
+const HINT_CLASS = 'shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6';
 
 /**
  * A single onboarding accordion row. Renders the header (icon, title, description and
@@ -134,16 +139,23 @@ export function OnboardingAccordionItem({
           <p className="text-ods-text-secondary text-h6">{description}</p>
         </div>
 
-        {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.
-            Status is the one thing the skeleton doesn't know, so only this control is a placeholder. */}
-        {loading ? (
-          <InteractiveSkeleton.Button size="icon" className="shrink-0" />
-        ) : isDisabled ? (
+        {/* Trailing: requirement hint (disabled) / status tag + chevron / chevron. While loading, the same box with
+            the read parts as skeletons. */}
+        {status === 'disabled' ? (
           requirementHint ? (
-            <p className="shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6">{requirementHint}</p>
+            loading ? (
+              <TextLineSkeleton type="h6" width={`${requirementHint.length}ch`} className={HINT_CLASS} />
+            ) : (
+              <p className={HINT_CLASS}>{requirementHint}</p>
+            )
           ) : null
+        ) : loading ? (
+          <div className={TRAILING_CLASS}>
+            {(status === 'completed' || next) && <Tag label="" loading />}
+            <InteractiveSkeleton.Button size="icon" />
+          </div>
         ) : (
-          <div className="flex shrink-0 items-center gap-[var(--spacing-system-s)]">
+          <div className={TRAILING_CLASS}>
             {isCompleted ? (
               <span className="flex h-8 items-center justify-center rounded-md bg-ods-success-secondary px-[var(--spacing-system-xsf)] text-ods-success text-h5">
                 Complete
@@ -173,9 +185,9 @@ export function OnboardingAccordionItem({
       </div>
 
       {/* Step body, animated via grid-rows 0fr→1fr. Not mounted for disabled steps, so a
-          locked step never runs its form's data hooks — nor while loading, so the skeleton
-          never mounts a step's (suspending) data hooks. */}
-      {!isDisabled && !loading && (
+          locked step never runs its form's data hooks — nor while a collapsed row loads. An
+          expanded row's body is drawn while loading: in the scope it draws its own loading form. */}
+      {!isDisabled && (!loading || expanded) && (
         <div
           // The auto-advance click anchor measures this wrapper (its height is the
           // row's visible body) to pre-subtract a collapsing row above the clicked

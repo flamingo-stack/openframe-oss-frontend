@@ -1,12 +1,12 @@
 'use client';
 
 import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { BackToLoginLink, PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ComponentProps, Suspense, useEffect, useState } from 'react';
-import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
-import { getPasswordError } from '@/app/(auth)/auth/constants/registration-validation';
+import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
+import { usePasswordPair } from '@/app/(auth)/auth/hooks/use-password-pair';
 import { noop } from '@/app/components/shared/no-next-page';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
@@ -30,9 +30,9 @@ const EMPTY_RESET_FORM = {
  */
 function PasswordResetView({ form, onBack = noop }: { form?: Partial<ResetFormProps>; onBack?: () => void }) {
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={onBack} />}>
+    <BackToLoginShell onBack={onBack}>
       <PasswordResetForm {...EMPTY_RESET_FORM} {...form} />
-    </StandaloneAuthShell>
+    </BackToLoginShell>
   );
 }
 
@@ -59,8 +59,7 @@ function PasswordResetContent() {
 
   const token = searchParams.get('token');
 
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { isValid, errors, ...pair } = usePasswordPair();
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -74,10 +73,6 @@ function PasswordResetContent() {
     }
   }, [token, router, toast]);
 
-  const passwordError = getPasswordError(password);
-  const isMismatch = !!confirmPassword && password !== confirmPassword;
-  const isValid = !passwordError && password === confirmPassword;
-
   const handleBack = () => router.push('/auth');
 
   const handleSubmit = async () => {
@@ -88,7 +83,7 @@ function PasswordResetContent() {
     try {
       const response = await authApiClient.confirmPasswordReset({
         token,
-        newPassword: password,
+        newPassword: pair.password,
       });
 
       if (!response.ok) {
@@ -123,19 +118,13 @@ function PasswordResetContent() {
     <PasswordResetView
       onBack={handleBack}
       form={{
-        password,
-        confirmPassword,
-        onPasswordChange: setPassword,
-        onConfirmPasswordChange: setConfirmPassword,
+        ...pair,
         onSubmit: handleSubmit,
         onCancel: handleBack,
         onBackToLogin: handleBack,
         submitDisabled: !isValid,
         loading: isLoading,
-        errors: {
-          password: password ? passwordError : undefined,
-          confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
-        },
+        errors,
       }}
     />
   );

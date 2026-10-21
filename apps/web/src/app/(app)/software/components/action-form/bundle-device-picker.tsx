@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   type DeviceSelectorNarrowing,
@@ -10,7 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -67,15 +67,9 @@ export function BundleDevicePicker({
         <ThrowError error={createError} />
       ) : (
         <LoadingWhen loading={!bundleId}>
-          <Suspense
-            fallback={
-              <LoadingFallback label="Loading devices">
-                <BundleDevicePickerLists bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
-              </LoadingFallback>
-            }
-          >
+          <LoadingSuspense label="Loading devices">
             <BundleDevicePickerLists bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
-          </Suspense>
+          </LoadingSuspense>
         </LoadingWhen>
       )}
     </ContentErrorBoundary>

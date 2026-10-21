@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { memo, Suspense } from 'react';
+import { memo } from 'react';
 import { SoftwareDetailContent } from './software-detail-content';
 import { SoftwareDetailTabs } from './software-detail-tabs';
 
@@ -37,15 +37,9 @@ export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({
       {/* While the record loads, and for the flag's own window: the title and the card in a loading scope, where
           each draws its own loading state and nothing fetches. */}
       <LoadingWhen loading={loading}>
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading software">
-              <SoftwareDetailContent softwareId={softwareId} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading software">
           <SoftwareDetailContent softwareId={softwareId} />
-        </Suspense>
+        </LoadingSuspense>
       </LoadingWhen>
 
       {/* `TabNavigation` renders as a fragment, so its bar and its body are

@@ -1,5 +1,5 @@
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { isEmptyValue } from '@/lib/empty-value';
 import { EmptyValue } from './empty-value';
@@ -15,7 +15,9 @@ import { EmptyValue } from './empty-value';
  * - `<InfoCell value="example.com" label="Website" href="https://example.com" />`
  *
  * Loading: in a loading scope (or with `loading`) the cell draws itself with its label real and its value a text bar
- * of the value's own line (`skeletonWidth`), the icon slot kept. Callers render the cell, never a copy of it.
+ * of the value's own line (`skeletonWidth`). The icon and a non-text value (`valueSkeleton`) are drawn in a loading
+ * scope, so a caller passes the REAL component (a status tag, an icon that switches itself) and it draws its own
+ * skeleton. Callers render the cell, never a copy of it.
  */
 export interface InfoCellProps {
   /** The value — missing, blank or a formatter's empty mark draws the muted empty mark, so callers pass the raw field. */
@@ -29,7 +31,8 @@ export interface InfoCellProps {
   loading?: boolean;
   /** The value bar's width while loading (a Tailwind width class). */
   skeletonWidth?: string;
-  /** The value's own loading shape when it is not text (a `TagSkeleton` for a status chip). */
+  /** The value while it loads when it is not text: the REAL component (a status tag) with no data, drawn in a loading
+   *  scope where it draws its own skeleton. */
   valueSkeleton?: React.ReactNode;
   /** The label is read too (a date under an identifier): while loading it is a text bar of this width. */
   labelSkeletonWidth?: string;
@@ -50,22 +53,24 @@ export function InfoCell({
   const content = (
     <div className={`flex min-w-0 flex-1 flex-col justify-center ${className ?? ''}`}>
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        {icon && <span className="shrink-0">{icon}</span>}
-        {isLoading ? (
-          <div className="min-w-0 flex-1">
-            {valueSkeleton ?? <TextLineSkeleton type="h4" className={skeletonWidth} />}
-          </div>
-        ) : isEmptyValue(value) ? (
-          <div className="min-w-0 flex-1 text-h4">
-            <EmptyValue />
-          </div>
-        ) : typeof value === 'string' ? (
-          <div className="min-w-0 flex-1">
-            <TruncateText>{value}</TruncateText>
-          </div>
-        ) : (
-          <div className="truncate text-ods-text-primary text-h4">{value}</div>
-        )}
+        <LoadingWhen loading={isLoading}>
+          {icon && <span className="shrink-0">{icon}</span>}
+          {isLoading ? (
+            <div className="min-w-0 flex-1">
+              {valueSkeleton ?? <TextLineSkeleton type="h4" className={skeletonWidth} />}
+            </div>
+          ) : isEmptyValue(value) ? (
+            <div className="min-w-0 flex-1 text-h4">
+              <EmptyValue />
+            </div>
+          ) : typeof value === 'string' ? (
+            <div className="min-w-0 flex-1">
+              <TruncateText>{value}</TruncateText>
+            </div>
+          ) : (
+            <div className="truncate text-ods-text-primary text-h4">{value}</div>
+          )}
+        </LoadingWhen>
       </div>
       {isLoading && labelSkeletonWidth ? (
         <TextLineSkeleton type="h6" className={labelSkeletonWidth} />

@@ -1,13 +1,12 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantDetailContentQuery as TenantDetailContentQueryType } from '@/__generated__/tenantDetailContentQuery.graphql';
 import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
@@ -53,8 +52,8 @@ const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
 /**
  * Everything on the details page that waits for the record. In a loading scope (the view's Suspense fallback, or
  * the module's flag window) it draws the title as a bar and the card with its labels real and its values as bars,
- * the shape both states share, and does not fetch. What follows the card (the consent hand-off of a tenant still
- * to connect, or the integration rows of a connected one) is the record's answer, so nothing stands in for it.
+ * the shape both states share, and does not fetch. Under the card it draws the integration section of a connected
+ * tenant (the typical record); a tenant still to connect replaces it with the consent hand-off on arrival.
  *
  * The actions are placeholders: Reconnect and Edit are links to a record the query has not confirmed yet — an
  * unknown id settles into "Tenant not found" with no actions.
@@ -66,6 +65,8 @@ export function TenantDetailContent(props: TenantDetailContentProps) {
         <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
         <div className={BODY_CLASS}>
           <TenantSummaryCard connection={null} />
+          {/* The connected tenant's section: most records on this page are connected. */}
+          <TenantIntegrationSection id={props.id} provider={null} />
         </div>
       </>
     );
@@ -106,15 +107,9 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
           <ContentErrorBoundary
             fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
           >
-            <Suspense
-              fallback={
-                <LoadingFallback label="Loading integration">
-                  <TenantIntegrationSection id={connection.id} provider={connection.provider} />
-                </LoadingFallback>
-              }
-            >
+            <LoadingSuspense label="Loading integration">
               <TenantIntegrationSection id={connection.id} provider={connection.provider} />
-            </Suspense>
+            </LoadingSuspense>
           </ContentErrorBoundary>
         ) : (
           <ConsentBlock

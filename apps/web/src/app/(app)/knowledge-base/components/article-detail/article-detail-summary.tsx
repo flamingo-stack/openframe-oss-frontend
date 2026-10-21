@@ -119,7 +119,7 @@ export function ArticleDetailSummary({ article }: { article: articleDetailSummar
             className={CELL_CLASSES}
             label={LABELS.status}
             value={<Tag variant={ARTICLE_STATUS_VARIANT[articleStatus]} label={articleStatus} />}
-            valueSkeleton={<Tag label="" loading />}
+            valueSkeleton={<Tag label="" />}
           />
         }
       />

@@ -1,7 +1,12 @@
 'use client';
 
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LoadingWhen,
+  SquareAvatar,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
@@ -39,23 +44,6 @@ export function toInitiator(node: InitiatorNode | null | undefined): Initiator {
     initials: initiatorInitials(node),
     image: getFullImageUrl(node?.image?.imageUrl, node?.image?.hash),
     deleted: isDeletedUserStatus(node?.status),
-  };
-}
-
-/** A table row's flattened initiator fields (the executions and the runs rows carry the same ones). */
-export function rowInitiator(row: {
-  initiatorId: string;
-  initiatorName: string;
-  initiatorInitials: string;
-  initiatorImage?: string;
-  initiatorDeleted: boolean;
-}): Initiator {
-  return {
-    id: row.initiatorId,
-    name: row.initiatorName,
-    initials: row.initiatorInitials,
-    image: row.initiatorImage,
-    deleted: row.initiatorDeleted,
   };
 }
 
@@ -130,7 +118,9 @@ export function InitiatorName({ initiator, inRow = false, loading: loadingProp }
 export function InitiatorIdentity({ initiator, size, inRow, loading }: InitiatorNameProps & { size: 'sm' | 'md' }) {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
-      <InitiatorAvatar initiator={initiator} size={size} />
+      <LoadingWhen loading={!!loading}>
+        <InitiatorAvatar initiator={initiator} size={size} />
+      </LoadingWhen>
       <div className="flex min-w-0 flex-1">
         <InitiatorName initiator={initiator} inRow={inRow} loading={loading} />
       </div>

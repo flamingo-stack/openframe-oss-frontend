@@ -1,11 +1,11 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import type { SelectableTag } from '@/app/components/shared';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -124,12 +124,12 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
         )}
 
         {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <Suspense fallback={<LoadingFallback label="Loading articles">{rows}</LoadingFallback>}>{rows}</Suspense>
+        <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
       </div>
 
       {/* Beside the toolbar, not inside it: the bar is a stacking context (`sticky` + `z-20`),
           and a modal inside it could never rise above the app header. */}
-      <Suspense fallback={<LoadingFallback label="Loading tags">{tagsModal}</LoadingFallback>}>{tagsModal}</Suspense>
+      <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
 
       <AssignArticleModal
         target={target}

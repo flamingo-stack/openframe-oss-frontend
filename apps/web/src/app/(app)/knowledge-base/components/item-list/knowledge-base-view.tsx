@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useState } from 'react';
@@ -131,7 +131,7 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
         )}
 
         {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <Suspense fallback={<LoadingFallback label="Loading articles">{rows}</LoadingFallback>}>{rows}</Suspense>
+        <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
       </div>
 
       <NewFolderModal isOpen={isNewFolderOpen} onClose={() => setIsNewFolderOpen(false)} parentId={folderId} />

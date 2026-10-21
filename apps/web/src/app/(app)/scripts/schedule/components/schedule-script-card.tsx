@@ -1,12 +1,12 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { routes } from '@/lib/routes';
 import { prewarmScriptEditor, ScriptEditor } from '../../shared/components/script-editor';
 import {
@@ -150,25 +150,18 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
           isExpanded && 'bg-ods-bg',
         )}
       >
-        <div className="flex min-w-0 flex-1 flex-col justify-center">
-          {script ? <TruncateText>{script.name}</TruncateText> : <TextLineSkeleton type="h4" className="w-44" />}
-          <span className="truncate text-ods-text-secondary text-h6">Script</span>
-        </div>
+        <InfoCell value={script?.name} label="Script" loading={loading} skeletonWidth="w-44" />
 
         {/* `contents` on mobile: the wrapper exists only to make the right half a
             single flex child on desktop. Dissolving it below `md` lets Timeout
             share the row's width with Name evenly, as the mobile mock has it. */}
         <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            {script ? (
-              <span className="truncate text-ods-text-primary text-h4">
-                {script.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} Seconds
-              </span>
-            ) : (
-              <TextLineSkeleton type="h4" className="w-24" />
-            )}
-            <span className="truncate text-ods-text-secondary text-h6">Timeout</span>
-          </div>
+          <InfoCell
+            value={`${script?.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} Seconds`}
+            label="Timeout"
+            loading={loading}
+            skeletonWidth="w-24"
+          />
 
           <Button variant="outline" onClick={handleScriptDetails} disabled={loading} className="hidden content-md:flex">
             Script Details

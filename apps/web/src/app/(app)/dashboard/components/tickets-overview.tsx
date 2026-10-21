@@ -67,5 +67,3 @@ export function TicketsOverview({ tickets }: { tickets?: TicketsOverviewData }) 
     </LoadingRegion>
   );
 }
-
-export default TicketsOverviewSection;

@@ -4,9 +4,9 @@ import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
+import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { EMPTY_CARD, labelsOf } from './info-card-loading';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface OsTabProps {

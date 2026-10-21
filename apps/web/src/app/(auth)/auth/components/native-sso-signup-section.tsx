@@ -1,11 +1,9 @@
 'use client';
 
-import { type AuthSsoProvider, PROVIDER_META } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Button, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
-import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
-import { noop } from '@/app/components/shared/no-next-page';
+import { SsoOrganizationSetup, type SsoSetupIdentity } from '@/app/(auth)/auth/components/sso-organization-setup';
 import { authApiClient } from '@/lib/auth-api-client';
 import {
   appleIdentityEmail,
@@ -15,15 +13,6 @@ import {
   type PendingSsoSignup,
 } from '@/lib/native-login';
 import { markPendingSignup } from '@/lib/posthog/posthog-events';
-
-/** The authorization server's id for the built-in provider; the design system calls it `openframe`. */
-const OPENFRAME_SSO_ID = 'openframe-sso';
-
-/** Display name for a provider id from either the design system or the authorization server. */
-export function ssoProviderLabel(provider: string): string {
-  const key = (provider === OPENFRAME_SSO_ID ? 'openframe' : provider) as AuthSsoProvider;
-  return PROVIDER_META[key]?.name ?? provider;
-}
 
 interface NativeSsoSignupSectionProps {
   /** The verified identity, in whichever form the flow returned it. Memory-only. */
@@ -36,11 +25,6 @@ interface NativeSsoSignupSectionProps {
    * page this section already renders AT `/auth/login`, so replacing that route is a no-op.
    */
   onExit: () => void;
-}
-
-interface Identity {
-  email?: string;
-  provider: string;
 }
 
 /**
@@ -60,7 +44,7 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
   const { toast } = useToast();
 
   // Apple's identity is in hand; a ticket's has to be fetched first.
-  const [identity, setIdentity] = useState<Identity | null>(
+  const [identity, setIdentity] = useState<SsoSetupIdentity | null>(
     pending.kind === 'apple' ? { email: appleIdentityEmail(pending.credential), provider: 'apple' } : null,
   );
   // Set once Apple's authorization code has been consumed by a failed register. Apple will not
@@ -139,25 +123,10 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
     );
   }
 
-  if (!identity) {
-    // The identity is still read: the same form in a loading scope, drawing its own loading state.
-    return (
-      <LoadingWhen loading>
-        <SsoOrganizationSetup subtitle="" email="" emailReadOnlyLabel="" onSubmit={noop} onBack={onExit} />
-      </LoadingWhen>
-    );
-  }
-
-  const label = ssoProviderLabel(identity.provider);
-
   return (
-    <SsoOrganizationSetup
-      subtitle={identity.email ? `Continuing as ${identity.email} via ${label}.` : `Continuing via ${label}.`}
-      email={identity.email}
-      emailReadOnlyLabel={`Signed in with ${label}`}
-      onSubmit={handleSubmit}
-      isSubmitting={isRegistering}
-      onBack={onExit}
-    />
+    // One form, loaded or not: while the identity is read it draws its own loading state.
+    <LoadingWhen loading={!identity}>
+      <SsoOrganizationSetup identity={identity} onSubmit={handleSubmit} isSubmitting={isRegistering} onBack={onExit} />
+    </LoadingWhen>
   );
 }

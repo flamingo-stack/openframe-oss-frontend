@@ -100,13 +100,11 @@ function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
  * It is dropped once the answer says the script has no body — that is the one
  * case where the block does not belong on the page at all.
  *
- * The cards draw nothing while loading, deliberately. Both are optional and independent
- * — plenty of scripts take neither arguments nor environment variables — so a
- * skeleton there promises rows that may never come and then collapses, shoving
- * the editor up by its own height. A placeholder is only owed to content that is
- * certain to arrive; for the rest the honest wait is nothing at all. Nothing is
- * lost by it either: the cards and the script body land in the SAME answer, so
- * they appear in the frame where the editor fills in.
+ * The cards draw nothing while loading, deliberately, and sit BELOW the editor.
+ * Both are optional and independent — plenty of scripts take neither arguments
+ * nor environment variables — so a skeleton there promises rows that may never
+ * come. Placed under the editor, their arrival pushes nothing that was already
+ * drawn: an optional part never sits above what it would move.
  *
  * `memo` for the reason given in `script-detail-tabs.ts`.
  */
@@ -117,6 +115,13 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)] pt-[var(--spacing-system-l)]">
+      {(isLoading || source) && (
+        <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="w-full text-ods-text-secondary text-h5">Syntax</div>
+          <ScriptEditor value={source?.body ?? ''} shell={source?.shell} readOnly height="400px" loading={isLoading} />
+        </div>
+      )}
+
       <Suspense
         fallback={
           <LoadingFallback label="Loading script details">
@@ -126,13 +131,6 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
       >
         <ScriptParamCards scriptId={scriptId} onResolved={setState} />
       </Suspense>
-
-      {(isLoading || source) && (
-        <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          <div className="w-full text-ods-text-secondary text-h5">Syntax</div>
-          <ScriptEditor value={source?.body ?? ''} shell={source?.shell} readOnly height="400px" loading={isLoading} />
-        </div>
-      )}
     </div>
   );
 });

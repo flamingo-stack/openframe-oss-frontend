@@ -2,7 +2,7 @@
 
 import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
@@ -75,13 +75,7 @@ export function SubscriptionSettingsView() {
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading plans">
-              <PaywallBody copy={copy} query={null} />
-            </LoadingFallback>
-          }
-        >
+        <Suspense fallback={<PaywallLoading copy={copy} />}>
           <SubscriptionSettingsContent copy={copy} />
         </Suspense>
       </ErrorBoundary>
@@ -95,10 +89,17 @@ export function SubscriptionSettingsLoading() {
 
   return (
     <PageLayout className={PAGE_CLASS_NAME} showHeader={false}>
-      <LoadingWhen loading>
-        <PaywallBody copy={getPaywallCopy(status)} query={null} />
-      </LoadingWhen>
+      <PaywallLoading copy={getPaywallCopy(status)} />
     </PageLayout>
+  );
+}
+
+/** The paywall before the catalog answers (or its gates resolve): the one body, drawn in a loading scope. */
+function PaywallLoading({ copy }: { copy: PaywallCopy }) {
+  return (
+    <LoadingFallback label="Loading plans">
+      <PaywallBody copy={copy} query={null} />
+    </LoadingFallback>
   );
 }
 

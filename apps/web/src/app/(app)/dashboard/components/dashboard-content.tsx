@@ -1,6 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { InitialSetupCard } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
@@ -39,8 +40,11 @@ export function DashboardOverviews({ live = false }: { live?: boolean }) {
   // never dimmed. Gated, and the card rendered only once the flag answers `off`:
   // a v2 workspace must not see the old card for a frame.
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
-  const legacySetup = onboardingV2 === 'off';
-  const dimDashboard = useInitialSetupActive() && legacySetup;
+  // While the flag is read, its likely answer's slot is reserved: the flag reads as off wherever it is not
+  // registered, so the legacy card's slot, drawn in its loading form (it never mounts its content, so a v2
+  // workspace never sees the old card) and empty when the store says setup is done.
+  const legacySetup = onboardingV2 !== 'on';
+  const dimDashboard = useInitialSetupActive() && onboardingV2 === 'off';
 
   return (
     <>
@@ -56,7 +60,9 @@ export function DashboardOverviews({ live = false }: { live?: boolean }) {
           `useDeviceOrganizations`) and draws its own loading state while they load. */}
       {legacySetup && (
         <div className={ONBOARDING_WRAPPER_CLASS}>
-          <InitialSetupCard />
+          <LoadingWhen loading={onboardingV2 === 'loading'}>
+            <InitialSetupCard />
+          </LoadingWhen>
         </div>
       )}
       <div

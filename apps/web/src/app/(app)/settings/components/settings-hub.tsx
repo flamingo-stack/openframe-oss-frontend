@@ -46,12 +46,6 @@ interface SettingsNavItem {
 
 const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
-    href: routes.settings.billingUsage(),
-    icon: PiggyBankIcon,
-    title: 'Billing & Usage',
-    description: 'Subscription details, usage data, and payment settings',
-  },
-  {
     href: routes.settings.aiSettings(),
     icon: ShieldCheckIcon,
     title: 'Guardrails & AI Settings',
@@ -95,6 +89,14 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: 'Device logs across every device in your workspace',
     badge: 'Beta',
   },
+  // LAST on purpose: it is the one cell whose presence waits on an answer (the flag and the caller's role). Drawn while
+  // the gates load, it is the cell that leaves when they say no, and nothing after it re-flows.
+  {
+    href: routes.settings.billingUsage(),
+    icon: PiggyBankIcon,
+    title: 'Billing & Usage',
+    description: 'Subscription details, usage data, and payment settings',
+  },
 ];
 
 /**
@@ -112,9 +114,8 @@ const USAGE_MENU_ITEM = {
 export function SettingsHub() {
   const { toast } = useToast();
   const billingHidden = isBillingHidden();
-  // Tri-state, not booleans: these are the conditional cells in the grid and Billing is
-  // the FIRST one, so treating "not answered yet" as "hide it" dropped a cell and
-  // re-flowed every card after it the moment the answers landed.
+  // Tri-state, not booleans: Billing is the conditional cell in the grid (the LAST one), so the loading grid draws it
+  // and a "no" drops only the final cell.
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();

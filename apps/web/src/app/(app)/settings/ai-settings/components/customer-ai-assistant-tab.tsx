@@ -8,12 +8,22 @@ import {
   LoadingWhen,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Controller } from 'react-hook-form';
+import type { BaseSyntheticEvent } from 'react';
+import { Controller, type UseFormReturn, useForm } from 'react-hook-form';
+import { noop } from '@/app/components/shared';
 import { type CommitAvatar, useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
-import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
-import type { AgentAiConfig, ClientView } from '../types/ai-settings';
-import { CUSTOMER_AI_ASSISTANT_FORM_ID, type CustomerAiAssistantSubmit } from '../types/customer-ai-assistant.types';
+import {
+  getProviderModelLabel,
+  type SupportedModelsByProvider,
+  useSupportedModels,
+} from '../hooks/use-supported-models';
+import type { AgentAiConfig, AiQuickAction, ClientView } from '../types/ai-settings';
+import {
+  CUSTOMER_AI_ASSISTANT_FORM_ID,
+  type CustomerAiAssistantFormValues,
+  type CustomerAiAssistantSubmit,
+} from '../types/customer-ai-assistant.types';
 import { AiAnswerStyleFields, AiProviderModelFields } from './ai-config-fields';
 import { AiSettingsOverview } from './ai-settings-overview';
 import { ASSISTANT_QUICK_ACTIONS_CONFIG } from './ai-settings-quick-actions';
@@ -31,12 +41,12 @@ interface CustomerAiAssistantTabProps {
 }
 
 export function CustomerAiAssistantTab({ aiConfig, view, ...props }: CustomerAiAssistantTabProps) {
-  // The form below is seeded once from the configuration, so it mounts only when that is in hand. Loading: the
-  // read-only overview, every part its own skeleton.
+  // The form below is seeded once from the configuration, so it mounts only when that is in hand. Until then the tab
+  // the user asked for (the editor on an edit deep link, else the read-only overview) draws itself in a loading scope.
   if (useLoadingScope() || aiConfig == null || view == null) {
     return (
       <LoadingWhen loading>
-        <AiSettingsOverview />
+        {props.isEditMode ? <CustomerAiAssistantLoadingEditor /> : <AiSettingsOverview />}
       </LoadingWhen>
     );
   }
@@ -57,11 +67,6 @@ function CustomerAiAssistantTabContent({
 
   const { modelsByProvider } = useSupportedModels();
 
-  const llmProvider = form.watch('llmProvider');
-  const answerStyle = form.watch('answerStyle');
-  const assistantName = form.watch('assistantName');
-  const accentColor = form.watch('accentColor');
-
   // OpenFrame defaults come straight from the Product Hub (the BE stores only
   // customs); shown in view mode and as the editor's dimmed preview/seed.
   const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug);
@@ -79,9 +84,65 @@ function CustomerAiAssistantTabContent({
   }
 
   return (
+    <CustomerAiAssistantEditor
+      form={form}
+      view={view}
+      modelsByProvider={modelsByProvider}
+      defaultActions={hubDefaults.actions}
+      avatarUrl={avatarUrl}
+      onAvatarChange={handleAvatarChange}
+      onAvatarRemove={handleAvatarRemove}
+      onSubmit={handleSubmit}
+    />
+  );
+}
+
+/** The editor before the configuration is read: the same form, unseeded, every field drawing its own loading state. */
+function CustomerAiAssistantLoadingEditor() {
+  const form = useForm<CustomerAiAssistantFormValues>();
+  return (
+    <CustomerAiAssistantEditor
+      form={form}
+      view={null}
+      modelsByProvider={undefined}
+      defaultActions={[]}
+      avatarUrl={undefined}
+      onAvatarChange={noop}
+      onAvatarRemove={noop}
+      onSubmit={event => event?.preventDefault()}
+    />
+  );
+}
+
+function CustomerAiAssistantEditor({
+  form,
+  view,
+  modelsByProvider,
+  defaultActions,
+  avatarUrl,
+  onAvatarChange,
+  onAvatarRemove,
+  onSubmit,
+}: {
+  form: UseFormReturn<CustomerAiAssistantFormValues>;
+  /** `null` while the configuration loads. */
+  view: ClientView | null;
+  modelsByProvider: SupportedModelsByProvider | undefined;
+  defaultActions: AiQuickAction[];
+  avatarUrl: string | undefined;
+  onAvatarChange: (file: File) => void;
+  onAvatarRemove: () => void;
+  onSubmit: (event?: BaseSyntheticEvent) => void;
+}) {
+  const llmProvider = form.watch('llmProvider');
+  const answerStyle = form.watch('answerStyle');
+  const assistantName = form.watch('assistantName');
+  const accentColor = form.watch('accentColor');
+
+  return (
     <form
       id={CUSTOMER_AI_ASSISTANT_FORM_ID}
-      onSubmit={handleSubmit}
+      onSubmit={onSubmit}
       className="flex flex-col gap-[var(--spacing-system-l)] content-max-md:[&_input]:!text-[14px] content-max-md:[&_textarea]:!text-[14px]"
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)] content-md:flex-row content-md:items-start">
@@ -106,10 +167,10 @@ function CustomerAiAssistantTabContent({
           <ImageUploader
             fieldLabel="Assistant Avatar"
             value={avatarUrl}
-            onChange={handleAvatarChange}
-            onRemove={handleAvatarRemove}
+            onChange={onAvatarChange}
+            onRemove={onAvatarRemove}
             className="[&>div]:!h-[154px] content-md:[&>div]:!h-[148px] [&_button]:size-10 [&_button]:p-2 content-md:[&_button]:size-12 content-md:[&_button]:p-3"
-            alt={view.assistantName}
+            alt={view?.assistantName}
           />
         </div>
       </div>
@@ -130,9 +191,9 @@ function CustomerAiAssistantTabContent({
         </div>
 
         <AiSettingsPreviews
-          assistantName={assistantName || view.assistantName}
+          assistantName={assistantName || view?.assistantName}
           avatarUrl={avatarUrl}
-          accentColor={accentColor || view.accentColor}
+          accentColor={accentColor || view?.accentColor}
         />
       </div>
 
@@ -142,8 +203,8 @@ function CustomerAiAssistantTabContent({
         control={form.control}
         title="Assistant Quick Actions"
         agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
-        defaultActions={hubDefaults.actions}
-        accent={accentColor || view.accentColor}
+        defaultActions={defaultActions}
+        accent={accentColor || view?.accentColor}
         className="mt-8"
       />
     </form>

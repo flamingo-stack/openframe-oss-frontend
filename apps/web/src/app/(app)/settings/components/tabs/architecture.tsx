@@ -13,6 +13,12 @@ interface ArchitectureTabProps {
   title?: string;
 }
 
+/**
+ * Layers the loading page draws. The layers are free text on each tool and not paged, so there is no page size: this is
+ * a typical count (a deployment's catalog groups its tools into a few layers), not a claim about how many exist.
+ */
+const ARCHITECTURE_SKELETON_LAYERS = 3;
+
 export function ArchitectureTab({ title = 'Architecture Overview' }: ArchitectureTabProps) {
   const handleBack = useSafeBack(routes.settings.root());
   const { tools, isLoading, fetchIntegratedTools } = useIntegratedTools();
@@ -67,11 +73,11 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
         />
       </div>
       <LoadingWhen loading={isLoading}>
-        {isLoading ? (
-          <ArchitectureLayer layer={null} tools={[]} />
-        ) : (
-          layerOrder.map(layer => <ArchitectureLayer key={layer} layer={layer} tools={grouped[layer]} />)
-        )}
+        {isLoading
+          ? Array.from({ length: ARCHITECTURE_SKELETON_LAYERS }, (_, i) => (
+              <ArchitectureLayer key={i} layer={null} tools={[]} />
+            ))
+          : layerOrder.map(layer => <ArchitectureLayer key={layer} layer={layer} tools={grouped[layer]} />)}
       </LoadingWhen>
     </PageLayout>
   );

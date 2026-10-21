@@ -16,7 +16,9 @@ export interface CustomerInfoCellProps {
 /**
  * The "Customer ID (Site)" cell of the device card and of a recording's meta card: the customer's logo beside an
  * `InfoCell` whose value links to the customer. In its record's loading scope the logo and the cell draw their own
- * loading states; a record with no customer reads the empty mark, with no logo.
+ * loading states; a record with no customer reads the empty mark, with no logo. Most records have a customer, so the
+ * logo is drawn while loading; for one that has none the logo leaves, which moves the value sideways only (the logo is
+ * no taller than the cell's row, so no height changes).
  */
 export function CustomerInfoCell({ customer }: CustomerInfoCellProps) {
   const loading = useLoadingScope();

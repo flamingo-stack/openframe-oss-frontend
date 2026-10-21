@@ -8,7 +8,7 @@ import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetails_log$key } from '@/__generated__/logDrawerDetails_log.graphql';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
+import { formatLogDetailsRefForCopy, LOG_DETAILS_COPY_LINE_COUNT } from '../utils/format-log-details';
 
 /** The composite key `logDetails` takes; the row carries it, the full log does not ride along. */
 const logDrawerDetailsFragment = graphql`
@@ -63,13 +63,10 @@ function LogDrawerDetailsContent({ variables, fallback }: LogDrawerDetailsConten
   return <LogDrawerDetailsText text={formatLogDetailsRefForCopy(log)} />;
 }
 
-/** A typical log's details length, drawn while it loads (the details are unbounded). */
-const LOG_DRAWER_DETAILS_SKELETON_LINES = 3;
-
-/** The details text; without it (still loading, or in a loading scope) a typical block of lines. */
+/** The details text; without it (still loading, or in a loading scope) one line per line the formatter writes. */
 function LogDrawerDetailsText({ text }: { text?: string }) {
   if (useLoadingScope() || text === undefined) {
-    return <TextLineSkeleton type="inherit" lines={LOG_DRAWER_DETAILS_SKELETON_LINES} />;
+    return <TextLineSkeleton type="inherit" lines={LOG_DETAILS_COPY_LINE_COUNT} />;
   }
   return <div className="whitespace-pre-wrap break-words">{text}</div>;
 }

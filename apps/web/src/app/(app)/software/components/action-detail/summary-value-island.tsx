@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { EmptyValue } from '@/app/components/shared';
 
 /**
@@ -12,7 +12,7 @@ import { EmptyValue } from '@/app/components/shared';
 export function SummaryValueIsland({ label, children }: { label: string; children: ReactNode }) {
   return (
     <ErrorBoundary fallback={<EmptyValue />}>
-      <Suspense fallback={<LoadingFallback label={label}>{children}</LoadingFallback>}>{children}</Suspense>
+      <LoadingSuspense label={label}>{children}</LoadingSuspense>
     </ErrorBoundary>
   );
 }

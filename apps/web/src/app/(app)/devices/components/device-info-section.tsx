@@ -27,19 +27,17 @@ function formatDateWithTime(iso?: string): React.ReactNode {
   );
 }
 
-/** A row's frame: the cells side by side at the row's height. */
-const ROW_FRAME_CLASS =
-  'flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] content-md:min-h-20';
+/** What every row shares: its cells centred, the card's side padding. */
+const ROW_BASE_CLASS = 'items-center px-[var(--spacing-system-m)]';
+const DIVIDER_CLASS = 'border-b border-ods-border';
+/** The UUID row closes the card: a row without its divider. */
+const CLOSING_ROW_CLASS = `flex min-h-14 gap-[var(--spacing-system-m)] content-md:min-h-20 ${ROW_BASE_CLASS}`;
 /** A row of the card: two cells below lg, four at lg+. */
-const ROW_CLASS = `${ROW_FRAME_CLASS} border-b border-ods-border`;
-/** The UUID row closes the card: the row without its divider. */
-const LAST_ROW_CLASS = ROW_FRAME_CLASS;
+const ROW_CLASS = `${CLOSING_ROW_CLASS} ${DIVIDER_CLASS}`;
 /** Mobile (< md): one full-width cell per row, so its divider reaches the card edges. */
-const MOBILE_SINGLE_ROW_CLASS =
-  'flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden';
+const MOBILE_SINGLE_ROW_CLASS = `flex min-h-14 gap-[var(--spacing-system-xs)] content-md:hidden ${ROW_BASE_CLASS} ${DIVIDER_CLASS}`;
 /** Tablet (md to lg): customer + added-by in one horizontal row. */
-const TABLET_PAIR_ROW_CLASS =
-  'hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] content-md:flex content-md:items-center content-md:gap-[var(--spacing-system-m)]';
+const TABLET_PAIR_ROW_CLASS = `hidden min-h-20 gap-[var(--spacing-system-m)] content-md:flex ${ROW_BASE_CLASS} ${DIVIDER_CLASS}`;
 const CARD_CLASS = 'flex flex-col rounded-md border border-ods-border bg-ods-card';
 /** Icons: 16px on mobile, 24px on tablet+ (matches the responsive design). */
 const ICON_SIZE = 'w-4 h-4 content-md:w-6 content-md:h-6';
@@ -68,17 +66,20 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const serialNumber = device?.serialNumber || device?.serial_number;
   const uuid = device?.osUuid || device?.machineId || device?.id;
 
-  // Cells defined once and reused across both responsive layouts below.
-  const typeIcon = device ? (
-    renderDeviceTypeIcon(device.type, `${ICON_SIZE} text-ods-text-secondary`)
-  ) : (
-    <MediaSkeleton.Icon className={ICON_SIZE} />
-  );
-  const osIcon = device ? (
-    <OSTypeIcon osType={device.osType || device.platform} size={OS_ICON_SIZE} />
-  ) : (
-    <MediaSkeleton.Icon className={OS_ICON_SIZE} />
-  );
+  // Cells defined once and reused across both responsive layouts below. The icons are drawn from the device, so while
+  // it is read (the loading scope) each is a placeholder of its own size.
+  const typeIcon =
+    !loading && device ? (
+      renderDeviceTypeIcon(device.type, `${ICON_SIZE} text-ods-text-secondary`)
+    ) : (
+      <MediaSkeleton.Icon className={ICON_SIZE} />
+    );
+  const osIcon =
+    !loading && device ? (
+      <OSTypeIcon osType={device.osType || device.platform} size={OS_ICON_SIZE} />
+    ) : (
+      <MediaSkeleton.Icon className={OS_ICON_SIZE} />
+    );
 
   // The original device name — with a nickname in the page title, this cell is
   // where the hostname stays visible alongside the custom name.
@@ -163,7 +164,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {registeredCell}
           {updatedCell}
         </div>
-        <div className={LAST_ROW_CLASS}>{uuidCell}</div>
+        <div className={CLOSING_ROW_CLASS}>{uuidCell}</div>
       </div>
 
       {/* ===== Desktop (lg+) — a grid of 4 columns ===== */}
@@ -190,7 +191,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
           {emptyCell}
         </div>
         {/* Row 4: UUID */}
-        <div className={LAST_ROW_CLASS}>{uuidCell}</div>
+        <div className={CLOSING_ROW_CLASS}>{uuidCell}</div>
       </div>
     </div>
   );

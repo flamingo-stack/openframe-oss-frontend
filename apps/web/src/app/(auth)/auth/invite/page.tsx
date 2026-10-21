@@ -3,21 +3,20 @@
 import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type AuthSsoProvider,
-  BackToLoginLink,
   CompleteAccountForm,
   InviteLinkInvalidModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ComponentProps, type ReactNode, Suspense, useState } from 'react';
-import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
+import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import {
-  getPasswordError,
   isValidPersonName,
   normalizePersonName,
   PERSON_NAME_ERROR,
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
+import { usePasswordPair } from '@/app/(auth)/auth/hooks/use-password-pair';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { noop } from '@/app/components/shared/no-next-page';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
@@ -69,10 +68,10 @@ function InviteView({
   children?: ReactNode;
 }) {
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={onBack} />}>
+    <BackToLoginShell onBack={onBack}>
       <CompleteAccountForm {...EMPTY_INVITE_FORM} {...form} />
       {children}
-    </StandaloneAuthShell>
+    </BackToLoginShell>
   );
 }
 
@@ -83,7 +82,7 @@ export default function InvitePage() {
     <Suspense
       fallback={
         <LoadingFallback label="Loading your invitation">
-          <InviteView form={{ loading: true }} />
+          <InviteView form={{ loading: true, ssoProvidersLoading: true }} />
         </LoadingFallback>
       }
     >
@@ -101,8 +100,7 @@ function InviteContent() {
   const { providers, loading, error } = useInviteProviders(invitationId);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { isValid: passwordsValid, errors: passwordErrors, ...pair } = usePasswordPair();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTenantSwitch, setShowTenantSwitch] = useState(false);
 
@@ -111,10 +109,7 @@ function InviteContent() {
 
   const handleBack = () => router.push('/auth');
 
-  const passwordError = getPasswordError(password);
-  const isMismatch = !!confirmPassword && password !== confirmPassword;
-  const isValid =
-    isValidPersonName(firstName) && isValidPersonName(lastName) && !passwordError && password === confirmPassword;
+  const isValid = isValidPersonName(firstName) && isValidPersonName(lastName) && passwordsValid;
 
   const handleSubmit = async (switchTenant = false) => {
     if (!invitationId || !isValid) return;
@@ -125,7 +120,7 @@ function InviteContent() {
         invitationId,
         firstName: normalizePersonName(firstName),
         lastName: normalizePersonName(lastName),
-        password,
+        password: pair.password,
         switchTenant,
       });
 
@@ -201,22 +196,20 @@ function InviteContent() {
       form={{
         firstName,
         lastName,
-        password,
-        confirmPassword,
+        ...pair,
         onFirstNameChange: setFirstName,
         onLastNameChange: setLastName,
-        onPasswordChange: setPassword,
-        onConfirmPasswordChange: setConfirmPassword,
         onSubmit: () => handleSubmit(),
         ssoProviders: formProviders,
+        // While the invitation's providers are read the form draws their button boxes, not an empty row.
+        ssoProvidersLoading: loading,
         onSsoClick: handleSso,
         submitDisabled: !isValid,
         loading: loading || isSubmitting,
         errors: {
           firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
           lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
-          password: password ? passwordError : undefined,
-          confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
+          ...passwordErrors,
         },
       }}
     >

@@ -27,10 +27,15 @@ const STATUS_VARIANT: Record<InsightStatus, TagVariant> = {
 // member gets the neutral stamp with its raw name rather than nothing.
 const variantOf = (map: Record<string, TagVariant>, value: string): TagVariant => map[value] ?? 'grey';
 
-export function IncidentSeverityTag({ severity }: { severity: string }) {
+// Each tag switches itself: without its value (the incident is not read yet), or in a loading scope, it is the
+// tag's own skeleton.
+
+export function IncidentSeverityTag({ severity }: { severity?: string }) {
+  if (!severity) return <Tag label="" loading />;
   return <Tag label={severity} variant={variantOf(SEVERITY_VARIANT, severity)} />;
 }
 
-export function IncidentStatusTag({ status }: { status: string }) {
+export function IncidentStatusTag({ status }: { status?: string }) {
+  if (!status) return <Tag label="" loading />;
   return <Tag label={status} variant={variantOf(STATUS_VARIANT, status)} />;
 }

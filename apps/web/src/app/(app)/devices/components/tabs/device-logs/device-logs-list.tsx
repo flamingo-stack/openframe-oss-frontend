@@ -1,8 +1,7 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { Chevron01RightIcon, ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
@@ -10,21 +9,14 @@ import { fetchQuery, graphql, useLazyLoadQuery, usePaginationFragment, useRelayE
 import type { deviceLogsList_query$key } from '@/__generated__/deviceLogsList_query.graphql';
 import type { deviceLogsListPaginationQuery } from '@/__generated__/deviceLogsListPaginationQuery.graphql';
 import type { deviceLogsListQuery, deviceLogsListQuery$variables } from '@/__generated__/deviceLogsListQuery.graphql';
-import { SectionLoadError, useRetryKey } from '@/app/components/shared';
-import { formatDate } from '@/lib/format-date';
+import { noop, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { useDeviceLogsLiveTail } from '../../../hooks/use-device-logs-live-tail';
 import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
 import { groupByLocalDay } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
-import {
-  DEVICE_LOG_DAY_HEADER,
-  DEVICE_LOG_LEVEL_COLUMN,
-  DEVICE_LOG_LINE,
-  DEVICE_LOG_TIME_COLUMN,
-} from './device-log-layout';
-import { type DeviceLogEntry, DeviceLogRow } from './device-log-row';
+import { DeviceLogDayHeader, type DeviceLogEntry, DeviceLogRow } from './device-log-row';
 
 const PAGE_SIZE = 100;
 
@@ -102,54 +94,38 @@ interface DeviceLogsListProps {
 }
 
 /**
- * A page of lines in the live row's geometry, one per row the page holds. `dayHeader` adds the day heading the
- * live list opens each day with: on for a list's first page, off for the page a scroll appends under one drawn.
+ * A page of lines not read yet, one per row the page holds: each row (and the day heading the live list opens each
+ * day with) draws its own loading form. `dayHeader` is on for a list's first page, off for the page a scroll appends
+ * under one drawn.
  */
-function DeviceLogsRowsSkeleton({ dayHeader = false }: { dayHeader?: boolean }) {
+function DeviceLogsLoadingPage({ dayHeader = false }: { dayHeader?: boolean }) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-hidden="true">
-      {dayHeader && (
-        <div className={DEVICE_LOG_DAY_HEADER}>
-          <TextLineSkeleton type="h5" className="w-[8ch]" />
-          <span className="h-px flex-1 bg-ods-border" />
-        </div>
-      )}
-      {Array.from({ length: PAGE_SIZE }, (_, index) => (
-        <div key={index} data-loading-item className={cn('rounded-md border border-transparent', DEVICE_LOG_LINE)}>
-          {/* text-code: the column is sized in `ch`, which only matches the live time's width in its font. */}
-          <TextLineSkeleton type="code" className={cn('shrink-0', DEVICE_LOG_TIME_COLUMN)} />
-          <span className={cn(DEVICE_LOG_LEVEL_COLUMN, 'flex shrink-0')}>
-            <TagSkeleton className="max-w-full" />
-          </span>
-          <TextLineSkeleton type="code" className="flex-1" />
-          <Chevron01RightIcon aria-hidden="true" className="shrink-0 text-ods-text-tertiary" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * The list before its first page, drawn by `DeviceLogsList` in a loading scope: the live list's top sentinel, then a
- * page of lines.
- */
-function DeviceLogsListSkeleton() {
-  return (
-    <LoadingRegion label="Loading logs" className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <div className="h-px" />
-      <DeviceLogsRowsSkeleton dayHeader />
-    </LoadingRegion>
+    <LoadingWhen loading>
+      <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        {dayHeader && <DeviceLogDayHeader date={null} />}
+        <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          {Array.from({ length: PAGE_SIZE }, (_, index) => (
+            <DeviceLogRow key={index} entry={null} selected={false} onSelect={noop} />
+          ))}
+        </ul>
+      </section>
+    </LoadingWhen>
   );
 }
 
 /**
  * The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted
- * per filter. In a loading scope (the device has not answered, or the Suspense fallback) it draws its own skeleton
- * and runs no query.
+ * per filter. In a loading scope (the device has not answered, or the Suspense fallback) it draws its first page's
+ * loading form under the live list's top sentinel, and runs no query.
  */
 export function DeviceLogsList(props: DeviceLogsListProps) {
   if (useLoadingScope()) {
-    return <DeviceLogsListSkeleton />;
+    return (
+      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+        <div aria-hidden="true" className="h-px" />
+        <DeviceLogsLoadingPage dayHeader />
+      </div>
+    );
   }
   return <DeviceLogsListQuery {...props} />;
 }
@@ -239,7 +215,7 @@ function DeviceLogsListQuery({
       {tailFailed && <SectionLoadError message="Auto-update failed. Retrying in 30 seconds." />}
       {edges.length === 0 ? (
         isPending ? (
-          <DeviceLogsRowsSkeleton dayHeader />
+          <DeviceLogsLoadingPage dayHeader />
         ) : (
           <TabEmptyState
             icon={<ClipboardListIcon />}
@@ -260,10 +236,7 @@ function DeviceLogsListQuery({
         >
           {days.map(day => (
             <section key={day.key} className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <div className={DEVICE_LOG_DAY_HEADER}>
-                <h3 className="uppercase text-ods-text-secondary text-h5">{formatDate(day.date)}</h3>
-                <span aria-hidden="true" className="h-px flex-1 bg-ods-border" />
-              </div>
+              <DeviceLogDayHeader date={day.date} />
               <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
                 {day.rows.map(row => (
                   <DeviceLogRow
@@ -280,7 +253,7 @@ function DeviceLogsListQuery({
         </div>
       )}
       <div ref={bottomRef} aria-hidden="true" className="h-px" />
-      {isLoadingNext && <DeviceLogsRowsSkeleton />}
+      {isLoadingNext && <DeviceLogsLoadingPage />}
       {loadMoreFailed && <SectionLoadError message="Couldn't load older logs." onRetry={fetchNextPage} />}
       {edges.length > 0 && !hasNext && (
         <p className="py-[var(--spacing-system-s)] text-center text-ods-text-secondary text-h6">

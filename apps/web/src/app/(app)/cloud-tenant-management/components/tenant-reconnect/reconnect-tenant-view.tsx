@@ -1,22 +1,21 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
-  PageLayout,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
-import { noop, SectionLoadError, useRetryKey } from '@/app/components/shared';
-import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
+import { SectionLoadError, useRetryKey } from '@/app/components/shared';
+import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
 import { MINT_FAILED, useStartConsent } from '../consent/use-start-consent';
+import { TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
 
 const reconnectTenantViewQuery = graphql`
@@ -30,25 +29,18 @@ const reconnectTenantViewQuery = graphql`
   }
 `;
 
-const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
 /**
  * The page's record and everything that waits for it. In a loading scope (the view's Suspense fallback, or the
  * module's flag window) the chrome is real, the identity card and the consent block draw their own loading states,
  * and nothing is read or minted.
  */
 function ReconnectTenantContent({ id }: { id: string }) {
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   if (useLoadingScope()) {
     return (
-      <PageLayout
-        title="Reconnect Tenant Integration"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={[SAVE_PLACEHOLDER]}
-        actionsVariant="primary-buttons"
-      >
+      <TenantFormFrame title="Reconnect Tenant Integration">
         <TenantIdentityCard connection={null} />
-        <ConsentBlock mode="reconnect" provider="" consentUrl={null} checking={false} verdict={null} onCheck={noop} />
-      </PageLayout>
+        <ConsentBlock mode="reconnect" provider={null} />
+      </TenantFormFrame>
     );
   }
   return <ReconnectTenantContentQuery id={id} />;
@@ -56,7 +48,6 @@ function ReconnectTenantContent({ id }: { id: string }) {
 
 function ReconnectTenantContentQuery({ id }: { id: string }) {
   const router = useRouter();
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const retryKey = useRetryKey();
   // `store-or-network`: the mint below fires on mount, and a background refetch of `consentUrl` that
   // landed after it would write the old, empty value back over the fresh link. The store holds what
@@ -87,12 +78,7 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
   ];
 
   return (
-    <PageLayout
-      title="Reconnect Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-    >
+    <TenantFormFrame title="Reconnect Tenant Integration" actions={actions}>
       {connection ? (
         <>
           <TenantIdentityCard connection={connection} />
@@ -112,21 +98,15 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
       ) : (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       )}
-    </PageLayout>
+    </TenantFormFrame>
   );
 }
 
 /** `/cloud-tenant-management/reconnect` (Figma 2108-81037): the identity card over the re-approve consent card. */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading tenant">
-          <ReconnectTenantContent id={id} />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading tenant">
       <ReconnectTenantContent id={id} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

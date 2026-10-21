@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -57,8 +57,6 @@ interface SoftwareListFrameProps {
    * the list component draws its own loading state and does not fetch.
    */
   loading?: boolean;
-  /** Above the toolbar while the list has rows — a device tab's sync banner. */
-  banner?: ReactNode;
   className?: string;
   children: (list: SoftwareListFrameRenderProps) => ReactNode;
 }
@@ -103,7 +101,6 @@ export function SoftwareListFrame({
   filterKeys = NO_IDS,
   loadingLabel,
   loading = false,
-  banner,
   className,
   children,
 }: SoftwareListFrameProps) {
@@ -176,9 +173,6 @@ export function SoftwareListFrame({
 
   return (
     <div className={cn('flex flex-col', className)} style={containerStyle}>
-      {/* The banner keeps its own bottom margin: the pinned toolbar's negative top
-          margin eats exactly that, instead of the banner's last rows. */}
-      {!isEmpty && banner}
       {!isEmpty && (
         <SoftwareSearchToolbar
           toolbarRef={toolbarRef}
@@ -192,9 +186,7 @@ export function SoftwareListFrame({
       {/* The rows before they answer, the same for a query in flight and for the flag's own window: the list
           itself, in a loading scope, where it draws its own loading state and does not fetch. */}
       <LoadingWhen loading={loading}>
-        <Suspense fallback={<LoadingFallback label={loadingLabel}>{children(list)}</LoadingFallback>}>
-          {children(list)}
-        </Suspense>
+        <LoadingSuspense label={loadingLabel}>{children(list)}</LoadingSuspense>
       </LoadingWhen>
     </div>
   );

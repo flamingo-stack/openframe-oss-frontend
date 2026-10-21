@@ -79,6 +79,9 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
 
   // With no assignments (or none known yet) the section keeps its frame over the item's typical kind, whose table
   // draws its own loading or empty state: nothing vanishes when the read answers empty.
+  // While nothing is read the view is the typical item: assignments of ONE kind, so no tab bar. An item whose
+  // assignments span several kinds gains the tab bar above its rows once read; that is the accepted cost of drawing
+  // the common case (the kinds are only known from the read).
   const shownTypes = activeTypes.length === 0 ? [TYPICAL_TARGET_TYPE[itemType]] : activeTypes;
 
   const body = (

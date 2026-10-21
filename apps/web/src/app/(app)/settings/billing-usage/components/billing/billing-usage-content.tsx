@@ -171,8 +171,9 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
   const aiBalanceModalOpen = aiBalanceOffered && pageParams.action === MANAGE_AI_BALANCE_ACTION;
   const openPlanModal = () => setPlanModalOpen(true);
 
-  // While it loads, the row is all three cards: the AI pair is dropped only for a subscription that does not carry
-  // the AI product, which the response has not said yet, and two cards reflowing into three is the larger jump.
+  // While it loads, the row is all three cards: the typical case. Whether the AI pair shows is known only from the
+  // subscription's own products (no flag or catalog says it before this read), and a subscription typically carries
+  // the AI product; two cards reflowing into three would be the larger jump anyway.
   const showAiCards = loading || hasAi;
 
   return (

@@ -4,9 +4,9 @@ import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
+import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
-import { EMPTY_CARD, labelsOf } from './info-card-loading';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface HardwareTabProps {
@@ -35,8 +35,16 @@ function formatUptime(seconds?: number): string | undefined {
 }
 
 /** A row of hardware blocks — a 3-column grid where every block stretches to an equal width. */
-function Row({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">{children}</div>;
+/** `optional`: a row only some devices report (left out while the device is read, never in the first screen). */
+function Row({ optional, children }: { optional?: boolean; children: ReactNode }) {
+  return (
+    <div
+      data-loading-optional={optional || undefined}
+      className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3"
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -264,7 +272,7 @@ export function HardwareTab({ device }: HardwareTabProps) {
 
       {/* Batteries: only laptops report them, so the row is not drawn while the device is read (it sits last). */}
       {batteries.length > 0 && (
-        <Row>
+        <Row optional>
           {batteries.map((battery, index) => {
             const healthStatus = battery.health || 'Unknown';
             const cycleCount = battery.cycle_count || 0;

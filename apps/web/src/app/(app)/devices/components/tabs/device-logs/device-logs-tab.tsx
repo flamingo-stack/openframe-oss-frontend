@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useDeferredLogList } from '../../../hooks/use-deferred-log-list';
 import { DEVICE_LOG_PARAM_SCHEMA, useDeviceLogFilters } from '../../../hooks/use-device-log-filters';
@@ -73,7 +73,7 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
       <ContentErrorBoundary label="DeviceLogsTab" message="Couldn't load device logs." resetKey={deferredList.key}>
-        <Suspense fallback={<LoadingFallback label="Loading logs">{logsList}</LoadingFallback>}>{logsList}</Suspense>
+        <LoadingSuspense label="Loading logs">{logsList}</LoadingSuspense>
       </ContentErrorBoundary>
       {device && (
         <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} deviceId={machineId} />

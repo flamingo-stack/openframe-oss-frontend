@@ -2,19 +2,20 @@
 
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import {
-  LoadingFallback,
+  LoadingSuspense,
   MediaSkeleton,
   OSTypeBadgeGroup,
   TextLineSkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptsRunPickerRelay_query$key } from '@/__generated__/scriptsRunPickerRelay_query.graphql';
 import type { scriptsRunPickerRelayPaginationQuery } from '@/__generated__/scriptsRunPickerRelayPaginationQuery.graphql';
 import type { scriptsRunPickerRelayQuery as ScriptsRunPickerQueryType } from '@/__generated__/scriptsRunPickerRelayQuery.graphql';
 import { platformsToIds } from '@/app/(app)/scripts/shared/utils/script-mappers';
+import { noop } from '@/app/components/shared';
 import { scriptsRunPickerRelayFragment, scriptsRunPickerRelayQuery } from '@/graphql/scripts/scripts-run-picker-relay';
 import { ScriptsTagFilter } from '../../../scripts/script/components/scripts-tag-filter';
 
@@ -29,27 +30,63 @@ interface PickerListProps {
 const PICKER_ROW_CLASS =
   'flex w-full items-center gap-[var(--spacing-system-mf)] border-b border-ods-border px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] last:border-b-0';
 
-/** A page of picker rows while it is read: name over description, the OS badge's box. */
-function PickerRowsSkeleton() {
-  return (
-    <div aria-hidden="true">
-      {Array.from({ length: PICKER_PAGE_SIZE }, (_, index) => (
-        <div key={index} data-loading-item className={PICKER_ROW_CLASS}>
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <TextLineSkeleton type="h4" className="w-40" />
-            <TextLineSkeleton type="h6" className="w-56 max-w-full" />
-          </div>
-          <MediaSkeleton.Icon size="sm" className="shrink-0" />
+interface PickerScript {
+  id: string;
+  name: string;
+  description?: string | null;
+  supportedPlatforms: Parameters<typeof platformsToIds>[0];
+}
+
+/** One script to pick: name over description, its OS badges. Null (or a loading scope) draws the row's loading form. */
+function PickerRow({ script, onSelect }: { script: PickerScript | null; onSelect: (scriptId: string) => void }) {
+  const loading = useLoadingScope() || !script;
+  if (loading) {
+    return (
+      <div data-loading-item className={PICKER_ROW_CLASS}>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <TextLineSkeleton type="h4" className="w-40" />
+          {/* Most scripts carry a description: the typical row draws its line. */}
+          <TextLineSkeleton type="h6" className="w-56 max-w-full" />
         </div>
-      ))}
-    </div>
+        <MediaSkeleton.Icon size="sm" className="shrink-0" />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(script.id)}
+      data-loading-item
+      className={`${PICKER_ROW_CLASS} text-left hover:bg-ods-bg-hover`}
+    >
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <TruncateText variant="h4">{script.name}</TruncateText>
+        {script.description && (
+          <TruncateText variant="h6" tone="secondary">
+            {script.description}
+          </TruncateText>
+        )}
+      </div>
+      <OSTypeBadgeGroup osTypes={platformsToIds(script.supportedPlatforms)} iconSize="w-4 h-4" />
+    </button>
   );
 }
 
-/** The scripts to pick from. In a loading scope (the Suspense fallback) it draws its own rows and runs no query. */
+/** A page of picker rows not read yet. */
+function PickerLoadingPage() {
+  return (
+    <LoadingWhen loading>
+      {Array.from({ length: PICKER_PAGE_SIZE }, (_, index) => (
+        <PickerRow key={index} script={null} onSelect={noop} />
+      ))}
+    </LoadingWhen>
+  );
+}
+
+/** The scripts to pick from. In a loading scope (the Suspense fallback) it draws its first page and runs no query. */
 function PickerList(props: PickerListProps) {
   if (useLoadingScope()) {
-    return <PickerRowsSkeleton />;
+    return <PickerLoadingPage />;
   }
   return <PickerListQuery {...props} />;
 }
@@ -97,26 +134,10 @@ function PickerListQuery({ search, tagIds, onSelect }: PickerListProps) {
   return (
     <div>
       {scripts.map(script => (
-        <button
-          key={script.id}
-          type="button"
-          onClick={() => onSelect(script.id)}
-          data-loading-item
-          className={`${PICKER_ROW_CLASS} text-left hover:bg-ods-bg-hover`}
-        >
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <TruncateText variant="h4">{script.name}</TruncateText>
-            {script.description && (
-              <TruncateText variant="h6" tone="secondary">
-                {script.description}
-              </TruncateText>
-            )}
-          </div>
-          <OSTypeBadgeGroup osTypes={platformsToIds(script.supportedPlatforms)} iconSize="w-4 h-4" />
-        </button>
+        <PickerRow key={script.id} script={script} onSelect={onSelect} />
       ))}
       {hasNext && <div ref={sentinelRef} className="h-px w-full" />}
-      {isLoadingNext && <PickerRowsSkeleton />}
+      {isLoadingNext && <PickerLoadingPage />}
     </div>
   );
 }
@@ -142,15 +163,9 @@ export function RunScriptSelectStep({ onSelect }: RunScriptSelectStepProps) {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-[6px] border border-ods-border">
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading scripts">
-              <PickerList search={debouncedSearch} tagIds={tagIds} onSelect={onSelect} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading scripts">
           <PickerList search={debouncedSearch} tagIds={tagIds} onSelect={onSelect} />
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </div>
   );

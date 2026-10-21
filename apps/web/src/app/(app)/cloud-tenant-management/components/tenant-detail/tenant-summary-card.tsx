@@ -23,7 +23,7 @@ const ROW_CLASSES =
   'grid grid-cols-2 gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:flex content-md:min-h-20 content-md:items-center content-md:py-0';
 const DIVIDED_ROW_CLASSES = 'border-t border-ods-border';
 
-// The cells' labels, shared with the skeleton: they are static, so the loading card draws them for real.
+// The cells' labels: static, so the loading card draws them for real.
 const LABELS = {
   provider: 'Provider',
   domain: 'Domain',
@@ -75,10 +75,16 @@ function IconValue({ icon, children }: { icon: ReactNode; children: ReactNode })
   );
 }
 
-function ProviderCell({ provider }: { provider: string }) {
+/** The provider: its logo and name. Before the record answers (`null`) the logo's box and a name bar. */
+function ProviderCell({ provider }: { provider: string | null }) {
   const { Logo, label } = providerPresentation(provider);
   return (
-    <InfoCell label={LABELS.provider} value={<IconValue icon={<Logo size={PROVIDER_LOGO_PX} />}>{label}</IconValue>} />
+    <InfoCell
+      label={LABELS.provider}
+      skeletonWidth="w-36"
+      icon={provider == null ? <MediaSkeleton.Icon size="md" /> : undefined}
+      value={provider == null ? null : <IconValue icon={<Logo size={PROVIDER_LOGO_PX} />}>{label}</IconValue>}
+    />
   );
 }
 
@@ -87,6 +93,7 @@ function ConnectedCell({ connectedAt }: { connectedAt: unknown }) {
   return (
     <InfoCell
       label={LABELS.connected}
+      skeletonWidth="w-40"
       value={
         parts ? (
           <>
@@ -98,102 +105,77 @@ function ConnectedCell({ connectedAt }: { connectedAt: unknown }) {
   );
 }
 
-/** The Edit / Reconnect cut: provider and domain only. Null before the record answers (its loading state). */
+/** The Edit / Reconnect cut: provider and domain only. With no record yet (a loading scope) it draws its own loading state. */
 export function TenantIdentityCard({ connection }: { connection: tenantSummaryCard_identity$key | null }) {
-  const loading = useLoadingScope();
-  const data = useFragment(tenantSummaryCardIdentityFragment, connection);
-  if (loading || !data) {
-    return <TenantSummaryCardSkeleton identityOnly />;
-  }
-  const { provider, domain } = data;
+  const scoped = useLoadingScope();
+  const fragment = useFragment(tenantSummaryCardIdentityFragment, connection);
+  const data = scoped ? null : fragment;
   return (
-    <div className={CARD_CLASSES}>
-      <div className={ROW_CLASSES}>
-        <ProviderCell provider={provider} />
-        <InfoCell label={LABELS.domainName} value={domain} />
+    <LoadingWhen loading={data == null}>
+      <div className={CARD_CLASSES}>
+        <div className={ROW_CLASSES}>
+          <ProviderCell provider={data?.provider ?? null} />
+          <InfoCell label={LABELS.domainName} value={data?.domain} skeletonWidth="w-44" />
+        </div>
       </div>
-    </div>
-  );
-}
-
-/** The details page's card. Null before the record answers (its loading state). */
-export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key | null }) {
-  const loading = useLoadingScope();
-  const data = useFragment(tenantSummaryCardFragment, connection);
-  if (loading || !data) {
-    return <TenantSummaryCardSkeleton />;
-  }
-  const { organization } = data;
-  // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
-  const connectedAt: unknown = data.connectedAt;
-  const lastSyncAt: unknown = data.lastSyncAt;
-  const connected = isReadable(data.access.state);
-  return (
-    <div className={CARD_CLASSES}>
-      <div className={ROW_CLASSES}>
-        <ProviderCell provider={data.provider} />
-        {/* Before the first consent the domain is the only identity the tenant has (Figma 2097-119207). */}
-        {!connected && <InfoCell label={LABELS.domain} value={data.domain} />}
-        <InfoCell
-          label={LABELS.customer}
-          value={
-            <IconValue
-              icon={
-                <SquareAvatar
-                  src={getFullImageUrl(organization.image?.imageUrl, organization.image?.hash)}
-                  alt={organization.name}
-                  fallback={organization.name}
-                  size="xs"
-                  variant="square"
-                />
-              }
-            >
-              {organization.name}
-            </IconValue>
-          }
-        />
-      </div>
-      <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
-        <InfoCell label={LABELS.users} value={data.userCount?.toString()} />
-        <InfoCell label={LABELS.status} value={<Tag {...accessStateTag(data.access.state)} />} />
-        <ConnectedCell connectedAt={connectedAt} />
-        <InfoCell label={LABELS.lastRead} value={formatLastRead(lastReadAt({ lastSyncAt }))} />
-      </div>
-    </div>
+    </LoadingWhen>
   );
 }
 
 /**
- * The connected card's rows, cells and labels — the details page's steady state — so the page does not
- * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival. Every cell is the
- * real `InfoCell`, and the customer's avatar the real `SquareAvatar`, each drawing its own loading state in the card's
- * scope (a null record is this card's loading state even outside a page's scope).
+ * The details page's card. Before the record answers (a loading scope) it is the connected card, the details page's
+ * steady state, so the page does not jump when such a record lands; a tenant still awaiting consent adds its Domain
+ * cell on arrival. Every cell is the real `InfoCell`, and the customer's avatar the real `SquareAvatar`, each drawing
+ * its own loading state.
  */
-function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOnly?: boolean }) {
+export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key | null }) {
+  const scoped = useLoadingScope();
+  const fragment = useFragment(tenantSummaryCardFragment, connection);
+  const data = scoped ? null : fragment;
+  const organization = data?.organization ?? null;
+  // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
+  const connectedAt: unknown = data?.connectedAt;
+  const lastSyncAt: unknown = data?.lastSyncAt;
   return (
-    <LoadingWhen loading>
+    <LoadingWhen loading={data == null}>
       <div className={CARD_CLASSES}>
         <div className={ROW_CLASSES}>
-          <InfoCell label={LABELS.provider} value={null} skeletonWidth="w-36" icon={<MediaSkeleton.Icon size="md" />} />
-          {identityOnly ? (
-            <InfoCell label={LABELS.domainName} value={null} skeletonWidth="w-44" />
-          ) : (
-            <InfoCell
-              label={LABELS.customer}
-              value={null}
-              skeletonWidth="w-44"
-              icon={<SquareAvatar fallback="" size="xs" variant="square" />}
-            />
+          <ProviderCell provider={data?.provider ?? null} />
+          {/* Before the first consent the domain is the only identity the tenant has (Figma 2097-119207). */}
+          {data && !isReadable(data.access.state) && (
+            <div data-loading-optional className="contents">
+              <InfoCell label={LABELS.domain} value={data.domain} />
+            </div>
           )}
+          <InfoCell
+            label={LABELS.customer}
+            skeletonWidth="w-44"
+            icon={
+              <SquareAvatar
+                src={organization ? getFullImageUrl(organization.image?.imageUrl, organization.image?.hash) : undefined}
+                alt={organization?.name}
+                fallback={organization?.name ?? ''}
+                size="xs"
+                variant="square"
+              />
+            }
+            value={organization?.name}
+          />
         </div>
-        {!identityOnly && (
-          <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
-            <InfoCell label={LABELS.users} value={null} skeletonWidth="w-16" />
-            <InfoCell label={LABELS.status} value={null} valueSkeleton={<Tag label="" loading />} />
-            <InfoCell label={LABELS.connected} value={null} skeletonWidth="w-40" />
-            <InfoCell label={LABELS.lastRead} value={null} skeletonWidth="w-28" />
-          </div>
-        )}
+        <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
+          <InfoCell label={LABELS.users} value={data?.userCount?.toString()} skeletonWidth="w-16" />
+          <InfoCell
+            label={LABELS.status}
+            value={data ? <Tag {...accessStateTag(data.access.state)} /> : null}
+            valueSkeleton={<Tag label="" />}
+          />
+          <ConnectedCell connectedAt={connectedAt} />
+          <InfoCell
+            label={LABELS.lastRead}
+            value={data ? formatLastRead(lastReadAt({ lastSyncAt })) : null}
+            skeletonWidth="w-28"
+          />
+        </div>
       </div>
     </LoadingWhen>
   );

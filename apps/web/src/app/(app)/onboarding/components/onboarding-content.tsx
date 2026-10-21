@@ -4,7 +4,7 @@ import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-fron
 import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ComponentType, type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react';
+import { type ComponentType, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -16,9 +16,12 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
   isStepDone,
+  NO_COMPLETED_STEPS,
+  type OnboardingStepWiring,
   onboardingProgress,
   onboardingStepAnchorId,
   onboardingStepFromAnchorId,
+  progressLine,
   USER_ONBOARDING_STEPS,
   type UserOnboardingStepId,
 } from '../onboarding-steps';
@@ -131,17 +134,6 @@ export function OnboardingContent() {
 const PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
 
-const NO_COMPLETED_STEPS: readonly string[] = [];
-
-/** How a loaded row is wired: its anchor, its expansion and its body. */
-interface OnboardingStepWiring {
-  ref: Ref<HTMLDivElement>;
-  id: string;
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
-  body: ReactNode;
-}
-
 interface OnboardingViewProps {
   /** The steps the user has completed (none while progress is read). */
   completedSteps?: readonly string[];
@@ -168,7 +160,8 @@ function OnboardingView({
   children,
 }: OnboardingViewProps) {
   const loading = useLoadingScope();
-  const { total, done, nextStep, allDone } = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps, loading);
+  const progress = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps, loading);
+  const { nextStep, allDone } = progress;
   const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
 
@@ -191,13 +184,8 @@ function OnboardingView({
   return (
     <PageLayout
       title="Get Started"
-      subtitle={
-        allDone
-          ? 'All steps complete'
-          : loading
-            ? `${total} steps to complete`
-            : `${total} steps to complete · ${done}/${total} done`
-      }
+      // Read progress: in the loading scope the header draws the line as its bar (a page header takes text only).
+      subtitle={loading ? '' : progressLine(progress)}
       actions={actions}
       actionsVariant="icon-buttons"
       className={PAGE_CLASS}

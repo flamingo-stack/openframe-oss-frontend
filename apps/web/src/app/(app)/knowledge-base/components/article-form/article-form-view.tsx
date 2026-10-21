@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useAssignedItems } from '@/components/assignments';
 import { KnowledgeBaseArticleStatus } from '@/generated/schema-enums';
@@ -80,15 +80,9 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
     >
       {isEdit && (
         // The record's island renders nothing; while it loads, its fallback is the one "Loading article" announcement.
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading article">
-              <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading article">
           <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
-        </Suspense>
+        </LoadingSuspense>
       )}
       {/* Until the article and its assignments have seeded the form, the fields draw their own loading states. */}
       <LoadingWhen loading={!isLoaded}>

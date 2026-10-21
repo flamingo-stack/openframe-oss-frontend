@@ -30,6 +30,7 @@ export function ArticleDetailTags({ article }: { article: articleDetailTags_arti
     <div className={ROW_CLASS}>
       {loading || !data
         ? Array.from({ length: ARTICLE_TAGS_SKELETON_COUNT }, (_, index) => (
+            // The lib's tag skeleton takes no attributes: the item mark rides on a wrapper.
             <span key={index} data-loading-item>
               <Tag label="" loading />
             </span>

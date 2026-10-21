@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { Suspense } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+
 import { ArticleDetailContent } from './article-detail-content';
 
 /**
@@ -11,15 +11,9 @@ import { ArticleDetailContent } from './article-detail-content';
 export function ArticleDetailView({ articleId }: { articleId: string }) {
   return (
     <div className="flex w-full flex-col">
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading article">
-            <ArticleDetailContent articleId={articleId} />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading article">
         <ArticleDetailContent articleId={articleId} />
-      </Suspense>
+      </LoadingSuspense>
     </div>
   );
 }

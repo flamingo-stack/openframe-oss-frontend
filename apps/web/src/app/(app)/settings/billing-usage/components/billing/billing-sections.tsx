@@ -29,9 +29,6 @@ const billingSectionsBillingPlanFragment = graphql`
   }
 `;
 
-/** The row of counters: one column below md, three (devices and the AI pair) or one (devices alone) from md. */
-const BILLING_CARD_ROW_CLASS = 'grid gap-[var(--spacing-system-m)]';
-
 interface BillingSectionsProps {
   /** The desktop build: the notice that billing is changed in the browser. */
   readOnly: boolean;
@@ -75,7 +72,13 @@ export function BillingSections({
 
       {/* Two AI counters, because AI runs on two figures: what the period gives
           away, and the balance it draws from once that is spent. */}
-      <div className={cn(BILLING_CARD_ROW_CLASS, showAiCards ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1')}>
+      {/* One column below md; three (devices and the AI pair) or one (devices alone) from md. */}
+      <div
+        className={cn(
+          'grid gap-[var(--spacing-system-m)]',
+          showAiCards ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
+        )}
+      >
         <DeviceUsageCard subscription={subscription} />
         {showAiCards && (
           <>

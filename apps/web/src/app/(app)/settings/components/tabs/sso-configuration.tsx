@@ -34,6 +34,12 @@ import { DisableOpenframeSsoModal } from '../disable-openframe-sso-modal';
 import { SsoConfigModal } from '../edit-sso-config-modal';
 import { SsoConfigurationDetailsModal } from '../sso-configuration-details-modal';
 
+/**
+ * Rows the loading table draws. The list is not paged (one row per configured provider), so there is no page size:
+ * a typical workspace configures one or two providers. A typical count, not a claim about how many exist.
+ */
+const SSO_SKELETON_ROWS = 2;
+
 type UiProviderRow = {
   id: string;
   provider: string;
@@ -426,8 +432,11 @@ export function SsoConfigurationTab() {
       title="SSO Configurations"
       className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
+      // While the providers load, the add action is drawn as a placeholder: a workspace typically has a provider left
+      // to configure, so the action is the likely header.
+      loadingActions={isLoading}
       actions={
-        availableForCreate.length > 0
+        isLoading || availableForCreate.length > 0
           ? [
               {
                 label: 'Add SSO Configuration',
@@ -463,6 +472,7 @@ export function SsoConfigurationTab() {
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
         <DataTable.Body
           loading={isLoading}
+          skeletonRows={SSO_SKELETON_ROWS}
           emptyState={{
             icon: <PasscodeIcon />,
             title: 'No SSO configurations',

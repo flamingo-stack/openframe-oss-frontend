@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
   ExecutionStatusCell,
@@ -9,7 +9,7 @@ import {
   ScriptExecutionResult,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
@@ -105,7 +105,13 @@ function ExecutedByValue({ execution }: { execution: ExecutionNode | null }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <InitiatorIdentity initiator={toInitiator(execution?.initiator)} size="md" loading={loading} />
-      {!loading && <ExecutionSourceBadge source={execution?.source} />}
+      {/* Only a scheduled or assistant run has a chip (a manual run, the common case, draws none): left out while
+          loading, inline beside the name, so it moves nothing. */}
+      {!loading && (
+        <span data-loading-optional className="contents">
+          <ExecutionSourceBadge source={execution?.source} />
+        </span>
+      )}
     </div>
   );
 }
@@ -147,8 +153,8 @@ function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionN
         <DetailCell
           label="Status"
           value={<ExecutionStatusCell status={execution?.status} />}
-          // A tag with no label yet: it draws its own skeleton in the loading scope.
-          valueSkeleton={<Tag label="" />}
+          // The real status cell with no status: its tag draws its own skeleton in the loading scope.
+          valueSkeleton={<ExecutionStatusCell status={null} />}
         />
         <DetailCell value={formatCount(execution?.executionTimeMs)} label="Execution Time (ms)" />
       </div>
@@ -171,11 +177,7 @@ function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionN
 
       {/* Result — an in-flight execution with no output yet says so (the page
           polls, so the output streams in) instead of a dead-end "—". */}
-      <ScriptExecutionResult
-        result={result}
-        inFlight={isInFlight}
-        empty={loading ? <TextLineSkeleton type="h4" className="w-3/4 max-w-full" /> : EMPTY_VALUE}
-      />
+      <ScriptExecutionResult result={result} inFlight={isInFlight} loading={loading} empty={EMPTY_VALUE} />
     </div>
   );
 }

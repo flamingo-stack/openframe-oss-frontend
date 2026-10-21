@@ -3,7 +3,8 @@
 
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import type { FormEvent } from 'react';
+import { type UseFormReturn, useForm } from 'react-hook-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
 import type { AgentAiConfig, AgentAiConfigInput, AiQuickAction } from '../types/ai-settings';
@@ -55,12 +56,11 @@ function MingoAiChatOverview({
 }
 
 export function MingoAiChatTab({ aiConfig, ...props }: MingoAiChatTabProps) {
-  // The form below is seeded once from the configuration, so it mounts only when that is in hand.
+  // The form below is seeded once from the configuration, so it mounts only when that is in hand. Until then the tab
+  // the user asked for (the editor on an edit deep link, else the overview) draws itself in a loading scope.
   if (useLoadingScope() || aiConfig == null) {
     return (
-      <LoadingWhen loading>
-        <MingoAiChatOverview />
-      </LoadingWhen>
+      <LoadingWhen loading>{props.isEditMode ? <MingoAiChatLoadingEditor /> : <MingoAiChatOverview />}</LoadingWhen>
     );
   }
   return <MingoAiChatTabContent aiConfig={aiConfig} {...props} />;
@@ -78,11 +78,6 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
   // customs); shown in view mode and as the editor's dimmed preview/seed.
   const hubDefaults = useHubDefaultQuickActions(MINGO_QUICK_ACTIONS_CONFIG.agentSlug);
 
-  const llmProvider = form.watch('llmProvider');
-  const answerStyle = form.watch('answerStyle');
-
-  const handleSubmit = form.handleSubmit(values => onSubmit(toMingoAiChatSubmit(values)));
-
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
     return (
@@ -95,7 +90,44 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
   }
 
   return (
-    <form id={MINGO_AI_CHAT_FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-[var(--spacing-system-l)]">
+    <MingoAiChatEditor
+      form={form}
+      modelsByProvider={modelsByProvider}
+      defaultActions={hubDefaults.actions}
+      onSubmit={form.handleSubmit(values => onSubmit(toMingoAiChatSubmit(values)))}
+    />
+  );
+}
+
+/** The editor before the configuration is read: the same form, unseeded, every field drawing its own loading state. */
+function MingoAiChatLoadingEditor() {
+  const form = useForm<MingoAiChatFormValues>();
+  return (
+    <MingoAiChatEditor
+      form={form}
+      modelsByProvider={undefined}
+      defaultActions={[]}
+      onSubmit={event => event.preventDefault()}
+    />
+  );
+}
+
+function MingoAiChatEditor({
+  form,
+  modelsByProvider,
+  defaultActions,
+  onSubmit,
+}: {
+  form: UseFormReturn<MingoAiChatFormValues>;
+  modelsByProvider: ReturnType<typeof useSupportedModels>['modelsByProvider'];
+  defaultActions: AiQuickAction[];
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const llmProvider = form.watch('llmProvider');
+  const answerStyle = form.watch('answerStyle');
+
+  return (
+    <form id={MINGO_AI_CHAT_FORM_ID} onSubmit={onSubmit} className="flex flex-col gap-[var(--spacing-system-l)]">
       <AiProviderModelFields
         control={form.control}
         llmProvider={llmProvider}
@@ -110,7 +142,7 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
         control={form.control}
         title="Mingo Quick Actions"
         agentConfig={MINGO_QUICK_ACTIONS_CONFIG}
-        defaultActions={hubDefaults.actions}
+        defaultActions={defaultActions}
         className="mt-8"
       />
     </form>

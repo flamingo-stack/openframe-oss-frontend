@@ -27,7 +27,6 @@ import type {
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -37,8 +36,8 @@ import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
-import { getFullImageUrl } from '@/lib/image-url';
-import { executionStatusLabel, initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
+import { toInitiator } from '../../shared/components/initiator-identity';
+import { executionStatusLabel } from '../../shared/utils/execution-helpers';
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
@@ -138,11 +137,7 @@ function ScheduleRunsContent({
           timestamp: formatDateTime(node.dispatchedAt),
           responded: node.respondedMachineCount,
           total: node.totalMachineCount,
-          initiatorId: node.initiator?.id ?? '',
-          initiatorName: initiatorName(node.initiator),
-          initiatorInitials: initiatorInitials(node.initiator),
-          initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
-          initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
+          initiator: toInitiator(node.initiator),
           isScheduled: !node.initiator,
         },
       ];

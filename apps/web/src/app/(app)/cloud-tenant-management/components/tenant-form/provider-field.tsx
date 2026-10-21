@@ -1,9 +1,9 @@
 'use client';
 'use no memo';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Alert, RadioGroupBlock, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { type Control, Controller } from 'react-hook-form';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { providerFieldQuery as ProviderFieldQueryType } from '@/__generated__/providerFieldQuery.graphql';
@@ -19,6 +19,12 @@ const providerFieldQuery = graphql`
     }
   }
 `;
+
+/** One provider as a radio option: its name and the line that says what connecting it does. */
+function toProviderOption(provider: DirectoryProvider) {
+  const { label, radioDescription } = providerPresentation(provider);
+  return { value: provider, label, description: radioDescription };
+}
 
 interface ProviderFieldProps {
   control: Control<TenantFormData>;
@@ -61,10 +67,7 @@ function ProviderOptions({ control, disabled = false, locked = false, onOffered 
           name={field.name}
           value={field.value}
           onValueChange={field.onChange}
-          options={offered.map(provider => {
-            const { label, radioDescription } = providerPresentation(provider);
-            return { value: provider, label, description: radioDescription };
-          })}
+          options={offered.map(toProviderOption)}
           variant="grouped"
           disabled={disabled || locked}
           error={fieldState.error?.message}
@@ -80,28 +83,23 @@ function ProviderOptions({ control, disabled = false, locked = false, onOffered 
  * Suspense fallback, or the page's) it draws its own loading state and reads nothing.
  */
 export function ProviderField(props: ProviderFieldProps) {
+  return (
+    <LoadingSuspense label="Loading providers">
+      <ProviderFieldBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ProviderFieldBody(props: ProviderFieldProps) {
   if (useLoadingScope()) {
     return <ProviderFieldSkeleton />;
   }
-  return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading providers">
-          <ProviderField {...props} />
-        </LoadingFallback>
-      }
-    >
-      <ProviderOptions {...props} />
-    </Suspense>
-  );
+  return <ProviderOptions {...props} />;
 }
 
 // The radio as it will stand, locked and unselected, over every provider this build knows. Which of
 // them the deployment offers is the only thing that changes on arrival.
-const LOADING_OPTIONS = PROVIDER_ORDER.map(provider => {
-  const { label, radioDescription } = providerPresentation(provider);
-  return { value: provider, label, description: radioDescription };
-});
+const LOADING_OPTIONS = PROVIDER_ORDER.map(toProviderOption);
 
 /** `ProviderField` before its options are known: the real radio, disabled. */
 function ProviderFieldSkeleton() {

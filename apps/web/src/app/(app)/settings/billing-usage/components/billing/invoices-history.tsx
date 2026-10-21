@@ -60,6 +60,8 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     );
   }
 
+  // Drawn while loading, left out once there is no invoice: a paying workspace (the typical one on this page) has a
+  // history, and the section is the page's last, so a trial's missing history moves nothing above it.
   if (!loading && invoices.length === 0) return null;
 
   return (

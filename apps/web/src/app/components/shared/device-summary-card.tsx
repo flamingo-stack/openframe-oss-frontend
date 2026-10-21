@@ -6,7 +6,7 @@ import {
   getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DEVICE_DETAILS_BUTTON_BOX, DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
+import { DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
 
 interface DeviceSummaryCardProps {
@@ -29,7 +29,6 @@ export function DeviceSummaryCard({ device, deviceId, loading, onNavigate }: Dev
   const status = device?.status ? getDeviceStatusConfig(device.status) : undefined;
   return (
     <DeviceCard
-      detailsButtonSkeletonClassName={DEVICE_DETAILS_BUTTON_BOX}
       loading={loading}
       device={{
         id,

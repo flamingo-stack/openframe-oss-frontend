@@ -10,13 +10,12 @@ import {
   StackedRowsPanel,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getPolicyStatus, POLICY_STATUS_CONFIG } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
@@ -30,7 +29,9 @@ import { usePolicyDetails } from '../hooks/use-policy-details';
 import { usePolicyDevices } from '../hooks/use-policy-devices';
 import { PolicyDevicesTable } from './policy-devices-table';
 
-function PolicyStatusTag({ policy }: { policy: Policy }) {
+/** The policy's status. Before the policy is read (or in a loading scope) the tag draws its own skeleton. */
+function PolicyStatusTag({ policy }: { policy: Policy | null }) {
+  if (!policy) return <Tag label="" loading />;
   const config = POLICY_STATUS_CONFIG[getPolicyStatus(policy)];
   return <Tag label={config.label} variant={config.variant} />;
 }
@@ -106,21 +107,27 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     },
   ];
 
+  // Every value is the shared InfoCell: in the page's loading scope it draws its own bar (or, for the status, the
+  // real tag drawing its own skeleton).
   const severityColumn = {
     key: 'severity',
-    value: policy ? policy.critical ? 'Critical' : 'Low' : <TextLineSkeleton type="h4" as="span" className="w-16" />,
-    label: 'Severity',
+    content: (
+      <InfoCell value={policy ? (policy.critical ? 'Critical' : 'Low') : null} label="Severity" skeletonWidth="w-16" />
+    ),
   };
   const statusColumn = {
     key: 'status',
-    // While loading, a tag with no label yet: it draws its own skeleton in the loading scope.
-    value: policy ? <PolicyStatusTag policy={policy} /> : <Tag label="" />,
-    label: 'Status',
+    content: (
+      <InfoCell
+        value={<PolicyStatusTag policy={policy} />}
+        valueSkeleton={<PolicyStatusTag policy={null} />}
+        label="Status"
+      />
+    ),
   };
   const authorColumn = {
     key: 'author',
-    value: policy ? policy.author_name : <TextLineSkeleton type="h4" as="span" className="w-32" />,
-    label: 'Author',
+    content: <InfoCell value={policy?.author_name} label="Author" />,
   };
 
   // The meta fields render as one row on desktop and as two separate rows on
@@ -133,12 +140,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       columns: [
         {
           key: 'description',
-          value: policy ? (
-            policy.description || <EmptyValue />
-          ) : (
-            <TextLineSkeleton type="h4" as="span" className="w-2/3" />
-          ),
-          label: 'Description',
+          content: <InfoCell value={policy?.description} label="Description" skeletonWidth="w-2/3" />,
         },
       ],
     },

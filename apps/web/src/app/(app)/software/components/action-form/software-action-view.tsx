@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   DEVICE_STATUS,
@@ -16,7 +16,7 @@ import {
   PAST_START_MESSAGE,
   SCHEDULE_TIME_REFERENCE_OPTIONS,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Suspense, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
@@ -46,15 +46,9 @@ function renderPackageSearch({ packageManager, value, onChange }: PackageSearchS
   return (
     // Keyed by catalog: a new package manager starts a new search.
     <ErrorBoundary key={packageManager} fallback={<PackageSearchFieldPlaceholder error="Couldn't search packages." />}>
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading packages">
-            <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading packages">
         <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
-      </Suspense>
+      </LoadingSuspense>
     </ErrorBoundary>
   );
 }

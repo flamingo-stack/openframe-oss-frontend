@@ -1,18 +1,12 @@
 'use client';
 'use no memo';
 
-import {
-  Button,
-  type PageActionButton,
-  PageLayout,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useForm, useFormState } from 'react-hook-form';
-import { noop, SectionLoadError } from '@/app/components/shared';
-import { useSafeBack } from '@/app/hooks/use-safe-back';
-import { routes } from '@/lib/routes';
+import { SectionLoadError } from '@/app/components/shared';
 import { ConsentBlock } from '../consent/consent-block';
 import { MINT_FAILED } from '../consent/use-start-consent';
+import { TenantFormFrame } from '../shared/tenant-form-frame';
 import { ProviderField } from '../tenant-form/provider-field';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import type { TenantFormRecord } from '../tenant-form/tenant-form-helpers';
@@ -33,7 +27,6 @@ export function ConnectTenantForm({ record }: { record: TenantFormRecord | null 
 }
 
 function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const {
     form,
     editingDomain,
@@ -61,12 +54,7 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
   ];
 
   return (
-    <PageLayout
-      title="New Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-    >
+    <TenantFormFrame title="New Tenant Integration" actions={actions}>
       <TenantFormFields
         control={form.control}
         disabled={busy}
@@ -103,11 +91,10 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
           />
         </>
       )}
-    </PageLayout>
+    </TenantFormFrame>
   );
 }
 
-const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
 /**
  * The connect step before the record is known: the real chrome and the real controls, locked, over a throwaway
  * form, so there is no second copy of the markup. Only what names the record (the consent instruction) is a bar,
@@ -115,15 +102,8 @@ const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant:
  */
 function ConnectTenantFormSkeleton() {
   const form = useForm<TenantFormData>({ defaultValues: TENANT_FORM_DEFAULT_VALUES });
-  // Live, not a stub: Back works while the record loads.
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   return (
-    <PageLayout
-      title="New Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={[SAVE_PLACEHOLDER]}
-      actionsVariant="primary-buttons"
-    >
+    <TenantFormFrame title="New Tenant Integration">
       <TenantFormFields
         control={form.control}
         disabled
@@ -132,7 +112,7 @@ function ConnectTenantFormSkeleton() {
         customersEnabled={false}
       />
       {/* Before the record the block draws its own loading state; it reads only the mode. */}
-      <ConsentBlock mode="new" provider="" consentUrl={null} checking={false} verdict={null} onCheck={noop} />
-    </PageLayout>
+      <ConsentBlock mode="new" provider={null} />
+    </TenantFormFrame>
   );
 }

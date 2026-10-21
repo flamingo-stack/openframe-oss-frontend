@@ -18,6 +18,7 @@ import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { noop } from '@/app/components/shared';
+import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -134,6 +135,9 @@ function SchedulePickerLoading({ mode }: { mode: DeviceSelectionMode }) {
     <DeviceSelector
       devices={NO_DEVICES}
       loading
+      // One picker page of rows, the page the halves read first; the fallback around it already announces itself.
+      skeletonRows={DEVICE_PICKER_PAGE_SIZE}
+      loadingRegion={false}
       disabled
       showSelectionModeRadio={false}
       selectionMode={mode}

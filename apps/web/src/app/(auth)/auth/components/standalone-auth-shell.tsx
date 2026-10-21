@@ -1,6 +1,10 @@
 'use client';
 
-import { AuthShell, CompactAuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
+import {
+  AuthShell,
+  BackToLoginLink,
+  CompactAuthShell,
+} from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { ReactNode } from 'react';
 import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
 
@@ -24,4 +28,12 @@ export function StandaloneAuthShell({ children, footer }: StandaloneAuthShellPro
     return <CompactAuthShell tagline={null}>{children}</CompactAuthShell>;
   }
   return <AuthShell footer={footer}>{children}</AuthShell>;
+}
+
+/**
+ * The standalone shell with its Back to login footer: the invite and password reset screens, loaded and in their
+ * Suspense fallback (where `onBack` is a no-op: the fallback is inert).
+ */
+export function BackToLoginShell({ onBack, children }: { onBack: () => void; children: ReactNode }) {
+  return <StandaloneAuthShell footer={<BackToLoginLink onClick={onBack} />}>{children}</StandaloneAuthShell>;
 }

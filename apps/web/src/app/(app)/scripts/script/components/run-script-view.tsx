@@ -249,7 +249,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                   type="number"
                   className="w-full"
                   disabled={loading}
-                  value={loading ? '' : field.value}
+                  value={field.value}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 />

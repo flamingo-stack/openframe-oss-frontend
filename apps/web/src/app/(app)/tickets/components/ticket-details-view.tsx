@@ -9,7 +9,6 @@ import {
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
-import { InteractiveSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -95,9 +94,6 @@ import { TicketTagsSection } from './ticket-tags-section';
 interface TicketDetailsViewProps {
   ticketId: string;
 }
-
-/** Lines of the ticket description drawn while the ticket loads (a typical description). */
-const DESCRIPTION_SKELETON_LINES = 2;
 
 /**
  * Wrap a device-menu item so opening it also fires a dashboard-activity event.
@@ -637,9 +633,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isStatusLocked = isStatusLockedByPendingApproval(dialog);
 
   const hasClientChat = !isAdminOwner;
-  // While the ticket loads the Description section draws (its label and card real, the text a bar), so the Details
-  // pane and the desktop tab strip are on screen from the first paint.
-  const hasDescription = loading || !!dialog?.description?.trim();
+  // While the ticket loads the page draws the TYPICAL ticket, one with no description: the desktop column is the
+  // Client Chat heading and its chat, and the tab strip appears only once a description is read.
+  const hasDescription = !!dialog?.description?.trim();
   const hasAssignedItems = !!(
     assignedItems.customers?.length ||
     assignedItems.devices?.length ||
@@ -817,31 +813,33 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         />
       </div>
 
-      {/* While the ticket (and so its chat mode) loads, the composer's place is the direct-chat offer an open
-        AI-assisted ticket shows: its sentence real, its button a bar of the same size. */}
-      {(loading || (!isClosed && !isDirectMode)) && (
-        <div className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]">
+      {/* The direct-chat offer an open AI-assisted ticket shows in the composer's place. Left out while the ticket
+        loads (the loading form draws the typical ticket's composer below), so it carries `data-loading-optional`. */}
+      {!loading && !isClosed && !isDirectMode && (
+        <div
+          data-loading-optional
+          className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]"
+        >
           <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
-          {loading ? (
-            <InteractiveSkeleton.Button className="w-44 shrink-0" />
-          ) : (
-            <Button
-              variant="outline"
-              onClick={handleStartDirectChat}
-              disabled={isStartingDirectChat}
-              leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
-              className="shrink-0"
-            >
-              {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={handleStartDirectChat}
+            disabled={isStartingDirectChat}
+            leftIcon={<ChatsIcon size={24} className="text-ods-text-secondary" />}
+            className="shrink-0"
+          >
+            {isStartingDirectChat ? 'Starting...' : 'Start Direct Chat'}
+          </Button>
         </div>
       )}
-      {!loading && !isClosed && isDirectMode && (
+      {/* The composer: part of the typical ticket, so it is drawn (locked) while the ticket loads. */}
+      {(loading || (!isClosed && isDirectMode)) && (
         <ChatInput
           placeholder="Enter your Message..."
+          disabled={loading}
+          disabledPlaceholder="Enter your Message..."
           onSend={sendClientMessageWithReject}
           sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
           autoFocus={false}
@@ -877,11 +875,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <p className="text-ods-text-secondary text-h5">Ticket Description</p>
           <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
-            {loading ? (
-              <TextLineSkeleton type="h4" lines={DESCRIPTION_SKELETON_LINES} />
-            ) : (
-              <SimpleMarkdownRenderer content={dialog?.description ?? ''} />
-            )}
+            <SimpleMarkdownRenderer content={dialog?.description ?? ''} />
           </div>
         </section>
       ) : (

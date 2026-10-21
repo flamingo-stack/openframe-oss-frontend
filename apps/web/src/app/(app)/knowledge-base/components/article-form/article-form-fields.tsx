@@ -1,9 +1,8 @@
 'use client';
 'use no memo';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { FieldWrapper, FileUpload, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { lazyMarkdownEditor, SimpleMarkdownRenderer } from '@/app/components/shared/lazy-markdown';
 import { EntityTagPicker } from '@/app/components/shared/tags';
@@ -86,23 +85,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
         name="tags"
         control={control}
         render={({ field }) => (
-          <Suspense
-            fallback={
-              <LoadingFallback label="Loading tags">
-                <EntityTagPicker
-                  entityType={TagEntityType.KNOWLEDGE_ARTICLE}
-                  selectedIds={field.value}
-                  onChange={field.onChange}
-                  initialTags={initialTags}
-                  emptyPlaceholder={TAGS_PLACEHOLDER}
-                  maxCreateLength={25}
-                  deletable
-                  disabled={disabled}
-                  entityLabel="article"
-                />
-              </LoadingFallback>
-            }
-          >
+          <LoadingSuspense label="Loading tags">
             <EntityTagPicker
               entityType={TagEntityType.KNOWLEDGE_ARTICLE}
               selectedIds={field.value}
@@ -114,7 +97,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
               disabled={disabled}
               entityLabel="article"
             />
-          </Suspense>
+          </LoadingSuspense>
         )}
       />
 

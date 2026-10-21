@@ -16,9 +16,9 @@ import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import type { RecordingSummary } from '../../types/session-recording';
-import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
 import { formatBytes, formatDurationMs } from './format';
 import { keepReasonText } from './recording-keep';
+import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import {
   canDeleteSession,
   canOpenSession,

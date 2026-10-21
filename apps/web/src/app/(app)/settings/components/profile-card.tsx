@@ -1,10 +1,7 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
-  AlertCircleIcon,
   BellIcon,
   PenEditIcon,
   Refresh01LeftIcon,
@@ -16,9 +13,8 @@ import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
-import { getFullImageUrl } from '@/lib/image-url';
 import { DeleteAccountModal } from './delete-account-modal';
-import { IdentityRow } from './identity-row';
+import { UserIdentityRow } from './identity-row';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
 interface ProfileCardProps {
@@ -26,10 +22,8 @@ interface ProfileCardProps {
   onVerifyEmail: () => void;
 }
 
-const ROW_CLASS = 'flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]';
-
 /**
- * The signed-in user's row. While the user is read, `IdentityRow` draws the 48px round avatar and the name and email
+ * The signed-in user's row. While the user is read, `UserIdentityRow` draws the 48px round avatar and the name and email
  * lines as bars (the name line's `min-h-8` is the role `Tag`'s height, so the row is one height with or without
  * roles), and the kebab is its icon-button box.
  */
@@ -66,82 +60,58 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
     return <PageError message="No user data available" />;
   }
 
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
-
   return (
     <>
-      <IdentityRow
-        className={ROW_CLASS}
+      <UserIdentityRow
+        user={user}
         loading={loading}
-        loadingLabel="Loading your profile"
-        name={displayName}
-        avatarSrc={user ? getFullImageUrl(user.image?.imageUrl, user.image?.hash) : undefined}
-        avatarVariant="round"
-        nameAside={user?.roles?.map(role => <Tag key={role} variant="outline" label={role} />) ?? null}
-        subline={user?.email}
-        sublineWhileLoading
-        sublineAside={
-          user?.emailVerified === false && (
-            <button
-              type="button"
-              onClick={onVerifyEmail}
-              className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
-              title="Email not verified - click to resend verification"
-            >
-              <AlertCircleIcon className="h-4 w-4" />
-              <span className="text-h6">Not verified</span>
-            </button>
-          )
-        }
+        onVerifyEmail={onVerifyEmail}
         action={
-          loading ? (
-            <InteractiveSkeleton.Button size="icon" className="shrink-0" />
-          ) : (
-            <ActionsMenuDropdown
-              align="end"
-              triggerAriaLabel="Profile actions"
-              groups={[
-                {
-                  items: [
-                    {
-                      id: 'edit-profile',
-                      label: 'Edit Profile',
-                      icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
-                      onClick: onEditProfile,
-                    },
-                    {
-                      id: 'notification-settings',
-                      label: 'Notification Settings',
-                      icon: <BellIcon className="h-5 w-5 text-ods-text-secondary" />,
-                      onClick: () => setIsNotificationSettingsOpen(true),
-                    },
-                    ...(canResetOnboarding
-                      ? [
-                          {
-                            id: 'reset-onboarding',
-                            label: 'Reset Onboarding',
-                            icon: <Refresh01LeftIcon className="h-5 w-5 text-ods-text-secondary" />,
-                            onClick: () => setIsResetConfirmOpen(true),
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-                {
-                  separator: true,
-                  items: [
-                    {
-                      id: 'delete-account',
-                      label: 'Delete Account',
-                      icon: <UserXmarkIcon className="h-5 w-5 text-ods-error" />,
-                      danger: true,
-                      onClick: () => setIsDeleteAccountOpen(true),
-                    },
-                  ],
-                },
-              ]}
-            />
-          )
+          <ActionsMenuDropdown
+            loading={loading}
+            align="end"
+            triggerAriaLabel="Profile actions"
+            groups={[
+              {
+                items: [
+                  {
+                    id: 'edit-profile',
+                    label: 'Edit Profile',
+                    icon: <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />,
+                    onClick: onEditProfile,
+                  },
+                  {
+                    id: 'notification-settings',
+                    label: 'Notification Settings',
+                    icon: <BellIcon className="h-5 w-5 text-ods-text-secondary" />,
+                    onClick: () => setIsNotificationSettingsOpen(true),
+                  },
+                  ...(canResetOnboarding
+                    ? [
+                        {
+                          id: 'reset-onboarding',
+                          label: 'Reset Onboarding',
+                          icon: <Refresh01LeftIcon className="h-5 w-5 text-ods-text-secondary" />,
+                          onClick: () => setIsResetConfirmOpen(true),
+                        },
+                      ]
+                    : []),
+                ],
+              },
+              {
+                separator: true,
+                items: [
+                  {
+                    id: 'delete-account',
+                    label: 'Delete Account',
+                    icon: <UserXmarkIcon className="h-5 w-5 text-ods-error" />,
+                    danger: true,
+                    onClick: () => setIsDeleteAccountOpen(true),
+                  },
+                ],
+              },
+            ]}
+          />
         }
       />
 

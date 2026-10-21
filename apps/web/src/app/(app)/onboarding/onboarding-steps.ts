@@ -3,6 +3,7 @@
  * single source of truth for how many steps each surface has and in what order
  * they render; nothing counts steps by a hardcoded number.
  */
+import type { ReactNode, Ref } from 'react';
 import { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 
 /** Tenant "Initial Setup" steps, in display order. */
@@ -89,4 +90,27 @@ export function onboardingProgress<T extends string>(
     nextStep: steps.find(step => !isStepDone(step, completedSteps)) ?? null,
     allDone: !loading && done >= total,
   };
+}
+
+/** No step completed: what a surface's view reads while progress is read. */
+export const NO_COMPLETED_STEPS: readonly string[] = [];
+
+/** How a loaded row is wired: its anchor, its expansion and its body. Absent while progress is read. */
+export interface OnboardingStepWiring {
+  ref: Ref<HTMLDivElement>;
+  /** The URL-hash anchor (`/onboarding#step-…`); surfaces without deep-linking omit it. */
+  id?: string;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  body: ReactNode;
+}
+
+/** The lead of a surface's progress line: its static step count. */
+export function stepsToCompleteLabel(total: number): string {
+  return `${total} steps to complete`;
+}
+
+/** A surface's progress line, once progress is read: the step count and how many are done, or that all are. */
+export function progressLine({ total, done, allDone }: OnboardingProgress<string>): string {
+  return allDone ? 'All steps complete' : `${stepsToCompleteLabel(total)} · ${done}/${total} done`;
 }

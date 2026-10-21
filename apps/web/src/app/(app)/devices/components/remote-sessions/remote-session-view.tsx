@@ -114,6 +114,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   // Read once the page has the recording: a missing one has no timeline either.
   const events = placeSessionEvents(useSessionEvents(recording ? recordingId : null), player.timeline);
   const hasPlayback = player.state !== 'empty';
+  // The recording, or its files, are still on their way: the controls strip keeps its place in its loading form.
+  const awaitingPlayback = isLoading || (!!recording && recording.segments.length > 0 && !unavailable);
   const activeEventId = hasPlayback ? activeSessionEventId(events, player.currentMs) : null;
   useReportRecordingPlayed(recording?.id ?? null, player.state);
   const tickets = useRecordingTickets(recording ? recordingId : null).data ?? [];
@@ -295,50 +297,57 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
                 unavailableNote={unavailableNote}
                 className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
               />
-              {/* No controls until a recording is actually loaded - the
-              unavailable/processing screen (Figma 775-50606) is just the
+              {/* While the recording and its files are read the strip draws its loading form; the
+              unavailable/processing screen (Figma 775-50606) has no controls - it is just the
               empty state on black. */}
-              {player.state !== 'empty' && (
+              {(player.state !== 'empty' || awaitingPlayback) && (
                 <div className="bg-ods-card px-[var(--spacing-system-sf)] pb-[var(--spacing-system-xs)] pt-[var(--spacing-system-s)]">
-                  <PlayerControls
-                    state={player.state}
-                    currentMs={player.currentMs}
-                    durationMs={player.durationMs}
-                    speed={player.speed}
-                    isFullscreen={isFullscreen}
-                    markers={
-                      events.length > 0 && (
-                        <RemoteSessionTimelineMarkers
-                          events={events}
-                          durationMs={player.durationMs}
-                          onSelect={event => player.seek(event.offsetMs)}
-                        />
-                      )
-                    }
-                    onTogglePlay={player.togglePlay}
-                    onSeek={player.seek}
-                    onStepBack={player.stepBack}
-                    onStepForward={player.stepForward}
-                    onSetSpeed={player.setSpeed}
-                    onToggleFullscreen={() => void toggleFullscreen()}
-                  />
+                  <LoadingWhen loading={player.state === 'empty'}>
+                    <PlayerControls
+                      state={player.state}
+                      currentMs={player.currentMs}
+                      durationMs={player.durationMs}
+                      speed={player.speed}
+                      isFullscreen={isFullscreen}
+                      markers={
+                        events.length > 0 && (
+                          <RemoteSessionTimelineMarkers
+                            events={events}
+                            durationMs={player.durationMs}
+                            onSelect={event => player.seek(event.offsetMs)}
+                          />
+                        )
+                      }
+                      onTogglePlay={player.togglePlay}
+                      onSeek={player.seek}
+                      onStepBack={player.stepBack}
+                      onStepForward={player.stepForward}
+                      onSetSpeed={player.setSpeed}
+                      onToggleFullscreen={() => void toggleFullscreen()}
+                    />
+                  </LoadingWhen>
                 </div>
               )}
             </div>
           </div>
           {showChat && <SessionChat messages={recording.chat} employee={recording.employee} />}
         </div>
+        {/* Events and tickets: only some sessions have them, so neither is drawn while the recording is read. */}
         {!isFullscreen && events.length > 0 && (
-          <RemoteSessionEventList
-            events={events}
-            activeEventId={activeEventId}
-            // A row seeks only once there is a recording to seek in.
-            onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
-          />
+          <div data-loading-optional>
+            <RemoteSessionEventList
+              events={events}
+              activeEventId={activeEventId}
+              // A row seeks only once there is a recording to seek in.
+              onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
+            />
+          </div>
         )}
         {/* With no ticket linked the whole section, title included, is left out. */}
         {!isFullscreen && tickets.length > 0 && (
-          <RecordingTicketsSection tickets={tickets} onUnassign={setUnassignTarget} />
+          <div data-loading-optional>
+            <RecordingTicketsSection tickets={tickets} onUnassign={setUnassignTarget} />
+          </div>
         )}
       </div>
       <AssignTicketModal

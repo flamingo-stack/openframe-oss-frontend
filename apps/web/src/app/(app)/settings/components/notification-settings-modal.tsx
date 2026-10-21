@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   LoadingWhen,
@@ -57,9 +57,6 @@ const SAVE_BUTTON_CLASS = 'h-12 flex-1 bg-ods-accent text-ods-text-on-accent tex
  */
 const MASTER_ROW_CLASS =
   'flex items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border';
-/** The switch's own box (the lib `Switch` is `h-4 w-6`), drawn as a bar while its state is read. */
-const SWITCH_SKELETON_CLASS = 'h-4 w-6 shrink-0 rounded-full';
-
 /**
  * Group rows the loading list draws. The list is the server's and not paged, so there is no page size: this is a
  * typical count, NOT a claim about how many groups exist; a mismatch resizes the panel once when it lands.
@@ -198,11 +195,13 @@ function NotificationSettingsFormView({
     <>
       <ModalV2Content className={CONTENT_CLASS}>
         <div className={MASTER_ROW_CLASS}>
-          {loading ? (
-            <UnifiedSkeleton className={SWITCH_SKELETON_CLASS} />
-          ) : (
-            <Switch id={masterSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
-          )}
+          <Switch
+            id={masterSwitchId}
+            checked={enabled}
+            onCheckedChange={setEnabled}
+            disabled={isSaving}
+            loading={loading}
+          />
           <label htmlFor={masterSwitchId} className="cursor-pointer text-ods-text-primary text-h4">
             Enable Notifications
           </label>

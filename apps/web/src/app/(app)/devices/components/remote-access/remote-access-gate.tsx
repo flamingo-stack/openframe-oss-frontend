@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LIVE_PULSE_CLASS } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -110,9 +111,10 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
 
   let body: ReactNode;
   if (gate === 'loading') {
-    // The flag has not answered: the flow's own page, its canvas still empty. The session surface is never
-    // mounted before the gate says how it starts.
-    body = null;
+    // The flag has not answered: the flow's own page in its loading form. The typical next screen is the request in
+    // flight (most tenants have the gate on), so its mark's box is drawn. The session surface is never mounted before
+    // the gate says how it starts.
+    body = <MediaSkeleton.Icon className="h-8 w-8" />;
   } else if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.

@@ -59,8 +59,9 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
           </span>
         </p>
       )}
+      {/* Only a metered month with a top-up chosen has this line: optional, below the total. */}
       {!isLoading && total && !total.prepaid && topUp > 0 && (
-        <p>
+        <p data-loading-optional>
           AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
         </p>
       )}

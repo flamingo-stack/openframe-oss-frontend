@@ -92,7 +92,7 @@ function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displ
       <div className={`${CARD_ROW} border-t border-ods-border`}>
         <InfoCell skeletonWidth="w-24" value={role} label="Role" />
         <InfoCell
-          valueSkeleton={<Tag label="" loading />}
+          valueSkeleton={<Tag label="" />}
           value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
           label="Status"
         />

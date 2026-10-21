@@ -174,7 +174,8 @@ interface SoftwareActionsTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
+/** The filter options before the query has read them (the loading state's): none known yet. */
+const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
 
 /**
  * The Software Actions rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws
@@ -188,7 +189,7 @@ export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
         {...props}
         rows={[]}
         totalCount={0}
-        filterOptions={NO_FILTER_OPTIONS}
+        filterOptions={UNREAD_FILTER_OPTIONS}
         infiniteScroll={NO_NEXT_PAGE}
       />
     );

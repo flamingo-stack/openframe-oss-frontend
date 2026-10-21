@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Input,
@@ -9,7 +9,7 @@ import {
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -90,11 +90,11 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
         {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
             itself, in a loading scope, where it draws its own loading state and does not fetch. */}
         <LoadingWhen loading={loading}>
-          <Suspense fallback={<LoadingFallback label="Loading tenants">{rows}</LoadingFallback>}>{rows}</Suspense>
+          <LoadingSuspense label="Loading tenants">{rows}</LoadingSuspense>
         </LoadingWhen>
         {/* Below the list, not above it: most workspaces have no notice, and one that lands after the list would
             push the rows down in the first screen. */}
-        {!loading && <ConsentAnnouncementBanner />}
+        {!loading && <ConsentAnnouncementBanner data-loading-optional />}
       </div>
     </PageLayout>
   );

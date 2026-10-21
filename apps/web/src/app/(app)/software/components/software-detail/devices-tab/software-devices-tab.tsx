@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { SoftwareOnDeviceFilterInput } from '@/__generated__/softwareDevicesTableQuery.graphql';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -92,7 +92,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
       {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
           itself, in a loading scope, where it draws its own loading state and does not fetch. */}
       <LoadingWhen loading={loading}>
-        <Suspense fallback={<LoadingFallback label="Loading devices">{rows}</LoadingFallback>}>{rows}</Suspense>
+        <LoadingSuspense label="Loading devices">{rows}</LoadingSuspense>
       </LoadingWhen>
     </div>
   );

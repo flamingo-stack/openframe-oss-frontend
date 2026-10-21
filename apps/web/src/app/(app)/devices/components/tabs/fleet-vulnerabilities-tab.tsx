@@ -299,11 +299,6 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
-      {/* Results are on screen but the last matching run predates the current
-          software inventory — e.g. a patched CVE may still show as active until
-          the hourly run catches up. */}
-      {device && isVulnerabilityScanPending(device) && <DataSyncBanner />}
-
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
@@ -340,6 +335,11 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
           }}
         />
       </DataTable>
+
+      {/* Results are on screen but the last matching run predates the current software inventory — e.g. a patched
+          CVE may still show as active until the hourly run catches up. Below the table: drawn above it, its arrival
+          would move the rows. */}
+      {!loading && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
     </div>
   );
 }

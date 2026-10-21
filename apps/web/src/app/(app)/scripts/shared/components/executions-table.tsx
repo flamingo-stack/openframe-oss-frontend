@@ -38,7 +38,6 @@ import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__ge
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
 import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -49,13 +48,12 @@ import { executionFacetsFragment } from '@/graphql/scripts/execution-facets';
 import { executionFieldsFragment } from '@/graphql/scripts/execution-fields';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
-import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { executionOutput, executionStatusLabel, initiatorInitials, initiatorName } from '../utils/execution-helpers';
+import { executionOutput, executionStatusLabel } from '../utils/execution-helpers';
 import { type FacetOption, facetFilter, facetToSortedOptions } from '../utils/facet-options';
-import { InitiatorAvatar, InitiatorName, rowInitiator } from './initiator-identity';
+import { type Initiator, InitiatorAvatar, InitiatorName, toInitiator } from './initiator-identity';
 
 /**
  * The Execution History table, shared by the per-SCRIPT tab
@@ -99,12 +97,8 @@ export interface UiExecution {
   machineId: string;
   machineName: string;
   organization: string;
-  initiatorId: string;
-  initiatorName: string;
-  initiatorInitials: string;
-  initiatorImage?: string;
-  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
-  initiatorDeleted: boolean;
+  /** Who dispatched it: the "Executed by" cell draws this, and its `id` is the column's filter value. */
+  initiator: Initiator;
   /**
    * Which script this execution ran — the second line under the initiator.
    * Empty unless the list passes it: the schedule lists do (a schedule runs
@@ -134,11 +128,7 @@ export function toUiExecution(ref: ExecutionFieldsKey, scriptName?: string | nul
     machineId: node.machine?.machineId ?? '',
     machineName: getDeviceName(node.machine),
     organization: node.machine?.organization?.name ?? '',
-    initiatorId: node.initiator?.id ?? '',
-    initiatorName: initiatorName(node.initiator),
-    initiatorInitials: initiatorInitials(node.initiator),
-    initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
-    initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
+    initiator: toInitiator(node.initiator),
     scriptName: scriptName ?? '',
     source: node.source,
     result: executionOutput({ stdout: node.stdout, stderr: node.stderr, error: node.error }),
@@ -163,7 +153,7 @@ export function narrowExecutions(executions: UiExecution[], term: string): UiExe
       execution.executionId,
       execution.machineName,
       execution.organization,
-      execution.initiatorName,
+      execution.initiator.name,
       execution.scriptName,
       execution.result,
       executionStatusLabel(execution.status),
@@ -302,14 +292,15 @@ function executionColumns({
       meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: facetFilter(facetOptions?.machineOptions) }),
     },
     {
-      // accessorKey is `initiatorId` so the filter option values (user ids)
+      // The column's value is the initiator's id so the filter option values (user ids)
       // match the `initiatorIds` server filter; the cell still renders the name.
-      accessorKey: 'initiatorId',
+      id: 'initiatorId',
+      accessorFn: (execution: UiExecution) => execution.initiator.id,
       header: 'Executed by',
       // The avatar + name open that user's page in a new tab; only the NAME opts out of the row link (the rest of the
       // cell still navigates to the execution, like every other cell).
       cell: ({ row }: { row: Row<UiExecution> }) => {
-        const initiator = rowInitiator(row.original);
+        const { initiator } = row.original;
         return (
           <ExecutionInitiatorCell
             avatar={<InitiatorAvatar initiator={initiator} size="md" />}

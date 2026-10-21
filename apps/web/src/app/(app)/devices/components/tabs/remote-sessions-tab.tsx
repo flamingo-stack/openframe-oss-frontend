@@ -28,9 +28,9 @@ import { useDeleteRemoteSession, useSessionRecordings } from '../../hooks/use-se
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
 import { DeleteSessionDialog } from '../remote-sessions/delete-session-dialog';
+import { REMOTE_SESSION_COLUMNS } from '../remote-sessions/remote-session-column-layout';
 import { remoteSessionColumns } from '../remote-sessions/remote-session-columns';
 import { canOpenSession, EXPIRES_FILTER_OPTIONS } from '../remote-sessions/session-status';
-import { REMOTE_SESSION_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
 interface RemoteSessionsTabProps {

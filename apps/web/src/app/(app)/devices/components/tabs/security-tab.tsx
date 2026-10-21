@@ -249,6 +249,8 @@ const LOADING_SECTIONS: SecuritySection[] = [
           { label: 'Status', value: '' },
         ],
       },
+      // Fleet Desktop ships with Orbit, so a typical Fleet host reports it too.
+      { rows: [{ label: 'Version', value: '' }] },
     ],
   },
   {

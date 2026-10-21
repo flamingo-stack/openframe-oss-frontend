@@ -93,7 +93,8 @@ export function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
   const handleBack = useSafeBack(routes.settings.root());
   const subscription = data?.subscription ?? null;
   const device = subscription ? deviceAllocation(subscription) : null;
-  // While it loads, both cards and both sections: what the workspace carries is what has not answered yet.
+  // While it loads, both cards and both sections: the typical subscription carries the AI product, and only this read
+  // says whether it does (no flag or catalog knows it before).
   const hasAi = loading || (subscription?.products.some(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? false);
 
   const activeDevices = subscription?.usage?.activeDevices ?? 0;

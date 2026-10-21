@@ -7,6 +7,7 @@ import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/com
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { EMPTY_CARD } from '@/app/components/shared/info-card-loading';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device, InstalledAgent, ToolConnection } from '../../types/device.types';
@@ -16,7 +17,6 @@ import {
   getToolConnectionDisplayStatus,
   type ToolConnectionDisplayStatus,
 } from '../../utils/tool-connection-status';
-import { EMPTY_CARD } from './info-card-loading';
 import { TabEmptyState } from './tab-empty-state';
 
 interface AgentsTabProps {
@@ -31,13 +31,19 @@ const agentTypeToToolType: Record<string, string> = {
   osqueryd: 'OSQUERY',
 };
 
+/** The rows a connected agent's card reports (its labels drawn real while the device is read). */
+const AGENT_CARD_ROWS = ['Agent', 'Status', 'Last Seen', 'ID', 'Version', 'Updated'];
+
 /**
- * Cards the tab draws while the device is read. The agent list has no page size: a typical device reports one card
- * per agent type the platform knows.
+ * The cards the tab draws while the device is read, in the loaded order. The agent list has no page size: a typical
+ * device reports one card per agent type the platform knows, each with a connected agent's rows and its real footer.
  */
-const AGENT_CARDS_SKELETON_COUNT = Object.keys(agentTypeToToolType).length;
-/** A loading card: the rows a connected agent reports, their labels real, and its footer. */
-const AGENT_CARD_SKELETON = { rows: ['Agent', 'Status', 'Last Seen', 'Version'], title: false, footer: true };
+const AGENT_CARD_SKELETONS = Object.entries(agentTypeToToolType)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([agentType, toolType]) => ({
+    agentType,
+    shape: { rows: AGENT_CARD_ROWS, title: false, footer: getAgentFooter(toolType) ?? false },
+  }));
 
 const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
 
@@ -199,11 +205,21 @@ function agentCardData(agent: CombinedAgent): InfoCardData {
 
 export function AgentsTab({ device }: AgentsTabProps) {
   const loading = useLoadingScope();
-  // While the device is read each slot is a card with no rows (its skeleton); the data is not touched.
-  const agents: Array<CombinedAgent | null> = loading
-    ? Array.from({ length: AGENT_CARDS_SKELETON_COUNT }, () => null)
-    : combineAgents(device);
 
+  if (loading) {
+    // The data is not touched: each slot is a card with no rows, drawn in its agent's loading shape.
+    return (
+      <AgentCards>
+        {AGENT_CARD_SKELETONS.map(({ agentType, shape }) => (
+          <div key={agentType} data-loading-item className="h-full">
+            <InfoCard data={EMPTY_CARD} skeleton={shape} className="h-full" />
+          </div>
+        ))}
+      </AgentCards>
+    );
+  }
+
+  const agents = combineAgents(device);
   if (agents.length === 0) {
     return (
       <TabEmptyState
@@ -215,22 +231,23 @@ export function AgentsTab({ device }: AgentsTabProps) {
   }
 
   return (
+    <AgentCards>
+      {agents.map((agent, idx) => (
+        <div key={`${agent.agentType}-${agent.agentToolId || idx}`} data-loading-item className="h-full">
+          <InfoCard data={agentCardData(agent)} className="h-full" />
+        </div>
+      ))}
+    </AgentCards>
+  );
+}
+
+/** The section heading and the grid the cards sit in, loading and loaded alike. */
+function AgentCards({ children }: { children: ReactNode }) {
+  return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
       <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
-        {agents.map((agent, idx) => (
-          <div
-            key={agent ? `${agent.agentType}-${agent.agentToolId || idx}` : idx}
-            data-loading-item
-            className="h-full"
-          >
-            <InfoCard
-              data={agent ? agentCardData(agent) : EMPTY_CARD}
-              skeleton={AGENT_CARD_SKELETON}
-              className="h-full"
-            />
-          </div>
-        ))}
+        {children}
       </div>
     </section>
   );

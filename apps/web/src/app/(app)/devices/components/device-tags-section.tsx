@@ -31,9 +31,7 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
       <div className={TAGS_ROW_CLASS}>
         {loading ? (
           Array.from({ length: DEVICE_TAGS_SKELETON_COUNT }, (_, index) => (
-            <span key={index} data-loading-item className="flex">
-              <Tag label="" loading />
-            </span>
+            <Tag key={index} as="span" variant="badge" label="" loading data-loading-item />
           ))
         ) : tagValues.length === 0 ? (
           <span className="text-h4">

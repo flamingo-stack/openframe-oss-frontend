@@ -168,7 +168,7 @@ function TestClockPanelView({ frozenTime: queriedFrozenTime, onClockChanged }: T
           registration) the schedulers spend a few minutes rebuilding the Stripe
           customer, and the billing data on this page is stale until they finish. */}
       {!loading && provisioning.status && (
-        <p className="text-ods-text-primary text-h4">
+        <p data-loading-optional className="text-ods-text-primary text-h4">
           Provisioning:{' '}
           <span className={isProvisioningReady ? 'text-ods-success' : 'text-ods-warning'}>
             {provisioning.status.message}

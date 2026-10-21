@@ -2,9 +2,10 @@
 
 import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { EntityImage, Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -28,9 +29,6 @@ function Row({ children }: { children: ReactNode }) {
 function Cell({ children }: { children: ReactNode }) {
   return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
 }
-
-/** A tag cell's value before the incident is read: a tag with no label yet, drawn as its skeleton in the scope. */
-const TAG_LOADING = <Tag label="" />;
 
 /** The device-type icon's box, shared by the icon and its loading placeholder. */
 const DEVICE_ICON_CLASS = 'size-6';
@@ -66,7 +64,9 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         ) : (
           <>
             <TruncateText variant="h4">{incident.title}</TruncateText>
-            {incident.description && <p className="text-ods-text-secondary text-h6">{incident.description}</p>}
+            {/* Always drawn: what the detecting query looks for, which nearly every finding states; one without it
+                shows the empty mark, so the line the loading form draws is always there. */}
+            <p className="text-ods-text-secondary text-h6">{incident.description || <EmptyValue />}</p>
           </>
         )}
       </div>
@@ -133,8 +133,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell
             loading={loading}
-            valueSkeleton={TAG_LOADING}
-            value={incident ? <IncidentSeverityTag severity={incident.severity} /> : null}
+            valueSkeleton={<IncidentSeverityTag />}
+            value={<IncidentSeverityTag severity={incident?.severity} />}
             label="Severity"
           />
         </Cell>
@@ -155,8 +155,8 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell
             loading={loading}
-            valueSkeleton={TAG_LOADING}
-            value={incident ? <IncidentStatusTag status={incident.status} /> : null}
+            valueSkeleton={<IncidentStatusTag />}
+            value={<IncidentStatusTag status={incident?.status} />}
             label="Status"
           />
         </Cell>

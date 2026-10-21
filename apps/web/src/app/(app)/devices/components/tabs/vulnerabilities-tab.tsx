@@ -91,31 +91,30 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
   }
 
   return (
-    <SoftwareListFrame
-      paramPrefix="cve"
-      placeholder={SEARCH_PLACEHOLDER}
-      loadingLabel="Loading vulnerabilities"
-      loading={loading}
-      // Results are on screen but the last matching run predates the current
-      // software inventory — e.g. a patched CVE may still show as active until
-      // the hourly run catches up.
-      banner={
-        device && isVulnerabilityScanPending(device) && <DataSyncBanner className="mb-[var(--spacing-system-l)]" />
-      }
-    >
-      {list => (
-        <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
-          <DeviceVulnerabilitiesTable
-            debouncedSearch={list.debouncedSearch}
-            isPending={list.isPending}
-            onEmptyChange={list.onEmptyChange}
-            stickyHeaderOffset={list.stickyHeaderOffset}
-            machineId={device?.machineId ?? ''}
-            emptyState={device ? vulnerabilitiesEmptyState(device) : NO_VULNERABILITIES}
-          />
-        </ContentErrorBoundary>
-      )}
-    </SoftwareListFrame>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <SoftwareListFrame
+        paramPrefix="cve"
+        placeholder={SEARCH_PLACEHOLDER}
+        loadingLabel="Loading vulnerabilities"
+        loading={loading}
+      >
+        {list => (
+          <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
+            <DeviceVulnerabilitiesTable
+              debouncedSearch={list.debouncedSearch}
+              isPending={list.isPending}
+              onEmptyChange={list.onEmptyChange}
+              stickyHeaderOffset={list.stickyHeaderOffset}
+              machineId={device?.machineId ?? ''}
+              emptyState={device ? vulnerabilitiesEmptyState(device) : NO_VULNERABILITIES}
+            />
+          </ContentErrorBoundary>
+        )}
+      </SoftwareListFrame>
+      {/* The last matching run predates the current software inventory — e.g. a patched CVE may still show as
+          active until the hourly run catches up. Below the list: drawn above it, its arrival would move the rows. */}
+      {!scoped && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
+    </div>
   );
 }
 

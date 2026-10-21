@@ -50,26 +50,30 @@ interface CurrentPlanSectionProps {
   billingPlan: currentPlanSection_billingPlan$key | null;
 }
 
-/**
- * The section while the subscription is on its way: every row a paid plan typically states (each is present only
- * when its own field is, which the response has not said yet), labels real and values as bars.
- */
-function CurrentPlanSectionSkeleton() {
-  return (
-    <SectionBlock title="Current Plan">
-      <BillingRow label="Billing Cycle" loading />
-      <BillingRow label="Device Rate" loading />
-      <BillingRow label="Free AI Tokens" loading />
-      <BillingRow label="Next Payment" loading />
-      <BillingRow label="Next Billing Date" loading />
-    </SectionBlock>
-  );
-}
+/** The rows a paid plan typically states, in the order the loaded section draws them. */
+const CURRENT_PLAN_TYPICAL_ROWS = [
+  'Billing Cycle',
+  'Device Rate',
+  'Free AI Tokens',
+  'Next Payment',
+  'Next Billing Date',
+];
 
 export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSectionProps) {
   const data = useFragment(currentPlanSectionSubscriptionFragment, subscription);
   const catalog = useFragment(currentPlanSectionBillingPlanFragment, billingPlan);
-  if (useLoadingScope() || data == null) return <CurrentPlanSectionSkeleton />;
+  // While the subscription is on its way: every row a paid plan typically states (each is present only when its own
+  // field is, which the response has not said yet), labels real and values drawn by the row's own loading state.
+  const loading = useLoadingScope() || data == null;
+  if (loading || data == null) {
+    return (
+      <SectionBlock title="Current Plan">
+        {CURRENT_PLAN_TYPICAL_ROWS.map(label => (
+          <BillingRow key={label} label={label} loading />
+        ))}
+      </SectionBlock>
+    );
+  }
   const schedule = planSchedule(data);
   const products = catalog?.products ?? [];
 

@@ -18,7 +18,7 @@ import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { fromWireSession, readSession } from '../../services/session-recordings-api-service';
 import type { RecordingSummary } from '../../types/session-recording';
-import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
+import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
 import { type ExpiresFilterValue, isRecordingGone } from './session-status';
 

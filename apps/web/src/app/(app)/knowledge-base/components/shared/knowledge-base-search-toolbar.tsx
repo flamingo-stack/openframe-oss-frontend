@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { KnowledgeBaseTagsFilterModal } from './knowledge-base-tags-filter-modal';
 import { KnowledgeBaseTagsRow } from './knowledge-base-tags-row';
 import type { TagSearchState } from './use-tag-search-state';
@@ -79,13 +79,13 @@ export function KnowledgeBaseSearchToolbar({
 
         {/* `contents`, so a folder with no tags leaves no empty box — and no gap — under the search. */}
         <div className="hidden content-md:contents">
-          <Suspense fallback={<LoadingFallback label="Loading tags">{tagsRow}</LoadingFallback>}>{tagsRow}</Suspense>
+          <LoadingSuspense label="Loading tags">{tagsRow}</LoadingSuspense>
         </div>
       </div>
 
       {/* Beside the bar, not inside it: the bar is a stacking context (`sticky` + `z-20`), and a
           modal inside it could never rise above the app header. */}
-      <Suspense fallback={<LoadingFallback label="Loading tags">{tagsModal}</LoadingFallback>}>{tagsModal}</Suspense>
+      <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
     </>
   );
 }

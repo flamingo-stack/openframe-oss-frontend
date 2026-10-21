@@ -9,6 +9,7 @@ export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
 export { EmptyState, type EmptyStateProps } from './empty-state';
 export { EmptyValue } from './empty-value';
 export { HydratorBoundary } from './hydrator-boundary';
+export { EMPTY_CARD, labelsOf } from './info-card-loading';
 export { type InfiniteScroll, NO_NEXT_PAGE, noop } from './no-next-page';
 export { type NoteItem, NotesSection } from './notes-section';
 export { type OnboardingGuideSource, onboardingGuideButton } from './onboarding-guide-button';

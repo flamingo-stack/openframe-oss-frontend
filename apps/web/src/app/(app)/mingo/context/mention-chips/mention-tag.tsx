@@ -13,15 +13,15 @@
  *
  * When `href` is set the chip is a link to the entity's page — a NEW TAB on
  * desktop web, the SAME window where a new tab is unavailable or unwanted (see
- * `useSameWindowLinks`). In a loading scope the chip draws its own skeleton
- * (`MentionTagSkeleton`); `MentionTagFallback` is the Suspense fallback that puts
- * it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
+ * `useSameWindowLinks`). In a loading scope the chip is the `Tag`'s own
+ * skeleton, in the chip's box; `MentionTagFallback` is the Suspense fallback that
+ * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
  * always: skeleton while fetching → resolved chip → plain id chip if the fetch
  * throws (never crashes the message).
  */
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingScope, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingScope, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -61,8 +61,6 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   const router = useRouter();
   const newTab = !sameWindow && !onOpen;
-
-  if (useLoadingScope()) return <MentionTagSkeleton icon={icon} />;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
@@ -112,19 +110,6 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
     >
       {chip}
     </a>
-  );
-}
-
-/** The chip's own loading state: the same chip shell (no link) with the label a text bar of the chip's own type step. */
-function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
-  return (
-    <Tag
-      as="span"
-      variant="badge"
-      icon={icon}
-      label={<TextLineSkeleton type="h5" as="span" className="w-20" />}
-      className={CHIP_CLASS}
-    />
   );
 }
 

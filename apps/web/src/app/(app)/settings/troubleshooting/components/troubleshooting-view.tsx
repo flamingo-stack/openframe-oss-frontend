@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BuildingsIcon,
   MonitorOffIcon,
@@ -9,7 +9,7 @@ import {
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { DeviceLogDrawer } from '@/app/(app)/devices/components/tabs/device-logs/device-log-drawer';
 import type { DeviceLogEntry } from '@/app/(app)/devices/components/tabs/device-logs/device-log-row';
 import { DeviceLogsList } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-list';
@@ -177,7 +177,7 @@ export function TroubleshootingView() {
         resetKey={deferredList.key}
         fallback={unknownPickFallback}
       >
-        <Suspense fallback={<LoadingFallback label="Loading logs">{logsList}</LoadingFallback>}>{logsList}</Suspense>
+        <LoadingSuspense label="Loading logs">{logsList}</LoadingSuspense>
       </ContentErrorBoundary>
       <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} />
     </PageLayout>

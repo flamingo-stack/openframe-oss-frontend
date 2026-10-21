@@ -2,7 +2,6 @@
 'use no memo';
 
 import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Button,
   CheckboxBlock,
@@ -160,14 +159,13 @@ export function RunScriptConfigStepView({
               name="timeout"
               control={control}
               render={({ field }) => (
-                // While the script is read its saved timeout is a bar in the field, which takes no input yet.
+                // In the loading scope the field draws its saved timeout as a bar and takes no input yet.
                 <Input
                   type="number"
                   className="w-full"
-                  value={loading ? '' : field.value}
+                  value={field.value}
                   disabled={loading}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
-                  startAdornment={loading ? <TextLineSkeleton type="h4" as="span" className="w-10" /> : undefined}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 />
               )}

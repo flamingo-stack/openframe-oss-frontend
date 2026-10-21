@@ -4,7 +4,7 @@ import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/compon
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -13,7 +13,15 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
-import { isStepDone, onboardingProgress, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
+import {
+  isStepDone,
+  NO_COMPLETED_STEPS,
+  type OnboardingStepWiring,
+  onboardingProgress,
+  progressLine,
+  stepsToCompleteLabel,
+  TENANT_ONBOARDING_STEPS,
+} from '../onboarding-steps';
 import { BookCallSection } from './book-call/book-call-section';
 import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
@@ -97,8 +105,9 @@ export function InitialSetupCard() {
 
   const pending = inScope || !isLoaded;
   // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
-  // the content fires its queries the instant it mounts.
-  if (!pending && (!tenant || (tenant.completed && !shown))) {
+  // the content fires its queries the instant it mounts. Decided from the store even in a
+  // loading scope: a card that will not show draws no loading form either.
+  if (isLoaded && (!tenant || (tenant.completed && !shown))) {
     return null;
   }
 
@@ -109,16 +118,7 @@ export function InitialSetupCard() {
   );
 }
 
-const NO_COMPLETED_STEPS: readonly string[] = [];
 const NO_DATA_STEPS: ReadonlySet<TenantOnboardingStep> = new Set();
-
-/** How a loaded row is wired: its anchor, its expansion and its body. */
-interface InitialSetupStepWiring {
-  ref: Ref<HTMLDivElement>;
-  expanded: boolean;
-  onExpandedChange: (expanded: boolean) => void;
-  body: ReactNode;
-}
 
 interface InitialSetupCardViewProps {
   /** Persisted ∪ satisfied-by-data steps (none while progress is read). */
@@ -127,7 +127,7 @@ interface InitialSetupCardViewProps {
   completedByData?: ReadonlySet<TenantOnboardingStep>;
   onTour?: () => void;
   /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
-  stepWiring?: (step: TenantOnboardingStep) => InitialSetupStepWiring;
+  stepWiring?: (step: TenantOnboardingStep) => OnboardingStepWiring;
 }
 
 /**
@@ -142,7 +142,8 @@ function InitialSetupCardView({
   stepWiring,
 }: InitialSetupCardViewProps) {
   const loading = useLoadingScope();
-  const { total, done, nextStep, allDone } = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps, loading);
+  const progress = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps, loading);
+  const { total, nextStep, allDone } = progress;
 
   const statusOf = (meta: StepMeta): OnboardingStepStatus => {
     if (isStepDone(meta.step, completedSteps)) return 'completed';
@@ -156,17 +157,13 @@ function InitialSetupCardView({
       <div className="flex min-w-0 flex-col">
         <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
         <p className="text-ods-text-secondary text-h6">
-          {allDone ? (
-            'All steps complete'
-          ) : (
+          {loading ? (
             <>
-              {total} steps to complete ·{' '}
-              {loading ? (
-                <TextLineSkeleton type="inherit" as="span" className="inline-flex w-12 align-top" />
-              ) : (
-                `${done}/${total} done`
-              )}
+              {stepsToCompleteLabel(total)} ·{' '}
+              <TextLineSkeleton type="inherit" as="span" className="inline-flex w-12 align-top" />
             </>
+          ) : (
+            progressLine(progress)
           )}
         </p>
       </div>

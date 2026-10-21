@@ -1,7 +1,7 @@
 'use client';
 
 import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -11,9 +11,9 @@ import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useCustomersOverview } from '../hooks/use-customers-overview';
-import { DEVICE_STATUS_CARD } from './devices-overview';
+import { DeviceStatusInfoCard } from './devices-overview';
 
-/** How many customers the section lists: the request's limit, so the skeleton draws the same count. */
+/** How many customers the section lists: the hook's limit, so the skeleton draws the same count. */
 const CUSTOMERS_OVERVIEW_LIMIT = 10;
 
 /** One row's grid: the customer card (full row on mobile/tablet, half from `lg`) then its two device cards. */
@@ -34,16 +34,12 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
     const online = status === DEVICE_STATUS.ONLINE;
     const count = org ? (online ? org.active : org.inactive) : 0;
     return (
-      <DashboardInfoCard
+      <DeviceStatusInfoCard
         key={status}
+        status={status}
         loading={!org}
-        title={DEVICE_STATUS_CARD[status].title}
         value={count}
         percentage={org ? (online ? org.activePct : org.inactivePct) : undefined}
-        showProgress
-        loadingShowsPercentage
-        progressVariant={DEVICE_STATUS_CARD[status].progressVariant}
-        percentageDisplay="plain"
         href={
           org
             ? count > 0
@@ -57,27 +53,51 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
 }
 
 /**
- * The rows while the customers are read: the request's limit of rows, each the real cards in their loading state
- * (the customer card's logo and name are read, so its icon and title are bars too).
+ * One customer's row, loaded or loading (`org` null): the customer card, then its two device cards. While loading the
+ * customer's logo, name and device count are read, so its icon and title line are bars.
  */
-function CustomerRowsLoading() {
+function CustomerOverviewRow({ org }: { org: CustomerRow | null }) {
   return (
-    <LoadingRegion label="Loading customers overview" className="contents">
-      {Array.from({ length: CUSTOMERS_OVERVIEW_LIMIT }, (_, index) => (
-        <div key={index} data-loading-item className={CUSTOMER_ROW_CLASS}>
-          <DashboardInfoCard
-            loading
-            titleLoading
-            iconLoading
-            title=""
-            value=""
-            className={CUSTOMER_CARD_CLASS}
-            valueClassName={CUSTOMER_VALUE_CLASS}
-          />
-          <DeviceCards org={null} />
-        </div>
-      ))}
-    </LoadingRegion>
+    <div data-loading-item className={CUSTOMER_ROW_CLASS}>
+      {/* Customer column — full row on mobile/tablet, half row on desktop.
+          The `[&>div:first-child>span]` override enlarges the card's icon
+          slot content so the customer logo fills the tile (Figma). */}
+      <DashboardInfoCard
+        loading={!org}
+        iconLoading
+        className={CUSTOMER_CARD_CLASS}
+        icon={
+          org && (
+            <EntityImage
+              src={getFullImageUrl(org.imageUrl, org.imageHash)}
+              alt={org.name}
+              className="size-full rounded-none border-0 content-md:size-full"
+            />
+          )
+        }
+        titleSlot={
+          <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
+            {org ? (
+              <>
+                <div className="min-w-0">
+                  <TruncateText variant="h3">{org.name}</TruncateText>
+                </div>
+                <span className="shrink-0 text-ods-text-secondary text-h4">({pluralize(org.total, 'device')})</span>
+              </>
+            ) : (
+              <>
+                <TextLineSkeleton type="h3" className="w-40 min-w-0" />
+                <TextLineSkeleton type="h4" className="w-20 shrink-0" />
+              </>
+            )}
+          </div>
+        }
+        value={org ? org.websiteUrl || 'Organization' : ''}
+        valueClassName={CUSTOMER_VALUE_CLASS}
+        href={org ? routes.customers.details(org.organizationId) : undefined}
+      />
+      <DeviceCards org={org} />
+    </div>
   );
 }
 
@@ -94,7 +114,15 @@ export function CustomersOverview({ customers }: { customers?: CustomersOverview
   const loading = useLoadingScope() || !customers || (customers.loading && customers.rows.length === 0);
 
   const organizationRows = (() => {
-    if (loading || !customers) return <CustomerRowsLoading />;
+    if (loading || !customers) {
+      return (
+        <LoadingRegion label="Loading customers overview" className="contents">
+          {Array.from({ length: CUSTOMERS_OVERVIEW_LIMIT }, (_, index) => (
+            <CustomerOverviewRow key={index} org={null} />
+          ))}
+        </LoadingRegion>
+      );
+    }
     const { rows, error, isOffline, canClaimEmpty, refresh } = customers;
 
     if (error || isOffline) {
@@ -119,40 +147,7 @@ export function CustomersOverview({ customers }: { customers?: CustomersOverview
       );
     }
 
-    return rows.map(org => {
-      const fullImageUrl = getFullImageUrl(org.imageUrl, org.imageHash);
-
-      return (
-        <div key={org.id} data-loading-item className={CUSTOMER_ROW_CLASS}>
-          {/* Customer column — full row on mobile/tablet, half row on desktop.
-              The `[&>div:first-child>span]` override enlarges the card's icon
-              slot content so the customer logo fills the tile (Figma). */}
-          <DashboardInfoCard
-            className={CUSTOMER_CARD_CLASS}
-            icon={
-              <EntityImage
-                src={fullImageUrl}
-                alt={org.name}
-                className="size-full rounded-none border-0 content-md:size-full"
-              />
-            }
-            titleSlot={
-              <div className="flex min-w-0 items-baseline gap-[var(--spacing-system-xs)]">
-                <div className="min-w-0">
-                  <TruncateText variant="h3">{org.name}</TruncateText>
-                </div>
-                <span className="shrink-0 text-ods-text-secondary text-h4">({pluralize(org.total, 'device')})</span>
-              </div>
-            }
-            value={org.websiteUrl || 'Organization'}
-            valueClassName={CUSTOMER_VALUE_CLASS}
-            href={routes.customers.details(org.organizationId)}
-          />
-
-          <DeviceCards org={org} />
-        </div>
-      );
-    });
+    return rows.map(org => <CustomerOverviewRow key={org.id} org={org} />);
   })();
 
   return (
@@ -163,5 +158,3 @@ export function CustomersOverview({ customers }: { customers?: CustomersOverview
     </div>
   );
 }
-
-export default CustomersOverviewSection;

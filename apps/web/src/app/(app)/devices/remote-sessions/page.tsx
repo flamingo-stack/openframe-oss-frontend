@@ -36,7 +36,7 @@ export default function RemoteSessionsPage() {
         </ContentErrorBoundary>
         {/* Shown only while the tenant's recording storage is full, which is rare, and only once its own read answers:
             it sits below the list so nothing the page has drawn moves when it appears. */}
-        {!loading && <RecordingStorageBanner />}
+        {!loading && <RecordingStorageBanner data-loading-optional />}
       </PageLayout>
     </div>
   );

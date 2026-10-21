@@ -188,15 +188,13 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
   }
 
   // Top-level header buttons reuse the shared menu items registry — only the
-  // `variant` field is appended to turn them into `PageActionButton`s. Their set
-  // depends on the device (its OS picks the Remote Shell shape), so while it is
-  // read the header draws them as placeholders (`loadingActions`).
-  const actions: PageActionButton[] = normalizedDevice
-    ? [
-        ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
-        { ...deviceMenuItems.remoteShell, variant: 'outline' },
-      ]
-    : [];
+  // `variant` field is appended to turn them into `PageActionButton`s. Their
+  // shape depends on the device (its OS picks the Remote Shell shape), so while
+  // it is read the header draws the same buttons as placeholders (`loadingActions`).
+  const actions: PageActionButton[] = [
+    ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
+    { ...deviceMenuItems.remoteShell, variant: 'outline' },
+  ];
 
   // While the device is read the title and the subtitle are empty: the header draws their bars in the scope.
   const title = normalizedDevice ? getDeviceName(normalizedDevice) || 'Unknown Device' : '';
@@ -246,7 +244,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
 
         {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. Below the tabs: it is rare,
           and drawn above them its arrival would move the whole tab. */}
-        <RecordingStorageBanner className="mt-[var(--spacing-system-l)]" />
+        <RecordingStorageBanner data-loading-optional className="mt-[var(--spacing-system-l)]" />
 
         {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}

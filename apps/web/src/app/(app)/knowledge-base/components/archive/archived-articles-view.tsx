@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
+
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -48,9 +48,7 @@ export function ArchivedArticlesView() {
         />
 
         {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <Suspense fallback={<LoadingFallback label="Loading archived articles">{rows}</LoadingFallback>}>
-          {rows}
-        </Suspense>
+        <LoadingSuspense label="Loading archived articles">{rows}</LoadingSuspense>
       </div>
     </PageLayout>
   );

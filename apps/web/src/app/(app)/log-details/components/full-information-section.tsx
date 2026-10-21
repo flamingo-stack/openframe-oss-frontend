@@ -4,7 +4,7 @@ import type { InfoCardData } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCard, ToolIcon } from '@flamingo-stack/openframe-frontend-core';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
-import { EMPTY_CARD, labelsOf } from '../../devices/components/tabs/info-card-loading';
+import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface FullInformationSectionProps {
@@ -12,8 +12,8 @@ interface FullInformationSectionProps {
 }
 
 /**
- * The rows every log carries, in the card's order: their labels are drawn real while the log is read (`userId` and
- * `deviceId` appear only on some logs, so the loading card leaves them out).
+ * The rows a typical log carries, in the card's order: their labels are drawn real while the log is read. Most logs
+ * come from a device, so `deviceId` is drawn; `userId` appears only on some, so the loading card leaves it out.
  */
 const LOADING_ROWS = [
   { label: 'toolEventId' },
@@ -21,6 +21,7 @@ const LOADING_ROWS = [
   { label: 'toolType' },
   { label: 'eventType' },
   { label: 'severity' },
+  { label: 'deviceId' },
   { label: 'timestamp' },
 ];
 

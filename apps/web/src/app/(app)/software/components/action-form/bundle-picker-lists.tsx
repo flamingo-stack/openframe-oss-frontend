@@ -20,7 +20,7 @@ import type { bundlePickerListsAssignedQuery as AssignedQueryType } from '@/__ge
 import type { bundlePickerListsAvailablePaginationQuery as AvailablePaginationQueryType } from '@/__generated__/bundlePickerListsAvailablePaginationQuery.graphql';
 import type { bundlePickerListsAvailableQuery as AvailableQueryType } from '@/__generated__/bundlePickerListsAvailableQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { useRetryKey } from '@/app/components/shared';
+import { noop, useRetryKey } from '@/app/components/shared';
 import type { AssignmentOwner } from '@/app/components/shared/device-selector/assignment-updaters';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import {
@@ -170,7 +170,7 @@ interface BundlePickerListsProps {
   isDeviceDisabled?: (device: Device) => string | undefined;
 }
 
-const NO_HALF: PickerHalf = { connection: null, hasNext: false, isLoadingNext: false, loadNext: () => {} };
+const NO_HALF: PickerHalf = { connection: null, hasNext: false, isLoadingNext: false, loadNext: noop };
 
 /**
  * Both lists of the bundle's device picker, each its own server-narrowed

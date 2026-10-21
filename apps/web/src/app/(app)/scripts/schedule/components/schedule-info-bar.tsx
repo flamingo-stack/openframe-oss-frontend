@@ -73,6 +73,8 @@ export function ScheduleInfoBarFromData({
   timeReference,
 }: ScheduleInfoBarFromDataProps) {
   const loading = useLoadingScope();
+  // While loading the timing row draws the timed form (Date, Time, Repeat, Platform): a schedule fires on a clock
+  // unless it was set to run on Device Online, the rare case, which loads into its two cells instead.
   const isEventDriven = !loading && trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
   const timeLabel = !loading && isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
   // While loading a row is drawn when the page passes its values (as `''`); once loaded, when they are set.

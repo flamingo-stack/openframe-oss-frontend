@@ -1,13 +1,12 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   FlamingoMarkIcon,
   OpenframeLogoIcon,
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 
 interface WorkspaceInactiveScreenProps {
@@ -26,22 +25,6 @@ interface WorkspaceInactiveScreenProps {
 
 const DEFAULT_DESCRIPTION =
   "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team.";
-
-/** The body copy while it is not known yet: two lines of the paragraph's own type step, at its width. */
-function InactiveDescriptionSkeleton() {
-  return (
-    <LoadingRegion label="Checking your access" className="w-full">
-      <TextLineSkeleton type="h4" lines={2} className="w-full" />
-    </LoadingRegion>
-  );
-}
-
-/** The screen's body copy; its own skeleton while it is not known yet (or in a loading scope). */
-function InactiveDescription({ text, loading: loadingProp }: { text: string; loading?: boolean }) {
-  const loading = useLoadingScope() || !!loadingProp;
-  if (loading) return <InactiveDescriptionSkeleton />;
-  return <p className="text-ods-text-secondary text-h4">{text}</p>;
-}
 
 /**
  * Lock screen shown in place of the app when the workspace is inactive and the
@@ -90,7 +73,7 @@ export function WorkspaceInactiveScreen({ title, description, action, loading }:
       <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
           <h1 className="text-ods-text-primary text-h2">{title ?? 'Workspace access is inactive'}</h1>
-          <InactiveDescription text={description ?? DEFAULT_DESCRIPTION} loading={loading} />
+          <LoadingParagraph text={description ?? DEFAULT_DESCRIPTION} loading={loading} label="Checking your access" />
         </div>
 
         {/* Sign out, self-deletion and a support ticket, shared with the

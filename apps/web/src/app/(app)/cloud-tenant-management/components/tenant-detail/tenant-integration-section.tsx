@@ -46,8 +46,11 @@ function MultiLineValue({ lines }: { lines: readonly string[] }) {
 
 interface TenantIntegrationSectionProps {
   id: string;
-  /** The page already holds the record, so the loading rows carry the provider's directory id label. */
-  provider: string;
+  /**
+   * The page's record usually holds it, so the loading rows carry the provider's directory id label; `null` before
+   * the page's own record answers (the neutral labels).
+   */
+  provider: string | null;
 }
 
 const NOT_READ: InfoSectionRow['value'] = { text: '' };
@@ -58,7 +61,7 @@ type IntegrationData = NonNullable<TenantIntegrationSectionQueryType['response']
  * The section's rows, label for label. With no record yet (a loading scope) the labels are real and every value is
  * empty: `InfoSection` draws each as a bar in the scope.
  */
-function integrationRows(data: IntegrationData | null, provider: string): InfoSectionRow[] {
+function integrationRows(data: IntegrationData | null, provider: string | null): InfoSectionRow[] {
   const { directoryIdLabel, authorisedBy } = providerPresentation(data?.provider ?? provider);
   const domainNames = data?.domains.map(domain => domain.name) ?? [];
   const primaryDomain = data?.domains.find(domain => domain.primary)?.name ?? data?.domain ?? EMPTY_VALUE;

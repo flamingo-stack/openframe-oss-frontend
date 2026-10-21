@@ -2,7 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SCRIPT_SHELL_TYPES } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -69,21 +69,7 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAG
           name="tag_ids"
           control={form.control}
           render={({ field }) => (
-            <Suspense
-              fallback={
-                <LoadingFallback label="Loading tags">
-                  <EntityTagPicker
-                    entityType={TagEntityType.SCRIPT}
-                    selectedIds={field.value}
-                    onChange={field.onChange}
-                    initialTags={initialTags}
-                    deletable
-                    disabled={disabled}
-                    entityLabel="script"
-                  />
-                </LoadingFallback>
-              }
-            >
+            <LoadingSuspense label="Loading tags">
               <EntityTagPicker
                 entityType={TagEntityType.SCRIPT}
                 selectedIds={field.value}
@@ -93,7 +79,7 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAG
                 disabled={disabled}
                 entityLabel="script"
               />
-            </Suspense>
+            </LoadingSuspense>
           )}
         />
       }

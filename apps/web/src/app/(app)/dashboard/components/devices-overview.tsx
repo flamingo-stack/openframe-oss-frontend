@@ -16,15 +16,55 @@ type ProgressVariant = 'success' | 'error' | 'warning' | 'info';
  * Each device status's card title and progress colour: the one definition the devices overview and the customers
  * overview's per-customer cards read.
  */
-export const DEVICE_STATUS_CARD = {
+const DEVICE_STATUS_CARD = {
   [DEVICE_STATUS.ONLINE]: { title: 'Online Devices', progressVariant: 'success' },
   [DEVICE_STATUS.OFFLINE]: { title: 'Offline Devices', progressVariant: 'error' },
   [DEVICE_STATUS.PENDING]: { title: 'Pending Devices', progressVariant: 'warning' },
   [DEVICE_STATUS.ARCHIVED]: { title: 'Archived Devices', progressVariant: 'info' },
 } as const satisfies Record<string, { title: string; progressVariant: ProgressVariant }>;
 
+type DeviceStatus = keyof typeof DEVICE_STATUS_CARD;
+
+/**
+ * One device status's card (the devices overview's four, the customers overview's two per customer): its title and
+ * progress colour from {@link DEVICE_STATUS_CARD}, the figure and its share. While `loading` (or in a loading scope)
+ * the figure and the share are bars in the loaded card's box.
+ */
+export function DeviceStatusInfoCard({
+  status,
+  value,
+  percentage,
+  loading,
+  href,
+  showProgress = true,
+  progressSize,
+}: {
+  status: DeviceStatus;
+  value: string | number;
+  percentage?: number;
+  loading?: boolean;
+  href?: string;
+  showProgress?: boolean;
+  progressSize?: { base: number; md: number };
+}) {
+  return (
+    <DashboardInfoCard
+      loading={loading}
+      title={DEVICE_STATUS_CARD[status].title}
+      value={value}
+      percentage={percentage}
+      showProgress={showProgress}
+      loadingShowsPercentage
+      progressVariant={DEVICE_STATUS_CARD[status].progressVariant}
+      percentageDisplay="plain"
+      progressSize={progressSize}
+      href={href}
+    />
+  );
+}
+
 type DeviceStatusCard = {
-  status: keyof typeof DEVICE_STATUS_CARD;
+  status: DeviceStatus;
   /** `null` = the stats request failed; render unavailable, not zero. */
   value: number | null;
   percentage: number | null;
@@ -78,18 +118,15 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
 
       <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
         {statusCards.map(card => (
-          <DashboardInfoCard
+          <DeviceStatusInfoCard
             key={card.status}
+            status={card.status}
             loading={loading}
-            title={DEVICE_STATUS_CARD[card.status].title}
             // `—` rather than a number: the request failed, so any digit here
             // would be invented. See the null contract in `use-dashboard-stats`.
             value={loading ? '' : (card.value ?? EMPTY_VALUE)}
             percentage={card.percentage ?? undefined}
             showProgress={loading || card.percentage != null}
-            loadingShowsPercentage
-            progressVariant={DEVICE_STATUS_CARD[card.status].progressVariant}
-            percentageDisplay="plain"
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
@@ -101,5 +138,3 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
     </LoadingRegion>
   );
 }
-
-export default DevicesOverviewSection;

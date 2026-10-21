@@ -127,7 +127,7 @@ async function fetchOrganizations(): Promise<{
   };
 }
 
-async function fetchCustomersOverview(_limit: number): Promise<{
+async function fetchCustomersOverview(limit: number): Promise<{
   rows: OrganizationOverviewRow[];
   totalOrganizations: number;
 }> {
@@ -175,7 +175,10 @@ async function fetchCustomersOverview(_limit: number): Promise<{
         inactivePct,
       };
     })
-    .sort((a, b) => b.total - a.total);
+    .sort((a, b) => b.total - a.total)
+    // The section lists the customers with the most devices: the limit applies after the sort, so it is a slice of
+    // the read rather than `first: limit` (which would pick an arbitrary page, not the top ones).
+    .slice(0, limit);
 
   return { rows, totalOrganizations };
 }

@@ -17,7 +17,7 @@ import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/share
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { InitiatorIdentity, rowInitiator } from '../../shared/components/initiator-identity';
+import { type Initiator, InitiatorIdentity } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
 import { facetFilter } from '../../shared/utils/facet-options';
 
@@ -57,12 +57,8 @@ export interface UiRun {
   timestamp: string;
   responded: number;
   total: number;
-  initiatorId: string;
-  initiatorName: string;
-  initiatorInitials: string;
-  initiatorImage?: string;
-  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
-  initiatorDeleted: boolean;
+  /** Who fired it (empty for a scheduled fire). */
+  initiator: Initiator;
   /** Scheduled fires carry no initiator — a person only fires a run manually. */
   isScheduled: boolean;
 }
@@ -82,7 +78,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
     );
   }
 
-  return <InitiatorIdentity initiator={rowInitiator(run)} size="md" inRow />;
+  return <InitiatorIdentity initiator={run.initiator} size="md" inRow />;
 }
 
 /**
@@ -193,9 +189,10 @@ function scheduleRunColumns({
       meta: liveColumnMeta(RUN_COLUMNS.responded),
     },
     {
-      // accessorKey is `initiatorId` so a future server facet can reuse it;
+      // The column's value is the initiator's id so a future server facet can reuse it;
       // the cell renders the name (or "Scheduled" for an automatic fire).
-      accessorKey: 'initiatorId',
+      id: 'initiatorId',
+      accessorFn: (run: UiRun) => run.initiator.id,
       header: 'Executed by',
       cell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} />,
       enableSorting: false,

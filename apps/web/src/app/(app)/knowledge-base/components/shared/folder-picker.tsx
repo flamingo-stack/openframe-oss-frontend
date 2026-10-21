@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -8,7 +8,6 @@ import {
   InputTrigger,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { folderPickerQuery as FolderPickerQueryType } from '@/__generated__/folderPickerQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -48,40 +47,37 @@ interface FolderPickerProps {
  * in any loading scope) it draws its own loading state, the same control locked.
  */
 export function FolderPicker(props: FolderPickerProps) {
-  if (useLoadingScope()) {
-    return <FolderPickerSkeleton {...props} />;
-  }
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading folders">
-          <FolderPicker {...props} />
-        </LoadingFallback>
-      }
-    >
-      <FolderPickerMenu {...props} />
-    </Suspense>
+    <LoadingSuspense label="Loading folders">
+      <FolderPickerBody {...props} />
+    </LoadingSuspense>
   );
 }
 
-/**
- * The picker before the tree is in: the same trigger, locked, showing what is known without the tree. A picked
- * folder's name needs the tree, so it is a bar; the root and an unpicked field are known.
- */
-function FolderPickerSkeleton({ value, placeholder = 'Select Folder', label }: FolderPickerProps) {
-  const selectedLabel =
-    label ??
-    (value === null ? (
-      ROOT_FOLDER.name
-    ) : value === undefined ? undefined : (
-      <TextLineSkeleton type="inherit" as="span" className="w-32" />
-    ));
+function FolderPickerBody(props: FolderPickerProps) {
+  // Before the tree is in: the same trigger, locked; in the loading scope it draws its value as a bar.
+  if (useLoadingScope()) {
+    return <FolderPickerTrigger selectedLabel={props.label} placeholder={props.placeholder} disabled />;
+  }
+  return <FolderPickerMenu {...props} />;
+}
+
+/** The picker's field, the same while the tree loads and once it is in. */
+function FolderPickerTrigger({
+  selectedLabel,
+  placeholder = 'Select Folder',
+  disabled,
+}: {
+  selectedLabel: string | undefined;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
   return (
     <InputTrigger
       selectedLabel={selectedLabel}
       placeholder={placeholder}
       endIcon={<Chevron02DownIcon className="size-6" />}
-      disabled
+      disabled={disabled}
     />
   );
 }
@@ -89,7 +85,7 @@ function FolderPickerSkeleton({ value, placeholder = 'Select Folder', label }: F
 function FolderPickerMenu({
   value,
   onSelect,
-  placeholder = 'Select Folder',
+  placeholder,
   label,
   leadingItems = [],
   excludeFolderId,
@@ -121,12 +117,7 @@ function FolderPickerMenu({
       side="bottom"
       sideOffset={4}
       customTrigger={
-        <InputTrigger
-          selectedLabel={label ?? pickedName}
-          placeholder={placeholder}
-          endIcon={<Chevron02DownIcon className="size-6" />}
-          disabled={disabled}
-        />
+        <FolderPickerTrigger selectedLabel={label ?? pickedName} placeholder={placeholder} disabled={disabled} />
       }
     />
   );

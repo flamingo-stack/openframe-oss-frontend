@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
@@ -9,10 +9,9 @@ import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
-import { getFullImageUrl } from '@/lib/image-url';
 import { EditProfileModal } from '../edit-profile-modal';
 import { EmailVerificationModal } from '../email-verification-modal';
-import { IdentityRow } from '../identity-row';
+import { UserIdentityRow } from '../identity-row';
 
 const CARD_CLASS = 'flex items-center gap-4 rounded-md border border-ods-border bg-ods-card p-4';
 const editIcon = <PenEditIcon className="h-5 w-5" />;
@@ -106,44 +105,15 @@ export function ProfileTab() {
     );
   }
 
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
-
   return (
     <div className="pt-6">
       {/* Profile card: while the profile is read, the avatar, name and email are bars; Edit Profile is fixed copy,
           drawn for real and disabled. */}
-      <IdentityRow
+      <UserIdentityRow
         className={CARD_CLASS}
+        user={user}
         loading={loading}
-        loadingLabel="Loading your profile"
-        name={displayName}
-        avatarSrc={user ? getFullImageUrl(user.image?.imageUrl, user.image?.hash) : undefined}
-        avatarVariant="round"
-        nameAside={
-          user?.roles?.map(role => (
-            <span
-              key={role}
-              className="inline-flex shrink-0 items-center rounded-md border border-ods-border bg-ods-card px-2 py-1 text-ods-text-primary text-h5"
-            >
-              {role}
-            </span>
-          )) ?? null
-        }
-        subline={user?.email}
-        sublineWhileLoading
-        sublineAside={
-          user?.emailVerified === false && (
-            <button
-              type="button"
-              onClick={() => setIsVerificationModalOpen(true)}
-              className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
-              title="Email not verified - click to resend verification"
-            >
-              <AlertCircleIcon className="h-4 w-4" />
-              <span className="text-h6">Not verified</span>
-            </button>
-          )
-        }
+        onVerifyEmail={() => setIsVerificationModalOpen(true)}
         action={
           <Button variant="outline" disabled={!user} onClick={() => setIsEditModalOpen(true)} leftIcon={editIcon}>
             <span className="font-bold">Edit Profile</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ComputerMouseIcon,
   Filter02Icon,
@@ -19,7 +19,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { startTransition, Suspense, useCallback, useMemo, useState } from 'react';
+import { startTransition, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
@@ -429,9 +429,7 @@ export function TenantSessionsShell() {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <Suspense fallback={<LoadingFallback label="Loading remote sessions">{content}</LoadingFallback>}>
-        {content}
-      </Suspense>
+      <LoadingSuspense label="Loading remote sessions">{content}</LoadingSuspense>
     </div>
   );
 }

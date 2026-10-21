@@ -1,7 +1,5 @@
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon, InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { LeaderRow, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
 // The "Test mode" banner, until `billing-live-mode` is on. Drawn the same while the
@@ -45,21 +43,7 @@ export function SectionBlock({ title, children }: { title: string; children: Rea
   );
 }
 
-const ROW_CLASS = 'flex w-full items-center gap-2';
-const LABEL_CLASS = 'whitespace-nowrap text-ods-text-primary text-h4';
-const LEADER_CLASS = 'h-px min-w-4 flex-1 bg-ods-border';
-
-/** A row while its value is on its way: the label is fixed copy and stays real, the value is a bar. */
-function BillingRowSkeleton({ label }: { label: string }) {
-  return (
-    <div className={ROW_CLASS}>
-      <span className={LABEL_CLASS}>{label}</span>
-      <div className={LEADER_CLASS} />
-      <TextLineSkeleton as="span" type="h4" className="w-16" />
-    </div>
-  );
-}
-
+/** A billing summary row: the label as body copy, a leader line, the value (the lib's `LeaderRow`). */
 export function BillingRow({
   label,
   value,
@@ -75,13 +59,14 @@ export function BillingRow({
   /** Its value has not answered: the row draws its own skeleton (as it does in a loading scope). */
   loading?: boolean;
 }) {
-  if (useLoadingScope() || loading) return <BillingRowSkeleton label={label} />;
-  const valueClass = warning ? 'text-ods-warning' : muted ? 'text-ods-text-secondary' : 'text-ods-text-primary';
   return (
-    <div className={ROW_CLASS}>
-      <span className={LABEL_CLASS}>{label}</span>
-      <div className={LEADER_CLASS} />
-      <span className={cn('inline-flex items-center gap-1 whitespace-nowrap text-h4', valueClass)}>{value}</span>
-    </div>
+    <LeaderRow
+      label={label}
+      value={value}
+      labelTone="primary"
+      valueTone={warning ? 'warning' : muted ? 'secondary' : 'primary'}
+      // Every row's value is read data: in a page's loading scope it is a bar even where a value was passed.
+      loading={useLoadingScope() || loading}
+    />
   );
 }

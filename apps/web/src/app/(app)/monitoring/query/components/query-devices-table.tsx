@@ -29,6 +29,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
+import { noop } from '@/app/components/shared';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -355,7 +356,7 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         filterGroups={[]}
-        onFilterChange={() => {}}
+        onFilterChange={noop}
         tagFilterKeys={tagFilterKeys}
         selectedTags={selectedTags}
         onTagsChange={setSelectedTags}

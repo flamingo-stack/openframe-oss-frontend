@@ -1,15 +1,21 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useFragment } from 'react-relay';
 import type { deviceLogRow_entry$key } from '@/__generated__/deviceLogRow_entry.graphql';
-import { formatLogTime } from '@/lib/format-date';
+import { formatDate, formatLogTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import type { Instant } from '@/lib/graphql-scalars';
 import { deviceLogLevelVariant } from '../../../utils/device-log-level';
-import { DEVICE_LOG_LEVEL_COLUMN, DEVICE_LOG_LINE, DEVICE_LOG_TIME_COLUMN } from './device-log-layout';
+import {
+  DEVICE_LOG_DAY_HEADER,
+  DEVICE_LOG_LEVEL_COLUMN,
+  DEVICE_LOG_LINE,
+  DEVICE_LOG_TIME_COLUMN,
+} from './device-log-layout';
 
 const deviceLogRowFragment = graphql`
   fragment deviceLogRow_entry on DeviceLogEntry {
@@ -36,7 +42,8 @@ export interface DeviceLogEntry {
 }
 
 interface DeviceLogRowProps {
-  entry: deviceLogRow_entry$key;
+  /** Null while the line is read: the row draws its loading form in the same box. */
+  entry: deviceLogRow_entry$key | null;
   /**
    * The device the list belongs to: its own hostname is implied, so the line's is
    * shown only when it differs, and only from `content-md` up. Omitted on a list
@@ -52,6 +59,22 @@ interface DeviceLogRowProps {
 /** One log line: time · level · message. Opens the Log Details drawer, the same one the Logs page uses. */
 export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: DeviceLogRowProps) {
   const data = useFragment(deviceLogRowFragment, entry);
+  const loading = useLoadingScope() || !data;
+
+  if (loading) {
+    return (
+      <li data-loading-item className={cn('rounded-md border border-transparent', DEVICE_LOG_LINE)}>
+        {/* text-code: the column is sized in `ch`, which only matches the live time's width in its font. */}
+        <TextLineSkeleton type="code" className={cn('shrink-0', DEVICE_LOG_TIME_COLUMN)} />
+        <span className={cn(DEVICE_LOG_LEVEL_COLUMN, 'flex shrink-0')}>
+          <Tag as="span" label="" loading className="max-w-full" />
+        </span>
+        <TextLineSkeleton type="code" className="flex-1" />
+        <Chevron01RightIcon aria-hidden="true" className="shrink-0 text-ods-text-tertiary" />
+      </li>
+    );
+  }
+
   const level = data.level.trim().toUpperCase();
   const multiDevice = deviceHostname === undefined;
 
@@ -104,5 +127,20 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
         <Chevron01RightIcon aria-hidden="true" className="shrink-0 text-ods-text-tertiary" />
       </Button>
     </li>
+  );
+}
+
+/** The heading each day's lines open with. In a loading scope the date is a bar in the same box. */
+export function DeviceLogDayHeader({ date }: { date: Date | null }) {
+  const loading = useLoadingScope();
+  return (
+    <div className={DEVICE_LOG_DAY_HEADER}>
+      {loading ? (
+        <TextLineSkeleton type="h5" className="w-[8ch]" />
+      ) : (
+        <h3 className="uppercase text-ods-text-secondary text-h5">{formatDate(date)}</h3>
+      )}
+      <span aria-hidden="true" className="h-px flex-1 bg-ods-border" />
+    </div>
   );
 }

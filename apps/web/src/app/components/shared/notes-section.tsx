@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Ellipsis01Icon,
@@ -11,7 +11,6 @@ import {
 import {
   ActionsMenuDropdown,
   Button,
-  LoadingWhen,
   SquareAvatar,
   Textarea,
   TruncateText,
@@ -95,15 +94,11 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
   );
 }
 
-// One frame for a note card and its skeleton.
 const NOTE_CARD_CLASS =
   'flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]';
 const NOTE_HEADER_CLASS = 'flex w-full items-center gap-[var(--spacing-system-xs)]';
 const NOTE_AUTHOR_CLASS = 'flex min-w-0 flex-1 flex-col';
 const NOTE_TEXT_CLASS = 'break-words text-ods-text-primary text-h4';
-
-/** How many note cards the section draws while its notes are read (the notes are not paged): a short thread. */
-const NOTES_SKELETON_ROWS = 1;
 
 interface NoteCardProps {
   note: NoteItem;
@@ -192,43 +187,13 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   );
 }
 
-/** A note card while it is read (in a loading scope): the card's own frame, its author avatar (switching itself), name, date and a two-line text. */
-function NoteCardSkeleton() {
-  return (
-    <div data-loading-item className={NOTE_CARD_CLASS}>
-      <div className={NOTE_HEADER_CLASS}>
-        <SquareAvatar size="sm" variant="round" />
-        <div className={NOTE_AUTHOR_CLASS}>
-          <TextLineSkeleton type="h4" className="w-32" />
-          <TextLineSkeleton type="h6" className="w-24" />
-        </div>
-      </div>
-      <TextLineSkeleton type="h4" lines={2} />
-    </div>
-  );
-}
-
-/** The section's shell — the "Notes" heading over its content — shared by the loaded state and its skeleton. */
+/** The section's shell: the "Notes" heading over its content. */
 function NotesSectionFrame({ children }: { children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <p className="text-ods-text-secondary text-h5">Notes</p>
       {children}
     </section>
-  );
-}
-
-/** The section while its notes are read: the heading, a typical thread of note cards and the real, disabled "Add Note". */
-function NotesSectionSkeleton() {
-  return (
-    <LoadingRegion className="contents" label="Loading notes">
-      <NotesSectionFrame>
-        {Array.from({ length: NOTES_SKELETON_ROWS }, (_, index) => (
-          <NoteCardSkeleton key={index} />
-        ))}
-        <AddNoteButton disabled />
-      </NotesSectionFrame>
-    </LoadingRegion>
   );
 }
 
@@ -259,12 +224,15 @@ export function NotesSection({
   const [isAdding, setIsAdding] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
 
-  // In a scope even when the read is a client read (`loading`), so the avatars switch themselves.
+  // While the notes are read: the heading and the real, disabled "Add Note", and no note card. Notes are optional
+  // and a record usually has none, so the typical loaded section is exactly that.
   if (loading)
     return (
-      <LoadingWhen loading>
-        <NotesSectionSkeleton />
-      </LoadingWhen>
+      <LoadingRegion className="contents" label="Loading notes">
+        <NotesSectionFrame>
+          <AddNoteButton disabled />
+        </NotesSectionFrame>
+      </LoadingRegion>
     );
 
   const confirmDelete = () => {

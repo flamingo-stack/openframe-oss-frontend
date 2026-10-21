@@ -1,10 +1,10 @@
 'use client';
 
-import { InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   Label,
+  LoadingWhen,
   Select,
   SelectContent,
   SelectItem,
@@ -47,25 +47,14 @@ const SUPPORT_EMAIL = 'hello@openframe.ai';
  * rather than a select nothing can be chosen from: a confirm that stays disabled
  * with no explanation is the dead end App Review reads as "no account deletion".
  */
-const NEW_OWNER_FIELD_CLASS = 'flex flex-col gap-[var(--spacing-system-xs)]';
-
-/** The picker while the members are on their way: the label is real, the field a bar of the select's height. */
-function NewOwnerSelectSkeleton() {
-  return (
-    <div className={NEW_OWNER_FIELD_CLASS}>
-      <Label>New Owner</Label>
-      <InteractiveSkeleton.Input />
-    </div>
-  );
-}
-
 function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disabled }: NewOwnerSelectProps) {
   const { users, isLoading } = useUsers(0, 1000);
   const candidates = users.filter(u => u.id !== currentUserId && u.status === UserStatus.Active);
 
-  if (useLoadingScope() || isLoading) return <NewOwnerSelectSkeleton />;
+  // While the members are on their way: the real field, its label real and the select drawing its own loading state.
+  const loading = useLoadingScope() || isLoading;
 
-  if (candidates.length === 0) {
+  if (!loading && candidates.length === 0) {
     return (
       <p className="text-ods-text-primary text-h4">
         You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
@@ -79,31 +68,33 @@ function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disa
   }
 
   return (
-    <div className={NEW_OWNER_FIELD_CLASS}>
+    <div className="flex flex-col gap-[var(--spacing-system-xs)]">
       <Label htmlFor="new-owner-select">New Owner</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id="new-owner-select">
-          <SelectValue placeholder="Select new owner" />
-        </SelectTrigger>
-        <SelectContent>
-          {candidates.map(candidate => {
-            const name = `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email;
-            return (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                <span className="flex items-center gap-[var(--spacing-system-xs)]">
-                  <SquareAvatar
-                    src={getFullImageUrl(candidate.image?.imageUrl, candidate.image?.hash)}
-                    fallback={name}
-                    size="sm"
-                    variant="round"
-                  />
-                  {name}
-                </span>
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
+      <LoadingWhen loading={loading}>
+        <Select value={value} onValueChange={onChange} disabled={disabled || loading}>
+          <SelectTrigger id="new-owner-select">
+            <SelectValue placeholder="Select new owner" />
+          </SelectTrigger>
+          <SelectContent>
+            {candidates.map(candidate => {
+              const name = `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email;
+              return (
+                <SelectItem key={candidate.id} value={candidate.id}>
+                  <span className="flex items-center gap-[var(--spacing-system-xs)]">
+                    <SquareAvatar
+                      src={getFullImageUrl(candidate.image?.imageUrl, candidate.image?.hash)}
+                      fallback={name}
+                      size="sm"
+                      variant="round"
+                    />
+                    {name}
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </LoadingWhen>
     </div>
   );
 }

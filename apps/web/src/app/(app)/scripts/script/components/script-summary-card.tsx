@@ -40,15 +40,6 @@ function MetaSpacer({ count }: { count: number }) {
   return <div aria-hidden className="min-w-px" style={{ flex: `${META_COLUMNS - count} 1 0%` }} />;
 }
 
-/** A value-over-label cell in the metadata strip: the shared {@link InfoCell}, its value a bar in a loading scope. */
-function MetaStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="flex min-w-[140px] flex-[1_0_0]">
-      <InfoCell value={value} label={label} skeletonWidth="w-28" className="gap-[var(--spacing-system-xxs)]" />
-    </div>
-  );
-}
-
 function shellLabel(shellId: string): string {
   return scriptShellLabel(shellId);
 }
@@ -101,7 +92,15 @@ export function ScriptSummaryCard({
       </div>
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
         {stats.map(stat => (
-          <MetaStat key={stat.label} value={stat.value} label={stat.label} />
+          // A value-over-label cell: the shared InfoCell, its value a bar in a loading scope.
+          <div key={stat.label} className="flex min-w-[140px] flex-[1_0_0]">
+            <InfoCell
+              value={stat.value}
+              label={stat.label}
+              skeletonWidth="w-28"
+              className="gap-[var(--spacing-system-xxs)]"
+            />
+          </div>
         ))}
         <MetaSpacer count={stats.length} />
       </div>

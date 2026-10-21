@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
+
 import { routes } from '@/lib/routes';
 import { TenantDetailContent } from './tenant-detail-content';
 
@@ -40,15 +40,9 @@ export function TenantDetailView({ id, loading = false }: TenantDetailViewProps)
       {/* While the record loads, and for the flag's own window: the content in a loading scope, where each part
           draws its own loading state and nothing fetches. */}
       <LoadingWhen loading={loading}>
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading tenant">
-              <TenantDetailContent id={id} actions={manageActions(id)} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading tenant">
           <TenantDetailContent id={id} actions={manageActions(id)} />
-        </Suspense>
+        </LoadingSuspense>
       </LoadingWhen>
     </div>
   );
