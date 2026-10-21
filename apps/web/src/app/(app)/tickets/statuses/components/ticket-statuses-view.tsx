@@ -16,10 +16,33 @@ import { Controller } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useTicketStatusesForm } from '../hooks/use-ticket-statuses-form';
-import type { CustomTicketStatus, SystemTicketStatus } from '../types/ticket-statuses.types';
+import {
+  type CustomTicketStatus,
+  kindToCanonicalStatus,
+  SYSTEM_KIND_META,
+  type SystemTicketStatus,
+} from '../types/ticket-statuses.types';
 import { DeleteStatusDialog } from './delete-status-dialog';
 
 const DELETE_DISABLED_REASON = 'At least one custom status is required';
+
+/**
+ * The system statuses before the query answers: one row per system kind (a fixed set, `SYSTEM_KIND_META`), with
+ * their names still to be read, so each row draws its own skeleton in the page's loading scope and the sections
+ * keep their height when the statuses land.
+ */
+const LOADING_SYSTEM_STATUSES: SystemTicketStatus[] = (
+  Object.keys(SYSTEM_KIND_META) as Array<keyof typeof SYSTEM_KIND_META>
+).map(kind => ({
+  id: kind,
+  statusKey: kindToCanonicalStatus(kind) ?? 'ACTIVE',
+  name: '',
+  color: '',
+  position: '',
+  kind,
+  tooltip: SYSTEM_KIND_META[kind].tooltip,
+  tagVariant: SYSTEM_KIND_META[kind].tagVariant,
+}));
 const TOP_KINDS = new Set(['AI_ASSISTANCE', 'TECH_REQUIRED']);
 
 function createCustomStatus(): CustomTicketStatus {
@@ -63,8 +86,9 @@ export function TicketStatusesView() {
 
   const [pendingDelete, setPendingDelete] = useState<{ index: number; custom: CustomTicketStatus } | null>(null);
 
-  const systemTop = systemStatuses.filter(s => TOP_KINDS.has(s.kind));
-  const systemBottom = systemStatuses.filter(s => !TOP_KINDS.has(s.kind));
+  const systemRows = isLoading && systemStatuses.length === 0 ? LOADING_SYSTEM_STATUSES : systemStatuses;
+  const systemTop = systemRows.filter(s => TOP_KINDS.has(s.kind));
+  const systemBottom = systemRows.filter(s => !TOP_KINDS.has(s.kind));
 
   const handleAdd = () => {
     fieldArray.append(createCustomStatus(), { shouldFocus: false });
@@ -123,6 +147,7 @@ export function TicketStatusesView() {
             <TicketStatusConfigList
               items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
               onReorder={fieldArray.move}
+              loading={isLoading}
               getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
               renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
                 <Controller

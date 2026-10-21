@@ -171,6 +171,7 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
         // anything is narrowed, since the narrowing is the server's too.
         totalCount={data?.assignedDevices?.filteredCount ?? undefined}
         emptyState={EMPTY_STATE}
+        skeletonRows={PAGE_SIZE}
         infiniteScroll={{
           hasNextPage: hasNext,
           isFetchingNextPage: isLoadingNext,
@@ -188,7 +189,7 @@ const NO_DEVICES: Device[] = [];
 function ScheduleDevicesTabLoading() {
   return (
     <div className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={NO_DEVICES} isLoading emptyState={EMPTY_STATE} />
+      <DevicesList devices={NO_DEVICES} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
     </div>
   );
 }

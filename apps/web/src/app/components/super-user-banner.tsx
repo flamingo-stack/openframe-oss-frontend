@@ -56,9 +56,10 @@ function SuperUserBannerContent() {
 }
 
 /**
- * The name arriving a beat late must not cost the strip itself: the fallback
- * is the same strip with the name blank, and a failed lookup keeps it that
- * way instead of unmounting the shell around it.
+ * The name arriving a beat late must not cost the strip itself: the Suspense
+ * fallback is the same strip in its loading form (the name a bar), and a failed
+ * lookup keeps the strip with the name blank instead of unmounting the shell
+ * around it.
  */
 class SuperUserBannerBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -89,7 +90,7 @@ export function SuperUserBanner() {
 
   return (
     <SuperUserBannerBoundary>
-      <Suspense fallback={<SuperUserBannerView tenantName="" environmentLabel={hostLabel()} />}>
+      <Suspense fallback={<SuperUserBannerView loading tenantName="" environmentLabel={hostLabel()} />}>
         <SuperUserBannerContent />
       </Suspense>
     </SuperUserBannerBoundary>

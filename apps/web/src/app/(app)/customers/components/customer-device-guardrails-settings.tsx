@@ -75,8 +75,9 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
     },
   }));
 
-  // While the policies load the block draws itself in a loading scope: the checkbox block's copy for real, checked
-  // (most customers use the default), and the default permission card with its label and the mode as a bar.
+  // While the policies load the block draws itself in a loading scope: the checkbox block's copy for real and its box
+  // a skeleton, the default branch below it (most customers use the default), and the default permission card with
+  // its label and the mode as a bar.
   if (!isLoading && (tenant.error || organization.error)) {
     return (
       <LoadError
@@ -97,7 +98,6 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
           label="Use the default device guardrails"
           description="Inherits all guardrail settings from your global configuration."
           checked={useDefault}
-          disabled={isLoading}
           onCheckedChange={checked => setChoice({ useDefault: Boolean(checked), mode: selectedMode })}
           trailing={
             <Button

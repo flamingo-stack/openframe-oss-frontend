@@ -369,6 +369,7 @@ function LogsTableContent({
         onHideSearchChange={onEmptyChange}
         renderEmptyState={renderEmptyState}
         guideButton={LOGS_GUIDE_BUTTON}
+        pageSize={LOGS_PAGE_SIZE}
       />
 
       <LogDrawer
@@ -539,6 +540,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       logIdHeader={INERT_LOG_ID_HEADER}
       deviceScoped={Boolean(deviceId)}
       organizationLocked={Boolean(organizationId)}
+      pageSize={LOGS_PAGE_SIZE}
     />
   );
 

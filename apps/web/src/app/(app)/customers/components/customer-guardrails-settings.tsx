@@ -238,9 +238,9 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       setUseDefault(true);
     };
 
-    // While the guardrails load the block draws itself in a loading scope: the checkbox block's copy for real,
-    // checked (the starting state, and most customers use the default), then the preset card and the policy groups
-    // each their own skeleton.
+    // While the guardrails load the block draws itself in a loading scope: the checkbox block's copy for real and its
+    // box a skeleton, the default branch below it (the starting state, and most customers use the default), then the
+    // preset card and the policy groups each their own skeleton.
     const loading = scoped || isGuardrailsLoading || isTemplatesLoading;
 
     // The templates list drives seeding, the picker, and preset labels — a
@@ -269,7 +269,6 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
             label="Use the default AI-Assistant guardrails"
             description="Inherits all guardrail settings from your global configuration."
             checked={useDefault}
-            disabled={loading}
             onCheckedChange={checked => handleToggle(Boolean(checked))}
             trailing={
               <Button

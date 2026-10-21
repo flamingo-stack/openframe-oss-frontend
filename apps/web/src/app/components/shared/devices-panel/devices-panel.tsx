@@ -26,6 +26,7 @@ import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
+import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -264,6 +265,7 @@ function DevicesPanelContent({
 
   return (
     <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
       title={title}
       backButton={backButton}
       className={cn(embedded && EMBEDDED_PAGE_OFFSET, className)}

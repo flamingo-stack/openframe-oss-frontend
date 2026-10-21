@@ -217,8 +217,9 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
       setUseDefault(true);
     };
 
-    // While the overrides load the block draws itself in a loading scope: the toggle's copy for real, checked (the
-    // starting state), then the previews and the quick actions each their own skeleton.
+    // While the overrides load the block draws itself in a loading scope: the toggle's copy for real and its box a
+    // skeleton, the default branch below it (the starting state), then the previews and the quick actions each their
+    // own skeleton.
     const loading = scoped || isViewLoading || isConfigLoading;
 
     const toggleRow = (
@@ -227,7 +228,6 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
         label="Use the default AI-Assistant configuration"
         description="Inherits all AI-Assistant settings from your global configuration."
         checked={useDefault}
-        disabled={loading}
         onCheckedChange={checked => handleToggle(Boolean(checked))}
         trailing={
           <Button

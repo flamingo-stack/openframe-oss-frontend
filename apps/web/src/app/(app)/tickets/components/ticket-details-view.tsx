@@ -128,11 +128,6 @@ function withActivityTracking(
   };
 }
 
-/** An info row while the ticket loads: its label drawn for real, its value a skeleton bar. */
-function loadingInfoRow(row: InfoSectionRow): InfoSectionRow {
-  return { ...row, value: { type: 'custom', content: <UnifiedSkeleton as="span" className="h-5 w-24" /> } };
-}
-
 /**
  * The ticket page: the client chat beside a Ticket Details / Attachments / Tags
  * column. The technician's own conversation lives in the global Mingo drawer,
@@ -894,7 +889,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // the Ticket Details tab on tablet/mobile.
   const sidebarContent = (
     <>
-      <InfoSection title="Ticket Details" rows={loading ? infoRows.map(loadingInfoRow) : infoRows} />
+      <InfoSection title="Ticket Details" rows={infoRows} />
       <TicketAttachmentsSection ticketId={dialog?.id ?? ticketId} attachments={dialog?.attachments ?? []} />
       <TicketTagsSection ticketId={dialog?.id ?? ticketId} tags={dialog?.tags ?? []} />
       <NotesSection

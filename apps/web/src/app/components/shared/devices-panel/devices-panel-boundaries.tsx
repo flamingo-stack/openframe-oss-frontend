@@ -8,6 +8,7 @@ import {
   getDeviceFilterColumns,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { routes } from '@/lib/routes';
 
@@ -67,6 +68,7 @@ export function DevicesPanelSkeleton({
 }: DevicesPanelSkeletonProps) {
   return (
     <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
       loading
       title={title}
       backButton={backButton}
