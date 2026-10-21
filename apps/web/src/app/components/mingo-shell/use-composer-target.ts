@@ -101,13 +101,23 @@ export function useComposerTarget({
   // create failed) disarms, so a later selection is not taken for its chat. One
   // that created it was already followed by the effect above: the id commits before
   // the send itself returns.
+  //
+  // `catch` + rethrow, not `finally`: the React Compiler cannot lower a `try` without
+  // a `catch`, and skipped this whole hook over it, so `mingoState` was new on every
+  // render of the dock.
   const following = async <T>(send: () => Promise<T>): Promise<T> => {
     const follow: PendingFollow = { from: committedIdRef.current };
     followRef.current = follow;
-    try {
-      return await send();
-    } finally {
+    const disarm = () => {
       if (followRef.current === follow && committedIdRef.current === follow.from) followRef.current = null;
+    };
+    try {
+      const result = await send();
+      disarm();
+      return result;
+    } catch (error) {
+      disarm();
+      throw error;
     }
   };
 

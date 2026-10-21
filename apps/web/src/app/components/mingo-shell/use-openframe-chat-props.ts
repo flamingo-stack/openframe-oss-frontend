@@ -53,8 +53,12 @@ interface OpenframeChatPropsOptions {
 export function useOpenframeChatProps({
   chat,
   copyDialogLink,
-  sendInNewDialog = chat.sendInNewDialog,
+  sendInNewDialog: sendInNewDialogOption,
 }: OpenframeChatPropsOptions): OpenframeChatProps {
+  // Not a parameter default: one read from another parameter is a construct the
+  // React Compiler cannot reorder, and it then skipped this whole hook, so every
+  // object it builds for the docked chat was new on every render.
+  const sendInNewDialog = sendInNewDialogOption ?? chat.sendInNewDialog;
   const {
     state,
     pendingApprovals,
