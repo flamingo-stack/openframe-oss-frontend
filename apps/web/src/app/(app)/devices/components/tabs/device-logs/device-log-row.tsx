@@ -117,13 +117,20 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
           <Tag
             as="span"
             variant="outline"
+            data-loading-optional
             label={<span>{data.hostname}</span>}
             labelClassName="truncate"
             className={cn('shrink-0', multiDevice ? 'max-w-[12rem]' : 'hidden content-md:inline-flex')}
           />
         )}
         {!loading && data.count != null && data.count > 1 && (
-          <Tag as="span" variant="outline" label={<span>×{formatCount(data.count)}</span>} className="shrink-0" />
+          <Tag
+            as="span"
+            variant="outline"
+            data-loading-optional
+            label={<span>×{formatCount(data.count)}</span>}
+            className="shrink-0"
+          />
         )}
         <Chevron01RightIcon aria-hidden="true" className="shrink-0 text-ods-text-tertiary" />
       </Button>

@@ -105,19 +105,23 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
     <SectionBlock title="Current Plan">
       <BillingRow label="Billing Cycle" value={isAnnual ? 'Annual' : 'Monthly'} />
       {deviceRate != null && <BillingRow label="Device Rate" value={<MonthlyRate amount={deviceRate} />} />}
-      {schedule.carriesAi && <BillingRow label="Free AI Tokens" value={<MonthlyTokens tokens={freeTokens} />} />}
+      {schedule.carriesAi && (
+        <BillingRow optional label="Free AI Tokens" value={<MonthlyTokens tokens={freeTokens} />} />
+      )}
       {nextPayment > 0 && <BillingRow label="Next Payment" value={formatCurrency(nextPayment)} />}
       {/* Independent rows, not one slot fought over by several dates: each is
           present exactly when its own field is. A plan that is ending still has
           a billing date, and Figma shows both — they land on the same day
           because the subscription runs to the end of the paid period and stops
           there, which is two facts, not one repeated. */}
-      {data.currentPeriodEnd && <BillingRow label="Next Billing Date" value={formatDate(data.currentPeriodEnd)} />}
+      {data.currentPeriodEnd && (
+        <BillingRow optional label="Next Billing Date" value={formatDate(data.currentPeriodEnd)} />
+      )}
       {data.cancellationEffectiveAt && (
-        <BillingRow label="Plan ends on" warning value={<WarningDate iso={data.cancellationEffectiveAt} />} />
+        <BillingRow optional label="Plan ends on" warning value={<WarningDate iso={data.cancellationEffectiveAt} />} />
       )}
       {schedule.currentPlanEndsOn && (
-        <BillingRow label="Plan ends on" warning value={<WarningDate iso={schedule.currentPlanEndsOn} />} />
+        <BillingRow optional label="Plan ends on" warning value={<WarningDate iso={schedule.currentPlanEndsOn} />} />
       )}
     </SectionBlock>
   );

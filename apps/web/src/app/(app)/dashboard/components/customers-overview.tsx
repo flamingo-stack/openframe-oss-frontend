@@ -4,7 +4,7 @@ import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flami
 import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadError, LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyState } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { pluralize } from '@/lib/pluralize';
@@ -117,9 +117,7 @@ export function CustomersOverview({ customers }: { customers?: CustomersOverview
     if (loading || !customers) {
       return (
         <LoadingRegion label="Loading customers overview" className="contents">
-          {Array.from({ length: CUSTOMERS_OVERVIEW_LIMIT }, (_, index) => (
-            <CustomerOverviewRow key={index} org={null} />
-          ))}
+          <LoadingItems count={CUSTOMERS_OVERVIEW_LIMIT}>{() => <CustomerOverviewRow org={null} />}</LoadingItems>
         </LoadingRegion>
       );
     }

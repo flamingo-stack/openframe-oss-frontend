@@ -24,7 +24,6 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   FilterModal,
   PageLayout,
   type Row,
@@ -54,7 +53,7 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { EmptyState, liveColumnMeta, onboardingGuideButton, useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -603,25 +602,18 @@ function ScriptsTableContent({
           flight — the subtle fade is the pending feedback. Swapping to skeletons
           is exactly the flash the deferral avoids. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyState={{
-              title: debouncedSearch
-                ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No scripts found. Try adjusting your filters or add a new script.',
-            }}
-            rowClassName="mb-1"
-            rowHref={scriptRowHref}
-          />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={PAGE_SIZE}
-          />
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          emptyState={{
+            title: debouncedSearch
+              ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
+              : 'No scripts found. Try adjusting your filters or add a new script.',
+          }}
+          rowHref={scriptRowHref}
+          footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        />
       </div>
 
       <FilterModal
@@ -805,7 +797,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
         <LoadingSuspense
           label="Loading scripts"
           fallback={
-            <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
+            <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
           }
         >
           <ScriptsTableContent

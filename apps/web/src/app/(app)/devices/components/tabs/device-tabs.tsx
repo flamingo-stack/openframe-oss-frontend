@@ -43,8 +43,11 @@ import { VulnerabilitiesTab } from './vulnerabilities-tab';
 
 // Module-level, so its identity is stable across renders (TabContent would remount the tab otherwise).
 function ArticlesTab({ device }: { device: Device | null }) {
-  if (!device?.machineId) return null;
-  return <AssignedArticlesTab target={deviceArticlesTarget(device.machineId)} />;
+  return (
+    <LoadingWhen loading={!device?.machineId}>
+      <AssignedArticlesTab target={device?.machineId ? deviceArticlesTarget(device.machineId) : null} />
+    </LoadingWhen>
+  );
 }
 
 // The gated tabs, module-level for a stable identity: while the gate is read the tab is shown and its panel draws its

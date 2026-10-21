@@ -21,7 +21,6 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -38,7 +37,7 @@ import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__ge
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -492,30 +491,22 @@ export function ExecutionsTable({
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in
           flight — the subtle fade is the pending feedback. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-          )}
-          <DataTable.Body
-            skeletonRows={EXECUTIONS_PAGE_SIZE}
-            emptyState={resolvedEmptyState}
-            rowClassName="mb-1"
-            rowHref={executionHref}
-          />
-          {/* Kept mounted on an EMPTY list too, as long as more pages exist —
-              that only happens under client-side narrowing, and there the
-              sentinel is what walks the rest of the pages so the term ends up
-              searching the whole list instead of just the first page. */}
-          {(executions.length > 0 || hasNext) && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={onLoadMore}
-              skeletonRows={EXECUTIONS_PAGE_SIZE}
-              loadedCount={loadedCount}
-            />
-          )}
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={EXECUTIONS_PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          showHeader={showHeader}
+          emptyState={resolvedEmptyState}
+          rowHref={executionHref}
+          // Kept mounted on an EMPTY list too, as long as more pages exist — that only happens under client-side
+          // narrowing, and there the sentinel is what walks the rest of the pages so the term ends up searching the
+          // whole list instead of just the first page.
+          footer={
+            executions.length > 0 || hasNext
+              ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore, loadedCount }
+              : null
+          }
+        />
       </div>
 
       <FilterModal
@@ -754,7 +745,7 @@ export function ExecutionsTabShell({
       <LoadingSuspense
         label="Loading executions"
         fallback={
-          <EmptyLiveTable
+          <LiveTable
             columns={LOADING_COLUMNS}
             pageSize={EXECUTIONS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}

@@ -8,6 +8,10 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { pageSkeletonReport } from '../../scripts/check-page-skeletons.mjs';
 import { fullPageProblems, fullPageReport } from '../../scripts/check-skeleton-full-page.mjs';
+import { RULE_EXAMPLES } from '../../scripts/lib/source-scan.mjs';
+
+type RuleExample = { rule: string; fail: Record<string, string>; pass: Record<string, string> };
+const COUNT_RULES = new Set(['TYPED_COUNT', 'COUNT_SOURCE', 'COUNT_CAP', 'HIDDEN_ITEMS', 'ITEM_MARK', 'OPTIONAL_MARK']);
 
 const roots: string[] = [];
 
@@ -215,6 +219,22 @@ describe('check-page-skeletons', () => {
     });
     expect(report).toBe('');
   });
+});
+
+describe('every engine rule through the two gates', () => {
+  /** What the gate that runs `rule` reports for a fixture tree (paths relative to `src/`). */
+  const reportFor = (rule: string, files: Record<string, string>) => {
+    const tree = Object.fromEntries(Object.entries(files).map(([rel, source]) => [`src/${rel}`, source]));
+    return COUNT_RULES.has(rule) ? fullPageReport(project(tree)).problems.join('\n') : pageProblems(tree);
+  };
+
+  it.each((RULE_EXAMPLES as RuleExample[]).map(example => [example.rule, example] as const))(
+    '%s fails its example and passes the standard form',
+    (rule, example) => {
+      expect(reportFor(rule, example.fail)).toContain(`[${rule}]`);
+      expect(reportFor(rule, example.pass)).not.toContain(`[${rule}]`);
+    },
+  );
 });
 
 describe('check-skeleton-full-page', () => {

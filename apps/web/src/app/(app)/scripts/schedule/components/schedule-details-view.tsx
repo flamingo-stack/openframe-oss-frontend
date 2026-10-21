@@ -34,7 +34,7 @@ import { formatScheduleStartAt, offlineBehaviorToLabel, repeatToLabel } from '..
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import {
   SCHEDULE_DEFAULT_TAB,
-  SCHEDULE_TABS_WITHOUT_RUNS,
+  SCHEDULE_DETAIL_TABS,
   scheduleDetailTabs,
   scheduleTabBody,
 } from './schedule-detail-tabs';
@@ -258,7 +258,7 @@ function ScheduleTabs({ scheduleId, tabs }: ScheduleDetailsViewProps & { tabs: T
  * `schedule-trigger-relay.ts`. Coming from the schedules list (which selects
  * `trigger`) it answers from the Relay store and this never suspends, so the
  * strip still paints with the rest of the page chrome; a cold load — a link
- * straight into the page — falls back to the certain tabs for one round trip.
+ * straight into the page — falls back to a timed schedule's tabs for one round trip.
  *
  * A stale `?tab=runs` needs no handling: `TabNavigation` resolves a tab id that
  * is not in `tabs` to `defaultTab`, so a link into the Runs tab of a schedule
@@ -315,10 +315,11 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
 
         {/* The strip's own island — WHICH tabs exist is the schedule's answer
             (no Schedule Runs on an event-driven one). Its fallback is the same
-            strip on the certain tabs, so the page keeps a working tab bar
-            through the wait instead of a placeholder, and the bodies below go on
+            strip on the typical schedule's tabs (a timed one, Schedule Runs
+            included, so a link into the Runs tab keeps its tab through the wait),
+            a working tab bar instead of a placeholder, and the bodies below go on
             loading under it. */}
-        <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_TABS_WITHOUT_RUNS} />}>
+        <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_DETAIL_TABS} />}>
           <ScheduleTabsIsland scheduleId={scheduleId} />
         </Suspense>
       </div>

@@ -3,7 +3,7 @@
 import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingItems, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
@@ -218,11 +218,13 @@ function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInv
       {!unavailable && !nothingOutstanding && (
         <>
           <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)]">
-            {loading || invoices == null
-              ? Array.from({ length: UNPAID_INVOICES_SKELETON_ROWS }, (_, index) => (
-                  <OutstandingInvoiceRow key={index} invoice={null} />
-                ))
-              : invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)}
+            {loading || invoices == null ? (
+              <LoadingItems count={UNPAID_INVOICES_SKELETON_ROWS}>
+                {() => <OutstandingInvoiceRow invoice={null} />}
+              </LoadingItems>
+            ) : (
+              invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)
+            )}
           </div>
 
           <div className="relative flex flex-wrap justify-center gap-[var(--spacing-system-m)]">

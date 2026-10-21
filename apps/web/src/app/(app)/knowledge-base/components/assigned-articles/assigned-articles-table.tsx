@@ -6,6 +6,7 @@ import {
   type ColumnDef,
   type Row,
   useDataTable,
+  LoadingWhen,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -145,7 +146,8 @@ export interface AssignedArticlesListing {
 }
 
 interface AssignedArticlesTableProps {
-  target: AssignedArticlesTarget;
+  /** Null while the page has not read whose articles these are: the table draws its loading state and asks nothing. */
+  target: AssignedArticlesTarget | null;
   /** Deferred — feeds the query (lags the search box and the tag chips during a refetch). */
   listing: AssignedArticlesListing;
   /** A refetch is in flight and the rows on screen are the previous result. */
@@ -165,13 +167,18 @@ interface AssignedArticlesTableProps {
  * the tab's `<Suspense>`.
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
-  if (useLoadingScope()) {
-    return <AssignedArticlesRows {...props} rows={[]} totalCount={0} onUnassign={noop} infiniteScroll={NO_NEXT_PAGE} />;
+  const { target } = props;
+  if (useLoadingScope() || target == null) {
+    return (
+      <LoadingWhen loading>
+        <AssignedArticlesRows {...props} rows={[]} totalCount={0} onUnassign={noop} infiniteScroll={NO_NEXT_PAGE} />
+      </LoadingWhen>
+    );
   }
-  return <AssignedArticlesTableQuery {...props} />;
+  return <AssignedArticlesTableQuery {...props} target={target} />;
 }
 
-function AssignedArticlesTableQuery(props: AssignedArticlesTableProps) {
+function AssignedArticlesTableQuery(props: AssignedArticlesTableProps & { target: AssignedArticlesTarget }) {
   const { target, listing, refreshKey, onChanged } = props;
   const { toast } = useToast();
   const retryKey = useRetryKey();
@@ -280,7 +287,8 @@ function AssignedArticlesRows({
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  if (showEmptyState) {
+  // `showEmptyState` holds only once loaded, and a table with no target is always loading.
+  if (showEmptyState && target) {
     return (
       <EmptyState
         icon={<BookBookmarkIcon />}

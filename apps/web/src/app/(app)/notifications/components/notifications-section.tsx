@@ -63,11 +63,17 @@ export function NotificationsSection({
   // `null` until the list answers: the search stays drawn while it loads, the header actions wait for rows.
   const [isEmpty, setIsEmpty] = useState<boolean | null>(null);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
+  // The table before its query answers, built once: the boundary's fallback, and the section's body while the query
+  // has not even been started (no `queryRef` yet).
+  const loadingLabel = sectionLoadingLabel(rowVariant);
+  const loadingTable = <SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />;
 
   return (
     <PageLayout
       title={title}
-      actions={isEmpty === false ? actions : undefined}
+      // Until the list answers the actions are drawn in their loading form; a list with no rows drops them.
+      actions={isEmpty === true ? undefined : actions}
+      loadingActions={isEmpty === null}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col" style={containerStyle}>
@@ -90,10 +96,7 @@ export function NotificationsSection({
           </div>
         )}
 
-        <LoadingSuspense
-          label={sectionLoadingLabel(rowVariant)}
-          fallback={<SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />}
-        >
+        <LoadingSuspense label={loadingLabel} fallback={loadingTable}>
           {queryRef ? (
             <SectionTable
               queryRef={queryRef}
@@ -105,9 +108,7 @@ export function NotificationsSection({
               stickyHeaderOffset={stickyHeaderOffset}
             />
           ) : (
-            <LoadingFallback label={sectionLoadingLabel(rowVariant)}>
-              <SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />
-            </LoadingFallback>
+            <LoadingFallback label={loadingLabel}>{loadingTable}</LoadingFallback>
           )}
         </LoadingSuspense>
       </div>

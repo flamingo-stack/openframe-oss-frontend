@@ -3,7 +3,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
  * The "Powered by Flamingo" footer link the full-screen surfaces share (the setup wizard, the auth status pages, the
- * inactive workspace).
+ * inactive workspace, the root error screen and the account deletion pages).
  */
 export function PoweredByFlamingo({ className }: { className?: string }) {
   return (

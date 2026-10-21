@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetailTags_article$key } from '@/__generated__/articleDetailTags_article.graphql';
 
@@ -28,16 +28,15 @@ export function ArticleDetailTags({ article }: { article: articleDetailTags_arti
   const loading = useLoadingScope();
   return (
     <div className={ROW_CLASS}>
-      {loading || !data
-        ? Array.from({ length: ARTICLE_TAGS_SKELETON_COUNT }, (_, index) => (
-            // The lib's tag skeleton takes no attributes: the item mark rides on a wrapper.
-            <span key={index} data-loading-item>
-              <Tag label="" loading />
-            </span>
-          ))
-        : data.tags.map(tag => (
-            <Tag key={tag.id} label={tag.key} variant="outline" className="max-w-full" data-loading-item />
-          ))}
+      {loading || !data ? (
+        <LoadingItems count={ARTICLE_TAGS_SKELETON_COUNT}>
+          {() => <Tag label="" loading data-loading-item />}
+        </LoadingItems>
+      ) : (
+        data.tags.map(tag => (
+          <Tag key={tag.id} label={tag.key} variant="outline" className="max-w-full" data-loading-item />
+        ))
+      )}
     </div>
   );
 }

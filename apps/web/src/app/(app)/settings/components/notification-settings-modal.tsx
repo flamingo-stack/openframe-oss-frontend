@@ -4,6 +4,7 @@ import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
+  LoadingItems,
   LoadingWhen,
   ModalV2,
   ModalV2Content,
@@ -209,29 +210,33 @@ function NotificationSettingsFormView({
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
           <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-          {loading
-            ? Array.from({ length: NOTIFICATION_GROUPS_SKELETON_ROWS }, (_, index) => (
-                <div key={index} data-loading-item>
+          {loading ? (
+            <LoadingItems count={NOTIFICATION_GROUPS_SKELETON_ROWS}>
+              {() => (
+                <div data-loading-item>
                   <CheckboxBlock label={<TextLineSkeleton type="inherit" as="span" className="w-40" />} loading />
                 </div>
-              ))
-            : groups.map(({ group, label, enabled: on }) => (
-                <div key={group} data-loading-item>
-                  <CheckboxBlock
-                    id={`notification-group-${group}`}
-                    label={label}
-                    checked={on}
-                    // The master switch owns everything below it, so the per-group rows go
-                    // inert while it is off rather than implying they still have an effect.
-                    disabled={isSaving || !enabled}
-                    onCheckedChange={checked =>
-                      setGroups(prev =>
-                        prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)),
-                      )
-                    }
-                  />
-                </div>
-              ))}
+              )}
+            </LoadingItems>
+          ) : (
+            groups.map(({ group, label, enabled: on }) => (
+              <div key={group} data-loading-item>
+                <CheckboxBlock
+                  id={`notification-group-${group}`}
+                  label={label}
+                  checked={on}
+                  // The master switch owns everything below it, so the per-group rows go
+                  // inert while it is off rather than implying they still have an effect.
+                  disabled={isSaving || !enabled}
+                  onCheckedChange={checked =>
+                    setGroups(prev =>
+                      prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)),
+                    )
+                  }
+                />
+              </div>
+            ))
+          )}
         </div>
       </ModalV2Content>
       <SettingsFooter onClose={onClose} onSave={loading ? undefined : handleSave} isSaving={isSaving} />

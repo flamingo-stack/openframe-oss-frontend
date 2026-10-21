@@ -134,7 +134,7 @@ export function OnboardingAccordionItem({
         // Top offset for the auto-advance anchor lives in the hook (`scrollElementIntoView`
         // headerOffset), not in a scroll-mt here — the helper ignores scroll-margin-top.
         'w-full border-b border-ods-border transition-colors duration-200 ease-out motion-reduce:transition-none',
-        expanded && !loading ? 'bg-ods-bg' : 'bg-ods-card',
+        expanded ? 'bg-ods-bg' : 'bg-ods-card',
       )}
     >
       {/* Header is not interactive — only the chevron button toggles the step. */}

@@ -6,8 +6,14 @@ import {
   CheckCircleIcon,
   ShieldIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LeaderRow,
+  type LeaderRowValueTone,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
@@ -69,45 +75,39 @@ const AGENT_CARD = {
   fleetDesktop: { title: 'Fleet Desktop', rows: [ROW.version] },
 } as const;
 
-const VALUE_COLOR: Record<SecurityStatus, string> = {
-  success: 'text-ods-success',
-  error: 'text-ods-error',
-  warning: 'text-ods-warning',
-  neutral: 'text-ods-text-primary',
+/** A row's value tone on the lib's leader row: a neutral value is the primary tone. */
+const VALUE_TONE: Record<SecurityStatus, LeaderRowValueTone> = {
+  success: 'success',
+  error: 'error',
+  warning: 'warning',
+  neutral: 'primary',
 };
 
-const STATUS_ROW_CLASS = 'flex h-6 w-full items-center gap-[var(--spacing-system-xs)]';
-const STATUS_ROW_LABEL_CLASS = 'whitespace-nowrap text-ods-text-secondary text-h4';
+const STATUS_ICON: Record<SecurityStatus, ReactNode> = {
+  success: <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />,
+  error: <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />,
+  warning: <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />,
+  neutral: null,
+};
+
 const STATUS_CARD_CLASS =
   'flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
 const STATUS_CARD_ROWS_CLASS = 'flex w-full flex-col gap-[var(--spacing-system-xs)]';
 const SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
 const SECTION_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
 
+/** One posture row: the lib's leader row. While the device is read its value is empty, so the row draws its label
+ *  real and its value as a bar (a loading row states no status, so no status box is drawn). */
 function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
-  // While the device is read the label is real and the value a bar (no status icon yet).
-  const loading = useLoadingScope();
-  const icon = loading ? null : status === 'success' ? (
-    <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />
-  ) : status === 'error' ? (
-    <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />
-  ) : status === 'warning' ? (
-    <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />
-  ) : null;
-
   return (
-    <div data-loading-item className={STATUS_ROW_CLASS}>
-      <span className={STATUS_ROW_LABEL_CLASS}>{label}</span>
-      <div className="h-px flex-1 bg-ods-divider" />
-      <div className="min-w-0">
-        {loading ? (
-          <TextLineSkeleton type="h4" className="w-20" />
-        ) : (
-          <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
-        )}
-      </div>
-      {icon}
-    </div>
+    <LeaderRow
+      data-loading-item
+      className="h-6"
+      label={label}
+      value={value}
+      valueTone={VALUE_TONE[status]}
+      status={STATUS_ICON[status]}
+    />
   );
 }
 

@@ -20,6 +20,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
@@ -34,6 +35,12 @@ import { useQueryReport } from '../hooks/use-query-report';
 import { QueryDevicesTable } from './query-devices-table';
 
 const [RESULTS_TAB, DEVICES_TAB] = TAB_IDS.queryDetails;
+
+/**
+ * How many lines a query's description typically runs to while it is read: one sentence, which wraps to two lines on
+ * a phone and fits one line from `content-md` up.
+ */
+const QUERY_DESCRIPTION_SKELETON_LINES = { base: 2, md: 1 } as const;
 
 const QUERY_TABS: TabItem[] = [
   { id: RESULTS_TAB, label: 'Query Results', icon: CheckCircleIcon },
@@ -159,7 +166,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
             <InfoCell
               label="Description"
               value={details?.description ? <span className="whitespace-normal">{details.description}</span> : null}
-              skeletonWidth="w-2/3"
+              valueSkeleton={<LoadingParagraph tone="primary" lines={QUERY_DESCRIPTION_SKELETON_LINES} />}
               className={DETAIL_CELL_GAP_CLASS}
             />
           </div>

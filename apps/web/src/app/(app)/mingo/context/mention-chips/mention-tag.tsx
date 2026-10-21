@@ -14,14 +14,14 @@
  * When `href` is set the chip is a link to the entity's page — a NEW TAB on
  * desktop web, the SAME window where a new tab is unavailable or unwanted (see
  * `useSameWindowLinks`). In a loading scope the chip is the `Tag`'s own
- * skeleton, in the chip's box; `MentionTagFallback` is the Suspense fallback that
+ * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
  * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
  * always: skeleton while fetching → resolved chip → plain id chip if the fetch
  * throws (never crashes the message).
  */
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingScope, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -114,17 +114,16 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
 }
 
 /**
- * Suspense fallback of a per-type chip: the chip itself in a loading scope. Inline (a `span`: the chip lives
- * inside a `<p>`), and busy without a status of its own: a message can hold several chips loading at once, and
- * a "loading" read out mid-sentence for each would bury the message itself.
+ * The Suspense boundary of a per-type chip: while the chip's entity is fetched, the chip itself (no label yet) in a
+ * loading scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the
+ * chip lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
  */
-export function MentionTagFallback({ icon }: { icon?: ReactNode }) {
+export function MentionSuspense({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   return (
-    <LoadingRegion as="span" status={false} className="contents">
-      <LoadingScope bare>
-        <MentionTag icon={icon} label="" />
-      </LoadingScope>
-    </LoadingRegion>
+    <LoadingSuspense as="span" className="contents" status={false} fallback={<MentionTag icon={icon} label="" />}>
+      {children}
+    </LoadingSuspense>
   );
 }
 

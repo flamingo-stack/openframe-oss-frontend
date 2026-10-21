@@ -26,6 +26,8 @@ const CARD_SHELL_CLASSES =
 const ICON_FRAME_CLASSES =
   'shrink-0 rounded bg-ods-bg border border-ods-border flex items-center justify-center text-ods-text-secondary p-[var(--spacing-system-sf)]';
 const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)]';
+/** The chevron, the same glyph and colour in both forms (static: only the link around it waits). */
+const CHEVRON_CLASSES = 'size-6 text-ods-text-primary';
 
 /**
  * One settings card. In a loading scope (the grid's gates, a feature flag or a role, have not answered which cards it
@@ -54,7 +56,7 @@ export function SettingMenuItem({ href, icon, title, description, badge, listIte
       </div>
       {loading ? (
         <div className={CHEVRON_FRAME_CLASSES}>
-          <Chevron02RightIcon className="size-6 text-ods-text-secondary" />
+          <Chevron02RightIcon className={CHEVRON_CLASSES} />
         </div>
       ) : (
         <Link
@@ -62,7 +64,7 @@ export function SettingMenuItem({ href, icon, title, description, badge, listIte
           aria-label={title}
           className={cn(CHEVRON_FRAME_CLASSES, 'transition-colors hover:bg-ods-bg-hover')}
         >
-          <Chevron02RightIcon className="size-6 text-ods-text-primary" />
+          <Chevron02RightIcon className={CHEVRON_CLASSES} />
         </Link>
       )}
     </div>

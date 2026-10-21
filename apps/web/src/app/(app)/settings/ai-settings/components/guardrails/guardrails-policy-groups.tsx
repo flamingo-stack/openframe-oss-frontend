@@ -3,7 +3,7 @@
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { noop } from '@/app/components/shared';
 
 interface GuardrailsPolicyGroupsProps {
@@ -44,9 +44,10 @@ function PolicyGroup({
   onCategoryPermissionChange,
   loading,
 }: PolicyGroupProps) {
+  const isLoading = useLoadingScope() || loading;
   return (
     <div className={GROUP_CLASS} data-loading-item>
-      {loading ? (
+      {isLoading ? (
         <TextLineSkeleton type="h5" className="w-32" />
       ) : (
         <TruncateText variant="h5" tone="secondary">
@@ -58,7 +59,7 @@ function PolicyGroup({
         editMode={editMode}
         onPolicyPermissionChange={onPolicyPermissionChange}
         onCategoryPermissionChange={onCategoryPermissionChange}
-        loading={loading}
+        loading={isLoading}
       />
     </div>
   );
@@ -75,22 +76,34 @@ export function GuardrailsPolicyGroups({
   onCategoryPermissionChange = noop,
 }: GuardrailsPolicyGroupsProps) {
   const loading = useLoadingScope() || groups == null;
-  const entries: [string, PermissionCategory[]][] = groups
-    ? Array.from(groups.entries())
-    : Array.from({ length: GUARDRAILS_SKELETON_GROUPS }, (_, index) => [`loading-${index}`, NO_CATEGORIES]);
   return (
     <div className={GROUPS_CLASS}>
-      {entries.map(([policyGroupName, categories]) => (
-        <PolicyGroup
-          key={policyGroupName}
-          name={policyGroupName}
-          categories={loading ? NO_CATEGORIES : categories}
-          editMode={!loading && editMode}
-          onPolicyPermissionChange={onPolicyPermissionChange}
-          onCategoryPermissionChange={onCategoryPermissionChange}
-          loading={loading}
-        />
-      ))}
+      {loading ? (
+        <LoadingItems count={GUARDRAILS_SKELETON_GROUPS}>
+          {() => (
+            <PolicyGroup
+              name=""
+              categories={NO_CATEGORIES}
+              editMode={false}
+              onPolicyPermissionChange={noop}
+              onCategoryPermissionChange={noop}
+              loading
+            />
+          )}
+        </LoadingItems>
+      ) : (
+        Array.from(groups.entries(), ([policyGroupName, categories]) => (
+          <PolicyGroup
+            key={policyGroupName}
+            name={policyGroupName}
+            categories={categories}
+            editMode={editMode}
+            onPolicyPermissionChange={onPolicyPermissionChange}
+            onCategoryPermissionChange={onCategoryPermissionChange}
+            loading={false}
+          />
+        ))
+      )}
     </div>
   );
 }

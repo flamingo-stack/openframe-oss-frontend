@@ -1,6 +1,6 @@
 'use client';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 /**
  * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
  * organization, kb article) — the `@marker:id` analogue of `[card://]` entity
@@ -43,7 +43,7 @@ import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentio
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
-import { MentionErrorBoundary, MentionTag, MentionTagFallback } from './mention-tag';
+import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
@@ -272,9 +272,9 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
     <MentionErrorBoundary
       fallback={<MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}
     >
-      <Suspense fallback={<MentionTagFallback icon={icon} />}>
+      <MentionSuspense icon={icon}>
         <Inner kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
-      </Suspense>
+      </MentionSuspense>
     </MentionErrorBoundary>
   );
 }

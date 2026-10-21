@@ -10,6 +10,7 @@ import {
 import {
   type ActionsMenuGroup,
   type PageActionButton,
+  LoadingItems,
   TabNavigation,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -213,18 +214,11 @@ function ScriptTags({ tags }: { tags: ReadonlyArray<{ id: string; key: string }>
   return (
     <div className="flex min-h-8 flex-wrap items-center gap-[var(--spacing-system-xs)]">
       {loading ? (
-        Array.from({ length: SCRIPT_TAGS_SKELETON_COUNT }, (_, i) => (
-          <span key={i} data-loading-item className="flex">
-            {/* A tag with no label yet: it draws its own skeleton in the loading scope. */}
-            <Tag variant="outline" label="" />
-          </span>
-        ))
+        <LoadingItems count={SCRIPT_TAGS_SKELETON_COUNT}>
+          {() => <Tag data-loading-item variant="outline" label="" loading />}
+        </LoadingItems>
       ) : tags.length > 0 ? (
-        tags.map(tag => (
-          <span key={tag.id} data-loading-item className="flex">
-            <Tag variant="outline" label={tag.key} />
-          </span>
-        ))
+        tags.map(tag => <Tag key={tag.id} data-loading-item variant="outline" label={tag.key} />)
       ) : (
         <span className="text-h4">
           <EmptyValue />

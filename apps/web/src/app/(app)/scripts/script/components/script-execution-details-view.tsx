@@ -52,11 +52,14 @@ function DetailCell({
   label,
   icon,
   valueSkeleton,
+  labelSkeletonWidth,
 }: {
   value: ReactNode;
   label: string;
   icon?: ReactNode;
   valueSkeleton?: ReactNode;
+  /** The label is read too: while loading it is a bar of this width. */
+  labelSkeletonWidth?: string;
 }) {
   return (
     <div className={DETAIL_CELL_CLASS}>
@@ -65,6 +68,7 @@ function DetailCell({
         label={label}
         icon={icon}
         valueSkeleton={valueSkeleton}
+        labelSkeletonWidth={labelSkeletonWidth}
         className={DETAIL_CELL_GAP_CLASS}
       />
     </div>
@@ -142,7 +146,9 @@ function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionN
         <DetailCell
           value={execution ? getDeviceName(execution.machine) : ''}
           icon={<MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />}
+          // The device's organization when it has one: read with the execution, so a bar while it loads.
           label={org || 'Device'}
+          labelSkeletonWidth="w-24"
         />
         <DetailCell
           label="Executed by"

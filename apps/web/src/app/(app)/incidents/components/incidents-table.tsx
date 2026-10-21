@@ -11,7 +11,6 @@ import {
   ActionsMenuDropdown,
   Button,
   type ColumnDef,
-  DataTable,
   FilterModal,
   Input,
   PageLayout,
@@ -41,7 +40,7 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -558,29 +557,19 @@ function IncidentsTableContent({
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in
           flight — the subtle fade is the pending feedback. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount totalCount={filteredCount} />}
-          />
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyState={{
-              title: debouncedSearch
-                ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No incidents found. Try adjusting your filters.',
-            }}
-            rowClassName="mb-1"
-            rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
-          />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext && !pageFailed}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={PAGE_SIZE}
-          />
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          totalCount={filteredCount}
+          emptyState={{
+            title: debouncedSearch
+              ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
+              : 'No incidents found. Try adjusting your filters.',
+          }}
+          rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
+          footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        />
       </div>
 
       <FilterModal
@@ -659,7 +648,7 @@ function IncidentsList({
   const scoped = useLoadingScope();
   // The live table with no rows yet (funnels pending, no row to act on): its body and row count draw themselves.
   const loadingTable = (
-    <EmptyLiveTable
+    <LiveTable
       columns={incidentColumns({
         options: null,
         deviceScoped,

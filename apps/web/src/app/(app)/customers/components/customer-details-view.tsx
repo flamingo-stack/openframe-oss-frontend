@@ -76,8 +76,13 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // openframe-saas-ai-agent service (/chat/graphql), so they're saas-tenant only.
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   // Remote access policy: not saas-gated - MeshCentral runs in
-  // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
-  const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
+  // the OSS tenant too. Tri-state gate: a deep link to the tab keeps it while the gate reads (drawn in a loading
+  // scope below); it hides only on 'off'.
+  const deviceGuardrailsGate = useRemoteAccessApprovalGate();
+  const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
+  const showDeviceGuardrails =
+    deviceGuardrailsGate === 'on' ||
+    (deviceGuardrailsGateLoading && requestedTab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID);
   const tabs = useMemo(
     () =>
       getCustomerTabs({
@@ -232,11 +237,13 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         >
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
             {tab => (
-              <TabContent
-                activeTab={tab}
-                TabComponent={getCustomerTabComponent(tab)}
-                componentProps={{ organizationId: id, organization }}
-              />
+              <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
+                <TabContent
+                  activeTab={tab}
+                  TabComponent={getCustomerTabComponent(tab)}
+                  componentProps={{ organizationId: id, organization }}
+                />
+              </LoadingWhen>
             )}
           </TabNavigation>
         </PageLayout>

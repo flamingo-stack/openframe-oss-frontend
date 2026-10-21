@@ -1,7 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import type { Device } from '../types/device.types';
 
@@ -30,9 +30,9 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
       <p className="text-ods-text-secondary text-h5">Device Tags</p>
       <div className={TAGS_ROW_CLASS}>
         {loading ? (
-          Array.from({ length: DEVICE_TAGS_SKELETON_COUNT }, (_, index) => (
-            <Tag key={index} as="span" variant="badge" label="" loading data-loading-item />
-          ))
+          <LoadingItems count={DEVICE_TAGS_SKELETON_COUNT}>
+            {() => <Tag as="span" variant="badge" label="" loading data-loading-item />}
+          </LoadingItems>
         ) : tagValues.length === 0 ? (
           <span className="text-h4">
             <EmptyValue />

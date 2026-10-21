@@ -175,8 +175,8 @@ interface OnboardingViewProps {
 
 /**
  * The page from props: the header, the booking offer and every group and row of the tour. In a loading scope
- * (progress not read yet) the header keeps its static copy with Skip held off, and each row draws its own status
- * as a skeleton with its body not mounted, so nothing here suspends.
+ * (progress not read yet) the header keeps its static copy with Skip held off, each row draws its own status as a
+ * skeleton, and the row the URL opens draws its real body (inert handlers), which draws its own loading form.
  */
 function OnboardingView({
   completedSteps = NO_COMPLETED_STEPS,
@@ -238,6 +238,9 @@ function OnboardingView({
         <OnboardingAccordionGroup key={group.label} label={group.label}>
           {group.items.map(item => {
             const wiring = loading ? undefined : stepWiring?.(item.step);
+            const hashOpened = loading && item.step === hashStep;
+            // The row the URL opens draws its real body in the scope, where the body draws its own loading form.
+            const LoadingBody = STEP_BODY[item.step];
             return (
               <OnboardingAccordionItem
                 key={item.step}
@@ -248,10 +251,10 @@ function OnboardingView({
                 next={item.step === nextStep}
                 title={item.title}
                 description={item.description}
-                expanded={loading ? item.step === hashStep : wiring?.expanded}
+                expanded={loading ? hashOpened : wiring?.expanded}
                 onExpandedChange={wiring?.onExpandedChange}
               >
-                {wiring?.body}
+                {hashOpened ? <LoadingBody expanded onComplete={noop} onCompleteBackground={noop} /> : wiring?.body}
               </OnboardingAccordionItem>
             );
           })}

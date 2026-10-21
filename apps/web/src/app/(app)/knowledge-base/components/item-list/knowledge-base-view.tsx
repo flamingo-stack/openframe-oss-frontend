@@ -3,7 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -105,18 +105,13 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
       {folderId === null ? (
         <KnowledgeBaseListTitle title={ROOT_FOLDER.name} actions={actions} />
       ) : (
-        <Suspense
-          fallback={
-            <KnowledgeBaseListTitle
-              title={ROOT_FOLDER.name}
-              loading
-              backTo={routes.knowledgeBase.list}
-              actions={actions}
-            />
-          }
+        // The folder's name is read: in the scope the title draws it as its bar ('' is a read title there).
+        <LoadingSuspense
+          label="Loading the folder"
+          fallback={<KnowledgeBaseListTitle title="" backTo={routes.knowledgeBase.list} actions={actions} />}
         >
           <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
-        </Suspense>
+        </LoadingSuspense>
       )}
 
       <div className="flex flex-col" style={containerStyle}>

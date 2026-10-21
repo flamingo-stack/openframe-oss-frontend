@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadingWhen,
   SquareAvatar,
@@ -10,6 +9,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { ValueText } from '@/app/components/shared/value-text';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -82,7 +82,8 @@ interface InitiatorNameProps {
 /** The initiator's name, linked to their employee page when there is one. */
 export function InitiatorName({ initiator, inRow = false, loading: loadingProp }: InitiatorNameProps) {
   const loading = useLoadingScope() || !!loadingProp;
-  if (loading) return <TextLineSkeleton type="h4" className="w-28 max-w-full" />;
+  // The name's own text cell, in its loading form: a bar on its `text-h4` line.
+  if (loading) return <ValueText value={initiator.name} loading skeletonWidth="w-28" />;
 
   const href = initiatorHref(initiator);
   if (!href) {

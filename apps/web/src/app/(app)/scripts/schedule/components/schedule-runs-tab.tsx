@@ -8,7 +8,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -27,7 +26,7 @@ import type {
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -222,25 +221,19 @@ function ScheduleRunsContent({
     <>
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-          )}
-          <DataTable.Body
-            skeletonRows={RUNS_PAGE_SIZE}
-            emptyState={emptyState}
-            rowClassName="mb-1"
-            rowHref={runDetailsHref}
-          />
-          {runs.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={fetchNextPage}
-              skeletonRows={RUNS_PAGE_SIZE}
-            />
-          )}
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={RUNS_PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          showHeader={showHeader}
+          emptyState={emptyState}
+          rowHref={runDetailsHref}
+          footer={
+            runs.length > 0
+              ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }
+              : null
+          }
+        />
       </div>
 
       <FilterModal
@@ -397,7 +390,7 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
       <LoadingSuspense
         label="Loading schedule runs"
         fallback={
-          <EmptyLiveTable
+          <LiveTable
             columns={SCHEDULE_RUN_LOADING_COLUMNS}
             pageSize={RUNS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}

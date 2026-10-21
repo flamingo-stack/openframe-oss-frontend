@@ -2,7 +2,8 @@
 'use no memo';
 
 import { Button, type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useForm, useFormState } from 'react-hook-form';
+import type { ReactNode } from 'react';
+import { type Control, useForm, useFormState } from 'react-hook-form';
 import { SectionLoadError } from '@/app/components/shared';
 import { ConsentBlock } from '../consent/consent-block';
 import { MINT_FAILED } from '../consent/use-start-consent';
@@ -21,7 +22,7 @@ import { useConnectTenantForm } from './use-connect-tenant-form';
  */
 export function ConnectTenantForm({ record }: { record: TenantFormRecord | null }) {
   if (useLoadingScope() || !record) {
-    return <ConnectTenantFormSkeleton />;
+    return <PendingConnectTenantForm />;
   }
   return <LoadedConnectTenantForm record={record} />;
 }
@@ -53,14 +54,13 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
   ];
 
   return (
-    <TenantFormFrame title="New Tenant Integration" actions={actions}>
-      <TenantFormFields
-        control={form.control}
-        disabled={busy}
-        domainLocked={!editingDomain}
-        providerField={<ProviderField control={form.control} disabled={busy} locked />}
-        includeOrganization={record.organization}
-      />
+    <ConnectTenantFormView
+      control={form.control}
+      actions={actions}
+      busy={busy}
+      editingDomain={editingDomain}
+      includeOrganization={record.organization}
+    >
       {editingDomain ? (
         <div>
           <Button
@@ -90,28 +90,59 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
           />
         </>
       )}
+    </ConnectTenantFormView>
+  );
+}
+
+/** The connect form's frame and fields, the same markup before and after the record is read. */
+function ConnectTenantFormView({
+  control,
+  actions,
+  busy,
+  editingDomain,
+  includeOrganization,
+  customersEnabled,
+  children,
+}: {
+  control: Control<TenantFormData>;
+  actions: PageActionButton[];
+  busy: boolean;
+  editingDomain: boolean;
+  includeOrganization?: TenantFormRecord['organization'];
+  customersEnabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <TenantFormFrame title="New Tenant Integration" actions={actions}>
+      <TenantFormFields
+        control={control}
+        disabled={busy}
+        domainLocked={!editingDomain}
+        providerField={<ProviderField control={control} disabled={busy} locked />}
+        includeOrganization={includeOrganization}
+        customersEnabled={customersEnabled}
+      />
+      {children}
     </TenantFormFrame>
   );
 }
 
 /**
- * The connect step before the record is known: the real chrome and the real controls, locked, over a throwaway
- * form, so there is no second copy of the markup. Only what names the record (the consent instruction) is a bar,
- * drawn by the consent block and the provider picker themselves.
+ * The connect step before the record is known: the same view, locked, over a throwaway form. Only what names the
+ * record (the consent instruction) is a bar, drawn by the consent block and the provider picker themselves.
  */
-function ConnectTenantFormSkeleton() {
+function PendingConnectTenantForm() {
   const form = useForm<TenantFormData>({ defaultValues: TENANT_FORM_DEFAULT_VALUES });
   return (
-    <TenantFormFrame title="New Tenant Integration">
-      <TenantFormFields
-        control={form.control}
-        disabled
-        domainLocked
-        providerField={<ProviderField control={form.control} disabled locked />}
-        customersEnabled={false}
-      />
+    <ConnectTenantFormView
+      control={form.control}
+      actions={[{ ...SAVE_PLACEHOLDER, disabled: true }]}
+      busy
+      editingDomain={false}
+      customersEnabled={false}
+    >
       {/* Before the record the block draws its own loading state; it reads only the mode. */}
       <ConsentBlock mode="new" provider={null} />
-    </TenantFormFrame>
+    </ConnectTenantFormView>
   );
 }

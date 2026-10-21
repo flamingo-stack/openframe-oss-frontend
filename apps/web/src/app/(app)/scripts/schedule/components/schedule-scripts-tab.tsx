@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingItems } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -74,9 +75,7 @@ const SCHEDULE_SCRIPTS_SKELETON_COUNT = 1;
 function ScheduleScriptsTabLoading() {
   return (
     <div className={SCRIPT_LIST_CLASS}>
-      {Array.from({ length: SCHEDULE_SCRIPTS_SKELETON_COUNT }, (_, i) => (
-        <ScheduleScriptCard key={i} />
-      ))}
+      <LoadingItems count={SCHEDULE_SCRIPTS_SKELETON_COUNT}>{() => <ScheduleScriptCard />}</LoadingItems>
     </div>
   );
 }

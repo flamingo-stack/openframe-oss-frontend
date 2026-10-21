@@ -63,7 +63,10 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
     mailingAddress: cell(customer?.mailingAddress, 'w-72'),
   });
 
-  // While the customer loads, a typical customer's contacts, each cell drawing its own bar in the scope.
+  // While the customer loads, a typical customer's contacts built through the SAME row builder from empty records
+  // (data, not rendered items, so not LoadingItems): the loaded responsive rows (one row of four on desktop, two of
+  // two on a phone) with each cell drawing its own bar in the scope. The panel's generic `loading` shape would lose
+  // that layout.
   const contacts = customer?.contacts ?? Array.from({ length: CONTACTS_SKELETON_ROWS }, () => null);
   return (
     <LoadingWhen loading={!customer}>

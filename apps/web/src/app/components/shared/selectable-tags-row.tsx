@@ -5,10 +5,12 @@ import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/componen
 import {
   ActionsMenuDropdown,
   FloatingTooltip,
+  LoadingItems,
   Tag,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 
 export interface SelectableTag {
@@ -125,19 +127,17 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
 }
 
 /**
- * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size), each the lib's
- * `Tag` in its loading form (the chip's own frame and height) at varied widths so the placeholder reads as tags.
+ * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size, so the declared count
+ * is this list's length), each the lib's `Tag` in its loading form at varied widths so the placeholder reads as tags.
  */
 const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
 
 function SelectableTagsRowSkeleton() {
   return (
     <LoadingRegion label="Loading tags" className={ROW_CLASS}>
-      {SKELETON_TAG_WIDTHS.map((width, idx) => (
-        <span key={idx} data-loading-item className="shrink-0">
-          <Tag label="" loading className={width} />
-        </span>
-      ))}
+      <LoadingItems count={SKELETON_TAG_WIDTHS.length}>
+        {index => <Tag label="" loading data-loading-item className={cn('shrink-0', SKELETON_TAG_WIDTHS[index])} />}
+      </LoadingItems>
     </LoadingRegion>
   );
 }

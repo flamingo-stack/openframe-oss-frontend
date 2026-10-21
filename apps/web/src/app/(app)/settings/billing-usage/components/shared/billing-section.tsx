@@ -50,6 +50,7 @@ export function BillingRow({
   muted = false,
   warning = false,
   loading = false,
+  optional = false,
 }: {
   label: string;
   /** Unread while loading. */
@@ -58,6 +59,8 @@ export function BillingRow({
   warning?: boolean;
   /** Its value has not answered: the row draws its own skeleton (as it does in a loading scope). */
   loading?: boolean;
+  /** Only some records have this row: it is left out while loading and marked `data-loading-optional`. */
+  optional?: boolean;
 }) {
   return (
     <LeaderRow
@@ -67,6 +70,7 @@ export function BillingRow({
       valueTone={warning ? 'warning' : muted ? 'secondary' : 'primary'}
       // Every row's value is read data: in a page's loading scope it is a bar even where a value was passed.
       loading={useLoadingScope() || loading}
+      data-loading-optional={optional || undefined}
     />
   );
 }

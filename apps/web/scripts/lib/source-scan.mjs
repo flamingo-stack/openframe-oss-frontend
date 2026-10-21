@@ -1,116 +1,53 @@
 /**
- * What both loading gates (`check-page-skeletons.mjs`, `check-skeleton-full-page.mjs`) read the source with: one walk,
- * one notion of a declaration, one opt-out and one way to resolve where a rendered component lives.
+ * What both loading gates (`check-page-skeletons.mjs`, `check-skeleton-full-page.mjs`) read the source with: THE
+ * loading-standard rule engine the lib ships (`@flamingo-stack/openframe-frontend-core/src/loading-standard/engine.mjs`,
+ * an AST reading through the TypeScript compiler API), imported by file path from the installed lib, and one project
+ * built over this app's `src/` with the installed lib's `src/` indexed beside it (which lib components switch
+ * themselves, which skeletons the lib marks `@deprecated`, which item components mark their items).
+ *
+ * The engine is the installed one, never a copy: the rules move with the lib pin.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const SKIPPED_DIRS = new Set(['node_modules', '__tests__']);
-const TEST_FILE = /\.(test|stories)\.tsx?$/;
+const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const LIB_PACKAGE = join('node_modules', '@flamingo-stack', 'openframe-frontend-core');
+export const ENGINE_PATH = join(APP, LIB_PACKAGE, 'src', 'loading-standard', 'engine.mjs');
 
-/** Every `.tsx` (and, with `ts`, `.ts`) file under `dir`, skipping dependencies, dot folders and tests. */
-export function* walkFiles(dir, { ts = false, tests = false } = {}) {
-  if (!existsSync(dir)) return;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (SKIPPED_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      yield* walkFiles(full, { ts, tests });
-      continue;
-    }
-    if (!tests && TEST_FILE.test(entry.name)) continue;
-    if (entry.name.endsWith('.tsx') || (ts && entry.name.endsWith('.ts'))) yield full;
-  }
+if (!existsSync(ENGINE_PATH)) {
+  console.error(
+    `loading gates: the installed lib ships no loading-standard engine (${ENGINE_PATH}); install a lib release that has it`,
+  );
+  process.exit(1);
 }
 
-/** The name of the nearest top-level declaration (`function X`, `const X =`, `class X`) above `index`, or ''. */
-export function enclosingDeclaration(source, index) {
-  const declarations = [
-    ...source
-      .slice(0, index)
-      .matchAll(
-        /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\s*\*?\s*|const\s+|let\s+|class\s+)([A-Za-z_$][\w$]*)/gm,
-      ),
-  ];
-  return declarations.at(-1)?.[1] ?? '';
-}
+/** The engine module (Project, analyzeProject, CONFIGS, …). */
+export const engine = await import(pathToFileURL(ENGINE_PATH).href);
 
-/** Component name -> the files that declare it (`function X`, `const X`, `class X`). */
-export function declarationIndex(sources) {
-  const index = new Map();
-  for (const [file, source] of sources) {
-    for (const m of source.matchAll(/\b(?:function|const|class)\s+([A-Z][A-Za-z0-9]*)\b/g)) {
-      if (!index.has(m[1])) index.set(m[1], new Set());
-      index.get(m[1]).add(file);
-    }
-  }
-  return index;
-}
+/** The engine's failing / passing example per rule (`rule-examples.mjs`, shipped beside it): the gate test runs them. */
+export const { RULE_EXAMPLES } = await import(pathToFileURL(join(dirname(ENGINE_PATH), 'rule-examples.mjs')).href);
 
-/** Whether a line is a comment line. */
-export function isComment(line) {
-  return /^\s*(\/\/|\*|\/\*)/.test(line);
-}
+/** The trees the gates report on, under `src/`. */
+export const TREES = ['app', 'components', 'lib', 'hooks'];
 
-/** Whether line `i` (0-based) opts out with `// <marker> <why>` on it or on one of the two lines above. */
-export function optedOut(lines, i, marker) {
-  return lines.slice(Math.max(0, i - 2), i + 1).some(line => line.includes(marker));
-}
-
-/** 1-based line of a character index. */
-export function lineOf(source, index) {
-  return source.slice(0, index).split('\n').length;
+/** The installed lib's `src/` beside an app's `src/` (a fixture project carries its own). */
+export function installedLibSource(srcRoot) {
+  return join(srcRoot, '..', LIB_PACKAGE, 'src');
 }
 
 /**
- * The `loading: () => …` arrows that are a `next/dynamic` call's own fallback (the line from the arrow to its end),
- * never a `loading:` key of any other object.
+ * The project over `srcRoot` (`@/` resolves to it), reported, with the installed lib indexed. `sources`
+ * (path -> text) replaces reading `srcRoot` from disk (a single file).
  */
-export function dynamicLoadingSpans(source) {
-  const spans = [];
-  for (const m of source.matchAll(/\bloading:\s*\(\)\s*=>/g)) {
-    // The last `dynamic(` (or `dynamic<Props>(`) call opened before the arrow.
-    const calls = [...source.slice(0, m.index).matchAll(/\bdynamic\s*(?:<[^>]*>)?\s*\(/g)];
-    const call = calls.at(-1);
-    if (!call) continue;
-    // Still inside that call: more `(` than `)` between the call's own `(` and the arrow.
-    const between = source.slice(call.index + call[0].length - 1, m.index);
-    const depth = (between.match(/\(/g) ?? []).length - (between.match(/\)/g) ?? []).length;
-    if (depth <= 0) continue;
-    const end = source.indexOf('\n', m.index);
-    spans.push([m.index, end === -1 ? source.length : end]);
-  }
-  return spans;
+export function loadProject(srcRoot, { sources } = {}) {
+  const lib = installedLibSource(srcRoot);
+  const trees = [{ dir: srcRoot, report: true, sources }];
+  if (existsSync(lib)) trees.push({ dir: lib, report: false });
+  return new engine.Project({ trees });
 }
 
-/** The file a component name rendered in `file` is imported from (relative or `@/` paths), or null. */
-export function importedFrom(file, source, name, srcRoot) {
-  for (const m of source.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
-    const names = m[1].split(',').map(part =>
-      part
-        .trim()
-        .split(/\s+as\s+/)
-        .pop(),
-    );
-    if (!names.includes(name)) continue;
-    const spec = m[2];
-    const base = spec.startsWith('@/')
-      ? join(srcRoot, spec.slice(2))
-      : spec.startsWith('.')
-        ? resolve(dirname(file), spec)
-        : null;
-    if (!base) return null;
-    for (const candidate of [`${base}.tsx`, `${base}.ts`, join(base, 'index.tsx'), join(base, 'index.ts')]) {
-      if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
-    }
-    return null;
-  }
-  return null;
-}
-
-/** Read every file of `walkFiles` into a Map (path -> source). */
-export function readSources(dirs, options) {
-  const sources = new Map();
-  for (const dir of dirs) for (const file of walkFiles(dir, options)) sources.set(file, readFileSync(file, 'utf8'));
-  return sources;
+/** Whether a path (relative to `src/`) is under one of the reported `TREES`. */
+export function inTrees(rel, dirs = TREES) {
+  return dirs.some(dir => rel === dir || rel.startsWith(`${dir}/`));
 }

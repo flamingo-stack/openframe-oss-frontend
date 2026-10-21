@@ -29,7 +29,6 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   type DataTableSortState,
   type DateFilterResult,
   type DateRange,
@@ -66,7 +65,7 @@ import {
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
-import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -558,31 +557,20 @@ function SchedulesTableContent({
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in
           flight — the subtle fade is the pending feedback. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount />}
-            sort={sortState}
-            onSortChange={onSortChange}
-          />
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyState={{
-              title: debouncedSearch
-                ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No schedules found. Try adjusting your filters or add a new schedule.',
-            }}
-            rowClassName="mb-1"
-            rowHref={scheduleRowHref}
-          />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={PAGE_SIZE}
-          />
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={PAGE_SIZE}
+          stickyHeaderOffset={stickyHeaderOffset}
+          sort={sortState}
+          onSortChange={onSortChange}
+          emptyState={{
+            title: debouncedSearch
+              ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
+              : 'No schedules found. Try adjusting your filters or add a new schedule.',
+          }}
+          rowHref={scheduleRowHref}
+          footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+        />
       </div>
 
       <FilterModal
@@ -864,7 +852,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
         <LoadingSuspense
           label="Loading schedules"
           fallback={
-            <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
+            <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
           }
         >
           <SchedulesTableContent

@@ -2,7 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -19,7 +19,11 @@ import type { AssignedArticlesTarget } from './assigned-articles-target';
 const ICON_CLASS = 'size-[var(--icon-size-icon-size)] text-ods-text-secondary';
 
 interface AssignedArticlesTabProps {
-  target: AssignedArticlesTarget;
+  /**
+   * Whose articles the tab lists; null while the page has not read it yet: the tab is drawn in a loading scope (its
+   * table its own loading state, no query run), with Assign real and inert.
+   */
+  target: AssignedArticlesTarget | null;
 }
 
 /**
@@ -83,60 +87,69 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
     />
   );
 
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
-      <div className="flex flex-wrap items-center justify-between gap-[var(--spacing-system-m)]">
-        <h2 className="text-ods-text-primary text-h2">Assigned Articles</h2>
-        <ResponsiveActionButton
-          label="Assign Article"
-          icon={<PlusCircleIcon className={ICON_CLASS} />}
-          onClick={() => setIsAssignOpen(true)}
-        />
-      </div>
+  const pending = target == null;
 
-      <div className="flex flex-col">
-        {/* Nothing assigned at all: the empty state stands alone, with nothing to search. */}
-        {!isEmpty && (
-          <div
-            ref={toolbarRef}
-            className="sticky top-0 z-20 -mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
-          >
-            <div className="min-w-0 flex-1">
-              <TagSearchInput<string>
-                tags={selectedTags.map(tag => ({ label: tag.key, value: tag.id }))}
-                searchValue={search}
-                onSearchChange={setSearch}
-                onTagRemove={id => applyTags(selectedTags.filter(tag => tag.id !== id))}
-                onClearAll={() => {
-                  setSearch('');
-                  applyTags([]);
-                }}
-                placeholder="Search for Articles"
-                addMorePlaceholder="Search for Articles"
+  return (
+    <LoadingWhen loading={pending}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
+        <div className="flex flex-wrap items-center justify-between gap-[var(--spacing-system-m)]">
+          <h2 className="text-ods-text-primary text-h2">Assigned Articles</h2>
+          <ResponsiveActionButton
+            label="Assign Article"
+            icon={<PlusCircleIcon className={ICON_CLASS} />}
+            onClick={() => setIsAssignOpen(true)}
+            disabled={pending}
+          />
+        </div>
+
+        <div className="flex flex-col">
+          {/* Nothing assigned at all: the empty state stands alone, with nothing to search. */}
+          {!isEmpty && (
+            <div
+              ref={toolbarRef}
+              className="sticky top-0 z-20 -mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
+            >
+              <div className="min-w-0 flex-1">
+                <TagSearchInput<string>
+                  tags={selectedTags.map(tag => ({ label: tag.key, value: tag.id }))}
+                  searchValue={search}
+                  onSearchChange={setSearch}
+                  onTagRemove={id => applyTags(selectedTags.filter(tag => tag.id !== id))}
+                  onClearAll={() => {
+                    setSearch('');
+                    applyTags([]);
+                  }}
+                  placeholder="Search for Articles"
+                  addMorePlaceholder="Search for Articles"
+                />
+              </div>
+              <ResponsiveActionButton
+                label="Article Tags"
+                icon={<Filter02Icon className={ICON_CLASS} />}
+                onClick={() => setIsTagsOpen(true)}
               />
             </div>
-            <ResponsiveActionButton
-              label="Article Tags"
-              icon={<Filter02Icon className={ICON_CLASS} />}
-              onClick={() => setIsTagsOpen(true)}
-            />
-          </div>
-        )}
+          )}
 
-        {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
-      </div>
+          {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
+          <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
+        </div>
 
-      {/* Beside the toolbar, not inside it: the bar is a stacking context (`sticky` + `z-20`),
+        {/* Beside the toolbar, not inside it: the bar is a stacking context (`sticky` + `z-20`),
           and a modal inside it could never rise above the app header. */}
-      <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
-
-      <AssignArticleModal
-        target={target}
-        isOpen={isAssignOpen}
-        onClose={() => setIsAssignOpen(false)}
-        onAssigned={handleChanged}
-      />
-    </div>
+        {/* The dialogs act on the target: mounted once it is known. */}
+        {target && (
+          <>
+            <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
+            <AssignArticleModal
+              target={target}
+              isOpen={isAssignOpen}
+              onClose={() => setIsAssignOpen(false)}
+              onAssigned={handleChanged}
+            />
+          </>
+        )}
+      </div>
+    </LoadingWhen>
   );
 }

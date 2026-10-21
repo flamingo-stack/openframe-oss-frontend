@@ -3,7 +3,12 @@
 import { PageLayout, ServiceCard, type ServiceCardRow } from '@flamingo-stack/openframe-frontend-core';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Input,
+  LoadingItems,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
@@ -18,6 +23,8 @@ interface ArchitectureTabProps {
  * a typical count (a deployment's catalog groups its tools into a few layers), not a claim about how many exist.
  */
 const ARCHITECTURE_SKELETON_LAYERS = 3;
+
+const NO_TOOLS: IntegratedTool[] = [];
 
 export function ArchitectureTab({ title = 'Architecture Overview' }: ArchitectureTabProps) {
   const handleBack = useSafeBack(routes.settings.root());
@@ -73,11 +80,13 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
         />
       </div>
       <LoadingWhen loading={isLoading}>
-        {isLoading
-          ? Array.from({ length: ARCHITECTURE_SKELETON_LAYERS }, (_, i) => (
-              <ArchitectureLayer key={i} layer={null} tools={[]} />
-            ))
-          : layerOrder.map(layer => <ArchitectureLayer key={layer} layer={layer} tools={grouped[layer]} />)}
+        {isLoading ? (
+          <LoadingItems count={ARCHITECTURE_SKELETON_LAYERS}>
+            {() => <ArchitectureLayer layer={null} tools={NO_TOOLS} />}
+          </LoadingItems>
+        ) : (
+          layerOrder.map(layer => <ArchitectureLayer key={layer} layer={layer} tools={grouped[layer]} />)
+        )}
       </LoadingWhen>
     </PageLayout>
   );
@@ -104,9 +113,11 @@ function ArchitectureLayer({ layer, tools }: { layer: string | null; tools: Inte
         <div className="text-ods-text-primary text-h2">{layer}</div>
       )}
       <div className={LAYER_GRID_CLASS}>
-        {loading
-          ? Array.from({ length: ARCHITECTURE_SKELETON_TOOLS }, (_, i) => <ArchitectureToolCard key={i} tool={null} />)
-          : tools.map(tool => <ArchitectureToolCard key={tool.id} tool={tool} />)}
+        {loading ? (
+          <LoadingItems count={ARCHITECTURE_SKELETON_TOOLS}>{() => <ArchitectureToolCard tool={null} />}</LoadingItems>
+        ) : (
+          tools.map(tool => <ArchitectureToolCard key={tool.id} tool={tool} />)
+        )}
       </div>
     </div>
   );

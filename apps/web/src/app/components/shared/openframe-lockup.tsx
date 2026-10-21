@@ -3,7 +3,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
  * The OpenFrame logo lockup the full-screen surfaces put on top (the auth status pages, the inactive workspace, the
- * setup wizard): the mark beside the wordmark.
+ * setup wizard's heading, the root error screen and the account deletion pages): the mark beside the wordmark.
  */
 export function OpenframeLockup({ className }: { className?: string }) {
   return (

@@ -2,11 +2,19 @@
 
 import { TextLineSkeleton, ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckIcon, Chevron02LeftIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, LoadingWhen, PageLayout, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  LoadingWhen,
+  PageLayout,
+  Tag,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { DeviceInfoSection } from '@/app/components/shared';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
+import { ValueText } from '@/app/components/shared/value-text';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { formatDateTime } from '@/lib/format-date';
@@ -45,6 +53,12 @@ const getSeverityVariant = (severity: string): 'success' | 'warning' | 'error' |
       return 'grey';
   }
 };
+
+/** The log's event type, in its caption line; a bar of that line while the log is read (or in a loading scope). */
+function EventTypeText({ eventType }: { eventType: string | undefined }) {
+  if (useLoadingScope() || eventType === undefined) return <TextLineSkeleton type="h6" as="span" className="w-28" />;
+  return <span>{eventType}</span>;
+}
 
 export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestamp }: LogDetailsViewProps) {
   const router = useRouter();
@@ -119,7 +133,7 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
             {/* The tag draws its own skeleton in the loading scope. */}
             <Tag label={log?.severity ?? ''} variant={log ? getSeverityVariant(log.severity) : undefined} />
             <span className="text-ods-text-primary text-h4">
-              {log ? formatDateTime(log.timestamp) : <TextLineSkeleton type="h4" as="span" className="w-40" />}
+              <ValueText value={log ? formatDateTime(log.timestamp) : undefined} skeletonWidth="w-40" />
             </span>
           </div>
 
@@ -127,28 +141,16 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
           <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
             <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
               <div className="flex w-full flex-col gap-2">
-                <div className="break-words text-ods-text-primary text-h4">
-                  {log ? (
-                    log.message || 'No message available'
-                  ) : (
-                    <>
-                      <TextLineSkeleton
-                        type="h4"
-                        lines={LOG_MESSAGE_SKELETON_LINES.base}
-                        className="w-full content-md:hidden"
-                      />
-                      <TextLineSkeleton
-                        type="h4"
-                        lines={LOG_MESSAGE_SKELETON_LINES.md}
-                        className="hidden w-full content-md:block"
-                      />
-                    </>
-                  )}
-                </div>
+                <LoadingParagraph
+                  text={log ? log.message || 'No message available' : undefined}
+                  tone="primary"
+                  className="break-words"
+                  lines={LOG_MESSAGE_SKELETON_LINES}
+                />
                 <div className="flex items-center gap-2 text-ods-text-secondary text-h6">
                   <ToolBadge toolType={normalizeToolTypeWithFallback(log?.toolType ?? '')} />
                   <span>•</span>
-                  <span>{log ? log.eventType : <TextLineSkeleton type="h6" as="span" className="w-28" />}</span>
+                  <EventTypeText eventType={log?.eventType} />
                 </div>
               </div>
             </div>
