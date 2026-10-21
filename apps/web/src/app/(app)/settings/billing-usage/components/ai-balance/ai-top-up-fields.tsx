@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useId } from 'react';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -48,7 +48,8 @@ interface AiTopUpFieldsProps {
  * They differ only in what they do with the answer — everything the user sees
  * and does is here, once.
  */
-export function AiTopUpFields({ topUp, label, disabled = false, loading = false }: AiTopUpFieldsProps) {
+export function AiTopUpFields({ topUp, label, disabled = false, loading: loadingProp = false }: AiTopUpFieldsProps) {
+  const loading = useLoadingScope() || loadingProp;
   const customInputId = useId();
   const rateUnavailable = !loading && !topUp.hasRate;
 
@@ -71,7 +72,7 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading = false 
                 subtitle={
                   loading ? (
                     <LoadingRegion as="span" status={false} className="contents">
-                      <UnifiedSkeleton as="span" className="h-4 w-16" />
+                      <TextLineSkeleton type="inherit" as="span" className="w-16" />
                     </LoadingRegion>
                   ) : tokens == null ? (
                     EMPTY_VALUE

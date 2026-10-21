@@ -159,21 +159,33 @@ export function DevicePlanPicker({
             {/* The count and the total come from billing's own `usage.activeDevices`
                 — NOT from the `devices()` query these rows were dropped with, which
                 a locked workspace has refused (see the paywall's query). Each row
-                appears only once its own figure exists, or while one is on its way:
-                the modal passes no count, and there it stays at the rate. */}
+                appears once its own figure exists, and while one is on its way (most
+                subscriptions report a count), each row drawing its own bar. */}
             {(catalog.paygUnitPrice != null || loading) && (
               <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
-                {deviceCount != null && <BillingRow label="Active Devices Detected" value={formatCount(deviceCount)} />}
+                {(deviceCount != null || loading) && (
+                  <BillingRow
+                    label="Active Devices Detected"
+                    loading={loading}
+                    value={deviceCount != null && formatCount(deviceCount)}
+                  />
+                )}
                 {/* The row draws its own bar while the rate is on its way. */}
                 <BillingRow
                   label="Rate per Device"
                   loading={loading || catalog.paygUnitPrice == null}
                   value={catalog.paygUnitPrice != null && <PriceValue amount={catalog.paygUnitPrice} period="month" />}
                 />
-                {deviceCount != null && catalog.paygUnitPrice != null && (
+                {((deviceCount != null && catalog.paygUnitPrice != null) || loading) && (
                   <BillingRow
                     label="Total"
-                    value={<PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />}
+                    loading={loading}
+                    value={
+                      deviceCount != null &&
+                      catalog.paygUnitPrice != null && (
+                        <PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />
+                      )
+                    }
                   />
                 )}
               </div>

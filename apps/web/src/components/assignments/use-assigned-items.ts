@@ -284,16 +284,19 @@ export interface AssignedItemsResult {
   articles?: AssignedArticle[];
   tickets?: Dialog[];
   isLoading: boolean;
+  /** Per kind: its read has not answered yet (a kind whose rows arrived is no longer loading). */
+  loadingTypes: Partial<Record<ServerAssignmentTargetType, true>>;
   isReady: boolean;
 }
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
-  const out: AssignedItemsResult = { value, isLoading: false, isReady: true };
+  const out: AssignedItemsResult = { value, isLoading: false, loadingTypes: {}, isReady: true };
   ASSIGNMENT_TARGET_TYPES.forEach((type, i) => {
     const result = results[i];
     if (result.isLoading) {
       out.isLoading = true;
+      out.loadingTypes[type] = true;
       out.isReady = false;
     }
     // `isLoading` alone is not enough for `isReady`, which callers treat as "the

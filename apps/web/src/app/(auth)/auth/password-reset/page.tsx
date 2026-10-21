@@ -4,12 +4,37 @@ import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/compone
 import { BackToLoginLink, PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { type ComponentProps, Suspense, useEffect, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { getPasswordError } from '@/app/(auth)/auth/constants/registration-validation';
+import { noop } from '@/app/components/shared/no-next-page';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
-const noop = () => {};
+type ResetFormProps = ComponentProps<typeof PasswordResetForm>;
+
+/** An empty, inert form: what every field reads before the reset token is read. */
+const EMPTY_RESET_FORM = {
+  password: '',
+  confirmPassword: '',
+  onPasswordChange: noop,
+  onConfirmPasswordChange: noop,
+  onSubmit: noop,
+  onCancel: noop,
+  onBackToLogin: noop,
+  submitDisabled: true,
+} satisfies ResetFormProps;
+
+/**
+ * The password reset screen: the shell, its Back to login footer and the form. One view for the loaded page and the
+ * Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ */
+function PasswordResetView({ form, onBack = noop }: { form?: Partial<ResetFormProps>; onBack?: () => void }) {
+  return (
+    <StandaloneAuthShell footer={<BackToLoginLink onClick={onBack} />}>
+      <PasswordResetForm {...EMPTY_RESET_FORM} {...form} />
+    </StandaloneAuthShell>
+  );
+}
 
 export default function PasswordResetPage() {
   return (
@@ -18,18 +43,7 @@ export default function PasswordResetPage() {
     <Suspense
       fallback={
         <LoadingFallback label="Loading password reset">
-          <StandaloneAuthShell>
-            <PasswordResetForm
-              password=""
-              confirmPassword=""
-              onPasswordChange={noop}
-              onConfirmPasswordChange={noop}
-              onSubmit={noop}
-              onCancel={noop}
-              onBackToLogin={noop}
-              submitDisabled
-            />
-          </StandaloneAuthShell>
+          <PasswordResetView />
         </LoadingFallback>
       }
     >
@@ -106,22 +120,23 @@ function PasswordResetContent() {
   };
 
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
-      <PasswordResetForm
-        password={password}
-        confirmPassword={confirmPassword}
-        onPasswordChange={setPassword}
-        onConfirmPasswordChange={setConfirmPassword}
-        onSubmit={handleSubmit}
-        onCancel={handleBack}
-        onBackToLogin={handleBack}
-        submitDisabled={!isValid}
-        loading={isLoading}
-        errors={{
+    <PasswordResetView
+      onBack={handleBack}
+      form={{
+        password,
+        confirmPassword,
+        onPasswordChange: setPassword,
+        onConfirmPasswordChange: setConfirmPassword,
+        onSubmit: handleSubmit,
+        onCancel: handleBack,
+        onBackToLogin: handleBack,
+        submitDisabled: !isValid,
+        loading: isLoading,
+        errors: {
           password: password ? passwordError : undefined,
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
-        }}
-      />
-    </StandaloneAuthShell>
+        },
+      }}
+    />
   );
 }

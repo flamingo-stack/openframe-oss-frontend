@@ -1,10 +1,11 @@
 'use client';
 
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, type Ref, Suspense, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
+import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
@@ -12,7 +13,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
-import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
+import { isStepDone, onboardingProgress, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
 import { BookCallSection } from './book-call/book-call-section';
 import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
@@ -20,6 +21,7 @@ import { MingoStep } from './mingo-step';
 import { MspSetupStep } from './msp-setup-step';
 import { OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
+import { OnboardingLoadGate } from './onboarding-load-gate';
 
 interface StepMeta {
   step: TenantOnboardingStep;
@@ -101,32 +103,14 @@ export function InitialSetupCard() {
   }
 
   return (
-    <LoadingWhen loading={pending}>
-      {pending ? (
-        <PendingInitialSetupView />
-      ) : (
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading setup steps">
-              <PendingInitialSetupView />
-            </LoadingFallback>
-          }
-        >
-          <InitialSetupCardContent />
-        </Suspense>
-      )}
-    </LoadingWhen>
+    <OnboardingLoadGate pending={pending} label="Loading setup steps" view={<InitialSetupCardView />}>
+      <InitialSetupCardContent />
+    </OnboardingLoadGate>
   );
 }
 
 const NO_COMPLETED_STEPS: readonly string[] = [];
 const NO_DATA_STEPS: ReadonlySet<TenantOnboardingStep> = new Set();
-const noop = () => {};
-
-/** {@link InitialSetupCardView} before progress is read: rendered in a loading scope. */
-function PendingInitialSetupView() {
-  return <InitialSetupCardView completedSteps={NO_COMPLETED_STEPS} completedByData={NO_DATA_STEPS} onTour={noop} />;
-}
 
 /** How a loaded row is wired: its anchor, its expansion and its body. */
 interface InitialSetupStepWiring {
@@ -138,10 +122,10 @@ interface InitialSetupStepWiring {
 
 interface InitialSetupCardViewProps {
   /** Persisted ∪ satisfied-by-data steps (none while progress is read). */
-  completedSteps: readonly string[];
+  completedSteps?: readonly string[];
   /** Steps whose data exists — what a locked row's gate reads. */
-  completedByData: ReadonlySet<TenantOnboardingStep>;
-  onTour: () => void;
+  completedByData?: ReadonlySet<TenantOnboardingStep>;
+  onTour?: () => void;
   /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
   stepWiring?: (step: TenantOnboardingStep) => InitialSetupStepWiring;
 }
@@ -151,13 +135,14 @@ interface InitialSetupCardViewProps {
  * header keeps its static copy with the done count a bar, and each row draws its own status as a skeleton with its
  * body not mounted.
  */
-function InitialSetupCardView({ completedSteps, completedByData, onTour, stepWiring }: InitialSetupCardViewProps) {
+function InitialSetupCardView({
+  completedSteps = NO_COMPLETED_STEPS,
+  completedByData = NO_DATA_STEPS,
+  onTour = noop,
+  stepWiring,
+}: InitialSetupCardViewProps) {
   const loading = useLoadingScope();
-  const total = TENANT_ONBOARDING_STEPS.length;
-  const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
-  // First step still to do, in display order: the one row that says "Next".
-  const nextStep = TENANT_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
-  const allDone = !loading && done >= total;
+  const { total, done, nextStep, allDone } = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps, loading);
 
   const statusOf = (meta: StepMeta): OnboardingStepStatus => {
     if (isStepDone(meta.step, completedSteps)) return 'completed';
@@ -256,7 +241,7 @@ function InitialSetupCardContent() {
   // Every step starts collapsed; only a click opens one.
   const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<TenantOnboardingStep>();
 
-  const allDone = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps) >= TENANT_ONBOARDING_STEPS.length;
+  const { allDone } = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps);
 
   // Commit once, the instant every step is done — that is what makes ANY exit from the
   // completed view finalize it. The ref guards the re-renders that follow, since the

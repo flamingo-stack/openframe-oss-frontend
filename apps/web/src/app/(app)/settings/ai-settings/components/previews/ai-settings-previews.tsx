@@ -26,7 +26,7 @@ const THUMBNAILS_CLASS =
  * The previews while the assistant's name and accent are on their way: the phone's button is fixed copy (drawn,
  * disabled), each thumbnail the frame `ScaledPreviewFrame` draws (the Fae window's aspect).
  */
-export function AiSettingsPreviewsSkeleton() {
+function AiSettingsPreviewsSkeleton() {
   return (
     <>
       <Button type="button" variant="outline" fullWidth className="content-md:hidden" disabled>

@@ -1,7 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadError, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadError, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -46,67 +45,50 @@ const FORM_ID_BY_TAB: Record<AiSettingsTabId, string> = {
 
 /** The tabs no flag hides: the set the page draws until the flag that shapes it answers. */
 const ALWAYS_VISIBLE_TABS = AI_SETTINGS_TABS.filter(tab => tab.id !== 'device-guardrails');
-const NO_OP = () => {};
 
-/**
- * The page waits for the flags that shape its tab set before choosing a tab:
- * the starting tab is picked once, on mount of the content below, and a set
- * read earlier would lack the flag-gated tabs a link or the default can point
- * at.
- */
-export function AiSettings() {
-  const visibleTabs = useVisibleAiSettingsTabs();
-  const searchParams = useSearchParams();
-
-  if (!visibleTabs) {
-    // The page in its loading scope: the tab bar and the tab a link names (else the first), each drawing its own
-    // skeleton. Nothing in the scope reads, so no tab's query starts before the set is known.
-    const loadingTab: AiSettingsTabId = searchParams.get('tab') === 'customer' ? 'customer' : 'mingo';
-    return (
-      <AiSettingsLayout>
-        <LoadingFallback label="Loading AI settings">
-          <AiSettingsTabs tabs={ALWAYS_VISIBLE_TABS} activeTab={loadingTab} onTabChange={NO_OP}>
-            {() =>
-              loadingTab === 'customer' ? (
-                <CustomerAiAssistantTab aiConfig={null} view={null} isEditMode={false} onSubmit={NO_OP} />
-              ) : (
-                <MingoAiChatTab aiConfig={null} isEditMode={false} onSubmit={NO_OP} />
-              )
-            }
-          </AiSettingsTabs>
-        </LoadingFallback>
-      </AiSettingsLayout>
-    );
-  }
-
-  return <AiSettingsContent visibleTabs={visibleTabs} />;
+function isAiSettingsTabId(id: string | null): id is AiSettingsTabId {
+  return AI_SETTINGS_TABS.some(tab => tab.id === id);
 }
 
-function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
+/**
+ * The page waits for the flags that shape its tab set before showing a tab other than the two every set has: until
+ * then it renders itself in its loading scope (the tab bar and the tab a link names, `customer`, else `mingo`, each
+ * drawing its own loading state) and no tab's query starts. The tab a link names is kept from the first render and
+ * shown once the set is known, so `?tab=device-guardrails` lands on its tab even though the set starts without it.
+ */
+export function AiSettings() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const visibleTabs = useVisibleAiSettingsTabs();
+  const tabsLoading = visibleTabs == null;
+  const tabs = visibleTabs ?? ALWAYS_VISIBLE_TABS;
 
   // Tabs are feature-flag gated; default to the first one that's visible.
-  const firstTabId = (visibleTabs[0]?.id as AiSettingsTabId | undefined) ?? 'guardrails';
+  const firstTabId = (tabs[0]?.id as AiSettingsTabId | undefined) ?? 'guardrails';
 
   // Deep-link support: `?tab=<id>&edit=true` opens a tab in edit mode
   // (e.g. "Edit Default Appearance" on the customer edit page).
-  const tabParam = searchParams.get('tab') as AiSettingsTabId | null;
-  const initialTab = tabParam && visibleTabs.some(tab => tab.id === tabParam) ? tabParam : firstTabId;
-
-  const [activeTab, setActiveTab] = useState<AiSettingsTabId>(initialTab);
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<AiSettingsTabId | null>(isAiSettingsTabId(tabParam) ? tabParam : null);
   const [isEditMode, setIsEditMode] = useState(searchParams.get('edit') === 'true');
 
-  // Fall back to a visible tab if the active one is hidden by a flag.
-  const effectiveTab: AiSettingsTabId = visibleTabs.some(tab => tab.id === activeTab) ? activeTab : firstTabId;
+  // Fall back to a visible tab if the active one is hidden by a flag (or not chosen).
+  const effectiveTab: AiSettingsTabId = tabsLoading
+    ? activeTab === 'customer'
+      ? 'customer'
+      : 'mingo'
+    : activeTab && tabs.some(tab => tab.id === activeTab)
+      ? activeTab
+      : firstTabId;
   const isCustomer = effectiveTab === 'customer';
   const isMingo = effectiveTab === 'mingo';
 
   // CLIENT screen needs the client AI config + client view; ADMIN needs the
   // admin AI config. Queries are gated by tab so only the active one fetches.
-  const clientAi = useClientAiConfig({ enabled: isCustomer });
-  const clientView = useClientView(null, { enabled: isCustomer });
-  const adminAi = useAdminAiConfig({ enabled: isMingo });
+  // Nothing reads before the tab set is known.
+  const clientAi = useClientAiConfig({ enabled: isCustomer && !tabsLoading });
+  const clientView = useClientView(null, { enabled: isCustomer && !tabsLoading });
+  const adminAi = useAdminAiConfig({ enabled: isMingo && !tabsLoading });
 
   const queryClient = useQueryClient();
   const { update: updateClientAiConfig } = useUpdateClientAiConfig();
@@ -135,7 +117,7 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
   const customerOffline = (!clientAi.config && clientAi.isOffline) || (!clientView.view && clientView.isOffline);
   const mingoOffline = !adminAi.config && adminAi.isOffline;
 
-  const isLoading = isCustomer ? customerLoading : isMingo ? mingoLoading : false;
+  const isLoading = tabsLoading || (isCustomer ? customerLoading : isMingo ? mingoLoading : false);
   const hasLoadError = isCustomer ? Boolean(customerError) : isMingo ? Boolean(mingoError) : false;
   const isOffline = isCustomer ? customerOffline : isMingo ? mingoOffline : false;
 
@@ -270,51 +252,53 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
 
   return (
     <AiSettingsLayout actions={headerActions} mobileBottomActions={isEditMode}>
-      <AiSettingsTabs tabs={visibleTabs} activeTab={effectiveTab} onTabChange={handleTabChange}>
-        {activeId => {
-          // Nothing cached: the failure copy instead of editable defaults, so real
-          // settings can't be overwritten on save.
-          if (!isLoading && (isOffline || hasLoadError)) {
+      <LoadingWhen loading={tabsLoading}>
+        <AiSettingsTabs tabs={tabs} activeTab={effectiveTab} onTabChange={handleTabChange}>
+          {activeId => {
+            // Nothing cached: the failure copy instead of editable defaults, so real
+            // settings can't be overwritten on save.
+            if (!isLoading && (isOffline || hasLoadError)) {
+              return (
+                <LoadError
+                  {...loadErrorProps(
+                    isOffline,
+                    "Couldn't load AI settings. The service may be temporarily unavailable.",
+                    refetchActive,
+                  )}
+                />
+              );
+            }
+
+            if (activeId === 'guardrails') {
+              return <GuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
+            }
+
+            if (activeId === 'device-guardrails') {
+              return <DeviceGuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
+            }
+
+            if (activeId === 'customer') {
+              return (
+                // While the tab's configuration loads (`null`), the tab draws its own skeleton below the tab bar.
+                <CustomerAiAssistantTab
+                  aiConfig={isLoading ? null : clientAiConfig}
+                  view={isLoading ? null : view}
+                  isEditMode={isEditMode}
+                  onSubmit={handleCustomerSubmit}
+                />
+              );
+            }
+
             return (
-              <LoadError
-                {...loadErrorProps(
-                  isOffline,
-                  "Couldn't load AI settings. The service may be temporarily unavailable.",
-                  refetchActive,
-                )}
-              />
-            );
-          }
-
-          if (activeId === 'guardrails') {
-            return <GuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
-          }
-
-          if (activeId === 'device-guardrails') {
-            return <DeviceGuardrailsTab isEditMode={isEditMode} onSaved={() => setIsEditMode(false)} />;
-          }
-
-          if (activeId === 'customer') {
-            return (
-              // While the tab's configuration loads (`null`), the tab draws its own skeleton below the tab bar.
-              <CustomerAiAssistantTab
-                aiConfig={isLoading ? null : clientAiConfig}
-                view={isLoading ? null : view}
+              <MingoAiChatTab
+                aiConfig={isLoading ? null : adminAiConfig}
                 isEditMode={isEditMode}
-                onSubmit={handleCustomerSubmit}
+                onSubmit={handleMingoSubmit}
               />
             );
-          }
-
-          return (
-            <MingoAiChatTab
-              aiConfig={isLoading ? null : adminAiConfig}
-              isEditMode={isEditMode}
-              onSubmit={handleMingoSubmit}
-            />
-          );
-        }}
-      </AiSettingsTabs>
+          }}
+        </AiSettingsTabs>
+      </LoadingWhen>
     </AiSettingsLayout>
   );
 }

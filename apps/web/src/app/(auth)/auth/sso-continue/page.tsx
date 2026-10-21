@@ -1,12 +1,13 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ssoProviderLabel } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
+import { noop } from '@/app/components/shared/no-next-page';
 import { authApiClient, type PendingSsoIdentity } from '@/lib/auth-api-client';
 import { markPendingSignup, pushIdentify } from '@/lib/posthog/posthog-events';
 import { routes } from '@/lib/routes';
@@ -83,9 +84,12 @@ export default function SsoContinuePage() {
   }, []);
 
   if (loadState !== 'ready' || !identity) {
+    // The identity is still read: the same form in a loading scope, drawing its own loading state.
     return (
       <AuthShell>
-        <LoadingRegion label="Loading your sign-in" className="min-h-[320px]" />
+        <LoadingWhen loading>
+          <SsoOrganizationSetup subtitle="" email="" emailReadOnlyLabel="" onSubmit={noop} />
+        </LoadingWhen>
       </AuthShell>
     );
   }

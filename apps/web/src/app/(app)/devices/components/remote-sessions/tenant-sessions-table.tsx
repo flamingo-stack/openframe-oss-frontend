@@ -25,7 +25,7 @@ import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@
 import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { useRetryKey } from '@/app/components/shared';
+import { noop, useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
@@ -70,7 +70,6 @@ const NO_SESSIONS: NoDataProps = {
 };
 
 const EMPTY_ROWS: TenantSessionRow[] = [];
-const noop = () => {};
 
 // ----------------------------------------------------------------
 // Table

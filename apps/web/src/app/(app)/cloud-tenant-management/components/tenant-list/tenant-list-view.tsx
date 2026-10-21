@@ -71,13 +71,13 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
       contentClassName="flex flex-col"
     >
       <div className="flex flex-col" style={containerStyle}>
-        {!loading && <ConsentAnnouncementBanner />}
         {!isEmpty && (
           <div
             ref={toolbarRef}
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Tenant"
               value={localSearch}
               onChange={e => setLocalSearch(e.target.value)}
@@ -92,6 +92,9 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
         <LoadingWhen loading={loading}>
           <Suspense fallback={<LoadingFallback label="Loading tenants">{rows}</LoadingFallback>}>{rows}</Suspense>
         </LoadingWhen>
+        {/* Below the list, not above it: most workspaces have no notice, and one that lands after the list would
+            push the rows down in the first screen. */}
+        {!loading && <ConsentAnnouncementBanner />}
       </div>
     </PageLayout>
   );

@@ -451,6 +451,7 @@ export function SsoConfigurationTab() {
       />
 
       <Input
+        userValue
         startAdornment={<SearchIcon />}
         placeholder="Search for SSO"
         value={searchTerm}
@@ -575,7 +576,6 @@ const OPENFRAME_SSO_DESCRIPTION = 'Allow users to sign up and sign in with an Op
 const OPEN_ACCESS_TITLE = 'Open access for your domains';
 const OPEN_ACCESS_DESCRIPTION =
   'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.';
-const NOOP_CHECKED_CHANGE = () => {};
 
 interface SignInOptionsCardProps {
   /** The OpenFrame login or the tenant domain has not answered: the card draws its own skeleton. */
@@ -600,57 +600,36 @@ function SignInOptionsCard({
 }: SignInOptionsCardProps) {
   // While the two answers are on their way: both rows a workspace typically has, their copy real (the open-access
   // sentence a workspace's own domain gets), each checkbox a bar of the box's size (the lib's `loading`).
-  if (useLoadingScope() || loading) {
-    return (
-      <Card className="overflow-hidden border-ods-border bg-ods-card">
-        <CheckboxWithDescription
-          id="openframe-sso-enabled"
-          checked={false}
-          onCheckedChange={NOOP_CHECKED_CHANGE}
-          title={OPENFRAME_SSO_TITLE}
-          description={OPENFRAME_SSO_DESCRIPTION}
-          className={OPTION_ROW_CLASS}
-          loading
-        />
-        <CheckboxWithDescription
-          id="shared-auto-provision"
-          checked={false}
-          onCheckedChange={NOOP_CHECKED_CHANGE}
-          title={OPEN_ACCESS_TITLE}
-          description={OPEN_ACCESS_DESCRIPTION}
-          className={cn(OPTION_ROW_CLASS, 'border-t border-ods-border')}
-          loading
-        />
-      </Card>
-    );
-  }
-  if (!openframeSso && !tenantDomain) return null;
+  const isLoading = useLoadingScope() || !!loading;
+  if (!isLoading && !openframeSso && !tenantDomain) return null;
   return (
     <Card className="overflow-hidden border-ods-border bg-ods-card">
-      {openframeSso && (
+      {(isLoading || openframeSso) && (
         <CheckboxWithDescription
           id="openframe-sso-enabled"
-          checked={openframeSso.enabled}
+          checked={openframeSso?.enabled ?? false}
           onCheckedChange={onOpenframeCheckedChange}
           disabled={isOpenframeUpdating}
           title={OPENFRAME_SSO_TITLE}
           description={OPENFRAME_SSO_DESCRIPTION}
           className={OPTION_ROW_CLASS}
+          loading={isLoading}
         />
       )}
-      {tenantDomain && (
+      {(isLoading || tenantDomain) && (
         <CheckboxWithDescription
           id="shared-auto-provision"
-          checked={tenantDomain.autoAllow}
+          checked={tenantDomain?.autoAllow ?? false}
           onCheckedChange={onAutoProvisionToggle}
-          disabled={tenantDomain.generic || isAutoProvisionUpdating}
+          disabled={tenantDomain?.generic || isAutoProvisionUpdating}
           title={OPEN_ACCESS_TITLE}
           description={
-            tenantDomain.generic
+            tenantDomain?.generic
               ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
               : OPEN_ACCESS_DESCRIPTION
           }
-          className={cn(OPTION_ROW_CLASS, openframeSso && 'border-t border-ods-border')}
+          className={cn(OPTION_ROW_CLASS, (isLoading || openframeSso) && 'border-t border-ods-border')}
+          loading={isLoading}
         />
       )}
     </Card>

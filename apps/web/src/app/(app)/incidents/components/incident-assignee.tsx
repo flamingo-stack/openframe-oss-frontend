@@ -1,14 +1,11 @@
 'use client';
 
-import {
-  AssigneeDropdown,
-  SquareAvatarSkeleton,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { AssigneeDropdown, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from 'react-relay';
 import type { assignInsightMutation as AssignInsightMutationType } from '@/__generated__/assignInsightMutation.graphql';
 import type { unassignInsightMutation as UnassignInsightMutationType } from '@/__generated__/unassignInsightMutation.graphql';
+import { noop } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { assignInsightMutation } from '@/graphql/insights/assign-insight-mutation';
 import { unassignInsightMutation } from '@/graphql/insights/unassign-insight-mutation';
@@ -23,8 +20,11 @@ import type { IncidentRow } from '../utils/incident-transform';
  * change hands while snoozed.
  *
  * Without the incident (or in a loading scope) it draws itself: the picker's
- * round trigger as its avatar-sized placeholder and the name a bar.
+ * compact avatar trigger, inert, its avatar a skeleton, and the name a bar under the same empty label.
  */
+/** The picker's trigger before the incident is read: an avatar with nothing in it yet (drawn as its skeleton). */
+const UNREAD_ASSIGNEE = { id: '', name: '' };
+
 export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
   const loading = useLoadingScope() || !incident;
   const { toast } = useToast();
@@ -72,22 +72,22 @@ export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
       {/* In a table row only the picker is its own control; the name beside it opens the row like the rest of it. */}
       <div data-no-row-click className="shrink-0">
-        {loading ? (
-          <SquareAvatarSkeleton size="sm" variant="round" />
-        ) : (
-          <AssigneeDropdown
-            variant="compact"
-            currentAssignee={
-              assignee
+        {/* While loading the picker is its avatar trigger, inert: the avatar draws its own skeleton in the scope. */}
+        <AssigneeDropdown
+          variant="compact"
+          currentAssignee={
+            loading
+              ? UNREAD_ASSIGNEE
+              : assignee
                 ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
                 : undefined
-            }
-            options={options}
-            isLoading={isLoading}
-            isPending={isAssigning || isUnassigning}
-            onAssign={handleAssign}
-          />
-        )}
+          }
+          options={options}
+          isLoading={isLoading}
+          isPending={isAssigning || isUnassigning}
+          onAssign={handleAssign}
+          onTriggerClick={loading ? noop : undefined}
+        />
       </div>
       <InfoCell
         loading={loading}

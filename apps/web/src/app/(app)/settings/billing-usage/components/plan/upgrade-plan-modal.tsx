@@ -4,6 +4,7 @@ import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/compone
 import { Suspense, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { upgradePlanModalQuery as UpgradePlanModalQueryType } from '@/__generated__/upgradePlanModalQuery.graphql';
+import { noop } from '@/app/components/shared/no-next-page';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { DevicePlanPicker } from './device-plan-picker';
@@ -29,9 +30,6 @@ const upgradePlanModalQuery = graphql`
     }
   }
 `;
-
-/** The loading frame reports nothing: there is no selection to submit yet. */
-const NOOP_UPDATES = () => {};
 
 interface UpgradePlanModalProps {
   isOpen: boolean;
@@ -94,7 +92,11 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
         <Suspense
           fallback={
             <LoadingFallback label="Loading plans">
-              <DevicePlanPicker productRef={null} subscriptionProductRef={null} onUpdatesChange={NOOP_UPDATES} />
+              <DevicePlanPicker
+                productRef={null}
+                subscriptionProductRef={null}
+                onUpdatesChange={noop /* the loading frame reports nothing: no selection to submit yet */}
+              />
             </LoadingFallback>
           }
         >

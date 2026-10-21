@@ -54,6 +54,7 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { EmptyState, liveColumnMeta, onboardingGuideButton, useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -72,7 +73,12 @@ import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
-import { type FacetOption, facetToMappedOptions, facetToSortedOptions } from '../../shared/utils/facet-options';
+import {
+  type FacetOption,
+  facetFilter,
+  facetToMappedOptions,
+  facetToSortedOptions,
+} from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
@@ -110,12 +116,15 @@ interface ScriptColumnOptions {
   author: FacetOption[];
 }
 
-/** The table's columns: the loaded table and its loading state draw the same ones. */
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones. With no `options` (loading) the
+ * funnels are pending.
+ */
 function scriptColumns({
   options,
   renderRowActions,
 }: {
-  options: ScriptColumnOptions;
+  options: ScriptColumnOptions | null;
   renderRowActions: (script: UiScriptEntry) => ReactNode;
 }): ColumnDef<UiScriptEntry>[] {
   return [
@@ -136,7 +145,7 @@ function scriptColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: { options: options.shell } }),
+      meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: facetFilter(options?.shell) }),
     },
     {
       accessorKey: 'supportedPlatforms',
@@ -146,7 +155,7 @@ function scriptColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: { options: options.platform } }),
+      meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: facetFilter(options?.platform) }),
     },
     {
       // "Added by" = Script.author. Server filter via `authorIds`; the dropdown
@@ -221,7 +230,7 @@ function scriptColumns({
       // panel jump sideways as it animates out.
       meta: liveColumnMeta(SCRIPT_COLUMNS.authorId, {
         cellClassName: 'self-stretch',
-        filter: { options: options.author, placement: 'bottom-end' },
+        filter: { ...facetFilter(options?.author), placement: 'bottom-end' },
       }),
     },
     {
@@ -646,30 +655,8 @@ function ScriptsTableContent({
 // The table before its first answer
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: UiScriptEntry[] = [];
-const NO_COLUMN_OPTIONS: ScriptColumnOptions = { shell: [], platform: [], author: [] };
-const noRowActions = () => null;
-
-/**
- * The live table with no rows yet: the same columns and header, its body and
- * row count drawing their own skeletons in the loading scope it is rendered in.
- */
-function ScriptsTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
-  const columns = scriptColumns({ options: NO_COLUMN_OPTIONS, renderRowActions: noRowActions });
-  const table = useDataTable<UiScriptEntry>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiScriptEntry) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-      <DataTable.Body skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
+/** The columns before the first answer: the funnels pending, no row to act on. */
+const LOADING_COLUMNS = scriptColumns({ options: null, renderRowActions: () => null });
 
 // ----------------------------------------------------------------
 // Outer shell — layout + URL state + Suspense boundary
@@ -818,7 +805,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
         <Suspense
           fallback={
             <LoadingFallback label="Loading scripts">
-              <ScriptsTableLoading stickyHeaderOffset={stickyHeaderOffset} />
+              <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
             </LoadingFallback>
           }
         >

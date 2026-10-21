@@ -1,7 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import type { Device } from '../types/device.types';
 
@@ -32,7 +32,7 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
         {loading ? (
           Array.from({ length: DEVICE_TAGS_SKELETON_COUNT }, (_, index) => (
             <span key={index} data-loading-item className="flex">
-              <TagSkeleton />
+              <Tag label="" loading />
             </span>
           ))
         ) : tagValues.length === 0 ? (

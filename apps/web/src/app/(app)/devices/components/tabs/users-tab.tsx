@@ -14,12 +14,21 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { EmptyValue } from '@/app/components/shared/empty-value';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device } from '../../types/device.types';
-import { USER_COLUMNS } from './device-tab-columns';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+
+/** The Users table's columns. */
+const USER_COLUMNS = {
+  username: { id: 'username', header: 'USER', width: 'flex-1 min-w-0' },
+  uid: { id: 'uid', header: 'UID', width: 'w-[100px] shrink-0' },
+  type: { id: 'type', header: 'TYPE', width: 'w-[120px] shrink-0', hideAt: 'md' },
+  groupname: { id: 'groupname', header: 'GROUP', width: 'w-[160px] shrink-0', hideAt: 'lg' },
+  shell: { id: 'shell', header: 'SHELL', width: 'w-[200px] shrink-0', hideAt: 'lg' },
+  status: { id: 'status', header: 'STATUS', width: 'w-[120px] shrink-0', align: 'right' },
+} satisfies Record<string, TableSkeletonColumn>;
 
 interface UsersTabProps {
   device: Device | null;
@@ -198,7 +207,8 @@ export function UsersTab({ device }: UsersTabProps) {
         />
       </DataTable>
 
-      {/* Only some devices report end-user emails, so the strip sits below the table (out of the first screen). */}
+      {/* Only some devices report end-user emails. The strip sits below the users table, whose dozens of system and person
+          accounts fill the first screen, so it is not drawn while the device is read. */}
       {device?.endUserEmails && device.endUserEmails.length > 0 && (
         <div data-loading-optional className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
           <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>

@@ -9,6 +9,9 @@ import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedul
 import { customParamsByScriptId } from '../utils/schedule-script-params';
 import { ScheduleScriptCard } from './schedule-script-card';
 
+/** The list of script cards, loaded and loading alike. */
+const SCRIPT_LIST_CLASS = 'flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]';
+
 /**
  * The part that reads the schedule, and therefore the part that suspends.
  *
@@ -44,7 +47,7 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
   const customParams = customParamsByScriptId(schedule.scriptCustomParams);
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+    <div className={SCRIPT_LIST_CLASS}>
       {schedule.scripts.map((script, position) => (
         // A schedule may run the same script more than once ("A, B, A" is a
         // valid recipe), so `script.id` is NOT unique here — the RUN POSITION is
@@ -70,7 +73,7 @@ const SCHEDULE_SCRIPTS_SKELETON_COUNT = 1;
 /** The tab before its schedule: the same list, its cards drawing their own skeletons in the loading scope. */
 function ScheduleScriptsTabLoading() {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+    <div className={SCRIPT_LIST_CLASS}>
       {Array.from({ length: SCHEDULE_SCRIPTS_SKELETON_COUNT }, (_, i) => (
         <ScheduleScriptCard key={i} />
       ))}

@@ -130,10 +130,10 @@ function DeviceLogsRowsSkeleton({ dayHeader = false }: { dayHeader?: boolean }) 
 }
 
 /**
- * The list before its first page: the live list's top sentinel, then a page of lines. Exported for a list that is
- * not yet drawn in a loading scope (`settings/troubleshooting`); a new caller renders `DeviceLogsList` in one.
+ * The list before its first page, drawn by `DeviceLogsList` in a loading scope: the live list's top sentinel, then a
+ * page of lines.
  */
-export function DeviceLogsListSkeleton() {
+function DeviceLogsListSkeleton() {
   return (
     <LoadingRegion label="Loading logs" className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <div className="h-px" />

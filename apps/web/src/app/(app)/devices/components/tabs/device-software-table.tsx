@@ -8,7 +8,7 @@ import type { deviceSoftwareTablePaginationQuery as DeviceSoftwareTablePaginatio
 import type { deviceSoftwareTableQuery as DeviceSoftwareTableQueryType } from '@/__generated__/deviceSoftwareTableQuery.graphql';
 import { SOFTWARE_LIST_PAGE_SIZE } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { SoftwareTable } from '@/app/(app)/software/components/software-list/software-table';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 
 /**
  * Device → Software: what is installed on this machine, one row per title —
@@ -60,7 +60,6 @@ interface DeviceSoftwareTableProps {
 }
 
 const NO_ROWS: never[] = [];
-const NO_NEXT_PAGE = { hasNextPage: false, isFetchingNextPage: false, onLoadMore: () => {} };
 
 /**
  * The Software tab's rows. In a loading scope (the device or the module's flag has not answered, or the Suspense

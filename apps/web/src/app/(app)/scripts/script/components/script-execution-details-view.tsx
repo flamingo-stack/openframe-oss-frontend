@@ -1,6 +1,6 @@
 'use client';
 
-import { NotFoundError, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
+import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
@@ -9,33 +9,25 @@ import {
   ScriptExecutionResult,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type PageActionButton,
-  SquareAvatar,
-  TagSkeleton,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { useRetryKey } from '@/app/components/shared';
-import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { noop, useRetryKey } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { displayValue, EMPTY_VALUE, isEmptyValue } from '@/lib/empty-value';
 import { formatDateTime, formatDateTimeInZone, formatTimeZone, viewerTimeZone } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
-import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
+import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
+import { InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import {
   executionOutput,
   executionStatusLabel,
-  initiatorInitials,
   initiatorName,
   isExecutionInFlight,
   privilegeLevelLabel,
@@ -54,23 +46,24 @@ type ExecutionNode = NonNullable<ScriptExecutionDetailQueryType['response']['nod
 const CELL_CLASS = 'flex min-w-[140px] flex-[1_0_0]';
 const CELL_GAP_CLASS = 'gap-[var(--spacing-system-xxs)]';
 
-/** A text value-over-label cell: the shared {@link InfoCell}, which draws its value as a bar in a loading scope. */
-function DetailCell({ value, label, icon }: { value: string; label: string; icon?: ReactNode }) {
+/**
+ * A value-over-label cell: the shared {@link InfoCell}, which draws its value as a bar in a loading scope, or as
+ * `valueSkeleton` when the value is not text.
+ */
+function DetailCell({
+  value,
+  label,
+  icon,
+  valueSkeleton,
+}: {
+  value: ReactNode;
+  label: string;
+  icon?: ReactNode;
+  valueSkeleton?: ReactNode;
+}) {
   return (
     <div className={CELL_CLASS}>
-      <InfoCell value={value} label={label} icon={icon} className={CELL_GAP_CLASS} />
-    </div>
-  );
-}
-
-/** A value-over-label cell whose value is a node that draws its own loading form (the person, the status). */
-function DetailNodeCell({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <div className={cn(CELL_CLASS, 'flex-col justify-center', CELL_GAP_CLASS)}>
-      {children}
-      <TruncateText variant="h6" tone="secondary">
-        {label}
-      </TruncateText>
+      <InfoCell value={value} label={label} icon={icon} valueSkeleton={valueSkeleton} className={CELL_GAP_CLASS} />
     </div>
   );
 }
@@ -101,62 +94,17 @@ function TimingRow({
   );
 }
 
-/** "Executed by": the person (linked to their page) and the chip of what dispatched the run. */
+/**
+ * "Executed by": the person (linked to their page) and the chip of what dispatched the run. It switches itself: in a
+ * loading scope the person draws its skeleton and the chip (shown only for a scheduled or assistant run) is left out.
+ */
 function ExecutedByValue({ execution }: { execution: ExecutionNode | null }) {
   const loading = useLoadingScope() || !execution;
-  const initiator = execution?.initiator;
-  // The initiator id is a User global id; decode to the raw id the REST-backed
-  // employee page expects, then link "Executed by" to that user (new tab).
-  const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
-  const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeletedInitiator = isDeletedUserStatus(initiator?.status);
-
-  // The avatar draws its own skeleton in the loading scope.
-  const avatar = isDeletedInitiator ? (
-    <DeletedUserAvatar size="md" />
-  ) : (
-    <SquareAvatar
-      variant="round"
-      size="md"
-      src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
-      fallback={initiatorInitials(initiator)}
-      alt={initiatorName(initiator)}
-      initialsClassName="text-ods-text-secondary"
-    />
-  );
-
   // The chip sits OUTSIDE the initiator link — inside it, clicking
   // "Mingo" would open the technician's employee page.
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      {loading ? (
-        <div className="flex min-w-0 items-center gap-2">
-          {avatar}
-          <TextLineSkeleton type="h4" className="w-28" />
-        </div>
-      ) : initiatorHref ? (
-        <a
-          href={initiatorHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex min-w-0 items-center gap-2 no-underline"
-        >
-          {avatar}
-          <TruncateText
-            variant="h4"
-            className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
-          >
-            {initiatorName(initiator)}
-          </TruncateText>
-        </a>
-      ) : (
-        <div className="flex min-w-0 items-center gap-2">
-          {avatar}
-          <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
-            {initiatorName(initiator)}
-          </TruncateText>
-        </div>
-      )}
+      <InitiatorIdentity initiator={toInitiator(execution?.initiator)} size="md" loading={loading} />
       {!loading && <ExecutionSourceBadge source={execution?.source} />}
     </div>
   );
@@ -191,18 +139,17 @@ function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionN
           icon={<MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />}
           label={org || 'Device'}
         />
-        <DetailNodeCell label="Executed by">
-          <ExecutedByValue execution={execution} />
-        </DetailNodeCell>
-        <DetailNodeCell label="Status">
-          {loading ? (
-            <div className="flex">
-              <TagSkeleton />
-            </div>
-          ) : (
-            <ExecutionStatusCell status={execution?.status} />
-          )}
-        </DetailNodeCell>
+        <DetailCell
+          label="Executed by"
+          value={<ExecutedByValue execution={execution} />}
+          valueSkeleton={<ExecutedByValue execution={execution} />}
+        />
+        <DetailCell
+          label="Status"
+          value={<ExecutionStatusCell status={execution?.status} />}
+          // A tag with no label yet: it draws its own skeleton in the loading scope.
+          valueSkeleton={<Tag label="" />}
+        />
         <DetailCell value={formatCount(execution?.executionTimeMs)} label="Execution Time (ms)" />
       </div>
 
@@ -346,8 +293,6 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
 
   return <ExecutionDetailsPage execution={execution} isInFlight={isInFlight} onBack={handleBack} actions={actions} />;
 }
-
-const noop = () => {};
 
 /** Disabled Copy placeholder shown in the chrome while the execution loads. */
 const LOADING_EXECUTION_ACTIONS: PageActionButton[] = [

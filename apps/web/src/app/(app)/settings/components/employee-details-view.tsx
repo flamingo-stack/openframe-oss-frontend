@@ -2,7 +2,7 @@
 
 import { LoadError, NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar, Tag, TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -33,8 +33,8 @@ const CARD_ROW =
   'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:contents';
 
 /**
- * The employee's card: name, email, role and status, or the deleted variant. `null` while the employee loads (or in a
- * loading scope): the same card, every cell drawing itself (`InfoCell`, the avatar), the status a tag-sized bar.
+ * The employee's card: name, email, role and status, or the deleted variant. `null` while the employee loads, rendered
+ * in a loading scope: the same card, every cell drawing itself (`InfoCell`, the avatar), the status a tag-sized bar.
  */
 function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displayName: string }) {
   const loading = useLoadingScope() || user == null;
@@ -85,15 +85,14 @@ function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displ
             variant="round"
             className="h-9 w-9 content-md:h-12 content-md:w-12"
           />
-          <InfoCell loading={loading} value={displayName} label="Name" />
+          <InfoCell value={displayName} label="Name" />
         </div>
-        <InfoCell loading={loading} skeletonWidth="w-40" value={user?.email} label="Email" />
+        <InfoCell skeletonWidth="w-40" value={user?.email} label="Email" />
       </div>
       <div className={`${CARD_ROW} border-t border-ods-border`}>
-        <InfoCell loading={loading} skeletonWidth="w-24" value={role} label="Role" />
+        <InfoCell skeletonWidth="w-24" value={role} label="Role" />
         <InfoCell
-          loading={loading}
-          valueSkeleton={<TagSkeleton />}
+          valueSkeleton={<Tag label="" loading />}
           value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
           label="Status"
         />
@@ -213,7 +212,9 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
           : undefined
       }
     >
-      <EmployeeSummary user={user ?? null} displayName={displayName} />
+      <LoadingWhen loading={isLoading}>
+        <EmployeeSummary user={user ?? null} displayName={displayName} />
+      </LoadingWhen>
       <EmployeeWorkTime userId={userId} />
       <ConfirmDeleteUserModal
         open={isDeleteOpen}

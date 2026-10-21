@@ -1,11 +1,12 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   TagSearchInput,
   type TagSearchOption,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { type SelectableTag, SelectableTagsRow } from './selectable-tags-row';
 
 interface TagFilterBarProps {
@@ -54,10 +55,14 @@ export function TagFilterBar({
   filterButton,
 }: TagFilterBarProps) {
   const isLoading = useLoadingScope() || !!loading;
-  const derivedSelected = useMemo<TagSearchOption<string>[]>(() => {
-    const keyById = new Map(tags.map(t => [t.id, t.key]));
-    return selectedIds.map(id => ({ value: id, label: keyById.get(id) ?? id }));
-  }, [tags, selectedIds]);
+  const keyById = new Map(tags.map(t => [t.id, t.key]));
+  const derivedSelected = selectedIds.map(id => ({ value: id, label: keyById.get(id) ?? id }));
+  // While the tags are read a selected chip whose key is not known yet is a bar, never its raw id.
+  const renderTag =
+    isLoading && !selectedTags
+      ? (option: TagSearchOption<string>) =>
+          keyById.has(option.value) ? option.label : <TextLineSkeleton type="inherit" as="span" className="w-12" />
+      : undefined;
 
   return (
     <>
@@ -74,6 +79,7 @@ export function TagFilterBar({
             }}
             placeholder={placeholder}
             addMorePlaceholder={placeholder}
+            renderTag={renderTag}
           />
         </div>
         {filterButton}

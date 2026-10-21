@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   InfoSection,
   type InfoSectionRow,
@@ -51,18 +50,69 @@ interface TenantIntegrationSectionProps {
   provider: string;
 }
 
+const NOT_READ: InfoSectionRow['value'] = { text: '' };
+
+type IntegrationData = NonNullable<TenantIntegrationSectionQueryType['response']['directoryConnection']>;
+
+/**
+ * The section's rows, label for label. With no record yet (a loading scope) the labels are real and every value is
+ * empty: `InfoSection` draws each as a bar in the scope.
+ */
+function integrationRows(data: IntegrationData | null, provider: string): InfoSectionRow[] {
+  const { directoryIdLabel, authorisedBy } = providerPresentation(data?.provider ?? provider);
+  const domainNames = data?.domains.map(domain => domain.name) ?? [];
+  const primaryDomain = data?.domains.find(domain => domain.primary)?.name ?? data?.domain ?? EMPTY_VALUE;
+  const scopes = data ? capabilityLabels(data.access.capabilities) : [];
+  /** A value read from the record; empty until it answers. */
+  const read = (value: () => InfoSectionRow['value']): InfoSectionRow['value'] => (data ? value() : NOT_READ);
+
+  return [
+    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: read(() => ({ text: primaryDomain })) },
+    { id: 'directory-id', label: directoryIdLabel, value: read(() => ({ text: data?.directoryId ?? EMPTY_VALUE })) },
+    {
+      id: 'granted-by',
+      label: INTEGRATION_LABELS.grantedBy,
+      value: read(() => ({ text: data?.grantedBy ?? EMPTY_VALUE })),
+    },
+    {
+      id: 'scopes',
+      label: INTEGRATION_LABELS.scopes,
+      // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
+      value: read(() => ({
+        type: 'custom',
+        content: (
+          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
+            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
+          </span>
+        ),
+      })),
+    },
+    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: read(() => ({ text: authorisedBy })) },
+    {
+      id: 'domains',
+      label: INTEGRATION_LABELS.domains,
+      value: read(() =>
+        domainNames.length > 1
+          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
+          : { text: domainNames[0] ?? primaryDomain },
+      ),
+    },
+  ];
+}
+
 /**
  * The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row. Suspends: mount it under
- * `<Suspense>`. In a loading scope (that boundary's fallback) it draws its own loading state and reads nothing.
+ * `<Suspense>`. In a loading scope (that boundary's fallback) it reads nothing: `InfoSection` draws the real caption
+ * and labels with a bar for each value.
  */
 export function TenantIntegrationSection(props: TenantIntegrationSectionProps) {
   if (useLoadingScope()) {
-    return <TenantIntegrationSectionSkeleton provider={props.provider} />;
+    return <InfoSection title="Integration" rows={integrationRows(null, props.provider)} />;
   }
-  return <TenantIntegrationSectionQuery id={props.id} />;
+  return <TenantIntegrationSectionQuery id={props.id} provider={props.provider} />;
 }
 
-function TenantIntegrationSectionQuery({ id }: { id: string }) {
+function TenantIntegrationSectionQuery({ id, provider }: TenantIntegrationSectionProps) {
   const retryKey = useRetryKey();
   const { directoryConnection: data } = useLazyLoadQuery<TenantIntegrationSectionQueryType>(
     tenantIntegrationSectionQuery,
@@ -71,56 +121,5 @@ function TenantIntegrationSectionQuery({ id }: { id: string }) {
   );
   // The page above has already said "not found" for a missing record.
   if (!data) return null;
-  const { directoryIdLabel, authorisedBy } = providerPresentation(data.provider);
-  const domainNames = data.domains.map(domain => domain.name);
-  const primaryDomain = data.domains.find(domain => domain.primary)?.name ?? data.domain ?? EMPTY_VALUE;
-  const scopes = capabilityLabels(data.access.capabilities);
-
-  const rows: InfoSectionRow[] = [
-    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: { text: primaryDomain } },
-    { id: 'directory-id', label: directoryIdLabel, value: { text: data.directoryId ?? EMPTY_VALUE } },
-    { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: { text: data.grantedBy ?? EMPTY_VALUE } },
-    {
-      id: 'scopes',
-      label: INTEGRATION_LABELS.scopes,
-      // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
-      value: {
-        type: 'custom',
-        content: (
-          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
-            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
-          </span>
-        ),
-      },
-    },
-    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: { text: authorisedBy } },
-    {
-      id: 'domains',
-      label: INTEGRATION_LABELS.domains,
-      value:
-        domainNames.length > 1
-          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
-          : { text: domainNames[0] ?? primaryDomain },
-    },
-  ];
-
-  return <InfoSection title="Integration" rows={rows} />;
-}
-
-const bar = (width: string): InfoSectionRow['value'] => ({
-  type: 'custom',
-  content: <TextLineSkeleton type="h4" as="span" className={width} />,
-});
-
-/** The section while its live read loads: the caption and every label real, the values as bars. */
-function TenantIntegrationSectionSkeleton({ provider }: { provider: string }) {
-  const rows: InfoSectionRow[] = [
-    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: bar('w-32') },
-    { id: 'directory-id', label: providerPresentation(provider).directoryIdLabel, value: bar('w-64') },
-    { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: bar('w-48') },
-    { id: 'scopes', label: INTEGRATION_LABELS.scopes, value: bar('w-56') },
-    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: bar('w-72') },
-    { id: 'domains', label: INTEGRATION_LABELS.domains, value: bar('w-40') },
-  ];
-  return <InfoSection title="Integration" rows={rows} />;
+  return <InfoSection title="Integration" rows={integrationRows(data, provider)} />;
 }

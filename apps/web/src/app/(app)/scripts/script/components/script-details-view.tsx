@@ -18,7 +18,7 @@ import { memo, Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { EmptyValue, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -67,31 +67,16 @@ type ScriptRecord = ScriptDetailQueryType['response']['script'];
  */
 const LOADING_ACTIONS: PageActionButton[] = [{ label: '' }, { label: 'Script action' }];
 
-/** The header's own loading state: the real `TitleBlock` (static title, working Back), its action slot a bar. */
-function ScriptHeaderSkeleton() {
-  const handleBack = useSafeBack(routes.scripts.list);
-  return (
-    <TitleBlock
-      title="Script Details"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      loadingActions
-      actionsVariant="menu-primary"
-    />
-  );
-}
-
-/** The header over the record (`null`: not found), or (record unread, or in a loading scope) its own skeleton. */
+/**
+ * The header over the record (`null`: not found). Before it (`script` undefined, or in a loading scope) the same
+ * header draws itself: the static title real, Back working, the action slots placeholders.
+ */
 function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { script?: ScriptRecord }) {
-  if (useLoadingScope() || script === undefined) return <ScriptHeaderSkeleton />;
-  return <ScriptHeaderLoaded scriptId={scriptId} script={script} />;
-}
-
-function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { script: ScriptRecord }) {
+  const loading = useLoadingScope() || script === undefined;
   const { toast } = useToast();
 
   const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
-  const isArchived = script?.status === ScriptStatus.ARCHIVED;
+  const isArchived = !loading && script?.status === ScriptStatus.ARCHIVED;
 
   // Back follows the list the script actually belongs to.
   const handleBack = useSafeBack(isArchived ? routes.scripts.archived : routes.scripts.list);
@@ -101,7 +86,7 @@ function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { scr
   // resolver expects. The mention chip re-encodes it to a global id for fetch.
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
-    script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    !loading && script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
   );
 
   const handleUnarchive = useCallback(() => {
@@ -132,6 +117,7 @@ function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { scr
   // An archived script can't be run or meaningfully edited — the one thing worth
   // offering is putting it back (design node 1:24107).
   const actions = useMemo<PageActionButton[]>(() => {
+    if (loading) return LOADING_ACTIONS;
     if (!script) return [];
     return isArchived
       ? [
@@ -158,11 +144,11 @@ function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { scr
             },
           },
         ];
-  }, [script, isArchived, handleUnarchive, isUnarchiving, runHref]);
+  }, [loading, script, isArchived, handleUnarchive, isUnarchiving, runHref]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(
     () =>
-      !script || isArchived
+      loading || !script || isArchived
         ? []
         : [
             {
@@ -176,7 +162,7 @@ function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { scr
               ],
             },
           ],
-    [script, isArchived, scriptId],
+    [loading, script, isArchived, scriptId],
   );
 
   return (
@@ -185,6 +171,7 @@ function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { scr
       titleAdornment={isArchived ? <Tag label="Archived" variant="grey" /> : undefined}
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
+      loadingActions={loading}
       menuActions={menuActions}
       actionsVariant="menu-primary"
     />
@@ -217,31 +204,56 @@ function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
   return <ScriptSummaryView script={data.script} />;
 }
 
+/** Tag chips drawn while the script loads: a typical script carries a couple of tags. */
+const SCRIPT_TAGS_SKELETON_COUNT = 2;
+
+/** The script's tag chips. In a loading scope they are tag-shaped bars; a script with none shows the empty mark. */
+function ScriptTags({ tags }: { tags: ReadonlyArray<{ id: string; key: string }> | null }) {
+  const loading = useLoadingScope() || tags === null;
+  return (
+    <div className="flex min-h-8 flex-wrap items-center gap-[var(--spacing-system-xs)]">
+      {loading ? (
+        Array.from({ length: SCRIPT_TAGS_SKELETON_COUNT }, (_, i) => (
+          <span key={i} data-loading-item className="flex">
+            {/* A tag with no label yet: it draws its own skeleton in the loading scope. */}
+            <Tag variant="outline" label="" />
+          </span>
+        ))
+      ) : tags.length > 0 ? (
+        tags.map(tag => (
+          <span key={tag.id} data-loading-item className="flex">
+            <Tag variant="outline" label={tag.key} />
+          </span>
+        ))
+      ) : (
+        <span className="text-h4">
+          <EmptyValue />
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
- * The tag chips and the summary card over the record (`null`: not found). With
- * the record unread (or in a loading scope) the card draws its own skeleton; the
- * tags are optional, so none are drawn while loading.
+ * The tag chips and the summary card over the record (`null`: not found). With the record unread (or in a loading
+ * scope) both draw themselves.
  */
 function ScriptSummaryView({ script }: { script?: ScriptRecord }) {
   if (useLoadingScope() || script === undefined) {
-    return <ScriptSummaryCard name="" shellId="" platforms={[]} author={null} />;
+    return (
+      <>
+        <ScriptTags tags={null} />
+        <ScriptSummaryCard name="" shellId="" platforms={[]} author={null} />
+      </>
+    );
   }
   if (!script) {
     return <NotFoundError message="Script not found" />;
   }
 
-  const tags = script.tags ?? [];
-
   return (
     <>
-      {tags.length > 0 && (
-        <div className="flex flex-wrap items-start gap-[var(--spacing-system-xs)]">
-          {tags.map(tag => (
-            <Tag key={tag.id} variant="outline" label={tag.key} />
-          ))}
-        </div>
-      )}
-
+      <ScriptTags tags={script.tags ?? []} />
       <ScriptSummaryCard
         name={script.name}
         description={script.description}

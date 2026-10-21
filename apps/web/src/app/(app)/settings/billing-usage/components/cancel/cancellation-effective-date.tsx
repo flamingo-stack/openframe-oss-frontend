@@ -22,29 +22,22 @@ const cancellationEffectiveDateFragment = graphql`
   }
 `;
 
-const LINE_CLASS = 'flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4';
-const LINE_COPY = 'Your subscription will remain active until:';
-
-/** The sentence is fixed copy and stays real; the date is a bar. */
-function CancellationEffectiveDateSkeleton() {
-  return (
-    <div className={LINE_CLASS}>
-      <span>{LINE_COPY}</span>
-      <TextLineSkeleton as="span" type="h4" className="w-20" />
-    </div>
-  );
-}
-
-/** `query` is null only while the dialog's query is on its way (drawn in a loading scope). */
+/** `query` is null only while the dialog's query is on its way (drawn in a loading scope): the sentence is fixed copy
+ * and stays real, the date is a bar. */
 export function CancellationEffectiveDate({ query }: { query: cancellationEffectiveDate_query$key | null }) {
   const data = useFragment(cancellationEffectiveDateFragment, query);
-  if (useLoadingScope() || data == null) return <CancellationEffectiveDateSkeleton />;
-  const date = data.subscriptionCancellationPreview ?? data.subscription?.currentPeriodEnd ?? null;
+  const loading = useLoadingScope() || data == null;
 
   return (
-    <div className={LINE_CLASS}>
-      <span>{LINE_COPY}</span>
-      <span className="text-ods-warning">{formatDate(date)}</span>
+    <div className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4">
+      <span>Your subscription will remain active until:</span>
+      {loading ? (
+        <TextLineSkeleton as="span" type="h4" className="w-20" />
+      ) : (
+        <span className="text-ods-warning">
+          {formatDate(data.subscriptionCancellationPreview ?? data.subscription?.currentPeriodEnd ?? null)}
+        </span>
+      )}
     </div>
   );
 }

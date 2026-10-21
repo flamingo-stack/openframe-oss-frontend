@@ -153,7 +153,7 @@ function enclosingDeclaration(source, index) {
  * ONE SWITCH, PER COMPONENT (see the header): `<XSkeleton />` rendered outside X's own module and outside a
  * `*Skeleton` function, when X's module switches itself (calls `useLoadingScope`).
  */
-function foreignSkeletonRenders(roots) {
+function foreignSkeletonRenders(roots, indexRoots = []) {
   const violations = [];
   const warnings = [];
   const sources = new Map();
@@ -161,6 +161,17 @@ function foreignSkeletonRenders(roots) {
     for (const full of files(dir, true)) {
       if (/\.(test|stories)\.tsx?$/.test(full)) continue;
       sources.set(full, { rel: label + relative(dir, full), source: readFileSync(full, 'utf8') });
+    }
+  }
+  // The installed lib's source is INDEXED (where each lib component is declared, and whether it switches itself)
+  // but never reported on: the lib gates its own code. So a frontend parent picking `<ModelDisplaySkeleton>` for
+  // a lib `ModelDisplay` that switches on the scope fails here like any frontend component would.
+  const indexOnly = new Set();
+  for (const { dir, label } of indexRoots) {
+    for (const full of files(dir, true)) {
+      if (/\.(test|stories)\.tsx?$/.test(full)) continue;
+      sources.set(full, { rel: label + relative(dir, full), source: readFileSync(full, 'utf8') });
+      indexOnly.add(full);
     }
   }
   // Where each component is declared, and whether that module switches itself.
@@ -173,6 +184,7 @@ function foreignSkeletonRenders(roots) {
   }
   const switches = full => /\buseLoadingScope\s*\(/.test(sources.get(full)?.source ?? '');
   for (const [full, { rel, source }] of sources) {
+    if (indexOnly.has(full)) continue;
     const lines = source.split('\n');
     const dynamicSpans = [];
     for (const m of source.matchAll(/\bloading:\s*\(\)\s*=>/g)) {
@@ -238,11 +250,7 @@ function foreignSkeletonRenders(roots) {
 /** What breaks the standard (`violations`, exit 1) and what is reported only (`warnings`: NO SCOPE SWITCH). */
 export function pageSkeletonReport(base = root) {
   const violations = [];
-  const lib = null;
-  const wholeViewRoots = [
-    ...['app', 'components', 'lib'].map(dir => ({ dir: join(base, dir), label: `${dir}/` })),
-    ...(lib ? [{ dir: lib, label: 'lib-src/' }] : []),
-  ];
+  const wholeViewRoots = ['app', 'components', 'lib'].map(dir => ({ dir: join(base, dir), label: `${dir}/` }));
   for (const { dir, label } of wholeViewRoots) {
     for (const full of files(dir)) {
       if (/\.(test|stories)\.tsx$/.test(full)) continue;
@@ -259,11 +267,15 @@ export function pageSkeletonReport(base = root) {
       });
     }
   }
-  const foreign = foreignSkeletonRenders([
-    { dir: join(base, 'app'), label: 'app/' },
-    { dir: join(base, 'components'), label: 'components/' },
-    ...(lib ? [{ dir: lib, label: 'lib-src/' }] : []),
-  ]);
+  // The installed lib's source (see foreignSkeletonRenders): `node_modules` beside `src/`.
+  const installedLib = join(base, '..', 'node_modules', '@flamingo-stack', 'openframe-frontend-core', 'src');
+  const foreign = foreignSkeletonRenders(
+    [
+      { dir: join(base, 'app'), label: 'app/' },
+      { dir: join(base, 'components'), label: 'components/' },
+    ],
+    existsSync(installedLib) ? [{ dir: installedLib, label: 'lib/' }] : [],
+  );
   violations.push(...foreign.violations);
   for (const dir of ['app', 'components', 'lib', 'hooks']) {
     for (const full of files(join(base, dir), true)) {

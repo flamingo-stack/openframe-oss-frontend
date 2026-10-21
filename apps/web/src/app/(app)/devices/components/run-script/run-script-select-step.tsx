@@ -3,9 +3,9 @@
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import {
   LoadingFallback,
+  MediaSkeleton,
   OSTypeBadgeGroup,
   TextLineSkeleton,
-  UnifiedSkeleton,
 } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -39,7 +39,7 @@ function PickerRowsSkeleton() {
             <TextLineSkeleton type="h4" className="w-40" />
             <TextLineSkeleton type="h6" className="w-56 max-w-full" />
           </div>
-          <UnifiedSkeleton className="h-4 w-4 shrink-0 rounded" />
+          <MediaSkeleton.Icon size="sm" className="shrink-0" />
         </div>
       ))}
     </div>

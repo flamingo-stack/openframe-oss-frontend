@@ -9,7 +9,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { type ComponentProps, type ReactNode, Suspense, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import {
   getPasswordError,
@@ -19,6 +19,7 @@ import {
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { noop } from '@/app/components/shared/no-next-page';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
@@ -33,7 +34,47 @@ function isInvalidInviteError(error: string | null): boolean {
   return !!error && (error.includes('Invitation not found') || error.includes('Invitation already used or revoked'));
 }
 
-const noop = () => {};
+type InviteFormProps = ComponentProps<typeof CompleteAccountForm>;
+
+/** The form's static copy and an empty, inert form: what every field reads before the invitation is read. */
+const EMPTY_INVITE_FORM = {
+  firstName: '',
+  lastName: '',
+  password: '',
+  confirmPassword: '',
+  onFirstNameChange: noop,
+  onLastNameChange: noop,
+  onPasswordChange: noop,
+  onConfirmPasswordChange: noop,
+  onSubmit: noop,
+  ssoProviders: [],
+  onSsoClick: noop,
+  title: 'Accept Invitation',
+  subtitle: 'Complete your registration to join the organization',
+  submitLabel: 'Create Account',
+  submitDisabled: true,
+} satisfies InviteFormProps;
+
+/**
+ * The invitation screen: the shell, its Back to login footer and the account form. One view for the loaded page and
+ * the Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ */
+function InviteView({
+  form,
+  onBack = noop,
+  children,
+}: {
+  form?: Partial<InviteFormProps>;
+  onBack?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <StandaloneAuthShell footer={<BackToLoginLink onClick={onBack} />}>
+      <CompleteAccountForm {...EMPTY_INVITE_FORM} {...form} />
+      {children}
+    </StandaloneAuthShell>
+  );
+}
 
 export default function InvitePage() {
   return (
@@ -42,26 +83,7 @@ export default function InvitePage() {
     <Suspense
       fallback={
         <LoadingFallback label="Loading your invitation">
-          <StandaloneAuthShell>
-            <CompleteAccountForm
-              firstName=""
-              lastName=""
-              password=""
-              confirmPassword=""
-              onFirstNameChange={noop}
-              onLastNameChange={noop}
-              onPasswordChange={noop}
-              onConfirmPasswordChange={noop}
-              onSubmit={noop}
-              ssoProviders={[]}
-              onSsoClick={noop}
-              title="Accept Invitation"
-              subtitle="Complete your registration to join the organization"
-              submitLabel="Create Account"
-              submitDisabled
-              loading
-            />
-          </StandaloneAuthShell>
+          <InviteView form={{ loading: true }} />
         </LoadingFallback>
       }
     >
@@ -174,32 +196,30 @@ function InviteContent() {
   );
 
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
-      <CompleteAccountForm
-        firstName={firstName}
-        lastName={lastName}
-        password={password}
-        confirmPassword={confirmPassword}
-        onFirstNameChange={setFirstName}
-        onLastNameChange={setLastName}
-        onPasswordChange={setPassword}
-        onConfirmPasswordChange={setConfirmPassword}
-        onSubmit={() => handleSubmit()}
-        ssoProviders={formProviders}
-        onSsoClick={handleSso}
-        title="Accept Invitation"
-        subtitle="Complete your registration to join the organization"
-        submitLabel="Create Account"
-        submitDisabled={!isValid}
-        loading={loading || isSubmitting}
-        errors={{
+    <InviteView
+      onBack={handleBack}
+      form={{
+        firstName,
+        lastName,
+        password,
+        confirmPassword,
+        onFirstNameChange: setFirstName,
+        onLastNameChange: setLastName,
+        onPasswordChange: setPassword,
+        onConfirmPasswordChange: setConfirmPassword,
+        onSubmit: () => handleSubmit(),
+        ssoProviders: formProviders,
+        onSsoClick: handleSso,
+        submitDisabled: !isValid,
+        loading: loading || isSubmitting,
+        errors: {
           firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
           lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
           password: password ? passwordError : undefined,
           confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
-        }}
-      />
-
+        },
+      }}
+    >
       <ConfirmDialog
         open={showTenantSwitch}
         onOpenChange={setShowTenantSwitch}
@@ -209,6 +229,6 @@ function InviteContent() {
         variant="default"
         onConfirm={() => handleSubmit(true)}
       />
-    </StandaloneAuthShell>
+    </InviteView>
   );
 }

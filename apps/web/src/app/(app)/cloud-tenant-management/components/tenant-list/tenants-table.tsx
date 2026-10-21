@@ -12,7 +12,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
 import type { tenantsTablePaginationQuery } from '@/__generated__/tenantsTablePaginationQuery.graphql';
 import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__/tenantsTableQuery.graphql';
-import { EmptyState, useRetryKey } from '@/app/components/shared';
+import { EmptyState, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
@@ -76,9 +76,6 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: TenantRow[] = [];
-const noop = () => {};
-
 /**
  * The tenant rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws the
  * table with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it
@@ -88,16 +85,14 @@ export function TenantsTable(props: TenantsTableProps) {
   if (useLoadingScope()) {
     return (
       <TenantsTableView
-        rows={NO_ROWS}
+        rows={[]}
         getHref={tenantRowHref}
         search={props.search}
         isPending={props.isPending}
         totalCount={0}
         stickyHeaderOffset={props.stickyHeaderOffset}
         skeletonRows={TENANTS_PAGE_SIZE}
-        hasNextPage={false}
-        isFetchingNextPage={false}
-        onLoadMore={noop}
+        {...NO_NEXT_PAGE}
       />
     );
   }

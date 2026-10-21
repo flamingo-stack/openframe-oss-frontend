@@ -64,3 +64,29 @@ export function countCompleted(steps: readonly string[], completedSteps: readonl
 export function isStepDone(step: string, completedSteps: readonly string[]): boolean {
   return completedSteps.includes(step);
 }
+
+/** Where a surface's steps stand: how many, how many done, the one that says "Next", and whether all are done. */
+export interface OnboardingProgress<T extends string> {
+  total: number;
+  done: number;
+  nextStep: T | null;
+  /** Every step done — never while progress is read (`loading`). */
+  allDone: boolean;
+}
+
+/** The progress of `steps` against `completedSteps`, one rule for every onboarding surface. */
+export function onboardingProgress<T extends string>(
+  steps: readonly T[],
+  completedSteps: readonly string[],
+  loading = false,
+): OnboardingProgress<T> {
+  const total = steps.length;
+  const done = countCompleted(steps, completedSteps);
+  return {
+    total,
+    done,
+    // First step still to do, in display order.
+    nextStep: steps.find(step => !isStepDone(step, completedSteps)) ?? null,
+    allDone: !loading && done >= total,
+  };
+}

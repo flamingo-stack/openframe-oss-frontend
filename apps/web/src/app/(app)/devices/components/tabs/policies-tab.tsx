@@ -96,6 +96,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
+            userValue
             placeholder="Search for Policies"
             value={search}
             onChange={e => setSearch(e.target.value)}

@@ -22,25 +22,12 @@ const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-syst
 const OVERVIEWS_PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 
 /**
- * The three overview sections with no data, which draw their own skeletons: what the app
- * shell holds in the page slot while it waits on the onboarding answer (`holdsDashboard`),
- * rendered in a loading scope, so the hand-over to the real page moves nothing.
+ * The dashboard: the onboarding block (the v2 welcome banner or the legacy Initial Setup card) over the three
+ * overview sections. `live` reads the sections' data; without it the sections have no data and draw their own
+ * loading state, which is what the app shell holds in the page slot (in a loading scope) while it waits on the
+ * onboarding answer (`holdsDashboard`), so the hand-over to the real page moves nothing.
  */
-export function DashboardOverviews() {
-  return (
-    <PageLayout className={OVERVIEWS_PAGE_CLASS}>
-      <DevicesOverview />
-      {isSaasTenantMode() && <TicketsOverview />}
-      <CustomersOverview />
-    </PageLayout>
-  );
-}
-
-/**
- * Dashboard content component - extracted for dynamic import with loading skeleton
- * Contains all dashboard sections: Onboarding, Devices, Tickets (SaaS only), Organizations
- */
-export default function DashboardContent() {
+export function DashboardOverviews({ live = false }: { live?: boolean }) {
   const showTickets = isSaasTenantMode();
 
   // Dim (and disable) the rest of the dashboard ONLY while the tenant Initial Setup is
@@ -66,7 +53,7 @@ export default function DashboardContent() {
       )}
       {/* Onboarding — deliberately OUTSIDE the PageLayout below. The card owns the
           boundary for its suspending queries (e.g. DeviceSetupStep's
-          `useDeviceOrganizations`) and draws its own skeleton while they load. */}
+          `useDeviceOrganizations`) and draws its own loading state while they load. */}
       {legacySetup && (
         <div className={ONBOARDING_WRAPPER_CLASS}>
           <InitialSetupCard />
@@ -79,11 +66,19 @@ export default function DashboardContent() {
         {/* Standard page chrome: PageLayout supplies the gap between sections; each
             section renders its own TitleBlock header (with the TitleBlock's own pt/mb). */}
         <PageLayout className={OVERVIEWS_PAGE_CLASS}>
-          <DevicesOverviewSection />
-          {showTickets && <TicketsOverviewSection />}
-          <CustomersOverviewSection />
+          {live ? <DevicesOverviewSection /> : <DevicesOverview />}
+          {showTickets && (live ? <TicketsOverviewSection /> : <TicketsOverview />)}
+          {live ? <CustomersOverviewSection /> : <CustomersOverview />}
         </PageLayout>
       </div>
     </>
   );
+}
+
+/**
+ * Dashboard content component - extracted for dynamic import.
+ * Contains all dashboard sections: Onboarding, Devices, Tickets (SaaS only), Organizations
+ */
+export default function DashboardContent() {
+  return <DashboardOverviews live />;
 }

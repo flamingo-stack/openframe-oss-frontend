@@ -140,6 +140,7 @@ interface CustomersSearchInputProps {
 export function CustomersSearchInput({ value, onChange }: CustomersSearchInputProps) {
   return (
     <Input
+      userValue
       placeholder="Search for Customer"
       value={value}
       onChange={e => onChange(e.target.value)}

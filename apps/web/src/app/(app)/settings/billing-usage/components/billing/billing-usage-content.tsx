@@ -4,7 +4,6 @@ import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/compone
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
@@ -12,6 +11,7 @@ import type {
   billingUsageContentQuery$data,
 } from '@/__generated__/billingUsageContentQuery.graphql';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
+import { noop } from '@/app/components/shared/no-next-page';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { isBillingReadOnly } from '@/lib/billing-visibility';
@@ -22,16 +22,11 @@ import { ManageAiBalanceModal } from '../ai-balance/manage-ai-balance-modal';
 import { CancelSubscriptionFlow } from '../cancel/cancel-subscription-flow';
 import { ActivateSubscriptionModal } from '../plan/activate-subscription-modal';
 import { UpgradePlanModal } from '../plan/upgrade-plan-modal';
-import { BillingReadOnlyNotice, TestModeBanner } from '../shared/billing-section';
-import { TestClockPanel } from '../test-clock/test-clock-panel';
 import { AiBalanceAlert } from './ai-balance-alert';
 import { BillingPageFrame } from './billing-page-frame';
+import { BillingSections } from './billing-sections';
 import { DeviceOverageBlock } from './device-overage-block';
-import { DeviceUsageCard } from './device-usage-card';
-import { FreeAiTokensCard } from './free-ai-tokens-card';
-import { InvoicesHistory } from './invoices-history';
 import { PaidAiTokensCard } from './paid-ai-tokens-card';
-import { PlanSections } from './plan-sections';
 import { useBillingPageActions } from './use-billing-page-actions';
 
 /**
@@ -44,7 +39,7 @@ const billingUsageContentQuery = graphql`
   query billingUsageContentQuery {
     billingPlan {
       id
-      ...planSections_billingPlan
+      ...billingSections_billingPlan
     }
     subscription {
       id
@@ -55,19 +50,14 @@ const billingUsageContentQuery = graphql`
         name
       }
       ...useBillingPageActions_subscription
-      ...deviceUsageCard_subscription
-      ...freeAiTokensCard_subscription
+      ...billingSections_subscription
       ...paidAiTokensCard_subscription
       ...aiBalanceAlert_subscription
       ...deviceOverageBlock_subscription
-      ...planSections_subscription
-      ...invoicesHistory_subscription
       ...cancelSubscriptionFlow_subscription
     }
   }
 `;
-
-const NO_REFETCH = () => {};
 
 /**
  * The billing page. While anything it waits on has not answered (the page's flag and role gates: `loading`; the
@@ -77,7 +67,7 @@ const NO_REFETCH = () => {};
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
   const fallback = (
     <LoadingFallback label="Loading billing and usage">
-      <BillingUsageScreen data={null} onRefetch={NO_REFETCH} />
+      <BillingUsageScreen data={null} onRefetch={noop} />
     </LoadingFallback>
   );
   if (loading) return fallback;
@@ -181,65 +171,59 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
   const aiBalanceModalOpen = aiBalanceOffered && pageParams.action === MANAGE_AI_BALANCE_ACTION;
   const openPlanModal = () => setPlanModalOpen(true);
 
-  // The same card with the mark missing: what the wait shows, and what a
-  // failed arrangement query degrades to. Never a grey bar where a figure is.
-  const paidCardWithoutAutoTopUp = <PaidAiTokensCard subscription={subscription} autoTopUp={null} />;
   // While it loads, the row is all three cards: the AI pair is dropped only for a subscription that does not carry
   // the AI product, which the response has not said yet, and two cards reflowing into three is the larger jump.
   const showAiCards = loading || hasAi;
 
   return (
-    <BillingPageFrame actions={header.actions} menuActions={header.menuActions}>
-      {readOnly && <BillingReadOnlyNotice />}
-
-      {/* Dev-only; renders nothing (and issues no requests) unless the test-clock flag is on. In the page's loading
-          scope it draws itself without its query. */}
-      <TestClockPanel onClockChanged={refetch} />
-
-      <TestModeBanner />
-
-      {/* Two AI counters, because AI runs on two figures: what the period gives
-          away, and the balance it draws from once that is spent. */}
-      <div
-        className={cn(
-          'grid gap-[var(--spacing-system-m)]',
-          showAiCards ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
-        )}
-      >
-        <DeviceUsageCard subscription={subscription} />
-        {showAiCards && (
+    <BillingPageFrame
+      actions={header.actions}
+      menuActions={header.menuActions}
+      // The actions are the subscription's; the read-only build's one action is stated before it answers.
+      loadingActions={loading && !readOnly}
+    >
+      <BillingSections
+        readOnly={readOnly}
+        subscription={subscription}
+        billingPlan={data?.billingPlan ?? null}
+        showAiCards={showAiCards}
+        onClockChanged={refetch}
+        // The same card with the mark missing is what the wait shows, and what a failed arrangement query degrades
+        // to. Never a grey bar where a figure is.
+        paidAiCard={
+          autoTopUpOffered && subscription ? (
+            <AutoTopUpIsland
+              label="AutoTopUp"
+              fallback={<PaidAiTokensCard subscription={subscription} autoTopUp={null} />}
+            >
+              {autoTopUp => <PaidAiTokensCard subscription={subscription} autoTopUp={autoTopUp} />}
+            </AutoTopUpIsland>
+          ) : undefined
+        }
+        notices={
           <>
-            <FreeAiTokensCard subscription={subscription} />
-            {autoTopUpOffered && subscription ? (
-              <AutoTopUpIsland label="AutoTopUp" fallback={paidCardWithoutAutoTopUp}>
-                {autoTopUp => <PaidAiTokensCard subscription={subscription} autoTopUp={autoTopUp} />}
+            {hasAi && subscription && <AiBalanceAlert subscription={subscription} />}
+
+            {/* The system switched the refill off over a declined card: said here,
+                under the balance it stopped refilling. Nothing while it loads, and
+                nothing if it cannot be loaded — a notice is not worth an error. */}
+            {autoTopUpOffered && (
+              <AutoTopUpIsland
+                label="AutoTopUpNotice"
+                fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
+              >
+                {autoTopUp => (
+                  <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />
+                )}
               </AutoTopUpIsland>
-            ) : (
-              paidCardWithoutAutoTopUp
+            )}
+
+            {subscription && (
+              <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />
             )}
           </>
-        )}
-      </div>
-
-      {hasAi && subscription && <AiBalanceAlert subscription={subscription} />}
-
-      {/* The system switched the refill off over a declined card: said here,
-          under the balance it stopped refilling. Nothing while it loads, and
-          nothing if it cannot be loaded — a notice is not worth an error. */}
-      {autoTopUpOffered && (
-        <AutoTopUpIsland
-          label="AutoTopUpNotice"
-          fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
-        >
-          {autoTopUp => <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />}
-        </AutoTopUpIsland>
-      )}
-
-      {subscription && <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />}
-
-      <PlanSections subscription={subscription} billingPlan={data?.billingPlan ?? null} />
-
-      <InvoicesHistory subscription={subscription} />
+        }
+      />
 
       {/* Raises an invoice and opens it, or saves the refill arrangement; the
           balance moves once an invoice is paid, which is when the page's next

@@ -11,8 +11,8 @@ import {
 import {
   ActionsMenuDropdown,
   Button,
+  LoadingWhen,
   SquareAvatar,
-  SquareAvatarSkeleton,
   Textarea,
   TruncateText,
   useLoadingScope,
@@ -192,12 +192,12 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   );
 }
 
-/** A note card while it is read: the card's own frame, its author avatar, name, date and a two-line text. */
+/** A note card while it is read (in a loading scope): the card's own frame, its author avatar (switching itself), name, date and a two-line text. */
 function NoteCardSkeleton() {
   return (
     <div data-loading-item className={NOTE_CARD_CLASS}>
       <div className={NOTE_HEADER_CLASS}>
-        <SquareAvatarSkeleton size="sm" variant="round" />
+        <SquareAvatar size="sm" variant="round" />
         <div className={NOTE_AUTHOR_CLASS}>
           <TextLineSkeleton type="h4" className="w-32" />
           <TextLineSkeleton type="h6" className="w-24" />
@@ -259,7 +259,13 @@ export function NotesSection({
   const [isAdding, setIsAdding] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
 
-  if (loading) return <NotesSectionSkeleton />;
+  // In a scope even when the read is a client read (`loading`), so the avatars switch themselves.
+  if (loading)
+    return (
+      <LoadingWhen loading>
+        <NotesSectionSkeleton />
+      </LoadingWhen>
+    );
 
   const confirmDelete = () => {
     if (noteToDelete) onDeleteNote(noteToDelete);

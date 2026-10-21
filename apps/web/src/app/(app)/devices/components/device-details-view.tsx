@@ -10,7 +10,6 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceStatusConfig,
@@ -39,16 +38,17 @@ import { useDeviceTabs } from './tabs/device-tabs';
 // buttons and the menu's own icon cells use.
 const DETAIL_ICON_SIZE = 'w-[var(--icon-size-icon-size)] h-[var(--icon-size-icon-size)]';
 
-/** The status `Tag`'s box: `h-8 rounded-md`. */
-const STATUS_TAG_BOX = 'h-8 shrink-0 rounded-md';
-
-/** The device's status beside its title; while the device is read, the tag's own box. */
+/** The device's status beside its title; while the device is read, the tag's own skeleton. */
 function DeviceStatusTag({ status }: { status: string | undefined }) {
-  if (useLoadingScope() || status === undefined) {
-    return <UnifiedSkeleton className={`${STATUS_TAG_BOX} w-20`} />;
-  }
-  const statusConfig = getDeviceStatusConfig(status);
-  return <Tag label={statusConfig.label} variant={statusConfig.variant} />;
+  const statusConfig = status === undefined ? null : getDeviceStatusConfig(status);
+  return (
+    <Tag
+      label={statusConfig?.label ?? ''}
+      variant={statusConfig?.variant}
+      loading={useLoadingScope() || !statusConfig}
+      className="shrink-0"
+    />
+  );
 }
 
 interface DeviceDetailsViewProps {
@@ -233,9 +233,6 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
           />
         )}
 
-        {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. */}
-        <RecordingStorageBanner className="mb-[var(--spacing-system-l)]" />
-
         {/* Tab Navigation */}
         <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
           {tabId => (
@@ -246,6 +243,10 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
             />
           )}
         </TabNavigation>
+
+        {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. Below the tabs: it is rare,
+          and drawn above them its arrival would move the whole tab. */}
+        <RecordingStorageBanner className="mt-[var(--spacing-system-l)]" />
 
         {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}

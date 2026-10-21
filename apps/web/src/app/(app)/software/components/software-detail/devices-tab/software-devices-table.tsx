@@ -21,7 +21,7 @@ import type {
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -162,9 +162,6 @@ interface SoftwareDevicesTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: readonly SoftwareDeviceRow[] = [];
-const noop = () => {};
-
 /**
  * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
  * with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives
@@ -172,16 +169,7 @@ const noop = () => {};
  */
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
   if (useLoadingScope()) {
-    return (
-      <SoftwareDevicesTableRows
-        {...props}
-        rows={NO_ROWS}
-        totalCount={0}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
-      />
-    );
+    return <SoftwareDevicesTableRows {...props} rows={[]} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
   }
   return <SoftwareDevicesTableQuery {...props} />;
 }
@@ -219,9 +207,7 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
       {...props}
       rows={rows}
       totalCount={totalCount}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
 }
@@ -229,18 +215,14 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
 interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
   rows: readonly SoftwareDeviceRow[];
   totalCount: number;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 function SoftwareDevicesTableRows({
   rows,
   totalCount,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   backendFilters,
   debouncedSearch,
   sortState,
@@ -308,14 +290,7 @@ function SoftwareDevicesTableRows({
           rowHref={deviceHref}
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={onLoadMore}
-            skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
-          />
-        )}
+        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE} />}
       </DataTable>
     </div>
   );

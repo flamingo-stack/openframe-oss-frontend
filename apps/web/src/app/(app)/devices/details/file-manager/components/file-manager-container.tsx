@@ -37,18 +37,6 @@ const NO_SELECTION: string[] = [];
  * The file manager before the device's file system answers: the real toolbar and table in their `loading` state,
  * with nothing in them, also while the device itself is read (the page's loading scope).
  */
-const FILE_MANAGER_LOADING_PROPS = {
-  files: NO_FILES,
-  currentPath: '',
-  selectedFiles: NO_SELECTION,
-  loading: true,
-  showCheckboxes: true,
-  showSearch: true,
-  showActions: true,
-  disableSearch: true,
-  className: 'min-h-0 flex-1',
-} satisfies FileManagerProps;
-
 export function FileManagerContainer({
   deviceId,
   meshcentralAgentId,
@@ -104,8 +92,9 @@ export function FileManagerContainer({
 
   const [deleteContext, setDeleteContext] = useState<{ fileIds: string[] } | null>(null);
 
-  const showFileManagerSkeleton =
-    connectionState === 'disconnected' || (connectionState === 'connecting' && files.length === 0);
+  // Before the device's file system answers there is nothing to list: the manager draws its own loading state with
+  // no folder, no selection and search off, and the same instance shows the files once they arrive.
+  const held = connectionState === 'disconnected' || (connectionState === 'connecting' && files.length === 0);
   const handleBackToDevice = useSafeBack(routes.devices.details(deviceId));
   const deviceLoading = useLoadingScope();
 
@@ -324,16 +313,15 @@ export function FileManagerContainer({
       <div className="flex min-h-0 flex-1 flex-col">
         {connectionState === 'failed' ? (
           <LoadError message="Couldn't connect to the device's file system." onRetry={retryConnection} />
-        ) : showFileManagerSkeleton ? (
-          <FileManager {...FILE_MANAGER_LOADING_PROPS} deviceName={deviceName || `Device ${deviceId}`} />
         ) : (
           <FileManager
-            files={files}
-            currentPath={currentPath}
-            selectedFiles={selectedFiles}
+            files={held ? NO_FILES : files}
+            currentPath={held ? '' : currentPath}
+            selectedFiles={held ? NO_SELECTION : selectedFiles}
             deviceName={deviceName || `Device ${deviceId}`}
             searchQuery={searchQuery}
             loading={
+              held ||
               loading ||
               connectionState === 'connecting' ||
               connectionState === 'connected_to_server' ||
@@ -346,7 +334,7 @@ export function FileManagerContainer({
             showSearch={true}
             showActions={true}
             canPaste={clipboard !== null}
-            disableSearch={currentPath === '/' || currentPath === ''}
+            disableSearch={held || currentPath === '/' || currentPath === ''}
             resultsCount={files.length}
             onNavigate={handleNavigate}
             onBreadcrumbClick={handleBreadcrumbClick}

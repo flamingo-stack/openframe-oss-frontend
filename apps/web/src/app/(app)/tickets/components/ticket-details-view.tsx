@@ -6,7 +6,6 @@ import {
   ChatMessageList,
   LoadError,
   ModelDisplay,
-  ModelDisplaySkeleton,
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
@@ -849,15 +848,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
         />
       )}
-      {/* The model row's place is kept while the ticket loads (an open ticket shows it). */}
-      {loading && (
-        <div className="mt-[var(--spacing-system-xsf)]">
-          <ModelDisplaySkeleton showTokens />
-        </div>
-      )}
-      {!loading && showTokenMemory && (displayClientModel || clientTokenUsage) && (
+      {/* The model row's place is kept while the ticket loads (an open ticket shows it); the row draws its own
+          skeleton in the loading scope. */}
+      {(loading || (showTokenMemory && (displayClientModel || clientTokenUsage))) && (
         <div className="mt-[var(--spacing-system-xsf)]">
           <ModelDisplay
+            loading={loading}
             provider={displayClientModel?.provider}
             modelName={displayClientModel?.displayName}
             usedTokens={clientTokenUsage?.totalTokensSize ?? undefined}

@@ -31,6 +31,8 @@ export interface InfoCellProps {
   skeletonWidth?: string;
   /** The value's own loading shape when it is not text (a `TagSkeleton` for a status chip). */
   valueSkeleton?: React.ReactNode;
+  /** The label is read too (a date under an identifier): while loading it is a text bar of this width. */
+  labelSkeletonWidth?: string;
 }
 
 export function InfoCell({
@@ -42,6 +44,7 @@ export function InfoCell({
   loading,
   skeletonWidth = 'w-32',
   valueSkeleton,
+  labelSkeletonWidth,
 }: InfoCellProps) {
   const isLoading = useLoadingScope() || !!loading;
   const content = (
@@ -64,7 +67,11 @@ export function InfoCell({
           <div className="truncate text-ods-text-primary text-h4">{value}</div>
         )}
       </div>
-      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
+      {isLoading && labelSkeletonWidth ? (
+        <TextLineSkeleton type="h6" className={labelSkeletonWidth} />
+      ) : (
+        <p className="truncate text-ods-text-secondary text-h6">{label}</p>
+      )}
     </div>
   );
 

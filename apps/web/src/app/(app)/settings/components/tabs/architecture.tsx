@@ -58,6 +58,7 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
     >
       <div>
         <Input
+          userValue
           startAdornment={<SearchIcon />}
           placeholder="Search for Tools..."
           value={searchTerm}
@@ -83,29 +84,23 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
 const ARCHITECTURE_SKELETON_TOOLS = 4;
 const LAYER_GRID_CLASS = 'grid grid-cols-1 gap-6 content-md:grid-cols-2';
 
-/** A layer's heading and its tools; in a loading scope, its skeleton (`layer` and `tools` unread). */
+/**
+ * A layer's heading and its tools. In a loading scope (`layer` and `tools` unread) the heading is a bar and the grid
+ * holds a typical layer's count of loading cards.
+ */
 function ArchitectureLayer({ layer, tools }: { layer: string | null; tools: IntegratedTool[] }) {
-  if (useLoadingScope() || layer == null) return <ArchitectureLayerSkeleton />;
+  const loading = useLoadingScope() || layer == null;
   return (
     <div className="space-y-4" data-loading-item>
-      <div className="text-ods-text-primary text-h2">{layer}</div>
+      {loading ? (
+        <TextLineSkeleton type="h2" className="w-40" />
+      ) : (
+        <div className="text-ods-text-primary text-h2">{layer}</div>
+      )}
       <div className={LAYER_GRID_CLASS}>
-        {tools.map(tool => (
-          <ArchitectureToolCard key={tool.id} tool={tool} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ArchitectureLayerSkeleton() {
-  return (
-    <div className="space-y-4" data-loading-item>
-      <TextLineSkeleton type="h2" className="w-40" />
-      <div className={LAYER_GRID_CLASS}>
-        {Array.from({ length: ARCHITECTURE_SKELETON_TOOLS }, (_, i) => (
-          <ArchitectureToolCard key={i} tool={null} />
-        ))}
+        {loading
+          ? Array.from({ length: ARCHITECTURE_SKELETON_TOOLS }, (_, i) => <ArchitectureToolCard key={i} tool={null} />)
+          : tools.map(tool => <ArchitectureToolCard key={tool.id} tool={tool} />)}
       </div>
     </div>
   );
@@ -113,16 +108,22 @@ function ArchitectureLayerSkeleton() {
 
 /**
  * Rows a loading tool card draws: a tool's links and credentials vary, and two (its address and one credential) is
- * the typical count. Unlabelled, because each row's label (the link's type) is read too.
+ * the typical count. Each row's label (the link's type) is read too: an empty label keeps the label column, drawn as
+ * a bar by the card.
  */
-const ARCHITECTURE_SKELETON_ROWS: ServiceCardRow[] = [{ value: '' }, { value: '' }];
+const ARCHITECTURE_SKELETON_ROWS: ServiceCardRow[] = [
+  { label: '', value: '' },
+  { label: '', value: '' },
+];
+/** The integrated tools carry a category (optional in the schema, set on the catalog's tools): the tag is drawn while loading, a bar for its read label. */
+const ARCHITECTURE_SKELETON_TAG = { label: '' };
 
 /** One tool: its links and credentials, each a copyable row. In a loading scope, the lib's card draws its own bars. */
 function ArchitectureToolCard({ tool }: { tool: IntegratedTool | null }) {
   if (useLoadingScope() || tool == null) {
     return (
       <div data-loading-item>
-        <ServiceCard title="" subtitle="" rows={ARCHITECTURE_SKELETON_ROWS} loading />
+        <ServiceCard title="" subtitle="" tag={ARCHITECTURE_SKELETON_TAG} rows={ARCHITECTURE_SKELETON_ROWS} loading />
       </div>
     );
   }

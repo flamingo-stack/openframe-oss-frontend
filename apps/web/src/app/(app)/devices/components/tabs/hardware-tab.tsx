@@ -6,6 +6,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { type ReactNode, useState } from 'react';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
+import { EMPTY_CARD, labelsOf } from './info-card-loading';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface HardwareTabProps {
@@ -74,13 +75,8 @@ function HardwareEmptyState() {
   );
 }
 
-/** A card with no rows: in the page's loading scope it draws its skeleton (the `skeleton` shape each block states). */
-const EMPTY_CARD = { items: [] };
 const STORAGE_TITLE = 'Disk';
 const STORAGE_SUBTITLE = 'Total storage';
-
-/** A card's row labels, drawn real while the device is read. */
-const labelsOf = (rows: InfoRow[]) => rows.map(row => row.label);
 
 export function HardwareTab({ device }: HardwareTabProps) {
   const loading = useLoadingScope();

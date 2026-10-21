@@ -41,6 +41,7 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -54,7 +55,12 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { pluralize } from '@/lib/pluralize';
 import { type IncidentsTab, routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { type FacetEntry, type FacetOption, facetToSortedOptions } from '../../scripts/shared/utils/facet-options';
+import {
+  type FacetEntry,
+  type FacetOption,
+  facetFilter,
+  facetToSortedOptions,
+} from '../../scripts/shared/utils/facet-options';
 import { type MingoAction, mingoActionFor, useFixWithMingo } from '../hooks/use-fix-with-mingo';
 import { useLatestIncidentDialogs } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
@@ -128,10 +134,9 @@ interface IncidentColumnOptions {
   assignee: FacetOption[];
 }
 
-const NO_COLUMN_OPTIONS: IncidentColumnOptions = { type: [], customer: [], severity: [], status: [], assignee: [] };
-
 interface IncidentColumnsInput {
-  options: IncidentColumnOptions;
+  /** The facets; `null` while loading (the funnels are pending). */
+  options: IncidentColumnOptions | null;
   deviceScoped: boolean;
   statusLocked: boolean;
   renderRowActions: (row: IncidentRow) => ReactNode;
@@ -166,7 +171,7 @@ function incidentColumns({
     ),
     enableSorting: false,
     filterFn: multiSelectFilterFn,
-    meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: { options: options.customer } }),
+    meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: facetFilter(options?.customer) }),
   };
   return [
     {
@@ -190,7 +195,7 @@ function incidentColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: { options: options.type } }),
+      meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: facetFilter(options?.type) }),
     },
     ...(deviceScoped ? [] : [deviceColumn]),
     {
@@ -205,7 +210,7 @@ function incidentColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: { options: options.severity } }),
+      meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: facetFilter(options?.severity) }),
     },
     {
       accessorKey: 'status',
@@ -222,7 +227,7 @@ function incidentColumns({
       filterFn: multiSelectFilterFn,
       meta: statusLocked
         ? liveColumnMeta(INCIDENT_COLUMNS.status)
-        : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: { options: options.status } }),
+        : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: facetFilter(options?.status) }),
     },
     {
       id: INCIDENT_COLUMNS.assignee.id,
@@ -238,7 +243,7 @@ function incidentColumns({
       // Rightmost filterable column: anchor the dropdown to the right edge so it
       // never flips placement (start↔end) on open/close.
       meta: liveColumnMeta(INCIDENT_COLUMNS.assignee, {
-        filter: { options: options.assignee, placement: 'bottom-end' },
+        filter: { ...facetFilter(options?.assignee), placement: 'bottom-end' },
       }),
     },
     {
@@ -599,49 +604,6 @@ function IncidentsTableContent({
 }
 
 // ----------------------------------------------------------------
-// The table before its first answer
-// ----------------------------------------------------------------
-
-const NO_ROWS: IncidentTableRow[] = [];
-const noRowActions = () => null;
-
-interface IncidentsTableLoadingProps {
-  deviceScoped: boolean;
-  statuses: readonly InsightStatus[];
-  stickyHeaderOffset: string;
-}
-
-/**
- * The live table with no rows yet: the same columns and header, its body and row count drawing their own skeletons
- * in the loading scope it is rendered in (the Suspense fallback, or a page still waiting on its flag).
- */
-function IncidentsTableLoading({ deviceScoped, statuses, stickyHeaderOffset }: IncidentsTableLoadingProps) {
-  const columns = incidentColumns({
-    options: NO_COLUMN_OPTIONS,
-    deviceScoped,
-    statusLocked: statuses.length === 1,
-    renderRowActions: noRowActions,
-  });
-  const table = useDataTable<IncidentTableRow>({
-    data: NO_ROWS,
-    columns,
-    getRowId: (row: IncidentTableRow) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header
-        stickyHeader
-        stickyHeaderOffset={stickyHeaderOffset}
-        rightSlot={<DataTable.RowCount totalCount={undefined} />}
-      />
-      <DataTable.Body skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
-
-// ----------------------------------------------------------------
 // Shared list + outer shells (URL state, layout)
 // ----------------------------------------------------------------
 
@@ -695,8 +657,18 @@ function IncidentsList({
   const deviceScoped = machineId !== undefined;
   // In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty.
   const scoped = useLoadingScope();
+  // The live table with no rows yet (funnels pending, no row to act on): its body and row count draw themselves.
   const loadingTable = (
-    <IncidentsTableLoading deviceScoped={deviceScoped} statuses={statuses} stickyHeaderOffset={stickyHeaderOffset} />
+    <EmptyLiveTable
+      columns={incidentColumns({
+        options: null,
+        deviceScoped,
+        statusLocked: statuses.length === 1,
+        renderRowActions: () => null,
+      })}
+      pageSize={PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 
   // URL params are untyped strings — keep only real enum members (and, for
@@ -755,6 +727,7 @@ function IncidentsList({
           className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex gap-[var(--spacing-system-xs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
         >
           <Input
+            userValue
             placeholder="Search for Incidents"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}

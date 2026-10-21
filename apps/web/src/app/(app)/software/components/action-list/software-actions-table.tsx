@@ -20,7 +20,7 @@ import type {
   SoftwareActionFilterInput,
   softwareActionsTableQuery as SoftwareActionsTableQueryType,
 } from '@/__generated__/softwareActionsTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -160,9 +160,6 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
 
 const getRowId = (row: SoftwareActionRow) => row.id;
 
-const NO_ROWS: readonly SoftwareActionRow[] = [];
-const noop = () => {};
-
 interface SoftwareActionsTableProps {
   /** Deferred funnel selection — feeds the query (lags the live funnels during a refetch). */
   backendFilters: SoftwareActionFilterInput | null;
@@ -189,12 +186,10 @@ export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
     return (
       <SoftwareActionsRows
         {...props}
-        rows={NO_ROWS}
+        rows={[]}
         totalCount={0}
         filterOptions={NO_FILTER_OPTIONS}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
+        infiniteScroll={NO_NEXT_PAGE}
       />
     );
   }
@@ -232,9 +227,7 @@ function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
       rows={rows}
       totalCount={totalCount}
       filterOptions={filterOptions}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
 }
@@ -243,9 +236,7 @@ interface SoftwareActionsRowsProps extends SoftwareActionsTableProps {
   rows: readonly SoftwareActionRow[];
   totalCount: number;
   filterOptions: SoftwareActionFilterOptions;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -253,9 +244,7 @@ function SoftwareActionsRows({
   rows,
   totalCount,
   filterOptions,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   backendFilters,
   debouncedSearch,
   selections,
@@ -315,14 +304,7 @@ function SoftwareActionsRows({
           rowHref={detailsHref}
         />
         {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={onLoadMore}
-            skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE}
-          />
-        )}
+        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE} />}
       </DataTable>
     </div>
   );

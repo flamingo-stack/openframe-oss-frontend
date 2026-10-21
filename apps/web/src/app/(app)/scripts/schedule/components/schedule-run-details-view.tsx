@@ -1,15 +1,9 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type PageActionButton,
-  SquareAvatar,
-  TagSkeleton,
-  TruncateText,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -17,8 +11,7 @@ import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
@@ -26,8 +19,6 @@ import {
 } from '@/graphql/scripts/schedule-executions-relay';
 import { scheduleRunDetailRelayQuery } from '@/graphql/scripts/schedule-run-detail-relay';
 import { formatDateTime } from '@/lib/format-date';
-import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import {
   EXECUTIONS_PAGE_SIZE,
@@ -39,12 +30,9 @@ import {
   type UiExecution,
   useExecutionFacetOptions,
 } from '../../shared/components/executions-table';
-import {
-  executionStatusLabel,
-  executionStatusVariant,
-  initiatorInitials,
-  initiatorName,
-} from '../../shared/utils/execution-helpers';
+import { InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
+import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
+import { DIVIDED_CELL_CLASS, INFO_BAR_CELL_CLASS } from './schedule-info-bar';
 
 interface ScheduleRunDetailsViewProps {
   /** `ScheduleRun` global id — see `routes.scripts.schedules.run`. */
@@ -66,22 +54,10 @@ const EXECUTIONS_EMPTY_STATE = {
 // Info bar
 // ----------------------------------------------------------------
 
-/** A value-over-label cell, matching the schedule's own info bar (80px on md+). */
-function RunInfoCell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div
-      className={`flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0 ${className ?? ''}`}
-    >
-      {children}
-      <span className="text-ods-text-secondary text-h6">{label}</span>
-    </div>
-  );
-}
-
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
-/** The top row's cells that sit over another cell on a phone (two columns), divided from it. */
-const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
+/** A cell of the run's bar: the schedule's own info bar cell (80px on md+), so the two bars match. */
+const runCell = (className?: string) => cn(INFO_BAR_CELL_CLASS, className);
 
 /**
  * The run's info bar. Without the run (or in a loading scope) it draws itself: the same cells and labels, every
@@ -89,18 +65,13 @@ const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
  */
 function RunInfoBar({ run }: { run?: RunNode }) {
   const loading = useLoadingScope() || !run;
-  const initiator = run && 'initiator' in run ? run.initiator : null;
+  const initiator = toInitiator(run && 'initiator' in run ? run.initiator : null);
   const status = run && 'status' in run ? run.status : null;
   const dispatchedAt = run && 'dispatchedAt' in run ? run.dispatchedAt : null;
   const finishedAt = run && 'finishedAt' in run ? run.finishedAt : null;
   const responded = run && 'respondedMachineCount' in run ? run.respondedMachineCount : 0;
   const total = run && 'totalMachineCount' in run ? run.totalMachineCount : 0;
-
-  // The initiator id is a User global id; the REST-backed employee page wants the
-  // raw one (same decode the execution-details page does).
-  const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
-  const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = isDeletedUserStatus(initiator?.status);
+  const executedBy = <InitiatorIdentity initiator={initiator} size="sm" loading={loading} />;
 
   return (
     <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
@@ -108,79 +79,34 @@ function RunInfoBar({ run }: { run?: RunNode }) {
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
             held — so the honest equivalent is how many devices answered it. */}
-        <RunInfoCell label="Devices Responded" className={DIVIDED_CELL_CLASS}>
-          {loading ? (
-            <TextLineSkeleton type="h4" className="w-20 max-w-full" />
-          ) : (
-            <span className="truncate text-ods-text-primary text-h4">
-              {responded} / {total}
-            </span>
-          )}
-        </RunInfoCell>
-        <RunInfoCell label="Executed by" className={DIVIDED_CELL_CLASS}>
-          <div className="flex min-w-0 items-center gap-2">
-            {/* The avatar draws its own skeleton in the loading scope. */}
-            {isDeleted ? (
-              <DeletedUserAvatar size="sm" />
-            ) : (
-              <SquareAvatar
-                variant="round"
-                size="sm"
-                src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
-                fallback={initiatorInitials(initiator)}
-                alt={initiatorName(initiator)}
-                initialsClassName="text-ods-text-secondary"
-              />
-            )}
-            {loading ? (
-              <div className="min-w-0 flex-1">
-                <TextLineSkeleton type="h4" className="w-24 max-w-full" />
-              </div>
-            ) : initiatorHref ? (
-              <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                <TruncateText
-                  className={cn(
-                    'underline',
-                    isDeleted ? 'text-ods-error' : 'text-ods-accent hover:text-ods-accent-hover',
-                  )}
-                >
-                  {initiatorName(initiator)}
-                </TruncateText>
-              </a>
-            ) : (
-              <div className="min-w-0 flex-1">
-                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                  {initiatorName(initiator)}
-                </TruncateText>
-              </div>
-            )}
-          </div>
-        </RunInfoCell>
-        <RunInfoCell label="Status">
-          {loading ? (
-            <TagSkeleton />
-          ) : (
-            <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />
-          )}
-        </RunInfoCell>
+        <InfoCell
+          label="Devices Responded"
+          value={`${responded} / ${total}`}
+          loading={loading}
+          skeletonWidth="w-20"
+          className={runCell(DIVIDED_CELL_CLASS)}
+        />
+        <InfoCell
+          label="Executed by"
+          value={executedBy}
+          valueSkeleton={executedBy}
+          loading={loading}
+          className={runCell(DIVIDED_CELL_CLASS)}
+        />
+        <InfoCell
+          label="Status"
+          value={<Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />}
+          // A tag with no label yet: it draws its own skeleton in the loading scope.
+          valueSkeleton={<Tag label="" />}
+          loading={loading}
+          className={runCell()}
+        />
         {/* The design's fourth slot is an empty spacer, not a cell. */}
         <div className="hidden content-md:block" />
       </div>
       <div className="grid grid-cols-2">
-        <RunInfoCell label="Start Time">
-          {loading ? (
-            <TextLineSkeleton type="h4" className="w-32 max-w-full" />
-          ) : (
-            <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
-          )}
-        </RunInfoCell>
-        <RunInfoCell label="Finish Time">
-          {loading ? (
-            <TextLineSkeleton type="h4" className="w-32 max-w-full" />
-          ) : (
-            <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
-          )}
-        </RunInfoCell>
+        <InfoCell label="Start Time" value={formatDateTime(dispatchedAt)} loading={loading} className={runCell()} />
+        <InfoCell label="Finish Time" value={formatDateTime(finishedAt)} loading={loading} className={runCell()} />
       </div>
     </div>
   );

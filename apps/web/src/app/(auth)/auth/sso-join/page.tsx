@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { SsoJoinCard } from '@/app/(auth)/auth/components/sso-join-card';
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
+import { noop } from '@/app/components/shared/no-next-page';
 import { isMobileAuthLoginOnly } from '@/lib/app-mode';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/legal-urls';
@@ -39,8 +40,6 @@ import { routes } from '@/lib/routes';
  * with a reason; the BFF checks it against its allow-list and 302s into the app. The page never
  * navigates to the address itself.
  */
-const noop = () => {};
-
 export default function SsoJoinPage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the card, in a loading scope, stands in.

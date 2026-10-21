@@ -1,15 +1,10 @@
 'use client';
 
-import {
-  OSTypeBadgeGroup,
-  TextLineSkeleton,
-  UnifiedSkeleton,
-} from '@flamingo-stack/openframe-frontend-core/components';
+import { MediaSkeleton, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
-import { ValueText } from '@/app/components/shared/value-text';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
 import { DEVICE_LOCAL_TIME_NOTE } from '../utils/schedule-timing';
@@ -50,47 +45,20 @@ interface ScheduleInfoBarFromDataProps {
   timeReference?: ScheduleTimeReference | string | null;
 }
 
-/** One value/label cell, 80px tall from `md` up — the row height the design fixes. */
-const CELL_CLASS =
-  'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
+/** One value/label cell, 80px tall from `md` up — the row height the design fixes. The run's own bar shares it. */
+export const INFO_BAR_CELL_CLASS =
+  'px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
 
 /** A top-row cell stacked over another on a phone (two columns), divided from it. */
-const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
+export const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
 
 /** The platform icons' size, shared by the loaded icons and their loading placeholder. */
 const PLATFORM_ICON_CLASS = 'w-5 h-5';
 
 /**
- * One value-over-label cell. While loading, its value is `skeleton` (a text bar on the value's `text-h4` line by
- * default); the label is static copy and stays real.
- */
-function InfoBarCell({
-  label,
-  loading,
-  skeleton,
-  skeletonWidth = 'w-24',
-  className,
-  children,
-}: {
-  label: string;
-  loading: boolean;
-  skeleton?: ReactNode;
-  skeletonWidth?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn(CELL_CLASS, className)}>
-      {loading ? (skeleton ?? <TextLineSkeleton type="h4" className={cn('max-w-full', skeletonWidth)} />) : children}
-      <span className="text-ods-text-secondary text-h6">{label}</span>
-    </div>
-  );
-}
-
-/**
  * The schedule's info bar. In a loading scope it draws itself: the name row when the page shows one (`name` given,
- * `''` while loading), the date-time timing row and the trailing row (every schedule has an author and an offline
- * behavior, so the loaded bar is two storeys tall in practice), every value a bar and every label real.
+ * `''` while loading), the timing row, and the trailing row when the page passes its values (`''` while loading),
+ * every value a bar and every label real.
  */
 export function ScheduleInfoBarFromData({
   name,
@@ -107,54 +75,44 @@ export function ScheduleInfoBarFromData({
   const loading = useLoadingScope();
   const isEventDriven = !loading && trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
   const timeLabel = !loading && isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
-  const showName = loading ? name !== undefined : !!name;
-  const showOffline = loading || !!ifDeviceOffline;
-  const showAddedBy = loading || !!addedBy;
+  // While loading a row is drawn when the page passes its values (as `''`); once loaded, when they are set.
+  const shows = (value: string | undefined) => (loading ? value !== undefined : !!value);
+  const showName = shows(name);
+  const showOffline = shows(ifDeviceOffline);
+  const showAddedBy = shows(addedBy);
+  const cell = (className?: string) => cn(INFO_BAR_CELL_CLASS, className);
 
   return (
     <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
       {showName && (
         <div className="grid grid-cols-2 border-b border-ods-border">
-          <InfoBarCell label="Schedule Name" loading={loading} skeletonWidth="w-32">
-            <TruncateText>{name ?? ''}</TruncateText>
-          </InfoBarCell>
-          <InfoBarCell label="Note" loading={loading}>
-            <ValueText value={note} />
-          </InfoBarCell>
+          <InfoCell label="Schedule Name" value={name} className={cell()} />
+          <InfoCell label="Note" value={note} skeletonWidth="w-24" className={cell()} />
         </div>
       )}
       <div
         className={cn(
           'grid grid-cols-2',
           isEventDriven ? 'content-md:grid-cols-2' : 'content-md:grid-cols-4',
-          showAddedBy && 'border-b border-ods-border',
+          (showOffline || showAddedBy) && 'border-b border-ods-border',
         )}
       >
         {isEventDriven ? (
-          <InfoBarCell label="Trigger" loading={false}>
-            <span className="truncate text-ods-text-primary text-h4">Device Online</span>
-          </InfoBarCell>
+          <InfoCell label="Trigger" value="Device Online" className={cell()} />
         ) : (
           <>
-            <InfoBarCell label="Date" loading={loading} className={DIVIDED_CELL_CLASS}>
-              <TruncateText>{date}</TruncateText>
-            </InfoBarCell>
-            <InfoBarCell label={timeLabel} loading={loading} skeletonWidth="w-20" className={DIVIDED_CELL_CLASS}>
-              <TruncateText>{time}</TruncateText>
-            </InfoBarCell>
-            <InfoBarCell label="Repeat" loading={loading} skeletonWidth="w-16">
-              <TruncateText>{repeat}</TruncateText>
-            </InfoBarCell>
+            <InfoCell label="Date" value={date} skeletonWidth="w-24" className={cell(DIVIDED_CELL_CLASS)} />
+            <InfoCell label={timeLabel} value={time} skeletonWidth="w-20" className={cell(DIVIDED_CELL_CLASS)} />
+            <InfoCell label="Repeat" value={repeat} skeletonWidth="w-16" className={cell()} />
           </>
         )}
-        <InfoBarCell
+        <InfoCell
           label="Supported Platform"
-          loading={loading}
+          value={<OSTypeBadgeGroup osTypes={platforms} iconSize={PLATFORM_ICON_CLASS} />}
           // One platform icon's box: the icons are drawn at this size once read.
-          skeleton={<UnifiedSkeleton className={cn('rounded', PLATFORM_ICON_CLASS)} />}
-        >
-          <OSTypeBadgeGroup osTypes={platforms} iconSize={PLATFORM_ICON_CLASS} />
-        </InfoBarCell>
+          valueSkeleton={<MediaSkeleton.Icon className={PLATFORM_ICON_CLASS} />}
+          className={cell()}
+        />
       </div>
       {/* A row of its own, not extra cells in the grid above — the design keeps
           the offline rule and authorship on a separate line from the timing,
@@ -162,20 +120,14 @@ export function ScheduleInfoBarFromData({
       {(showOffline || showAddedBy) && (
         <div className="grid grid-cols-1 content-md:grid-cols-2">
           {showOffline && (
-            <InfoBarCell
+            <InfoCell
               label="If Device Offline"
-              loading={loading}
+              value={ifDeviceOffline}
               skeletonWidth="w-28"
-              className={showAddedBy ? DIVIDED_CELL_CLASS : undefined}
-            >
-              <TruncateText>{ifDeviceOffline ?? ''}</TruncateText>
-            </InfoBarCell>
+              className={cell(showAddedBy ? DIVIDED_CELL_CLASS : undefined)}
+            />
           )}
-          {showAddedBy && (
-            <InfoBarCell label="Added by" loading={loading}>
-              <TruncateText>{addedBy ?? ''}</TruncateText>
-            </InfoBarCell>
-          )}
+          {showAddedBy && <InfoCell label="Added by" value={addedBy} skeletonWidth="w-24" className={cell()} />}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import { Hierarchy02Icon } from '@flamingo-stack/openframe-frontend-core/compone
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { Device } from '../../types/device.types';
+import { EMPTY_CARD, labelsOf } from './info-card-loading';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface NetworkTabProps {
@@ -40,13 +41,8 @@ function Labeled({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A card with no rows: in the page's loading scope it draws its skeleton (the `skeleton` shape each section states). */
-const EMPTY_CARD = { items: [] };
 /** IP rows a card draws while the device is read: a typical device's addresses (the list has no limit). */
 const TYPICAL_IP_ROWS = 2;
-
-/** A card's row labels, drawn real while the device is read. */
-const labelsOf = (rows: InfoRow[]) => rows.map(row => row.label);
 
 export function NetworkTab({ device }: NetworkTabProps) {
   const loading = useLoadingScope();

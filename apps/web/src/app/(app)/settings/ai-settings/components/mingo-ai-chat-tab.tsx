@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
 import { getProviderModelLabel, useSupportedModels } from '../hooks/use-supported-models';
-import type { AgentAiConfig, AgentAiConfigInput } from '../types/ai-settings';
+import type { AgentAiConfig, AgentAiConfigInput, AiQuickAction } from '../types/ai-settings';
 import {
   getMingoAiChatDefaults,
   MINGO_AI_CHAT_FORM_ID,
@@ -28,21 +28,41 @@ interface MingoAiChatTabProps {
   onSubmit: (input: AgentAiConfigInput) => void;
 }
 
-/** The read-only tab while the configuration loads, each part drawing its own skeleton in the scope. */
-function MingoAiChatTabSkeleton() {
+/**
+ * The read-only tab: the summary card and the quick actions. With no configuration (the loading form) every part
+ * draws its own loading state in the scope.
+ */
+function MingoAiChatOverview({
+  aiConfig,
+  providerModelLabel,
+  actions,
+}: {
+  aiConfig?: AgentAiConfig;
+  providerModelLabel?: string;
+  actions?: AiQuickAction[];
+}) {
   return (
-    <LoadingWhen loading>
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <AiSettingsAdminCard />
-        <AiSettingsQuickActionsSection title="Mingo Quick Actions" agentConfig={MINGO_QUICK_ACTIONS_CONFIG} />
-      </div>
-    </LoadingWhen>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <AiSettingsAdminCard aiConfig={aiConfig} providerModelLabel={providerModelLabel} />
+      <AiSettingsQuickActionsSection
+        title="Mingo Quick Actions"
+        actions={actions}
+        isDefault={aiConfig?.quickActionsIsDefault}
+        agentConfig={MINGO_QUICK_ACTIONS_CONFIG}
+      />
+    </div>
   );
 }
 
 export function MingoAiChatTab({ aiConfig, ...props }: MingoAiChatTabProps) {
   // The form below is seeded once from the configuration, so it mounts only when that is in hand.
-  if (useLoadingScope() || aiConfig == null) return <MingoAiChatTabSkeleton />;
+  if (useLoadingScope() || aiConfig == null) {
+    return (
+      <LoadingWhen loading>
+        <MingoAiChatOverview />
+      </LoadingWhen>
+    );
+  }
   return <MingoAiChatTabContent aiConfig={aiConfig} {...props} />;
 }
 
@@ -66,15 +86,11 @@ function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTa
   if (!isEditMode) {
     const modelLabel = getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel);
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <AiSettingsAdminCard aiConfig={aiConfig} providerModelLabel={modelLabel} />
-        <AiSettingsQuickActionsSection
-          title="Mingo Quick Actions"
-          actions={aiConfig.quickActionsIsDefault ? hubDefaults.actions : aiConfig.quickActions}
-          isDefault={aiConfig.quickActionsIsDefault}
-          agentConfig={MINGO_QUICK_ACTIONS_CONFIG}
-        />
-      </div>
+      <MingoAiChatOverview
+        aiConfig={aiConfig}
+        providerModelLabel={modelLabel}
+        actions={aiConfig.quickActionsIsDefault ? hubDefaults.actions : aiConfig.quickActions}
+      />
     );
   }
 

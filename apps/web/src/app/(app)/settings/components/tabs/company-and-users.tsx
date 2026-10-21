@@ -329,6 +329,7 @@ export function CompanyAndUsersTab() {
           className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] bg-ods-bg p-[var(--spacing-system-l)]"
         >
           <Input
+            userValue
             placeholder="Search for Users"
             value={localSearch}
             onChange={e => setLocalSearch(e.target.value)}

@@ -2,6 +2,7 @@
 
 import { DashboardInfoCard, EntityImage, TitleBlock, TruncateText } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { IdCardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyState } from '@/app/components/shared';
@@ -10,6 +11,7 @@ import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useCustomersOverview } from '../hooks/use-customers-overview';
+import { DEVICE_STATUS_CARD } from './devices-overview';
 
 /** How many customers the section lists: the request's limit, so the skeleton draws the same count. */
 const CUSTOMERS_OVERVIEW_LIMIT = 10;
@@ -21,33 +23,31 @@ const CUSTOMER_ROW_CLASS = 'grid grid-cols-2 items-stretch gap-[var(--spacing-sy
 const CUSTOMER_CARD_CLASS = 'col-span-2 [&>div:first-child>span]:size-full';
 const CUSTOMER_VALUE_CLASS = 'text-ods-text-secondary text-h6 content-md:text-h6';
 
-/** The two device cards of a row: their static titles, and how a loaded row fills them. */
-const DEVICE_CARDS = [
-  { key: 'online', title: 'Online Devices', variant: 'success', status: 'ONLINE' },
-  { key: 'offline', title: 'Offline Devices', variant: 'error', status: 'OFFLINE' },
-] as const;
+/** The two device statuses a row counts, in order (titles and colours from the devices overview's one definition). */
+const ROW_DEVICE_STATUSES = [DEVICE_STATUS.ONLINE, DEVICE_STATUS.OFFLINE] as const;
 
 type CustomerRow = CustomersOverviewData['rows'][number];
 
 /** A row's device cards over the customer it is handed; `null` while the customers are read (the cards' figures are bars). */
 function DeviceCards({ org }: { org: CustomerRow | null }) {
-  return DEVICE_CARDS.map(card => {
-    const count = org ? (card.key === 'online' ? org.active : org.inactive) : 0;
+  return ROW_DEVICE_STATUSES.map(status => {
+    const online = status === DEVICE_STATUS.ONLINE;
+    const count = org ? (online ? org.active : org.inactive) : 0;
     return (
       <DashboardInfoCard
-        key={card.key}
+        key={status}
         loading={!org}
-        title={card.title}
+        title={DEVICE_STATUS_CARD[status].title}
         value={count}
-        percentage={org ? (card.key === 'online' ? org.activePct : org.inactivePct) : undefined}
+        percentage={org ? (online ? org.activePct : org.inactivePct) : undefined}
         showProgress
         loadingShowsPercentage
-        progressVariant={card.variant}
+        progressVariant={DEVICE_STATUS_CARD[status].progressVariant}
         percentageDisplay="plain"
         href={
           org
             ? count > 0
-              ? `/devices?organizationIds=${org.organizationId}&statuses=${card.status}`
+              ? `/devices?organizationIds=${org.organizationId}&statuses=${status}`
               : `/devices?organizationIds=${org.organizationId}`
             : undefined
         }

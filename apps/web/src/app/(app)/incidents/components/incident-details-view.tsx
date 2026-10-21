@@ -52,15 +52,39 @@ interface IncidentHeaderViewProps {
   transitions?: IncidentTransitionTable;
 }
 
-/** The header over a record, or (without one, or in a loading scope) its own skeleton. */
+/** Three label-width placeholders: the header settles into Fix with Mingo, Create Ticket and the status button. */
+const LOADING_ACTIONS: PageActionButton[] = [
+  { label: 'Fix with Mingo' },
+  { label: 'Create Ticket' },
+  { label: 'Resolve' },
+];
+
+/**
+ * The header over a record. Without one (or in a loading scope) the same header draws itself: the static title and
+ * back button real, the record's actions as placeholders. The loaded actions read the record's chat (a suspending
+ * query), so they live in their own component under the same title block.
+ */
 function IncidentHeaderView({ incident, transitions }: IncidentHeaderViewProps) {
   const loading = useLoadingScope() || !incident || !transitions;
-  if (loading) return <IncidentHeaderSkeleton />;
+  if (loading) return <IncidentTitleBlock actions={LOADING_ACTIONS} loading />;
   return <IncidentHeaderLoaded incident={incident} transitions={transitions} />;
 }
 
-function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeaderViewProps>) {
+/** The page's title block, loaded or loading: the static title, Back to the list, the actions given. */
+function IncidentTitleBlock({ actions, loading = false }: { actions: PageActionButton[]; loading?: boolean }) {
   const handleBack = useSafeBack(routes.incidents.list);
+  return (
+    <TitleBlock
+      title="Incident Details"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={actions}
+      loadingActions={loading}
+      actionsVariant="icon-buttons"
+    />
+  );
+}
+
+function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeaderViewProps>) {
   const mingoControls = useFixWithMingo();
   // One Mingo button: reopen the chat already started from this incident, or start one.
   const mingoSession = useLatestIncidentDialog(incident.insightId);
@@ -116,12 +140,7 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
 
   return (
     <>
-      <TitleBlock
-        title="Incident Details"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={actions}
-        actionsVariant="icon-buttons"
-      />
+      <IncidentTitleBlock actions={actions} />
       <SnoozeIncidentModal
         key={snoozeTarget?.id ?? 'closed'}
         open={snoozeTarget !== null}
@@ -143,27 +162,6 @@ function IncidentSummary({ incidentId }: IncidentDetailsViewProps) {
 function IncidentEvidence({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentQueryResults incident={incident} />;
-}
-
-/** Three label-width placeholders: the header settles into Fix with Mingo, Create Ticket and the status button. */
-const LOADING_ACTIONS: PageActionButton[] = [
-  { label: 'Fix with Mingo' },
-  { label: 'Create Ticket' },
-  { label: 'Resolve' },
-];
-
-/** The header's own loading state: the static title and back button, the record's actions as placeholders. */
-function IncidentHeaderSkeleton() {
-  const handleBack = useSafeBack(routes.incidents.list);
-  return (
-    <TitleBlock
-      title="Incident Details"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      loadingActions
-      actionsVariant="icon-buttons"
-    />
-  );
 }
 
 /** `PageLayout`'s two boxes, composed by hand so each island can wait on its own. */
@@ -212,7 +210,9 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
       }
       body={
         // Notes sit between the card and the evidence but fetch on their own:
-        // they need only the id, so they do not wait behind the record.
+        // they need only the id, so they do not wait behind the record. The
+        // assigned tickets come last: most incidents have none, so the section
+        // appears with its rows below everything the page always shows.
         <>
           <Suspense
             fallback={
@@ -224,7 +224,6 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
             <IncidentSummary incidentId={incidentId} />
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
-          <IncidentAssignedTickets incidentId={incidentId} />
           <Suspense
             fallback={
               <LoadingFallback label="Loading query results">
@@ -234,6 +233,7 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
           >
             <IncidentEvidence incidentId={incidentId} />
           </Suspense>
+          <IncidentAssignedTickets incidentId={incidentId} />
         </>
       }
     />

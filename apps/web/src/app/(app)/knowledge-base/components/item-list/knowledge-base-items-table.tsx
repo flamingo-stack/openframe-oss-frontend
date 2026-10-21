@@ -25,7 +25,7 @@ import type {
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { EmptyState, type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -148,10 +148,7 @@ interface KnowledgeBaseItemsTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: readonly ItemRow[] = [];
 const NO_LISTING_IDS: readonly string[] = [];
-const noop = () => {};
-
 /**
  * The rows of a knowledge base level. In a loading scope (the view's Suspense fallback) it draws the table with no
  * rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under the
@@ -162,12 +159,10 @@ export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
     return (
       <KnowledgeBaseItemsRows
         {...props}
-        rows={NO_ROWS}
+        rows={[]}
         totalCount={0}
         listingIds={NO_LISTING_IDS}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
+        infiniteScroll={NO_NEXT_PAGE}
       />
     );
   }
@@ -224,9 +219,7 @@ function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
       rows={rows}
       totalCount={items.filteredCount}
       listingIds={[items.__id]}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
 }
@@ -236,9 +229,7 @@ interface KnowledgeBaseItemsRowsProps extends KnowledgeBaseItemsTableProps {
   totalCount: number;
   /** The connections a row's dialog marks stale. */
   listingIds: readonly string[];
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -246,9 +237,7 @@ function KnowledgeBaseItemsRows({
   rows,
   totalCount,
   listingIds,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   listing,
   isPending,
   onEmptyChange,
@@ -302,12 +291,7 @@ function KnowledgeBaseItemsRows({
               rowHref={rowHref}
             />
             {rows.length > 0 && (
-              <DataTable.InfiniteFooter
-                hasNextPage={hasNext}
-                isFetchingNextPage={isLoadingNext}
-                onLoadMore={onLoadMore}
-                skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-              />
+              <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />
             )}
           </DataTable>
         </div>

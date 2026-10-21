@@ -46,7 +46,9 @@ function VideoDisplaySection(props: VideoDisplaySectionProps) {
 // lib skips the section (it gates on `&& DeliverySection`). Renders the
 // completed + in-progress tables from the data `ReleaseDetailPage` fetches via
 // `deliveryApiEndpoint` (the base `/delivery?task_ids=` route → `{ completed,
-// inProgress }`).
+// inProgress }`). While it loads ONE table draws its skeleton: a published release
+// links completed work only (measured 2026-10-21 over all 23 releases: 22 with a
+// completed table, 0 with an in-progress one), so one table is the typical page.
 function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; isLoading: boolean }) {
   if (isLoading) return <DeliveryTable items={[]} isLoading />;
   if (!data) return null;

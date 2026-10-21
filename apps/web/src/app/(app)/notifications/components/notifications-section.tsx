@@ -80,6 +80,7 @@ export function NotificationsSection({
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Notification"
               value={searchValue}
               onChange={e => onSearchChange(e.target.value)}

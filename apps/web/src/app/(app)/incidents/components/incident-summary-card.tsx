@@ -1,14 +1,8 @@
 'use client';
 
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import {
-  EntityImage,
-  TagSkeleton,
-  TruncateText,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { EntityImage, Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -34,6 +28,9 @@ function Row({ children }: { children: ReactNode }) {
 function Cell({ children }: { children: ReactNode }) {
   return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
 }
+
+/** A tag cell's value before the incident is read: a tag with no label yet, drawn as its skeleton in the scope. */
+const TAG_LOADING = <Tag label="" />;
 
 /** The device-type icon's box, shared by the icon and its loading placeholder. */
 const DEVICE_ICON_CLASS = 'size-6';
@@ -80,7 +77,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
             loading={loading}
             icon={
               loading ? (
-                <UnifiedSkeleton className={cn('rounded', DEVICE_ICON_CLASS)} />
+                <MediaSkeleton.Icon className={DEVICE_ICON_CLASS} />
               ) : (
                 renderDeviceTypeIcon(incident.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)
               )
@@ -136,7 +133,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell
             loading={loading}
-            valueSkeleton={<TagSkeleton />}
+            valueSkeleton={TAG_LOADING}
             value={incident ? <IncidentSeverityTag severity={incident.severity} /> : null}
             label="Severity"
           />
@@ -158,7 +155,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell
             loading={loading}
-            valueSkeleton={<TagSkeleton />}
+            valueSkeleton={TAG_LOADING}
             value={incident ? <IncidentStatusTag status={incident.status} /> : null}
             label="Status"
           />

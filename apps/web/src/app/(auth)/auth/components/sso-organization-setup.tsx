@@ -1,6 +1,8 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CreateOrganizationForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useState } from 'react';
 import { DomainSuggestions } from '@/app/(auth)/auth/components/domain-suggestions';
@@ -37,6 +39,9 @@ interface SsoOrganizationSetupProps {
   onBack?: () => void;
 }
 
+/** The read subtitle's line while the identity is read ("Continuing as … via …"). */
+const SUBTITLE_SKELETON_CLASS = 'w-80 max-w-full';
+
 /**
  * Organization form for an SSO identity that authenticated successfully but has no account yet.
  *
@@ -44,6 +49,9 @@ interface SsoOrganizationSetupProps {
  * lives in the SAS session, and the native Apple sheet, where it lives in a single-use credential
  * held in memory. Both then collect exactly the same thing, differing only in how the submit
  * leaves: a top-level navigation for the session flow, a bridge call for the native one.
+ *
+ * In a loading scope (the identity is still read) the form draws itself with its static copy real, the subtitle a
+ * text bar and the submit held off; its fields draw their own loading form.
  */
 export function SsoOrganizationSetup({
   email,
@@ -54,6 +62,7 @@ export function SsoOrganizationSetup({
   onBack,
 }: SsoOrganizationSetupProps) {
   const { toast } = useToast();
+  const loading = useLoadingScope();
   const isSharedAuth = isSharedAuthUi();
 
   const [organizationName, setOrganizationName] = useState('');
@@ -85,7 +94,7 @@ export function SsoOrganizationSetup({
   return (
     <CreateOrganizationForm
       title="Finish setting up"
-      subtitle={subtitle}
+      subtitle={loading ? <TextLineSkeleton type="inherit" as="span" className={SUBTITLE_SKELETON_CLASS} /> : subtitle}
       email={email}
       emailReadOnly={email !== undefined}
       emailReadOnlyLabel={emailReadOnlyLabel}
@@ -98,7 +107,7 @@ export function SsoOrganizationSetup({
       onSubmit={handleSubmit}
       submitLabel="Create Organization"
       onBack={onBack}
-      submitDisabled={!isValid || busy}
+      submitDisabled={loading || !isValid || busy}
       loading={busy}
       domainSuffix={isSharedAuth ? `.${SAAS_DOMAIN_SUFFIX}` : undefined}
       termsUrl={TERMS_URL}

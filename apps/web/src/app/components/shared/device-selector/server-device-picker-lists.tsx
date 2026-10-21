@@ -4,7 +4,6 @@ import {
   type DeviceFilters,
   DeviceSelector,
   type DeviceSelectorNarrowing,
-  DeviceSelectorSkeleton,
   type SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -128,12 +127,12 @@ export function ServerDevicePickerLists({
     if (half.hasNext && !half.isLoadingNext) half.loadNext(DEVICE_PICKER_PAGE_SIZE);
   }, [half]);
 
-  if (loading) return <ServerDevicePickerSkeleton />;
-
   return (
     <DeviceSelector
       devices={isAvailable ? availableRows : selectedRows}
-      loading={false}
+      // While the halves are read the picker draws its own loading state: one picker page of rows.
+      loading={loading}
+      skeletonRows={DEVICE_PICKER_PAGE_SIZE}
       disabled={busy}
       showSelectionModeRadio={false}
       // Only meaningful on Available: every row on the Selected tab is assigned
@@ -168,13 +167,4 @@ export function ServerDevicePickerLists({
       }}
     />
   );
-}
-
-/**
- * The real picker in its loading state, so there is no separate skeleton to
- * drift: locked with `disabled`, which blocks every interaction and leaves the
- * picker's SHAPE alone — the Available / Selected tab strip included.
- */
-function ServerDevicePickerSkeleton() {
-  return <DeviceSelectorSkeleton showSelectionModeRadio={false} skeletonRows={DEVICE_PICKER_PAGE_SIZE} />;
 }

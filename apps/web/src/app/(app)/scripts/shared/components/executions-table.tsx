@@ -28,21 +28,18 @@ import {
   Input,
   type NoDataProps,
   type Row,
-  SquareAvatar,
-  TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
 import type { ScriptExecutionFilterInput, SortInput } from '@/__generated__/scriptExecutionsRelayQuery.graphql';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -54,11 +51,11 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { executionOutput, executionStatusLabel, initiatorInitials, initiatorName } from '../utils/execution-helpers';
-import { type FacetOption, facetToSortedOptions } from '../utils/facet-options';
+import { type FacetOption, facetFilter, facetToSortedOptions } from '../utils/facet-options';
+import { InitiatorAvatar, InitiatorName, rowInitiator } from './initiator-identity';
 
 /**
  * The Execution History table, shared by the per-SCRIPT tab
@@ -255,13 +252,6 @@ export interface ExecutionsTableProps {
   onEmptyChange?: (empty: boolean) => void;
 }
 
-/** No facets yet: the filter is pending, so the funnel is drawn (inert) instead of appearing with the data. */
-const PENDING_FILTER = { options: [] as FacetOption[], pending: true as const };
-
-function facetFilter(options: FacetOption[] | undefined) {
-  return options ? { options } : PENDING_FILTER;
-}
-
 /**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `facetOptions` (loading)
  * the filterable columns' funnels are pending and the Execution header's calendar is inert.
@@ -316,53 +306,14 @@ function executionColumns({
       // match the `initiatorIds` server filter; the cell still renders the name.
       accessorKey: 'initiatorId',
       header: 'Executed by',
-      // The initiator id is a User global id; decode it to the raw id the
-      // REST-backed employee page expects. When present, the avatar + name open
-      // that user's page in a new tab (accent + underline). `data-no-row-click`
-      // stops the row's own navigation (to the execution) so only the user opens.
+      // The avatar + name open that user's page in a new tab; only the NAME opts out of the row link (the rest of the
+      // cell still navigates to the execution, like every other cell).
       cell: ({ row }: { row: Row<UiExecution> }) => {
-        const rawInitiatorId = row.original.initiatorId
-          ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
-          : '';
-        const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-        const isDeleted = row.original.initiatorDeleted;
-
+        const initiator = rowInitiator(row.original);
         return (
           <ExecutionInitiatorCell
-            avatar={
-              isDeleted ? (
-                <DeletedUserAvatar size="md" />
-              ) : (
-                <SquareAvatar
-                  variant="round"
-                  size="md"
-                  src={row.original.initiatorImage}
-                  fallback={row.original.initiatorInitials}
-                  alt={row.original.initiatorName}
-                  initialsClassName="text-ods-text-secondary"
-                />
-              )
-            }
-            name={
-              href ? (
-                // Only the NAME opts out of the row link — the rest of the cell
-                // still navigates to the execution, like every other cell.
-                <button
-                  data-no-row-click
-                  type="button"
-                  onClick={openInNewTab(href)}
-                  className="pointer-events-auto min-w-0 text-left"
-                >
-                  <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-                    {row.original.initiatorName}
-                  </TruncateText>
-                </button>
-              ) : (
-                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                  {row.original.initiatorName}
-                </TruncateText>
-              )
-            }
+            avatar={<InitiatorAvatar initiator={initiator} size="md" />}
+            name={<InitiatorName initiator={initiator} inRow />}
             source={row.original.source}
             scriptName={row.original.scriptName}
           />
@@ -601,29 +552,8 @@ export function ExecutionsTable({
 // Loading state
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: UiExecution[] = [];
-const noRowActions = () => null;
-
-/**
- * The live table with no rows yet: the same columns and header, its body and row count drawing their own skeletons
- * in the loading scope it is rendered in.
- */
-function ExecutionsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string }) {
-  const columns = executionColumns({ facetOptions: null, dateFilter: null, renderRowActions: noRowActions });
-  const table = useDataTable<UiExecution>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiExecution) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-      <DataTable.Body skeletonRows={EXECUTIONS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
+/** The columns before the first answer: funnels pending, the calendar inert, no row to act on. */
+const LOADING_COLUMNS = executionColumns({ facetOptions: null, dateFilter: null, renderRowActions: () => null });
 
 // ----------------------------------------------------------------
 // Outer shell — URL filter state + Suspense boundary
@@ -815,6 +745,7 @@ export function ExecutionsTabShell({
         >
           <div className="flex-1">
             <Input
+              userValue
               placeholder={searchPlaceholder}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
@@ -834,7 +765,11 @@ export function ExecutionsTabShell({
       <Suspense
         fallback={
           <LoadingFallback label="Loading executions">
-            <ExecutionsLoading stickyHeaderOffset={stickyHeaderOffset} />
+            <EmptyLiveTable
+              columns={LOADING_COLUMNS}
+              pageSize={EXECUTIONS_PAGE_SIZE}
+              stickyHeaderOffset={stickyHeaderOffset}
+            />
           </LoadingFallback>
         }
       >

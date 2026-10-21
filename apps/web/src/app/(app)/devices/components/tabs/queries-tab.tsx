@@ -1,7 +1,7 @@
 'use client';
 
 import { BracketCurlyEllipsisVrIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useQueries } from '@/app/(app)/monitoring/hooks/use-queries';
@@ -13,16 +13,17 @@ import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
 /**
- * Rows drawn while the device's query reports are read. The reports come as one unpaged list: a typical device
- * carries a handful of scheduled queries.
+ * Rows drawn while the device's query reports are read. The reports come as one unpaged list with no limit: a typical
+ * device carries a handful of scheduled queries.
  */
-const QUERIES_TAB_SKELETON_ROWS = 10;
+const QUERIES_TAB_SKELETON_ROWS = 5;
 
 interface QueriesTabProps {
   device: Device | null;
 }
 
 export function QueriesTab({ device }: QueriesTabProps) {
+  const scopeLoading = useLoadingScope();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -54,7 +55,10 @@ export function QueriesTab({ device }: QueriesTabProps) {
       }));
   }, [hostReports, intervalById, search, router]);
 
-  if (!device) {
+  // The device itself (the page's scope) or its query reports are still being read.
+  const loading = scopeLoading || reportsLoading || queriesLoading;
+
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<BracketCurlyEllipsisVrIcon />}
@@ -66,7 +70,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
 
   // No queries assigned to this host at all → the centered design empty state
   // matching the other tabs; the in-table empty stays for searches.
-  if (!reportsLoading && !queriesLoading && hostReports.length === 0) {
+  if (!loading && hostReports.length === 0) {
     return (
       <TabEmptyState
         icon={<BracketCurlyEllipsisVrIcon />}
@@ -78,7 +82,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
 
   // Hide the search on a truly empty table (no rows, no active search, not loading) so the
   // tab shows only the centered empty state — matching the table's hidden header.
-  const showSearch = reportsLoading || queriesLoading || rows.length > 0 || search.trim().length > 0;
+  const showSearch = loading || rows.length > 0 || search.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
@@ -88,6 +92,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
+            userValue
             placeholder="Search for Query"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -99,7 +104,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
 
       <QueriesTable
         rows={rows}
-        isLoading={reportsLoading || queriesLoading}
+        isLoading={loading}
         skeletonRows={QUERIES_TAB_SKELETON_ROWS}
         rowAsLink
         stickyHeader

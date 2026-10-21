@@ -72,6 +72,7 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       <div className="flex items-center gap-[var(--spacing-system-m)]">
         <div className="flex-1">
           <Input
+            userValue
             startAdornment={<SearchIcon />}
             placeholder="Search for Invoice"
             value={search}

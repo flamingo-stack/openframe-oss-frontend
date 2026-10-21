@@ -154,6 +154,7 @@ export function Queries() {
             className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Queries"
               value={search}
               onChange={e => handleSearchChange(e.target.value)}

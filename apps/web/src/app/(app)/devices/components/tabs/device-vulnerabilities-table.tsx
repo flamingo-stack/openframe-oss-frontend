@@ -8,7 +8,7 @@ import type { deviceVulnerabilitiesTablePaginationQuery as DeviceVulnerabilities
 import type { deviceVulnerabilitiesTableQuery as DeviceVulnerabilitiesTableQueryType } from '@/__generated__/deviceVulnerabilitiesTableQuery.graphql';
 import { VULNERABILITY_LIST_PAGE_SIZE } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { VulnerabilityTable } from '@/app/(app)/software/components/vulnerability-list/vulnerability-table';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 
 /**
  * Device → Vulnerabilities: the CVEs present on this machine, one row per CVE —
@@ -60,7 +60,6 @@ interface DeviceVulnerabilitiesTableProps {
 }
 
 const NO_ROWS: never[] = [];
-const NO_NEXT_PAGE = { hasNextPage: false, isFetchingNextPage: false, onLoadMore: () => {} };
 
 /**
  * The Vulnerabilities tab's rows. In a loading scope (the device or the module's flag has not answered, or the Suspense

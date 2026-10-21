@@ -1,32 +1,18 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  EntityImage,
-  EntityImageSkeleton,
-  SquareAvatar,
-  SquareAvatarSkeleton,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, SquareAvatar, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { formatDate, formatDateTime } from '@/lib/format-date';
-import { routes } from '@/lib/routes';
 import type { RecordingDetail } from '../../types/session-recording';
+import { CustomerInfoCell } from '../customer-info-cell';
 import { formatBytes, formatDurationMs } from './format';
 import { keepReasonText } from './recording-keep';
 
-interface MetaCellProps {
-  label: string;
-  adornment?: ReactNode;
-  children: ReactNode;
-  /** Extra classes on the cell - the responsive row-divider logic lives here. */
-  className?: string;
-}
-
-function MetaCell({ label, adornment, children, className }: MetaCellProps) {
+/** One cell's frame: the row divider and padding of the card's grid. The cell inside is an `InfoCell`. */
+function MetaFrame({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <div
       className={cn(
@@ -36,11 +22,7 @@ function MetaCell({ label, adornment, children, className }: MetaCellProps) {
         className,
       )}
     >
-      {adornment}
-      <div className="flex min-w-0 flex-col justify-center">
-        <div className="truncate text-ods-text-primary text-h4">{children}</div>
-        <span className="truncate text-ods-text-secondary text-h6">{label}</span>
-      </div>
+      {children}
     </div>
   );
 }
@@ -58,89 +40,55 @@ const CARD_CLASS =
 
 /** The employee's avatar: a step of the shared avatar scale (`AVATAR_SIZE`), drawn and held at one size. */
 const EMPLOYEE_AVATAR_SIZE = 'sm';
-const CUSTOMER_LOGO_SIZE = 'size-10';
-const CUSTOMER_LOGO_CLASS = 'shrink-0 rounded-[4px] border border-ods-border';
 
 export function RecordingMetaCard({ recording }: { recording: RecordingDetail | null }) {
-  // The recording has not answered (the page's loading scope): the same cells with their real labels, each value a
-  // text bar and the logo and avatar their own placeholders.
-  const loading = useLoadingScope() || !recording;
-  const bar = <TextLineSkeleton type="h4" as="span" className="w-28" />;
-  const dash = <span className="text-ods-text-secondary">-</span>;
-  const value = (read: (recording: RecordingDetail) => ReactNode) => (recording && !loading ? read(recording) : bar);
+  // Until the recording answers (or in the page's loading scope) the card draws itself in a scope: the same cells with
+  // their real labels, each value, the logo and the avatar their own loading states.
+  const r = useLoadingScope() ? null : recording;
 
   return (
-    <div className={CARD_CLASS}>
-      <MetaCell label="Date">{value(r => formatDateTime(r.startedAt))}</MetaCell>
-      <MetaCell label="Resolution">{value(r => r.resolution ?? dash)}</MetaCell>
-      <MetaCell label="Duration">{value(r => (r.durationMs != null ? formatDurationMs(r.durationMs) : dash))}</MetaCell>
-      <MetaCell label="File size">{value(r => (r.sizeBytes != null ? formatBytes(r.sizeBytes) : dash))}</MetaCell>
-      <MetaCell label="Hostname" className="content-lg:border-b-0">
-        {value(r => r.hostname ?? dash)}
-      </MetaCell>
-      <MetaCell
-        label="Customer ID (Site)"
-        className="content-lg:border-b-0"
-        adornment={
-          recording && !loading ? (
-            <EntityImage
-              src={recording.organization.logoUrl}
-              alt={recording.organization.name}
-              sizeClassName={CUSTOMER_LOGO_SIZE}
-              className={CUSTOMER_LOGO_CLASS}
+    <LoadingWhen loading={!r}>
+      <div className={CARD_CLASS}>
+        <MetaFrame>
+          <InfoCell label="Date" value={r && formatDateTime(r.startedAt)} />
+        </MetaFrame>
+        <MetaFrame>
+          <InfoCell label="Resolution" value={r?.resolution} />
+        </MetaFrame>
+        <MetaFrame>
+          <InfoCell label="Duration" value={r?.durationMs != null ? formatDurationMs(r.durationMs) : null} />
+        </MetaFrame>
+        <MetaFrame>
+          <InfoCell label="File size" value={r?.sizeBytes != null ? formatBytes(r.sizeBytes) : null} />
+        </MetaFrame>
+        <MetaFrame className="content-lg:border-b-0">
+          <InfoCell label="Hostname" value={r?.hostname} />
+        </MetaFrame>
+        <MetaFrame className="content-lg:border-b-0">
+          <CustomerInfoCell customer={r?.organization ?? null} />
+        </MetaFrame>
+        <MetaFrame className="border-b-0">
+          <SquareAvatar
+            variant="round"
+            size={EMPLOYEE_AVATAR_SIZE}
+            src={r?.employee.avatarUrl}
+            alt={r?.employee.name ?? ''}
+            className="shrink-0"
+          />
+          <InfoCell label="Employee" value={r?.employee.name} />
+        </MetaFrame>
+        <MetaFrame className="border-b-0">
+          {r?.keep ? (
+            <InfoCell
+              label={`on ${formatDate(r.keep.keptAt)} for ${keepReasonText(r.keep)}`}
+              icon={<LockIcon className="h-4 w-4" />}
+              value={`Kept by ${r.keep.keptBy}`}
             />
           ) : (
-            <EntityImageSkeleton sizeClassName={CUSTOMER_LOGO_SIZE} className={CUSTOMER_LOGO_CLASS} />
-          )
-        }
-      >
-        {value(r =>
-          r.organization.id ? (
-            <Link
-              href={routes.customers.details(r.organization.id)}
-              className="text-ods-accent underline hover:text-ods-accent-hover"
-            >
-              {r.organization.name}
-            </Link>
-          ) : (
-            r.organization.name || dash
-          ),
-        )}
-      </MetaCell>
-      <MetaCell
-        label="Employee"
-        className="border-b-0"
-        adornment={
-          recording && !loading ? (
-            <SquareAvatar
-              variant="round"
-              size={EMPLOYEE_AVATAR_SIZE}
-              src={recording.employee.avatarUrl}
-              alt={recording.employee.name}
-              className="shrink-0"
-            />
-          ) : (
-            <SquareAvatarSkeleton variant="round" size={EMPLOYEE_AVATAR_SIZE} className="shrink-0" />
-          )
-        }
-      >
-        {value(r => r.employee.name)}
-      </MetaCell>
-      {recording && !loading && recording.keep ? (
-        <MetaCell
-          label={`on ${formatDate(recording.keep.keptAt)} for ${keepReasonText(recording.keep)}`}
-          className="border-b-0"
-        >
-          <span className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-            <LockIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">Kept by {recording.keep.keptBy}</span>
-          </span>
-        </MetaCell>
-      ) : (
-        <MetaCell label="Expires on" className="border-b-0">
-          {value(r => (r.expiresAt ? formatDate(r.expiresAt) : dash))}
-        </MetaCell>
-      )}
-    </div>
+            <InfoCell label="Expires on" value={r?.expiresAt ? formatDate(r.expiresAt) : null} />
+          )}
+        </MetaFrame>
+      </div>
+    </LoadingWhen>
   );
 }

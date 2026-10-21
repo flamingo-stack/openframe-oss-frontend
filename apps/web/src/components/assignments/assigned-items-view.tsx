@@ -22,7 +22,8 @@ export interface AssignedItemsViewProps {
 
 /**
  * The kind of assignment an item usually carries, drawn while its assignments are read and before it is known
- * which kinds it has: an incident's tickets, a ticket's devices, an article's customers.
+ * which kinds it has, and when it has none (its table's empty state): an incident's tickets, a ticket's devices,
+ * an article's customers.
  */
 const TYPICAL_TARGET_TYPE: Record<AssignmentItemType, ServerAssignmentTargetType> = {
   INSIGHT: 'TICKET',
@@ -33,7 +34,7 @@ const TYPICAL_TARGET_TYPE: Record<AssignmentItemType, ServerAssignmentTargetType
 export function AssignedItemsView({ itemId, itemType, className, showTitle = true }: AssignedItemsViewProps) {
   const inScope = useLoadingScope();
   const assigned = useAssignedItems({ itemId, itemType, enabled: !inScope });
-  const { value, customers, devices, articles, tickets } = assigned;
+  const { value, customers, devices, articles, tickets, loadingTypes } = assigned;
   const isLoading = inScope || assigned.isLoading;
 
   const activeTypes = useMemo(() => ASSIGNMENT_TARGET_TYPES.filter(type => (value[type]?.length ?? 0) > 0), [value]);
@@ -51,16 +52,21 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     [activeTypes],
   );
 
+  // Nothing is known yet: the section with the item's typical kind of assignment, its table drawing its own rows.
+  const pending = isLoading && activeTypes.length === 0;
+  /** A kind is drawn loading only while its own read is on its way (or while no kind is known yet). */
+  const kindLoading = (type: ServerAssignmentTargetType) => pending || inScope || !!loadingTypes[type];
+
   const renderTabBody = (type: ServerAssignmentTargetType) => {
     switch (type) {
       case 'ORGANIZATION':
-        return <CustomersAssignedTable customers={customers ?? []} isLoading={isLoading} />;
+        return <CustomersAssignedTable customers={customers ?? []} isLoading={kindLoading(type)} />;
       case 'DEVICE':
-        return <DevicesAssignedTable devices={devices ?? []} isLoading={isLoading} />;
+        return <DevicesAssignedTable devices={devices ?? []} isLoading={kindLoading(type)} />;
       case 'KNOWLEDGE_ARTICLE':
-        return <KnowledgeBaseAssignedTable articles={articles ?? []} isLoading={isLoading} />;
+        return <KnowledgeBaseAssignedTable articles={articles ?? []} isLoading={kindLoading(type)} />;
       case 'TICKET':
-        return <TicketsAssignedTable tickets={tickets ?? []} isLoading={isLoading} />;
+        return <TicketsAssignedTable tickets={tickets ?? []} isLoading={kindLoading(type)} />;
       default: {
         // `type` is `never` here because the cases above cover ServerAssignmentTargetType.
         // Adding a member to that union makes this assignment fail to compile, which
@@ -71,10 +77,9 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     }
   };
 
-  // Nothing is known yet: the section with the item's typical kind of assignment, its table drawing its own rows.
-  const pending = isLoading && activeTypes.length === 0;
-  const shownTypes = pending ? [TYPICAL_TARGET_TYPE[itemType]] : activeTypes;
-  if (shownTypes.length === 0) return null;
+  // With no assignments (or none known yet) the section keeps its frame over the item's typical kind, whose table
+  // draws its own loading or empty state: nothing vanishes when the read answers empty.
+  const shownTypes = activeTypes.length === 0 ? [TYPICAL_TARGET_TYPE[itemType]] : activeTypes;
 
   const body = (
     <>

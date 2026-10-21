@@ -4,25 +4,33 @@ import type { InfoCardData } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCard, ToolIcon } from '@flamingo-stack/openframe-frontend-core';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
+import { EMPTY_CARD, labelsOf } from '../../devices/components/tabs/info-card-loading';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface FullInformationSectionProps {
   logDetails?: LogEntry | null;
 }
 
-const NO_ITEMS: InfoCardData['items'] = [];
+/**
+ * The rows every log carries, in the card's order: their labels are drawn real while the log is read (`userId` and
+ * `deviceId` appear only on some logs, so the loading card leaves them out).
+ */
+const LOADING_ROWS = [
+  { label: 'toolEventId' },
+  { label: 'ingestDay' },
+  { label: 'toolType' },
+  { label: 'eventType' },
+  { label: 'severity' },
+  { label: 'timestamp' },
+];
+
+/** The card's loading shape: one row per label above, no title (the loaded card has none). */
+const LOADING_SKELETON = { rows: labelsOf(LOADING_ROWS), title: false };
 
 export function FullInformationSection({ logDetails }: FullInformationSectionProps) {
-  // In a loading scope the card has no rows yet: `InfoCard` draws its own skeleton under the real title.
-  if (useLoadingScope()) {
-    return (
-      <div className="flex w-full flex-col gap-3">
-        <div className="w-full text-ods-text-secondary text-h5">Full Information</div>
-        <InfoCard data={{ items: NO_ITEMS }} />
-      </div>
-    );
-  }
-  if (!logDetails) {
+  // In a loading scope the card has no rows yet: `InfoCard` draws its own skeleton, its row labels real.
+  const loading = useLoadingScope();
+  if (!loading && !logDetails) {
     return (
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="w-full text-ods-text-secondary text-h5">Full Information</div>
@@ -33,21 +41,26 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
     );
   }
 
-  const items: InfoCardData['items'] = [
-    { label: 'toolEventId', value: logDetails.toolEventId },
-    { label: 'ingestDay', value: logDetails.ingestDay },
-    {
-      label: 'toolType',
-      value: toToolLabel(logDetails.toolType),
-      icon: <ToolIcon toolType={normalizeToolTypeWithFallback(logDetails.toolType)} size={16} />,
-    },
-    { label: 'eventType', value: logDetails.eventType },
-    { label: 'severity', value: logDetails.severity },
-    ...(logDetails.userId ? [{ label: 'userId', value: logDetails.userId }] : []),
-    ...(logDetails.deviceId ? [{ label: 'deviceId', value: logDetails.deviceId }] : []),
-    // The wire value, like every other row here — the formatted date is in the page header.
-    { label: 'timestamp', value: logDetails.timestamp },
-  ];
+  const data: InfoCardData =
+    loading || !logDetails
+      ? EMPTY_CARD
+      : {
+          items: [
+            { label: 'toolEventId', value: logDetails.toolEventId },
+            { label: 'ingestDay', value: logDetails.ingestDay },
+            {
+              label: 'toolType',
+              value: toToolLabel(logDetails.toolType),
+              icon: <ToolIcon toolType={normalizeToolTypeWithFallback(logDetails.toolType)} size={16} />,
+            },
+            { label: 'eventType', value: logDetails.eventType },
+            { label: 'severity', value: logDetails.severity },
+            ...(logDetails.userId ? [{ label: 'userId', value: logDetails.userId }] : []),
+            ...(logDetails.deviceId ? [{ label: 'deviceId', value: logDetails.deviceId }] : []),
+            // The wire value, like every other row here — the formatted date is in the page header.
+            { label: 'timestamp', value: logDetails.timestamp },
+          ],
+        };
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -55,7 +68,7 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
       <div className="w-full text-ods-text-secondary text-h5">Full Information</div>
 
       {/* Info Card */}
-      <InfoCard data={{ items }} />
+      <InfoCard data={data} skeleton={LOADING_SKELETON} />
     </div>
   );
 }

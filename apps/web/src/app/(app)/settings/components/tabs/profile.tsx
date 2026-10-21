@@ -1,51 +1,23 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  PageError,
-  SquareAvatar,
-  TruncateText,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
-import { EMPTY_VALUE } from '@/lib/empty-value';
 import { handleApiError } from '@/lib/handle-api-error';
 import { getFullImageUrl } from '@/lib/image-url';
 import { EditProfileModal } from '../edit-profile-modal';
 import { EmailVerificationModal } from '../email-verification-modal';
+import { IdentityRow } from '../identity-row';
 
 const CARD_CLASS = 'flex items-center gap-4 rounded-md border border-ods-border bg-ods-card p-4';
 const editIcon = <PenEditIcon className="h-5 w-5" />;
 
-/** The card while the profile is on its way: avatar, name and email are bars; the Edit button is fixed copy. */
-function ProfileTabSkeleton() {
-  return (
-    <LoadingRegion label="Loading your profile" className="pt-6">
-      <div className={CARD_CLASS}>
-        {/* `SquareAvatar size="lg"` is 48px: the skeleton's `md`. */}
-        <MediaSkeleton.Avatar size="md" className="shrink-0" />
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <TextLineSkeleton type="h4" className="w-40 max-w-full" />
-          <TextLineSkeleton type="h6" className="w-56 max-w-full" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <Button variant="outline" disabled leftIcon={editIcon}>
-            <span className="font-bold">Edit Profile</span>
-          </Button>
-        </div>
-      </div>
-    </LoadingRegion>
-  );
-}
-
 export function ProfileTab() {
-  const inScope = useLoadingScope();
   const { toast } = useToast();
   const user = useAuthStore(state => state.user);
   const isLoadingProfile = useAuthStore(state => state.isLoadingProfile);
@@ -124,12 +96,9 @@ export function ProfileTab() {
     fetchFullProfile();
   }, [fetchFullProfile]);
 
-  // Get display name
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
+  const loading = useLoadingScope() || (isLoadingProfile && !user);
 
-  if (inScope || (isLoadingProfile && !user)) return <ProfileTabSkeleton />;
-
-  if (!user) {
+  if (!loading && !user) {
     return (
       <div className="pt-6">
         <PageError message="No user data available" />
@@ -137,92 +106,69 @@ export function ProfileTab() {
     );
   }
 
+  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
+
   return (
     <div className="pt-6">
-      {/* Profile Card */}
-      <div className={CARD_CLASS}>
-        {/* Avatar */}
-        <SquareAvatar
-          src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
-          fallback={displayName}
-          size="lg"
-          variant="round"
-        />
-
-        {/* Name and Email */}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0">
-              <TruncateText>{displayName}</TruncateText>
-            </div>
-            {/* Role badges */}
-            {user.roles?.map(role => (
-              <span
-                key={role}
-                className="inline-flex shrink-0 items-center rounded-md border border-ods-border bg-ods-card px-2 py-1 text-ods-text-primary text-h5"
-              >
-                {role}
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="min-w-0">
-              <TruncateText variant="h6" tone="secondary">
-                {user.email}
-              </TruncateText>
-            </div>
-            {user.emailVerified === false && (
-              <button
-                onClick={() => setIsVerificationModalOpen(true)}
-                className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
-                title="Email not verified - click to resend verification"
-              >
-                <AlertCircleIcon className="h-4 w-4" />
-                <span className="text-h6">Not verified</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Authorized by section - show if SSO provider is known */}
-        {/* <div className="shrink-0 hidden content-md:flex items-center gap-2 bg-ods-bg border border-ods-border rounded-lg px-3 py-2">
-          <span className="text-sm text-ods-text-secondary">Authorized by</span>
-          <GoogleLogo className="w-5 h-5" />
-          <MicrosoftIcon className="w-5 h-5" />
-        </div> */}
-
-        {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-3">
-          {/* <Button
-            disabled={true}
-            variant="outline"
-            leftIcon={<Search className="w-5 h-5" />}
-          >
-            <span className="font-bold">User Logs</span>
-          </Button> */}
-          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} leftIcon={editIcon}>
+      {/* Profile card: while the profile is read, the avatar, name and email are bars; Edit Profile is fixed copy,
+          drawn for real and disabled. */}
+      <IdentityRow
+        className={CARD_CLASS}
+        loading={loading}
+        loadingLabel="Loading your profile"
+        name={displayName}
+        avatarSrc={user ? getFullImageUrl(user.image?.imageUrl, user.image?.hash) : undefined}
+        avatarVariant="round"
+        nameAside={
+          user?.roles?.map(role => (
+            <span
+              key={role}
+              className="inline-flex shrink-0 items-center rounded-md border border-ods-border bg-ods-card px-2 py-1 text-ods-text-primary text-h5"
+            >
+              {role}
+            </span>
+          )) ?? null
+        }
+        subline={user?.email}
+        sublineWhileLoading
+        sublineAside={
+          user?.emailVerified === false && (
+            <button
+              type="button"
+              onClick={() => setIsVerificationModalOpen(true)}
+              className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
+              title="Email not verified - click to resend verification"
+            >
+              <AlertCircleIcon className="h-4 w-4" />
+              <span className="text-h6">Not verified</span>
+            </button>
+          )
+        }
+        action={
+          <Button variant="outline" disabled={!user} onClick={() => setIsEditModalOpen(true)} leftIcon={editIcon}>
             <span className="font-bold">Edit Profile</span>
           </Button>
-        </div>
-      </div>
-
-      {/* Edit Profile Modal */}
-      <EditProfileModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        user={user}
-        onSave={updateProfile}
-        isSaving={isUpdating}
+        }
       />
 
-      {/* Email Verification Modal */}
-      <EmailVerificationModal
-        open={isVerificationModalOpen}
-        onOpenChange={setIsVerificationModalOpen}
-        userEmail={user.email}
-        onSubmit={handleResendVerification}
-        isSending={isSendingVerification}
-      />
+      {user && (
+        <>
+          <EditProfileModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            user={user}
+            onSave={updateProfile}
+            isSaving={isUpdating}
+          />
+          <EmailVerificationModal
+            open={isVerificationModalOpen}
+            onOpenChange={setIsVerificationModalOpen}
+            userEmail={user.email}
+            onSubmit={handleResendVerification}
+            isSending={isSendingVerification}
+          />
+        </>
+      )}
     </div>
   );
 }

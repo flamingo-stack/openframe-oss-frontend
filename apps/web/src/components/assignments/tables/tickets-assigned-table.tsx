@@ -30,6 +30,7 @@ export function TicketsAssignedTable({ tickets, isLoading }: TicketsAssignedTabl
   return (
     <div className="flex flex-col gap-[var(--spacing-system-mf)]">
       <Input
+        userValue
         placeholder="Search for Ticket"
         value={search}
         onChange={e => setSearch(e.target.value)}

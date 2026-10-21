@@ -1,14 +1,11 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Card,
   SquareAvatar,
-  SquareAvatarSkeleton,
   Tag,
-  TagSkeleton,
   TruncateText,
-  useLoadingScope,
+  LoadingWhen,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -37,7 +34,7 @@ const articleDetailSummaryFragment = graphql`
   }
 `;
 
-// The cells' labels, shared with the skeleton: they are static, so the loading card draws them for real.
+// The cells' labels: static copy, so the loading card draws them for real.
 const LABELS = { author: 'Author', updated: 'Updated', status: 'Status' } as const;
 
 const CELL_CLASSES = 'h-20';
@@ -59,87 +56,73 @@ function SummaryCard({ author, updated, status }: { author: ReactNode; updated: 
   );
 }
 
-/** The author's cell: the avatar beside the name, not on its line as `InfoCell` would put it. */
+/** The author's cell: the avatar beside the name, then the same `InfoCell` as its neighbours (its own loading bar). */
 function AuthorCell({ avatar, name }: { avatar: ReactNode; name: ReactNode }) {
   return (
     <div className={`flex min-w-0 items-center gap-[var(--spacing-system-xsf)] ${CELL_CLASSES}`}>
       {avatar}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {name}
-        <p className="truncate text-ods-text-secondary text-h6">{LABELS.author}</p>
-      </div>
+      <InfoCell label={LABELS.author} value={name} />
     </div>
   );
 }
 
-/** Who wrote the article, when it last changed and whether it is live. Null before the article answers. */
+/**
+ * Who wrote the article, when it last changed and whether it is live. Before the article answers (a loading scope,
+ * or no article yet) the card renders itself in a scope: every cell draws its label for real and a bar for its value,
+ * and the avatar draws its own shape.
+ */
 export function ArticleDetailSummary({ article }: { article: articleDetailSummary_article$key | null }) {
-  const loading = useLoadingScope();
   const data = useFragment(articleDetailSummaryFragment, article);
-  if (loading || !data) {
-    return <ArticleDetailSummarySkeleton />;
-  }
-  const { status, createdAt, updatedAt, author } = data;
+  const author = data?.author;
 
   const fullName = [author?.firstName, author?.lastName].filter(Boolean).join(' ');
   const authorName = fullName || author?.email || null;
   // A deleted account keeps its name here, drawn as deleted.
   const isDeletedAuthor = isDeletedUserStatus(author?.status);
-  const articleStatus = toArticleStatus(status);
+  const articleStatus = toArticleStatus(data?.status);
 
   return (
-    <SummaryCard
-      author={
-        <AuthorCell
-          avatar={
-            isDeletedAuthor ? (
-              <DeletedUserAvatar size="md" />
-            ) : (
-              <SquareAvatar
-                src={getFullImageUrl(author?.image?.imageUrl, author?.image?.hash)}
-                fallback={authorName ?? 'A'}
-                alt={authorName ?? 'Author'}
-                size="md"
-                variant="round"
-              />
-            )
-          }
-          name={
-            <TruncateText className={isDeletedAuthor ? 'text-ods-error' : undefined}>
-              {authorName ?? 'Unknown'}
-            </TruncateText>
-          }
-        />
-      }
-      updated={<InfoCell className={CELL_CLASSES} label={LABELS.updated} value={formatDate(updatedAt ?? createdAt)} />}
-      status={
-        <InfoCell
-          className={CELL_CLASSES}
-          label={LABELS.status}
-          value={<Tag variant={ARTICLE_STATUS_VARIANT[articleStatus]} label={articleStatus} />}
-        />
-      }
-    />
-  );
-}
-
-/**
- * The card while the article loads: its cells and labels real, its values as bars. The two `InfoCell`s draw their
- * own loading state; a null article is this card's loading state even outside a loading scope.
- */
-function ArticleDetailSummarySkeleton() {
-  return (
-    <SummaryCard
-      author={
-        <AuthorCell
-          avatar={<SquareAvatarSkeleton size="md" variant="round" />}
-          name={<TextLineSkeleton type="h4" className="w-32" />}
-        />
-      }
-      updated={<InfoCell className={CELL_CLASSES} label={LABELS.updated} value={null} loading skeletonWidth="w-24" />}
-      status={
-        <InfoCell className={CELL_CLASSES} label={LABELS.status} value={null} loading valueSkeleton={<TagSkeleton />} />
-      }
-    />
+    <LoadingWhen loading={!data}>
+      <SummaryCard
+        author={
+          <AuthorCell
+            avatar={
+              isDeletedAuthor ? (
+                <DeletedUserAvatar size="md" />
+              ) : (
+                <SquareAvatar
+                  src={getFullImageUrl(author?.image?.imageUrl, author?.image?.hash)}
+                  fallback={authorName ?? 'A'}
+                  alt={authorName ?? 'Author'}
+                  size="md"
+                  variant="round"
+                />
+              )
+            }
+            name={
+              <TruncateText className={isDeletedAuthor ? 'text-ods-error' : undefined}>
+                {authorName ?? 'Unknown'}
+              </TruncateText>
+            }
+          />
+        }
+        updated={
+          <InfoCell
+            className={CELL_CLASSES}
+            label={LABELS.updated}
+            value={data ? formatDate(data.updatedAt ?? data.createdAt) : null}
+            skeletonWidth="w-24"
+          />
+        }
+        status={
+          <InfoCell
+            className={CELL_CLASSES}
+            label={LABELS.status}
+            value={<Tag variant={ARTICLE_STATUS_VARIANT[articleStatus]} label={articleStatus} />}
+            valueSkeleton={<Tag label="" loading />}
+          />
+        }
+      />
+    </LoadingWhen>
   );
 }

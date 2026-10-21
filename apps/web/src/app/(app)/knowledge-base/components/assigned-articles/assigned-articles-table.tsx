@@ -20,7 +20,14 @@ import type {
 import type { assignedArticlesTablePaginationQuery as AssignedArticlesTablePaginationQueryType } from '@/__generated__/assignedArticlesTablePaginationQuery.graphql';
 import type { assignedArticlesTableQuery as AssignedArticlesTableQueryType } from '@/__generated__/assignedArticlesTableQuery.graphql';
 import type { assignedArticlesTableUnassignMutation as AssignedArticlesTableUnassignMutationType } from '@/__generated__/assignedArticlesTableUnassignMutation.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_NEXT_PAGE,
+  noop,
+  useRetryKey,
+} from '@/app/components/shared';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
@@ -152,9 +159,6 @@ interface AssignedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: readonly ArticleRow[] = [];
-const noop = () => {};
-
 /**
  * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table with
  * no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under
@@ -162,17 +166,7 @@ const noop = () => {};
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
   if (useLoadingScope()) {
-    return (
-      <AssignedArticlesRows
-        {...props}
-        rows={NO_ROWS}
-        totalCount={0}
-        onUnassign={noop}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
-      />
-    );
+    return <AssignedArticlesRows {...props} rows={[]} totalCount={0} onUnassign={noop} infiniteScroll={NO_NEXT_PAGE} />;
   }
   return <AssignedArticlesTableQuery {...props} />;
 }
@@ -253,9 +247,7 @@ function AssignedArticlesTableQuery(props: AssignedArticlesTableProps) {
       rows={rows}
       totalCount={items.filteredCount}
       onUnassign={handleUnassign}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
 }
@@ -264,9 +256,7 @@ interface AssignedArticlesRowsProps extends AssignedArticlesTableProps {
   rows: readonly ArticleRow[];
   totalCount: number;
   onUnassign: (row: ArticleRow) => void;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -274,9 +264,7 @@ function AssignedArticlesRows({
   rows,
   totalCount,
   onUnassign,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   target,
   listing,
   isPending,
@@ -330,14 +318,7 @@ function AssignedArticlesRows({
           rowClassName="mb-1"
           rowHref={rowHref}
         />
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={onLoadMore}
-            skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-          />
-        )}
+        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />}
       </DataTable>
     </div>
   );

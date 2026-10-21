@@ -1,13 +1,12 @@
 'use client';
 
 import { LoadError } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useOrganizationRemoteAccessPolicy } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { REMOTE_ACCESS_MODE_META } from '@/app/(app)/devices/types/remote-access';
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { PolicyValueCard } from '@/app/components/shared/policy-value-card';
 import { routes } from '@/lib/routes';
 
 interface CustomerDeviceGuardrailsTabProps {
@@ -72,22 +71,11 @@ export function CustomerDeviceGuardrailsTab({ organizationId }: CustomerDeviceGu
           </div>
         )}
 
-        {/* 60px tall with 12px padding on mobile, 80px with 16px from md - the
-          `--spacing-system-m` token carries exactly that 12->16 step. */}
-        <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
-          <InfoCell
-            value={
-              !data ? (
-                <TextLineSkeleton type="h4" className="w-40" />
-              ) : inheritsDefault ? (
-                <span className="text-ods-text-secondary">{modeLabel}</span>
-              ) : (
-                modeLabel
-              )
-            }
-            label="Default Remote Access Permission"
-          />
-        </div>
+        <PolicyValueCard
+          label="Default Remote Access Permission"
+          value={data ? modeLabel : undefined}
+          muted={inheritsDefault}
+        />
       </div>
     </LoadingWhen>
   );

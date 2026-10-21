@@ -21,14 +21,33 @@ import { useCallback, useMemo, useState } from 'react';
 import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
 import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
 import { DateWithAge } from '@/app/components/shared/date-with-age';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
 import { deviceQueryKeys } from '../../utils/query-keys';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
 import { DataSyncBanner } from '../data-sync-banner';
-import { FLEET_VULNERABILITY_COLUMNS } from './device-tab-columns';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+
+/**
+ * Vulnerabilities tab over the Fleet host payload (`software-management` off).
+ *
+ * Below `md` the row is CVE + severity + the details button only. The percentage
+ * widths this table uses on desktop are unusable there — on a 375px viewport the
+ * row's inner width is ~310px, so `20%`/`16%` resolve to ~62px/~50px and the row
+ * (which is `overflow-hidden`) clipped both the CVE id and the severity tag.
+ * So CVE takes the leftover space, severity gets the fixed width its tag needs,
+ * and SOFTWARE drops out of the row — `FleetVulnerabilitiesTab` folds the package
+ * name into the CVE cell as a second line there, which DISCOVERED has no
+ * equivalent of and is the least useful of the three for mobile triage anyway.
+ */
+const FLEET_VULNERABILITY_COLUMNS = {
+  cve: { id: 'cve', header: 'CVE ID', width: 'flex-1 min-w-0 content-md:flex-none content-md:w-[20%]' },
+  severity: { id: 'severity', header: 'SEVERITY', width: 'w-[88px] content-md:w-[16%]', sortable: true },
+  software: { id: 'software_name', header: 'SOFTWARE', width: 'flex-1 min-w-0', hideAt: 'md' },
+  discovered: { id: 'created_at', header: 'DISCOVERED', width: 'w-[18%]', sortable: true, hideAt: 'md' },
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
+} satisfies Record<string, TableSkeletonColumn>;
 
 interface FleetVulnerabilitiesTabProps {
   device: Device | null;
@@ -291,6 +310,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
           className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
         >
           <Input
+            userValue
             placeholder="Search for Vulnerability"
             value={search}
             onChange={e => setSearch(e.target.value)}

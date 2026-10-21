@@ -81,6 +81,7 @@ export function TroubleshootingToolbar({
         />
       </div>
       <Input
+        userValue
         placeholder="Search for Log"
         aria-label="Search device logs"
         value={filters.search}

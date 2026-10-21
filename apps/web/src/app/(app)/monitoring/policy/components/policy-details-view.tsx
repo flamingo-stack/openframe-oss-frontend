@@ -13,7 +13,7 @@ import {
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getPolicyStatus, POLICY_STATUS_CONFIG } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen, TagSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { EmptyValue } from '@/app/components/shared/empty-value';
@@ -113,7 +113,8 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   };
   const statusColumn = {
     key: 'status',
-    value: policy ? <PolicyStatusTag policy={policy} /> : <TagSkeleton />,
+    // While loading, a tag with no label yet: it draws its own skeleton in the loading scope.
+    value: policy ? <PolicyStatusTag policy={policy} /> : <Tag label="" />,
     label: 'Status',
   };
   const authorColumn = {

@@ -311,6 +311,7 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
       <div className="flex items-start gap-[var(--spacing-system-m)]">
         <div className="min-w-0 flex-1">
           <Input
+            userValue
             placeholder="Search for Devices"
             value={search}
             onChange={e => setSearch(e.target.value)}

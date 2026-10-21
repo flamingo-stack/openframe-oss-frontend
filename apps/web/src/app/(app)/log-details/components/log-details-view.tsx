@@ -2,13 +2,7 @@
 
 import { TextLineSkeleton, ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckIcon, Chevron02LeftIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  Button,
-  LoadingWhen,
-  PageLayout,
-  Tag,
-  TagSkeleton,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen, PageLayout, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -116,7 +110,8 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
         <div className="flex w-full flex-col gap-6">
           {/* Status and Timestamp */}
           <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
-            {log ? <Tag label={log.severity} variant={getSeverityVariant(log.severity)} /> : <TagSkeleton />}
+            {/* The tag draws its own skeleton in the loading scope. */}
+            <Tag label={log?.severity ?? ''} variant={log ? getSeverityVariant(log.severity) : undefined} />
             <span className="text-ods-text-primary text-h4">
               {log ? formatDateTime(log.timestamp) : <TextLineSkeleton type="h4" as="span" className="w-40" />}
             </span>

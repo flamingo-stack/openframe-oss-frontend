@@ -27,6 +27,8 @@ export const READ_ONLY_BILLING_ACTIONS: PageActionButton[] = [
 interface BillingPageFrameProps {
   actions?: PageActionButton[];
   menuActions?: ActionsMenuGroup[];
+  /** The header's actions are the subscription's and it has not answered: they are drawn as placeholders. */
+  loadingActions?: boolean;
   children: ReactNode;
 }
 
@@ -34,7 +36,7 @@ interface BillingPageFrameProps {
  * The billing page's frame: its title, its back link and its header actions. Static, so the page
  * (`BillingUsageScreen`) and the wait for its code (`BillingUsageContentSkeleton`) draw one frame, never two copies.
  */
-export function BillingPageFrame({ actions, menuActions, children }: BillingPageFrameProps) {
+export function BillingPageFrame({ actions, menuActions, loadingActions = false, children }: BillingPageFrameProps) {
   const handleBack = useSafeBack(routes.settings.root());
   return (
     <PageLayout
@@ -44,6 +46,7 @@ export function BillingPageFrame({ actions, menuActions, children }: BillingPage
       actionsVariant="menu-primary"
       actions={actions}
       menuActions={menuActions}
+      loadingActions={loadingActions}
     >
       {children}
     </PageLayout>

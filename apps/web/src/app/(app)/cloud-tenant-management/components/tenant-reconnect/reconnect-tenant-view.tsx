@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
-import { SectionLoadError, useRetryKey } from '@/app/components/shared';
+import { noop, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
@@ -31,8 +31,6 @@ const reconnectTenantViewQuery = graphql`
 `;
 
 const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
-const noop = () => {};
-
 /**
  * The page's record and everything that waits for it. In a loading scope (the view's Suspense fallback, or the
  * module's flag window) the chrome is real, the identity card and the consent block draw their own loading states,

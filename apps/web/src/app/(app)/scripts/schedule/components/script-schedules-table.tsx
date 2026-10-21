@@ -66,6 +66,7 @@ import {
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
+import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -84,7 +85,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { type FacetOption, facetToMappedOptions } from '../../shared/utils/facet-options';
+import { type FacetOption, facetFilter, facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
@@ -128,13 +129,16 @@ interface UiScheduleEntry {
   repeat: number | null;
 }
 
-/** The table's columns: the loaded table and its loading state draw the same ones. */
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones. With no `options` (loading) the OS
+ * funnel is pending.
+ */
 function scheduleColumns({
   options,
   dateFilter,
   renderRowActions,
 }: {
-  options: { platform: FacetOption[] };
+  options: { platform: FacetOption[] } | null;
   /** The Date/Time header's calendar; absent while loading (the header draws inert). */
   dateFilter?: TableDateFilter;
   renderRowActions: (schedule: UiScheduleEntry) => ReactNode;
@@ -157,7 +161,7 @@ function scheduleColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: { options: options.platform } }),
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: facetFilter(options?.platform) }),
     },
     {
       id: 'dateTime',
@@ -621,30 +625,8 @@ function SchedulesTableContent({
 // The table before its first answer
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: UiScheduleEntry[] = [];
-const NO_PLATFORM_OPTIONS = { platform: [] };
-const noRowActions = () => null;
-
-/**
- * The live table with no rows yet: the same columns and header, its body and
- * row count drawing their own skeletons in the loading scope it is rendered in.
- */
-function SchedulesTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
-  const columns = scheduleColumns({ options: NO_PLATFORM_OPTIONS, renderRowActions: noRowActions });
-  const table = useDataTable<UiScheduleEntry>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiScheduleEntry) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-      <DataTable.Body skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
+/** The columns before the first answer: the OS funnel pending, the calendar inert, no row to act on. */
+const LOADING_COLUMNS = scheduleColumns({ options: null, renderRowActions: () => null });
 
 // ----------------------------------------------------------------
 // Outer shell — layout + URL state + Suspense boundary
@@ -868,6 +850,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg p-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Schedule"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
@@ -881,7 +864,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
         <Suspense
           fallback={
             <LoadingFallback label="Loading schedules">
-              <SchedulesTableLoading stickyHeaderOffset={stickyHeaderOffset} />
+              <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
             </LoadingFallback>
           }
         >

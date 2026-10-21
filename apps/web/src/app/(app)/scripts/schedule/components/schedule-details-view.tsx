@@ -64,38 +64,23 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
 type ScheduleRecord = ScheduleDetailQueryType['response']['scriptSchedule'];
 
 /**
- * The shape the header settles into while the record loads: `loadingActions`
- * turns each entry into a placeholder sized like the button it will become.
- * ONE entry, because one is all a schedule is guaranteed to have (an archived
- * one offers a single "Unarchive"). The label sizes the placeholder.
+ * The actions while the record loads: `loadingActions` turns each entry into a placeholder sized like the button it
+ * will become. Three, as an active schedule has (Archive, Edit Devices, Edit Schedule): most schedules are active.
  */
-const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Schedule action', variant: 'outline' }];
+const LOADING_ACTIONS: PageActionButton[] = [
+  { label: 'Archive', variant: 'outline' },
+  { label: 'Edit Devices', variant: 'outline' },
+  { label: 'Edit Schedule', variant: 'outline' },
+];
 
-/** The header's own loading state: the real `TitleBlock`, its title and actions as placeholders, Back working. */
-function ScheduleHeaderSkeleton() {
-  const handleBack = useSafeBack(routes.scripts.schedules.list);
-  return (
-    <TitleBlock
-      title=""
-      loading
-      loadingActions
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={LOADING_ACTIONS}
-      actionsVariant="icon-buttons"
-    />
-  );
-}
-
-/** The header over the record (`null`: not found), or (record unread, or in a loading scope) its own skeleton. */
+/**
+ * The header over the record (`null`: not found). Before it (`schedule` undefined, or in a loading scope) the same
+ * header draws itself: the title a bar, the actions placeholders, Back working.
+ */
 function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps & { schedule?: ScheduleRecord }) {
   const loading = useLoadingScope() || schedule === undefined;
-  if (loading) return <ScheduleHeaderSkeleton />;
-  return <ScheduleHeaderLoaded scheduleId={scheduleId} schedule={schedule} />;
-}
-
-function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps & { schedule: ScheduleRecord }) {
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
-  const { isArchived, isArchiving, isPending, toggleArchive } = useScheduleArchive(schedule);
+  const { isArchived, isArchiving, isPending, toggleArchive } = useScheduleArchive(loading ? null : schedule);
 
   // Back follows the list the schedule actually belongs to, so Back from an
   // archived schedule doesn't land the user on a list without it.
@@ -106,7 +91,7 @@ function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps
   // backend resolver expects. The mention chip re-encodes it for its fetch.
   const scheduleDbId = useMemo(() => decodeGlobalId(scheduleId)?.rawId ?? scheduleId, [scheduleId]);
   useTrackOpenView(
-    schedule
+    !loading && schedule
       ? { type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
       : null,
   );
@@ -117,6 +102,7 @@ function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps
   // An archived schedule runs on nothing, so editing it is meaningless — the one
   // thing worth offering is putting it back (design node 1:24107).
   const actions = useMemo<PageActionButton[]>(() => {
+    if (loading) return LOADING_ACTIONS;
     if (!schedule) return [];
     return isArchived
       ? [
@@ -153,7 +139,7 @@ function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps
             icon: <PenEditIcon className="text-ods-text-secondary" />,
           },
         ];
-  }, [schedule, scheduleId, isArchived, handleArchiveToggle, isPending]);
+  }, [loading, schedule, scheduleId, isArchived, handleArchiveToggle, isPending]);
 
   return (
     <>
@@ -162,7 +148,9 @@ function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps
         // rather than `always`: the description line is drawn while the header is
         // loading, but a schedule that has none settles one line shorter instead
         // of keeping an empty row forever.
-        title={schedule?.name}
+        title={schedule?.name ?? ''}
+        loading={loading}
+        loadingActions={loading}
         subtitle={schedule?.description ?? undefined}
         subtitleRow="while-loading"
         titleAdornment={isArchived ? <Tag label="Archived" variant="grey" /> : undefined}
@@ -327,7 +315,7 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
         <Suspense
           fallback={
             <LoadingFallback label="Loading schedule details">
-              <ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} />
+              <ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} addedBy="" ifDeviceOffline="" />
             </LoadingFallback>
           }
         >

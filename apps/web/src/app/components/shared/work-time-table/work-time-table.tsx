@@ -59,6 +59,7 @@ import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
+import { noop } from '../no-next-page';
 
 const PAGE_SIZE = 20;
 
@@ -88,7 +89,6 @@ const STAT_CARDS: ReadonlyArray<{
 const EMPTY_ROWS: WorkTimeRow[] = [];
 const NO_FILTER_OPTIONS: DataTableFilterOption[] = [];
 const NO_COLUMN_FILTERS: ColumnFiltersState = [];
-const noop = () => {};
 const DAY_PARAM_FORMAT = 'yyyy-MM-dd';
 
 function formatDayParam(date: Date | undefined): string | null {
@@ -527,6 +527,7 @@ function WorkTimeFilters({
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
       <Input
+        userValue
         value={search}
         onChange={e => onSearchChange(e.target.value)}
         placeholder="Search for Work Time"

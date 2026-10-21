@@ -124,6 +124,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const assignedTicketIds = new Set(tickets.map(ticket => ticket.id));
   const ticketOptions = ticketSearchResults.options.filter(option => !assignedTicketIds.has(option.value));
 
+  // A session has a chat only when the technician and the employee wrote to each other during it, which most
+  // sessions do not: while the recording is read the page draws the no-chat layout (the player across the page), and
+  // a recording with a chat reflows into the two columns once it answers.
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
   const unavailableNote = unavailable ? 'The video is still being processed, check back in a moment' : null;
   // Delete lives in the "..." menu, for a session the server would let go (ended, not processing, not kept).

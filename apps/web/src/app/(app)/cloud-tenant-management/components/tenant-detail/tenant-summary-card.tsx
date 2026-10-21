@@ -1,11 +1,12 @@
 'use client';
 
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   accessStateTag,
   formatLastRead,
   lastReadAt,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { SquareAvatar, Tag, TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, LoadingWhen, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -62,6 +63,9 @@ const tenantSummaryCardFragment = graphql`
   }
 `;
 
+/** The provider logo's box: `MediaSkeleton.Icon size="md"` (h-6 w-6) is its loading shape. */
+const PROVIDER_LOGO_PX = 24;
+
 function IconValue({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <span className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
@@ -73,7 +77,9 @@ function IconValue({ icon, children }: { icon: ReactNode; children: ReactNode })
 
 function ProviderCell({ provider }: { provider: string }) {
   const { Logo, label } = providerPresentation(provider);
-  return <InfoCell label={LABELS.provider} value={<IconValue icon={<Logo size={24} />}>{label}</IconValue>} />;
+  return (
+    <InfoCell label={LABELS.provider} value={<IconValue icon={<Logo size={PROVIDER_LOGO_PX} />}>{label}</IconValue>} />
+  );
 }
 
 function ConnectedCell({ connectedAt }: { connectedAt: unknown }) {
@@ -160,29 +166,35 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
 /**
  * The connected card's rows, cells and labels — the details page's steady state — so the page does not
  * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival. Every cell is the
- * real `InfoCell` drawing its own loading state (label real, value a text bar): a null record is this card's loading
- * state even outside a loading scope.
+ * real `InfoCell`, and the customer's avatar the real `SquareAvatar`, each drawing its own loading state in the card's
+ * scope (a null record is this card's loading state even outside a page's scope).
  */
 function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOnly?: boolean }) {
   return (
-    <div className={CARD_CLASSES}>
-      <div className={ROW_CLASSES}>
-        <InfoCell label={LABELS.provider} value={null} loading skeletonWidth="w-36" />
-        <InfoCell
-          label={identityOnly ? LABELS.domainName : LABELS.customer}
-          value={null}
-          loading
-          skeletonWidth="w-44"
-        />
-      </div>
-      {!identityOnly && (
-        <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
-          <InfoCell label={LABELS.users} value={null} loading skeletonWidth="w-16" />
-          <InfoCell label={LABELS.status} value={null} loading valueSkeleton={<TagSkeleton />} />
-          <InfoCell label={LABELS.connected} value={null} loading skeletonWidth="w-40" />
-          <InfoCell label={LABELS.lastRead} value={null} loading skeletonWidth="w-28" />
+    <LoadingWhen loading>
+      <div className={CARD_CLASSES}>
+        <div className={ROW_CLASSES}>
+          <InfoCell label={LABELS.provider} value={null} skeletonWidth="w-36" icon={<MediaSkeleton.Icon size="md" />} />
+          {identityOnly ? (
+            <InfoCell label={LABELS.domainName} value={null} skeletonWidth="w-44" />
+          ) : (
+            <InfoCell
+              label={LABELS.customer}
+              value={null}
+              skeletonWidth="w-44"
+              icon={<SquareAvatar fallback="" size="xs" variant="square" />}
+            />
+          )}
         </div>
-      )}
-    </div>
+        {!identityOnly && (
+          <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
+            <InfoCell label={LABELS.users} value={null} skeletonWidth="w-16" />
+            <InfoCell label={LABELS.status} value={null} valueSkeleton={<Tag label="" loading />} />
+            <InfoCell label={LABELS.connected} value={null} skeletonWidth="w-40" />
+            <InfoCell label={LABELS.lastRead} value={null} skeletonWidth="w-28" />
+          </div>
+        )}
+      </div>
+    </LoadingWhen>
   );
 }

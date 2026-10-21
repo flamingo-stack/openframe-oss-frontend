@@ -15,7 +15,7 @@ import type {
 } from '@/__generated__/archivedArticlesTable_query.graphql';
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
@@ -111,10 +111,7 @@ interface ArchivedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_ROWS: readonly ArchivedRow[] = [];
 const NO_LISTING_IDS: readonly string[] = [];
-const noop = () => {};
-
 /**
  * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table with no rows, which is
  * the table's own loading state; otherwise it runs the query, which suspends, so it lives under the view's
@@ -125,12 +122,10 @@ export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
     return (
       <ArchivedArticlesRows
         {...props}
-        rows={NO_ROWS}
+        rows={[]}
         totalCount={0}
         listingIds={NO_LISTING_IDS}
-        hasNext={false}
-        isLoadingNext={false}
-        onLoadMore={noop}
+        infiniteScroll={NO_NEXT_PAGE}
       />
     );
   }
@@ -176,9 +171,7 @@ function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
       rows={rows}
       totalCount={archived.filteredCount}
       listingIds={[archived.__id]}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
 }
@@ -188,9 +181,7 @@ interface ArchivedArticlesRowsProps extends ArchivedArticlesTableProps {
   totalCount: number;
   /** The connections the unarchive dialog marks stale. */
   listingIds: readonly string[];
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
 }
 
 /** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
@@ -198,9 +189,7 @@ function ArchivedArticlesRows({
   rows,
   totalCount,
   listingIds,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   search,
   tagIds,
   isPending,
@@ -236,14 +225,7 @@ function ArchivedArticlesRows({
             rowClassName="mb-1"
             rowHref={rowHref}
           />
-          {rows.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={onLoadMore}
-              skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-            />
-          )}
+          {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />}
         </DataTable>
       </div>
 

@@ -6,6 +6,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { type ReactNode, useState } from 'react';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
+import { EMPTY_CARD, labelsOf } from './info-card-loading';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface OsTabProps {
@@ -52,13 +53,8 @@ function OsEmptyState() {
   );
 }
 
-/** A card with no rows: in the page's loading scope it draws its skeleton (the `skeleton` shape each section states). */
-const EMPTY_CARD = { items: [] };
 const BOOT_TITLE = 'Boot & Time';
 const MANAGEMENT_TITLE = 'Fleet';
-
-/** A card's row labels, drawn real while the device is read. */
-const labelsOf = (rows: InfoRow[]) => rows.map(row => row.label);
 
 export function OsTab({ device }: OsTabProps) {
   const loading = useLoadingScope();

@@ -5,7 +5,6 @@ import {
   type DeviceFilterInput,
   DeviceSelector,
   type DeviceSelectorProps,
-  DeviceSelectorSkeleton,
   ErrorBoundary,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -70,6 +69,20 @@ function DeviceListPickerContent({
   );
 }
 
+/** The picker while its one read of `first` devices is on its way: the real selector, loading. */
+function LoadingDeviceListPicker({
+  filter: _filter,
+  search: _search,
+  first = DEVICE_LIST_LIMIT,
+  retryKey: _retryKey,
+  selected: _selected,
+  onSelectionChange: _onSelectionChange,
+  getDeviceKey,
+  ...selectorProps
+}: DeviceListPickerProps) {
+  return <DeviceSelector {...selectorProps} devices={[]} loading skeletonRows={first} getDeviceKey={getDeviceKey} />;
+}
+
 /**
  * A `DeviceSelector` that fetches its own devices through the shared device
  * query layer.
@@ -79,26 +92,16 @@ function DeviceListPickerContent({
  * still control WHETHER it mounts — a Relay query runs because its component is
  * rendered, which is what the old `enabled` flag expressed, so gate with
  * `{isOpen && <DeviceListPicker … />}`. In a loading scope it draws its own
- * skeleton and runs nothing.
+ * loading state and runs nothing.
  */
 export function DeviceListPicker(props: DeviceListPickerProps) {
-  const { showSelectionModeRadio, singleSelect, hideColumns, first = DEVICE_LIST_LIMIT } = props;
   const [retryNonce, setRetryNonce] = useState(0);
-  // In a loading scope (a parent's Suspense fallback) the picker is its skeleton and
-  // mounts no query: nothing in a scope fetches.
+  // In a loading scope (a parent's Suspense fallback) the picker draws its own loading state and mounts no query:
+  // nothing in a scope fetches.
   const inScope = useLoadingScope();
+  const loadingPicker = <LoadingDeviceListPicker {...props} />;
 
-  const skeleton = (
-    <DeviceSelectorSkeleton
-      showSelectionModeRadio={showSelectionModeRadio}
-      singleSelect={singleSelect}
-      hideColumns={hideColumns}
-      // The list it waits on is one read of `first` devices.
-      skeletonRows={first}
-    />
-  );
-
-  if (inScope) return skeleton;
+  if (inScope) return loadingPicker;
 
   return (
     // The Relay hook THROWS on failure, and every caller here holds unsaved work
@@ -112,7 +115,7 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
       key={retryNonce}
       fallback={<LoadError message="Couldn't load devices." onRetry={() => setRetryNonce(nonce => nonce + 1)} />}
     >
-      <Suspense fallback={skeleton}>
+      <Suspense fallback={loadingPicker}>
         <DeviceListPickerContent {...props} retryKey={retryNonce} />
       </Suspense>
     </ErrorBoundary>

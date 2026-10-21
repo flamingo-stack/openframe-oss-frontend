@@ -9,6 +9,14 @@ import { formatDate } from '@/lib/format-date';
 import type { RecordingDetail } from '../../types/session-recording';
 import { RecordingMetaCard } from './recording-meta-card';
 
+// The cells measure text for truncation tooltips; jsdom has no ResizeObserver.
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
 const RECORDING: RecordingDetail = {
   id: 'session-1',
   deviceId: 'machine-1',

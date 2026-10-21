@@ -8,7 +8,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useForm, useFormState } from 'react-hook-form';
-import { SectionLoadError } from '@/app/components/shared';
+import { noop, SectionLoadError } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
@@ -108,8 +108,6 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
 }
 
 const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
-const noop = () => {};
-
 /**
  * The connect step before the record is known: the real chrome and the real controls, locked, over a throwaway
  * form, so there is no second copy of the markup. Only what names the record (the consent instruction) is a bar,

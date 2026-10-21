@@ -23,7 +23,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
-import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -31,8 +31,16 @@ import { toValidDate } from '@/lib/format-date';
 import type { Device, Software } from '../../types/device.types';
 import { fleetTimestampMs } from '../../utils/fleet-timestamp';
 import { deviceQueryKeys } from '../../utils/query-keys';
-import { FLEET_SOFTWARE_COLUMNS } from './device-tab-columns';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
+
+/** Software tab over the Fleet host payload (`software-management` off). */
+const FLEET_SOFTWARE_COLUMNS = {
+  name: { id: 'name', header: 'SOFTWARE', width: 'flex-1 min-w-0' },
+  source: { id: 'source', header: 'SOURCE', width: 'w-[180px] shrink-0', hideAt: 'lg' },
+  vulnerabilities: { id: 'vulnerabilities', header: 'VULNERABILITIES', width: 'w-[160px] shrink-0' },
+  filePath: { id: 'file_path', header: 'FILE PATH', width: 'w-[220px] shrink-0', hideAt: 'lg' },
+  lastUsed: { id: 'last_opened_at', header: 'LAST USED', width: 'w-[140px] shrink-0', hideAt: 'md' },
+} satisfies Record<string, TableSkeletonColumn>;
 
 interface FleetSoftwareTabProps {
   device: Device | null;

@@ -1,21 +1,20 @@
 'use client';
 
-import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   OSTypeIcon,
   renderDeviceTypeIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import Link from 'next/link';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
-import { routes } from '@/lib/routes';
 import type { Device } from '../types/device.types';
+import { CustomerInfoCell } from './customer-info-cell';
 import { DeviceAddedByCell } from './device-added-by-cell';
 
 function formatDateWithTime(iso?: string): React.ReactNode {
@@ -28,53 +27,23 @@ function formatDateWithTime(iso?: string): React.ReactNode {
   );
 }
 
-/** A row of the card: two cells below lg, four at lg+. */
-const ROW_CLASS =
-  'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 content-md:min-h-20 border-b border-ods-border';
-/** The UUID row closes the card: the row without its divider. */
-const LAST_ROW_CLASS =
+/** A row's frame: the cells side by side at the row's height. */
+const ROW_FRAME_CLASS =
   'flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] content-md:min-h-20';
+/** A row of the card: two cells below lg, four at lg+. */
+const ROW_CLASS = `${ROW_FRAME_CLASS} border-b border-ods-border`;
+/** The UUID row closes the card: the row without its divider. */
+const LAST_ROW_CLASS = ROW_FRAME_CLASS;
 /** Mobile (< md): one full-width cell per row, so its divider reaches the card edges. */
 const MOBILE_SINGLE_ROW_CLASS =
   'flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden';
 /** Tablet (md to lg): customer + added-by in one horizontal row. */
 const TABLET_PAIR_ROW_CLASS =
   'hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] content-md:flex content-md:items-center content-md:gap-[var(--spacing-system-m)]';
-const CUSTOMER_CELL_CLASS = 'flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]';
 const CARD_CLASS = 'flex flex-col rounded-md border border-ods-border bg-ods-card';
 /** Icons: 16px on mobile, 24px on tablet+ (matches the responsive design). */
 const ICON_SIZE = 'w-4 h-4 content-md:w-6 content-md:h-6';
 const OS_ICON_SIZE = 'w-5 h-5 content-md:w-7 content-md:h-7';
-const CUSTOMER_LOGO_CLASS = 'size-10 content-md:size-10';
-const CUSTOMER_LABEL = 'Customer ID (Site)';
-
-/** The customer cell: the logo beside the name and its label. While the device is read, the logo and name are bars. */
-function CustomerCell({ device, loading }: { device: Device | null; loading: boolean }) {
-  const href = device?.organizationId ? routes.customers.details(device.organizationId) : undefined;
-  return (
-    <>
-      <EntityImage
-        src={device ? getFullImageUrl(device.organizationImageUrl, device.organizationImageHash) : undefined}
-        alt={device?.organization ?? ''}
-        className={CUSTOMER_LOGO_CLASS}
-      />
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        {loading ? (
-          <TextLineSkeleton type="h4" className="w-28" />
-        ) : href ? (
-          <Link href={href} className="min-w-0">
-            <TruncateText className="text-ods-accent underline hover:opacity-80">
-              {device?.organization ?? ''}
-            </TruncateText>
-          </Link>
-        ) : (
-          <TruncateText>{device?.organization ?? ''}</TruncateText>
-        )}
-        <p className="truncate text-ods-text-secondary text-h6">{CUSTOMER_LABEL}</p>
-      </div>
-    </>
-  );
-}
 
 interface DeviceInfoSectionProps {
   device: Device | null;
@@ -126,8 +95,20 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     <InfoCell value={formatDateWithTime(device?.updatedAt || device?.lastSeen)} label="Updated" skeletonWidth="w-40" />
   );
 
-  // Most devices belong to a customer, so the cell is drawn while the device is read.
-  const customerInner = (loading || device?.organization) && <CustomerCell device={device} loading={loading} />;
+  // Most devices belong to a customer; one with none reads the empty mark, so the cell is always drawn.
+  const customerCell = (
+    <CustomerInfoCell
+      customer={
+        device?.organization
+          ? {
+              id: device.organizationId,
+              name: device.organization,
+              logoUrl: getFullImageUrl(device.organizationImageUrl, device.organizationImageHash),
+            }
+          : null
+      }
+    />
+  );
 
   // Draws its own loading state in the scope.
   const addedByCell = <DeviceAddedByCell userId={device?.addedByUserId} />;
@@ -169,12 +150,12 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
         </div>
 
         {/* Mobile (< md): customer and added-by each as a full-width row. */}
-        {customerInner && <div className={MOBILE_SINGLE_ROW_CLASS}>{customerInner}</div>}
+        <div className={MOBILE_SINGLE_ROW_CLASS}>{customerCell}</div>
         <div className={MOBILE_SINGLE_ROW_CLASS}>{addedByCell}</div>
 
         {/* Tablet (md to lg): customer + added-by in one horizontal row. */}
         <div className={TABLET_PAIR_ROW_CLASS}>
-          {customerInner && <div className={CUSTOMER_CELL_CLASS}>{customerInner}</div>}
+          {customerCell}
           {addedByCell}
         </div>
 
@@ -196,7 +177,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
         </div>
         {/* Row 2: Customer ID (Site) · — · — · Added by */}
         <div className={ROW_CLASS}>
-          {customerInner ? <div className={CUSTOMER_CELL_CLASS}>{customerInner}</div> : emptyCell}
+          {customerCell}
           {emptyCell}
           {emptyCell}
           {addedByCell}

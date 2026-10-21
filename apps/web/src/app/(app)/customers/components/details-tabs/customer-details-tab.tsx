@@ -17,6 +17,12 @@ const bar = (width: string) => <TextLineSkeleton type="h4" as="span" className={
 const NOTES_CARD_CLASS =
   'flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] pb-[var(--spacing-system-s)] pt-[var(--spacing-system-l)]';
 
+/** Contacts drawn while the customer loads (typical: one contact; a customer with more moves the content below it). */
+const CONTACTS_SKELETON_ROWS = 1;
+
+/** One contact row while the customer loads: every value a `text-h4` bar. */
+const SKELETON_CONTACT = { contactName: bar('w-28'), title: bar('w-28'), email: bar('w-40'), phone: bar('w-28') };
+
 /** Lines of the notes text drawn while the customer loads (a typical note). */
 const NOTES_SKELETON_LINES = 2;
 
@@ -61,9 +67,7 @@ export function CustomerDetailsTab({ organization }: CustomerDetailsTabProps) {
   });
 
   const contactRows = !customer
-    ? buildCustomerContactRows([
-        { contactName: bar('w-28'), title: bar('w-28'), email: bar('w-40'), phone: bar('w-28') },
-      ])
+    ? buildCustomerContactRows(Array.from({ length: CONTACTS_SKELETON_ROWS }, () => SKELETON_CONTACT))
     : customer.contacts.length > 0
       ? buildCustomerContactRows(
           customer.contacts.map(contact => ({

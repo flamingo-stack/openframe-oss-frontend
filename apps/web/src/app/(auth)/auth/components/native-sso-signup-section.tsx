@@ -1,11 +1,11 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { type AuthSsoProvider, PROVIDER_META } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
+import { noop } from '@/app/components/shared/no-next-page';
 import { authApiClient } from '@/lib/auth-api-client';
 import {
   appleIdentityEmail,
@@ -140,7 +140,12 @@ export function NativeSsoSignupSection({ pending, onRegistered, onExit }: Native
   }
 
   if (!identity) {
-    return <LoadingRegion label="Loading your sign-in" className="min-h-[320px]" />;
+    // The identity is still read: the same form in a loading scope, drawing its own loading state.
+    return (
+      <LoadingWhen loading>
+        <SsoOrganizationSetup subtitle="" email="" emailReadOnlyLabel="" onSubmit={noop} onBack={onExit} />
+      </LoadingWhen>
+    );
   }
 
   const label = ssoProviderLabel(identity.provider);

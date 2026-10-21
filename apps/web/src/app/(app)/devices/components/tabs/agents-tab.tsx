@@ -1,6 +1,6 @@
 'use client';
 
-import { InfoCard, Tag } from '@flamingo-stack/openframe-frontend-core';
+import { InfoCard, type InfoCardData, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -16,6 +16,7 @@ import {
   getToolConnectionDisplayStatus,
   type ToolConnectionDisplayStatus,
 } from '../../utils/tool-connection-status';
+import { EMPTY_CARD } from './info-card-loading';
 import { TabEmptyState } from './tab-empty-state';
 
 interface AgentsTabProps {
@@ -35,32 +36,8 @@ const agentTypeToToolType: Record<string, string> = {
  * per agent type the platform knows.
  */
 const AGENT_CARDS_SKELETON_COUNT = Object.keys(agentTypeToToolType).length;
-
-const AGENTS_SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
-const AGENTS_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
-const AGENTS_GRID_CLASS =
-  'grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3';
-const AGENT_CARD_SKELETON_DATA = { items: [] };
-
-/** The Agents tab while the device is read: the real heading, each card its own InfoCard skeleton. */
-function AgentsTabSkeleton() {
-  return (
-    <section className={AGENTS_SECTION_CLASS}>
-      <h3 className={AGENTS_HEADING_CLASS}>Agent Versions</h3>
-      <div className={AGENTS_GRID_CLASS}>
-        {Array.from({ length: AGENT_CARDS_SKELETON_COUNT }, (_, index) => (
-          <div key={index} data-loading-item className="h-full">
-            <InfoCard
-              data={AGENT_CARD_SKELETON_DATA}
-              skeleton={{ rows: 4, title: false, footer: true }}
-              className="h-full"
-            />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+/** A loading card: the rows a connected agent reports, their labels real, and its footer. */
+const AGENT_CARD_SKELETON = { rows: ['Agent', 'Status', 'Last Seen', 'Version'], title: false, footer: true };
 
 const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
 
@@ -89,15 +66,21 @@ function formatRelative(value: string | undefined): string | undefined {
   return d.getTime() > 0 ? formatRelativeTime(d) : undefined;
 }
 
-export function AgentsTab({ device }: AgentsTabProps) {
-  if (useLoadingScope()) {
-    return <AgentsTabSkeleton />;
-  }
+type CombinedAgent = {
+  agentType: string;
+  version: string | undefined;
+  toolType: string;
+  agentToolId: string | undefined;
+  hasConnection: boolean;
+  isPlaceholder: boolean;
+  status: ToolConnectionDisplayStatus;
+  lastSeen: string | undefined;
+  lastFetched: string | undefined;
+  updatedAt: string | undefined;
+};
 
-  return <AgentsTabCards device={device} />;
-}
-
-function AgentsTabCards({ device }: AgentsTabProps) {
+/** One card per installed agent, tool connection and expected agent not reported yet, in a stable order. */
+function combineAgents(device: Device): CombinedAgent[] {
   const toolConnections = Array.isArray(device?.toolConnections) ? device.toolConnections : [];
   const installedAgents = Array.isArray(device?.installedAgents) ? device.installedAgents : [];
 
@@ -106,7 +89,7 @@ function AgentsTabCards({ device }: AgentsTabProps) {
     connectionMap.set(tc.toolType, tc);
   });
 
-  const combinedAgents = installedAgents.map((agent: InstalledAgent) => {
+  const combinedAgents: CombinedAgent[] = installedAgents.map((agent: InstalledAgent) => {
     const mappedToolType = agentTypeToToolType[agent.agentType];
     const connection = mappedToolType ? connectionMap.get(mappedToolType) : null;
 
@@ -173,10 +156,55 @@ function AgentsTabCards({ device }: AgentsTabProps) {
   combinedAgents.sort(
     (a, b) => a.agentType.localeCompare(b.agentType) || (a.agentToolId ?? '').localeCompare(b.agentToolId ?? ''),
   );
+  return combinedAgents;
+}
 
-  const hasAgents = combinedAgents.length > 0;
+/** The rows and footer one agent's card shows. */
+function agentCardData(agent: CombinedAgent): InfoCardData {
+  const toolType = normalizeToolTypeWithFallback(agent.toolType);
+  const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
+  // A placeholder shows its pending status whatever the agent: openframe-chat
+  // has no live status once installed, but it is still installing here.
+  const showStatusBlock =
+    agent.isPlaceholder ||
+    (AGENT_TYPES_WITH_STATUS.has(agent.toolType) &&
+      (agent.status != null || agent.lastSeen != null || agent.lastFetched != null));
 
-  if (!hasAgents) {
+  // InfoCard's own row type says `value: string | string[]`, but the card
+  // renders whatever it is handed and these rows carry ReactNodes (Tag,
+  // ToolBadge). Widened locally rather than cast at the call site so each
+  // push below is still checked against a real shape.
+  const items: Array<{ label?: string; value: ReactNode; copyable?: boolean; icon?: ReactNode }> = [
+    { label: 'Agent', value: <ToolBadge toolType={toolType} /> },
+  ];
+
+  if (showStatusBlock && agent.status != null) {
+    items.push({ label: 'Status', value: <Tag label={statusConfig.label} variant={statusConfig.variant} /> });
+  }
+
+  const lastSeen = showStatusBlock ? formatTimestamp(agent.lastSeen) : undefined;
+  if (lastSeen) items.push({ label: 'Last Seen', value: lastSeen });
+
+  if (agent.agentToolId) items.push({ label: 'ID', value: agent.agentToolId, copyable: true });
+  if (agent.version) items.push({ label: 'Version', value: agent.version });
+
+  const updated = formatRelative(agent.updatedAt) ?? (showStatusBlock ? formatRelative(agent.lastFetched) : undefined);
+  if (updated) items.push({ label: 'Updated', value: updated });
+
+  // The cast is what the loose `any[]` used to be, now confined to the
+  // one boundary that needs it: InfoCard's props model `value` as a
+  // string, and these rows are Tags and badges.
+  return { items: items as InfoCardData['items'], footer: getAgentFooter(agent.toolType) };
+}
+
+export function AgentsTab({ device }: AgentsTabProps) {
+  const loading = useLoadingScope();
+  // While the device is read each slot is a card with no rows (its skeleton); the data is not touched.
+  const agents: Array<CombinedAgent | null> = loading
+    ? Array.from({ length: AGENT_CARDS_SKELETON_COUNT }, () => null)
+    : combineAgents(device);
+
+  if (agents.length === 0) {
     return (
       <TabEmptyState
         icon={<TerminalBrowserIcon />}
@@ -187,55 +215,22 @@ function AgentsTabCards({ device }: AgentsTabProps) {
   }
 
   return (
-    <section className={AGENTS_SECTION_CLASS}>
-      <h3 className={AGENTS_HEADING_CLASS}>Agent Versions</h3>
-      <div className={AGENTS_GRID_CLASS}>
-        {combinedAgents.map((agent, idx) => {
-          const toolType = normalizeToolTypeWithFallback(agent.toolType);
-          const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
-          // A placeholder shows its pending status whatever the agent: openframe-chat
-          // has no live status once installed, but it is still installing here.
-          const showStatusBlock =
-            agent.isPlaceholder ||
-            (AGENT_TYPES_WITH_STATUS.has(agent.toolType) &&
-              (agent.status != null || agent.lastSeen != null || agent.lastFetched != null));
-
-          // `value` carries ReactNodes (Tag, ToolBadge); InfoCard's typings only model strings, so
-          // the items array stays loosely typed (matching the prior implementation) and renders inline.
-          // InfoCard's own row type says `value: string | string[]`, but the card
-          // renders whatever it is handed and these rows carry ReactNodes (Tag,
-          // ToolBadge). Widened locally rather than cast at the call site so each
-          // push below is still checked against a real shape.
-          const items: Array<{ label?: string; value: ReactNode; copyable?: boolean; icon?: ReactNode }> = [
-            { label: 'Agent', value: <ToolBadge toolType={toolType} /> },
-          ];
-
-          if (showStatusBlock && agent.status != null) {
-            items.push({ label: 'Status', value: <Tag label={statusConfig.label} variant={statusConfig.variant} /> });
-          }
-
-          const lastSeen = showStatusBlock ? formatTimestamp(agent.lastSeen) : undefined;
-          if (lastSeen) items.push({ label: 'Last Seen', value: lastSeen });
-
-          if (agent.agentToolId) items.push({ label: 'ID', value: agent.agentToolId, copyable: true });
-          if (agent.version) items.push({ label: 'Version', value: agent.version });
-
-          const updated =
-            formatRelative(agent.updatedAt) ?? (showStatusBlock ? formatRelative(agent.lastFetched) : undefined);
-          if (updated) items.push({ label: 'Updated', value: updated });
-
-          return (
-            <div key={`${agent.agentType}-${agent.agentToolId || idx}`} data-loading-item className="h-full">
-              <InfoCard
-                // The cast is what the loose `any[]` used to be, now confined to the
-                // one boundary that needs it: InfoCard's props model `value` as a
-                // string, and these rows are Tags and badges.
-                data={{ items: items as { label?: string; value: string }[], footer: getAgentFooter(agent.toolType) }}
-                className="h-full"
-              />
-            </div>
-          );
-        })}
+    <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
+      <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
+      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
+        {agents.map((agent, idx) => (
+          <div
+            key={agent ? `${agent.agentType}-${agent.agentToolId || idx}` : idx}
+            data-loading-item
+            className="h-full"
+          >
+            <InfoCard
+              data={agent ? agentCardData(agent) : EMPTY_CARD}
+              skeleton={AGENT_CARD_SKELETON}
+              className="h-full"
+            />
+          </div>
+        ))}
       </div>
     </section>
   );

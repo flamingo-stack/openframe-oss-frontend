@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -26,7 +25,7 @@ import {
   REMOTE_ACCESS_MODES,
   type RemoteAccessMode,
 } from '@/app/(app)/devices/types/remote-access';
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { PolicyValueCard } from '@/app/components/shared/policy-value-card';
 import { routes } from '@/lib/routes';
 
 export interface CustomerDeviceGuardrailsHandle {
@@ -116,18 +115,11 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
         />
 
         {useDefault ? (
-          <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
-            <InfoCell
-              value={
-                isLoading ? (
-                  <TextLineSkeleton type="h4" className="w-40" />
-                ) : (
-                  <span className="text-ods-text-secondary">{REMOTE_ACCESS_MODE_META[tenantMode].label}</span>
-                )
-              }
-              label="Default Remote Access Permission"
-            />
-          </div>
+          <PolicyValueCard
+            label="Default Remote Access Permission"
+            value={isLoading ? undefined : REMOTE_ACCESS_MODE_META[tenantMode].label}
+            muted
+          />
         ) : (
           <div className="content-md:w-1/2">
             <Select

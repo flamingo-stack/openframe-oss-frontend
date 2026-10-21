@@ -169,10 +169,10 @@ export function AiSettingsQuickActions({
     () => [
       {
         accessorKey: 'name',
-        // No header while loading: whose list it is (OpenFrame's or the organization's) is what is read.
+        // Whose list it is (OpenFrame's or the organization's) is read: a bar of the header's own line while loading.
         header:
           isDefault == null
-            ? ''
+            ? () => <TextLineSkeleton type="inherit" as="span" className="w-56 max-w-full" />
             : `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
         cell: ({ row }: { row: Row<AiQuickAction> }) => {
           const icon = renderQuickActionIcon({

@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
+import { noop } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -88,7 +89,6 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   );
 }
 
-const noop = () => {};
 const NO_DEVICES: never[] = [];
 
 /**
@@ -100,9 +100,9 @@ const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Finish', variant: 'accent
 
 /**
  * The page before its settings land: the title, a working Back, the info bar
- * (drawing its own skeleton in the scope) and the real mode block, locked with
- * nothing marked. The picker is NOT here: its two halves are different surfaces,
- * so drawing one would answer the question this state is waiting on.
+ * (drawing its own skeleton in the scope), the real mode block, locked with
+ * nothing marked, and the picker's loading form for the specific half (the mode
+ * a schedule is in unless a rule was written for it).
  */
 function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
   const handleBack = useSafeBack(routes.scripts.schedules.details(scheduleId));
@@ -118,6 +118,7 @@ function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <ScheduleInfoBarFromData name="" note="" date="" time="" repeat="" platforms={[]} />
         <DeviceSelectionModeRadio value="" disabled />
+        <SchedulePickerLoading mode="specific" />
       </div>
     </PageLayout>
   );

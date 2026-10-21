@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useTenantOnboardingAutoDetect } from '@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -22,14 +23,24 @@ import { ReadyStep } from '../steps/ready-step';
 import { WelcomeStep } from '../steps/welcome-step';
 import { SetupFrame } from './setup-frame';
 
-const noop = () => {};
-
 /**
  * How long "Start with Mingo" waits for the backend to mark the setup complete
  * before leaving anyway. The next load re-evaluates from the server, so a slow
  * or failed completion costs a return to this screen, not a trapped user.
  */
 const START_FAIL_OPEN_MS = 8_000;
+
+/**
+ * The wizard's first screen while its progress is read: static copy, its Continue inert. Rendered in a loading
+ * scope by both the page's Suspense fallback and the wizard itself, so the two waits are one screen.
+ */
+export function SetupWelcomeFrame() {
+  return (
+    <SetupFrame step="welcome">
+      <WelcomeStep onContinue={noop} />
+    </SetupFrame>
+  );
+}
 
 /**
  * The wizard's state machine. Which screen shows comes from the tenant's
@@ -125,9 +136,7 @@ export function SetupWizard() {
   if (!tenant) {
     return (
       <LoadingWhen loading>
-        <SetupFrame step="welcome">
-          <WelcomeStep onContinue={noop} />
-        </SetupFrame>
+        <SetupWelcomeFrame />
       </LoadingWhen>
     );
   }

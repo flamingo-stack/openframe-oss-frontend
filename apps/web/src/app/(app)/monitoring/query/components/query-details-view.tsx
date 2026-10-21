@@ -9,7 +9,6 @@ import {
   QueryReportTable,
   TabNavigation,
 } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   MonitorIcon,
@@ -19,7 +18,7 @@ import {
 import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
@@ -40,6 +39,9 @@ const QUERY_TABS: TabItem[] = [
   { id: DEVICES_TAB, label: 'Assigned Devices', icon: MonitorIcon },
 ];
 const DEFAULT_QUERY_TAB: QueryDetailTab = RESULTS_TAB;
+
+/** The gap between an info cell's value and its label. */
+const CELL_GAP_CLASS = 'gap-[var(--spacing-system-xxs)]';
 
 function isQueryDetailTab(value: string): value is QueryDetailTab {
   return TAB_IDS.queryDetails.some(tab => tab === value);
@@ -153,25 +155,24 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
       >
         {/* Query Info */}
         <div className="rounded-lg border border-ods-border bg-ods-card p-6">
-          {/* Always drawn (the first row on screen): a bar while loading, the empty mark for a query with none. */}
-          <div className="mb-6">
-            <p className="text-ods-text-primary text-h4">
-              {details ? (
-                details.description || <EmptyValue />
-              ) : (
-                <TextLineSkeleton type="h4" as="span" className="w-2/3" />
-              )}
-            </p>
-            <p className="mt-1 text-ods-text-secondary text-h6">Description</p>
+          {/* Always drawn (the first row on screen): a bar while loading, the empty mark for a query with none. The
+              description wraps rather than truncating. */}
+          <div className="mb-6 flex">
+            <InfoCell
+              label="Description"
+              value={details?.description ? <span className="whitespace-normal">{details.description}</span> : null}
+              skeletonWidth="w-2/3"
+              className={CELL_GAP_CLASS}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-6 border-t border-ods-border pt-4 content-md:grid-cols-4">
-            <div>
-              <p className="text-ods-text-primary text-h4">
-                {details ? formatInterval(details.interval) : <TextLineSkeleton type="h4" as="span" className="w-24" />}
-              </p>
-              <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
-            </div>
+            <InfoCell
+              label="Frequency"
+              value={details ? formatInterval(details.interval) : ''}
+              skeletonWidth="w-24"
+              className={CELL_GAP_CLASS}
+            />
           </div>
         </div>
 

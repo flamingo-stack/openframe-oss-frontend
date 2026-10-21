@@ -94,6 +94,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
   return (
     <div className="flex flex-col gap-[var(--spacing-system-mf)]">
       <Input
+        userValue
         placeholder="Search for Knowledge Article"
         value={search}
         onChange={event => setSearch(event.target.value)}

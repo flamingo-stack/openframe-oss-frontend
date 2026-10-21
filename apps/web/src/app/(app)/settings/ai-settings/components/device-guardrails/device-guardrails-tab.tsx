@@ -1,7 +1,7 @@
 'use client';
 'use no memo';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
   LoadingWhen,
@@ -10,7 +10,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,7 +24,7 @@ import {
   REMOTE_ACCESS_MODES,
   type TenantRemoteAccessPolicy,
 } from '@/app/(app)/devices/types/remote-access';
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { PolicyValueCard } from '@/app/components/shared/policy-value-card';
 
 export const DEVICE_GUARDRAILS_FORM_ID = 'ai-settings-device-guardrails-form';
 
@@ -83,31 +82,11 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
   );
 }
 
-/* Same "table-cell" card as the customer tab: 60px/12px padding on
-   mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
-const VIEW_CARD_CLASS =
-  'flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20';
 const MODE_LABEL = 'Default Remote Access Permission';
 
-/** The card while the policy is on its way: the field's label is fixed copy, the mode a bar. */
-function DeviceGuardrailsPolicyCardSkeleton() {
-  return (
-    <div className={VIEW_CARD_CLASS}>
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TextLineSkeleton type="h4" className="w-40 max-w-full" />
-        <p className="truncate text-ods-text-secondary text-h6">{MODE_LABEL}</p>
-      </div>
-    </div>
-  );
-}
-
+/** The policy's mode as a read-only card; with no policy yet, its value is a bar. */
 function DeviceGuardrailsPolicyCard({ policy }: { policy: TenantRemoteAccessPolicy | null }) {
-  if (useLoadingScope() || policy == null) return <DeviceGuardrailsPolicyCardSkeleton />;
-  return (
-    <div className={VIEW_CARD_CLASS}>
-      <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label={MODE_LABEL} />
-    </div>
-  );
+  return <PolicyValueCard label={MODE_LABEL} value={policy ? REMOTE_ACCESS_MODE_META[policy.mode].label : null} />;
 }
 
 function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessPolicy; onSaved: () => void }) {
@@ -140,7 +119,7 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
         control={form.control}
         render={({ field, fieldState }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger label="Default Remote Access Permission" error={fieldState.error?.message}>
+            <SelectTrigger label={MODE_LABEL} error={fieldState.error?.message}>
               {/* Children override Radix's default item mirror: the closed
                   trigger shows only the label (per the design), while the open
                   list keeps the two-line label + description items. */}

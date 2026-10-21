@@ -39,7 +39,8 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
   return (
     <div className={cn('flex flex-col text-ods-text-secondary text-h4', className)}>
       {showAiNote && <p>Devices and AI balance are billed together at checkout.</p>}
-      {/* The total's line: the figure inside it is set in h3, which is the line's height. */}
+      {/* The total's line: the figure inside it is set in h3, which is the line's height. The label is a bar too: it
+          says prepaid or not, and the plan mode is chosen from the catalog (`buildInitialDevicePlan`), still loading. */}
       {isLoading && (
         <LoadingRegion status={false}>
           <TextLineSkeleton type="h3" className="w-56" />

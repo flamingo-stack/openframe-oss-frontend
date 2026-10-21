@@ -4,6 +4,7 @@ import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openfram
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { noop } from '@/app/components/shared';
 
 interface GuardrailsPolicyGroupsProps {
   /** Unread while loading. */
@@ -13,7 +14,6 @@ interface GuardrailsPolicyGroupsProps {
   onCategoryPermissionChange?: (categoryId: string, level: ApprovalLevel) => void;
 }
 
-const noop = () => {};
 const NO_CATEGORIES: PermissionCategory[] = [];
 
 const GROUPS_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-l)]';

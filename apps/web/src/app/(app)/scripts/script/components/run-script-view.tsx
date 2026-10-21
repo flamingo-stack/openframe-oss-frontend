@@ -8,6 +8,7 @@ import {
   Input,
   Label,
   type PageActionButton,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -66,6 +67,8 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
+  // Without the script the run config is not seeded yet: its fields are locked and show no value.
+  const loading = useLoadingScope() || !script;
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -245,7 +248,8 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                 <Input
                   type="number"
                   className="w-full"
-                  value={field.value}
+                  disabled={loading}
+                  value={loading ? '' : field.value}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 />

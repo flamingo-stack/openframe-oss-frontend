@@ -20,7 +20,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
+import { EmptyState, noop, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -30,7 +30,6 @@ import { type CustomersDateQuery, ORGANIZATIONS_PAGE_SIZE, useCustomers } from '
 import { type CustomersDateFilter, CustomersSearchInput, CustomersTableBody } from './customers-table-columns';
 
 const EMPTY_FILTER_GROUPS: never[] = [];
-const noopFilterChange = () => {};
 
 interface CustomersTableProps {
   status?: string;
@@ -214,7 +213,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
         isOpen={mobileFilterOpen}
         onClose={() => setMobileFilterOpen(false)}
         filterGroups={EMPTY_FILTER_GROUPS}
-        onFilterChange={noopFilterChange}
+        onFilterChange={noop}
         dateFilter={{
           title: 'Last Activity',
           sort: sortDirection,

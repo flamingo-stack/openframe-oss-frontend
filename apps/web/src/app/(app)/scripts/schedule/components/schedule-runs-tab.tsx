@@ -28,6 +28,7 @@ import type {
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { EmptyLiveTable } from '@/app/components/shared/empty-live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -41,7 +42,7 @@ import { executionStatusLabel, initiatorInitials, initiatorName } from '../../sh
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
-  ScheduleRunsLoading,
+  SCHEDULE_RUN_LOADING_COLUMNS,
   type UiRun,
   useScheduleRunColumns,
 } from './schedule-runs-columns';
@@ -381,6 +382,7 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
         >
           <div className="flex-1">
             <Input
+              userValue
               placeholder="Search for Runs"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
@@ -400,7 +402,11 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
       <Suspense
         fallback={
           <LoadingFallback label="Loading schedule runs">
-            <ScheduleRunsLoading stickyHeaderOffset={stickyHeaderOffset} />
+            <EmptyLiveTable
+              columns={SCHEDULE_RUN_LOADING_COLUMNS}
+              pageSize={RUNS_PAGE_SIZE}
+              stickyHeaderOffset={stickyHeaderOffset}
+            />
           </LoadingFallback>
         }
       >

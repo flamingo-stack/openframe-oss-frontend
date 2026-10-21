@@ -1,21 +1,12 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import {
-  type ComponentType,
-  type ReactNode,
-  type Ref,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type ComponentType, type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -24,8 +15,8 @@ import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
-  countCompleted,
   isStepDone,
+  onboardingProgress,
   onboardingStepAnchorId,
   onboardingStepFromAnchorId,
   USER_ONBOARDING_STEPS,
@@ -39,6 +30,7 @@ import { MingoStep } from './mingo-step';
 import { MonitoringStep } from './monitoring-step';
 import { OnboardingAccordionGroup, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
+import { OnboardingLoadGate } from './onboarding-load-gate';
 import { ScriptingStep } from './scripting-step';
 import { TicketsStep } from './tickets-step';
 
@@ -130,21 +122,9 @@ export function OnboardingContent() {
   // The step bodies stay mounted while collapsed, and some of them suspend on their own
   // reads: the page keeps its header and rows meanwhile.
   return (
-    <LoadingWhen loading={pending}>
-      {pending ? (
-        <PendingOnboardingView />
-      ) : (
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading onboarding">
-              <PendingOnboardingView />
-            </LoadingFallback>
-          }
-        >
-          <LoadedOnboardingContent />
-        </Suspense>
-      )}
-    </LoadingWhen>
+    <OnboardingLoadGate pending={pending} label="Loading onboarding" view={<OnboardingView />}>
+      <LoadedOnboardingContent />
+    </OnboardingLoadGate>
   );
 }
 
@@ -152,12 +132,6 @@ const PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
 
 const NO_COMPLETED_STEPS: readonly string[] = [];
-const noop = () => {};
-
-/** {@link OnboardingView} before progress is read: rendered in a loading scope, where every row draws its own state. */
-function PendingOnboardingView() {
-  return <OnboardingView completedSteps={NO_COMPLETED_STEPS} isMutating={false} onSkip={noop} onLeave={noop} />;
-}
 
 /** How a loaded row is wired: its anchor, its expansion and its body. */
 interface OnboardingStepWiring {
@@ -170,10 +144,10 @@ interface OnboardingStepWiring {
 
 interface OnboardingViewProps {
   /** The steps the user has completed (none while progress is read). */
-  completedSteps: readonly string[];
-  isMutating: boolean;
-  onSkip: () => void;
-  onLeave: () => void;
+  completedSteps?: readonly string[];
+  isMutating?: boolean;
+  onSkip?: () => void;
+  onLeave?: () => void;
   /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
   stepWiring?: (step: UserOnboardingStepId) => OnboardingStepWiring;
   /** Dialogs the loaded page owns. */
@@ -185,13 +159,16 @@ interface OnboardingViewProps {
  * (progress not read yet) the header keeps its static copy with Skip held off, and each row draws its own status
  * as a skeleton with its body not mounted, so nothing here suspends.
  */
-function OnboardingView({ completedSteps, isMutating, onSkip, onLeave, stepWiring, children }: OnboardingViewProps) {
+function OnboardingView({
+  completedSteps = NO_COMPLETED_STEPS,
+  isMutating = false,
+  onSkip = noop,
+  onLeave = noop,
+  stepWiring,
+  children,
+}: OnboardingViewProps) {
   const loading = useLoadingScope();
-  const total = USER_ONBOARDING_STEPS.length;
-  const done = countCompleted(USER_ONBOARDING_STEPS, completedSteps);
-  const allDone = !loading && done >= total;
-  // First step still to do, in display order: the one row that says "Next".
-  const nextStep = USER_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
+  const { total, done, nextStep, allDone } = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps, loading);
   const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
     isStepDone(step, completedSteps) ? 'completed' : 'active';
 
@@ -329,7 +306,7 @@ function LoadedOnboardingContent() {
     urlStep: hashStep,
     onOpenStepChange: syncHashToStep,
   });
-  const allDone = countCompleted(USER_ONBOARDING_STEPS, completedSteps) >= USER_ONBOARDING_STEPS.length;
+  const { allDone } = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps);
 
   // The instant every step is done, commit the tour in the background exactly once. No
   // manual click required: committing here is what makes ANY action on the completed view

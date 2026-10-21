@@ -21,7 +21,7 @@ import type { softwareLogsTablePaginationQuery as SoftwareLogsTablePaginationQue
 import type { softwareLogsTableQuery as SoftwareLogsTableQueryType } from '@/__generated__/softwareLogsTableQuery.graphql';
 import { EXECUTIONS_PAGE_SIZE, type ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import type { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../shared/column-filters';
@@ -201,9 +201,7 @@ export function SoftwareLogsTable({
     <SoftwareLogsRows
       allRows={data.softwareExecutions?.edges.map(edge => edge.node) ?? NO_ROWS}
       statusFacets={queryData.softwareExecutionFilters?.statuses ?? null}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={fetchNextPage}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
       actionLabel={actionLabel}
       state={state}
     />
@@ -215,9 +213,7 @@ type StatusFacets = NonNullable<SoftwareLogsTableQueryType['response']['software
 interface SoftwareLogsRowsProps {
   allRows: readonly SoftwareLogRow[];
   statusFacets: StatusFacets | null;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
   actionLabel: string;
   state: ExecutionsTabState;
 }
@@ -226,15 +222,7 @@ interface SoftwareLogsRowsProps {
  * The logs table itself, from the rows it is handed: no query, so it also draws in a loading scope, where the
  * header is real and the body is its own loading rows (`ActionDetailLogs` renders it so before the run answers).
  */
-export function SoftwareLogsRows({
-  allRows,
-  statusFacets,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
-  actionLabel,
-  state,
-}: SoftwareLogsRowsProps) {
+export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, actionLabel, state }: SoftwareLogsRowsProps) {
   const {
     narrowSearch,
     isPending,
@@ -337,7 +325,7 @@ export function SoftwareLogsRows({
   const hasActiveFilter = columnFilters.length > 0;
   const showHeader = loading || logs.length > 0 || hasActiveFilter || isPending;
 
-  const resolvedEmptyState: NoDataProps = hasNext
+  const resolvedEmptyState: NoDataProps = infiniteScroll.hasNextPage
     ? { icon: <SearchIcon />, title: 'Looking through the remaining logs…' }
     : narrowSearch || hasActiveFilter
       ? {
@@ -349,7 +337,8 @@ export function SoftwareLogsRows({
         }
       : EMPTY_STATE;
 
-  const isEmptyState = !loading && logs.length === 0 && !narrowSearch && !hasActiveFilter && !hasNext && !isPending;
+  const isEmptyState =
+    !loading && logs.length === 0 && !narrowSearch && !hasActiveFilter && !infiniteScroll.hasNextPage && !isPending;
   useEffect(() => {
     onEmptyChange(isEmptyState);
   }, [isEmptyState, onEmptyChange]);
@@ -374,11 +363,9 @@ export function SoftwareLogsRows({
           />
           {/* The rows are narrowed client-side, so a page can come back empty
               and still have more behind it: keep loading until the run is done. */}
-          {(logs.length > 0 || hasNext) && (
+          {(logs.length > 0 || infiniteScroll.hasNextPage) && (
             <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={onLoadMore}
+              {...infiniteScroll}
               skeletonRows={EXECUTIONS_PAGE_SIZE}
               // The search narrows the loaded rows on the client, so a page can
               // arrive and add no match: progress is read off this count instead.

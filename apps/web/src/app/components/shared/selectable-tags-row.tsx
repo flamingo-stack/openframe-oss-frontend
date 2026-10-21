@@ -6,7 +6,6 @@ import {
   ActionsMenuDropdown,
   FloatingTooltip,
   Tag,
-  TagSkeleton,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -23,6 +22,9 @@ export interface SelectableTag {
  * stretching the row (and the measured chips in sync with the visible ones).
  */
 const MAX_TAG_LABEL_LENGTH = 24;
+
+/** The row's frame, one line of chips tall (a tag chip is `h-8`): loading, loaded and empty alike. */
+const ROW_CLASS = 'flex min-h-8 items-center gap-[var(--spacing-system-xxs)] overflow-hidden';
 
 const formatTagLabel = (key: string): string =>
   key.length > MAX_TAG_LABEL_LENGTH ? `${key.slice(0, MAX_TAG_LABEL_LENGTH)}…` : key;
@@ -53,14 +55,15 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
   });
 
   if (loading) return <SelectableTagsRowSkeleton />;
-  if (available.length === 0) return null;
+  // Nothing left to add: the row keeps its line, so the list under it does not move when the tags answer.
+  if (available.length === 0) return <div className={ROW_CLASS} />;
 
   const visible = available.slice(0, visibleCount);
   const hidden = available.slice(visibleCount);
 
   return (
     <div className="relative">
-      <div ref={middleRef} className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
+      <div ref={middleRef} className={ROW_CLASS}>
         {visible.map(tag => {
           const isTruncated = tag.key.length > MAX_TAG_LABEL_LENGTH;
           return (
@@ -123,16 +126,16 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
 
 /**
  * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size), each the lib's
- * `TagSkeleton` (the chip's own frame and height) at varied widths so the placeholder reads as tags.
+ * `Tag` in its loading form (the chip's own frame and height) at varied widths so the placeholder reads as tags.
  */
 const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
 
 function SelectableTagsRowSkeleton() {
   return (
-    <LoadingRegion label="Loading tags" className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
+    <LoadingRegion label="Loading tags" className={ROW_CLASS}>
       {SKELETON_TAG_WIDTHS.map((width, idx) => (
         <span key={idx} data-loading-item className="shrink-0">
-          <TagSkeleton className={width} />
+          <Tag label="" loading className={width} />
         </span>
       ))}
     </LoadingRegion>

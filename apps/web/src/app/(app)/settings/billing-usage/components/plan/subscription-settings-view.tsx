@@ -156,7 +156,7 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
 
   return (
     <>
-      <PaywallHeader copy={copy} deviceCount={form.deviceCount} />
+      <PaywallHeader copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
 
       <PlanCheckoutCards query={data} form={form} />
 

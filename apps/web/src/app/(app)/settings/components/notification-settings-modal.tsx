@@ -51,9 +51,12 @@ const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-m)]';
 const CANCEL_BUTTON_CLASS = 'h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg';
 const SAVE_BUTTON_CLASS = 'h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90';
 
-/** The master-switch row's frame, the same loading and loaded. */
+/**
+ * The master-switch row's frame, the same loading and loaded. No height of its own: the label is fixed copy, drawn
+ * for real in both forms, so its line (taller than the 16px switch) and the padding set the row's height.
+ */
 const MASTER_ROW_CLASS =
-  'flex min-h-[44px] items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border md:min-h-[48px]';
+  'flex items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border';
 /** The switch's own box (the lib `Switch` is `h-4 w-6`), drawn as a bar while its state is read. */
 const SWITCH_SKELETON_CLASS = 'h-4 w-6 shrink-0 rounded-full';
 

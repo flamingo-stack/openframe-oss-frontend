@@ -6,25 +6,20 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   type Row,
-  SquareAvatar,
   Tag,
   TruncateText,
-  useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { InitiatorIdentity, rowInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
+import { facetFilter } from '../../shared/utils/facet-options';
 
 /** How many runs load per page. */
 export const RUNS_PAGE_SIZE = 20;
@@ -87,53 +82,7 @@ function InitiatorCell({ run }: { run: UiRun }) {
     );
   }
 
-  // The initiator id is a User global id; decode it to the raw id the REST-backed
-  // employee page expects. `data-no-row-click` stops the row's own navigation so
-  // only the user page opens.
-  const rawInitiatorId = decodeGlobalId(run.initiatorId)?.rawId ?? run.initiatorId;
-  const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = run.initiatorDeleted;
-
-  const avatar = isDeleted ? (
-    <DeletedUserAvatar size="md" />
-  ) : (
-    <SquareAvatar
-      variant="round"
-      size="md"
-      src={run.initiatorImage}
-      fallback={run.initiatorInitials}
-      alt={run.initiatorName}
-      initialsClassName="text-ods-text-secondary"
-    />
-  );
-
-  if (!href) {
-    return (
-      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
-        {avatar}
-        <div className="min-w-0 flex-1">
-          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{run.initiatorName}</TruncateText>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
-      <button
-        type="button"
-        onClick={openInNewTab(href)}
-        className="flex w-full min-w-0 items-center gap-[var(--spacing-system-xsf)] text-left"
-      >
-        {avatar}
-        <div className="min-w-0 flex-1">
-          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-            {run.initiatorName}
-          </TruncateText>
-        </div>
-      </button>
-    </div>
-  );
+  return <InitiatorIdentity initiator={rowInitiator(run)} size="md" inRow />;
 }
 
 /**
@@ -178,9 +127,6 @@ export function useScheduleRunColumns(
     [renderRowActions, statusOptions, dateFilter],
   );
 }
-
-/** No facet yet: the Status filter is pending, so its funnel is drawn (inert) instead of appearing with the data. */
-const PENDING_FILTER = { options: [] as RunStatusOption[], pending: true as const };
 
 /**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `statusOptions`
@@ -228,7 +174,7 @@ function scheduleRunColumns({
       ),
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(RUN_COLUMNS.status, { filter: statusOptions ? { options: statusOptions } : PENDING_FILTER }),
+      meta: liveColumnMeta(RUN_COLUMNS.status, { filter: facetFilter(statusOptions) }),
     },
     {
       accessorKey: 'responded',
@@ -288,26 +234,9 @@ function scheduleRunColumns({
   ];
 }
 
-const EMPTY_ROWS: UiRun[] = [];
-const noRowActions = () => null;
-
-/**
- * The live table with no rows yet: the same columns and header, its body and row count drawing their own skeletons
- * in the loading scope it is rendered in.
- */
-export function ScheduleRunsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
-  const columns = scheduleRunColumns({ statusOptions: null, dateFilter: null, renderRowActions: noRowActions });
-  const table = useDataTable<UiRun>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiRun) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <DataTable table={table}>
-      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-      <DataTable.Body skeletonRows={RUNS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-    </DataTable>
-  );
-}
+/** The columns before the first answer: the Status funnel pending, the calendar inert, no row to act on. */
+export const SCHEDULE_RUN_LOADING_COLUMNS = scheduleRunColumns({
+  statusOptions: null,
+  dateFilter: null,
+  renderRowActions: () => null,
+});

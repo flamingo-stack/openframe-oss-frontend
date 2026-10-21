@@ -3,7 +3,7 @@
 import { type ReactNode, Suspense, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import { TagFilterBar, useRetryKey } from '@/app/components/shared';
+import { noop, TagFilterBar, useRetryKey } from '@/app/components/shared';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 
 const SEARCH_PLACEHOLDER = 'Search for Scripts';
@@ -23,8 +23,6 @@ interface ScriptsTagFilterProps {
 
 const NO_TAGS: { id: string; key: string }[] = [];
 const NO_IDS: string[] = [];
-const noop = () => {};
-
 /**
  * Scripts list tag filter — the shared `TagFilterBar` fed by `scriptsTags` (tags
  * actually assigned to scripts). `archived` scopes the set: `true` → tags on

@@ -6,8 +6,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
-import { EmptyState, useRetryKey } from '@/app/components/shared';
-import { NO_NEXT_PAGE } from '../shared/fleet-list-paging';
+import { EmptyState, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareTable } from './software-table';
 
