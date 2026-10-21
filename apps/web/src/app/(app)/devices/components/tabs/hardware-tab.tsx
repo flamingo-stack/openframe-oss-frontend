@@ -160,7 +160,7 @@ export function HardwareTab({ device }: HardwareTabProps) {
       label: 'Free Space',
       value: typeof fleetAvailableGb === 'number' ? `${fleetAvailableGb.toFixed(2)} GB` : undefined,
     },
-    { label: 'Total Capacity', value: `${(fleetTotalGb as number).toFixed(2)} GB` },
+    { label: 'Total Capacity', value: typeof fleetTotalGb === 'number' ? `${fleetTotalGb.toFixed(2)} GB` : undefined },
   ];
 
   // BATTERY — macOS battery health from Fleet.
