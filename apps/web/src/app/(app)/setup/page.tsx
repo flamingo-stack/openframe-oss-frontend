@@ -1,7 +1,12 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { Suspense } from 'react';
-import { SetupWizard, SetupWizardPending } from './components/setup-wizard';
+import { SetupFrame } from './components/setup-frame';
+import { SetupWizard } from './components/setup-wizard';
+import { WelcomeStep } from './steps/welcome-step';
+
+const noop = () => {};
 
 /**
  * The AI-first setup wizard (flag `onboarding-v2`): the tenant Initial Setup as
@@ -12,7 +17,15 @@ import { SetupWizard, SetupWizardPending } from './components/setup-wizard';
  */
 export default function SetupPage() {
   return (
-    <Suspense fallback={<SetupWizardPending />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading setup">
+          <SetupFrame step="welcome">
+            <WelcomeStep onContinue={noop} />
+          </SetupFrame>
+        </LoadingFallback>
+      }
+    >
       <SetupWizard />
     </Suspense>
   );

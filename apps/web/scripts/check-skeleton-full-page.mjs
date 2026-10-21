@@ -10,6 +10,12 @@
  * size or a limit (`pageSize`, `perPage`, `PAGE_SIZE`, `limit`, `LIMIT`, `cardsPerPage`, `_MAX`) together with a
  * fold (`FOLD`, `fold`, `SCREEN`) fails. A list with no page size and no limit keeps a typical count and is not
  * affected. A line may opt out with `// full-page-ok: <why>`.
+ *
+ * AND no typed count (frontend addition, CU-17tkuw5z69a): a list skeleton's count names where it comes from. A literal
+ * number in `skeletonRows={…}`, `skeletonCount={…}`, `rows={…}` on a `*Skeleton` element, or `Array.from({ length: … })`
+ * inside a function named `*Skeleton`, fails: the count is the list's page-size or limit constant (`*PAGE_SIZE`,
+ * `*LIMIT`), or, for a list with neither, a declared typical constant (`*_SKELETON_*`). A field set that is fixed by
+ * design (the four rows a card always shows) declares its constant too, so the reason is written once.
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -19,6 +25,18 @@ const TREES = ['app', 'components', 'hooks', 'lib'];
 const PAGE = /\b(page_?size|per_?page|cards_?per_?page|limit|[A-Z_]*_(PAGE_SIZE|LIMIT|MAX))\b/i;
 const FOLD = /fold|screen/i;
 const MIN_CALL = /Math\.min\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g;
+const TYPED_PROP = /\b(skeletonRows|skeletonCount)=\{\s*\d+\s*\}/;
+const TYPED_ROWS_ON_SKELETON = /<[A-Z]\w*Skeleton\b[^>]*\brows=\{\s*\d+\s*\}/;
+const TYPED_LENGTH = /Array\.from\(\{\s*length:\s*\d+\s*\}/;
+
+/** The name of the nearest enclosing `function X` / `const X =` declaration above `index`. */
+function enclosing(source, index) {
+  const before = source.slice(0, index);
+  const all = [
+    ...before.matchAll(/(?:^|\n)\s*(?:export\s+)?(?:default\s+)?(?:function\s+|const\s+)([A-Za-z_$][\w$]*)/g),
+  ];
+  return all.at(-1)?.[1] ?? '';
+}
 
 function* walk(dir) {
   if (!existsSync(join(root, dir))) return;
@@ -35,9 +53,23 @@ let files = 0;
 for (const tree of TREES) {
   for (const file of walk(tree)) {
     files++;
-    const lines = readFileSync(join(root, file), 'utf8').split('\n');
+    const source = readFileSync(join(root, file), 'utf8');
+    const lines = source.split('\n');
+    let offset = 0;
     lines.forEach((line, i) => {
-      if (line.includes('full-page-ok:')) return;
+      const at = offset;
+      offset += line.length + 1;
+      if (line.includes('full-page-ok:') || (i > 0 && lines[i - 1].includes('full-page-ok:'))) return;
+      if (TYPED_PROP.test(line) || TYPED_ROWS_ON_SKELETON.test(line)) {
+        problems.push(
+          `${file}:${i + 1} — a typed skeleton count; name the list's page size, limit or a *_SKELETON_* constant`,
+        );
+      }
+      if (TYPED_LENGTH.test(line) && /Skeleton$/.test(enclosing(source, at))) {
+        problems.push(
+          `${file}:${i + 1} — a typed count in ${enclosing(source, at)}; name the list's page size, limit or a *_SKELETON_* constant`,
+        );
+      }
       for (const m of line.matchAll(MIN_CALL)) {
         if (PAGE.test(m[1]) && FOLD.test(m[1])) {
           problems.push(

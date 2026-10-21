@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Ellipsis01Icon,
@@ -12,6 +12,7 @@ import {
   ActionsMenuDropdown,
   Button,
   SquareAvatar,
+  SquareAvatarSkeleton,
   Textarea,
   TruncateText,
   useLoadingScope,
@@ -94,6 +95,16 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
   );
 }
 
+// One frame for a note card and its skeleton.
+const NOTE_CARD_CLASS =
+  'flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]';
+const NOTE_HEADER_CLASS = 'flex w-full items-center gap-[var(--spacing-system-xs)]';
+const NOTE_AUTHOR_CLASS = 'flex min-w-0 flex-1 flex-col';
+const NOTE_TEXT_CLASS = 'break-words text-ods-text-primary text-h4';
+
+/** How many note cards the section draws while its notes are read (the notes are not paged): a short thread. */
+const NOTES_SKELETON_ROWS = 1;
+
 interface NoteCardProps {
   note: NoteItem;
   onEdit: (id: string, text: string) => void;
@@ -118,8 +129,8 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   }
 
   return (
-    <div className="group flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
-      <div className="flex w-full items-center gap-[var(--spacing-system-xs)]">
+    <div data-loading-item className={cn('group', NOTE_CARD_CLASS)}>
+      <div className={NOTE_HEADER_CLASS}>
         <SquareAvatar
           src={note.authorAvatar}
           alt={note.authorName}
@@ -127,7 +138,7 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
           size="sm"
           variant="round"
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className={NOTE_AUTHOR_CLASS}>
           <TruncateText className="text-ods-open-yellow">{note.authorName}</TruncateText>
           <TruncateText variant="h6" tone="secondary">
             {formatDateTime(note.createdAt)}
@@ -176,7 +187,23 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
         )}
       </div>
 
-      <p className="break-words text-ods-text-primary text-h4">{note.text}</p>
+      <p className={NOTE_TEXT_CLASS}>{note.text}</p>
+    </div>
+  );
+}
+
+/** A note card while it is read: the card's own frame, its author avatar, name, date and a two-line text. */
+function NoteCardSkeleton() {
+  return (
+    <div data-loading-item className={NOTE_CARD_CLASS}>
+      <div className={NOTE_HEADER_CLASS}>
+        <SquareAvatarSkeleton size="sm" variant="round" />
+        <div className={NOTE_AUTHOR_CLASS}>
+          <TextLineSkeleton type="h4" className="w-32" />
+          <TextLineSkeleton type="h6" className="w-24" />
+        </div>
+      </div>
+      <TextLineSkeleton type="h4" lines={2} />
     </div>
   );
 }
@@ -191,18 +218,32 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * The heading over an "Add Note" sized bar — the shape of the loaded section
- * when there are no notes yet, which is what most records have. Notes, when
- * there are any, grow the section either way.
- */
+/** The section while its notes are read: the heading, a typical thread of note cards and the real, disabled "Add Note". */
 function NotesSectionSkeleton() {
   return (
     <LoadingRegion className="contents" label="Loading notes">
       <NotesSectionFrame>
-        <UnifiedSkeleton className="h-8 w-28 rounded-md" />
+        {Array.from({ length: NOTES_SKELETON_ROWS }, (_, index) => (
+          <NoteCardSkeleton key={index} />
+        ))}
+        <AddNoteButton disabled />
       </NotesSectionFrame>
     </LoadingRegion>
+  );
+}
+
+function AddNoteButton({ disabled, onClick }: { disabled?: boolean; onClick?: () => void }) {
+  return (
+    <Button
+      variant="outline"
+      size="small"
+      className="w-fit"
+      leftIcon={<PlusCircleIcon />}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      Add Note
+    </Button>
   );
 }
 
@@ -240,15 +281,7 @@ export function NotesSection({
           onCancel={() => setIsAdding(false)}
         />
       ) : (
-        <Button
-          variant="outline"
-          size="small"
-          className="w-fit"
-          leftIcon={<PlusCircleIcon />}
-          onClick={() => setIsAdding(true)}
-        >
-          Add Note
-        </Button>
+        <AddNoteButton onClick={() => setIsAdding(true)} />
       )}
       <ConfirmDialog
         open={noteToDelete !== null}

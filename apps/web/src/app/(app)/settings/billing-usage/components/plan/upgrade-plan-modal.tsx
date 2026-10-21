@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { Suspense, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { upgradePlanModalQuery as UpgradePlanModalQueryType } from '@/__generated__/upgradePlanModalQuery.graphql';
@@ -91,7 +92,11 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
             controls rather than a spinner where the plan will be — the same
             component, with no refs to read yet. */}
         <Suspense
-          fallback={<DevicePlanPicker productRef={null} subscriptionProductRef={null} onUpdatesChange={NOOP_UPDATES} />}
+          fallback={
+            <LoadingFallback label="Loading plans">
+              <DevicePlanPicker productRef={null} subscriptionProductRef={null} onUpdatesChange={NOOP_UPDATES} />
+            </LoadingFallback>
+          }
         >
           <UpgradePlanBody onUpdatesChange={setUpdates} />
         </Suspense>

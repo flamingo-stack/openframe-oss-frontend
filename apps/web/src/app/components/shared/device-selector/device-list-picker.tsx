@@ -10,7 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import { useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
+import { DEVICE_LIST_LIMIT, useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 
 export type DeviceListPickerProps = Omit<
@@ -82,7 +82,7 @@ function DeviceListPickerContent({
  * skeleton and runs nothing.
  */
 export function DeviceListPicker(props: DeviceListPickerProps) {
-  const { showSelectionModeRadio, singleSelect, hideColumns } = props;
+  const { showSelectionModeRadio, singleSelect, hideColumns, first = DEVICE_LIST_LIMIT } = props;
   const [retryNonce, setRetryNonce] = useState(0);
   // In a loading scope (a parent's Suspense fallback) the picker is its skeleton and
   // mounts no query: nothing in a scope fetches.
@@ -93,6 +93,8 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
       showSelectionModeRadio={showSelectionModeRadio}
       singleSelect={singleSelect}
       hideColumns={hideColumns}
+      // The list it waits on is one read of `first` devices.
+      skeletonRows={first}
     />
   );
 

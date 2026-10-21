@@ -6,7 +6,6 @@ import {
   ExecutionDeviceCell,
   ExecutionInitiatorCell,
   ExecutionResultCell,
-  EXECUTIONS_TABLE_COLUMNS,
   ExecutionStatusCell,
   ExecutionTimestampCell,
   getDeviceName,
@@ -44,7 +43,7 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { ValueText } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { liveColumnMeta, skeletonColumnMeta } from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -78,9 +77,9 @@ export const EXECUTIONS_PAGE_SIZE = 20;
 
 /**
  * Column layout — ONE declaration, the lib's (`EXECUTION_COLUMNS` in render
- * order as `EXECUTIONS_TABLE_COLUMNS`), read by {@link ExecutionsTable}, by
- * {@link ExecutionsLoading} and by the lib's own picture of this table. Widths,
- * `hideAt` and `filterable` were written out twice before, and the copies
+ * order as `EXECUTIONS_TABLE_COLUMNS`), read by {@link executionColumns} (the
+ * loaded table and its loading state draw the same columns) and by the lib's own
+ * picture of this table. Widths, `hideAt` and `filterable` were written out twice before, and the copies
  * drifted: the skeleton's three filterable columns lost their `filterable`, so
  * their funnels were missing while loading and popped in with the facets,
  * shifting every label. See `table-column-layout.ts`.
@@ -256,6 +255,162 @@ export interface ExecutionsTableProps {
   onEmptyChange?: (empty: boolean) => void;
 }
 
+/** No facets yet: the filter is pending, so the funnel is drawn (inert) instead of appearing with the data. */
+const PENDING_FILTER = { options: [] as FacetOption[], pending: true as const };
+
+function facetFilter(options: FacetOption[] | undefined) {
+  return options ? { options } : PENDING_FILTER;
+}
+
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones. With no `facetOptions` (loading)
+ * the filterable columns' funnels are pending and the Execution header's calendar is inert.
+ */
+function executionColumns({
+  facetOptions,
+  dateFilter,
+  renderRowActions,
+}: {
+  facetOptions: ExecutionFacetOptions | null;
+  dateFilter: TableDateFilter | null;
+  renderRowActions: (execution: UiExecution) => ReactNode;
+}): ColumnDef<UiExecution>[] {
+  return [
+    {
+      accessorKey: 'executionId',
+      // The cell's first line IS the dispatched timestamp, so the calendar
+      // (date range + newest/oldest first) belongs on this header rather than
+      // on a column of its own.
+      header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      cell: ({ row }: { row: Row<UiExecution> }) => (
+        <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusCell status={row.original.status} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: facetFilter(facetOptions?.statusOptions) }),
+    },
+    {
+      // accessorKey is `machineId` so the filter option values (machineIds)
+      // match the `machineIds` server filter; the cell still renders the name.
+      accessorKey: 'machineId',
+      header: 'Device',
+      cell: ({ row }: { row: Row<UiExecution> }) => (
+        <ExecutionDeviceCell
+          name={<ValueText value={row.original.machineName} />}
+          organization={row.original.organization}
+        />
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: facetFilter(facetOptions?.machineOptions) }),
+    },
+    {
+      // accessorKey is `initiatorId` so the filter option values (user ids)
+      // match the `initiatorIds` server filter; the cell still renders the name.
+      accessorKey: 'initiatorId',
+      header: 'Executed by',
+      // The initiator id is a User global id; decode it to the raw id the
+      // REST-backed employee page expects. When present, the avatar + name open
+      // that user's page in a new tab (accent + underline). `data-no-row-click`
+      // stops the row's own navigation (to the execution) so only the user opens.
+      cell: ({ row }: { row: Row<UiExecution> }) => {
+        const rawInitiatorId = row.original.initiatorId
+          ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
+          : '';
+        const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+        const isDeleted = row.original.initiatorDeleted;
+
+        return (
+          <ExecutionInitiatorCell
+            avatar={
+              isDeleted ? (
+                <DeletedUserAvatar size="md" />
+              ) : (
+                <SquareAvatar
+                  variant="round"
+                  size="md"
+                  src={row.original.initiatorImage}
+                  fallback={row.original.initiatorInitials}
+                  alt={row.original.initiatorName}
+                  initialsClassName="text-ods-text-secondary"
+                />
+              )
+            }
+            name={
+              href ? (
+                // Only the NAME opts out of the row link — the rest of the cell
+                // still navigates to the execution, like every other cell.
+                <button
+                  data-no-row-click
+                  type="button"
+                  onClick={openInNewTab(href)}
+                  className="pointer-events-auto min-w-0 text-left"
+                >
+                  <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+                    {row.original.initiatorName}
+                  </TruncateText>
+                </button>
+              ) : (
+                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
+                  {row.original.initiatorName}
+                </TruncateText>
+              )
+            }
+            source={row.original.source}
+            scriptName={row.original.scriptName}
+          />
+        );
+      },
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.initiatorId, { filter: facetFilter(facetOptions?.initiatorOptions) }),
+    },
+    {
+      accessorKey: 'result',
+      header: 'Result',
+      cell: ({ row }: { row: Row<UiExecution> }) => (
+        <ExecutionResultCell result={row.original.result} empty={<ValueText value={null} />} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.result),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }: { row: Row<UiExecution> }) => (
+        <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
+          {renderRowActions(row.original)}
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.actions),
+    },
+    {
+      id: 'open',
+      cell: ({ row }: { row: Row<UiExecution> }) => (
+        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+          <Button
+            onClick={openInNewTab(routes.scripts.execution(row.original.id))}
+            variant="outline"
+            size="icon"
+            leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+            aria-label="Open execution details in new tab"
+            className="bg-ods-card"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(EXECUTION_COLUMNS.open),
+    },
+  ];
+}
+
 export function ExecutionsTable({
   executions,
   facetOptions,
@@ -303,142 +458,14 @@ export function ExecutionsTable({
     [toast],
   );
 
-  const columns = useMemo<ColumnDef<UiExecution>[]>(
-    () => [
-      {
-        accessorKey: 'executionId',
-        // The cell's first line IS the dispatched timestamp, so the calendar
-        // (date range + newest/oldest first) belongs on this header rather than
-        // on a column of its own.
-        header: () => <DateColumnHeader label={EXECUTION_COLUMNS.executionId.header} filter={dateFilter} />,
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <ExecutionTimestampCell timestamp={row.original.timestamp} executionId={row.original.executionId} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.executionId),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }: { row: Row<UiExecution> }) => <ExecutionStatusCell status={row.original.status} />,
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.status, { filter: { options: statusOptions } }),
-      },
-      {
-        // accessorKey is `machineId` so the filter option values (machineIds)
-        // match the `machineIds` server filter; the cell still renders the name.
-        accessorKey: 'machineId',
-        header: 'Device',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <ExecutionDeviceCell
-            name={<ValueText value={row.original.machineName} />}
-            organization={row.original.organization}
-          />
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.machineId, { filter: { options: machineOptions } }),
-      },
-      {
-        // accessorKey is `initiatorId` so the filter option values (user ids)
-        // match the `initiatorIds` server filter; the cell still renders the name.
-        accessorKey: 'initiatorId',
-        header: 'Executed by',
-        // The initiator id is a User global id; decode it to the raw id the
-        // REST-backed employee page expects. When present, the avatar + name open
-        // that user's page in a new tab (accent + underline). `data-no-row-click`
-        // stops the row's own navigation (to the execution) so only the user opens.
-        cell: ({ row }: { row: Row<UiExecution> }) => {
-          const rawInitiatorId = row.original.initiatorId
-            ? (decodeGlobalId(row.original.initiatorId)?.rawId ?? row.original.initiatorId)
-            : '';
-          const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-          const isDeleted = row.original.initiatorDeleted;
-
-          return (
-            <ExecutionInitiatorCell
-              avatar={
-                isDeleted ? (
-                  <DeletedUserAvatar size="md" />
-                ) : (
-                  <SquareAvatar
-                    variant="round"
-                    size="md"
-                    src={row.original.initiatorImage}
-                    fallback={row.original.initiatorInitials}
-                    alt={row.original.initiatorName}
-                    initialsClassName="text-ods-text-secondary"
-                  />
-                )
-              }
-              name={
-                href ? (
-                  // Only the NAME opts out of the row link — the rest of the cell
-                  // still navigates to the execution, like every other cell.
-                  <button
-                    data-no-row-click
-                    type="button"
-                    onClick={openInNewTab(href)}
-                    className="pointer-events-auto min-w-0 text-left"
-                  >
-                    <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-                      {row.original.initiatorName}
-                    </TruncateText>
-                  </button>
-                ) : (
-                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                    {row.original.initiatorName}
-                  </TruncateText>
-                )
-              }
-              source={row.original.source}
-              scriptName={row.original.scriptName}
-            />
-          );
-        },
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.initiatorId, { filter: { options: initiatorOptions } }),
-      },
-      {
-        accessorKey: 'result',
-        header: 'Result',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <ExecutionResultCell result={row.original.result} empty={<ValueText value={null} />} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.result),
-      },
-      {
-        id: 'actions',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
-            {renderRowActions(row.original)}
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.actions),
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<UiExecution> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(executionHref(row.original))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open execution details in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(EXECUTION_COLUMNS.open),
-      },
-    ],
-    [renderRowActions, executionHref, statusOptions, initiatorOptions, machineOptions, dateFilter],
+  const columns = useMemo(
+    () =>
+      executionColumns({
+        facetOptions: { statusOptions, machineOptions, initiatorOptions },
+        dateFilter,
+        renderRowActions,
+      }),
+    [statusOptions, machineOptions, initiatorOptions, dateFilter, renderRowActions],
   );
 
   const filterGroups = useMemo(
@@ -571,32 +598,18 @@ export function ExecutionsTable({
 }
 
 // ----------------------------------------------------------------
-// Skeleton
+// Loading state
 // ----------------------------------------------------------------
 
 const EMPTY_ROWS: UiExecution[] = [];
+const noRowActions = () => null;
 
-export function ExecutionsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
-  // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
-  // into a filter with no options yet — the header then draws the real control,
-  // funnel included, instead of growing one when the facets land. The Execution
-  // header gets the same treatment by hand: its calendar needs no data, so
-  // drawing it inert here is what keeps the label from shifting when the rows
-  // arrive and the real popover replaces it.
-  const columns = useMemo<ColumnDef<UiExecution>[]>(
-    () =>
-      EXECUTIONS_TABLE_COLUMNS.map(column => {
-        const label = column.header;
-        return {
-          id: column.id,
-          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
-          enableSorting: false,
-          meta: skeletonColumnMeta(column),
-        };
-      }),
-    [],
-  );
-
+/**
+ * The live table with no rows yet: the same columns and header, its body and row count drawing their own skeletons
+ * in the loading scope it is rendered in.
+ */
+function ExecutionsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string }) {
+  const columns = executionColumns({ facetOptions: null, dateFilter: null, renderRowActions: noRowActions });
   const table = useDataTable<UiExecution>({
     data: EMPTY_ROWS,
     columns,

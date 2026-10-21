@@ -1,8 +1,9 @@
 'use client';
 
 import type { ScriptArgument } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { FloatingTooltip, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FloatingTooltip, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { parseKeyValues } from '../utils/script-key-values';
 
@@ -61,7 +62,21 @@ interface ScriptParamRowsProps {
   /** Shown in place of the rows when there are none. */
   emptyText?: string;
   className?: string;
+  /** Draw the rows as bars (the parameters are not read yet). A loading scope does the same. */
+  loading?: boolean;
 }
+
+/**
+ * Rows drawn while the parameters load: ONE, the line every list has either way (a parameter, or the one-line
+ * empty text), since arguments and environment variables are each optional.
+ */
+const PARAM_ROWS_SKELETON_ROWS = 1;
+
+/** One `key ——— value` line's frame, shared by the loaded row and its loading form. */
+const PARAM_ROW_CLASS = 'flex h-6 w-full items-center gap-[var(--spacing-system-xs)]';
+
+/** The leader line between a key and its value. */
+const LEADER_LINE = <span className="h-px min-w-4 flex-1 bg-ods-divider" />;
 
 /**
  * The `key ——— value` lines of a script's arguments or environment variables,
@@ -72,39 +87,48 @@ interface ScriptParamRowsProps {
  * schedule's script card and the script details page so "no value" means the
  * same thing, and looks the same, in both.
  */
-export function ScriptParamRows({ rows, emptyText, className }: ScriptParamRowsProps) {
+export function ScriptParamRows({ rows, emptyText, className, loading }: ScriptParamRowsProps) {
+  const isLoading = useLoadingScope() || !!loading;
   return (
     <div className={cn('flex w-full flex-col gap-[var(--spacing-system-sf)]', className)}>
-      {rows.length === 0
-        ? emptyText && <span className="text-ods-text-secondary text-h6">{emptyText}</span>
-        : rows.map(row => (
-            <div key={row.id} className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-              <div className="flex min-w-0 max-w-[50%] items-center gap-[var(--spacing-system-xxs)]">
-                {row.secret && (
-                  <LockIcon size={16} className="shrink-0 text-ods-text-secondary" role="img" aria-label="Secret" />
-                )}
-                <TruncateText>{row.label}</TruncateText>
-              </div>
-              <span className="h-px min-w-4 flex-1 bg-ods-divider" />
-              <div className="min-w-0">
-                {row.hint ? (
-                  /* The hint explains the mark ("flag"/"empty"/mask), so it must show even when nothing overflows. */
-                  <FloatingTooltip content={row.hint} className="max-w-xs">
-                    <span
-                      className={cn(
-                        'block truncate text-h4',
-                        row.secret ? 'text-ods-text-primary' : 'text-ods-text-secondary',
-                      )}
-                    >
-                      {row.value}
-                    </span>
-                  </FloatingTooltip>
-                ) : (
-                  <TruncateText tone={row.muted ? 'secondary' : 'primary'}>{row.value}</TruncateText>
-                )}
-              </div>
+      {isLoading
+        ? Array.from({ length: PARAM_ROWS_SKELETON_ROWS }, (_, index) => (
+            <div key={index} data-loading-item className={PARAM_ROW_CLASS}>
+              <TextLineSkeleton type="h4" className="w-20" />
+              {LEADER_LINE}
+              <TextLineSkeleton type="h4" className="w-16" />
             </div>
-          ))}
+          ))
+        : rows.length === 0
+          ? emptyText && <span className="text-ods-text-secondary text-h6">{emptyText}</span>
+          : rows.map(row => (
+              <div key={row.id} data-loading-item className={PARAM_ROW_CLASS}>
+                <div className="flex min-w-0 max-w-[50%] items-center gap-[var(--spacing-system-xxs)]">
+                  {row.secret && (
+                    <LockIcon size={16} className="shrink-0 text-ods-text-secondary" role="img" aria-label="Secret" />
+                  )}
+                  <TruncateText>{row.label}</TruncateText>
+                </div>
+                {LEADER_LINE}
+                <div className="min-w-0">
+                  {row.hint ? (
+                    /* The hint explains the mark ("flag"/"empty"/mask), so it must show even when nothing overflows. */
+                    <FloatingTooltip content={row.hint} className="max-w-xs">
+                      <span
+                        className={cn(
+                          'block truncate text-h4',
+                          row.secret ? 'text-ods-text-primary' : 'text-ods-text-secondary',
+                        )}
+                      >
+                        {row.value}
+                      </span>
+                    </FloatingTooltip>
+                  ) : (
+                    <TruncateText tone={row.muted ? 'secondary' : 'primary'}>{row.value}</TruncateText>
+                  )}
+                </div>
+              </div>
+            ))}
     </div>
   );
 }

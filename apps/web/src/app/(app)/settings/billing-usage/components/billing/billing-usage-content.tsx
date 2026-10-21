@@ -2,7 +2,7 @@
 
 import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useState } from 'react';
@@ -13,10 +13,9 @@ import type {
 } from '@/__generated__/billingUsageContentQuery.graphql';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
-import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { isBillingReadOnly } from '@/lib/billing-visibility';
-import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
+import { MANAGE_AI_BALANCE_ACTION } from '@/lib/routes';
 import { AutoTopUpIsland } from '../ai-balance/auto-top-up-island';
 import { AutoTopUpNotice } from '../ai-balance/auto-top-up-notice';
 import { ManageAiBalanceModal } from '../ai-balance/manage-ai-balance-modal';
@@ -26,6 +25,7 @@ import { UpgradePlanModal } from '../plan/upgrade-plan-modal';
 import { BillingReadOnlyNotice, TestModeBanner } from '../shared/billing-section';
 import { TestClockPanel } from '../test-clock/test-clock-panel';
 import { AiBalanceAlert } from './ai-balance-alert';
+import { BillingPageFrame } from './billing-page-frame';
 import { DeviceOverageBlock } from './device-overage-block';
 import { DeviceUsageCard } from './device-usage-card';
 import { FreeAiTokensCard } from './free-ai-tokens-card';
@@ -66,9 +66,6 @@ const billingUsageContentQuery = graphql`
     }
   }
 `;
-
-const PAGE_TITLE = 'Billing & Usage';
-const PAGE_CLASS_NAME = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 
 const NO_REFETCH = () => {};
 
@@ -120,7 +117,6 @@ interface BillingUsageScreenProps {
 /** The page drawn from its query's answer (props only, so it can draw itself while that answer is on its way). */
 export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScreenProps) {
   const loading = useLoadingScope() || data == null;
-  const handleBack = useSafeBack(routes.settings.root());
   // The desktop build: every figure below renders, and nothing that changes one
   // does — the header's single action leaves for the web app instead (see
   // `billing-visibility.ts`).
@@ -172,17 +168,13 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
   // up. (`SubscriptionGuard` reads the same absence as CANCELED and locks the app.)
   if (!loading && subscription == null) {
     return (
-      <PageLayout
-        title={PAGE_TITLE}
-        className={PAGE_CLASS_NAME}
-        backButton={{ label: 'Back to Settings', onClick: handleBack }}
-      >
+      <BillingPageFrame>
         <LockedScreen
           icon={<AlertTriangleIcon className="size-8" />}
           title="No subscription found"
           description="This workspace has no billing record yet. Contact support if you expected to see a plan here."
         />
-      </PageLayout>
+      </BillingPageFrame>
     );
   }
 
@@ -197,18 +189,12 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
   const showAiCards = loading || hasAi;
 
   return (
-    <PageLayout
-      title={PAGE_TITLE}
-      className={PAGE_CLASS_NAME}
-      backButton={{ label: 'Back to Settings', onClick: handleBack }}
-      actionsVariant="menu-primary"
-      actions={header.actions}
-      menuActions={header.menuActions}
-    >
+    <BillingPageFrame actions={header.actions} menuActions={header.menuActions}>
       {readOnly && <BillingReadOnlyNotice />}
 
-      {/* Dev-only; renders nothing (and issues no requests) unless the test-clock env flag is on. */}
-      {!loading && <TestClockPanel onClockChanged={refetch} />}
+      {/* Dev-only; renders nothing (and issues no requests) unless the test-clock flag is on. In the page's loading
+          scope it draws itself without its query. */}
+      <TestClockPanel onClockChanged={refetch} />
 
       <TestModeBanner />
 
@@ -290,6 +276,6 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
           onCancelled={refetch}
         />
       )}
-    </PageLayout>
+    </BillingPageFrame>
   );
 }

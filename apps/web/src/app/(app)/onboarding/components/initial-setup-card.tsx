@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type Ref, Suspense, useEffect, useRef, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
@@ -37,14 +37,10 @@ interface StepMeta {
   requiresData?: { step: DataDetectableStep; hint: string };
 }
 
-/**
- * The four steps' static presentation, shared with {@link InitialSetupSkeleton}
- * so the skeleton matches the card 1:1. Bodies are wired up in the card.
- */
-/** The rows' container, shared by the loaded card and its skeleton. */
 const STEP_LIST_CLASS =
   'flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0';
 
+/** The four steps' static presentation. Bodies are wired up in {@link InitialSetupCardContent}. */
 const STEP_META: readonly StepMeta[] = [
   {
     step: TenantOnboardingStep.MSP_SETUP,
@@ -77,12 +73,12 @@ const STEP_META: readonly StepMeta[] = [
 ];
 
 /**
- * Tenant "Initial Setup" block on the Dashboard. Mount gate only: nothing until
- * onboarding progress has loaded, and permanently hidden once Initial Setup is
- * complete (a one-time surface). When active, it renders {@link InitialSetupCardContent},
- * which suspends on its step counts; the card owns that boundary and draws its own
- * {@link InitialSetupSkeleton} meanwhile, so the whole load (counts + the content's own
- * suspending queries) shows one skeleton, not two. In a loading scope it is that skeleton.
+ * Tenant "Initial Setup" block on the Dashboard. Mount gate only: while onboarding progress
+ * is read (or in a loading scope) it is {@link InitialSetupCardView} with no progress in a
+ * loading scope, where every row draws its own state; it is permanently hidden once Initial
+ * Setup is complete (a one-time surface). When active, it renders
+ * {@link InitialSetupCardContent}, which suspends on its step counts behind the same view in
+ * a `LoadingFallback`, so the whole load shows one loading state, not two.
  */
 export function InitialSetupCard() {
   const inScope = useLoadingScope();
@@ -97,21 +93,137 @@ export function InitialSetupCard() {
     setShown(true);
   }
 
-  if (inScope) return <InitialSetupSkeleton />;
-
+  const pending = inScope || !isLoaded;
   // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
   // the content fires its queries the instant it mounts.
-  if (!isLoaded || !tenant) {
-    return null;
-  }
-  if (tenant.completed && !shown) {
+  if (!pending && (!tenant || (tenant.completed && !shown))) {
     return null;
   }
 
   return (
-    <Suspense fallback={<InitialSetupSkeleton />}>
-      <InitialSetupCardContent />
-    </Suspense>
+    <LoadingWhen loading={pending}>
+      {pending ? (
+        <PendingInitialSetupView />
+      ) : (
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading setup steps">
+              <PendingInitialSetupView />
+            </LoadingFallback>
+          }
+        >
+          <InitialSetupCardContent />
+        </Suspense>
+      )}
+    </LoadingWhen>
+  );
+}
+
+const NO_COMPLETED_STEPS: readonly string[] = [];
+const NO_DATA_STEPS: ReadonlySet<TenantOnboardingStep> = new Set();
+const noop = () => {};
+
+/** {@link InitialSetupCardView} before progress is read: rendered in a loading scope. */
+function PendingInitialSetupView() {
+  return <InitialSetupCardView completedSteps={NO_COMPLETED_STEPS} completedByData={NO_DATA_STEPS} onTour={noop} />;
+}
+
+/** How a loaded row is wired: its anchor, its expansion and its body. */
+interface InitialSetupStepWiring {
+  ref: Ref<HTMLDivElement>;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  body: ReactNode;
+}
+
+interface InitialSetupCardViewProps {
+  /** Persisted ∪ satisfied-by-data steps (none while progress is read). */
+  completedSteps: readonly string[];
+  /** Steps whose data exists — what a locked row's gate reads. */
+  completedByData: ReadonlySet<TenantOnboardingStep>;
+  onTour: () => void;
+  /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
+  stepWiring?: (step: TenantOnboardingStep) => InitialSetupStepWiring;
+}
+
+/**
+ * The card from props: the section, its real header, the booking offer and the four rows. In a loading scope the
+ * header keeps its static copy with the done count a bar, and each row draws its own status as a skeleton with its
+ * body not mounted.
+ */
+function InitialSetupCardView({ completedSteps, completedByData, onTour, stepWiring }: InitialSetupCardViewProps) {
+  const loading = useLoadingScope();
+  const total = TENANT_ONBOARDING_STEPS.length;
+  const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
+  // First step still to do, in display order: the one row that says "Next".
+  const nextStep = TENANT_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
+  const allDone = !loading && done >= total;
+
+  const statusOf = (meta: StepMeta): OnboardingStepStatus => {
+    if (isStepDone(meta.step, completedSteps)) return 'completed';
+    // Gates read the live data, NOT `completedSteps` — see `requiresData`.
+    if (meta.requiresData && !completedByData.has(meta.requiresData.step)) return 'disabled';
+    return 'active';
+  };
+
+  return (
+    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
+      <div className="flex min-w-0 flex-col">
+        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
+        <p className="text-ods-text-secondary text-h6">
+          {allDone ? (
+            'All steps complete'
+          ) : (
+            <>
+              {total} steps to complete ·{' '}
+              {loading ? (
+                <TextLineSkeleton type="inherit" as="span" className="inline-flex w-12 align-top" />
+              ) : (
+                `${done}/${total} done`
+              )}
+            </>
+          )}
+        </p>
+      </div>
+
+      {/* The "walk me through it instead" offer, above the steps it replaces. It reads
+          its own data (scheduling links, walkthrough video), none of which is onboarding
+          progress, so it settles independently in both states. */}
+      <BookCallSection />
+
+      <div className={STEP_LIST_CLASS}>
+        {STEP_META.map(meta => {
+          const wiring = loading ? undefined : stepWiring?.(meta.step);
+          return (
+            <OnboardingAccordionItem
+              key={meta.step}
+              ref={wiring?.ref}
+              icon={meta.icon}
+              status={statusOf(meta)}
+              next={meta.step === nextStep}
+              requirementHint={meta.requiresData?.hint}
+              title={meta.title}
+              description={meta.description}
+              expanded={wiring?.expanded}
+              onExpandedChange={wiring?.onExpandedChange}
+            >
+              {wiring?.body}
+            </OnboardingAccordionItem>
+          );
+        })}
+      </div>
+
+      {allDone && (
+        <OnboardingCompleteBanner
+          className="bg-ods-bg"
+          emoji="🎉"
+          title="Setup Complete"
+          description="Full onboarding is available from the menu if you need to revisit a step or set up something new."
+          actionLabel="Take the Product Tour"
+          onAction={onTour}
+        />
+      )}
+    </section>
   );
 }
 
@@ -144,11 +256,7 @@ function InitialSetupCardContent() {
   // Every step starts collapsed; only a click opens one.
   const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<TenantOnboardingStep>();
 
-  const total = TENANT_ONBOARDING_STEPS.length;
-  const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
-  // First step still to do, in display order: the one row that says "Next".
-  const nextStep = TENANT_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
-  const allDone = done >= total;
+  const allDone = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps) >= TENANT_ONBOARDING_STEPS.length;
 
   // Commit once, the instant every step is done — that is what makes ANY exit from the
   // completed view finalize it. The ref guards the re-renders that follow, since the
@@ -160,13 +268,6 @@ function InitialSetupCardContent() {
       completeTenantInBackground();
     }
   }, [allDone, completeTenantInBackground]);
-
-  const statusOf = (meta: StepMeta): OnboardingStepStatus => {
-    if (isStepDone(meta.step, completedSteps)) return 'completed';
-    // Gates read the live data, NOT `completedSteps` — see `requiresData`.
-    if (meta.requiresData && !completedByData.has(meta.requiresData.step)) return 'disabled';
-    return 'active';
-  };
 
   const renderStepBody = (step: TenantOnboardingStep): ReactNode => {
     const completed = isStepDone(step, completedSteps);
@@ -202,79 +303,16 @@ function InitialSetupCardContent() {
   };
 
   return (
-    <InitialSetupFrame subtitle={allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}>
-      <div className={STEP_LIST_CLASS}>
-        {STEP_META.map(meta => (
-          <OnboardingAccordionItem
-            key={meta.step}
-            ref={refOf(meta.step)}
-            icon={meta.icon}
-            status={statusOf(meta)}
-            next={meta.step === nextStep}
-            requirementHint={meta.requiresData?.hint}
-            title={meta.title}
-            description={meta.description}
-            expanded={expandedOf(meta.step)}
-            onExpandedChange={onExpandedChangeOf(meta.step)}
-          >
-            {renderStepBody(meta.step)}
-          </OnboardingAccordionItem>
-        ))}
-      </div>
-
-      {allDone && (
-        <OnboardingCompleteBanner
-          className="bg-ods-bg"
-          emoji="🎉"
-          title="Setup Complete"
-          description="Full onboarding is available from the menu if you need to revisit a step or set up something new."
-          actionLabel="Take the Product Tour"
-          onAction={() => router.push(routes.onboarding)}
-        />
-      )}
-    </InitialSetupFrame>
-  );
-}
-
-/** The card's frame: the section, its real header, and the booking offer above the steps. */
-function InitialSetupFrame({ subtitle, children }: { subtitle: string; children: ReactNode }) {
-  return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
-        <p className="text-ods-text-secondary text-h6">{subtitle}</p>
-      </div>
-
-      {/* The "walk me through it instead" offer, above the steps it replaces. It reads
-          its own data (scheduling links, walkthrough video), none of which is onboarding
-          progress, so it settles independently in both states. */}
-      <BookCallSection />
-
-      {children}
-    </section>
-  );
-}
-
-/**
- * The card while its step signals load, from the same frame and `STEP_META` as
- * {@link InitialSetupCardContent}: the real header (its copy is static), the booking
- * offer and the four rows with their real icons, titles and descriptions; only each
- * row's status control is a skeleton (`OnboardingAccordionItem`'s `loading` mode).
- */
-function InitialSetupSkeleton() {
-  return (
-    <InitialSetupFrame subtitle={`${TENANT_ONBOARDING_STEPS.length} steps to complete`}>
-      <LoadingRegion label="Loading setup steps" className={STEP_LIST_CLASS}>
-        {STEP_META.map(meta => (
-          <OnboardingAccordionItem
-            key={meta.step}
-            loading
-            icon={meta.icon}
-            title={meta.title}
-            description={meta.description}
-          />
-        ))}
-      </LoadingRegion>
-    </InitialSetupFrame>
+    <InitialSetupCardView
+      completedSteps={completedSteps}
+      completedByData={completedByData}
+      onTour={() => router.push(routes.onboarding)}
+      stepWiring={step => ({
+        ref: refOf(step),
+        expanded: expandedOf(step),
+        onExpandedChange: onExpandedChangeOf(step),
+        body: renderStepBody(step),
+      })}
+    />
   );
 }

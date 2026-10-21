@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Tag, TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, Suspense, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
@@ -66,6 +66,12 @@ const DEBT_COPY: Record<DebtStatus, DebtCopy> = {
   },
 };
 
+/**
+ * How many invoice rows the list draws while it is read (the outstanding invoices are not paged): one, because at
+ * least one is why the workspace is locked.
+ */
+const UNPAID_INVOICES_SKELETON_ROWS = 1;
+
 /** Shown when the invoices themselves cannot be loaded — the one thing this screen is for. */
 const INVOICES_UNAVAILABLE_DESCRIPTION =
   "We couldn't load the outstanding invoices for this workspace. Try again in a moment, or contact support to have access restored.";
@@ -107,7 +113,13 @@ export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
       }
     >
       <UnpaidInvoicesShell>
-        <Suspense fallback={<UnpaidInvoicesMain status={status} invoices={null} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading invoices">
+              <UnpaidInvoicesMain status={status} invoices={null} />
+            </LoadingFallback>
+          }
+        >
           <UnpaidInvoicesContent status={status} />
         </Suspense>
       </UnpaidInvoicesShell>
@@ -124,7 +136,9 @@ export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
 export function UnpaidInvoicesLoading({ status }: UnpaidInvoicesScreenProps) {
   return (
     <UnpaidInvoicesShell>
-      <UnpaidInvoicesMain status={status} invoices={null} />
+      <LoadingFallback label="Loading invoices">
+        <UnpaidInvoicesMain status={status} invoices={null} />
+      </LoadingFallback>
     </UnpaidInvoicesShell>
   );
 }
@@ -175,9 +189,8 @@ function UnpaidInvoicesContent({ status }: UnpaidInvoicesScreenProps) {
 
 interface UnpaidInvoicesMainProps extends UnpaidInvoicesScreenProps {
   /**
-   * `null` while the invoices are on their way — the copy is already true then,
-   * and the CTA renders as itself, disabled. Reusing the real controls rather
-   * than grey bars is the app-wide loading convention.
+   * `null` while the invoices are on their way (rendered in a loading scope) — the copy is already true then,
+   * the rows draw their own loading state and the CTA renders as itself, disabled.
    */
   invoices: readonly InvoiceRow[] | null;
   /** The invoices could not be loaded at all: say so, and offer the support form the shell carries. */
@@ -186,7 +199,7 @@ interface UnpaidInvoicesMainProps extends UnpaidInvoicesScreenProps {
 
 function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInvoicesMainProps) {
   const copy = DEBT_COPY[status];
-  const loading = invoices == null && !unavailable;
+  const loading = useLoadingScope() || (invoices == null && !unavailable);
   // The oldest outstanding invoice with a payment link — the lock counts from
   // the oldest, and an invoice Stripe has not finalized has no link yet,
   // so the single big CTA opens the oldest one that can actually be paid. Every
@@ -211,11 +224,11 @@ function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInv
       {!unavailable && !nothingOutstanding && (
         <>
           <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)]">
-            {loading || invoices == null ? (
-              <OutstandingInvoiceRowPlaceholder />
-            ) : (
-              invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)
-            )}
+            {loading || invoices == null
+              ? Array.from({ length: UNPAID_INVOICES_SKELETON_ROWS }, (_, index) => (
+                  <OutstandingInvoiceRow key={index} invoice={null} />
+                ))
+              : invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)}
           </div>
 
           {nothingPayable && (
@@ -245,12 +258,18 @@ function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInv
   );
 }
 
-function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
+const INVOICE_ROW_CLASS =
+  'flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0';
+
+/** One outstanding invoice; `null` while it is read, when the row draws its own skeleton. */
+function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow | null }) {
+  if (useLoadingScope() || !invoice) return <OutstandingInvoiceRowSkeleton />;
+
   const overdue = isOverdue(invoice);
   const name = invoice.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
 
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0">
+    <div data-loading-item className={INVOICE_ROW_CLASS}>
       {/* The identifier over the date it was issued — an em dash when a legacy
           entry has no number, the same reading the Invoices History table uses. */}
       <InvoiceCell caption={formatDate(invoice.createdAt)}>{invoice.invoiceNumber ?? EMPTY_VALUE}</InvoiceCell>
@@ -272,24 +291,39 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
   );
 }
 
-/** The row's shape with nothing in it — one row, because at least one is why we are here. */
-function OutstandingInvoiceRowPlaceholder() {
+/** An invoice row while it is read: the row's own frame, the static captions real, the read values bars. */
+function OutstandingInvoiceRowSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading invoices">
-      <UnifiedSkeleton className="h-20 w-full rounded-md border border-ods-border" />
-    </LoadingRegion>
+    <div data-loading-item className={INVOICE_ROW_CLASS}>
+      <InvoiceCell caption={null}>{null}</InvoiceCell>
+      <InvoiceCell caption="Due Date">{null}</InvoiceCell>
+      <InvoiceCell caption="Amount">{null}</InvoiceCell>
+      <InvoiceCell caption="Status">
+        <TagSkeleton />
+      </InvoiceCell>
+      <Button variant="outline" size="icon" disabled aria-label="Open invoice">
+        <ExternalLinkIcon />
+      </Button>
+    </div>
   );
 }
 
-function InvoiceCell({ caption, children }: { caption: string; children: ReactNode }) {
+/** A value over its caption; a `null` value or caption is read and not here yet (a text bar of its line). */
+function InvoiceCell({ caption, children }: { caption: string | null; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
-      {typeof children === 'string' ? (
+      {children == null ? (
+        <TextLineSkeleton type="h4" className="w-24" />
+      ) : typeof children === 'string' ? (
         <span className="truncate text-ods-text-primary text-h4">{children}</span>
       ) : (
         <span className="flex items-center">{children}</span>
       )}
-      <span className="truncate text-ods-text-secondary text-h6">{caption}</span>
+      {caption == null ? (
+        <TextLineSkeleton type="h6" className="w-20" />
+      ) : (
+        <span className="truncate text-ods-text-secondary text-h6">{caption}</span>
+      )}
     </div>
   );
 }

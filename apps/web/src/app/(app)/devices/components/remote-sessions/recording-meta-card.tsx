@@ -1,8 +1,14 @@
 'use client';
 
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage, SquareAvatar, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  EntityImage,
+  EntityImageSkeleton,
+  SquareAvatar,
+  SquareAvatarSkeleton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -50,64 +56,77 @@ function MetaCell({ label, adornment, children, className }: MetaCellProps) {
 const CARD_CLASS =
   'grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4';
 
-export function RecordingMetaCard({ recording }: { recording: RecordingDetail | null }) {
-  // The recording has not answered (the page's loading scope).
-  if (useLoadingScope() || !recording) {
-    return <RecordingMetaCardSkeleton />;
-  }
+/** The employee's avatar: a step of the shared avatar scale (`AVATAR_SIZE`), drawn and held at one size. */
+const EMPLOYEE_AVATAR_SIZE = 'sm';
+const CUSTOMER_LOGO_SIZE = 'size-10';
+const CUSTOMER_LOGO_CLASS = 'shrink-0 rounded-[4px] border border-ods-border';
 
+export function RecordingMetaCard({ recording }: { recording: RecordingDetail | null }) {
+  // The recording has not answered (the page's loading scope): the same cells with their real labels, each value a
+  // text bar and the logo and avatar their own placeholders.
+  const loading = useLoadingScope() || !recording;
+  const bar = <TextLineSkeleton type="h4" as="span" className="w-28" />;
   const dash = <span className="text-ods-text-secondary">-</span>;
+  const value = (read: (recording: RecordingDetail) => ReactNode) => (recording && !loading ? read(recording) : bar);
 
   return (
     <div className={CARD_CLASS}>
-      <MetaCell label="Date">{formatDateTime(recording.startedAt)}</MetaCell>
-      <MetaCell label="Resolution">{recording.resolution ?? dash}</MetaCell>
-      <MetaCell label="Duration">
-        {recording.durationMs != null ? formatDurationMs(recording.durationMs) : dash}
-      </MetaCell>
-      <MetaCell label="File size">{recording.sizeBytes != null ? formatBytes(recording.sizeBytes) : dash}</MetaCell>
+      <MetaCell label="Date">{value(r => formatDateTime(r.startedAt))}</MetaCell>
+      <MetaCell label="Resolution">{value(r => r.resolution ?? dash)}</MetaCell>
+      <MetaCell label="Duration">{value(r => (r.durationMs != null ? formatDurationMs(r.durationMs) : dash))}</MetaCell>
+      <MetaCell label="File size">{value(r => (r.sizeBytes != null ? formatBytes(r.sizeBytes) : dash))}</MetaCell>
       <MetaCell label="Hostname" className="content-lg:border-b-0">
-        {recording.hostname ?? dash}
+        {value(r => r.hostname ?? dash)}
       </MetaCell>
       <MetaCell
         label="Customer ID (Site)"
         className="content-lg:border-b-0"
         adornment={
-          <EntityImage
-            src={recording.organization.logoUrl}
-            alt={recording.organization.name}
-            sizeClassName="size-10"
-            className="shrink-0 rounded-[4px] border border-ods-border"
-          />
+          recording && !loading ? (
+            <EntityImage
+              src={recording.organization.logoUrl}
+              alt={recording.organization.name}
+              sizeClassName={CUSTOMER_LOGO_SIZE}
+              className={CUSTOMER_LOGO_CLASS}
+            />
+          ) : (
+            <EntityImageSkeleton sizeClassName={CUSTOMER_LOGO_SIZE} className={CUSTOMER_LOGO_CLASS} />
+          )
         }
       >
-        {recording.organization.id ? (
-          <Link
-            href={routes.customers.details(recording.organization.id)}
-            className="text-ods-accent underline hover:text-ods-accent-hover"
-          >
-            {recording.organization.name}
-          </Link>
-        ) : (
-          recording.organization.name || dash
+        {value(r =>
+          r.organization.id ? (
+            <Link
+              href={routes.customers.details(r.organization.id)}
+              className="text-ods-accent underline hover:text-ods-accent-hover"
+            >
+              {r.organization.name}
+            </Link>
+          ) : (
+            r.organization.name || dash
+          ),
         )}
       </MetaCell>
       <MetaCell
         label="Employee"
         className="border-b-0"
         adornment={
-          <SquareAvatar
-            variant="round"
-            sizePx={32}
-            src={recording.employee.avatarUrl}
-            alt={recording.employee.name}
-            className="shrink-0"
-          />
+          recording && !loading ? (
+            <SquareAvatar
+              variant="round"
+              size={EMPLOYEE_AVATAR_SIZE}
+              src={recording.employee.avatarUrl}
+              alt={recording.employee.name}
+              className="shrink-0"
+            />
+          ) : (
+            <SquareAvatarSkeleton variant="round" size={EMPLOYEE_AVATAR_SIZE} className="shrink-0" />
+          )
         }
       >
-        {recording.employee.name}
+        {value(r => r.employee.name)}
       </MetaCell>
-      {recording.keep ? (
+      {recording && !loading && recording.keep ? (
         <MetaCell
           label={`on ${formatDate(recording.keep.keptAt)} for ${keepReasonText(recording.keep)}`}
           className="border-b-0"
@@ -119,42 +138,9 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail | 
         </MetaCell>
       ) : (
         <MetaCell label="Expires on" className="border-b-0">
-          {recording.expiresAt ? formatDate(recording.expiresAt) : dash}
+          {value(r => (r.expiresAt ? formatDate(r.expiresAt) : dash))}
         </MetaCell>
       )}
-    </div>
-  );
-}
-
-/** The card while the recording is read: the same cells and real labels, each value (and avatar) a placeholder. */
-function RecordingMetaCardSkeleton() {
-  const value = <TextLineSkeleton type="h4" as="span" className="w-28" />;
-  return (
-    <div className={CARD_CLASS}>
-      <MetaCell label="Date">{value}</MetaCell>
-      <MetaCell label="Resolution">{value}</MetaCell>
-      <MetaCell label="Duration">{value}</MetaCell>
-      <MetaCell label="File size">{value}</MetaCell>
-      <MetaCell label="Hostname" className="content-lg:border-b-0">
-        {value}
-      </MetaCell>
-      <MetaCell
-        label="Customer ID (Site)"
-        className="content-lg:border-b-0"
-        adornment={<UnifiedSkeleton className="size-10 shrink-0 rounded-[4px]" />}
-      >
-        {value}
-      </MetaCell>
-      <MetaCell
-        label="Employee"
-        className="border-b-0"
-        adornment={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}
-      >
-        {value}
-      </MetaCell>
-      <MetaCell label="Expires on" className="border-b-0">
-        {value}
-      </MetaCell>
     </div>
   );
 }

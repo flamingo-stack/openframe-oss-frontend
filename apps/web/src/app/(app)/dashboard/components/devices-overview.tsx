@@ -21,78 +21,55 @@ type DeviceStatusCard = {
 
 type DevicesOverviewData = ReturnType<typeof useDevicesOverview>;
 
-const DEVICE_CARDS = ['Online Devices', 'Offline Devices', 'Pending Devices', 'Archived Devices'] as const;
-
-/** The section while the counts load: the real header and the four cards with their real titles. */
-export function DevicesOverviewSkeleton() {
-  return (
-    <LoadingRegion label="Loading devices overview">
-      <TitleBlock title="Devices Overview" />
-      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
-        {DEVICE_CARDS.map(title => (
-          <DashboardInfoCard
-            key={title}
-            loading
-            value=""
-            title={title}
-            showProgress
-            loadingShowsPercentage
-            percentageDisplay="plain"
-          />
-        ))}
-      </div>
-    </LoadingRegion>
-  );
-}
-
 /** The device counts, read. */
 export function DevicesOverviewSection() {
   return <DevicesOverview devices={useDevicesOverview()} />;
 }
 
-/** The section over the counts it is handed; with none (or in a loading scope) it draws its own skeleton. */
+/** The section over the counts it is handed; with none (or in a loading scope) the cards draw their figures as bars. */
 export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) {
   const loading = useLoadingScope() || !devices || devices.isLoading;
-  if (loading) return <DevicesOverviewSkeleton />;
+  const counts = loading ? undefined : devices;
 
+  // The four cards, in order: their static titles always, their figures once read.
   const statusCards: DeviceStatusCard[] = [
     {
       status: DEVICE_STATUS.ONLINE,
       title: 'Online Devices',
-      value: devices.active,
-      percentage: devices.activePercentage,
+      value: counts?.active ?? null,
+      percentage: counts?.activePercentage ?? null,
       progressVariant: 'success',
     },
     {
       status: DEVICE_STATUS.OFFLINE,
       title: 'Offline Devices',
-      value: devices.inactive,
-      percentage: devices.inactivePercentage,
+      value: counts?.inactive ?? null,
+      percentage: counts?.inactivePercentage ?? null,
       progressVariant: 'error',
     },
     {
       status: DEVICE_STATUS.PENDING,
       title: 'Pending Devices',
-      value: devices.pending,
-      percentage: devices.pendingPercentage,
+      value: counts?.pending ?? null,
+      percentage: counts?.pendingPercentage ?? null,
       progressVariant: 'warning',
     },
     {
       status: DEVICE_STATUS.ARCHIVED,
       title: 'Archived Devices',
-      value: devices.archived,
-      percentage: devices.archivedPercentage,
+      value: counts?.archived ?? null,
+      percentage: counts?.archivedPercentage ?? null,
       progressVariant: 'info',
     },
   ];
 
   return (
-    <div>
+    <LoadingRegion label="Loading devices overview" announce={loading}>
       <TitleBlock title="Devices Overview" />
 
-      {(devices.error || devices.isOffline) && (
+      {counts && (counts.error || counts.isOffline) && (
         <SectionLoadError
-          {...loadErrorProps(devices.isOffline, "Couldn't load device counts.", () => devices.refetch())}
+          {...loadErrorProps(counts.isOffline, "Couldn't load device counts.", () => counts.refetch())}
         />
       )}
 
@@ -100,12 +77,14 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
         {statusCards.map(card => (
           <DashboardInfoCard
             key={card.status}
+            loading={loading}
             title={card.title}
             // `—` rather than a number: the request failed, so any digit here
             // would be invented. See the null contract in `use-dashboard-stats`.
-            value={card.value ?? EMPTY_VALUE}
+            value={loading ? '' : (card.value ?? EMPTY_VALUE)}
             percentage={card.percentage ?? undefined}
-            showProgress={card.percentage != null}
+            showProgress={loading || card.percentage != null}
+            loadingShowsPercentage
             progressVariant={card.progressVariant}
             percentageDisplay="plain"
             progressSize={{ base: 24, md: 56 }}
@@ -116,7 +95,7 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
           />
         ))}
       </div>
-    </div>
+    </LoadingRegion>
   );
 }
 

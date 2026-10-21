@@ -30,8 +30,6 @@ interface EntityTag {
   key: string;
 }
 
-const FALLBACK_NO_OPTIONS: Array<{ label: string; value: string }> = [];
-const FALLBACK_NO_VALUE: string[] = [];
 const fallbackNoop = () => {};
 
 // Shared defaults — the fallback must render the EXACT same label/placeholder as
@@ -39,28 +37,35 @@ const fallbackNoop = () => {};
 // from these constants instead of keeping parallel literals in sync by hand.
 const DEFAULT_LABEL = 'Search and add Tags';
 const DEFAULT_EMPTY_PLACEHOLDER = 'Search to Add Tags';
+const ADD_MORE_PLACEHOLDER = 'Add more...';
+
+/** The placeholder the picker shows: one rule for the loaded picker and its skeleton. */
+const pickerPlaceholder = (selectedCount: number, emptyPlaceholder: string) =>
+  selectedCount > 0 ? ADD_MORE_PLACEHOLDER : emptyPlaceholder;
 
 /**
  * {@link EntityTagPicker} while its vocabulary is read: the real `Autocomplete`,
- * disabled and empty, with the same label / placeholder / search adornment —
- * pixel-identical to the loaded picker, so the swap causes zero layout shift.
+ * disabled, with the same label / placeholder / search adornment and the chips of
+ * the tags already selected (an edit form shows them from the entity it read), so
+ * the swap to the loaded picker causes zero layout shift.
  */
 function EntityTagPickerSkeleton({
+  selectedIds,
+  initialTags = [],
   label = DEFAULT_LABEL,
   emptyPlaceholder = DEFAULT_EMPTY_PLACEHOLDER,
-}: {
-  label?: string;
-  emptyPlaceholder?: string;
-}) {
+}: Pick<EntityTagPickerProps, 'selectedIds' | 'initialTags' | 'label' | 'emptyPlaceholder'>) {
+  const options = initialTags.map(tag => ({ label: tag.key, value: tag.id }));
+  const value = selectedIds.filter(id => initialTags.some(tag => tag.id === id));
   return (
     <LoadingRegion className="contents" label="Loading tags">
       <Autocomplete
         multiple
         disabled
         label={label}
-        placeholder={emptyPlaceholder}
-        options={FALLBACK_NO_OPTIONS}
-        value={FALLBACK_NO_VALUE}
+        placeholder={pickerPlaceholder(selectedIds.length, emptyPlaceholder)}
+        options={options}
+        value={value}
         onChange={fallbackNoop}
         startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
         showChevron={false}
@@ -107,7 +112,14 @@ interface EntityTagPickerProps {
  */
 export function EntityTagPicker(props: EntityTagPickerProps) {
   if (useLoadingScope()) {
-    return <EntityTagPickerSkeleton label={props.label} emptyPlaceholder={props.emptyPlaceholder} />;
+    return (
+      <EntityTagPickerSkeleton
+        selectedIds={props.selectedIds}
+        initialTags={props.initialTags}
+        label={props.label}
+        emptyPlaceholder={props.emptyPlaceholder}
+      />
+    );
   }
   return <LiveEntityTagPicker {...props} />;
 }
@@ -241,7 +253,7 @@ function LiveEntityTagPicker({
         creatable
         freeSolo
         label={label}
-        placeholder={selectedIds.length > 0 ? 'Add more...' : emptyPlaceholder}
+        placeholder={pickerPlaceholder(selectedIds.length, emptyPlaceholder)}
         options={options}
         value={selectedIds}
         onChange={handleChange}

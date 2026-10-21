@@ -175,15 +175,6 @@ export function UsersTab({ device }: UsersTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
-      {device?.endUserEmails && device.endUserEmails.length > 0 && (
-        <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
-          <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
-          {device.endUserEmails.map(email => (
-            <Tag key={email} label={email} variant="grey" className="w-fit" />
-          ))}
-        </div>
-      )}
-
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
@@ -206,6 +197,16 @@ export function UsersTab({ device }: UsersTabProps) {
           }}
         />
       </DataTable>
+
+      {/* Only some devices report end-user emails, so the strip sits below the table (out of the first screen). */}
+      {device?.endUserEmails && device.endUserEmails.length > 0 && (
+        <div data-loading-optional className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
+          <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
+          {device.endUserEmails.map(email => (
+            <Tag key={email} label={email} variant="grey" className="w-fit" data-loading-item />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

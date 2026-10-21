@@ -1,8 +1,14 @@
 'use client';
 
-import { OSTypeBadgeGroup, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  OSTypeBadgeGroup,
+  TextLineSkeleton,
+  UnifiedSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { ValueText } from '@/app/components/shared/value-text';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
@@ -48,12 +54,43 @@ interface ScheduleInfoBarFromDataProps {
 const CELL_CLASS =
   'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
 
-const BAR_CLASS = 'flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card';
-const LABEL_CLASS = 'text-ods-text-secondary text-h6';
+/** A top-row cell stacked over another on a phone (two columns), divided from it. */
+const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
+
+/** The platform icons' size, shared by the loaded icons and their loading placeholder. */
+const PLATFORM_ICON_CLASS = 'w-5 h-5';
 
 /**
- * The schedule's info bar. In a loading scope it draws its own skeleton: the name row when the page shows one
- * (`name` given, `''` while loading), the timing row and the trailing row.
+ * One value-over-label cell. While loading, its value is `skeleton` (a text bar on the value's `text-h4` line by
+ * default); the label is static copy and stays real.
+ */
+function InfoBarCell({
+  label,
+  loading,
+  skeleton,
+  skeletonWidth = 'w-24',
+  className,
+  children,
+}: {
+  label: string;
+  loading: boolean;
+  skeleton?: ReactNode;
+  skeletonWidth?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn(CELL_CLASS, className)}>
+      {loading ? (skeleton ?? <TextLineSkeleton type="h4" className={cn('max-w-full', skeletonWidth)} />) : children}
+      <span className="text-ods-text-secondary text-h6">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * The schedule's info bar. In a loading scope it draws itself: the name row when the page shows one (`name` given,
+ * `''` while loading), the date-time timing row and the trailing row (every schedule has an author and an offline
+ * behavior, so the loaded bar is two storeys tall in practice), every value a bar and every label real.
  */
 export function ScheduleInfoBarFromData({
   name,
@@ -67,112 +104,80 @@ export function ScheduleInfoBarFromData({
   trigger,
   timeReference,
 }: ScheduleInfoBarFromDataProps) {
-  if (useLoadingScope()) return <ScheduleInfoBarSkeleton withName={name !== undefined} />;
-  const isEventDriven = trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
-  const timeLabel = isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
+  const loading = useLoadingScope();
+  const isEventDriven = !loading && trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
+  const timeLabel = !loading && isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
+  const showName = loading ? name !== undefined : !!name;
+  const showOffline = loading || !!ifDeviceOffline;
+  const showAddedBy = loading || !!addedBy;
 
   return (
-    <div className={BAR_CLASS}>
-      {name && (
+    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+      {showName && (
         <div className="grid grid-cols-2 border-b border-ods-border">
-          <div className={CELL_CLASS}>
-            <TruncateText>{name}</TruncateText>
-            <span className="text-ods-text-secondary text-h6">Schedule Name</span>
-          </div>
-          <div className={CELL_CLASS}>
+          <InfoBarCell label="Schedule Name" loading={loading} skeletonWidth="w-32">
+            <TruncateText>{name ?? ''}</TruncateText>
+          </InfoBarCell>
+          <InfoBarCell label="Note" loading={loading}>
             <ValueText value={note} />
-            <span className="text-ods-text-secondary text-h6">Note</span>
-          </div>
+          </InfoBarCell>
         </div>
       )}
       <div
-        className={`grid grid-cols-2 ${isEventDriven ? 'content-md:grid-cols-2' : 'content-md:grid-cols-4'} ${
-          addedBy ? 'border-b border-ods-border' : ''
-        }`}
+        className={cn(
+          'grid grid-cols-2',
+          isEventDriven ? 'content-md:grid-cols-2' : 'content-md:grid-cols-4',
+          showAddedBy && 'border-b border-ods-border',
+        )}
       >
         {isEventDriven ? (
-          <div className={CELL_CLASS}>
+          <InfoBarCell label="Trigger" loading={false}>
             <span className="truncate text-ods-text-primary text-h4">Device Online</span>
-            <span className="text-ods-text-secondary text-h6">Trigger</span>
-          </div>
+          </InfoBarCell>
         ) : (
           <>
-            <div className={`${CELL_CLASS} border-b border-ods-border content-md:border-b-0`}>
+            <InfoBarCell label="Date" loading={loading} className={DIVIDED_CELL_CLASS}>
               <TruncateText>{date}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">Date</span>
-            </div>
-            <div className={`${CELL_CLASS} border-b border-ods-border content-md:border-b-0`}>
+            </InfoBarCell>
+            <InfoBarCell label={timeLabel} loading={loading} skeletonWidth="w-20" className={DIVIDED_CELL_CLASS}>
               <TruncateText>{time}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">{timeLabel}</span>
-            </div>
-            <div className={CELL_CLASS}>
+            </InfoBarCell>
+            <InfoBarCell label="Repeat" loading={loading} skeletonWidth="w-16">
               <TruncateText>{repeat}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">Repeat</span>
-            </div>
+            </InfoBarCell>
           </>
         )}
-        <div className={CELL_CLASS}>
-          <OSTypeBadgeGroup osTypes={platforms} iconSize="w-5 h-5" />
-          <span className="text-ods-text-secondary text-h6">Supported Platform</span>
-        </div>
+        <InfoBarCell
+          label="Supported Platform"
+          loading={loading}
+          // One platform icon's box: the icons are drawn at this size once read.
+          skeleton={<UnifiedSkeleton className={cn('rounded', PLATFORM_ICON_CLASS)} />}
+        >
+          <OSTypeBadgeGroup osTypes={platforms} iconSize={PLATFORM_ICON_CLASS} />
+        </InfoBarCell>
       </div>
       {/* A row of its own, not extra cells in the grid above — the design keeps
           the offline rule and authorship on a separate line from the timing,
           and they split it in half rather than inheriting the timing columns. */}
-      {(ifDeviceOffline || addedBy) && (
+      {(showOffline || showAddedBy) && (
         <div className="grid grid-cols-1 content-md:grid-cols-2">
-          {ifDeviceOffline && (
-            <div className={`${CELL_CLASS}${addedBy ? 'border-b border-ods-border content-md:border-b-0' : ''}`}>
-              <TruncateText>{ifDeviceOffline}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">If Device Offline</span>
-            </div>
+          {showOffline && (
+            <InfoBarCell
+              label="If Device Offline"
+              loading={loading}
+              skeletonWidth="w-28"
+              className={showAddedBy ? DIVIDED_CELL_CLASS : undefined}
+            >
+              <TruncateText>{ifDeviceOffline ?? ''}</TruncateText>
+            </InfoBarCell>
           )}
-          {addedBy && (
-            <div className={CELL_CLASS}>
-              <TruncateText>{addedBy}</TruncateText>
-              <span className="text-ods-text-secondary text-h6">Added by</span>
-            </div>
+          {showAddedBy && (
+            <InfoBarCell label="Added by" loading={loading}>
+              <TruncateText>{addedBy ?? ''}</TruncateText>
+            </InfoBarCell>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-/** One loading cell: the value a bar on its `text-h4` line, the label the real static copy. */
-function SkeletonCell({ label, valueWidth, className }: { label: string; valueWidth: string; className?: string }) {
-  return (
-    <div className={`${CELL_CLASS} ${className ?? ''}`}>
-      <TextLineSkeleton type="h4" className={`max-w-full ${valueWidth}`} />
-      <span className={LABEL_CLASS}>{label}</span>
-    </div>
-  );
-}
-
-/**
- * The bar before its schedule: the timing row and the trailing row (every schedule has an author and an offline
- * behavior, so the loaded bar is two storeys tall in practice), plus the name row when the page shows one.
- */
-function ScheduleInfoBarSkeleton({ withName }: { withName: boolean }) {
-  const divided = 'border-b border-ods-border content-md:border-b-0';
-  return (
-    <div className={BAR_CLASS}>
-      {withName && (
-        <div className="grid grid-cols-2 border-b border-ods-border">
-          <SkeletonCell label="Schedule Name" valueWidth="w-32" />
-          <SkeletonCell label="Note" valueWidth="w-24" />
-        </div>
-      )}
-      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
-        <SkeletonCell label="Date" valueWidth="w-24" className={divided} />
-        <SkeletonCell label="Time" valueWidth="w-20" className={divided} />
-        <SkeletonCell label="Repeat" valueWidth="w-16" />
-        <SkeletonCell label="Supported Platform" valueWidth="w-12" />
-      </div>
-      <div className="grid grid-cols-1 content-md:grid-cols-2">
-        <SkeletonCell label="If Device Offline" valueWidth="w-28" className={divided} />
-        <SkeletonCell label="Added by" valueWidth="w-24" />
-      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -137,7 +137,7 @@ export function OnboardingAccordionItem({
         {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.
             Status is the one thing the skeleton doesn't know, so only this control is a placeholder. */}
         {loading ? (
-          <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
+          <InteractiveSkeleton.Button size="icon" className="shrink-0" />
         ) : isDisabled ? (
           requirementHint ? (
             <p className="shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6">{requirementHint}</p>

@@ -68,7 +68,7 @@ const TONE_VALUE: Record<UsageStatTone, string> = {
  * page that needs it, on the same ODS tokens the card is built from.
  */
 export function UsageStatCard({ title, value, caption, tone = 'default', trailing, loading }: UsageStatCardProps) {
-  if (useLoadingScope() || loading) return <UsageStatCardSkeleton title={title} />;
+  if (useLoadingScope() || loading) return <UsageStatCardSkeleton title={title} trailing={trailing} />;
   return (
     // The state travels to the value/caption slots as an attribute rather than a
     // prop: both are nodes built by the caller, so the card cannot pass anything
@@ -80,22 +80,26 @@ export function UsageStatCard({ title, value, caption, tone = 'default', trailin
         <p className={cn(VALUE_CLASS, TONE_VALUE[tone])}>{value}</p>
       </div>
       <p className={cn(CAPTION_CLASS, TONE_TEXT[tone])}>{caption}</p>
-      {trailing && (
-        <div
-          className={cn('absolute right-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)]', TONE_TEXT[tone])}
-        >
-          {trailing}
-        </div>
-      )}
+      <UsageStatTrailing tone={tone}>{trailing}</UsageStatTrailing>
+    </div>
+  );
+}
+
+/** The card's top-right slot, the same loading and loaded (a static control: it is drawn for real while loading). */
+function UsageStatTrailing({ tone, children }: { tone: UsageStatTone; children: ReactNode }) {
+  if (!children) return null;
+  return (
+    <div className={cn('absolute right-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)]', TONE_TEXT[tone])}>
+      {children}
     </div>
   );
 }
 
 /**
- * The card while its figure is on its way: the title is fixed copy and stays real; the figure and the caption
- * (as query-dependent as the figure: a trial's end date, "Annual Prepaid", "Pay as you go") are bars.
+ * The card while its figure is on its way: the title and the trailing control are fixed and stay real; the figure and
+ * the caption (as query-dependent as the figure: a trial's end date, "Annual Prepaid", "Pay as you go") are bars.
  */
-export function UsageStatCardSkeleton({ title }: { title: string }) {
+function UsageStatCardSkeleton({ title, trailing }: { title: string; trailing?: ReactNode }) {
   return (
     <div className={cn(CARD_CLASS, TONE_CARD.default)}>
       <div className="flex flex-col">
@@ -103,6 +107,7 @@ export function UsageStatCardSkeleton({ title }: { title: string }) {
         <TextLineSkeleton type="h2" className="w-24" />
       </div>
       <TextLineSkeleton type="h6" className="w-32" />
+      <UsageStatTrailing tone="default">{trailing}</UsageStatTrailing>
     </div>
   );
 }

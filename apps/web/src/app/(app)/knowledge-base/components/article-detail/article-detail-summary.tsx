@@ -1,10 +1,12 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Card,
   SquareAvatar,
+  SquareAvatarSkeleton,
   Tag,
+  TagSkeleton,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -121,32 +123,23 @@ export function ArticleDetailSummary({ article }: { article: articleDetailSummar
   );
 }
 
-/** The card while the article loads: its cells and labels real, its values as bars. */
+/**
+ * The card while the article loads: its cells and labels real, its values as bars. The two `InfoCell`s draw their
+ * own loading state; a null article is this card's loading state even outside a loading scope.
+ */
 function ArticleDetailSummarySkeleton() {
   return (
-    <div>
-      <SummaryCard
-        author={
-          <AuthorCell
-            avatar={<UnifiedSkeleton as="span" className="size-10 rounded-full" />}
-            name={<UnifiedSkeleton as="span" className="h-6 w-32" />}
-          />
-        }
-        updated={
-          <InfoCell
-            className={CELL_CLASSES}
-            label={LABELS.updated}
-            value={<UnifiedSkeleton as="span" className="h-6 w-24" />}
-          />
-        }
-        status={
-          <InfoCell
-            className={CELL_CLASSES}
-            label={LABELS.status}
-            value={<UnifiedSkeleton as="span" className="h-6 w-20" />}
-          />
-        }
-      />
-    </div>
+    <SummaryCard
+      author={
+        <AuthorCell
+          avatar={<SquareAvatarSkeleton size="md" variant="round" />}
+          name={<TextLineSkeleton type="h4" className="w-32" />}
+        />
+      }
+      updated={<InfoCell className={CELL_CLASSES} label={LABELS.updated} value={null} loading skeletonWidth="w-24" />}
+      status={
+        <InfoCell className={CELL_CLASSES} label={LABELS.status} value={null} loading valueSkeleton={<TagSkeleton />} />
+      }
+    />
   );
 }

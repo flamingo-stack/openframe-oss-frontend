@@ -3,12 +3,8 @@
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { FileManager } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { useSearchParams } from 'next/navigation';
-import {
-  FILE_MANAGER_LOADING_PROPS,
-  FileManagerContainer,
-} from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
+import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
@@ -44,27 +40,7 @@ export default function FileManagerPage() {
       : null,
   );
 
-  if (isLoading) {
-    // The page draws itself while the device is read: the subtitle (the device's name) its bar, the file manager
-    // its loading state.
-    return (
-      <LoadingWhen loading>
-        <PageLayout
-          title="File Manager"
-          subtitle=""
-          className={`${PAGE_PADDING} h-full`}
-          contentClassName="flex min-h-0 flex-col overflow-hidden"
-          backButton={{ label: 'Back', onClick: handleBack }}
-        >
-          <div className="flex min-h-0 flex-1 flex-col">
-            <FileManager {...FILE_MANAGER_LOADING_PROPS} />
-          </div>
-        </PageLayout>
-      </LoadingWhen>
-    );
-  }
-
-  if (error) {
+  if (!isLoading && error) {
     return (
       <PageLayout
         title="File Manager"
@@ -82,7 +58,7 @@ export default function FileManagerPage() {
     );
   }
 
-  if (!meshcentralAgentId) {
+  if (!isLoading && !meshcentralAgentId) {
     return (
       <PageLayout
         title="File Manager"
@@ -108,13 +84,17 @@ export default function FileManagerPage() {
   const deviceName = getDeviceName(deviceDetails);
 
   // No approval gate here: the approval flow covers remote screen sessions
-  // only; the file manager keeps its legacy auto-start.
+  // only; the file manager keeps its legacy auto-start. While the device is read the page draws itself in a loading
+  // scope: the subtitle (the device's name) its bar, the file manager its loading state; with no agent id yet the
+  // container opens no connection, and it is the same tree once the device answers.
   return (
-    <FileManagerContainer
-      deviceId={deviceId}
-      meshcentralAgentId={meshcentralAgentId}
-      deviceName={deviceName}
-      className={PAGE_PADDING}
-    />
+    <LoadingWhen loading={isLoading}>
+      <FileManagerContainer
+        deviceId={deviceId}
+        meshcentralAgentId={meshcentralAgentId ?? ''}
+        deviceName={deviceName}
+        className={PAGE_PADDING}
+      />
+    </LoadingWhen>
   );
 }

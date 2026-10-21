@@ -31,7 +31,10 @@ interface PaidAiTokensCardProps {
 /** The prepaid balance AI draws from once the grant is spent, and what it is worth. */
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
   const data = useFragment(paidAiTokensCardFragment, subscription);
-  if (useLoadingScope() || data == null) return <UsageStatCard title="Paid AI Tokens" loading />;
+  // The rates trigger is a static control: drawn for real while the balance loads.
+  if (useLoadingScope() || data == null) {
+    return <UsageStatCard title="Paid AI Tokens" loading trailing={<ModelTokenRatesPopover />} />;
+  }
   const ai = aiBalanceState(data);
 
   return (

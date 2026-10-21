@@ -16,6 +16,7 @@ import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/
 import { LoadingWhen, TagSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
@@ -125,14 +126,21 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   // tablet/mobile. Each is a distinct PanelRow toggled by breakpoint so every
   // line keeps its own divider and padding (matching the Figma responsive specs).
   const policyInfoRows: PanelRow[] = [
-    ...(policy?.description
-      ? [
-          {
-            id: 'description',
-            columns: [{ key: 'description', value: policy.description, label: 'Description' }],
-          },
-        ]
-      : []),
+    // Always drawn (it is the first row on screen): a bar while loading, the empty mark for a policy with none.
+    {
+      id: 'description',
+      columns: [
+        {
+          key: 'description',
+          value: policy ? (
+            policy.description || <EmptyValue />
+          ) : (
+            <TextLineSkeleton type="h4" as="span" className="w-2/3" />
+          ),
+          label: 'Description',
+        },
+      ],
+    },
     // Desktop (lg+): Severity + Status + Author on a single row → 2 rows total.
     {
       id: 'meta-desktop',

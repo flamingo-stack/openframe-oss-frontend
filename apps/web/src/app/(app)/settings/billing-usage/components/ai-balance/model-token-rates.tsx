@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ErrorBoundary,
   ModelTokenRates,
@@ -55,7 +56,13 @@ export function ModelTokenRatesPopover({ autoTopUpEnabled, className }: ModelTok
   return (
     <RatesPopover triggerClassName={className}>
       <ErrorBoundary fallback={<ModelTokenRates status="error" autoTopUpEnabled={autoTopUpEnabled} />}>
-        <Suspense fallback={<ModelTokenRates status="loading" autoTopUpEnabled={autoTopUpEnabled} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading model rates">
+              <ModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />
+            </LoadingFallback>
+          }
+        >
           <LoadedModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />
         </Suspense>
       </ErrorBoundary>

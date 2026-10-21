@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
   ExecutionStatusCell,
@@ -9,15 +9,21 @@ import {
   ScriptExecutionResult,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type PageActionButton,
+  SquareAvatar,
+  TagSkeleton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { useRetryKey, ValueText } from '@/app/components/shared';
+import { useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
 import { displayValue, EMPTY_VALUE, isEmptyValue } from '@/lib/empty-value';
@@ -42,15 +48,26 @@ interface ScriptExecutionDetailsViewProps {
 /** How often an in-flight execution is re-fetched so its status/output stay live. */
 const IN_FLIGHT_POLL_INTERVAL_MS = 5000;
 
-// Unlike the other script pages, this page's header IS data-dependent (subtitle +
-// back target come from the execution), so the loaded view and the Suspense
-// fallback each render their own `PageLayout` — the fallback with placeholders.
+type ExecutionNode = NonNullable<ScriptExecutionDetailQueryType['response']['node']>;
 
-/** A value-over-label cell in the execution detail card (also the base of its skeleton — see {@link DetailCellSkeleton}). */
-function DetailCell({ value, label }: { value: ReactNode; label: string }) {
+/** A cell's place on the card's wrapping rows: at least 140px, sharing the row evenly. */
+const CELL_CLASS = 'flex min-w-[140px] flex-[1_0_0]';
+const CELL_GAP_CLASS = 'gap-[var(--spacing-system-xxs)]';
+
+/** A text value-over-label cell: the shared {@link InfoCell}, which draws its value as a bar in a loading scope. */
+function DetailCell({ value, label, icon }: { value: string; label: string; icon?: ReactNode }) {
   return (
-    <div className="flex min-w-[140px] flex-[1_0_0] flex-col justify-center gap-[var(--spacing-system-xxs)]">
-      {typeof value === 'string' ? <ValueText value={value} /> : value}
+    <div className={CELL_CLASS}>
+      <InfoCell value={value} label={label} icon={icon} className={CELL_GAP_CLASS} />
+    </div>
+  );
+}
+
+/** A value-over-label cell whose value is a node that draws its own loading form (the person, the status). */
+function DetailNodeCell({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div className={cn(CELL_CLASS, 'flex-col justify-center', CELL_GAP_CLASS)}>
+      {children}
       <TruncateText variant="h6" tone="secondary">
         {label}
       </TruncateText>
@@ -68,10 +85,10 @@ function TimingRow({
   start,
   finish,
 }: {
-  zone: ReactNode;
+  zone: string;
   zoneLabel: string;
-  start: ReactNode;
-  finish: ReactNode;
+  start: string;
+  finish: string;
 }) {
   return (
     <div className={CARD_ROW_CLASS}>
@@ -81,6 +98,166 @@ function TimingRow({
         <DetailCell value={finish} label="Finish Time" />
       </div>
     </div>
+  );
+}
+
+/** "Executed by": the person (linked to their page) and the chip of what dispatched the run. */
+function ExecutedByValue({ execution }: { execution: ExecutionNode | null }) {
+  const loading = useLoadingScope() || !execution;
+  const initiator = execution?.initiator;
+  // The initiator id is a User global id; decode to the raw id the REST-backed
+  // employee page expects, then link "Executed by" to that user (new tab).
+  const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
+  const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
+  const isDeletedInitiator = isDeletedUserStatus(initiator?.status);
+
+  // The avatar draws its own skeleton in the loading scope.
+  const avatar = isDeletedInitiator ? (
+    <DeletedUserAvatar size="md" />
+  ) : (
+    <SquareAvatar
+      variant="round"
+      size="md"
+      src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
+      fallback={initiatorInitials(initiator)}
+      alt={initiatorName(initiator)}
+      initialsClassName="text-ods-text-secondary"
+    />
+  );
+
+  // The chip sits OUTSIDE the initiator link — inside it, clicking
+  // "Mingo" would open the technician's employee page.
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+      {loading ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {avatar}
+          <TextLineSkeleton type="h4" className="w-28" />
+        </div>
+      ) : initiatorHref ? (
+        <a
+          href={initiatorHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 items-center gap-2 no-underline"
+        >
+          {avatar}
+          <TruncateText
+            variant="h4"
+            className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
+          >
+            {initiatorName(initiator)}
+          </TruncateText>
+        </a>
+      ) : (
+        <div className="flex min-w-0 items-center gap-2">
+          {avatar}
+          <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
+            {initiatorName(initiator)}
+          </TruncateText>
+        </div>
+      )}
+      {!loading && <ExecutionSourceBadge source={execution?.source} />}
+    </div>
+  );
+}
+
+/**
+ * The execution's card. Without the execution (the page's Suspense fallback, in its loading scope) it draws itself:
+ * the same rows and labels, every value a bar, the device icon and the avatar kept, the status a tag-shaped bar and
+ * the result a bar over its real label. Both timing rows are drawn while loading: the device-clock row is left out
+ * only for a device with no known zone.
+ */
+function ExecutionDetailsCard({ execution, isInFlight }: { execution: ExecutionNode | null; isInFlight: boolean }) {
+  const loading = useLoadingScope() || !execution;
+  const result = execution ? executionOutput(execution) : null;
+  const org = execution?.machine?.organization?.name;
+  // The device's current zone: the execution keeps none of its own.
+  const deviceZone = execution?.machine?.timezone;
+  const deviceZoneLabel = execution ? formatTimeZone(deviceZone, execution.dispatchedAt) : '';
+
+  return (
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
+      {/* Row 1 — the script */}
+      <div className={CARD_ROW_CLASS}>
+        <DetailCell value={displayValue(execution?.scriptName)} label="Script Name" />
+        <DetailCell value={execution ? privilegeLevelLabel(execution.privilegeLevel) : ''} label="Privilege Level" />
+      </div>
+
+      {/* Row 2 — identity */}
+      <div className={CARD_ROW_CLASS}>
+        <DetailCell
+          value={execution ? getDeviceName(execution.machine) : ''}
+          icon={<MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />}
+          label={org || 'Device'}
+        />
+        <DetailNodeCell label="Executed by">
+          <ExecutedByValue execution={execution} />
+        </DetailNodeCell>
+        <DetailNodeCell label="Status">
+          {loading ? (
+            <div className="flex">
+              <TagSkeleton />
+            </div>
+          ) : (
+            <ExecutionStatusCell status={execution?.status} />
+          )}
+        </DetailNodeCell>
+        <DetailCell value={formatCount(execution?.executionTimeMs)} label="Execution Time (ms)" />
+      </div>
+
+      {/* Rows 3–4 — timing, on the device's clock and on the viewer's */}
+      {(loading || !isEmptyValue(deviceZoneLabel)) && (
+        <TimingRow
+          zone={deviceZoneLabel}
+          zoneLabel="Device Timezone"
+          start={execution ? formatDateTimeInZone(execution.dispatchedAt, deviceZone) : ''}
+          finish={execution ? formatDateTimeInZone(execution.finishedAt, deviceZone) : ''}
+        />
+      )}
+      <TimingRow
+        zone={execution ? formatTimeZone(viewerTimeZone(), execution.dispatchedAt) : ''}
+        zoneLabel="Your Timezone"
+        start={execution ? formatDateTime(execution.dispatchedAt) : ''}
+        finish={execution ? formatDateTime(execution.finishedAt) : ''}
+      />
+
+      {/* Result — an in-flight execution with no output yet says so (the page
+          polls, so the output streams in) instead of a dead-end "—". */}
+      <ScriptExecutionResult
+        result={result}
+        inFlight={isInFlight}
+        empty={loading ? <TextLineSkeleton type="h4" className="w-3/4 max-w-full" /> : EMPTY_VALUE}
+      />
+    </div>
+  );
+}
+
+/**
+ * The page around the execution: the constant title real, the subtitle (the execution UUID, read) `''` without it,
+ * which the title block draws as a bar in the loading scope, and the card.
+ */
+function ExecutionDetailsPage({
+  execution,
+  isInFlight,
+  onBack,
+  actions,
+}: {
+  execution: ExecutionNode | null;
+  isInFlight: boolean;
+  onBack: () => void;
+  actions: PageActionButton[];
+}) {
+  return (
+    <PageLayout
+      title="Script Execution Details"
+      subtitle={execution?.executionId ?? ''}
+      backButton={{ label: 'Back', onClick: onBack }}
+      actions={actions}
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <ExecutionDetailsCard execution={execution} isInFlight={isInFlight} />
+    </PageLayout>
   );
 }
 
@@ -167,181 +344,7 @@ function ScriptExecutionDetailsContent({ executionId }: ScriptExecutionDetailsVi
     return <NotFoundError message="Execution not found" />;
   }
 
-  const result = executionOutput(execution);
-  const org = execution.machine?.organization?.name;
-  // The device's current zone: the execution keeps none of its own.
-  const deviceZone = execution.machine?.timezone;
-  const deviceZoneLabel = formatTimeZone(deviceZone, execution.dispatchedAt);
-
-  // The initiator id is a User global id; decode to the raw id the REST-backed
-  // employee page expects, then link "Executed by" to that user (new tab).
-  const rawInitiatorId = execution.initiator?.id
-    ? (decodeGlobalId(execution.initiator.id)?.rawId ?? execution.initiator.id)
-    : '';
-  const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeletedInitiator = isDeletedUserStatus(execution.initiator?.status);
-
-  return (
-    <PageLayout
-      title="Script Execution Details"
-      subtitle={execution.executionId}
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
-        {/* Row 1 — the script */}
-        <div className={CARD_ROW_CLASS}>
-          <DetailCell value={displayValue(execution.scriptName)} label="Script Name" />
-          <DetailCell value={privilegeLevelLabel(execution.privilegeLevel)} label="Privilege Level" />
-        </div>
-
-        {/* Row 2 — identity */}
-        <div className={CARD_ROW_CLASS}>
-          <DetailCell
-            value={
-              <div className="flex min-w-0 items-center gap-1">
-                <MonitorIcon className="size-6 shrink-0 text-ods-text-secondary" />
-                {/* min-w-0 flex-1 wrapper so the name can shrink and ellipsize next to the icon. */}
-                <div className="min-w-0 flex-1">
-                  <ValueText value={getDeviceName(execution.machine)} />
-                </div>
-              </div>
-            }
-            label={org || 'Device'}
-          />
-          <DetailCell
-            value={(() => {
-              const avatar = isDeletedInitiator ? (
-                <DeletedUserAvatar size="md" />
-              ) : (
-                <SquareAvatar
-                  variant="round"
-                  size="md"
-                  src={getFullImageUrl(execution.initiator?.image?.imageUrl, execution.initiator?.image?.hash)}
-                  fallback={initiatorInitials(execution.initiator)}
-                  alt={initiatorName(execution.initiator)}
-                  initialsClassName="text-ods-text-secondary"
-                />
-              );
-              // The chip sits OUTSIDE the initiator link — inside it, clicking
-              // "Mingo" would open the technician's employee page.
-              return (
-                <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-                  {initiatorHref ? (
-                    <a
-                      href={initiatorHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex min-w-0 items-center gap-2 no-underline"
-                    >
-                      {avatar}
-                      <TruncateText
-                        variant="h4"
-                        className={cn('underline', isDeletedInitiator ? 'text-ods-error' : 'text-ods-accent')}
-                      >
-                        {initiatorName(execution.initiator)}
-                      </TruncateText>
-                    </a>
-                  ) : (
-                    <div className="flex min-w-0 items-center gap-2">
-                      {avatar}
-                      <TruncateText variant="h4" className={isDeletedInitiator ? 'text-ods-error' : undefined}>
-                        {initiatorName(execution.initiator)}
-                      </TruncateText>
-                    </div>
-                  )}
-                  <ExecutionSourceBadge source={execution.source} />
-                </div>
-              );
-            })()}
-            label="Executed by"
-          />
-          <DetailCell value={<ExecutionStatusCell status={execution.status} />} label="Status" />
-          <DetailCell value={formatCount(execution.executionTimeMs)} label="Execution Time (ms)" />
-        </div>
-
-        {/* Rows 3–4 — timing, on the device's clock and on the viewer's */}
-        {!isEmptyValue(deviceZoneLabel) && (
-          <TimingRow
-            zone={deviceZoneLabel}
-            zoneLabel="Device Timezone"
-            start={formatDateTimeInZone(execution.dispatchedAt, deviceZone)}
-            finish={formatDateTimeInZone(execution.finishedAt, deviceZone)}
-          />
-        )}
-        <TimingRow
-          zone={formatTimeZone(viewerTimeZone(), execution.dispatchedAt)}
-          zoneLabel="Your Timezone"
-          start={formatDateTime(execution.dispatchedAt)}
-          finish={formatDateTime(execution.finishedAt)}
-        />
-
-        {/* Result — an in-flight execution with no output yet says so (the page
-            polls, so the output streams in) instead of a dead-end "—". */}
-        <ScriptExecutionResult result={result} inFlight={isInFlight} empty={EMPTY_VALUE} />
-      </div>
-    </PageLayout>
-  );
-}
-
-// ----------------------------------------------------------------
-// Skeleton — body card only; the header is the page's own `PageLayout`
-// ----------------------------------------------------------------
-
-/**
- * A value-over-label cell skeleton in the execution-details card: the real
- * {@link DetailCell} (so wrapper + label markup can never drift) with a bar for
- * the value. The label is static text, so it renders for real — exact `text-h6`
- * line height, no jump on load.
- */
-function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: string; label: string }) {
-  return <DetailCell value={<UnifiedSkeleton className={`h-6 ${valueWidth}`} />} label={label} />;
-}
-
-/**
- * Card body skeleton: the script row (Script Name / Privilege), the identity
- * row (Device / Executed by / Status / Execution Time), the two timing rows,
- * then the Result block — mirrors the card markup above, including the 40px
- * avatar that makes the "Executed by" cell (and thus the identity row) taller.
- */
-function ExecutionDetailsCardSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
-      <div className={CARD_ROW_CLASS}>
-        <DetailCellSkeleton valueWidth="w-40" label="Script Name" />
-        <DetailCellSkeleton valueWidth="w-20" label="Privilege Level" />
-      </div>
-      <div className={CARD_ROW_CLASS}>
-        <DetailCellSkeleton valueWidth="w-32" label="Device" />
-        {/* Executed by — round avatar + name, same 40px avatar as the loaded cell */}
-        <DetailCell
-          value={
-            <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-              <UnifiedSkeleton className="h-10 w-10 shrink-0 rounded-full" />
-              <UnifiedSkeleton className="h-6 w-28" />
-            </div>
-          }
-          label="Executed by"
-        />
-        <DetailCellSkeleton valueWidth="w-24" label="Status" />
-        <DetailCellSkeleton valueWidth="w-16" label="Execution Time (ms)" />
-      </div>
-      {['Device Timezone', 'Your Timezone'].map(zoneLabel => (
-        <TimingRow
-          key={zoneLabel}
-          zone={<UnifiedSkeleton className="h-6 w-36" />}
-          zoneLabel={zoneLabel}
-          start={<UnifiedSkeleton className="h-6 w-32" />}
-          finish={<UnifiedSkeleton className="h-6 w-32" />}
-        />
-      ))}
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-m)]">
-        <UnifiedSkeleton className="h-6 w-3/4 max-w-full" />
-        <div className="text-ods-text-secondary text-h6">Result</div>
-      </div>
-    </div>
-  );
+  return <ExecutionDetailsPage execution={execution} isInFlight={isInFlight} onBack={handleBack} actions={actions} />;
 }
 
 const noop = () => {};
@@ -363,19 +366,14 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
   return (
     <Suspense
       fallback={
-        // The page before its execution: the constant title real, the subtitle
-        // (the execution UUID, read) `''`, which the title block draws as a bar
-        // in the loading scope, and the card its own skeleton.
+        // The page before its execution: the same page, drawing itself in the loading scope.
         <LoadingFallback label="Loading execution details">
-          <PageLayout
-            title="Script Execution Details"
-            subtitle=""
-            backButton={{ label: 'Back', onClick: handleBack }}
+          <ExecutionDetailsPage
+            execution={null}
+            isInFlight={false}
+            onBack={handleBack}
             actions={LOADING_EXECUTION_ACTIONS}
-            className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-          >
-            <ExecutionDetailsCardSkeleton />
-          </PageLayout>
+          />
         </LoadingFallback>
       }
     >

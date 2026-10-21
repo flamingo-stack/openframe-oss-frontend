@@ -19,6 +19,7 @@ import {
 import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
@@ -152,16 +153,19 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
       >
         {/* Query Info */}
         <div className="rounded-lg border border-ods-border bg-ods-card p-6">
-          {details?.description && (
-            <div className="mb-6">
-              <p className="text-ods-text-primary text-h4">{details.description}</p>
-              <p className="mt-1 text-ods-text-secondary text-h6">Description</p>
-            </div>
-          )}
+          {/* Always drawn (the first row on screen): a bar while loading, the empty mark for a query with none. */}
+          <div className="mb-6">
+            <p className="text-ods-text-primary text-h4">
+              {details ? (
+                details.description || <EmptyValue />
+              ) : (
+                <TextLineSkeleton type="h4" as="span" className="w-2/3" />
+              )}
+            </p>
+            <p className="mt-1 text-ods-text-secondary text-h6">Description</p>
+          </div>
 
-          <div
-            className={`grid grid-cols-2 gap-6 content-md:grid-cols-4 ${details?.description ? 'border-t border-ods-border pt-4' : ''}`}
-          >
+          <div className="grid grid-cols-2 gap-6 border-t border-ods-border pt-4 content-md:grid-cols-4">
             <div>
               <p className="text-ods-text-primary text-h4">
                 {details ? formatInterval(details.interval) : <TextLineSkeleton type="h4" as="span" className="w-24" />}

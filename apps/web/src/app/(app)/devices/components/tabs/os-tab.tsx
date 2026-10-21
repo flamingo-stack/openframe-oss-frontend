@@ -52,23 +52,13 @@ function OsEmptyState() {
   );
 }
 
+/** A card with no rows: in the page's loading scope it draws its skeleton (the `skeleton` shape each section states). */
 const EMPTY_CARD = { items: [] };
+const BOOT_TITLE = 'Boot & Time';
+const MANAGEMENT_TITLE = 'Fleet';
 
-/** The OS tab while the device is read: its sections with their real headings, each card its own skeleton. */
-function OsTabSkeleton() {
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
-        <Section title="Operating System">
-          <InfoCard className="flex-1" data={EMPTY_CARD} skeleton={{ rows: 5, subtitle: true }} />
-        </Section>
-        <Section title="Boot & Time">
-          <InfoCard className="flex-1" data={EMPTY_CARD} skeleton={{ rows: 5 }} />
-        </Section>
-      </div>
-    </div>
-  );
-}
+/** A card's row labels, drawn real while the device is read. */
+const labelsOf = (rows: InfoRow[]) => rows.map(row => row.label);
 
 export function OsTab({ device }: OsTabProps) {
   const loading = useLoadingScope();
@@ -79,54 +69,58 @@ export function OsTab({ device }: OsTabProps) {
   // early return below, because hooks may not be called conditionally.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
 
-  if (loading) {
-    return <OsTabSkeleton />;
-  }
-
-  if (!device) {
+  if (!loading && !device) {
     return <OsEmptyState />;
   }
 
   // OPERATING SYSTEM — name/version/build/platform identity from Fleet + GraphQL.
-  const osTitle = device.os_version || device.operating_system || device.osType;
-  const osSubtitle = device.code_name || device.platform_like;
-  const osItems = toItems([
-    { label: 'Platform', value: device.platform || device.osType },
-    { label: 'Version', value: device.osVersion },
-    { label: 'Build', value: device.build || device.osBuild },
-    { label: 'Architecture', value: device.cpu_type },
-    { label: 'OS UUID', value: device.osUuid, copyable: true },
-  ]);
+  const osTitle = device?.os_version || device?.operating_system || device?.osType;
+  const osSubtitle = device?.code_name || device?.platform_like;
+  const osRows: InfoRow[] = [
+    { label: 'Platform', value: device?.platform || device?.osType },
+    { label: 'Version', value: device?.osVersion },
+    { label: 'Build', value: device?.build || device?.osBuild },
+    { label: 'Architecture', value: device?.cpu_type },
+    { label: 'OS UUID', value: device?.osUuid, copyable: true },
+  ];
+  const osItems = toItems(osRows);
   const hasOs = Boolean(osTitle || osSubtitle || osItems.length > 0);
 
   // BOOT & TIME — boot/uptime + locale + current session. Boot and enrolment
   // happened on the device, so they read on the device's clock (its zone is the
   // row below), on the viewer's only when the device has not reported a zone.
-  const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
-  const lastBoot = device.last_restarted_at
-    ? formatDateTimeOnDevice(device.last_restarted_at, device.timezone)
-    : device.boot_time
-      ? formatDateTimeOnDevice(device.boot_time * 1000, device.timezone)
+  const uptimeSeconds = device?.boot_time ? Math.max(0, nowSeconds - device?.boot_time) : undefined;
+  const lastBoot = device?.last_restarted_at
+    ? formatDateTimeOnDevice(device?.last_restarted_at, device?.timezone)
+    : device?.boot_time
+      ? formatDateTimeOnDevice(device?.boot_time * 1000, device?.timezone)
       : undefined;
-  const bootItems = toItems([
+  const bootRows: InfoRow[] = [
     { label: 'Last Boot', value: lastBoot },
     { label: 'Uptime', value: formatUptime(uptimeSeconds) },
-    { label: 'Timezone', value: device.timezone },
-    { label: 'Current User', value: device.logged_in_username },
+    { label: 'Timezone', value: device?.timezone },
+    { label: 'Current User', value: device?.logged_in_username },
     {
       label: 'Enrolled',
-      value: device.last_enrolled_at ? formatDateTimeOnDevice(device.last_enrolled_at, device.timezone) : undefined,
+      value: device?.last_enrolled_at ? formatDateTimeOnDevice(device?.last_enrolled_at, device?.timezone) : undefined,
     },
-  ]);
+  ];
+  const bootItems = toItems(bootRows);
 
   // MANAGEMENT — Fleet team + labels (host grouping from the Fleet host payload).
-  const managementItems = toItems([
-    { label: 'Fleet Team', value: device.fleetTeamName },
-    { label: 'Labels', value: device.fleetLabels?.length ? device.fleetLabels.join(', ') : undefined },
-  ]);
+  const managementRows: InfoRow[] = [
+    { label: 'Fleet Team', value: device?.fleetTeamName },
+    { label: 'Labels', value: device?.fleetLabels?.length ? device.fleetLabels.join(', ') : undefined },
+  ];
+  const managementItems = toItems(managementRows);
 
-  if (!hasOs && bootItems.length === 0 && managementItems.length === 0) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  // While the device is read every section is drawn (Fleet devices carry a team), each card its own skeleton.
+  const showOs = loading || hasOs;
+  const showBoot = loading || bootItems.length > 0;
+  const showManagement = loading || managementItems.length > 0;
+
+  if (!loading && !hasOs && bootItems.length === 0 && managementItems.length === 0) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<TerminalMonitorIcon />} section="OS" />;
     }
     return <OsEmptyState />;
@@ -135,26 +129,36 @@ export function OsTab({ device }: OsTabProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
-        {hasOs && (
+        {showOs && (
           <Section title="Operating System">
             <InfoCard
               className="flex-1"
-              data={{ title: osTitle || 'Operating System', subtitle: osSubtitle, items: osItems }}
+              data={
+                loading ? EMPTY_CARD : { title: osTitle || 'Operating System', subtitle: osSubtitle, items: osItems }
+              }
+              skeleton={{ rows: labelsOf(osRows), subtitle: true }}
             />
           </Section>
         )}
 
-        {bootItems.length > 0 && (
+        {showBoot && (
           <Section title="Boot & Time">
-            <InfoCard className="flex-1" data={{ title: 'Boot & Time', items: bootItems }} />
+            <InfoCard
+              className="flex-1"
+              data={loading ? EMPTY_CARD : { title: BOOT_TITLE, items: bootItems }}
+              skeleton={{ rows: labelsOf(bootRows), title: BOOT_TITLE }}
+            />
           </Section>
         )}
       </div>
 
-      {managementItems.length > 0 && (
+      {showManagement && (
         <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
           <Section title="Management">
-            <InfoCard data={{ title: 'Fleet', items: managementItems }} />
+            <InfoCard
+              data={loading ? EMPTY_CARD : { title: MANAGEMENT_TITLE, items: managementItems }}
+              skeleton={{ rows: labelsOf(managementRows), title: MANAGEMENT_TITLE }}
+            />
           </Section>
         </div>
       )}

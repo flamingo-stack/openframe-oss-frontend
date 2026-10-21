@@ -46,7 +46,7 @@ const dataLossCoreRowsFragment = graphql`
  */
 const CORE_ROW_SKELETON_WIDTHS = ['w-1/2', 'w-1/3', 'w-3/4', 'w-2/3', 'w-2/5', 'w-3/4', 'w-1/2'] as const;
 
-export function DataLossCoreRowsSkeleton() {
+function DataLossCoreRowsSkeleton() {
   return (
     <LoadingWhen loading>
       {CORE_ROW_SKELETON_WIDTHS.map((width, i) => (

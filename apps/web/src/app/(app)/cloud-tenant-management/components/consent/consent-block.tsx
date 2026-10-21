@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Copy02Icon, ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DirectoryProvider } from '@/generated/schema-enums';
@@ -36,26 +36,26 @@ export function ConsentBlock(props: ConsentPanelProps) {
 
 /**
  * `ConsentLinkPanel` before the record is known: the same frame, field and buttons, locked. Only the
- * instruction is bars — it names the provider, which the record has not said yet — two of them, the
- * lines it runs to at the card's usual width.
+ * instruction is a text bar — it names the provider, which the record has not said yet — of the two lines it
+ * runs to at the card's usual width.
  */
 function ConsentBlockSkeleton({ mode }: { mode: ConsentMode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-label="Grant admin consent">
-      <div className="flex items-center justify-between gap-[var(--spacing-system-xs)]">
-        <p className="text-ods-text-secondary text-h5">Grant admin consent</p>
-        {/* The connect step offers Edit Domain until the admin has consented; locked, it keeps the row's height. */}
-        {mode === 'new' && (
-          <Button variant="link" size="compact" className="underline underline-offset-2" disabled>
-            Edit Domain
-          </Button>
-        )}
-      </div>
-      <div className={CONSENT_CARD_CLASSES}>
-        <div className="flex flex-col">
-          <UnifiedSkeleton as="span" className="h-6 w-full" />
-          <UnifiedSkeleton as="span" className="h-6 w-2/3" />
+      {/* The details page draws no caption row, as `ConsentLinkPanel` does. */}
+      {mode !== 'details' && (
+        <div className="flex items-center justify-between gap-[var(--spacing-system-xs)]">
+          <p className="text-ods-text-secondary text-h5">Grant admin consent</p>
+          {/* The connect step offers Edit Domain until the admin has consented; locked, it keeps the row's height. */}
+          {mode === 'new' && (
+            <Button variant="link" size="compact" className="underline underline-offset-2" disabled>
+              Edit Domain
+            </Button>
+          )}
         </div>
+      )}
+      <div className={CONSENT_CARD_CLASSES}>
+        <TextLineSkeleton type="h4" lines={2} />
         <Input
           readOnly
           disabled

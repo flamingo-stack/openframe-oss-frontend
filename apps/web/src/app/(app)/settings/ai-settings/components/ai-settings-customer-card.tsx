@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  MediaSkeleton,
   NamedIcon,
   TextLineSkeleton,
   UnifiedSkeleton,
@@ -27,7 +26,6 @@ interface AiSettingsCustomerCardProps {
 const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-md:px-4 py-3 content-md:py-4';
 
 const GRID_CLASS = 'grid grid-cols-2 rounded-md border border-ods-border bg-ods-card content-lg:grid-cols-4';
-const CELL_LABELS = ['Assistant Name', 'LLM Provider', 'Provider Model', 'Answer Style', 'Accent Color'] as const;
 
 /**
  * Five cells: the last one takes the whole bottom row of the two-column grid and sits alone on the second row of
@@ -41,61 +39,71 @@ function cellClass(idx: number, count: number) {
   );
 }
 
-/** The card while the configuration is on its way: every cell's label is fixed copy, its value a bar. */
-export function AiSettingsCustomerCardSkeleton() {
-  return (
-    <div className={GRID_CLASS}>
-      {CELL_LABELS.map((label, idx) => (
-        <div key={label} className={cellClass(idx, CELL_LABELS.length)}>
-          {idx === 0 && <MediaSkeleton.Avatar size="sm" className="size-10 shrink-0" />}
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            {/* The provider's value carries its icon beside it, as `InfoCell` draws it. */}
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-              {idx === 1 && <UnifiedSkeleton className="size-6 shrink-0 rounded" />}
-              <TextLineSkeleton type="h4" className="w-24 max-w-full" />
-            </div>
-            <p className="truncate text-ods-text-secondary text-h6">{label}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
+/** In a loading scope (or with no configuration yet) every cell draws itself: its label real, its value a bar. */
 export function AiSettingsCustomerCard({ aiConfig, view, providerModelLabel }: AiSettingsCustomerCardProps) {
   const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
-  if (useLoadingScope() || aiConfig == null || view == null) return <AiSettingsCustomerCardSkeleton />;
-  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
+  const loading = useLoadingScope() || aiConfig == null || view == null;
+  const answerStyleLabel = aiConfig?.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
 
   const cells: ReactNode[] = [
     <>
       <EntityImage
         // With no custom image configured, Fae's own picture: the one her server
         // identity holds, the same the previews (AiSettingsPreviews) fall back to.
-        src={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash) || faeAvatar}
-        alt={view.assistantName}
+        src={
+          loading
+            ? undefined
+            : getFullImageUrl(view?.assistantAvatar?.imageUrl, view?.assistantAvatar?.hash) || faeAvatar
+        }
+        alt={view?.assistantName ?? ''}
         // EntityImage defaults to size-[52px] content-md:size-[60px]; override both
         // breakpoints so the avatar stays 40×40 (the md: default would otherwise win).
         className="size-10 rounded-full content-md:size-10"
       />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TruncateText>{view.assistantName}</TruncateText>
-        <p className="truncate text-ods-text-secondary text-h6">{CELL_LABELS[0]}</p>
+        {loading ? (
+          <TextLineSkeleton type="h4" className="w-24 max-w-full" />
+        ) : (
+          <TruncateText>{view?.assistantName}</TruncateText>
+        )}
+        <p className="truncate text-ods-text-secondary text-h6">Assistant Name</p>
       </div>
     </>,
     <InfoCell
       key="llm-provider"
-      value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
+      loading={loading}
+      skeletonWidth="w-24"
+      value={aiConfig && LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
       label="LLM Provider"
-      icon={<NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />}
+      icon={
+        aiConfig && !loading ? (
+          <NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />
+        ) : (
+          <UnifiedSkeleton className="size-6 rounded" />
+        )
+      }
     />,
     <InfoCell
       key="provider-model"
-      value={providerModelLabel || aiConfig.providerModel || EMPTY_VALUE}
+      loading={loading}
+      skeletonWidth="w-24"
+      value={providerModelLabel || aiConfig?.providerModel || EMPTY_VALUE}
       label="Provider Model"
     />,
-    <InfoCell key="answer-style" value={answerStyleLabel} label="Answer Style" />,
-    <InfoCell key="accent-color" value={view.accentColor?.toUpperCase()} label="Accent Color" />,
+    <InfoCell
+      key="answer-style"
+      loading={loading}
+      skeletonWidth="w-24"
+      value={answerStyleLabel}
+      label="Answer Style"
+    />,
+    <InfoCell
+      key="accent-color"
+      loading={loading}
+      skeletonWidth="w-24"
+      value={view?.accentColor?.toUpperCase()}
+      label="Accent Color"
+    />,
   ];
 
   return (

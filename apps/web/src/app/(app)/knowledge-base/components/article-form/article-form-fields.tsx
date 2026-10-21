@@ -5,15 +5,19 @@ import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/compone
 import { FieldWrapper, FileUpload, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
+import { lazyMarkdownEditor, SimpleMarkdownRenderer } from '@/app/components/shared/lazy-markdown';
 import { EntityTagPicker } from '@/app/components/shared/tags';
 import { AssignmentsField } from '@/components/assignments';
 import { TagEntityType } from '@/generated/schema-enums';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import { FolderPicker } from '../shared/folder-picker';
-import { MarkdownEditor, SimpleMarkdownRenderer } from '../shared/lazy-markdown';
 import type { ArticleFormData } from './article-form.types';
 import type { ArticleAttachments } from './use-article-attachments';
 import { useArticleImageUpload } from './use-article-image-upload';
+
+/** The editor's height: the field the form draws and the skeleton its code-split loader draws. */
+const ARTICLE_BODY_EDITOR_HEIGHT = 400;
+const MarkdownEditor = lazyMarkdownEditor(ARTICLE_BODY_EDITOR_HEIGHT);
 
 const TAGS_PLACEHOLDER = 'Select or create tags...';
 
@@ -122,7 +126,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
             value={field.value}
             onChange={field.onChange}
             placeholder="Write the article content..."
-            height={400}
+            height={ARTICLE_BODY_EDITOR_HEIGHT}
             renderPreview={renderPreview}
             onUploadFile={uploadArticleImage}
             disabled={disabled}

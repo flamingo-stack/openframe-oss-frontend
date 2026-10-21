@@ -15,7 +15,7 @@ interface JsonPanelProps {
 }
 
 /** A typical payload's pretty-printed length, drawn while it loads (the payload is unbounded). */
-export const JSON_PANEL_SKELETON_LINES = 17;
+const JSON_PANEL_SKELETON_LINES = 17;
 
 // Property names and values take the two attention colours the design uses for
 // them; punctuation stays the body colour so the structure reads as plain text.

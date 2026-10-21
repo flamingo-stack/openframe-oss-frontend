@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ModalV2Content } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
@@ -69,7 +70,13 @@ export function ManageAiBalanceModal({ isOpen, onClose }: ManageAiBalanceModalPr
           </ModalV2Content>
         }
       >
-        <Suspense fallback={<ManageAiBalanceForm data={null} onClose={onClose} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading AI balance settings">
+              <ManageAiBalanceForm data={null} onClose={onClose} />
+            </LoadingFallback>
+          }
+        >
           <ManageAiBalanceContent onClose={onClose} />
         </Suspense>
       </ErrorBoundary>

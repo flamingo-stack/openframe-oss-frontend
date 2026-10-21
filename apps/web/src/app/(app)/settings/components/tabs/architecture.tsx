@@ -1,7 +1,7 @@
 'use client';
 
-import { PageLayout, ServiceCard } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { PageLayout, ServiceCard, type ServiceCardRow } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo, useState } from 'react';
@@ -82,7 +82,6 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
  */
 const ARCHITECTURE_SKELETON_TOOLS = 4;
 const LAYER_GRID_CLASS = 'grid grid-cols-1 gap-6 content-md:grid-cols-2';
-const CARD_CLASS = 'rounded-lg border border-ods-border bg-ods-card p-6';
 
 /** A layer's heading and its tools; in a loading scope, its skeleton (`layer` and `tools` unread). */
 function ArchitectureLayer({ layer, tools }: { layer: string | null; tools: IntegratedTool[] }) {
@@ -112,28 +111,21 @@ function ArchitectureLayerSkeleton() {
   );
 }
 
-/** The same frame and rows as the lib's `ServiceCard`, which draws no skeleton of its own. */
-function ArchitectureToolCardSkeleton() {
-  return (
-    <div className={CARD_CLASS} data-loading-item>
-      <div className="mb-4 flex items-center gap-4">
-        <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-md" />
-        <div className="min-w-0 flex-1">
-          <TextLineSkeleton type="h3" className="w-3/4" />
-          <TextLineSkeleton type="h6" className="w-1/2" />
-        </div>
-      </div>
-      <div className="flex min-w-0 items-center gap-3">
-        <TextLineSkeleton type="h6" className="w-20 shrink-0 content-md:w-24" />
-        <UnifiedSkeleton className="h-12 min-w-0 flex-1 rounded-md" />
-      </div>
-    </div>
-  );
-}
+/**
+ * Rows a loading tool card draws: a tool's links and credentials vary, and two (its address and one credential) is
+ * the typical count. Unlabelled, because each row's label (the link's type) is read too.
+ */
+const ARCHITECTURE_SKELETON_ROWS: ServiceCardRow[] = [{ value: '' }, { value: '' }];
 
-/** One tool: its links and credentials, each a copyable row. In a loading scope, its skeleton. */
+/** One tool: its links and credentials, each a copyable row. In a loading scope, the lib's card draws its own bars. */
 function ArchitectureToolCard({ tool }: { tool: IntegratedTool | null }) {
-  if (useLoadingScope() || tool == null) return <ArchitectureToolCardSkeleton />;
+  if (useLoadingScope() || tool == null) {
+    return (
+      <div data-loading-item>
+        <ServiceCard title="" subtitle="" rows={ARCHITECTURE_SKELETON_ROWS} loading />
+      </div>
+    );
+  }
   const rows: Array<{
     label?: string;
     value: string;

@@ -56,21 +56,26 @@ const SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
 const SECTION_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
 
 function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
-  const icon =
-    status === 'success' ? (
-      <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />
-    ) : status === 'error' ? (
-      <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />
-    ) : status === 'warning' ? (
-      <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />
-    ) : null;
+  // While the device is read the label is real and the value a bar (no status icon yet).
+  const loading = useLoadingScope();
+  const icon = loading ? null : status === 'success' ? (
+    <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />
+  ) : status === 'error' ? (
+    <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />
+  ) : status === 'warning' ? (
+    <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />
+  ) : null;
 
   return (
-    <div className={STATUS_ROW_CLASS}>
+    <div data-loading-item className={STATUS_ROW_CLASS}>
       <span className={STATUS_ROW_LABEL_CLASS}>{label}</span>
       <div className="h-px flex-1 bg-ods-divider" />
       <div className="min-w-0">
-        <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
+        {loading ? (
+          <TextLineSkeleton type="h4" className="w-20" />
+        ) : (
+          <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
+        )}
       </div>
       {icon}
     </div>
@@ -79,9 +84,11 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
 
 /** Host-local replica of the design's posture card (core `InfoCard` can't color values or add status icons). */
 function SecurityStatusCard({ title, rows }: SecurityCard) {
+  // While the device is read a card whose title is the agent's name draws it as a bar.
+  const loading = useLoadingScope();
   return (
-    <div className={STATUS_CARD_CLASS}>
-      {title && <TruncateText>{title}</TruncateText>}
+    <div data-loading-item className={STATUS_CARD_CLASS}>
+      {title ? <TruncateText>{title}</TruncateText> : loading && <TextLineSkeleton type="h4" className="w-32" />}
       <div className={STATUS_CARD_ROWS_CLASS}>
         {rows.map(row => (
           <StatusRow key={row.label} {...row} />
@@ -210,58 +217,59 @@ function buildSections(device: Device): SecuritySection[] {
   return sections;
 }
 
-/** A posture card while the device is read: its real row labels, the title and each value a bar. */
-function SecurityStatusCardSkeleton({ labels }: { labels: string[] }) {
-  return (
-    <div className={STATUS_CARD_CLASS}>
-      <TextLineSkeleton type="h4" className="w-32" />
-      <div className={STATUS_CARD_ROWS_CLASS}>
-        {labels.map(label => (
-          <div key={label} className={STATUS_ROW_CLASS}>
-            <span className={STATUS_ROW_LABEL_CLASS}>{label}</span>
-            <div className="h-px flex-1 bg-ods-divider" />
-            <TextLineSkeleton type="h4" className="w-20" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** The Security tab while the device is read: the sections `buildSections` draws, with their real headings. */
-function SecurityTabSkeleton() {
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <section className={SECTION_CLASS}>
-        <h3 className={SECTION_HEADING_CLASS}>Encryption</h3>
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)]">
-          <SecurityStatusCardSkeleton labels={['Disk Encryption']} />
-        </div>
-      </section>
-      <section className={SECTION_CLASS}>
-        <h3 className={SECTION_HEADING_CLASS}>Security Agents</h3>
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
-          <SecurityStatusCardSkeleton labels={['Version', 'Last Seen']} />
-          <SecurityStatusCardSkeleton labels={['Version', 'Status']} />
-          <SecurityStatusCardSkeleton labels={['Version', 'Status']} />
-        </div>
-      </section>
-      <section className={SECTION_CLASS}>
-        <h3 className={SECTION_HEADING_CLASS}>Posture</h3>
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)]">
-          <SecurityStatusCardSkeleton labels={['Failing Policies', 'Total Issues']} />
-        </div>
-      </section>
-    </div>
-  );
-}
+/**
+ * The sections `buildSections` draws for a typical device, drawn while the device is read: the static headings, card
+ * titles and row labels real; an agent card's title (the agent's name) and every value a bar.
+ */
+const LOADING_SECTIONS: SecuritySection[] = [
+  {
+    id: 'encryption',
+    title: 'Encryption',
+    cards: [{ title: 'Disk Encryption', rows: [{ label: 'Disk Encryption', value: '' }] }],
+  },
+  {
+    id: 'agents',
+    title: 'Security Agents',
+    cards: [
+      {
+        rows: [
+          { label: 'Version', value: '' },
+          { label: 'Last Seen', value: '' },
+        ],
+      },
+      {
+        rows: [
+          { label: 'Version', value: '' },
+          { label: 'Status', value: '' },
+        ],
+      },
+      {
+        rows: [
+          { label: 'Version', value: '' },
+          { label: 'Status', value: '' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'posture',
+    title: 'Posture',
+    cards: [
+      {
+        title: 'Policy Compliance',
+        rows: [
+          { label: 'Failing Policies', value: '' },
+          { label: 'Total Issues', value: '' },
+        ],
+      },
+    ],
+  },
+];
 
 export function SecurityTab({ device }: SecurityTabProps) {
-  if (useLoadingScope()) {
-    return <SecurityTabSkeleton />;
-  }
+  const loading = useLoadingScope();
 
-  if (!device) {
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<ShieldIcon />}
@@ -271,10 +279,10 @@ export function SecurityTab({ device }: SecurityTabProps) {
     );
   }
 
-  const sections = buildSections(device);
+  const sections = device ? buildSections(device) : LOADING_SECTIONS;
 
-  if (sections.length === 0) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  if (!loading && sections.length === 0) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<ShieldIcon />} section="Security" />;
     }
     return (

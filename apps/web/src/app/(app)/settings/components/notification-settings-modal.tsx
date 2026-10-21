@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   LoadingWhen,
@@ -51,8 +51,11 @@ const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-m)]';
 const CANCEL_BUTTON_CLASS = 'h-12 flex-1 border-ods-border bg-ods-card text-ods-text-primary text-h3 hover:bg-ods-bg';
 const SAVE_BUTTON_CLASS = 'h-12 flex-1 bg-ods-accent text-ods-text-on-accent text-h3 hover:bg-ods-accent/90';
 
-/** Matches `CheckboxBlock`'s description-less row and the master-switch row below. */
-const ROW_SKELETON_CLASS = 'h-[44px] w-full shrink-0 md:h-[48px]';
+/** The master-switch row's frame, the same loading and loaded. */
+const MASTER_ROW_CLASS =
+  'flex min-h-[44px] items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border md:min-h-[48px]';
+/** The switch's own box (the lib `Switch` is `h-4 w-6`), drawn as a bar while its state is read. */
+const SWITCH_SKELETON_CLASS = 'h-4 w-6 shrink-0 rounded-full';
 
 /**
  * Group rows the loading list draws. The list is the server's and not paged, so there is no page size: this is a
@@ -103,7 +106,8 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
       <ModalV2Header>
         <ModalV2Title>Notifications</ModalV2Title>
       </ModalV2Header>
-      {/* A bare scope (no element), so Cancel stays live while the settings load. */}
+      {/* A bare scope (no element), so Cancel stays live while the settings load and the content and footer stay the
+          panel's own flex children. `LoadingFallback` would wrap both in its region's `div` and break that layout. */}
       <Suspense
         fallback={
           <LoadingWhen loading>
@@ -143,30 +147,6 @@ function SettingsFooter({
   );
 }
 
-/**
- * The loading shape: real static copy, placeholder rows for everything that is a value.
- * The switch is NOT rendered unchecked-and-disabled — that reads as a real answer and
- * then flips once the settings arrive.
- */
-function NotificationSettingsFormSkeleton({ onClose }: { onClose: () => void }) {
-  return (
-    <>
-      <LoadingRegion className="contents" label="Loading notification settings">
-        <ModalV2Content className={CONTENT_CLASS}>
-          <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
-          <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-            <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-            {Array.from({ length: NOTIFICATION_GROUPS_SKELETON_ROWS }, (_, index) => (
-              <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} data-loading-item />
-            ))}
-          </div>
-        </ModalV2Content>
-      </LoadingRegion>
-      <SettingsFooter onClose={onClose} />
-    </>
-  );
-}
-
 /** The query (it is what suspends); the form is `NotificationSettingsFormView`. */
 function NotificationSettingsForm({ onClose }: { onClose: () => void }) {
   const data = useLazyLoadQuery<SettingsQuery>(settingsQuery, {}, { fetchPolicy: 'network-only' });
@@ -193,7 +173,9 @@ function NotificationSettingsFormView({
     (settings?.typeSettings ?? []).map(({ group, label, enabled: on }) => ({ group, label, enabled: on })),
   );
 
-  if (useLoadingScope() || settings == null) return <NotificationSettingsFormSkeleton onClose={onClose} />;
+  // While the settings load (the Suspense fallback's scope): the same form, its static copy real, the switch and each
+  // group's box and label bars, Save inert (there is nothing to submit yet).
+  const loading = useLoadingScope() || settings == null;
 
   const handleSave = () => {
     commit({
@@ -212,8 +194,12 @@ function NotificationSettingsFormView({
   return (
     <>
       <ModalV2Content className={CONTENT_CLASS}>
-        <div className="flex min-h-[44px] items-center gap-[var(--spacing-system-s)] rounded-md bg-ods-card p-[var(--spacing-system-sf)] ring-1 ring-inset ring-ods-border md:min-h-[48px]">
-          <Switch id={masterSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
+        <div className={MASTER_ROW_CLASS}>
+          {loading ? (
+            <UnifiedSkeleton className={SWITCH_SKELETON_CLASS} />
+          ) : (
+            <Switch id={masterSwitchId} checked={enabled} onCheckedChange={setEnabled} disabled={isSaving} />
+          )}
           <label htmlFor={masterSwitchId} className="cursor-pointer text-ods-text-primary text-h4">
             Enable Notifications
           </label>
@@ -221,23 +207,32 @@ function NotificationSettingsFormView({
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
           <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-          {groups.map(({ group, label, enabled: on }) => (
-            <CheckboxBlock
-              key={group}
-              id={`notification-group-${group}`}
-              label={label}
-              checked={on}
-              // The master switch owns everything below it, so the per-group rows go
-              // inert while it is off rather than implying they still have an effect.
-              disabled={isSaving || !enabled}
-              onCheckedChange={checked =>
-                setGroups(prev => prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)))
-              }
-            />
-          ))}
+          {loading
+            ? Array.from({ length: NOTIFICATION_GROUPS_SKELETON_ROWS }, (_, index) => (
+                <div key={index} data-loading-item>
+                  <CheckboxBlock label={<TextLineSkeleton type="inherit" as="span" className="w-40" />} loading />
+                </div>
+              ))
+            : groups.map(({ group, label, enabled: on }) => (
+                <div key={group} data-loading-item>
+                  <CheckboxBlock
+                    id={`notification-group-${group}`}
+                    label={label}
+                    checked={on}
+                    // The master switch owns everything below it, so the per-group rows go
+                    // inert while it is off rather than implying they still have an effect.
+                    disabled={isSaving || !enabled}
+                    onCheckedChange={checked =>
+                      setGroups(prev =>
+                        prev.map(row => (row.group === group ? { ...row, enabled: Boolean(checked) } : row)),
+                      )
+                    }
+                  />
+                </div>
+              ))}
         </div>
       </ModalV2Content>
-      <SettingsFooter onClose={onClose} onSave={handleSave} isSaving={isSaving} />
+      <SettingsFooter onClose={onClose} onSave={loading ? undefined : handleSave} isSaving={isSaving} />
     </>
   );
 }

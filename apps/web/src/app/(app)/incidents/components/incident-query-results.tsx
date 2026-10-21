@@ -8,8 +8,8 @@ import type { Incident } from '../utils/incident-transform';
  * The evidence table's loading rows. The rows are the detecting query's and unbounded, and its columns are unknown
  * until the record lands: three columns is the common shape, one row the common count.
  */
-export const INCIDENT_EVIDENCE_SKELETON_ROWS = 1;
-export const INCIDENT_EVIDENCE_SKELETON_COLUMNS = 3;
+const INCIDENT_EVIDENCE_SKELETON_ROWS = 1;
+const INCIDENT_EVIDENCE_SKELETON_COLUMNS = 3;
 
 /**
  * "Query Details": the osquery rows the finding was made from, in the same

@@ -1,9 +1,8 @@
 'use client';
 
 import { LoadError, NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag, TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -33,42 +32,16 @@ const CARD_CONTAINER =
 const CARD_ROW =
   'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:contents';
 
-/** A field while the employee is on its way: the value is a bar, the label is fixed copy and stays real. */
-function EmployeeFieldSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col justify-center">
-      <TextLineSkeleton type="h4" className={valueClassName} />
-      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
-    </div>
-  );
-}
-
-function EmployeeSummarySkeleton() {
-  return (
-    <LoadingRegion label="Loading employee" className={CARD_CONTAINER}>
-      <div className={CARD_ROW}>
-        <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
-          {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
-          <UnifiedSkeleton className="size-9 shrink-0 rounded-full content-md:size-12" />
-          <EmployeeFieldSkeleton label="Name" valueClassName="w-32" />
-        </div>
-        <EmployeeFieldSkeleton label="Email" valueClassName="w-40" />
-      </div>
-      <div className={`${CARD_ROW} border-t border-ods-border`}>
-        <EmployeeFieldSkeleton label="Role" valueClassName="w-24" />
-        <EmployeeFieldSkeleton label="Status" valueClassName="w-16" />
-      </div>
-    </LoadingRegion>
-  );
-}
-
-/** The employee's card: name, email, role and status, or the deleted variant. `null` while the employee loads. */
+/**
+ * The employee's card: name, email, role and status, or the deleted variant. `null` while the employee loads (or in a
+ * loading scope): the same card, every cell drawing itself (`InfoCell`, the avatar), the status a tag-sized bar.
+ */
 function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displayName: string }) {
-  if (useLoadingScope() || user == null) return <EmployeeSummarySkeleton />;
-  const role = (user.roles || []).join(', ') || EMPTY_VALUE;
-  const isActive = user.status === UserStatus.Active;
+  const loading = useLoadingScope() || user == null;
+  const role = (user?.roles || []).join(', ') || EMPTY_VALUE;
+  const isActive = user?.status === UserStatus.Active;
 
-  if (isDeletedUserStatus(user.status)) {
+  if (!loading && user && isDeletedUserStatus(user.status)) {
     // Deleted variant per design: a single row with the red placeholder
     // avatar, the name and the status tag — the role row is dropped.
     // Admin-DELETED users keep their real name AND email (data is kept for
@@ -106,19 +79,21 @@ function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displ
               48px on md+ — SquareAvatar's buckets are fixed, and its cn is
               tailwind-merge, so the className override wins. */}
           <SquareAvatar
-            src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
+            src={user ? getFullImageUrl(user.image?.imageUrl, user.image?.hash) : undefined}
             fallback={displayName}
             size="lg"
             variant="round"
             className="h-9 w-9 content-md:h-12 content-md:w-12"
           />
-          <InfoCell value={displayName} label="Name" />
+          <InfoCell loading={loading} value={displayName} label="Name" />
         </div>
-        <InfoCell value={user.email} label="Email" />
+        <InfoCell loading={loading} skeletonWidth="w-40" value={user?.email} label="Email" />
       </div>
       <div className={`${CARD_ROW} border-t border-ods-border`}>
-        <InfoCell value={role} label="Role" />
+        <InfoCell loading={loading} skeletonWidth="w-24" value={role} label="Role" />
         <InfoCell
+          loading={loading}
+          valueSkeleton={<TagSkeleton />}
           value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
           label="Status"
         />
@@ -160,15 +135,12 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
     return <NotFoundError message="Employee not found" />;
   }
 
-  // The non-breaking space below reserves the title's h1 height while loading
-  // (PageLayout's title is string-only, so the bar can't be a skeleton) — it
-  // keeps the card from jumping. Spelled as a literal NBSP, not &nbsp;, because
-  // the value is handed straight to a string-typed prop.
+  // While the employee loads the title is empty and the header draws it as a bar (`loading`).
   const displayName = user
     ? user.firstName || user.lastName
       ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
       : user.email
-    : ' ';
+    : '';
   const isDeleted = isDeletedUserStatus(user?.status);
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');
@@ -193,6 +165,9 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
   return (
     <PageLayout
       title={displayName}
+      // While the employee loads: the title a bar, and the actions menu a placeholder (its items are the employee's).
+      loading={isLoading}
+      loadingActions={isLoading}
       backButton={{ label: 'Back', onClick: handleBack }}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       menuActions={

@@ -176,5 +176,5 @@ export function ServerDevicePickerLists({
  * picker's SHAPE alone — the Available / Selected tab strip included.
  */
 function ServerDevicePickerSkeleton() {
-  return <DeviceSelectorSkeleton showSelectionModeRadio={false} />;
+  return <DeviceSelectorSkeleton showSelectionModeRadio={false} skeletonRows={DEVICE_PICKER_PAGE_SIZE} />;
 }

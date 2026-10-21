@@ -42,7 +42,8 @@ export function OverviewTab({ device }: OverviewTabProps) {
 
       <DeviceTagsSection device={device} />
 
-      {deviceId ? <LogsTable deviceId={deviceId} ref={logsTableRef} showHeader={false} /> : null}
+      {/* While the device is read the table is in the page's loading scope: it reads nothing and draws its rows. */}
+      <LogsTable deviceId={deviceId} deviceScoped ref={logsTableRef} showHeader={false} />
     </div>
   );
 }

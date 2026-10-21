@@ -1,6 +1,5 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import type { DeviceFilters } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption, InfoCardData } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -20,7 +19,10 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
-import { useDeviceOrganizations } from '@/app/(app)/devices/hooks/use-device-organizations';
+import {
+  type DeviceOrganizationOption,
+  useDeviceOrganizations,
+} from '@/app/(app)/devices/hooks/use-device-organizations';
 import { OrgAvatar } from '@/app/components/shared';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
 
@@ -54,6 +56,9 @@ interface ScheduleCriteriaFieldsProps {
   disabled?: boolean;
 }
 
+/** No customers yet (the editor is loading). */
+const NO_ORGANIZATIONS: DeviceOrganizationOption[] = [];
+
 /**
  * The rule editor for "Select Devices by Criteria" (design 460:85294) — a
  * customer whitelist and an OS constraint, `AND`ed across dimensions.
@@ -80,14 +85,31 @@ interface ScheduleCriteriaFieldsProps {
  * visibly matches nothing.
  */
 export function ScheduleCriteriaFields(props: ScheduleCriteriaFieldsProps) {
-  // In a loading scope the editor reads nothing (the customer list is a request): it draws its own skeleton.
-  if (useLoadingScope()) return <ScheduleCriteriaFieldsSkeleton />;
+  // In a loading scope the editor reads nothing (the customer list is a request that suspends): the same fields
+  // render with no customers, and draw themselves in the scope.
+  if (useLoadingScope()) return <ScheduleCriteriaFieldsView {...props} organizations={NO_ORGANIZATIONS} loading />;
   return <ScheduleCriteriaFieldsContent {...props} />;
 }
 
-function ScheduleCriteriaFieldsContent({ criteria, onChange, deviceFilters, disabled }: ScheduleCriteriaFieldsProps) {
+/** The editor once the customer list is read. */
+function ScheduleCriteriaFieldsContent(props: ScheduleCriteriaFieldsProps) {
   const organizations = useDeviceOrganizations(100);
+  return <ScheduleCriteriaFieldsView {...props} organizations={organizations} loading={false} />;
+}
 
+/**
+ * The fields themselves. While loading (`loading`, in a loading scope) the customer `Autocomplete` draws its own
+ * skeleton under its real label; the OS `Select` is the real control, inert and showing no value (the stored rule is
+ * not read yet); the Custom Criteria block is static and renders verbatim.
+ */
+function ScheduleCriteriaFieldsView({
+  criteria,
+  onChange,
+  deviceFilters,
+  disabled,
+  organizations,
+  loading,
+}: ScheduleCriteriaFieldsProps & { organizations: DeviceOrganizationOption[]; loading: boolean }) {
   const orgOptions = useMemo<AutocompleteOption[]>(
     () => [
       { label: 'All Customers', value: ALL_CUSTOMERS },
@@ -152,9 +174,9 @@ function ScheduleCriteriaFieldsContent({ criteria, onChange, deviceFilters, disa
             `osTypes` stays an array at the boundary because that is the field's
             shape — this control just never fills it past one. */}
         <Select
-          value={criteria.osTypes[0] ?? ALL_OS_TYPES}
+          value={loading ? undefined : (criteria.osTypes[0] ?? ALL_OS_TYPES)}
           onValueChange={value => onChange({ ...criteria, osTypes: value === ALL_OS_TYPES ? [] : [value] })}
-          disabled={disabled}
+          disabled={disabled || loading}
         >
           <SelectTrigger label="OS" className="w-full">
             <SelectValue />
@@ -184,7 +206,7 @@ function ScheduleCriteriaFieldsContent({ criteria, onChange, deviceFilters, disa
  * shipped as a control that swallows whatever the user types.
  *
  * Nothing about it depends on a request, so the loading state renders it
- * verbatim rather than as a placeholder.
+ * verbatim.
  */
 function CustomCriteriaField() {
   return (
@@ -194,32 +216,6 @@ function CustomCriteriaField() {
         <Tag label="Coming Soon" variant="grey" />
       </div>
       <Input placeholder="Press enter after each criteria" disabled />
-    </div>
-  );
-}
-
-/**
- * The rule editor while its option queries are still in flight.
- *
- * Only the two dropdowns wait on a request, so only they are placeholders — the
- * labels and the Custom Criteria block are static and render for real. The
- * boxes carry the fields' own `h-11 content-md:h-12`, and the labels the `text-h4 mb-1`
- * that `FieldWrapper` gives them, so the editor doesn't resize under the user
- * when the options land.
- */
-function ScheduleCriteriaFieldsSkeleton() {
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-4">
-        {['Customer', 'OS'].map(label => (
-          <div key={label} className="flex w-full flex-col">
-            <span className="mb-1 text-ods-text-primary text-h4">{label}</span>
-            <UnifiedSkeleton className="h-11 w-full rounded-[6px] content-md:h-12" />
-          </div>
-        ))}
-      </div>
-
-      <CustomCriteriaField />
     </div>
   );
 }

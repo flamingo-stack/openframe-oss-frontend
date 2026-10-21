@@ -20,7 +20,7 @@
  * throws (never crashes the message).
  */
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingScope, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
@@ -115,14 +115,14 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
 }
 
-/** The chip's own loading state: the same chip shell (no link) with an inline skeleton bar for the label. */
+/** The chip's own loading state: the same chip shell (no link) with the label a text bar of the chip's own type step. */
 function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
   return (
     <Tag
       as="span"
       variant="badge"
       icon={icon}
-      label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />}
+      label={<TextLineSkeleton type="h5" as="span" className="w-20" />}
       className={CHIP_CLASS}
     />
   );

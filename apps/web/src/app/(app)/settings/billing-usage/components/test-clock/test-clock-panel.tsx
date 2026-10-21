@@ -1,12 +1,8 @@
 'use client';
 
-import {
-  InteractiveSkeleton,
-  LoadingRegion,
-  TextLineSkeleton,
-} from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -36,14 +32,25 @@ interface TestClockPanelProps {
  * flag is on. The backend keeps that flag in sync with `openframe.billing.test-clock.enabled`,
  * which strips these fields from the schema when off, so an ungated render would fire
  * requests that fail GraphQL validation on prod.
+ *
+ * In a loading scope (the billing page drawn while it loads) the panel draws itself without its query, like every
+ * other part of the page.
  */
 export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   const testClockEnabled = useFeatureFlag('test-clock');
+  const loading = useLoadingScope();
 
   if (!testClockEnabled) return null;
+  if (loading) return <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />;
 
   return (
-    <Suspense fallback={<TestClockPanelContentSkeleton />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading the test clock">
+          <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />
+        </LoadingFallback>
+      }
+    >
       <TestClockPanelContent onClockChanged={onClockChanged} />
     </Suspense>
   );
@@ -71,25 +78,8 @@ function TestClockPanelHeader() {
   );
 }
 
-/** The panel while the clock is on its way: the header is real, the time a bar, the controls inert boxes. */
-function TestClockPanelContentSkeleton() {
-  return (
-    <LoadingRegion label="Loading the test clock" className={PANEL_CLASS}>
-      <TestClockPanelHeader />
-      <TextLineSkeleton type="h4" className="w-64 max-w-full" />
-      <div className="flex flex-wrap items-end gap-[var(--spacing-system-s)]">
-        <InteractiveSkeleton.Input className="w-24" />
-        <InteractiveSkeleton.Input className="w-24" />
-        <InteractiveSkeleton.Button />
-        <InteractiveSkeleton.Button />
-      </div>
-    </LoadingRegion>
-  );
-}
-
+/** The panel's query; everything it draws is `TestClockPanelView`'s. */
 function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
-  const daysInputId = useId();
-  const hoursInputId = useId();
   const data = useLazyLoadQuery<TestClockPanelQueryType>(
     testClockPanelQuery,
     {},
@@ -100,9 +90,25 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
     },
   );
+  return <TestClockPanelView frozenTime={data.testClockTime?.frozenTime ?? null} onClockChanged={onClockChanged} />;
+}
+
+interface TestClockPanelViewProps extends TestClockPanelProps {
+  /** The clock's virtual time as the query answered it; `null` for real time. Unread in a loading scope. */
+  frozenTime: string | null;
+}
+
+/**
+ * The panel drawn from its query's answer (props only, so it can draw itself while that answer is on its way). In a
+ * loading scope the header and the labels are real, the time is a bar, and the controls are drawn inert.
+ */
+function TestClockPanelView({ frozenTime: queriedFrozenTime, onClockChanged }: TestClockPanelViewProps) {
+  const loading = useLoadingScope();
+  const daysInputId = useId();
+  const hoursInputId = useId();
   const advance = useAdvanceTestClock();
   const reset = useResetTestClock();
-  const provisioning = useBillingProvisioningStatus();
+  const provisioning = useBillingProvisioningStatus({ enabled: !loading });
 
   const [daysInput, setDaysInput] = useState('1');
   const [hoursInput, setHoursInput] = useState('');
@@ -111,14 +117,15 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
   // the initial query result. `undefined` means "nothing committed yet — use the query".
   const [frozenTimeOverride, setFrozenTimeOverride] = useState<string | null | undefined>(undefined);
 
-  const frozenTime = frozenTimeOverride !== undefined ? frozenTimeOverride : (data.testClockTime?.frozenTime ?? null);
+  const frozenTime = frozenTimeOverride !== undefined ? frozenTimeOverride : queriedFrozenTime;
 
   // Days and hours add up; either may be blank, but the step must move the clock.
   // An empty field is left out of the mutation rather than sent as 0.
   const days = parseStep(daysInput);
   const hours = parseStep(hoursInput);
   const isStepValid = days !== null && hours !== null && (days ?? 0) + (hours ?? 0) > 0;
-  const isBusy = advance.isPending || reset.isPending;
+  // Inert while the panel loads: there is no clock to move yet.
+  const isBusy = loading || advance.isPending || reset.isPending;
 
   const handleAdvance = () => {
     if (!isStepValid || isBusy) return;
@@ -146,7 +153,9 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
       <TestClockPanelHeader />
 
       <p className="text-ods-text-primary text-h4">
-        {frozenTime ? (
+        {loading ? (
+          <TextLineSkeleton type="inherit" as="span" className="w-64 max-w-full" />
+        ) : frozenTime ? (
           <>
             Virtual time: <span className="text-ods-warning">{formatDateTime(frozenTime)}</span>
           </>
@@ -158,7 +167,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
       {/* Provisioning is only trustworthy at READY — after a reset (or a fresh
           registration) the schedulers spend a few minutes rebuilding the Stripe
           customer, and the billing data on this page is stale until they finish. */}
-      {provisioning.status && (
+      {!loading && provisioning.status && (
         <p className="text-ods-text-primary text-h4">
           Provisioning:{' '}
           <span className={isProvisioningReady ? 'text-ods-success' : 'text-ods-warning'}>
@@ -227,6 +236,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
           {/* Devices SET the day's peak count — a value below the real device count changes nothing. */}
           <SeedUsageField
             label="Devices"
+            disabled={loading}
             metricType="MANAGED_DEVICES"
             successMessage={(value, r) => `Device peak for ${r.billingDate} set to ${r.dayValue}`}
             onSeeded={onClockChanged}
@@ -234,6 +244,7 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
           {/* Tokens are ADDED to the day's sum. */}
           <SeedUsageField
             label="AI tokens"
+            disabled={loading}
             metricType="AI_TOKENS"
             successMessage={(value, r) => `Added ${value} tokens — ${r.billingDate} total is ${r.dayValue}`}
             onSeeded={onClockChanged}
@@ -271,10 +282,12 @@ interface SeedUsageFieldProps {
   successMessage: (value: number, result: SeedTestUsageResult) => string;
   /** Bumps the host page's Relay `fetchKey` so the usage cards re-request the seeded totals. */
   onSeeded: () => void;
+  /** Inert while the panel loads. */
+  disabled?: boolean;
 }
 
 /** Numeric input + Apply for one seedTestUsage metric (dev/stage only, like the rest of the panel). */
-function SeedUsageField({ label, metricType, successMessage, onSeeded }: SeedUsageFieldProps) {
+function SeedUsageField({ label, metricType, successMessage, onSeeded, disabled = false }: SeedUsageFieldProps) {
   const inputId = useId();
   const { toast } = useToast();
   const seed = useSeedTestUsage();
@@ -284,7 +297,7 @@ function SeedUsageField({ label, metricType, successMessage, onSeeded }: SeedUsa
   const isValueValid = Number.isInteger(parsedValue) && parsedValue >= 1;
 
   const handleApply = () => {
-    if (!isValueValid || seed.isPending) return;
+    if (disabled || !isValueValid || seed.isPending) return;
     seed.mutate(metricType, parsedValue, result => {
       toast({ title: `${label} Seeded`, description: successMessage(parsedValue, result), variant: 'success' });
       onSeeded();
@@ -309,12 +322,17 @@ function SeedUsageField({ label, metricType, successMessage, onSeeded }: SeedUsa
           min={1}
           step={1}
           value={valueInput}
-          disabled={seed.isPending}
+          disabled={disabled || seed.isPending}
           onChange={event => setValueInput(event.target.value)}
           className="w-32"
         />
       </div>
-      <Button type="submit" variant="outline" loading={seed.isPending} disabled={!isValueValid || seed.isPending}>
+      <Button
+        type="submit"
+        variant="outline"
+        loading={seed.isPending}
+        disabled={disabled || !isValueValid || seed.isPending}
+      >
         Apply
       </Button>
     </form>

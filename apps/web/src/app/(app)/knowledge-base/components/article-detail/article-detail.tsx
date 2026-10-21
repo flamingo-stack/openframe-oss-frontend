@@ -30,8 +30,8 @@ const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
 
 /**
  * An article's page: the title with its actions, then the article top to bottom. In a loading scope (the page's
- * Suspense fallback) the title, the card and the text draw their own loading states; tags and attachments are
- * only some articles' and are left out until the article answers.
+ * Suspense fallback) the title, the tags, the card and the text draw their own loading states; attachments are only
+ * some articles' and sit below the text, so they are left out until the article answers.
  */
 export function ArticleDetail({ article }: { article: articleDetail_article$key | null }) {
   if (useLoadingScope() || !article) {
@@ -39,6 +39,7 @@ export function ArticleDetail({ article }: { article: articleDetail_article$key 
       <>
         <ArticleDetailTitle title="Article" loading actions={LOADING_ACTIONS} loadingActions />
         <div className={BODY_CLASS}>
+          <ArticleDetailTags article={null} />
           <ArticleDetailSummary article={null} />
           <ArticleDetailBody article={null} />
         </div>

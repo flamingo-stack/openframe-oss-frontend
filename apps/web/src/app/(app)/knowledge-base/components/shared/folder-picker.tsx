@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -64,11 +64,21 @@ export function FolderPicker(props: FolderPickerProps) {
   );
 }
 
-/** The picker before the tree is in: the same trigger, locked, showing only what is known without the tree. */
+/**
+ * The picker before the tree is in: the same trigger, locked, showing what is known without the tree. A picked
+ * folder's name needs the tree, so it is a bar; the root and an unpicked field are known.
+ */
 function FolderPickerSkeleton({ value, placeholder = 'Select Folder', label }: FolderPickerProps) {
+  const selectedLabel =
+    label ??
+    (value === null ? (
+      ROOT_FOLDER.name
+    ) : value === undefined ? undefined : (
+      <TextLineSkeleton type="inherit" as="span" className="w-32" />
+    ));
   return (
     <InputTrigger
-      selectedLabel={label ?? (value === null ? ROOT_FOLDER.name : undefined)}
+      selectedLabel={selectedLabel}
       placeholder={placeholder}
       endIcon={<Chevron02DownIcon className="size-6" />}
       disabled

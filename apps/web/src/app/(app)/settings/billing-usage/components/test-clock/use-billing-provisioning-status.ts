@@ -32,14 +32,17 @@ interface ProvisioningStatus {
  * the schedulers rebuild it over the next minutes, during which the billing data on
  * the page is not yet trustworthy. Deliberately runs outside Suspense (`fetchQuery`
  * rather than `useLazyLoadQuery`) so each poll doesn't blank the panel.
+ *
+ * `enabled: false` (the panel drawn in a loading scope) reads nothing until it is enabled.
  */
-export function useBillingProvisioningStatus() {
+export function useBillingProvisioningStatus({ enabled = true }: { enabled?: boolean } = {}) {
   const environment = useRelayEnvironment();
   const [status, setStatus] = useState<ProvisioningStatus | null>(null);
   const [restartKey, setRestartKey] = useState(0);
 
   // restartKey is the re-run trigger, not read in the body.
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let consecutiveErrors = 0;
@@ -88,7 +91,7 @@ export function useBillingProvisioningStatus() {
       if (timer) clearTimeout(timer);
       subscription?.unsubscribe();
     };
-  }, [environment, restartKey]);
+  }, [environment, restartKey, enabled]);
 
   /** Restart polling after an operation that re-provisions the tenant (i.e. a reset). */
   const restart = useCallback(() => setRestartKey(k => k + 1), []);

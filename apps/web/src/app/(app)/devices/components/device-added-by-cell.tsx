@@ -1,7 +1,12 @@
 'use client';
 
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  SquareAvatar,
+  SquareAvatarSkeleton,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { useUser } from '@/app/(app)/settings/hooks/use-user';
 import type { UserRecord } from '@/app/(app)/settings/hooks/use-users';
@@ -10,6 +15,8 @@ import { EmptyValue } from '@/app/components/shared/empty-value';
 import { getFullImageUrl } from '@/lib/image-url';
 
 const LABEL = 'Added by';
+/** The avatar's step of the shared avatar scale (`AVATAR_SIZE`), loaded and loading. */
+const AVATAR = 'sm';
 
 function userDisplayName(user: UserRecord): string {
   const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
@@ -32,7 +39,7 @@ function AddedByFrame({ avatar, children }: { avatar?: React.ReactNode; children
 /** Same frame with the avatar and the name as placeholders; the label is the real text. */
 function DeviceAddedByCellSkeleton() {
   return (
-    <AddedByFrame avatar={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}>
+    <AddedByFrame avatar={<SquareAvatarSkeleton size={AVATAR} variant="round" className="shrink-0" />}>
       <TextLineSkeleton type="h4" className="w-28" />
     </AddedByFrame>
   );
@@ -76,7 +83,7 @@ export function DeviceAddedByCell({ userId }: DeviceAddedByCellProps) {
 
   if (!user) {
     return (
-      <AddedByFrame avatar={<DeletedUserAvatar size="sm" />}>
+      <AddedByFrame avatar={<DeletedUserAvatar size={AVATAR} />}>
         <TruncateText>{DELETED_EMPLOYEE_LABEL}</TruncateText>
       </AddedByFrame>
     );
@@ -84,12 +91,12 @@ export function DeviceAddedByCell({ userId }: DeviceAddedByCellProps) {
 
   const name = userDisplayName(user);
   const avatar = isDeletedUserStatus(user.status) ? (
-    <DeletedUserAvatar size="sm" accessibleLabel={`Deleted user: ${name}`} />
+    <DeletedUserAvatar size={AVATAR} accessibleLabel={`Deleted user: ${name}`} />
   ) : (
     <SquareAvatar
       src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
       fallback={name}
-      size="sm"
+      size={AVATAR}
       variant="round"
     />
   );

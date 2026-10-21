@@ -46,7 +46,7 @@ interface QueryDevicesTableProps {
 }
 
 /** The query's devices are every assigned host, unpaged: the loading body draws this typical count. */
-export const QUERY_DEVICES_SKELETON_ROWS = 5;
+const QUERY_DEVICES_SKELETON_ROWS = 5;
 
 const NO_ROWS: QueryDeviceRow[] = [];
 

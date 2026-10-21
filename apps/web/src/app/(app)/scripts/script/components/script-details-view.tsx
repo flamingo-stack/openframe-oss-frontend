@@ -59,11 +59,13 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
 type ScriptRecord = ScriptDetailQueryType['response']['script'];
 
 /**
- * One label-width action placeholder, which is what the header settles into
- * either way: an active script offers "Run Script", an archived one a single
- * "Unarchive". WHICH is the record's answer, so the slot is a neutral bar.
+ * The header's action placeholders: the square "…" menu trigger an active
+ * script carries (its Edit Script entry; most scripts are active), then one
+ * label-width slot, which is what the header settles into either way: an
+ * active script offers "Run Script", an archived one a single "Unarchive".
+ * WHICH is the record's answer, so the slot is a neutral bar.
  */
-const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Script action' }];
+const LOADING_ACTIONS: PageActionButton[] = [{ label: '' }, { label: 'Script action' }];
 
 /** The header's own loading state: the real `TitleBlock` (static title, working Back), its action slot a bar. */
 function ScriptHeaderSkeleton() {

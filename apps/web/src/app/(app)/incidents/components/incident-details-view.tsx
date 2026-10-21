@@ -189,7 +189,7 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
         header={<IncidentHeaderView />}
         body={
           <>
-            <IncidentSummaryCard assigneeSlot={null} />
+            <IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />
             <IncidentNotes incidentId={incidentId} />
             <IncidentQueryResults />
           </>
@@ -217,7 +217,7 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
           <Suspense
             fallback={
               <LoadingFallback label="Loading incident summary">
-                <IncidentSummaryCard assigneeSlot={null} />
+                <IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />
               </LoadingFallback>
             }
           >

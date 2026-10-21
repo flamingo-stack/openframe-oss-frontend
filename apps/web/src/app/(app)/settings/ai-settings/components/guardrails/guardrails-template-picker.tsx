@@ -1,7 +1,6 @@
 'use client';
 
 import { ActionsMenuDropdown, Button, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter03HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
@@ -22,34 +21,12 @@ interface GuardrailsTemplatePickerProps {
   onCreateCustomPolicyFrom: (baseTemplateId: string) => void;
 }
 
-/** The loading list's size: the templates arrive at once (not paged), so this is a typical count. */
-const GUARDRAILS_TEMPLATES_SKELETON_ROWS = 3;
+const NO_OPTIONS: GuardrailsTemplateOption[] = [];
 
 /**
- * The picker while the templates are on their way, as the lib's grouped `RadioGroupBlock` draws its rows (it has no
- * skeleton of its own): one bordered group, a radio dot, the name and the description.
+ * Edit-mode template chooser: one radio per template, stock rows offer "Use for Custom Policy". While the templates are
+ * on their way (or in a loading scope) the lib's `RadioGroupBlock` draws its own skeleton rows.
  */
-export function GuardrailsTemplatePickerSkeleton() {
-  return (
-    <div className="flex w-full flex-col overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
-      {Array.from({ length: GUARDRAILS_TEMPLATES_SKELETON_ROWS }, (_, index) => (
-        <div
-          key={index}
-          data-loading-item
-          className="flex w-full items-center gap-3 border-ods-border bg-ods-card px-[var(--spacing-system-sf)] py-[var(--spacing-system-xs,8px)] [&:not(:last-child)]:border-b"
-        >
-          <UnifiedSkeleton className="h-6 w-6 shrink-0 rounded-full" />
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <TextLineSkeleton type="h4" className="w-1/3" />
-            <TextLineSkeleton type="h6" className="w-2/3" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Edit-mode template chooser: one radio per template, stock rows offer "Use for Custom Policy". */
 export function GuardrailsTemplatePicker({
   options,
   value,
@@ -57,7 +34,7 @@ export function GuardrailsTemplatePicker({
   onSelect,
   onCreateCustomPolicyFrom,
 }: GuardrailsTemplatePickerProps) {
-  if (useLoadingScope() || options == null) return <GuardrailsTemplatePickerSkeleton />;
+  const loading = useLoadingScope() || options == null;
   return (
     <RadioGroupBlock
       name="policy-template"
@@ -65,7 +42,8 @@ export function GuardrailsTemplatePicker({
       value={value}
       onValueChange={onSelect}
       disabled={disabled}
-      options={options.map(option => ({
+      loading={loading}
+      options={(loading || options == null ? NO_OPTIONS : options).map(option => ({
         value: option.id,
         label: option.label,
         description: option.description,

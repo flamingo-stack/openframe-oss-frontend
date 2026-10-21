@@ -1,7 +1,5 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -24,18 +22,12 @@ interface SummaryCardProps {
   lead?: ReactNode;
 }
 
-/** A value that has not answered yet, at the value line's height. */
-function SummaryValueSkeleton() {
-  return <UnifiedSkeleton as="span" className="h-6 w-24" />;
-}
-
 /**
  * The card under a Software detail page's title: labelled values in a row,
- * stacked below md. In a loading scope the labels stay real and every value is
- * a bar, so loading and loaded share every metric by construction.
+ * stacked below md. In a loading scope every `InfoCell` draws itself (label real,
+ * value a text bar), so loading and loaded share every metric by construction.
  */
 export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
-  const loading = useLoadingScope();
   return (
     <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
       {lead && <div className="flex flex-col border-b border-ods-border p-[var(--spacing-system-m)]">{lead}</div>}
@@ -48,7 +40,7 @@ export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
               idx < fields.length - 1 && 'border-b border-ods-border content-md:border-b-0',
             )}
           >
-            <InfoCell value={loading ? <SummaryValueSkeleton /> : field.value} label={field.label} />
+            <InfoCell value={field.value} label={field.label} skeletonWidth="w-24" />
           </div>
         ))}
       </div>

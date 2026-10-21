@@ -36,7 +36,7 @@ interface PolicyDevicesTableProps {
 }
 
 /** The policy's devices are every assigned host, unpaged: the loading body draws this typical count. */
-export const POLICY_DEVICES_SKELETON_ROWS = 5;
+const POLICY_DEVICES_SKELETON_ROWS = 5;
 
 const NO_ROWS: PolicyDeviceRow[] = [];
 

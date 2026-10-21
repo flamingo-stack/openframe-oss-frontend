@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { actionPackageVersionQuery as ActionPackageVersionQueryType } from '@/__generated__/actionPackageVersionQuery.graphql';
@@ -42,7 +42,7 @@ export function ActionPackageVersion(props: ActionPackageVersionProps) {
 
 /** The version line before the catalog answers. */
 function ActionPackageVersionSkeleton() {
-  return <UnifiedSkeleton as="span" className="h-6 w-20" />;
+  return <TextLineSkeleton type="h4" as="span" className="w-20" />;
 }
 
 function ActionPackageVersionQuery({ packageManager, packageName }: ActionPackageVersionProps) {

@@ -1,7 +1,11 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  InteractiveSkeleton,
+  LoadingRegion,
+  TextLineSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertCircleIcon,
@@ -14,6 +18,7 @@ import {
   ActionsMenuDropdown,
   PageError,
   SquareAvatar,
+  SquareAvatarSkeleton,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -33,15 +38,9 @@ interface ProfileCardProps {
 }
 
 /**
- * Placeholder for the row below, mirroring it cell for cell: same wrapper spacing, a
- * 48px round avatar (`SquareAvatar size="lg"`), the two text lines and the 44/48px kebab
- * trigger (`Button size="icon"`), so nothing moves on handoff.
- *
- * The bars take their height from the LINE BOX of the text each one stands in for —
- * `text-h4` for the name, `text-h6` for the email — rather than from a picked `h-*`
- * value. Those tokens are responsive (24/20px and 20/16px), so a fixed height can only
- * be right at one breakpoint; and the two lines are stacked block boxes in the real row,
- * with no gap between them, so a `gap-*` here shifted both bars off the text they cover.
+ * The row while the user is read, cell for cell: the 48px round avatar (`SquareAvatar size="lg"`), the name line (its
+ * `min-h-8` is the role `Tag`'s height, so the row is one height with or without roles) and the email line as bars of
+ * their own type steps, and the kebab trigger's icon-button box.
  */
 function ProfileCardSkeleton() {
   return (
@@ -49,21 +48,14 @@ function ProfileCardSkeleton() {
       label="Loading your profile"
       className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
     >
-      <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-full" />
+      <SquareAvatarSkeleton size="lg" variant="round" className="shrink-0" />
       <div className="min-w-0 flex-1 overflow-hidden">
-        {/* `min-h-8` because the loaded name line carries role tags, and `Tag` is a fixed
-            32px — taller than the 24px text line box, so IT sets the row's height (16 +
-            32 + 20 + 16 = 84px). Without this the placeholder came out 80px and the row
-            grew 4px on handoff. The real line below is pinned the same way so the height
-            no longer depends on whether a user happens to have roles. */}
         <div className="flex min-h-8 items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
+          <TextLineSkeleton type="h4" className="w-40 max-w-full" />
         </div>
-        <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
-        </div>
+        <TextLineSkeleton type="h6" className="w-56 max-w-full" />
       </div>
-      <UnifiedSkeleton className="h-11 w-11 shrink-0 rounded-md content-md:h-12 content-md:w-12" />
+      <InteractiveSkeleton.Button size="icon" className="shrink-0" />
     </LoadingRegion>
   );
 }

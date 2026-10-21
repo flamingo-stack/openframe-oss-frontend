@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { Chevron01RightIcon, ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
@@ -118,8 +118,11 @@ function DeviceLogsRowsSkeleton({ dayHeader = false }: { dayHeader?: boolean }) 
         <div key={index} data-loading-item className={cn('rounded-md border border-transparent', DEVICE_LOG_LINE)}>
           {/* text-code: the column is sized in `ch`, which only matches the live time's width in its font. */}
           <TextLineSkeleton type="code" className={cn('shrink-0', DEVICE_LOG_TIME_COLUMN)} />
-          <UnifiedSkeleton className={cn('h-8 shrink-0', DEVICE_LOG_LEVEL_COLUMN)} />
+          <span className={cn(DEVICE_LOG_LEVEL_COLUMN, 'flex shrink-0')}>
+            <TagSkeleton className="max-w-full" />
+          </span>
           <TextLineSkeleton type="code" className="flex-1" />
+          <Chevron01RightIcon aria-hidden="true" className="shrink-0 text-ods-text-tertiary" />
         </div>
       ))}
     </div>

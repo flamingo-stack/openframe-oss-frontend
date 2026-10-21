@@ -1,6 +1,10 @@
 'use client';
 
-import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  AssigneeDropdown,
+  SquareAvatarSkeleton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from 'react-relay';
 import type { assignInsightMutation as AssignInsightMutationType } from '@/__generated__/assignInsightMutation.graphql';
@@ -17,8 +21,12 @@ import type { IncidentRow } from '../utils/incident-transform';
  * compact assignee picker (the same one the ticket board uses) beside the
  * current holder's name. Assigning is independent of status — an incident can
  * change hands while snoozed.
+ *
+ * Without the incident (or in a loading scope) it draws itself: the picker's
+ * round trigger as its avatar-sized placeholder and the name a bar.
  */
-export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
+export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
+  const loading = useLoadingScope() || !incident;
   const { toast } = useToast();
   const { options, isLoading } = useAssigneeOptions();
   const [commitAssign, isAssigning] = useMutation<AssignInsightMutationType>(assignInsightMutation);
@@ -33,6 +41,7 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
   };
 
   const handleAssign = (userId: string | null) => {
+    if (!incident) return;
     if (userId === null) {
       commitUnassign({
         variables: { input: { id: incident.id } },
@@ -57,26 +66,31 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
     });
   };
 
-  const assignee = incident.assignee;
+  const assignee = incident?.assignee;
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
       {/* In a table row only the picker is its own control; the name beside it opens the row like the rest of it. */}
       <div data-no-row-click className="shrink-0">
-        <AssigneeDropdown
-          variant="compact"
-          currentAssignee={
-            assignee
-              ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
-              : undefined
-          }
-          options={options}
-          isLoading={isLoading}
-          isPending={isAssigning || isUnassigning}
-          onAssign={handleAssign}
-        />
+        {loading ? (
+          <SquareAvatarSkeleton size="sm" variant="round" />
+        ) : (
+          <AssigneeDropdown
+            variant="compact"
+            currentAssignee={
+              assignee
+                ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
+                : undefined
+            }
+            options={options}
+            isLoading={isLoading}
+            isPending={isAssigning || isUnassigning}
+            onAssign={handleAssign}
+          />
+        )}
       </div>
       <InfoCell
+        loading={loading}
         value={
           assignee ? (
             <span className={assignee.deleted ? 'text-ods-error' : undefined}>{assignee.name}</span>

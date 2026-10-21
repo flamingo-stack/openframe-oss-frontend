@@ -65,7 +65,7 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
  * a schedule, so the first card is the only one certain to be there; a second
  * would promise an entry most schedules do not have and then collapse.
  */
-export const SCHEDULE_SCRIPTS_SKELETON_COUNT = 1;
+const SCHEDULE_SCRIPTS_SKELETON_COUNT = 1;
 
 /** The tab before its schedule: the same list, its cards drawing their own skeletons in the loading scope. */
 function ScheduleScriptsTabLoading() {

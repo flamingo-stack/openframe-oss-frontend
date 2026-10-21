@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Card } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Card, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatCompactCount } from '@/lib/format-number';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../ai-balance/ai-top-up-fields';
 import { AutoTopUpCheckbox } from '../ai-balance/auto-top-up-checkbox';
@@ -41,14 +41,15 @@ interface AiTokenBalanceCardProps {
  * the page's "Proceed to Payment" submits the whole form at once.
  */
 export function AiTokenBalanceCard({
-  loading,
+  loading: loadingProp,
   deviceMode,
   topUp,
   autoTopUp,
   onAutoTopUpChange,
 }: AiTokenBalanceCardProps) {
+  const loading = useLoadingScope() || loadingProp;
   // A prepaid year is a commitment; pay-as-you-go is not, and it grants less.
-  const freeTokens = deviceMode == null ? null : freeTokensForPlan(deviceMode === 'ANNUAL');
+  const freeTokens = loading || deviceMode == null ? null : freeTokensForPlan(deviceMode === 'ANNUAL');
 
   return (
     <Card
@@ -70,8 +71,9 @@ export function AiTokenBalanceCard({
       <div className="flex items-start gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-mf)]">
         <GiftIcon className="size-6 shrink-0 text-ods-accent" />
         {freeTokens == null ? (
+          // The sentence's line: its figure is set in h3, which is the line's height.
           <LoadingRegion status={false} className="w-full max-w-[22rem]">
-            <UnifiedSkeleton className="h-5 w-full" />
+            <TextLineSkeleton type="h3" className="w-full" />
           </LoadingRegion>
         ) : (
           <p className="text-ods-text-primary text-h4">

@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getAgentAccent,
   type QuickActionAccent,
@@ -45,7 +46,6 @@ export const MINGO_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel:
 export const ASSISTANT_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'AI Assistant', agentSlug: 'fae' };
 
 const NO_ACTIONS: AiQuickAction[] = [];
-const NO_BANNER_ROWS: never[] = [];
 
 /** Overrides the source banner's two text lines (title + caption). */
 export interface QuickActionsBannerCopy {
@@ -61,8 +61,9 @@ export interface QuickActionsBannerCopy {
  * uses it because there "default" means "inherited from the global config".
  */
 export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: boolean; copy?: QuickActionsBannerCopy }) {
-  // Whose actions are in effect is read: while loading, the panel's own one-row skeleton.
-  if (useLoadingScope() || isDefault == null) return <StackedRowsPanel rows={NO_BANNER_ROWS} skeleton={{ rows: 1 }} />;
+  // Whose actions are in effect is read: while loading, the same row (its padding and its icon) with its two lines as
+  // bars of their own type steps.
+  const loading = useLoadingScope() || isDefault == null;
   return (
     <StackedRowsPanel
       rows={[
@@ -73,12 +74,19 @@ export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: bool
             {
               key: 'source',
               leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
-              value: copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions'),
-              label:
-                copy?.label ??
+              value: loading ? (
+                <TextLineSkeleton type="inherit" as="span" className="w-56 max-w-full" />
+              ) : (
+                (copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions'))
+              ),
+              label: loading ? (
+                <TextLineSkeleton type="inherit" as="span" className="w-80 max-w-full" />
+              ) : (
+                (copy?.label ??
                 (isDefault
                   ? 'These quick actions are curated and approved by OpenFrame.'
-                  : 'These quick actions were configured by your organization.'),
+                  : 'These quick actions were configured by your organization.'))
+              ),
             },
           ],
         },

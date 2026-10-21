@@ -1,12 +1,11 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   accessStateTag,
   formatLastRead,
   lastReadAt,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag, TagSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -158,28 +157,30 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
   );
 }
 
-/** A cell whose label is known and whose value is not: the real label under a bar. */
-function CellSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
-  return <InfoCell label={label} value={<UnifiedSkeleton as="span" className={valueClassName} />} />;
-}
-
 /**
  * The connected card's rows, cells and labels — the details page's steady state — so the page does not
- * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival.
+ * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival. Every cell is the
+ * real `InfoCell` drawing its own loading state (label real, value a text bar): a null record is this card's loading
+ * state even outside a loading scope.
  */
 function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOnly?: boolean }) {
   return (
     <div className={CARD_CLASSES}>
       <div className={ROW_CLASSES}>
-        <CellSkeleton label={LABELS.provider} valueClassName="h-6 w-36" />
-        <CellSkeleton label={identityOnly ? LABELS.domainName : LABELS.customer} valueClassName="h-6 w-44" />
+        <InfoCell label={LABELS.provider} value={null} loading skeletonWidth="w-36" />
+        <InfoCell
+          label={identityOnly ? LABELS.domainName : LABELS.customer}
+          value={null}
+          loading
+          skeletonWidth="w-44"
+        />
       </div>
       {!identityOnly && (
         <div className={cn(ROW_CLASSES, DIVIDED_ROW_CLASSES)}>
-          <CellSkeleton label={LABELS.users} valueClassName="h-6 w-16" />
-          <CellSkeleton label={LABELS.status} valueClassName="h-8 w-28" />
-          <CellSkeleton label={LABELS.connected} valueClassName="h-6 w-40" />
-          <CellSkeleton label={LABELS.lastRead} valueClassName="h-6 w-28" />
+          <InfoCell label={LABELS.users} value={null} loading skeletonWidth="w-16" />
+          <InfoCell label={LABELS.status} value={null} loading valueSkeleton={<TagSkeleton />} />
+          <InfoCell label={LABELS.connected} value={null} loading skeletonWidth="w-40" />
+          <InfoCell label={LABELS.lastRead} value={null} loading skeletonWidth="w-28" />
         </div>
       )}
     </div>

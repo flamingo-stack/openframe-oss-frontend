@@ -1,6 +1,12 @@
 'use client';
 
-import { Button, LoadError, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  LoadError,
+  PageLayout,
+  Progress,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   type FileAction,
   type FileItem,
@@ -29,9 +35,9 @@ const NO_SELECTION: string[] = [];
 
 /**
  * The file manager before the device's file system answers: the real toolbar and table in their `loading` state,
- * with nothing in them. The page draws the same while the device itself is read.
+ * with nothing in them, also while the device itself is read (the page's loading scope).
  */
-export const FILE_MANAGER_LOADING_PROPS = {
+const FILE_MANAGER_LOADING_PROPS = {
   files: NO_FILES,
   currentPath: '',
   selectedFiles: NO_SELECTION,
@@ -101,6 +107,7 @@ export function FileManagerContainer({
   const showFileManagerSkeleton =
     connectionState === 'disconnected' || (connectionState === 'connecting' && files.length === 0);
   const handleBackToDevice = useSafeBack(routes.devices.details(deviceId));
+  const deviceLoading = useLoadingScope();
 
   const handleNavigate = useCallback(
     (path: string) => {
@@ -305,7 +312,8 @@ export function FileManagerContainer({
   return (
     <PageLayout
       title={'File Manager'}
-      subtitle={deviceName || `Device ${deviceId}`}
+      // In the page's loading scope the device's name is not here yet: an empty subtitle draws its bar.
+      subtitle={deviceLoading ? '' : deviceName || `Device ${deviceId}`}
       className={className ? `${className} h-full` : 'h-full'}
       contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{

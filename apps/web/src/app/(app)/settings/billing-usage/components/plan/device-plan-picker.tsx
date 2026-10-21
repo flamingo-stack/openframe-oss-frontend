@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagPercentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TabSelector, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TabSelector, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { devicePlanPickerProductFragment$key } from '@/__generated__/devicePlanPickerProductFragment.graphql';
@@ -94,7 +94,7 @@ export function DevicePlanPicker({
     commitQuantity,
   } = useDevicePlanSelection({ productRef: product, subscriptionProductRef: subscriptionProduct, onUpdatesChange });
 
-  const loading = product == null;
+  const loading = useLoadingScope() || product == null;
   // While loading, the toggle is shown (and inert): every catalog this ships with
   // prices both periods, so hiding it would make the frame jump a row on arrival.
   const showTabs = loading || (catalog.paygOption != null && catalog.annualOption != null);
@@ -145,7 +145,7 @@ export function DevicePlanPicker({
                   otherwise the block grows a sentence under the user's cursor. */}
               {loading ? (
                 <LoadingRegion status={false}>
-                  <UnifiedSkeleton className="h-4 w-52" />
+                  <TextLineSkeleton type="h6" className="w-52" />
                 </LoadingRegion>
               ) : (
                 catalog.minDevices > 1 &&
@@ -164,18 +164,11 @@ export function DevicePlanPicker({
             {(catalog.paygUnitPrice != null || loading) && (
               <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
                 {deviceCount != null && <BillingRow label="Active Devices Detected" value={formatCount(deviceCount)} />}
+                {/* The row draws its own bar while the rate is on its way. */}
                 <BillingRow
                   label="Rate per Device"
-                  value={
-                    catalog.paygUnitPrice != null ? (
-                      <PriceValue amount={catalog.paygUnitPrice} period="month" />
-                    ) : (
-                      // Stand-in for a figure the server has not sent yet, sized to the value it replaces.
-                      <LoadingRegion as="span" status={false} className="contents">
-                        <UnifiedSkeleton as="span" className="h-5 w-20" />
-                      </LoadingRegion>
-                    )
-                  }
+                  loading={loading || catalog.paygUnitPrice == null}
+                  value={catalog.paygUnitPrice != null && <PriceValue amount={catalog.paygUnitPrice} period="month" />}
                 />
                 {deviceCount != null && catalog.paygUnitPrice != null && (
                   <BillingRow

@@ -50,7 +50,7 @@ const LABEL_CLASS = 'whitespace-nowrap text-ods-text-primary text-h4';
 const LEADER_CLASS = 'h-px min-w-4 flex-1 bg-ods-border';
 
 /** A row while its value is on its way: the label is fixed copy and stays real, the value is a bar. */
-export function BillingRowSkeleton({ label }: { label: string }) {
+function BillingRowSkeleton({ label }: { label: string }) {
   return (
     <div className={ROW_CLASS}>
       <span className={LABEL_CLASS}>{label}</span>

@@ -8,7 +8,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  LoadingWhen,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useId, useState } from 'react';
@@ -128,12 +127,12 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
 
       <DataLossBox>
         <ContentErrorBoundary label="DataLossCoreRows" fallback={() => <></>}>
-          {/* No element of its own: the rows are `li`s of the box's list. */}
+          {/* The rows are lines of the box's list, which flattens the fallback's region. */}
           <Suspense
             fallback={
-              <LoadingWhen loading>
+              <LoadingFallback label="Loading what the workspace loses">
                 <DataLossCoreRows query={null} />
-              </LoadingWhen>
+              </LoadingFallback>
             }
           >
             <QueryIsland<CancelSubscriptionModalQueryType>

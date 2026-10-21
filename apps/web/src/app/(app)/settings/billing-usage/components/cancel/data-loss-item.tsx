@@ -14,14 +14,14 @@ function formatApproximateCount(value: number): string {
 const ITEM_CLASS = 'flex items-start text-ods-text-primary text-h3';
 
 /** A line of the box while its count is on its way: the dot is real, the sentence (a count and its noun) a bar. */
-export function DataLossItemSkeleton({ width = 'w-2/5' }: { width?: string }) {
+function DataLossItemSkeleton({ width = 'w-2/5' }: { width?: string }) {
   return (
-    <li className={ITEM_CLASS}>
+    <div role="listitem" data-loading-item className={ITEM_CLASS}>
       <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
       <span className="flex-1">
         <TextLineSkeleton as="span" type="h3" className={width} />
       </span>
-    </li>
+    </div>
   );
 }
 
@@ -29,10 +29,10 @@ export function DataLossItemSkeleton({ width = 'w-2/5' }: { width?: string }) {
 export function DataLossItem({ children, skeletonWidth }: { children?: ReactNode; skeletonWidth?: string }) {
   if (useLoadingScope()) return <DataLossItemSkeleton width={skeletonWidth} />;
   return (
-    <li className={ITEM_CLASS}>
+    <div role="listitem" data-loading-item className={ITEM_CLASS}>
       <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
       <span className="flex-1">{children}</span>
-    </li>
+    </div>
   );
 }
 

@@ -55,14 +55,13 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { LOGS_PAGE_SIZE } from '../hooks/use-logs';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
 // ----------------------------------------------------------------
-
-const LOGS_PAGE_SIZE = 20;
 
 const NO_LOGS: LogRow[] = [];
 /** The Log ID header before the rows land: the same header, inert (no calendar to act on yet). */
@@ -151,6 +150,12 @@ interface LogRow extends UiLogEntry {
 
 interface LogsTableProps {
   deviceId?: string;
+  /**
+   * The table shows one device's logs (no Device column). Defaults to `Boolean(deviceId)`; pass it when the
+   * device id is not known yet (a device tab drawn in its page's loading scope) so the loading and loaded
+   * tables have the same columns.
+   */
+  deviceScoped?: boolean;
   /** Lock the table to a single organization. When set, the source/organization column filter is hidden. */
   organizationId?: string;
   /** Render inside a tab (e.g. customer/device details) — drops the standalone top padding. */
@@ -166,7 +171,7 @@ export interface LogsTableRef {
 }
 
 interface LogsTableContentProps {
-  deviceId?: string;
+  deviceScoped: boolean;
   organizationLocked?: boolean;
   backendFilters: LogFilterInput;
   sort: LogSortInput;
@@ -196,7 +201,7 @@ const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEnt
 // ----------------------------------------------------------------
 
 function LogsTableContent({
-  deviceId,
+  deviceScoped,
   organizationLocked,
   backendFilters,
   sort,
@@ -356,7 +361,7 @@ function LogsTableContent({
         search={debouncedSearch}
         dateFilter={dateFilter}
         logIdHeader={logIdHeader}
-        deviceScoped={Boolean(deviceId)}
+        deviceScoped={deviceScoped}
         organizationLocked={organizationLocked}
         getLogHref={getLogDetailsUrl}
         renderCopyAction={renderCopyAction}
@@ -411,7 +416,7 @@ function LogsTableContent({
 // ----------------------------------------------------------------
 
 export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsTableImpl(
-  { deviceId, organizationId, embedded, showHeader }: LogsTableProps,
+  { deviceId, deviceScoped = Boolean(deviceId), organizationId, embedded, showHeader }: LogsTableProps,
   ref,
 ) {
   const { params, setParam, setParams } = useApiParams({
@@ -538,7 +543,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       search={debouncedSearch}
       dateFilter={dateFilter}
       logIdHeader={INERT_LOG_ID_HEADER}
-      deviceScoped={Boolean(deviceId)}
+      deviceScoped={deviceScoped}
       organizationLocked={Boolean(organizationId)}
       pageSize={LOGS_PAGE_SIZE}
     />
@@ -561,7 +566,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       ) : (
         <Suspense fallback={<LoadingFallback label="Loading logs">{loadingTable}</LoadingFallback>}>
           <LogsTableContent
-            deviceId={deviceId}
+            deviceScoped={deviceScoped}
             organizationLocked={Boolean(organizationId)}
             backendFilters={backendFilters}
             sort={sort}

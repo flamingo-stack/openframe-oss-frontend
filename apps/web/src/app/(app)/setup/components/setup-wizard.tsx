@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -22,32 +22,7 @@ import { ReadyStep } from '../steps/ready-step';
 import { WelcomeStep } from '../steps/welcome-step';
 import { SetupFrame } from './setup-frame';
 
-/**
- * The screen the wizard opens on while the tenant's progress is read: which step comes
- * first depends on it, so the step's heading and body are placeholders of a step's size.
- */
-function SetupStepSkeleton() {
-  return (
-    <LoadingRegion label="Loading setup" className="flex w-full flex-col items-center gap-[var(--spacing-system-l)]">
-      <UnifiedSkeleton className="h-6 w-32 rounded-md" />
-      <UnifiedSkeleton className="h-14 w-full max-w-[480px] rounded-md" />
-      <UnifiedSkeleton className="h-10 w-full max-w-[400px] rounded-md" />
-    </LoadingRegion>
-  );
-}
-
-/**
- * The wizard before its progress is in: the real frame (progress bar on the first
- * screen, help menu, credit) around a step-sized placeholder. Also the route's
- * Suspense fallback, while `useTenantOnboardingAutoDetect` reads.
- */
-export function SetupWizardPending() {
-  return (
-    <SetupFrame step="welcome">
-      <SetupStepSkeleton />
-    </SetupFrame>
-  );
-}
+const noop = () => {};
 
 /**
  * How long "Start with Mingo" waits for the backend to mark the setup complete
@@ -145,8 +120,17 @@ export function SetupWizard() {
     [persistAndAdvance],
   );
 
-  // No progress record means the redirect is already sending this session away.
-  if (!tenant) return <SetupWizardPending />;
+  // No progress record yet (or the redirect is already sending this session away): the
+  // first screen, static copy, in a loading scope.
+  if (!tenant) {
+    return (
+      <LoadingWhen loading>
+        <SetupFrame step="welcome">
+          <WelcomeStep onContinue={noop} />
+        </SetupFrame>
+      </LoadingWhen>
+    );
+  }
 
   return (
     <SetupFrame step={step}>

@@ -26,8 +26,7 @@ import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginati
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import { useRetryKey } from '@/app/components/shared';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { skeletonColumnMeta } from '@/app/components/shared/table-column-layout';
+import type { TableDateFilter } from '@/app/components/shared/date-column-header';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -44,7 +43,6 @@ import { DeleteSessionDialog } from './delete-session-dialog';
 import { canOpenSession, EXPIRES_FILTER_OPTIONS } from './session-status';
 import {
   keepLastPick,
-  TENANT_SESSION_COLUMN_ORDER,
   TENANT_SESSION_COLUMNS,
   type TenantSessionRow,
   type TenantSessionsParams,
@@ -91,17 +89,6 @@ interface TenantSessionsTableProps {
   onDeleted: () => void;
 }
 
-/**
- * The sessions table. In a loading scope (the recordings gate or the first page has not answered) it draws its own
- * skeleton: the live columns with inert funnels, and asks for nothing (not even the funnels' options).
- */
-function TenantSessionsTable(props: TenantSessionsTableProps) {
-  if (useLoadingScope()) {
-    return <TenantSessionsTableSkeleton />;
-  }
-  return <TenantSessionsTableLoaded {...props} />;
-}
-
 /** The mobile filters button: the header funnels go with the header cells below `md`. */
 function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
   return (
@@ -118,7 +105,12 @@ function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
   );
 }
 
-function TenantSessionsTableLoaded({
+/**
+ * The sessions table. In a loading scope (the recordings gate or the first page has not answered) it draws itself:
+ * the live columns and header with inert funnels, each part its own loading state, and asks for nothing (not even the
+ * funnels' options).
+ */
+function TenantSessionsTable({
   rows,
   totalCount,
   hasNext,
@@ -130,10 +122,17 @@ function TenantSessionsTableLoaded({
   dateFilter,
   onDeleted,
 }: TenantSessionsTableProps) {
+  const loading = useLoadingScope();
   const router = useRouter();
   // The "Expires in N hours" countdown keeps moving while the page is open.
   const now = useNow(60_000);
-  const { deviceOptions, customerOptions, pending: optionsPending } = useTenantSessionFilterOptions();
+  const {
+    deviceOptions,
+    customerOptions,
+    pending: optionsPending,
+  } = useTenantSessionFilterOptions({
+    enabled: !loading,
+  });
   const deleteSession = useDeleteRemoteSession('');
   const [deleteTarget, setDeleteTarget] = useState<TenantSessionRow | null>(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -183,7 +182,7 @@ function TenantSessionsTableLoaded({
   const hasDateRange = dateFilter.range !== undefined;
   const hasColumnFilters = columnFilters.length > 0;
   const isNarrowed = hasDateRange || hasColumnFilters;
-  const showHeader = rows.length > 0 || isNarrowed || isPending;
+  const showHeader = loading || rows.length > 0 || isNarrowed || isPending;
   const emptyState: NoDataProps = isNarrowed
     ? {
         icon: <SearchIcon />,
@@ -196,7 +195,7 @@ function TenantSessionsTableLoaded({
     <>
       {/* On mobile the header funnels go with the header cells: the standard
           filters button opens the same filters as a modal. */}
-      <MobileFiltersButton onClick={() => setMobileFilterOpen(true)} />
+      <MobileFiltersButton onClick={loading ? undefined : () => setMobileFilterOpen(true)} />
 
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
@@ -261,44 +260,6 @@ function TenantSessionsTableLoaded({
           );
         }}
       />
-    </>
-  );
-}
-
-// ----------------------------------------------------------------
-// Skeleton
-// ----------------------------------------------------------------
-
-function TenantSessionsTableSkeleton() {
-  // The live layout with inert funnels and an inert calendar, so the header
-  // does not shift when the rows arrive.
-  const columns = useMemo<ColumnDef<TenantSessionRow>[]>(
-    () =>
-      TENANT_SESSION_COLUMN_ORDER.map(column => {
-        const label = column.header;
-        return {
-          id: column.id,
-          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
-          enableSorting: false,
-          meta: skeletonColumnMeta(column),
-        };
-      }),
-    [],
-  );
-  const table = useDataTable<TenantSessionRow>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: TenantSessionRow) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <>
-      <MobileFiltersButton />
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader />
-        <DataTable.Body loading skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
     </>
   );
 }

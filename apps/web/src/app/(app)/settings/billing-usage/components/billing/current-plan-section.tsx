@@ -54,7 +54,7 @@ interface CurrentPlanSectionProps {
  * The section while the subscription is on its way: every row a paid plan typically states (each is present only
  * when its own field is, which the response has not said yet), labels real and values as bars.
  */
-export function CurrentPlanSectionSkeleton() {
+function CurrentPlanSectionSkeleton() {
   return (
     <SectionBlock title="Current Plan">
       <BillingRow label="Billing Cycle" loading />

@@ -1,6 +1,5 @@
 'use client';
 
-import { DeviceCardSkeleton, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceOperatingSystem,
@@ -16,38 +15,23 @@ interface DeviceInfoSectionProps {
   device?: PartialNamedDevice; // Accept device data from log or dialog
 }
 
-/** The section while the device is read: the real title over the device card's own skeleton. */
-function DeviceInfoSectionSkeleton() {
-  return (
-    <LoadingRegion label="Loading device info" className="flex w-full flex-col gap-1">
-      <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-      <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
-    </LoadingRegion>
-  );
-}
-
 /**
- * The device a log or ticket names, as its card. Reads the device itself when only an id is given; in a loading
- * scope it draws its own skeleton and reads nothing.
+ * The device a log or ticket names, as its card. Reads the device itself when only an id is given; while it is read
+ * (or in a loading scope, where it reads nothing) the card draws its own loading state under the real title.
  */
-export function DeviceInfoSection(props: DeviceInfoSectionProps) {
-  if (useLoadingScope()) return <DeviceInfoSectionSkeleton />;
-  return <LiveDeviceInfoSection {...props} />;
-}
-
-function LiveDeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
-  const { deviceDetails, isLoading } = useDeviceDetails(deviceId && !deviceFromProps ? deviceId : null, {
+export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
+  const inScope = useLoadingScope();
+  const { deviceDetails, isLoading } = useDeviceDetails(!inScope && deviceId && !deviceFromProps ? deviceId : null, {
     polling: false,
   });
 
   // Use device from props if available, otherwise use fetched deviceDetails
   const device = deviceFromProps || deviceDetails;
-
-  // Show loading state only if we're fetching and don't have data from props
-  if (isLoading && !deviceFromProps) return <DeviceInfoSectionSkeleton />;
+  // Loading only while we fetch and have no data from props.
+  const loading = inScope || (isLoading && !deviceFromProps);
 
   // If no device details available, don't show anything
-  if (!device && !deviceId) {
+  if (!loading && !device && !deviceId) {
     return null;
   }
 
@@ -57,18 +41,20 @@ function LiveDeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfo
       <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
 
       {/* Use DeviceCard component - matching devices-grid.tsx pattern */}
-      {device && (
+      {(loading || device) && (
         <DeviceCard
+          detailsButtonSkeletonClassName={DEVICE_DETAILS_BUTTON_BOX}
+          loading={loading}
           device={{
-            id: device.id || deviceId || '',
-            machineId: device.machineId || deviceId || '',
-            name: getDeviceName(device) || deviceId || '',
-            organization: device.organization || device.machineId || deviceId || '',
-            lastSeen: device.lastSeen || device.last_seen,
-            operatingSystem: getDeviceOperatingSystem(device.osType),
+            id: device?.id || deviceId || '',
+            machineId: device?.machineId || deviceId || '',
+            name: (device && getDeviceName(device)) || deviceId || '',
+            organization: device?.organization || device?.machineId || deviceId || '',
+            lastSeen: device?.lastSeen || device?.last_seen,
+            operatingSystem: getDeviceOperatingSystem(device?.osType),
           }}
           statusTag={
-            device.status
+            device?.status
               ? {
                   label: getDeviceStatusConfig(device.status).label,
                   variant: getDeviceStatusConfig(device.status).variant,
@@ -83,8 +69,8 @@ function LiveDeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfo
               visible: true,
               component: (
                 <DeviceDetailsButton
-                  deviceId={device.id || deviceId || ''}
-                  machineId={device.machineId || deviceId || ''}
+                  deviceId={device?.id || deviceId || ''}
+                  machineId={device?.machineId || deviceId || ''}
                   className="shrink-0"
                 />
               ),

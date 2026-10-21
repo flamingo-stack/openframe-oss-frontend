@@ -1,6 +1,6 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   InfoSection,
   type InfoSectionRow,
@@ -109,7 +109,7 @@ function TenantIntegrationSectionQuery({ id }: { id: string }) {
 
 const bar = (width: string): InfoSectionRow['value'] => ({
   type: 'custom',
-  content: <UnifiedSkeleton as="span" className={`h-6 ${width}`} />,
+  content: <TextLineSkeleton type="h4" as="span" className={width} />,
 });
 
 /** The section while its live read loads: the caption and every label real, the values as bars. */

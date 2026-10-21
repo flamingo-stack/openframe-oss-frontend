@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   FlamingoMarkIcon,
   OpenframeLogoIcon,
@@ -27,15 +27,11 @@ interface WorkspaceInactiveScreenProps {
 const DEFAULT_DESCRIPTION =
   "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team.";
 
-/** The body copy while it is not known yet: two lines in the paragraph's place. */
+/** The body copy while it is not known yet: two lines of the paragraph's own type step, at its width. */
 function InactiveDescriptionSkeleton() {
   return (
-    <LoadingRegion
-      label="Checking your access"
-      className="flex w-full flex-col items-center gap-[var(--spacing-system-xsf)]"
-    >
-      <TextSkeleton.Body className="w-full" />
-      <TextSkeleton.Body className="w-3/4" />
+    <LoadingRegion label="Checking your access" className="w-full">
+      <TextLineSkeleton type="h4" lines={2} className="w-full" />
     </LoadingRegion>
   );
 }

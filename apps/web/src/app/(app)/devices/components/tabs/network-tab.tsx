@@ -40,36 +40,18 @@ function Labeled({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** A card with no rows: in the page's loading scope it draws its skeleton (the `skeleton` shape each section states). */
 const EMPTY_CARD = { items: [] };
+/** IP rows a card draws while the device is read: a typical device's addresses (the list has no limit). */
+const TYPICAL_IP_ROWS = 2;
 
-/** The Network tab while the device is read: its sections with their real headings, each card its own skeleton. */
-function NetworkTabSkeleton() {
-  return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <Labeled title="Network">
-        <InfoCard data={EMPTY_CARD} skeleton={{ rows: 3, title: false }} />
-      </Labeled>
-      <Labeled title="Location">
-        <InfoCard data={EMPTY_CARD} skeleton={{ rows: 2, title: false }} />
-      </Labeled>
-      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
-        <Labeled title="IPv4 Addresses">
-          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 1, title: false }} />
-        </Labeled>
-        <Labeled title="IPv6 Addresses">
-          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 1, title: false }} />
-        </Labeled>
-      </div>
-    </div>
-  );
-}
+/** A card's row labels, drawn real while the device is read. */
+const labelsOf = (rows: InfoRow[]) => rows.map(row => row.label);
 
 export function NetworkTab({ device }: NetworkTabProps) {
-  if (useLoadingScope()) {
-    return <NetworkTabSkeleton />;
-  }
+  const loading = useLoadingScope();
 
-  if (!device) {
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<Hierarchy02Icon />}
@@ -79,8 +61,8 @@ export function NetworkTab({ device }: NetworkTabProps) {
     );
   }
 
-  const allIps = device.local_ips || [];
-  const fleetPrimaryIp = device.primary_ip;
+  const allIps = device?.local_ips || [];
+  const fleetPrimaryIp = device?.primary_ip;
 
   const ipv4Addresses: string[] = [];
   const ipv6Addresses: string[] = [];
@@ -96,23 +78,31 @@ export function NetworkTab({ device }: NetworkTabProps) {
   const sortedIpv6 = [...ipv6Addresses].sort();
 
   // Interface identity — Public/Primary IP + MAC (MAC was previously not surfaced here).
-  const interfaceItems = toItems([
-    { label: 'Public IP', value: device.public_ip, copyable: true },
-    { label: 'Primary IPv4', value: device.primary_ip, copyable: true },
-    { label: 'MAC Address', value: device.primary_mac || device.macAddress, copyable: true },
-  ]);
+  const interfaceRows: InfoRow[] = [
+    { label: 'Public IP', value: device?.public_ip, copyable: true },
+    { label: 'Primary IPv4', value: device?.primary_ip, copyable: true },
+    { label: 'MAC Address', value: device?.primary_mac || device?.macAddress, copyable: true },
+  ];
+  const interfaceItems = toItems(interfaceRows);
 
   // Location — Fleet built-in GeoIP on the public IP (city/country when available).
-  const locationItems = toItems([
-    { label: 'City', value: device.geolocation?.city },
-    { label: 'Country', value: device.geolocation?.country },
-  ]);
+  const locationRows: InfoRow[] = [
+    { label: 'City', value: device?.geolocation?.city },
+    { label: 'Country', value: device?.geolocation?.country },
+  ];
+  const locationItems = toItems(locationRows);
 
   const hasIpv4 = sortedIpv4.length > 0;
   const hasIpv6 = sortedIpv6.length > 0;
 
-  if (interfaceItems.length === 0 && locationItems.length === 0 && !hasIpv4 && !hasIpv6) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  // While the device is read every section is drawn, each card its own skeleton.
+  const showInterface = loading || interfaceItems.length > 0;
+  const showLocation = loading || locationItems.length > 0;
+  const showIpv4 = loading || hasIpv4;
+  const showIpv6 = loading || hasIpv6;
+
+  if (!loading && interfaceItems.length === 0 && locationItems.length === 0 && !hasIpv4 && !hasIpv6) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<Hierarchy02Icon />} section="Network" />;
     }
     return (
@@ -126,28 +116,40 @@ export function NetworkTab({ device }: NetworkTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      {interfaceItems.length > 0 && (
+      {showInterface && (
         <Labeled title="Network">
-          <InfoCard data={{ items: interfaceItems }} />
+          <InfoCard
+            data={loading ? EMPTY_CARD : { items: interfaceItems }}
+            skeleton={{ rows: labelsOf(interfaceRows), title: false }}
+          />
         </Labeled>
       )}
 
-      {locationItems.length > 0 && (
+      {showLocation && (
         <Labeled title="Location">
-          <InfoCard data={{ items: locationItems }} />
+          <InfoCard
+            data={loading ? EMPTY_CARD : { items: locationItems }}
+            skeleton={{ rows: labelsOf(locationRows), title: false }}
+          />
         </Labeled>
       )}
 
-      {(hasIpv4 || hasIpv6) && (
+      {(showIpv4 || showIpv6) && (
         <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
-          {hasIpv4 && (
+          {showIpv4 && (
             <Labeled title="IPv4 Addresses">
-              <InfoCard data={{ items: [{ value: sortedIpv4, copyable: true }] }} />
+              <InfoCard
+                data={loading ? EMPTY_CARD : { items: [{ value: sortedIpv4, copyable: true }] }}
+                skeleton={{ rows: TYPICAL_IP_ROWS, unlabelledRows: true, title: false }}
+              />
             </Labeled>
           )}
-          {hasIpv6 && (
+          {showIpv6 && (
             <Labeled title="IPv6 Addresses">
-              <InfoCard data={{ items: [{ value: sortedIpv6, copyable: true }] }} />
+              <InfoCard
+                data={loading ? EMPTY_CARD : { items: [{ value: sortedIpv6, copyable: true }] }}
+                skeleton={{ rows: TYPICAL_IP_ROWS, unlabelledRows: true, title: false }}
+              />
             </Labeled>
           )}
         </div>

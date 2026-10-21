@@ -1,8 +1,13 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  SquareAvatar,
+  SquareAvatarSkeleton,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 
 interface MspOrganizationCardProps {
@@ -26,10 +31,10 @@ const editIcon = <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />;
  * reserving it would be a guess; the 48px avatar sets the row height either way. The Edit button is fixed copy,
  * drawn for real and disabled.
  */
-export function MspOrganizationCardSkeleton() {
+function MspOrganizationCardSkeleton() {
   return (
     <LoadingRegion label="Loading your organization" className={ROW_CLASS}>
-      <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-md" />
+      <SquareAvatarSkeleton size="lg" variant="square" className="shrink-0" />
       <div className="min-w-0 flex-1 overflow-hidden">
         <TextLineSkeleton type="h4" className="w-40 max-w-full" />
       </div>

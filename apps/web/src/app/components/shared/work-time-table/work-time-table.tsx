@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChartDonutIcon,
@@ -62,17 +62,32 @@ import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
 
 const PAGE_SIZE = 20;
 
+/** The stat figures the query answers, as numbers (the query's Long fields read as strings or numbers). */
+interface WorkTimeStats {
+  todayTotalSeconds: string | number;
+  todayEntryCount: string | number;
+  periodTotalSeconds: string | number;
+  periodEntryCount: string | number;
+  averagePerDaySeconds: string | number;
+}
+
 /**
- * The three stat cards the loaded table renders, in order. Titles are static —
- * only the duration and entry count come from the query — so the skeleton shows
- * them verbatim. `AVG. PER DAY` has no entry count, matching the loaded card.
+ * The three stat cards above the table, in order: one list for the loaded cards and their loading state. Titles
+ * are static (drawn for real while loading); the duration and the entry count are read. `AVG. PER DAY` has no
+ * entry count.
  */
-const STAT_CARDS = [
-  { title: 'TODAY TOTAL', showSubValue: true },
-  { title: 'PERIOD TOTAL', showSubValue: true },
-  { title: 'AVG. PER DAY', showSubValue: false },
-] as const;
+const STAT_CARDS: ReadonlyArray<{
+  title: string;
+  seconds: (stats: WorkTimeStats) => string | number;
+  entries?: (stats: WorkTimeStats) => string | number;
+}> = [
+  { title: 'TODAY TOTAL', seconds: stats => stats.todayTotalSeconds, entries: stats => stats.todayEntryCount },
+  { title: 'PERIOD TOTAL', seconds: stats => stats.periodTotalSeconds, entries: stats => stats.periodEntryCount },
+  { title: 'AVG. PER DAY', seconds: stats => stats.averagePerDaySeconds },
+];
 const EMPTY_ROWS: WorkTimeRow[] = [];
+const NO_FILTER_OPTIONS: DataTableFilterOption[] = [];
+const NO_COLUMN_FILTERS: ColumnFiltersState = [];
 const noop = () => {};
 const DAY_PARAM_FORMAT = 'yyyy-MM-dd';
 
@@ -285,19 +300,7 @@ function mapUserName(
   return name || user.email || null;
 }
 
-function WorkTimeTableData({
-  showEmployee,
-  showCustomer,
-  vars,
-  fetchKey,
-  onEdit,
-  onDelete,
-  employeeFilterOptions,
-  customerFilterOptions,
-  columnFilters,
-  onColumnFiltersChange,
-  richEmptyState,
-}: {
+interface WorkTimeTableDataProps {
   showEmployee: boolean;
   showCustomer: boolean;
   vars: QueryVars;
@@ -310,7 +313,10 @@ function WorkTimeTableData({
   onColumnFiltersChange: OnChangeFn<ColumnFiltersState>;
   /** The caller allows the rich empty state here — see `WorkTimeTable`. */
   richEmptyState: boolean;
-}) {
+}
+
+/** The query container: reads the entries and the stats, and renders {@link WorkTimeTableView} with them. */
+function WorkTimeTableData({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
     fetchKey,
@@ -319,9 +325,6 @@ function WorkTimeTableData({
     employeeWorkTimeRelayPaginationQuery,
     employeeWorkTimeRelay_query$key
   >(employeeWorkTimeRelayFragment, queryData);
-
-  const stats = queryData.employeeTimeStats;
-  const totalCount = data.employeeTimeEntries.filteredCount;
 
   const rows = useMemo<WorkTimeRow[]>(
     () =>
@@ -352,6 +355,49 @@ function WorkTimeTableData({
     [data.employeeTimeEntries.edges],
   );
 
+  return (
+    <WorkTimeTableView
+      {...viewProps}
+      stats={queryData.employeeTimeStats}
+      rows={rows}
+      totalCount={data.employeeTimeEntries.filteredCount}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadNext={() => loadNext(PAGE_SIZE)}
+    />
+  );
+}
+
+/**
+ * The stats row and the entry table, from props. The Suspense fallback renders it with no data in a loading
+ * scope (`LoadingFallback`): the stat cards and the table draw their own loading states (a full page of rows).
+ */
+function WorkTimeTableView({
+  showEmployee,
+  showCustomer,
+  stats,
+  rows,
+  totalCount,
+  hasNext,
+  isLoadingNext,
+  onLoadNext,
+  onEdit,
+  onDelete,
+  employeeFilterOptions,
+  customerFilterOptions,
+  columnFilters,
+  onColumnFiltersChange,
+  richEmptyState,
+}: Omit<WorkTimeTableDataProps, 'vars' | 'fetchKey'> & {
+  /** The stats; null while they are read. */
+  stats: WorkTimeStats | null;
+  rows: WorkTimeRow[];
+  totalCount?: number;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadNext: () => void;
+}) {
+  const loading = useLoadingScope();
   const columns = useMemo(
     () => buildColumns(showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions),
     [showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions],
@@ -368,29 +414,20 @@ function WorkTimeTableData({
   return (
     <>
       <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
-        <DashboardInfoCard
-          className="flex-1"
-          title="TODAY TOTAL"
-          value={formatDurationLabel(Number(stats.todayTotalSeconds))}
-          subValue={`${stats.todayEntryCount} entries`}
-          valueClassName="font-mono"
-        />
-        <DashboardInfoCard
-          className="flex-1"
-          title="PERIOD TOTAL"
-          value={formatDurationLabel(Number(stats.periodTotalSeconds))}
-          subValue={`${stats.periodEntryCount} entries`}
-          valueClassName="font-mono"
-        />
-        <DashboardInfoCard
-          className="flex-1"
-          title="AVG. PER DAY"
-          value={formatDurationLabel(Number(stats.averagePerDaySeconds))}
-          valueClassName="font-mono"
-        />
+        {STAT_CARDS.map(card => (
+          <DashboardInfoCard
+            key={card.title}
+            className="flex-1"
+            title={card.title}
+            value={stats ? formatDurationLabel(Number(card.seconds(stats))) : ''}
+            subValue={stats && card.entries ? `${card.entries(stats)} entries` : undefined}
+            loadingShowsSubValue={!!card.entries}
+            valueClassName="font-mono"
+          />
+        ))}
       </div>
 
-      {richEmptyState && rows.length === 0 ? (
+      {!loading && richEmptyState && rows.length === 0 ? (
         // No footer button: the other sections link their onboarding guide here, and
         // Worktime has no guide article to link to (`ONBOARDING_GUIDE_SLUGS` has no
         // entry for it), so the block ends with the bullets.
@@ -407,11 +444,11 @@ function WorkTimeTableData({
       ) : (
         <DataTable table={table}>
           <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
-          <DataTable.Body emptyMessage="No work time entries for this period." />
+          <DataTable.Body emptyMessage="No work time entries for this period." skeletonRows={PAGE_SIZE} />
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
-            onLoadMore={() => loadNext(PAGE_SIZE)}
+            onLoadMore={onLoadNext}
             // The next page it waits on is one page.
             skeletonRows={PAGE_SIZE}
           />
@@ -421,42 +458,25 @@ function WorkTimeTableData({
   );
 }
 
-/** Loading state for the stats row + entry table: a full page of rows. */
-function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
-  const columns = useMemo(() => buildColumns(showEmployee, showCustomer, noop, noop), [showEmployee, showCustomer]);
-  const table = useDataTable<WorkTimeRow>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: row => row.id,
-    enableSorting: false,
-  });
-
+/** {@link WorkTimeTableView} with nothing read yet: what the Suspense fallback and the loading scope render. */
+function WorkTimeTableViewPending({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   return (
-    <LoadingRegion className="contents" label="Loading work time">
-      {/* Mirrors the loaded stats row exactly: the REAL card geometry via
-          `DashboardInfoCard` in its `loading` state, the REAL titles (static, not query-dependent), and
-          bars only for the duration + entry count. The previous hand-rolled
-          placeholder had no fixed height, so the row was ~33px short of the
-          104px cards and the table below jumped on load. */}
-      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
-        {STAT_CARDS.map(card => (
-          <DashboardInfoCard
-            key={card.title}
-            loading
-            value=""
-            className="flex-1"
-            title={card.title}
-            loadingShowsSubValue={card.showSubValue}
-            valueClassName="font-mono"
-          />
-        ))}
-      </div>
-
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} />
-      </DataTable>
-    </LoadingRegion>
+    <WorkTimeTableView
+      showEmployee={showEmployee}
+      showCustomer={showCustomer}
+      stats={null}
+      rows={EMPTY_ROWS}
+      hasNext={false}
+      isLoadingNext={false}
+      onLoadNext={noop}
+      onEdit={noop}
+      onDelete={noop}
+      employeeFilterOptions={NO_FILTER_OPTIONS}
+      customerFilterOptions={NO_FILTER_OPTIONS}
+      columnFilters={NO_COLUMN_FILTERS}
+      onColumnFiltersChange={noop}
+      richEmptyState={false}
+    />
   );
 }
 
@@ -487,7 +507,7 @@ function WorkTimeTablePending({ showEmployee, showCustomer }: { showEmployee: bo
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <WorkTimeFilters search="" onSearchChange={noop} range={undefined} onRangeChange={noop} />
-      <WorkTimeTableSkeleton showEmployee={showEmployee} showCustomer={showCustomer} />
+      <WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />
     </div>
   );
 }
@@ -693,7 +713,13 @@ function LiveWorkTimeTable({
           <LoadError message="Couldn't load work time entries." onRetry={() => setRetryNonce(nonce => nonce + 1)} />
         }
       >
-        <Suspense fallback={<WorkTimeTableSkeleton showEmployee={showEmployee} showCustomer={showCustomer} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading work time">
+              <WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />
+            </LoadingFallback>
+          }
+        >
           <WorkTimeTableData
             showEmployee={showEmployee}
             showCustomer={showCustomer}

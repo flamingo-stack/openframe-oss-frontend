@@ -1,10 +1,15 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { MarkdownEngineSkeleton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetailBody_article$key } from '@/__generated__/articleDetailBody_article.graphql';
-import { SimpleMarkdownRenderer } from '../shared/lazy-markdown';
+import { SimpleMarkdownRenderer } from '@/app/components/shared/lazy-markdown';
+
+/** The text size the body renders at, read by the skeleton so its bars take the body's line height. */
+const BODY_TEXT_SIZE = 'compact';
+
+/** A typical article's length in body lines (its own is unknown until it arrives). */
+const ARTICLE_BODY_SKELETON_LINES = 10;
 
 const articleDetailBodyFragment = graphql`
   fragment articleDetailBody_article on KnowledgeBaseItem {
@@ -19,10 +24,10 @@ export function ArticleDetailBody({ article }: { article: articleDetailBody_arti
   if (loading || !data) {
     return <ArticleDetailBodySkeleton />;
   }
-  return <SimpleMarkdownRenderer content={data.content ?? ''} textSize="compact" />;
+  return <SimpleMarkdownRenderer content={data.content ?? ''} textSize={BODY_TEXT_SIZE} />;
 }
 
-/** The text as one block: its length is unknown until it arrives. */
+/** The text as a typical article's lines, at the body's own text size: its length is unknown until it arrives. */
 function ArticleDetailBodySkeleton() {
-  return <UnifiedSkeleton className="h-64 w-full" />;
+  return <MarkdownEngineSkeleton textSize={BODY_TEXT_SIZE} lines={ARTICLE_BODY_SKELETON_LINES} />;
 }

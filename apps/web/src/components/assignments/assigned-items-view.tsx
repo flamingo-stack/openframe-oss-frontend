@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
 import { DevicesAssignedTable } from './tables/devices-assigned-table';
@@ -20,8 +20,21 @@ export interface AssignedItemsViewProps {
   showTitle?: boolean;
 }
 
+/**
+ * The kind of assignment an item usually carries, drawn while its assignments are read and before it is known
+ * which kinds it has: an incident's tickets, a ticket's devices, an article's customers.
+ */
+const TYPICAL_TARGET_TYPE: Record<AssignmentItemType, ServerAssignmentTargetType> = {
+  INSIGHT: 'TICKET',
+  TICKET: 'DEVICE',
+  KNOWLEDGE_ARTICLE: 'ORGANIZATION',
+};
+
 export function AssignedItemsView({ itemId, itemType, className, showTitle = true }: AssignedItemsViewProps) {
-  const { value, customers, devices, articles, tickets, isLoading } = useAssignedItems({ itemId, itemType });
+  const inScope = useLoadingScope();
+  const assigned = useAssignedItems({ itemId, itemType, enabled: !inScope });
+  const { value, customers, devices, articles, tickets } = assigned;
+  const isLoading = inScope || assigned.isLoading;
 
   const activeTypes = useMemo(() => ASSIGNMENT_TARGET_TYPES.filter(type => (value[type]?.length ?? 0) > 0), [value]);
 
@@ -58,24 +71,18 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     }
   };
 
-  if (isLoading && activeTypes.length === 0) {
-    return (
-      <LoadingRegion as="section" label="Loading assigned items" className={className}>
-        {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
-        <UnifiedSkeleton className="h-12 w-full" />
-      </LoadingRegion>
-    );
-  }
+  // Nothing is known yet: the section with the item's typical kind of assignment, its table drawing its own rows.
+  const pending = isLoading && activeTypes.length === 0;
+  const shownTypes = pending ? [TYPICAL_TARGET_TYPE[itemType]] : activeTypes;
+  if (shownTypes.length === 0) return null;
 
-  if (activeTypes.length === 0) return null;
-
-  return (
-    <section className={className}>
+  const body = (
+    <>
       {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
 
       <div className="overflow-hidden rounded-md border border-ods-border">
-        {activeTypes.length === 1 ? (
-          <div className="p-[var(--spacing-system-mf)]">{renderTabBody(activeTypes[0])}</div>
+        {shownTypes.length === 1 ? (
+          <div className="p-[var(--spacing-system-mf)]">{renderTabBody(shownTypes[0])}</div>
         ) : (
           <TabNavigation
             tabs={tabs}
@@ -88,6 +95,14 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
           </TabNavigation>
         )}
       </div>
-    </section>
+    </>
+  );
+
+  return pending ? (
+    <LoadingRegion as="section" label="Loading assigned items" className={className}>
+      {body}
+    </LoadingRegion>
+  ) : (
+    <section className={className}>{body}</section>
   );
 }

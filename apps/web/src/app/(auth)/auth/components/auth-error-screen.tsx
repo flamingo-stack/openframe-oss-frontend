@@ -1,21 +1,17 @@
 'use client';
 
-import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { routes } from '@/lib/routes';
 import { AUTH_ERROR_FALLBACK } from '../hooks/use-auth-error-message';
 import { AuthStatusFrame } from './auth-status-frame';
 
-/** The description while the auth server resolves it: two body lines in the paragraph's place. */
-export function AuthErrorDescriptionSkeleton() {
+/** The description while the auth server resolves it: two lines of the paragraph's own type step, at its width. */
+function AuthErrorDescriptionSkeleton() {
   return (
-    <LoadingRegion
-      label="Loading the error details"
-      className="flex w-[360px] max-w-full flex-col gap-[var(--spacing-system-xsf)]"
-    >
-      <TextSkeleton.Body />
-      <TextSkeleton.Body className="w-3/4" />
+    <LoadingRegion label="Loading the error details" className="w-full">
+      <TextLineSkeleton type="h4" lines={2} className="w-full" />
     </LoadingRegion>
   );
 }

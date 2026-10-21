@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
@@ -74,7 +75,13 @@ export function SubscriptionSettingsView() {
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
-        <Suspense fallback={<PaywallBody copy={copy} query={null} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading plans">
+              <PaywallBody copy={copy} query={null} />
+            </LoadingFallback>
+          }
+        >
           <SubscriptionSettingsContent copy={copy} />
         </Suspense>
       </ErrorBoundary>
@@ -88,7 +95,9 @@ export function SubscriptionSettingsLoading() {
 
   return (
     <PageLayout className={PAGE_CLASS_NAME} showHeader={false}>
-      <PaywallBody copy={getPaywallCopy(status)} query={null} />
+      <LoadingWhen loading>
+        <PaywallBody copy={getPaywallCopy(status)} query={null} />
+      </LoadingWhen>
     </PageLayout>
   );
 }

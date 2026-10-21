@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { packageManagerLabel, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
@@ -77,7 +77,7 @@ function ActionDetailSummarySkeleton() {
     <>
       <SummaryCard columns={4} fields={Object.values(LABELS).map(label => ({ label, value: null }))} />
       <ActionDetailLogsHeading>
-        <UnifiedSkeleton as="span" className="h-8 w-48" />
+        <TextLineSkeleton type="h2" as="span" className="w-48" />
       </ActionDetailLogsHeading>
     </>
   );

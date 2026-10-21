@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ModalV2Content, ModalV2Footer } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
@@ -72,7 +73,13 @@ export function ActivateSubscriptionModal({ isOpen, status, onClose }: ActivateS
           </ModalV2Content>
         }
       >
-        <Suspense fallback={<ActivateSubscriptionBody copy={copy} query={null} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading plans">
+              <ActivateSubscriptionBody copy={copy} query={null} />
+            </LoadingFallback>
+          }
+        >
           <ActivateSubscriptionContent copy={copy} />
         </Suspense>
       </ErrorBoundary>

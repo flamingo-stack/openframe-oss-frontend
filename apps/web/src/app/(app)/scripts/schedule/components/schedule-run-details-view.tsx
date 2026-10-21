@@ -80,19 +80,21 @@ function RunInfoCell({ label, children, className }: { label: string; children: 
 
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
-/** The run's info bar; without the run (or in a loading scope) its own skeleton. */
-function RunInfoBar({ run }: { run?: RunNode }) {
-  if (useLoadingScope() || !run) return <RunInfoBarSkeleton />;
-  return <RunInfoBarLoaded run={run} />;
-}
+/** The top row's cells that sit over another cell on a phone (two columns), divided from it. */
+const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
 
-function RunInfoBarLoaded({ run }: { run: RunNode }) {
-  const initiator = 'initiator' in run ? run.initiator : null;
-  const status = 'status' in run ? run.status : null;
-  const dispatchedAt = 'dispatchedAt' in run ? run.dispatchedAt : null;
-  const finishedAt = 'finishedAt' in run ? run.finishedAt : null;
-  const responded = 'respondedMachineCount' in run ? run.respondedMachineCount : 0;
-  const total = 'totalMachineCount' in run ? run.totalMachineCount : 0;
+/**
+ * The run's info bar. Without the run (or in a loading scope) it draws itself: the same cells and labels, every
+ * value a bar on its `text-h4` line, the avatar its own skeleton and the status a tag-shaped bar.
+ */
+function RunInfoBar({ run }: { run?: RunNode }) {
+  const loading = useLoadingScope() || !run;
+  const initiator = run && 'initiator' in run ? run.initiator : null;
+  const status = run && 'status' in run ? run.status : null;
+  const dispatchedAt = run && 'dispatchedAt' in run ? run.dispatchedAt : null;
+  const finishedAt = run && 'finishedAt' in run ? run.finishedAt : null;
+  const responded = run && 'respondedMachineCount' in run ? run.respondedMachineCount : 0;
+  const total = run && 'totalMachineCount' in run ? run.totalMachineCount : 0;
 
   // The initiator id is a User global id; the REST-backed employee page wants the
   // raw one (same decode the execution-details page does).
@@ -106,13 +108,18 @@ function RunInfoBarLoaded({ run }: { run: RunNode }) {
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
             held — so the honest equivalent is how many devices answered it. */}
-        <RunInfoCell label="Devices Responded" className="border-b border-ods-border content-md:border-b-0">
-          <span className="truncate text-ods-text-primary text-h4">
-            {responded} / {total}
-          </span>
+        <RunInfoCell label="Devices Responded" className={DIVIDED_CELL_CLASS}>
+          {loading ? (
+            <TextLineSkeleton type="h4" className="w-20 max-w-full" />
+          ) : (
+            <span className="truncate text-ods-text-primary text-h4">
+              {responded} / {total}
+            </span>
+          )}
         </RunInfoCell>
-        <RunInfoCell label="Executed by" className="border-b border-ods-border content-md:border-b-0">
+        <RunInfoCell label="Executed by" className={DIVIDED_CELL_CLASS}>
           <div className="flex min-w-0 items-center gap-2">
+            {/* The avatar draws its own skeleton in the loading scope. */}
             {isDeleted ? (
               <DeletedUserAvatar size="sm" />
             ) : (
@@ -125,7 +132,11 @@ function RunInfoBarLoaded({ run }: { run: RunNode }) {
                 initialsClassName="text-ods-text-secondary"
               />
             )}
-            {initiatorHref ? (
+            {loading ? (
+              <div className="min-w-0 flex-1">
+                <TextLineSkeleton type="h4" className="w-24 max-w-full" />
+              </div>
+            ) : initiatorHref ? (
               <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
                 <TruncateText
                   className={cn(
@@ -146,46 +157,29 @@ function RunInfoBarLoaded({ run }: { run: RunNode }) {
           </div>
         </RunInfoCell>
         <RunInfoCell label="Status">
-          <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />
+          {loading ? (
+            <TagSkeleton />
+          ) : (
+            <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />
+          )}
         </RunInfoCell>
         {/* The design's fourth slot is an empty spacer, not a cell. */}
         <div className="hidden content-md:block" />
       </div>
       <div className="grid grid-cols-2">
         <RunInfoCell label="Start Time">
-          <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
+          {loading ? (
+            <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+          ) : (
+            <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
+          )}
         </RunInfoCell>
         <RunInfoCell label="Finish Time">
-          <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
-        </RunInfoCell>
-      </div>
-    </div>
-  );
-}
-
-/** `RunInfoBar`'s two rows, its labels real and every value a bar on its `text-h4` line. */
-function RunInfoBarSkeleton() {
-  const divided = 'border-b border-ods-border content-md:border-b-0';
-  return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
-        <RunInfoCell label="Devices Responded" className={divided}>
-          <TextLineSkeleton type="h4" className="w-20 max-w-full" />
-        </RunInfoCell>
-        <RunInfoCell label="Executed by" className={divided}>
-          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
-        </RunInfoCell>
-        <RunInfoCell label="Status">
-          <TagSkeleton />
-        </RunInfoCell>
-        <div className="hidden content-md:block" />
-      </div>
-      <div className="grid grid-cols-2">
-        <RunInfoCell label="Start Time">
-          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
-        </RunInfoCell>
-        <RunInfoCell label="Finish Time">
-          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+          {loading ? (
+            <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+          ) : (
+            <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
+          )}
         </RunInfoCell>
       </div>
     </div>

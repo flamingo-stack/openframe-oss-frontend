@@ -54,6 +54,7 @@ import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/conte
 import { renderMingoContextItems } from '../(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '../(app)/mingo/context/use-context-memory';
 import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-selection';
+import { MINGO_DIALOGS_PAGE_SIZE } from '../(app)/mingo/hooks/use-mingo-dialogs';
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
@@ -380,6 +381,8 @@ export function OpenframeEmbeddableChatEntry({
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        // One page of the dialog list: the conversation lists' loading state draws this many rows.
+        historyPageSize={MINGO_DIALOGS_PAGE_SIZE}
         // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
         // documentation, and each cited source renders as a chip whose target is
         // resolved against this route; without it the lib derives one from

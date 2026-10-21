@@ -26,7 +26,7 @@ const LINE_CLASS = 'flex gap-[var(--spacing-system-xs)] text-ods-text-primary te
 const LINE_COPY = 'Your subscription will remain active until:';
 
 /** The sentence is fixed copy and stays real; the date is a bar. */
-export function CancellationEffectiveDateSkeleton() {
+function CancellationEffectiveDateSkeleton() {
   return (
     <div className={LINE_CLASS}>
       <span>{LINE_COPY}</span>

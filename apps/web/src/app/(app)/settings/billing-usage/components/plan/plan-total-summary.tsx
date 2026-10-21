@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatCurrency } from '@/lib/format-currency';
 import type { SelectionTotal } from './plan-selection';
@@ -32,22 +33,24 @@ interface PlanTotalSummaryProps {
  * into an estimate it is not part of.
  */
 export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false, className }: PlanTotalSummaryProps) {
+  const isLoading = useLoadingScope() || loading;
   const topUp = topUpUsd != null && topUpUsd > 0 ? topUpUsd : 0;
 
   return (
     <div className={cn('flex flex-col text-ods-text-secondary text-h4', className)}>
       {showAiNote && <p>Devices and AI balance are billed together at checkout.</p>}
-      {loading && (
+      {/* The total's line: the figure inside it is set in h3, which is the line's height. */}
+      {isLoading && (
         <LoadingRegion status={false}>
-          <UnifiedSkeleton className="mt-1 h-5 w-56" />
+          <TextLineSkeleton type="h3" className="w-56" />
         </LoadingRegion>
       )}
-      {total && total.prepaid && (
+      {!isLoading && total && total.prepaid && (
         <p>
           Total due today: <span className="text-ods-text-primary text-h3">{formatCurrency(total.amount + topUp)}</span>
         </p>
       )}
-      {total && !total.prepaid && (
+      {!isLoading && total && !total.prepaid && (
         <p>
           Estimated total:{' '}
           <span className="text-ods-text-primary text-h3">
@@ -55,7 +58,7 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
           </span>
         </p>
       )}
-      {total && !total.prepaid && topUp > 0 && (
+      {!isLoading && total && !total.prepaid && topUp > 0 && (
         <p>
           AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
         </p>

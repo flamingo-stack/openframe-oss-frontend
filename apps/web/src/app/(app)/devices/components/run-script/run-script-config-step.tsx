@@ -42,6 +42,10 @@ const runFormSchema = z.object({
 
 type RunFormData = z.infer<typeof runFormSchema>;
 
+/** The one empty row each list shows when the script has no saved values (empty rows are dropped on submit). */
+const EMPTY_ARG_ROW = { id: 'arg-0', key: '', value: '' };
+const EMPTY_ENV_ROW = { id: 'env-0', key: '', value: '' };
+
 interface RunScriptConfigStepProps {
   scriptId: string;
   machineId: string;
@@ -83,11 +87,12 @@ export function RunScriptConfigStepView({
 
   const { control, handleSubmit, reset } = useForm<RunFormData>({
     resolver: zodResolver(runFormSchema),
-    defaultValues: { timeout: 90, runAsUser: false, scriptArgs: [], envVars: [] },
+    defaultValues: { timeout: 90, runAsUser: false, scriptArgs: [EMPTY_ARG_ROW], envVars: [EMPTY_ENV_ROW] },
   });
 
   // Seed the overridable fields from the script's saved defaults once it loads.
-  // Show one empty row when there are none so the inputs are visible; empty rows
+  // Show one empty row when there are none so the inputs are visible (the same row
+  // the form starts with, so nothing appears when the script arrives); empty rows
   // are dropped on submit.
   useEffect(() => {
     if (!script) return;
@@ -96,8 +101,8 @@ export function RunScriptConfigStepView({
     reset({
       timeout: script.defaultTimeoutSeconds ?? 90,
       runAsUser: script.privilegeLevel === 'USER',
-      scriptArgs: parsedArgs.length > 0 ? parsedArgs : [{ id: 'arg-0', key: '', value: '' }],
-      envVars: parsedEnv.length > 0 ? parsedEnv : [{ id: 'env-0', key: '', value: '' }],
+      scriptArgs: parsedArgs.length > 0 ? parsedArgs : [EMPTY_ARG_ROW],
+      envVars: parsedEnv.length > 0 ? parsedEnv : [EMPTY_ENV_ROW],
     });
   }, [script, reset]);
 

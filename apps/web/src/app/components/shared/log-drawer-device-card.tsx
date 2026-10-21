@@ -1,6 +1,5 @@
 'use client';
 
-import { DeviceCardSkeleton, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceOperatingSystem,
@@ -14,28 +13,23 @@ import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 function LogDrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNavigate: () => void }) {
   const { deviceDetails, isLoading } = useDeviceDetails(deviceId, { polling: false });
 
-  if (isLoading) {
-    return (
-      <LoadingRegion label="Loading device">
-        <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
-      </LoadingRegion>
-    );
-  }
+  if (!isLoading && !deviceDetails) return null;
 
-  if (!deviceDetails) return null;
-
+  // While the device is read the card draws its own loading state (`loading`).
   return (
     <DeviceCard
+      detailsButtonSkeletonClassName={DEVICE_DETAILS_BUTTON_BOX}
+      loading={isLoading}
       device={{
-        id: deviceDetails.id,
-        machineId: deviceDetails.machineId,
-        name: getDeviceName(deviceDetails),
-        organization: deviceDetails.organization || deviceDetails.machineId,
-        lastSeen: deviceDetails.lastSeen,
-        operatingSystem: getDeviceOperatingSystem(deviceDetails.osType),
+        id: deviceDetails?.id ?? deviceId,
+        machineId: deviceDetails?.machineId,
+        name: deviceDetails ? getDeviceName(deviceDetails) : '',
+        organization: deviceDetails?.organization || deviceDetails?.machineId,
+        lastSeen: deviceDetails?.lastSeen,
+        operatingSystem: getDeviceOperatingSystem(deviceDetails?.osType),
       }}
       statusTag={
-        deviceDetails.status
+        deviceDetails?.status
           ? {
               label: getDeviceStatusConfig(deviceDetails.status).label,
               variant: getDeviceStatusConfig(deviceDetails.status).variant,
@@ -48,8 +42,8 @@ function LogDrawerDeviceCard({ deviceId, onNavigate }: { deviceId: string; onNav
           visible: true,
           component: (
             <DeviceDetailsButton
-              deviceId={deviceDetails.id}
-              machineId={deviceDetails.machineId}
+              deviceId={deviceDetails?.id ?? deviceId}
+              machineId={deviceDetails?.machineId ?? ''}
               className="shrink-0"
               onNavigate={onNavigate}
             />

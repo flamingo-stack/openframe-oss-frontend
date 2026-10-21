@@ -16,9 +16,8 @@ import type {
 import { liveColumnMeta } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
 import { OpenRowButton } from '../shared/open-row-button';
-import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
+import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
 import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
@@ -142,7 +141,7 @@ export function SoftwareTable({
           rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
         />
         <DataTable.Body
-          skeletonRows={FLEET_LIST_PAGE_SIZE}
+          skeletonRows={SOFTWARE_LIST_PAGE_SIZE}
           emptyState={{
             title: debouncedSearch
               ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
@@ -157,7 +156,7 @@ export function SoftwareTable({
             hasNextPage={infiniteScroll.hasNextPage}
             isFetchingNextPage={infiniteScroll.isFetchingNextPage}
             onLoadMore={infiniteScroll.onLoadMore}
-            skeletonRows={FLEET_LIST_PAGE_SIZE}
+            skeletonRows={SOFTWARE_LIST_PAGE_SIZE}
           />
         )}
       </DataTable>

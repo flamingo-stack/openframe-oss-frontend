@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, Suspense } from 'react';
 import { graphql } from 'react-relay';
@@ -55,16 +56,26 @@ const integrationsQuery = graphql`
 /** Nothing when the module is off, zero or failed; a loading line until both the flag and the count answer. */
 function ModuleRow({ gate, label, children }: { gate: FeatureFlagGate; label: string; children: ReactNode }) {
   if (gate === 'off') return null;
-  // The row while the flag or its count is on its way: the line itself, in a loading scope.
-  const loadingRow = (
-    <LoadingWhen loading>
-      <DataLossItem />
-    </LoadingWhen>
-  );
-  if (gate === 'loading') return loadingRow;
+  // The row while the flag (a client read) or its count (a Suspense boundary) is on its way: the line itself, in a
+  // loading scope.
+  if (gate === 'loading') {
+    return (
+      <LoadingWhen loading>
+        <DataLossItem />
+      </LoadingWhen>
+    );
+  }
   return (
     <ContentErrorBoundary label={label} fallback={() => <></>}>
-      <Suspense fallback={loadingRow}>{children}</Suspense>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading what the workspace loses">
+            <DataLossItem />
+          </LoadingFallback>
+        }
+      >
+        {children}
+      </Suspense>
     </ContentErrorBoundary>
   );
 }

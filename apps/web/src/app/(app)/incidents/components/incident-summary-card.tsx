@@ -1,8 +1,14 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  EntityImage,
+  TagSkeleton,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -24,20 +30,18 @@ function Row({ children }: { children: ReactNode }) {
   );
 }
 
-/** A cell of the strip — the same footprint for the loaded card and its skeleton. */
+/** A cell of the strip. */
 function Cell({ children }: { children: ReactNode }) {
   return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
 }
 
-/** The card's frame, shared by the loaded card and its skeleton. */
-const CARD_CLASS = 'overflow-hidden rounded-[6px] border border-ods-border bg-ods-card';
-const HEADER_CLASS =
-  'flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]';
+/** The device-type icon's box, shared by the icon and its loading placeholder. */
+const DEVICE_ICON_CLASS = 'size-6';
 
 interface IncidentSummaryCardProps {
-  /** Absent while the record loads: the card draws its own skeleton. */
+  /** Absent while the record loads: the card draws itself, every value a bar. */
   incident?: Incident;
-  /** The "Assigned" cell, which owns its own mutations — see `IncidentAssignee`. */
+  /** The "Assigned" cell, which owns its own mutations and its own loading state — see `IncidentAssignee`. */
   assigneeSlot: ReactNode;
 }
 
@@ -45,27 +49,46 @@ interface IncidentSummaryCardProps {
  * The summary card of the incident page: the finding's title and what the
  * detecting query looks for, then two strips — device / customer / detected /
  * assignee, and severity / category / interval / status (+ until, while snoozed).
+ *
+ * In a loading scope (or without the incident) it draws itself: the same cells
+ * and labels, the values bars (`InfoCell`), the tags tag-shaped bars, the
+ * device icon and customer logo their own placeholders.
  */
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
   const loading = useLoadingScope() || !incident;
-  if (loading) return <IncidentSummaryCardSkeleton />;
-  const snoozedUntil = incident.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
+  const snoozedUntil = incident?.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
 
   return (
-    <div className={CARD_CLASS}>
-      <div className={HEADER_CLASS}>
-        <TruncateText variant="h4">{incident.title}</TruncateText>
-        {incident.description && <p className="text-ods-text-secondary text-h6">{incident.description}</p>}
+    <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
+      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
+        {loading ? (
+          <>
+            <TextLineSkeleton type="h4" className="w-64 max-w-full" />
+            <TextLineSkeleton type="h6" className="w-full max-w-[720px]" />
+          </>
+        ) : (
+          <>
+            <TruncateText variant="h4">{incident.title}</TruncateText>
+            {incident.description && <p className="text-ods-text-secondary text-h6">{incident.description}</p>}
+          </>
+        )}
       </div>
 
       <Row>
         <Cell>
           <InfoCell
-            icon={renderDeviceTypeIcon(incident.deviceType ?? undefined, 'size-6 text-ods-text-primary')}
+            loading={loading}
+            icon={
+              loading ? (
+                <UnifiedSkeleton className={cn('rounded', DEVICE_ICON_CLASS)} />
+              ) : (
+                renderDeviceTypeIcon(incident.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)
+              )
+            }
             value={
               // Only a device that resolved gets a link — a QA seed or a retired
               // machine has no page to land on.
-              incident.hasDevice ? (
+              incident?.hasDevice ? (
                 <Link
                   href={routes.devices.details(incident.machineId)}
                   className="text-ods-accent underline hover:text-ods-accent-hover"
@@ -73,7 +96,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
                   {incident.deviceName}
                 </Link>
               ) : (
-                incident.deviceName
+                incident?.deviceName
               )
             }
             label="Device"
@@ -81,45 +104,64 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         </Cell>
         <Cell>
           <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
+            {/* Draws its own size-10 skeleton in the loading scope. */}
             <EntityImage
-              src={incident.organizationImageUrl}
-              alt={incident.organizationName || 'Customer'}
+              src={incident?.organizationImageUrl}
+              alt={incident?.organizationName || 'Customer'}
               sizeClassName="size-10"
             />
             <InfoCell
+              loading={loading}
               value={
-                <Link
-                  href={routes.customers.details(incident.organizationId)}
-                  className="text-ods-accent underline hover:text-ods-accent-hover"
-                >
-                  {incident.organizationName || incident.organizationId}
-                </Link>
+                incident ? (
+                  <Link
+                    href={routes.customers.details(incident.organizationId)}
+                    className="text-ods-accent underline hover:text-ods-accent-hover"
+                  >
+                    {incident.organizationName || incident.organizationId}
+                  </Link>
+                ) : null
               }
               label="Customer"
             />
           </div>
         </Cell>
         <Cell>
-          <InfoCell value={formatDateTime(incident.detectedAt)} label="Detected" />
+          <InfoCell loading={loading} value={incident ? formatDateTime(incident.detectedAt) : ''} label="Detected" />
         </Cell>
         <Cell>{assigneeSlot}</Cell>
       </Row>
 
       <Row>
         <Cell>
-          <InfoCell value={<IncidentSeverityTag severity={incident.severity} />} label="Severity" />
-        </Cell>
-        <Cell>
-          <InfoCell value={labelOf(INCIDENT_TYPE_LABELS, incident.type)} label="Category" />
+          <InfoCell
+            loading={loading}
+            valueSkeleton={<TagSkeleton />}
+            value={incident ? <IncidentSeverityTag severity={incident.severity} /> : null}
+            label="Severity"
+          />
         </Cell>
         <Cell>
           <InfoCell
-            value={incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
+            loading={loading}
+            value={incident ? labelOf(INCIDENT_TYPE_LABELS, incident.type) : ''}
+            label="Category"
+          />
+        </Cell>
+        <Cell>
+          <InfoCell
+            loading={loading}
+            value={!incident || incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
             label="Interval"
           />
         </Cell>
         <Cell>
-          <InfoCell value={<IncidentStatusTag status={incident.status} />} label="Status" />
+          <InfoCell
+            loading={loading}
+            valueSkeleton={<TagSkeleton />}
+            value={incident ? <IncidentStatusTag status={incident.status} /> : null}
+            label="Status"
+          />
         </Cell>
         {snoozedUntil && (
           <Cell>
@@ -127,28 +169,6 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           </Cell>
         )}
       </Row>
-    </div>
-  );
-}
-
-/** Same header + two strips, every value a bar, so the card keeps its height while the record loads. */
-function IncidentSummaryCardSkeleton() {
-  const cell = (label: string, index: number) => (
-    <Cell key={index}>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-        <UnifiedSkeleton className="h-6 w-32" />
-        <p className="text-ods-text-secondary text-h6">{label}</p>
-      </div>
-    </Cell>
-  );
-  return (
-    <div className={CARD_CLASS}>
-      <div className={HEADER_CLASS}>
-        <UnifiedSkeleton className="h-6 w-64" />
-        <UnifiedSkeleton className="h-5 w-full max-w-[720px]" />
-      </div>
-      <Row>{['Device', 'Customer', 'Detected', 'Assigned'].map(cell)}</Row>
-      <Row>{['Severity', 'Category', 'Interval', 'Status'].map(cell)}</Row>
     </div>
   );
 }
