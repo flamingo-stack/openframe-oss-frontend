@@ -19,6 +19,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
@@ -289,7 +290,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         )}
         <DataTable.Body
           loading={isLoading}
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={recordingHref}
           emptyState={{
             icon: <ComputerMouseIcon />,

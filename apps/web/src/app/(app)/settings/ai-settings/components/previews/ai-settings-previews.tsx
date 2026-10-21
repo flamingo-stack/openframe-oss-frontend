@@ -19,9 +19,24 @@ interface AiSettingsPreviewsProps {
   accentColor?: string;
 }
 
-const MOBILE_BUTTON_LABEL = 'Preview Assistant';
 const THUMBNAILS_CLASS =
   'hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid';
+
+/** The phone's single button onto the preview modal: drawn the same (disabled, fixed copy) while loading. */
+function MobilePreviewButton({ onClick }: { onClick?: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      fullWidth
+      className="content-md:hidden"
+      onClick={onClick}
+      disabled={!onClick}
+    >
+      Preview Assistant
+    </Button>
+  );
+}
 
 /**
  * The previews while the assistant's name and accent are on their way: the phone's button is fixed copy (drawn,
@@ -30,9 +45,7 @@ const THUMBNAILS_CLASS =
 function AiSettingsPreviewsSkeleton() {
   return (
     <>
-      <Button type="button" variant="outline" fullWidth className="content-md:hidden" disabled>
-        {MOBILE_BUTTON_LABEL}
-      </Button>
+      <MobilePreviewButton />
       <div className={THUMBNAILS_CLASS}>
         <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
         <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
@@ -91,15 +104,7 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
       {/* Just the affordance: every consumer already renders the assistant's
           name, avatar, model and accent directly above this, so a summary
           card here only repeats them. */}
-      <Button
-        type="button"
-        variant="outline"
-        fullWidth
-        className="content-md:hidden"
-        onClick={() => openPreview('welcome')}
-      >
-        {MOBILE_BUTTON_LABEL}
-      </Button>
+      <MobilePreviewButton onClick={() => openPreview('welcome')} />
 
       <div className={THUMBNAILS_CLASS}>
         <ThumbnailTrigger label="Open the welcome screen preview at full size" onOpen={() => openPreview('welcome')}>

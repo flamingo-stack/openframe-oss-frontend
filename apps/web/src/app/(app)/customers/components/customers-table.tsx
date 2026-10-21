@@ -10,7 +10,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -20,7 +19,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, noop, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
+import { EmptyState, noop, onboardingGuideButton, SectionLoadError, NO_ITEMS } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -28,8 +27,6 @@ import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { type CustomersDateQuery, ORGANIZATIONS_PAGE_SIZE, useCustomers } from '../hooks/use-customers';
 import { type CustomersDateFilter, CustomersSearchInput, CustomersTableBody } from './customers-table-columns';
-
-const EMPTY_FILTER_GROUPS: never[] = [];
 
 interface CustomersTableProps {
   status?: string;
@@ -196,15 +193,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
             pageSize={ORGANIZATIONS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}
             dateFilter={dateFilter}
-            footerSlot={
-              hasNextPage && (
-                <DataTable.InfiniteFooter
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  onLoadMore={handleLoadMore}
-                />
-              )
-            }
+            footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
           />
         </div>
       )}
@@ -212,7 +201,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
       <FilterModal
         isOpen={mobileFilterOpen}
         onClose={() => setMobileFilterOpen(false)}
-        filterGroups={EMPTY_FILTER_GROUPS}
+        filterGroups={NO_ITEMS}
         onFilterChange={noop}
         dateFilter={{
           title: 'Last Activity',

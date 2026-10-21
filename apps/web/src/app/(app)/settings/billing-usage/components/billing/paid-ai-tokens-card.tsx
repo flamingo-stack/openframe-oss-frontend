@@ -31,36 +31,39 @@ interface PaidAiTokensCardProps {
 /** The prepaid balance AI draws from once the grant is spent, and what it is worth. */
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
   const data = useFragment(paidAiTokensCardFragment, subscription);
-  // The rates trigger is a static control: drawn for real while the balance loads.
-  if (useLoadingScope() || data == null) {
-    return <UsageStatCard title="Paid AI Tokens" loading trailing={<ModelTokenRatesPopover />} />;
-  }
-  const ai = aiBalanceState(data);
+  // One card, both forms: while the balance is on its way the figure and caption are bars; the rates trigger is a
+  // static control, drawn for real.
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
 
   return (
     <UsageStatCard
       title="Paid AI Tokens"
-      tone={ai.paidTone}
+      loading={ai == null}
+      tone={ai?.paidTone}
       value={
-        <>
-          {formatCompactCount(ai.paid)}
-          {/* The mockup's mark for a balance that refills itself; the popover
-              beside it spells the same state out in words. */}
-          {autoTopUp?.enabled && (
-            <Refresh02VrIcon
-              role="img"
-              aria-label="Auto top-up enabled"
-              className="ml-[var(--spacing-system-xsf)] inline-block size-6 align-middle text-ods-success"
-            />
-          )}
-        </>
+        ai && (
+          <>
+            {formatCompactCount(ai.paid)}
+            {/* The mockup's mark for a balance that refills itself; the popover
+                beside it spells the same state out in words. */}
+            {autoTopUp?.enabled && (
+              <Refresh02VrIcon
+                role="img"
+                aria-label="Auto top-up enabled"
+                className="ml-[var(--spacing-system-xsf)] inline-block size-6 align-middle text-ods-success"
+              />
+            )}
+          </>
+        )
       }
       caption={
-        <>
-          <StatEmphasis>{formatCurrency(ai.paidUsd)}</StatEmphasis> balance
-        </>
+        ai && (
+          <>
+            <StatEmphasis>{formatCurrency(ai.paidUsd)}</StatEmphasis> balance
+          </>
+        )
       }
-      trailing={<ModelTokenRatesPopover autoTopUpEnabled={autoTopUp?.enabled} />}
+      trailing={<ModelTokenRatesPopover autoTopUpEnabled={ai ? autoTopUp?.enabled : undefined} />}
     />
   );
 }

@@ -44,6 +44,12 @@ const QUICK_QUERY = {
   align: 'right',
 } satisfies TableSkeletonColumn;
 
+/**
+ * A policy's or a query's devices are every assigned host, read whole (no paging): their loading body draws this
+ * typical count. One constant for both lists.
+ */
+export const MONITORING_DEVICES_SKELETON_ROWS = 5;
+
 /** Policy detail → Devices. No column funnels on this one. */
 export const POLICY_DEVICE_COLUMNS = {
   device: DEVICE,

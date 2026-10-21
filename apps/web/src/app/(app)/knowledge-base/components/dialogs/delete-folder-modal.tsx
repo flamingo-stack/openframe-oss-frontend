@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { deleteFolderModal_folder$key } from '@/__generated__/deleteFolderModal_folder.graphql';
 import type { deleteFolderModalMutation as DeleteFolderModalMutationType } from '@/__generated__/deleteFolderModalMutation.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { FolderChildrenAction } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
@@ -17,7 +18,6 @@ import {
   removeFromFolderTree,
   removeFromListings,
 } from '../shared/knowledge-base-listings';
-import { NO_LISTING_IDS } from '../shared/knowledge-base-table';
 
 const deleteFolderModalFragment = graphql`
   fragment deleteFolderModal_folder on KnowledgeBaseItem {
@@ -49,7 +49,7 @@ export function DeleteFolderModal({
   folder,
   isOpen,
   onClose,
-  listingIds = NO_LISTING_IDS,
+  listingIds = NO_ITEMS,
   onDeleted,
 }: DeleteFolderModalProps) {
   const { toast } = useToast();

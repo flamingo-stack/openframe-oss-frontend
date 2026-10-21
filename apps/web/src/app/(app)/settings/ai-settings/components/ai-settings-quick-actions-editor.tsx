@@ -17,6 +17,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
 import { type Control, Controller, type FieldValues, useFieldArray, useWatch } from 'react-hook-form';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import type { AiQuickAction } from '../types/ai-settings';
 import type { QuickActionsFormValues } from '../types/quick-action.types';
@@ -38,8 +39,6 @@ export interface QuickActionsDefaultCopy {
   /** Dimmed preview header: true → "OpenFrame …", false → "Organization …". */
   previewIsOpenFrame: boolean;
 }
-
-const NO_DEFAULT_ACTIONS: AiQuickAction[] = [];
 
 interface AiSettingsQuickActionsEditorProps<T extends QuickActionsFormValues & FieldValues> {
   control: Control<T>;
@@ -117,7 +116,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       // key to keep, so that row starts without an icon.
       if (fields.length === 0) {
         replace(
-          (defaultActions ?? NO_DEFAULT_ACTIONS).map(action => ({
+          (defaultActions ?? NO_ITEMS).map(action => ({
             name: action.name,
             instructions: action.instructions,
             iconName: action.iconName ?? null,
@@ -179,7 +178,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
         (defaultActions == null || defaultActions.length > 0) && (
           <LoadingWhen loading={defaultActions == null}>
             <AiSettingsQuickActions
-              actions={defaultActions ?? NO_DEFAULT_ACTIONS}
+              actions={defaultActions ?? NO_ITEMS}
               isDefault={copy.previewIsOpenFrame}
               agentConfig={agentConfig}
               accent={accent}

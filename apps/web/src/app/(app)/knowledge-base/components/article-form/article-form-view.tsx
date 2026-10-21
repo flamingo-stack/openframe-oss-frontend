@@ -3,6 +3,7 @@
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useAssignedItems } from '@/components/assignments';
 import { KnowledgeBaseArticleStatus } from '@/generated/schema-enums';
@@ -11,8 +12,6 @@ import { ArticleFormFields } from './article-form-fields';
 import type { ArticleFormRecord, StoredArticle } from './article-form-record';
 import { ArticleRecordLoader } from './article-record-loader';
 import { useArticleForm } from './use-article-form';
-
-const NO_TAGS: ArticleFormRecord['tags'] = [];
 
 interface ArticleFormViewProps {
   /** The article edited; null creates one. */
@@ -90,7 +89,7 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
         <ArticleFormFields
           form={form}
           disabled={!isLoaded || isSubmitting}
-          initialTags={record?.tags ?? NO_TAGS}
+          initialTags={record?.tags ?? NO_ITEMS}
           attachments={attachments}
         />
       </LoadingWhen>

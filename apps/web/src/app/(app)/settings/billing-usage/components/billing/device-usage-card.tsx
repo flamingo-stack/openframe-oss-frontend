@@ -3,7 +3,10 @@
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
-import type { deviceUsageCard_subscription$key } from '@/__generated__/deviceUsageCard_subscription.graphql';
+import type {
+  deviceUsageCard_subscription$data,
+  deviceUsageCard_subscription$key,
+} from '@/__generated__/deviceUsageCard_subscription.graphql';
 import { BillingPeriod } from '@/generated/schema-enums';
 import { formatDate } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
@@ -51,8 +54,23 @@ function caption(isTrial: boolean, trialEndsOn: string | null, prepaid: boolean,
 /** Devices under management, against the package that covers them. */
 export function DeviceUsageCard({ subscription }: { subscription: deviceUsageCard_subscription$key | null }) {
   const data = useFragment(deviceUsageCardFragment, subscription);
-  // `null` only while the page loads (it renders itself in a loading scope with no subscription yet).
-  if (useLoadingScope() || data == null) return <UsageStatCard title="Device Usage" loading />;
+  // One card, both forms: `null` only while the page loads (it renders itself in a loading scope with no
+  // subscription yet), when the figure and the caption are bars.
+  const shown = useLoadingScope() || data == null ? null : deviceUsage(data);
+
+  return (
+    <UsageStatCard
+      title="Device Usage"
+      loading={shown == null}
+      tone={shown?.tone}
+      value={shown?.value}
+      caption={shown?.caption}
+    />
+  );
+}
+
+/** What the loaded card states: its tone, the count (against its allocation when prepaid) and the caption. */
+function deviceUsage(data: deviceUsageCard_subscription$data) {
   const device = deviceAllocation(data);
   const schedule = planSchedule(data);
 
@@ -62,21 +80,16 @@ export function DeviceUsageCard({ subscription }: { subscription: deviceUsageCar
   // "247/300" over "Pay as you go", or a bare count over "Prepaid".
   const prepaid = !schedule.isTrial && device.allocation > 0;
 
-  return (
-    <UsageStatCard
-      title="Device Usage"
-      tone={device.overLimit ? 'warning' : 'default'}
-      value={
-        prepaid ? (
-          <>
-            {formatCount(device.used)}
-            <StatSuffix>/{formatCount(device.allocation)}</StatSuffix>
-          </>
-        ) : (
-          formatCount(device.used)
-        )
-      }
-      caption={caption(schedule.isTrial, (data.trialExpirationDate ?? null) as string | null, prepaid, isAnnual)}
-    />
-  );
+  return {
+    tone: device.overLimit ? ('warning' as const) : ('default' as const),
+    value: prepaid ? (
+      <>
+        {formatCount(device.used)}
+        <StatSuffix>/{formatCount(device.allocation)}</StatSuffix>
+      </>
+    ) : (
+      formatCount(device.used)
+    ),
+    caption: caption(schedule.isTrial, (data.trialExpirationDate ?? null) as string | null, prepaid, isAnnual),
+  };
 }

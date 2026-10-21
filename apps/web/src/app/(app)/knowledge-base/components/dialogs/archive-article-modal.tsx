@@ -4,6 +4,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { archiveArticleModal_article$key } from '@/__generated__/archiveArticleModal_article.graphql';
 import type { archiveArticleModalMutation as ArchiveArticleModalMutationType } from '@/__generated__/archiveArticleModalMutation.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import {
@@ -11,7 +12,6 @@ import {
   removeFromFolderListing,
   removeFromListings,
 } from '../shared/knowledge-base-listings';
-import { NO_LISTING_IDS } from '../shared/knowledge-base-table';
 
 const archiveArticleModalFragment = graphql`
   fragment archiveArticleModal_article on KnowledgeBaseItem {
@@ -39,12 +39,7 @@ interface ArchiveArticleModalProps {
   listingIds?: readonly string[];
 }
 
-export function ArchiveArticleModal({
-  article,
-  isOpen,
-  onClose,
-  listingIds = NO_LISTING_IDS,
-}: ArchiveArticleModalProps) {
+export function ArchiveArticleModal({ article, isOpen, onClose, listingIds = NO_ITEMS }: ArchiveArticleModalProps) {
   const { toast } = useToast();
   const data = useFragment(archiveArticleModalFragment, article);
   const [commit, isInFlight] = useMutation<ArchiveArticleModalMutationType>(archiveArticleModalMutation);

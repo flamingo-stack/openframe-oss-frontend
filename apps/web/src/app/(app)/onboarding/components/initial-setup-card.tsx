@@ -5,6 +5,7 @@ import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openfram
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
 import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -15,7 +16,6 @@ import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks
 import { MEET_MINGO_META } from '../meet-mingo-meta';
 import {
   isStepDone,
-  NO_COMPLETED_STEPS,
   type OnboardingStepWiring,
   onboardingProgress,
   progressLine,
@@ -29,7 +29,6 @@ import { MingoStep } from './mingo-step';
 import { MspSetupStep } from './msp-setup-step';
 import { ONBOARDING_STEP_LIST_CLASS, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
-import { OnboardingLoadGate } from './onboarding-load-gate';
 
 interface StepMeta {
   step: TenantOnboardingStep;
@@ -107,9 +106,9 @@ export function InitialSetupCard() {
   }
 
   return (
-    <OnboardingLoadGate pending={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
+    <GatedSuspense bare gated={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
       <InitialSetupCardContent />
-    </OnboardingLoadGate>
+    </GatedSuspense>
   );
 }
 
@@ -131,7 +130,7 @@ interface InitialSetupCardViewProps {
  * body not mounted.
  */
 function InitialSetupCardView({
-  completedSteps = NO_COMPLETED_STEPS,
+  completedSteps = NO_ITEMS,
   completedByData = NO_DATA_STEPS,
   onTour = noop,
   stepWiring,

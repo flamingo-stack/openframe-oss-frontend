@@ -27,7 +27,7 @@ export function formatQueryInterval(seconds: number): string {
   return `Every ${Math.floor(seconds / 86400)}d`;
 }
 
-export interface QueriesTableProps {
+interface QueriesTableBaseProps {
   rows: QueryTableRow[];
   /** The rows are a client read that has not answered: the table draws its own loading state. */
   isLoading?: boolean;
@@ -39,14 +39,25 @@ export interface QueriesTableProps {
   stickyHeaderOffset?: string;
   /** Show the row count at the header's right edge. Default `false`. */
   showRowCount?: boolean;
-  /**
-   * The list's page size (a list shown whole: its declared typical count): the loading table and the next page draw
-   * that many rows, never a fold.
-   */
-  pageSize: number;
-  /** The next page (a list revealed page by page); omitted for a list shown whole. */
-  infiniteScroll?: InfiniteScroll;
 }
+
+/** A list revealed page by page (`pageSize`, its next page) or shown whole (`skeletonRows`, its typical count). */
+export type QueriesTableProps = QueriesTableBaseProps &
+  (
+    | {
+        /** The list's page size: the loading table and the next page draw that many rows, never a fold. */
+        pageSize: number;
+        skeletonRows?: never;
+        /** The next page. */
+        infiniteScroll?: InfiniteScroll;
+      }
+    | {
+        /** The typical row count of a list shown whole: the loading table draws that many rows. */
+        skeletonRows: number;
+        pageSize?: never;
+        infiniteScroll?: never;
+      }
+  );
 
 /**
  * Shared queries table. Renders a normalized `QueryTableRow[]` with a consistent
@@ -62,6 +73,7 @@ export function QueriesTable({
   stickyHeaderOffset,
   showRowCount = false,
   pageSize,
+  skeletonRows,
   infiniteScroll,
 }: QueriesTableProps) {
   const isLoading = useLoadingScope() || isLoadingProp;
@@ -152,7 +164,7 @@ export function QueriesTable({
     <LoadingWhen loading={isLoading}>
       <LiveTable
         table={table}
-        pageSize={pageSize}
+        {...(pageSize === undefined ? { skeletonRows } : { pageSize })}
         stickyHeaderOffset={stickyHeaderOffset}
         showHeader={showHeader}
         showRowCount={showRowCount}

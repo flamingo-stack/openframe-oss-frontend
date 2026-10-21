@@ -13,6 +13,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -24,7 +25,6 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
   isStepDone,
-  NO_COMPLETED_STEPS,
   type OnboardingStepWiring,
   onboardingProgress,
   onboardingStepAnchorId,
@@ -41,7 +41,6 @@ import { MingoStep } from './mingo-step';
 import { MonitoringStep } from './monitoring-step';
 import { OnboardingAccordionGroup, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
-import { OnboardingLoadGate } from './onboarding-load-gate';
 import { ScriptingStep } from './scripting-step';
 import { TicketsStep } from './tickets-step';
 
@@ -133,9 +132,9 @@ export function OnboardingContent() {
   // The step bodies stay mounted while collapsed, and some of them suspend on their own
   // reads: the page keeps its header and rows meanwhile.
   return (
-    <OnboardingLoadGate pending={pending} label="Loading onboarding" view={<OnboardingView />}>
+    <GatedSuspense bare gated={pending} label="Loading onboarding" view={<OnboardingView />}>
       <LoadedOnboardingContent />
-    </OnboardingLoadGate>
+    </GatedSuspense>
   );
 }
 
@@ -179,7 +178,7 @@ interface OnboardingViewProps {
  * skeleton, and the row the URL opens draws its real body (inert handlers), which draws its own loading form.
  */
 function OnboardingView({
-  completedSteps = NO_COMPLETED_STEPS,
+  completedSteps = NO_ITEMS,
   isMutating = false,
   onSkip = noop,
   onLeave = noop,

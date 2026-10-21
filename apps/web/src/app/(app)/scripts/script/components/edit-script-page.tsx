@@ -11,6 +11,7 @@ import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { runCommandMutation as RunCommandMutationType } from '@/__generated__/runCommandMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { EntityTagPicker } from '@/app/components/shared/tags';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
@@ -31,9 +32,6 @@ interface ScriptTag {
   id: string;
   key: string;
 }
-
-const NO_TAGS: ReadonlyArray<ScriptTag> = [];
-const NO_PLATFORMS: string[] = [];
 
 interface ScriptFieldsProps {
   form: UseFormReturn<EditScriptFormData>;
@@ -56,7 +54,7 @@ interface ScriptFieldsProps {
  * The tag picker keeps its OWN boundary: the tag list is a second query, and it
  * has no reason to hold up the field it sits between.
  */
-function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAGS }: ScriptFieldsProps) {
+function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_ITEMS }: ScriptFieldsProps) {
   return (
     <ScriptFormFields
       form={form}
@@ -95,7 +93,7 @@ type ScriptRecordState =
 
 const RECORD_LOADING: ScriptRecordState = { status: 'loading' };
 /** The create page owns no record: nothing to seed, and the form is live at once. */
-const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_TAGS };
+const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_ITEMS };
 
 interface ScriptRecordLoaderProps {
   scriptId: string;
@@ -123,7 +121,7 @@ function ScriptRecordLoader({ scriptId, onResolved }: ScriptRecordLoaderProps) {
   const script: ScriptDetailData | null = data.script;
 
   const values = useMemo(() => (script ? relayScriptToForm(script) : null), [script]);
-  const tags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? NO_TAGS, [script]);
+  const tags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? NO_ITEMS, [script]);
 
   // Layout effect: the page seeds and unlocks the fields before the paint, so a
   // script Relay already had in its store is simply there.
@@ -306,7 +304,7 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
               form={form}
               showErrors={showErrors}
               disabled={!isRecordReady}
-              initialTags={record.status === 'ready' ? record.tags : NO_TAGS}
+              initialTags={record.status === 'ready' ? record.tags : NO_ITEMS}
             />
           )}
         </LoadingSuspense>
@@ -316,7 +314,7 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
         isOpen={testPlatforms !== null}
         onClose={closeTestModal}
         onDeviceSelected={handleDeviceSelected}
-        supportedPlatforms={testPlatforms ?? NO_PLATFORMS}
+        supportedPlatforms={testPlatforms ?? NO_ITEMS}
       />
 
       <ExecutionStartedModal

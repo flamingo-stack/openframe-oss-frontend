@@ -3,6 +3,7 @@
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
 import { DevicesAssignedTable } from './tables/devices-assigned-table';
 import { KnowledgeBaseAssignedTable } from './tables/knowledge-base-assigned-table';
@@ -60,13 +61,13 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
   const renderTabBody = (type: ServerAssignmentTargetType) => {
     switch (type) {
       case 'ORGANIZATION':
-        return <CustomersAssignedTable customers={customers ?? []} isLoading={kindLoading(type)} />;
+        return <CustomersAssignedTable customers={customers ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       case 'DEVICE':
-        return <DevicesAssignedTable devices={devices ?? []} isLoading={kindLoading(type)} />;
+        return <DevicesAssignedTable devices={devices ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       case 'KNOWLEDGE_ARTICLE':
-        return <KnowledgeBaseAssignedTable articles={articles ?? []} isLoading={kindLoading(type)} />;
+        return <KnowledgeBaseAssignedTable articles={articles ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       case 'TICKET':
-        return <TicketsAssignedTable tickets={tickets ?? []} isLoading={kindLoading(type)} />;
+        return <TicketsAssignedTable tickets={tickets ?? NO_ITEMS} isLoading={kindLoading(type)} />;
       default: {
         // `type` is `never` here because the cases above cover ServerAssignmentTargetType.
         // Adding a member to that union makes this assignment fail to compile, which
@@ -84,8 +85,8 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
   // the common case (the kinds are only known from the read).
   const shownTypes = activeTypes.length === 0 ? [TYPICAL_TARGET_TYPE[itemType]] : activeTypes;
 
-  const body = (
-    <>
+  return (
+    <LoadingRegion as="section" announce={pending} label="Loading assigned items" className={className}>
       {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
 
       <div className="overflow-hidden rounded-md border border-ods-border">
@@ -103,14 +104,6 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
           </TabNavigation>
         )}
       </div>
-    </>
-  );
-
-  return pending ? (
-    <LoadingRegion as="section" label="Loading assigned items" className={className}>
-      {body}
     </LoadingRegion>
-  ) : (
-    <section className={className}>{body}</section>
   );
 }

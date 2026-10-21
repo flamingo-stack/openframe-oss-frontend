@@ -29,13 +29,13 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
-import { noop } from '@/app/components/shared';
+import { NO_ITEMS, noop } from '@/app/components/shared';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
+import { MONITORING_DEVICES_SKELETON_ROWS, QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
@@ -46,17 +46,12 @@ interface QueryDevicesTableProps {
   query?: string;
 }
 
-/** The query's devices are every assigned host, unpaged: the loading body draws this typical count. */
-const QUERY_DEVICES_SKELETON_ROWS = 5;
-
-const NO_ROWS: QueryDeviceRow[] = [];
-
 /**
  * The query's devices. In a loading scope (the query itself still loading) it reads nothing and draws the table's
  * own loading rows; otherwise it reads the devices and draws them.
  */
 export function QueryDevicesTable(props: QueryDevicesTableProps) {
-  if (useLoadingScope()) return <QueryDevicesTableView rows={NO_ROWS} isLoading query={props.query} />;
+  if (useLoadingScope()) return <QueryDevicesTableView rows={NO_ITEMS} isLoading query={props.query} />;
   return <QueryDevicesTableContent {...props} />;
 }
 
@@ -345,7 +340,7 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
         {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={QUERY_DEVICES_SKELETON_ROWS}
+          skeletonRows={MONITORING_DEVICES_SKELETON_ROWS}
           emptyState={emptyState}
           rowHref={rowHref}
           renderSubRow={renderSubRow}

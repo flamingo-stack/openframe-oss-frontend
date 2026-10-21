@@ -1,7 +1,7 @@
 'use client';
 
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type SelectableTag, SelectableTagsRow } from '@/app/components/shared';
+import { type SelectableTag, SelectableTagsRow, NO_ITEMS } from '@/app/components/shared';
 import { useKnowledgeBaseTags } from './use-knowledge-base-tags';
 
 interface KnowledgeBaseTagsRowProps {
@@ -11,15 +11,13 @@ interface KnowledgeBaseTagsRowProps {
   onAdd: (tag: SelectableTag) => void;
 }
 
-const NO_TAGS: SelectableTag[] = [];
-
 /**
  * The tags the list can still be filtered by, as one row of chips. Suspends on the tags; in a loading scope (the
  * toolbar's Suspense fallback) the row draws its own loading state and reads nothing.
  */
 export function KnowledgeBaseTagsRow(props: KnowledgeBaseTagsRowProps) {
   if (useLoadingScope()) {
-    return <SelectableTagsRow tags={NO_TAGS} selectedIds={props.selectedIds} onAdd={props.onAdd} />;
+    return <SelectableTagsRow tags={NO_ITEMS} selectedIds={props.selectedIds} onAdd={props.onAdd} />;
   }
   return <KnowledgeBaseTagsRowQuery {...props} />;
 }

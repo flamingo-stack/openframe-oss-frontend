@@ -3,6 +3,7 @@
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { NO_ITEMS } from '@/app/components/shared';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
 import { fetchDeviceOrganizationCounts } from '../../devices/queries/devices-api';
@@ -183,9 +184,10 @@ async function fetchCustomersOverview(limit: number): Promise<{
   return { rows, totalOrganizations };
 }
 
-const EMPTY_OVERVIEW_ROWS: OrganizationOverviewRow[] = [];
+/** How many customers the dashboard section lists: the hook's default limit, so its skeleton draws the same count. */
+export const CUSTOMERS_OVERVIEW_LIMIT = 10;
 
-export function useCustomersOverview(limit: number = 10) {
+export function useCustomersOverview(limit: number = CUSTOMERS_OVERVIEW_LIMIT) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
   const query = useQuery({
@@ -208,7 +210,7 @@ export function useCustomersOverview(limit: number = 10) {
   const state = queryState(query);
 
   return {
-    rows: query.data?.rows ?? EMPTY_OVERVIEW_ROWS,
+    rows: query.data?.rows ?? NO_ITEMS,
     loading: state.isLoading,
     isOffline: state.isOffline,
     canClaimEmpty: state.canClaimEmpty,

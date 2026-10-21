@@ -16,7 +16,7 @@ import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPagina
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -183,13 +183,11 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
   );
 }
 
-const NO_DEVICES: Device[] = [];
-
 /** The tab before its devices: the same list in its loading state. */
 function ScheduleDevicesTabLoading() {
   return (
     <div className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={NO_DEVICES} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
+      <DevicesList devices={NO_ITEMS} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
     </div>
   );
 }

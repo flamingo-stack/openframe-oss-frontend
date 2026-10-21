@@ -2,6 +2,7 @@
 
 import { SsoJoinForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { ComponentProps } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import type { PendingSsoJoin } from '@/lib/auth-api-client';
 
 type SsoJoinFormProps = ComponentProps<typeof SsoJoinForm>;
@@ -27,7 +28,7 @@ export function SsoJoinCard({ pending, ...formProps }: SsoJoinCardProps) {
       name={name}
       email={pending?.email ?? ''}
       organizationName={pending?.tenantName ?? ''}
-      roles={pending?.roles ?? []}
+      roles={pending?.roles ?? NO_ITEMS}
     />
   );
 }

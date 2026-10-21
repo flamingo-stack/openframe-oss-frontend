@@ -10,6 +10,7 @@ import {
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { NO_ITEMS } from '@/app/components/shared';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 // Injected roadmap section — wraps RoadmapGrid so linked roadmap items
@@ -53,7 +54,7 @@ function VideoDisplaySection(props: VideoDisplaySectionProps) {
 // It switches itself: in a loading scope (the page drawing itself) it reads nothing, like `isLoading`.
 function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; isLoading: boolean }) {
   const loading = useLoadingScope() || isLoading;
-  if (loading) return <DeliveryTable items={[]} isLoading />;
+  if (loading) return <DeliveryTable items={NO_ITEMS} isLoading />;
   if (!data) return null;
   return (
     <>

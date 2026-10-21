@@ -4,6 +4,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { graphql, useFragment } from 'react-relay';
 import type { currentPlanSection_billingPlan$key } from '@/__generated__/currentPlanSection_billingPlan.graphql';
 import type { currentPlanSection_subscription$key } from '@/__generated__/currentPlanSection_subscription.graphql';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { BillingPeriod } from '@/generated/schema-enums';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
@@ -54,8 +55,8 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
   const data = useFragment(currentPlanSectionSubscriptionFragment, subscription);
   const catalog = useFragment(currentPlanSectionBillingPlanFragment, billingPlan);
   // ONE row rule for both forms: while the subscription is on its way the same rows are drawn, labels real and each
-  // value its row's own loading state. A row only some plans have (a plan that ends) is marked optional and left out
-  // while loading; the rest are drawn whenever most plans have them.
+  // value its row's own loading state. Every row is drawn whenever most plans have it; a value a plan lacks is the
+  // empty mark ("Plan ends on" for a plan that does not end).
   const loading = useLoadingScope() || data == null;
   const schedule = data ? planSchedule(data) : null;
   const products = catalog?.products ?? [];
@@ -86,6 +87,7 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
   const nextPayment = data?.nextPayment ?? 0;
   // GraphQL `Long` arrives as a string or a number depending on its size.
   const freeTokens = Number(data?.usage?.aiTokensFree ?? 0);
+  const planEndsOn = data?.cancellationEffectiveAt ?? schedule?.currentPlanEndsOn ?? null;
 
   return (
     <SectionBlock title="Current Plan">
@@ -118,12 +120,14 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
           value={data?.currentPeriodEnd ? formatDate(data.currentPeriodEnd) : undefined}
         />
       )}
-      {data?.cancellationEffectiveAt && (
-        <BillingRow optional label="Plan ends on" warning value={<WarningDate iso={data.cancellationEffectiveAt} />} />
-      )}
-      {schedule?.currentPlanEndsOn && (
-        <BillingRow optional label="Plan ends on" warning value={<WarningDate iso={schedule.currentPlanEndsOn} />} />
-      )}
+      {/* One row, always: a bar while loading, the date the plan stops (the termination first, else the package's
+          own end), the empty mark for a plan that does not end. */}
+      <BillingRow
+        loading={loading}
+        label="Plan ends on"
+        warning={planEndsOn != null}
+        value={planEndsOn ? <WarningDate iso={planEndsOn} /> : <EmptyValue />}
+      />
     </SectionBlock>
   );
 }

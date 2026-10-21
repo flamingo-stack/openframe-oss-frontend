@@ -113,7 +113,8 @@ export function SsoOrganizationSetup({ identity, onSubmit, isSubmitting = false,
       }
       email={email}
       emailReadOnly={email !== undefined}
-      emailReadOnlyLabel={label && `Signed in with ${label}`}
+      // `null` while the identity is read: the field draws a bar in the label's place, so nothing moves when it arrives.
+      emailReadOnlyLabel={loading ? null : label && `Signed in with ${label}`}
       organizationName={organizationName}
       domain={domainField.domain}
       agreedToTerms={agreedToTerms}

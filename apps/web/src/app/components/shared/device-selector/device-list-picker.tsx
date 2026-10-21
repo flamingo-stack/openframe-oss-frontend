@@ -12,6 +12,7 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { useCallback, useMemo, useState } from 'react';
 import { DEVICE_LIST_LIMIT, useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { NO_ITEMS } from '../no-next-page';
 
 export type DeviceListPickerProps = Omit<
   DeviceSelectorProps<Device>,
@@ -81,7 +82,9 @@ function LoadingDeviceListPicker({
   getDeviceKey,
   ...selectorProps
 }: DeviceListPickerProps) {
-  return <DeviceSelector {...selectorProps} devices={[]} loading skeletonRows={first} getDeviceKey={getDeviceKey} />;
+  return (
+    <DeviceSelector {...selectorProps} devices={NO_ITEMS} loading skeletonRows={first} getDeviceKey={getDeviceKey} />
+  );
 }
 
 /**

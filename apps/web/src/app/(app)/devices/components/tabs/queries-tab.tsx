@@ -105,7 +105,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
       <QueriesTable
         rows={rows}
         isLoading={loading}
-        pageSize={QUERIES_TAB_SKELETON_ROWS}
+        skeletonRows={QUERIES_TAB_SKELETON_ROWS}
         rowAsLink
         stickyHeaderOffset={stickyHeaderOffset}
         emptyState={{

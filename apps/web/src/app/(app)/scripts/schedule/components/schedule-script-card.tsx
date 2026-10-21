@@ -6,6 +6,7 @@ import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { routes } from '@/lib/routes';
 import { prewarmScriptEditor, ScriptEditor } from '../../shared/components/script-editor';
@@ -31,9 +32,6 @@ interface ScheduleScriptCardProps {
 
 /** Design default when a script carries no timeout of its own. */
 const DEFAULT_TIMEOUT_SECONDS = 90;
-
-/** No parameters to list (the schedule is not read yet). */
-const NO_ROWS: ScriptParamRow[] = [];
 
 /** The source editor's height. */
 const SOURCE_HEIGHT = '400px';
@@ -129,8 +127,8 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
   // The card is the page that has to show the difference — it is where a user
   // checks what a scheduled run will actually pass.
   const effective = script ? effectiveScriptParams(script, customParams) : null;
-  const argRows = effective ? argsToParamRows(effective.args) : NO_ROWS;
-  const envRows = effective ? envPairsToParamRows(envVarsToPairs(effective.envVars)) : NO_ROWS;
+  const argRows = effective ? argsToParamRows(effective.args) : NO_ITEMS;
+  const envRows = effective ? envPairsToParamRows(envVarsToPairs(effective.envVars)) : NO_ITEMS;
 
   return (
     <div data-loading-item className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">

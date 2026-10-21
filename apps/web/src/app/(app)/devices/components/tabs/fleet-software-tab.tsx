@@ -23,6 +23,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -265,7 +266,7 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
       <DataTable table={table}>
         {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <WebDesignIcon />,
             title: 'No software found',

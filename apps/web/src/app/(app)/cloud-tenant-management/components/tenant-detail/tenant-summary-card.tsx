@@ -152,8 +152,8 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
           <InfoCell label={LABELS.users} value={data?.userCount?.toString()} skeletonWidth="w-16" />
           <InfoCell
             label={LABELS.status}
-            value={data ? <Tag {...accessStateTag(data.access.state)} /> : null}
-            valueSkeleton={<Tag label="" />}
+            // No label while the tenant loads: the tag draws its own skeleton in the cell's scope.
+            value={<Tag {...(data ? accessStateTag(data.access.state) : { label: null })} />}
           />
           <ConnectedCell connectedAt={connectedAt} />
           <InfoCell

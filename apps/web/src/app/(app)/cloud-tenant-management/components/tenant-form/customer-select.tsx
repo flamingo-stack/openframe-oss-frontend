@@ -16,7 +16,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { customerSelect_query$key } from '@/__generated__/customerSelect_query.graphql';
 import type { customerSelectPaginationQuery } from '@/__generated__/customerSelectPaginationQuery.graphql';
 import type { customerSelectQuery as CustomerSelectQueryType } from '@/__generated__/customerSelectQuery.graphql';
-import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerOption, toCustomerOption } from './customer-option';
 import { withBoundOrganization } from './tenant-form-helpers';
@@ -50,8 +50,6 @@ const customerSelectFragment = graphql`
     }
   }
 `;
-
-const NO_OPTIONS: readonly CustomerOption[] = [];
 
 interface CustomerSelectProps {
   value: string;
@@ -183,7 +181,7 @@ export function CustomerSelect(props: CustomerSelectProps) {
       fallback={() => (
         <CustomerSelectShell
           {...shellProps}
-          options={NO_OPTIONS}
+          options={NO_ITEMS}
           placeholder="Couldn't load customers"
           error={shellProps.error ?? 'Reload the page to try again.'}
           disabled
@@ -206,5 +204,5 @@ function CustomerSelectBody({ includeOrganization, ...shellProps }: Omit<Custome
 
 /** The real field, locked, with no options: what it is before its list is read. */
 function CustomerSelectLocked(shellProps: Omit<CustomerSelectProps, 'enabled' | 'includeOrganization'>) {
-  return <CustomerSelectShell {...shellProps} options={NO_OPTIONS} placeholder="Select Customer" disabled />;
+  return <CustomerSelectShell {...shellProps} options={NO_ITEMS} placeholder="Select Customer" disabled />;
 }

@@ -92,9 +92,6 @@ export function onboardingProgress<T extends string>(
   };
 }
 
-/** No step completed: what a surface's view reads while progress is read. */
-export const NO_COMPLETED_STEPS: readonly string[] = [];
-
 /** How a loaded row is wired: its anchor, its expansion and its body. Absent while progress is read. */
 export interface OnboardingStepWiring {
   ref: Ref<HTMLDivElement>;

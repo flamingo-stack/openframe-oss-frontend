@@ -1,24 +1,26 @@
 'use client';
 
-import { ArrowRightUpIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Button,
   type ColumnDef,
-  DataTable,
+  LoadingWhen,
   PageError,
-  type Row,
   SearchInput,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { getTicketTableColumns } from '../../../tickets/components/ticket-table-columns';
+import {
+  getTicketOpenColumn,
+  getTicketTableColumns,
+  ticketRowHref,
+} from '../../../tickets/components/ticket-table-columns';
 import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
@@ -39,6 +41,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     dialogs: tickets,
     filteredCount,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -52,30 +55,10 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
   });
 
   const { isUserDeleted } = useUserStatusMap();
-  const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false, isUserDeleted }), [isUserDeleted]);
-
+  // The shared ticket columns and the trailing open-in-new-tab action.
   const columns = useMemo<ColumnDef<Dialog>[]>(
-    () => [
-      ...baseColumns,
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<Dialog> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(routes.tickets.dialog(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-      },
-    ],
-    [baseColumns],
+    () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],
+    [isUserDeleted],
   );
 
   const table = useDataTable<Dialog>({
@@ -83,11 +66,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
-    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
-    initialState: { pagination: { pageIndex: 0, pageSize: TICKETS_PAGE_SIZE } },
   });
 
-  const ticketRowHref = useCallback((t: Dialog) => routes.tickets.dialog(t.id), []);
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
   if (error) {
@@ -118,24 +98,20 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
       </div>
 
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
+      {/* The first page is a client read: the table draws its own loading state in this scope. */}
+      <LoadingWhen loading={isLoading}>
+        <LiveTable
+          table={table}
+          pageSize={TICKETS_PAGE_SIZE}
+          isPending={isPending}
           stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
-        />
-        <DataTable.Body
-          loading={isLoading}
+          itemName="ticket"
+          totalCount={filteredCount}
           emptyState={{ title: 'No tickets found for this customer.' }}
           rowHref={ticketRowHref}
-          rowClassName="mb-1"
+          footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
         />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={handleLoadMore}
-        />
-      </DataTable>
+      </LoadingWhen>
     </div>
   );
 }

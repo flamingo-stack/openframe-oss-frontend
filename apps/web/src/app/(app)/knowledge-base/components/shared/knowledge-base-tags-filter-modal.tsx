@@ -1,7 +1,7 @@
 'use client';
 
 import { FilterModal, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { SelectableTag } from '@/app/components/shared';
+import { NO_ITEMS, type SelectableTag } from '@/app/components/shared';
 import type { AssignedArticlesTarget } from '../assigned-articles/assigned-articles-target';
 import { useKnowledgeBaseTags } from './use-knowledge-base-tags';
 
@@ -23,8 +23,6 @@ interface KnowledgeBaseTagsFilterModalProps {
   onApply: (tags: SelectableTag[]) => void;
 }
 
-const NO_TAGS: SelectableTag[] = [];
-
 /**
  * The tag filter as a modal — a phone's, where the tag row has no room, and the
  * Assigned Articles tab's at every width: every tag as a checkbox. Suspends on the tags; in a loading scope (its
@@ -32,7 +30,7 @@ const NO_TAGS: SelectableTag[] = [];
  */
 export function KnowledgeBaseTagsFilterModal(props: KnowledgeBaseTagsFilterModalProps) {
   if (useLoadingScope()) {
-    return <TagsFilterModalView {...props} tags={NO_TAGS} loading />;
+    return <TagsFilterModalView {...props} tags={NO_ITEMS} loading />;
   }
   return <KnowledgeBaseTagsFilterModalQuery {...props} />;
 }

@@ -90,6 +90,7 @@ export function TicketsTable({
   const {
     dialogs: tickets,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -283,6 +284,7 @@ export function TicketsTable({
             <TicketTableBody
               tickets={tickets}
               isLoading={isLoading}
+              isPending={isPending}
               emptyState={emptyTableState}
               pageSize={TICKETS_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}

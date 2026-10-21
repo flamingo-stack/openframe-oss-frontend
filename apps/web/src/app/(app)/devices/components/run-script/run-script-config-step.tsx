@@ -30,6 +30,7 @@ import {
   platformsToIds,
   shellToId,
 } from '@/app/(app)/scripts/shared/utils/script-mappers';
+import { NO_ITEMS } from '@/app/components/shared';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 
@@ -147,7 +148,7 @@ export function RunScriptConfigStepView({
           name={script?.name ?? ''}
           description={script?.description}
           shellId={script ? shellToId(script.shell) : ''}
-          platforms={script ? platformsToIds(script.supportedPlatforms) : []}
+          platforms={script ? platformsToIds(script.supportedPlatforms) : NO_ITEMS}
           author={script?.author ? initiatorName(script.author) : null}
           showTimeout={false}
         />

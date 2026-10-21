@@ -19,6 +19,7 @@ import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-co
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { routes } from '@/lib/routes';
@@ -206,7 +207,7 @@ export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicket
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={(ticket: RecordingTicket) => routes.tickets.dialog(ticket.id)}
           emptyState={{
             icon: <TicketIcon />,

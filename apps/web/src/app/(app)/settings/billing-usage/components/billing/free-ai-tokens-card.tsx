@@ -16,20 +16,23 @@ const freeAiTokensCardFragment = graphql`
 /** The period's free grant, and how much of it is gone. */
 export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key | null }) {
   const data = useFragment(freeAiTokensCardFragment, subscription);
-  if (useLoadingScope() || data == null) return <UsageStatCard title="Free AI Tokens" loading />;
-  const ai = aiBalanceState(data);
+  // One card, both forms: while the subscription is on its way the card draws its figure and caption as bars.
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
 
   return (
     <UsageStatCard
       title="Free AI Tokens"
-      tone={ai.freeTone}
+      loading={ai == null}
+      tone={ai?.freeTone}
       value={
-        <>
-          {formatCompactCount(ai.freeUsed)}
-          <StatSuffix>/{formatCompactCount(ai.free)}</StatSuffix>
-        </>
+        ai && (
+          <>
+            {formatCompactCount(ai.freeUsed)}
+            <StatSuffix>/{formatCompactCount(ai.free)}</StatSuffix>
+          </>
+        )
       }
-      caption={ai.isTrial ? 'Included with trial' : 'Updated monthly'}
+      caption={ai && (ai.isTrial ? 'Included with trial' : 'Updated monthly')}
     />
   );
 }

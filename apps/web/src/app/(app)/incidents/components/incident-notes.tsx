@@ -10,7 +10,14 @@ import type { incidentNotesRelay_query$key as NotesFragmentKey } from '@/__gener
 import type { incidentNotesRelayPaginationQuery as NotesPaginationQueryType } from '@/__generated__/incidentNotesRelayPaginationQuery.graphql';
 import type { incidentNotesRelayQuery as NotesQueryType } from '@/__generated__/incidentNotesRelayQuery.graphql';
 import type { updateInsightNoteMutation as UpdateInsightNoteMutationType } from '@/__generated__/updateInsightNoteMutation.graphql';
-import { ContentErrorBoundary, type NoteItem, NotesSection, noop, useRetryKey } from '@/app/components/shared';
+import {
+  ContentErrorBoundary,
+  NO_ITEMS,
+  noop,
+  type NoteItem,
+  NotesSection,
+  useRetryKey,
+} from '@/app/components/shared';
 import { addInsightNoteMutation } from '@/graphql/insights/add-insight-note-mutation';
 import { deleteInsightNoteMutation } from '@/graphql/insights/delete-insight-note-mutation';
 import { incidentNotesRelayFragment, incidentNotesRelayQuery } from '@/graphql/insights/incident-notes-relay';
@@ -21,7 +28,6 @@ import { toIncidentUser } from '../utils/incident-transform';
 
 const NOTES_PAGE_SIZE = 50;
 
-const NO_NOTES: NoteItem[] = [];
 interface IncidentNotesProps {
   incidentId: string;
 }
@@ -130,7 +136,7 @@ function IncidentNotesContent({ incidentId }: IncidentNotesProps) {
  */
 export function IncidentNotes({ incidentId }: IncidentNotesProps) {
   // The section without its notes: in a loading scope (and as the fallback) it draws its own skeleton.
-  const emptySection = <NotesSection notes={NO_NOTES} onAddNote={noop} onEditNote={noop} onDeleteNote={noop} />;
+  const emptySection = <NotesSection notes={NO_ITEMS} onAddNote={noop} onEditNote={noop} onDeleteNote={noop} />;
   if (useLoadingScope()) return emptySection;
   return (
     <ContentErrorBoundary title="Notes" message="Couldn't load notes.">

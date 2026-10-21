@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
-import { noop } from '@/app/components/shared';
+import { NO_ITEMS, noop } from '@/app/components/shared';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
@@ -84,8 +84,6 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   );
 }
 
-const NO_DEVICES: never[] = [];
-
 /**
  * The finish button's slot, not the button: `loadingActions` turns this into a
  * neutral bar. Which button it becomes is the schedule's own answer (a specific
@@ -94,9 +92,6 @@ const NO_DEVICES: never[] = [];
 const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Finish', variant: 'accent' }];
 
 type ScheduleSettings = NonNullable<ScheduleDevicesSettingsQueryType['response']['scriptSchedule']>;
-
-/** The platforms of a schedule not read yet: none. */
-const NO_PLATFORMS: string[] = [];
 
 interface ScheduleDevicesFrameProps extends ScheduleDevicesViewProps {
   /** The schedule's settings; null before they land, when every part draws its own loading state in the scope. */
@@ -146,7 +141,7 @@ function ScheduleDevicesFrame({
           date={start?.date ?? ''}
           time={start?.time ?? ''}
           repeat={schedule ? repeatToLabel(schedule.repeat) : ''}
-          platforms={schedule ? platformsToIds(schedule.supportedPlatforms) : NO_PLATFORMS}
+          platforms={schedule ? platformsToIds(schedule.supportedPlatforms) : NO_ITEMS}
           trigger={schedule?.trigger}
           timeReference={schedule?.timeReference}
         />
@@ -177,7 +172,7 @@ function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
 function SchedulePickerLoading({ mode }: { mode: DeviceSelectionMode }) {
   return (
     <DeviceSelector
-      devices={NO_DEVICES}
+      devices={NO_ITEMS}
       loading
       // One picker page of rows, the page the halves read first; the fallback around it already announces itself.
       skeletonRows={DEVICE_PICKER_PAGE_SIZE}

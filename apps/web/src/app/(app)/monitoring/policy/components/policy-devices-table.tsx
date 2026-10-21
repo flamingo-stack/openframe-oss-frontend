@@ -19,11 +19,12 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { POLICY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
+import { MONITORING_DEVICES_SKELETON_ROWS, POLICY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
 import { usePolicyDevicesTable } from '../hooks/use-policy-devices-table';
 import type { PolicyDeviceRow } from '../types/policy-device-row';
 import { QuickQueryPanel } from './quick-query-panel';
@@ -35,17 +36,12 @@ interface PolicyDevicesTableProps {
   policyQuery?: string;
 }
 
-/** The policy's devices are every assigned host, unpaged: the loading body draws this typical count. */
-const POLICY_DEVICES_SKELETON_ROWS = 5;
-
-const NO_ROWS: PolicyDeviceRow[] = [];
-
 /**
  * The policy's devices. In a loading scope (the policy itself still loading) it reads nothing and draws the table's
  * own loading rows; otherwise it reads the devices and draws them.
  */
 export function PolicyDevicesTable(props: PolicyDevicesTableProps) {
-  if (useLoadingScope()) return <PolicyDevicesTableView rows={NO_ROWS} isLoading policyQuery={props.policyQuery} />;
+  if (useLoadingScope()) return <PolicyDevicesTableView rows={NO_ITEMS} isLoading policyQuery={props.policyQuery} />;
   return <PolicyDevicesTableContent {...props} />;
 }
 
@@ -226,7 +222,7 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
       {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
       <DataTable.Body
         loading={isLoading}
-        skeletonRows={POLICY_DEVICES_SKELETON_ROWS}
+        skeletonRows={MONITORING_DEVICES_SKELETON_ROWS}
         emptyState={{
           icon: <MonitorIcon />,
           title: 'No devices assigned',

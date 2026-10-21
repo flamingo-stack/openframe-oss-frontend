@@ -21,6 +21,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
 import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
 import { DateWithAge } from '@/app/components/shared/date-with-age';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
@@ -325,7 +326,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
           />
         )}
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <BracketSquareCheckIcon />,
             title: 'No vulnerabilities found',

@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -38,7 +38,7 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { EmptyState, GatedSuspense, liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -730,28 +730,24 @@ function IncidentsList({
         </div>
       )}
 
-      {scoped ? (
-        loadingTable
-      ) : (
-        <LoadingSuspense label="Loading incidents" fallback={loadingTable}>
-          <IncidentsTableContent
-            backendFilters={deferredFilters}
-            debouncedSearch={deferredSearch}
-            tableFilters={tableFilters}
-            isPending={isPending}
-            onFilterChange={handleFilterChange}
-            onEmptyChange={setIsEmpty}
-            toolbarHidden={isEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-            stickyHeaderOffset={stickyHeaderOffset}
-            deviceScoped={deviceScoped}
-            statuses={statuses}
-            refreshKey={refreshKey}
-            emptyState={emptyState}
-          />
-        </LoadingSuspense>
-      )}
+      <GatedSuspense bare gated={scoped} label="Loading incidents" view={loadingTable}>
+        <IncidentsTableContent
+          backendFilters={deferredFilters}
+          debouncedSearch={deferredSearch}
+          tableFilters={tableFilters}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          onEmptyChange={setIsEmpty}
+          toolbarHidden={isEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          deviceScoped={deviceScoped}
+          statuses={statuses}
+          refreshKey={refreshKey}
+          emptyState={emptyState}
+        />
+      </GatedSuspense>
     </div>
   );
 }
@@ -845,9 +841,6 @@ export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
   );
 }
 
-// The device tab has no Customer filter; a stable empty list keeps the filter memo quiet.
-const NO_ORGANIZATIONS: string[] = [];
-
 interface DeviceIncidentsTableProps {
   /** Raw `Machine.machineId` — what `InsightFilter.machineIds` takes. */
   machineId: string;
@@ -872,7 +865,8 @@ export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsT
     <IncidentsList
       selections={{
         type: params.incidentsType,
-        organizationId: NO_ORGANIZATIONS,
+        // The device tab has no Customer filter; the stable empty list keeps the filter memo quiet.
+        organizationId: NO_ITEMS,
         severity: params.incidentsSeverity,
         status: params.incidentsStatus,
         assigneeId: params.incidentsAssignee,

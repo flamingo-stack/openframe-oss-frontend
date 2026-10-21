@@ -11,8 +11,8 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { routes } from '@/lib/routes';
+import { NO_ITEMS } from '../no-next-page';
 
-const NO_DEVICES: Device[] = [];
 /** The loaded table's actions column, minus the actions: see `getDeviceActionsColumn`. */
 const SKELETON_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
 /**
@@ -79,7 +79,7 @@ export function DevicesPanelSkeleton({
         addCustomerHref: routes.customers.new,
         disabled: true,
       })}
-      devices={NO_DEVICES}
+      devices={NO_ITEMS}
       filterColumns={SKELETON_FILTER_COLUMNS}
       // The loaded table always carries a row-actions column, and it takes real
       // width from the others. Rendering the header without it put every column

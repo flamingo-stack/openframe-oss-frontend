@@ -18,7 +18,7 @@ import {
 import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, type LiveTableRows } from '@/app/components/shared/live-table';
 import type { InfiniteScroll } from '@/app/components/shared/no-next-page';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
@@ -222,14 +222,16 @@ export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number 
 
 const DEFAULT_EMPTY_STATE: NoDataProps = { title: 'No tickets found.' };
 
-interface TicketTableBodyProps {
+type TicketTableBodyProps = TicketTableBodyOptions & LiveTableRows;
+
+interface TicketTableBodyOptions {
   tickets: Dialog[];
   /** The first page is a client read that has not answered: the table draws its own loading state. */
   isLoading?: boolean;
+  /** A new key is being read and the rows on screen are the previous key's: the table dims them. */
+  isPending?: boolean;
   /** The empty state's copy (`NoData`): a title, and a description when the table has one. */
   emptyState?: NoDataProps;
-  /** The list's page size (an unpaged list: its declared typical count): its loading state draws that many rows. */
-  pageSize: number;
   /** Pins the column header below the page's sticky toolbar; without it the header scrolls with the rows. */
   stickyHeaderOffset?: string;
   /** The next page's infinite scroll. */
@@ -250,23 +252,26 @@ interface TicketTableBodyProps {
   onSortChange?: (columnId: string) => void;
 }
 
-export function TicketTableBody({
-  tickets,
-  isLoading,
-  emptyState = DEFAULT_EMPTY_STATE,
-  pageSize,
-  stickyHeaderOffset,
-  infiniteScroll,
-  isArchived,
-  actionsColumn,
-  columnFilters,
-  onColumnFiltersChange,
-  statusOptions,
-  assigneeOptions,
-  getUnreadCount,
-  sort,
-  onSortChange,
-}: TicketTableBodyProps) {
+export function TicketTableBody(props: TicketTableBodyProps) {
+  const {
+    tickets,
+    isLoading,
+    isPending,
+    emptyState = DEFAULT_EMPTY_STATE,
+    stickyHeaderOffset,
+    infiniteScroll,
+    isArchived,
+    actionsColumn,
+    columnFilters,
+    onColumnFiltersChange,
+    statusOptions,
+    assigneeOptions,
+    getUnreadCount,
+    sort,
+    onSortChange,
+  } = props;
+  // A paged list draws its page size, a list read whole its typical count (`LiveTableRows`).
+  const rows = props.skeletonRows === undefined ? { pageSize: props.pageSize } : { skeletonRows: props.skeletonRows };
   const { isUserDeleted } = useUserStatusMap();
   const sortable = !!onSortChange;
 
@@ -289,7 +294,8 @@ export function TicketTableBody({
     <LoadingWhen loading={!!isLoading}>
       <LiveTable
         table={table}
-        pageSize={pageSize}
+        {...rows}
+        isPending={isPending}
         stickyHeader={!!stickyHeaderOffset}
         stickyHeaderOffset={stickyHeaderOffset}
         sort={sort}

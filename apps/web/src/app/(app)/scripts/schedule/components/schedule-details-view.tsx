@@ -19,7 +19,7 @@ import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -308,7 +308,9 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <LoadingSuspense
           label="Loading schedule details"
-          fallback={<ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} addedBy="" ifDeviceOffline="" />}
+          fallback={
+            <ScheduleInfoBarFromData date="" time="" repeat="" platforms={NO_ITEMS} addedBy="" ifDeviceOffline="" />
+          }
         >
           <ScheduleInfoBar scheduleId={scheduleId} />
         </LoadingSuspense>

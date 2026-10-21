@@ -1,9 +1,9 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DotIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatCount } from '@/lib/format-number';
 
 /** "1,200+": a count rounded down to the hundred once it reaches a thousand — what the user is about to lose, not an audit. */
@@ -21,7 +21,7 @@ export function DataLossItem({ children, skeletonWidth = 'w-2/5' }: { children?:
     <div role="listitem" data-loading-item className="flex items-start text-ods-text-primary text-h3">
       <DotIcon aria-hidden className="size-6 shrink-0 text-ods-warning" />
       <span className="flex-1">
-        {loading ? <TextLineSkeleton as="span" type="h3" className={skeletonWidth} /> : children}
+        {loading ? <LoadingLine as="span" type="h3" className={skeletonWidth} /> : children}
       </span>
     </div>
   );

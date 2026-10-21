@@ -10,11 +10,8 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { pluralize } from '@/lib/pluralize';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
-import { useCustomersOverview } from '../hooks/use-customers-overview';
+import { CUSTOMERS_OVERVIEW_LIMIT, useCustomersOverview } from '../hooks/use-customers-overview';
 import { DeviceStatusInfoCard } from './devices-overview';
-
-/** How many customers the section lists: the hook's limit, so the skeleton draws the same count. */
-const CUSTOMERS_OVERVIEW_LIMIT = 10;
 
 /** One row's grid: the customer card (full row on mobile/tablet, half from `lg`) then its two device cards. */
 const CUSTOMER_ROW_CLASS = 'grid grid-cols-2 items-stretch gap-[var(--spacing-system-mf)] content-lg:grid-cols-4';

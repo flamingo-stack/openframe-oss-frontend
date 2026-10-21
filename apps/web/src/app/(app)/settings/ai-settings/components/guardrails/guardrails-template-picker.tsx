@@ -24,9 +24,28 @@ interface GuardrailsTemplatePickerProps {
   onCreateCustomPolicyFrom: (baseTemplateId: string) => void;
 }
 
-/** The "Use for Custom Policy" button's classes: one box, drawn by a stock row and by a loading row. */
-const CUSTOM_POLICY_BUTTON_CLASS =
-  'hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover content-md:inline-flex [&_svg]:!size-6';
+/** The "Use for Custom Policy" button: one box, drawn by a stock row and (inert) by a loading row. */
+function CustomPolicyButton({ onClick, disabled }: { onClick?: () => void; disabled?: boolean }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={
+        onClick &&
+        (e => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        })
+      }
+      className="hidden h-auto gap-[var(--spacing-system-xsf)] border-ods-border bg-ods-card !px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)] text-ods-text-primary !text-h3 hover:bg-ods-bg-hover content-md:inline-flex [&_svg]:!size-6"
+      leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
+      disabled={disabled}
+    >
+      Use for Custom Policy
+    </Button>
+  );
+}
 
 /**
  * A row while the templates are read (the lib's typical option count; the templates are not paged): a null label and
@@ -36,17 +55,7 @@ const LOADING_OPTIONS = Array.from({ length: RADIO_GROUP_BLOCK_SKELETON_OPTIONS 
   value: `loading-${index}`,
   label: null,
   description: null,
-  trailing: (
-    <Button
-      type="button"
-      variant="outline"
-      className={CUSTOM_POLICY_BUTTON_CLASS}
-      leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
-      disabled
-    >
-      Use for Custom Policy
-    </Button>
-  ),
+  trailing: <CustomPolicyButton disabled />,
 }));
 
 /**
@@ -78,20 +87,7 @@ export function GuardrailsTemplatePicker({
               description: option.description,
               trailing: !option.isCustom ? (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={e => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onCreateCustomPolicyFrom(option.id);
-                    }}
-                    className={CUSTOM_POLICY_BUTTON_CLASS}
-                    leftIcon={<Filter03HrIcon className="text-ods-text-secondary" />}
-                    disabled={disabled}
-                  >
-                    Use for Custom Policy
-                  </Button>
+                  <CustomPolicyButton onClick={() => onCreateCustomPolicyFrom(option.id)} disabled={disabled} />
                   {/* Mobile: collapsed into an ellipsis actions menu. preventDefault
                 stops the wrapping radio label from selecting the option. */}
                   <div

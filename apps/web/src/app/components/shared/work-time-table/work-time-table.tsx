@@ -490,13 +490,16 @@ export interface WorkTimeTableProps {
   addDefaultCustomer?: { id: string; label: string; imageUrl?: string };
 }
 
+/** The filters above the table: one frame, drawn by the loading form and the loaded one. */
+const WORK_TIME_FRAME_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
+
 /**
  * The filters with nothing typed and the table in its loading state: what the component is in a loading scope,
  * where it reads nothing (no option lists, no entries).
  */
 function WorkTimeTablePending({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+    <div className={WORK_TIME_FRAME_CLASS}>
       <WorkTimeFilters search="" onSearchChange={noop} range={undefined} onRangeChange={noop} />
       <WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />
     </div>
@@ -696,7 +699,7 @@ function LiveWorkTimeTable({
   }, [deleteTarget, deleteEntry, refresh, toast]);
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+    <div className={WORK_TIME_FRAME_CLASS}>
       <WorkTimeFilters search={search} onSearchChange={setSearch} range={range} onRangeChange={setRange} />
 
       <ErrorBoundary

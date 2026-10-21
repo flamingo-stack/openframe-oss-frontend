@@ -4,7 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import { noop, TagFilterBar, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, noop, TagFilterBar, useRetryKey } from '@/app/components/shared';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 
 const SEARCH_PLACEHOLDER = 'Search for Scripts';
@@ -22,8 +22,6 @@ interface ScriptsTagFilterProps {
   archived?: boolean;
 }
 
-const NO_TAGS: { id: string; key: string }[] = [];
-const NO_IDS: string[] = [];
 /**
  * Scripts list tag filter — the shared `TagFilterBar` fed by `scriptsTags` (tags
  * actually assigned to scripts). `archived` scopes the set: `true` → tags on
@@ -39,10 +37,10 @@ export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
       label="Loading script tags"
       fallback={
         <TagFilterBar
-          tags={NO_TAGS}
+          tags={NO_ITEMS}
           search={search}
           onSearchChange={onSearchChange}
-          selectedIds={NO_IDS}
+          selectedIds={NO_ITEMS}
           onSelectedIdsChange={noop}
           placeholder={SEARCH_PLACEHOLDER}
           filterButton={filterButton}

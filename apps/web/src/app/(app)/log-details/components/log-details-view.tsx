@@ -156,8 +156,8 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
             </div>
           </div>
 
-          {/* Device Info Section */}
-          {(!log || log.deviceId) && <DeviceInfoSection deviceId={log?.deviceId} device={log?.device} />}
+          {/* Device Info Section: always drawn (a log with no device shows the empty mark). */}
+          <DeviceInfoSection deviceId={log?.deviceId} device={log?.device} />
 
           {/* Full Information Section */}
           <FullInformationSection logDetails={log} />

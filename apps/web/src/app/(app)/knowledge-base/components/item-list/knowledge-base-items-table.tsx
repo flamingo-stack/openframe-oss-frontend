@@ -41,7 +41,7 @@ import {
   type KnowledgeBaseListing,
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
-import { NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
@@ -167,7 +167,7 @@ export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
         {...props}
         rows={NO_ITEMS}
         totalCount={0}
-        listingIds={NO_LISTING_IDS}
+        listingIds={NO_ITEMS}
         infiniteScroll={NO_NEXT_PAGE}
       />
     );

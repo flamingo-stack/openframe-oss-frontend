@@ -10,6 +10,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { type IntegratedTool, useIntegratedTools } from '../../hooks/use-integrated-tools';
@@ -23,8 +24,6 @@ interface ArchitectureTabProps {
  * a typical count (a deployment's catalog groups its tools into a few layers), not a claim about how many exist.
  */
 const ARCHITECTURE_SKELETON_LAYERS = 3;
-
-const NO_TOOLS: IntegratedTool[] = [];
 
 export function ArchitectureTab({ title = 'Architecture Overview' }: ArchitectureTabProps) {
   const handleBack = useSafeBack(routes.settings.root());
@@ -82,7 +81,7 @@ export function ArchitectureTab({ title = 'Architecture Overview' }: Architectur
       <LoadingWhen loading={isLoading}>
         {isLoading ? (
           <LoadingItems count={ARCHITECTURE_SKELETON_LAYERS}>
-            {() => <ArchitectureLayer layer={null} tools={NO_TOOLS} />}
+            {() => <ArchitectureLayer layer={null} tools={NO_ITEMS} />}
           </LoadingItems>
         ) : (
           layerOrder.map(layer => <ArchitectureLayer key={layer} layer={layer} tools={grouped[layer]} />)

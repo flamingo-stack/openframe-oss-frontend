@@ -19,7 +19,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
@@ -34,6 +34,7 @@ import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
+import { GatedSuspense } from '../gated-suspense';
 import { DevicesPanelSkeleton } from './devices-panel-boundaries';
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
@@ -345,8 +346,8 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // the params hook applies.
   const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
 
-  // The panel's loading state, drawn by the panel: in a loading scope (or behind
-  // the boundary below) it is its own view in `loading`, with no query mounted.
+  // The panel's loading state, drawn by the panel: in a loading scope (the gate below) or behind the boundary it is
+  // its own view in `loading`, with no query mounted.
   const pending = (
     <DevicesPanelSkeleton
       {...chrome}
@@ -359,8 +360,6 @@ export function DevicesPanel(props: DevicesPanelProps) {
       isCheckingOrganizations={props.isCheckingOrganizations}
     />
   );
-  if (inScope) return pending;
-
   return (
     <ContentErrorBoundary
       resetKey={resetKey}
@@ -386,9 +385,9 @@ export function DevicesPanel(props: DevicesPanelProps) {
         </PageLayout>
       )}
     >
-      <Suspense fallback={pending}>
+      <GatedSuspense bare gated={inScope} label="Loading devices" view={pending}>
         <DevicesPanelContent {...props} />
-      </Suspense>
+      </GatedSuspense>
     </ContentErrorBoundary>
   );
 }

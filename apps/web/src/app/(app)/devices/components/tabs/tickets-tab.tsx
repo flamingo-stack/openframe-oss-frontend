@@ -44,6 +44,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
     dialogs: tickets,
     filteredCount,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -138,6 +139,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
         <LiveTable
           table={table}
           pageSize={TICKETS_PAGE_SIZE}
+          isPending={isPending}
           stickyHeaderOffset={stickyHeaderOffset}
           showHeader={loading || !isEmpty}
           itemName="ticket"

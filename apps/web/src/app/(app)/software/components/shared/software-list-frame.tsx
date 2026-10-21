@@ -5,6 +5,7 @@ import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -61,8 +62,6 @@ interface SoftwareListFrameProps {
   children: (list: SoftwareListFrameRenderProps) => ReactNode;
 }
 
-const NO_IDS: readonly string[] = [];
-
 function paramName(prefix: string, name: string): string {
   return prefix ? `${prefix}${name[0].toUpperCase()}${name.slice(1)}` : name;
 }
@@ -97,8 +96,8 @@ function readArray(params: Readonly<Record<string, unknown>>, key: string): stri
 export function SoftwareListFrame({
   paramPrefix = '',
   placeholder,
-  sortableIds = NO_IDS,
-  filterKeys = NO_IDS,
+  sortableIds = NO_ITEMS,
+  filterKeys = NO_ITEMS,
   loadingLabel,
   loading = false,
   className,

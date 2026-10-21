@@ -3,13 +3,14 @@
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
@@ -39,8 +40,6 @@ interface ScheduleRunDetailsViewProps {
 }
 
 const PAGE_TITLE = 'Script Schedule Execution Details';
-
-const NO_ACTIONS: PageActionButton[] = [];
 
 /** The schedule tab's placeholder (design 1:48878), named for one fire. */
 const EXECUTIONS_EMPTY_STATE = {
@@ -167,7 +166,7 @@ function RunHeaderView({ executionId, scheduleId = '' }: { executionId?: string 
       // and the fallback below holds the same line with a bar in it.
       subtitleRow="always"
       backButton={{ label: 'Back', onClick: handleBack }}
-      actions={NO_ACTIONS}
+      actions={NO_ITEMS}
     />
   );
 }

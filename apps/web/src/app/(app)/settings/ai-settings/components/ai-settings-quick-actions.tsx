@@ -19,6 +19,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import type { AiQuickAction } from '../types/ai-settings';
 
 /** Per-tab wording for the quick-actions blocks (Mingo vs the customer assistant). */
@@ -43,8 +44,6 @@ export function resolveQuickActionAccent(
 
 export const MINGO_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'Mingo', agentSlug: 'mingo' };
 export const ASSISTANT_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'AI Assistant', agentSlug: 'fae' };
-
-const NO_ACTIONS: AiQuickAction[] = [];
 
 /** Overrides the source banner's two text lines (title + caption). */
 export interface QuickActionsBannerCopy {
@@ -120,7 +119,7 @@ export function AiSettingsQuickActionsSection({
         <span className="text-ods-text-primary text-h2">{title}</span>
         <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
         <AiSettingsQuickActions
-          actions={actions ?? NO_ACTIONS}
+          actions={actions ?? NO_ITEMS}
           isDefault={isDefault}
           agentConfig={agentConfig}
           accent={accent}

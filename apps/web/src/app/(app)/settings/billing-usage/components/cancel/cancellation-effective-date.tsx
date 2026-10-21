@@ -1,9 +1,9 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { cancellationEffectiveDate_query$key } from '@/__generated__/cancellationEffectiveDate_query.graphql';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatDate } from '@/lib/format-date';
 
 /**
@@ -32,7 +32,7 @@ export function CancellationEffectiveDate({ query }: { query: cancellationEffect
     <div className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4">
       <span>Your subscription will remain active until:</span>
       {loading ? (
-        <TextLineSkeleton as="span" type="h4" className="w-20" />
+        <LoadingLine as="span" type="h4" className="w-20" />
       ) : (
         <span className="text-ods-warning">
           {formatDate(data.subscriptionCancellationPreview ?? data.subscription?.currentPeriodEnd ?? null)}

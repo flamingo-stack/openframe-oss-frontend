@@ -4,17 +4,19 @@ import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend
 import {
   Button,
   type ColumnDef,
-  DataTable,
   EntityImage,
   Input,
+  LoadingWhen,
   type Row,
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ComponentProps, type ReactNode, useMemo } from 'react';
+import { type ComponentProps, useMemo } from 'react';
+import type { InfiniteScroll } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { EmptyValue } from '@/app/components/shared/empty-value';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -151,30 +153,37 @@ export function CustomersSearchInput({ value, onChange }: CustomersSearchInputPr
 
 const NO_CUSTOMERS = { title: 'No customers found.' };
 
-interface CustomersTableBodyProps {
+type CustomersTableBodyProps = {
   customers: Customer[];
   isLoading?: boolean;
   /** The row the body draws when there is no customer to list. */
-  emptyState?: ComponentProps<typeof DataTable.Body>['emptyState'];
-  /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
-  skeletonRows?: number;
-  /** The list's page size: its loading state (body and infinite footer) draws one full page. */
-  pageSize?: number;
+  emptyState?: ComponentProps<typeof LiveTable<UiCustomerEntry>>['emptyState'];
   stickyHeaderOffset?: string;
-  footerSlot?: ReactNode;
+  /** The next page's infinite scroll (a paged list); `null` or omitted draws none. */
+  footer?: InfiniteScroll | null;
   /** When set, the Last Activity header hosts the date sort + range popover. */
   dateFilter?: CustomersDateFilter;
-}
+} & (
+  | {
+      /** The list's page size: its loading state (body and infinite footer) draws one full page. */
+      pageSize: number;
+      skeletonRows?: never;
+    }
+  | {
+      /** The typical row count of a list read whole (no paging). */
+      skeletonRows: number;
+      pageSize?: never;
+    }
+);
 
 export function CustomersTableBody({
   customers,
-  isLoading,
+  isLoading = false,
   emptyState = NO_CUSTOMERS,
-  skeletonRows,
-  pageSize,
   stickyHeaderOffset,
-  footerSlot,
+  footer,
   dateFilter,
+  ...rowCount
 }: CustomersTableBodyProps) {
   const orgIds = useMemo(() => customers.map(c => c.organizationId), [customers]);
   const { deviceCounts } = useCustomerDeviceCounts(orgIds);
@@ -197,25 +206,20 @@ export function CustomersTableBody({
     columns,
     getRowId: row => row.id,
     enableSorting: false,
-    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
-    initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
   });
 
   return (
-    <DataTable table={table}>
-      <DataTable.Header
+    // The first page is a client read: the table draws its own loading state in this scope.
+    <LoadingWhen loading={isLoading}>
+      <LiveTable
+        table={table}
+        {...rowCount}
         stickyHeader={!!stickyHeaderOffset}
         stickyHeaderOffset={stickyHeaderOffset}
-        rightSlot={<DataTable.RowCount />}
-      />
-      <DataTable.Body
-        loading={isLoading}
-        skeletonRows={skeletonRows}
         emptyState={emptyState}
-        rowClassName="mb-1"
         rowHref={customerRowHref}
+        footer={footer}
       />
-      {footerSlot}
-    </DataTable>
+    </LoadingWhen>
   );
 }

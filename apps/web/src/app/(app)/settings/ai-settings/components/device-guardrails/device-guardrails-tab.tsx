@@ -68,11 +68,12 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
     );
   }
 
-  // Always mounted, so nothing remounts when the read answers: the card draws its own bar while loading.
+  // Always mounted, so nothing remounts when the read answers: the card (or, in edit mode, the form's Select) draws its
+  // own bar while loading.
   return (
     <LoadingWhen loading={loading} label="Loading remote access settings">
-      {isEditMode && !loading && policy ? (
-        <DeviceGuardrailsForm policy={policy} onSaved={onSaved} />
+      {isEditMode ? (
+        <DeviceGuardrailsForm policy={loading ? null : (policy ?? null)} onSaved={onSaved} />
       ) : (
         <DeviceGuardrailsPolicyCard policy={loading ? null : (policy ?? null)} />
       )}
@@ -87,13 +88,15 @@ function DeviceGuardrailsPolicyCard({ policy }: { policy: TenantRemoteAccessPoli
   return <PolicyValueCard label={MODE_LABEL} value={policy ? REMOTE_ACCESS_MODE_META[policy.mode].label : null} />;
 }
 
-function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessPolicy; onSaved: () => void }) {
+/** The mode selector; with no policy yet (in the tab's loading scope) the Select's value is a bar. */
+function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessPolicy | null; onSaved: () => void }) {
   const { toast } = useToast();
   const { mutateAsync: updatePolicy } = useUpdateTenantRemoteAccessPolicy();
 
   const form = useForm<DeviceGuardrailsFormValues>({
     resolver: zodResolver(deviceGuardrailsSchema),
-    defaultValues: { mode: policy.mode },
+    // `values`, not `defaultValues`: the form is mounted before the policy answers and takes it when it does.
+    values: policy ? { mode: policy.mode } : undefined,
   });
 
   const handleSubmit = form.handleSubmit(async values => {
@@ -121,7 +124,9 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
               {/* Children override Radix's default item mirror: the closed
                   trigger shows only the label (per the design), while the open
                   list keeps the two-line label + description items. */}
-              <SelectValue placeholder="Select a permission">{REMOTE_ACCESS_MODE_META[field.value].label}</SelectValue>
+              <SelectValue placeholder="Select a permission">
+                {field.value ? REMOTE_ACCESS_MODE_META[field.value].label : null}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {REMOTE_ACCESS_MODES.map(mode => (

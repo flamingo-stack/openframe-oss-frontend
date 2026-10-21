@@ -12,7 +12,7 @@ import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
 import type { tenantsTablePaginationQuery } from '@/__generated__/tenantsTablePaginationQuery.graphql';
 import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__/tenantsTableQuery.graphql';
-import { EmptyState, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { EmptyState, NO_NEXT_PAGE, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
@@ -85,7 +85,7 @@ export function TenantsTable(props: TenantsTableProps) {
   if (useLoadingScope()) {
     return (
       <TenantsTableView
-        rows={[]}
+        rows={NO_ITEMS}
         getHref={tenantRowHref}
         search={props.search}
         isPending={props.isPending}

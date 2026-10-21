@@ -7,7 +7,8 @@
  * mark their items). The rules, the page code, the allowed forms and the opt-out form are stated once, in the engine's
  * header; nothing here restates them.
  *
- * `check-page-skeletons.mjs` and `check-skeleton-full-page.mjs` are both names of this one run.
+ * `npm run check:loading` runs it once, as `check-page-skeletons.mjs`; `check-skeleton-full-page.mjs` is the same
+ * run under its older name, kept as an alias for callers that still name it (never run beside the first).
  */
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

@@ -23,7 +23,7 @@ import {
   type DeviceOrganizationOption,
   useDeviceOrganizations,
 } from '@/app/(app)/devices/hooks/use-device-organizations';
-import { OrgAvatar } from '@/app/components/shared';
+import { NO_ITEMS, OrgAvatar } from '@/app/components/shared';
 import type { ScheduleCriteria } from '../utils/schedule-criteria';
 
 /**
@@ -56,9 +56,6 @@ interface ScheduleCriteriaFieldsProps {
   disabled?: boolean;
 }
 
-/** No customers yet (the editor is loading). */
-const NO_ORGANIZATIONS: DeviceOrganizationOption[] = [];
-
 /**
  * The rule editor for "Select Devices by Criteria" (design 460:85294) — a
  * customer whitelist and an OS constraint, `AND`ed across dimensions.
@@ -87,7 +84,7 @@ const NO_ORGANIZATIONS: DeviceOrganizationOption[] = [];
 export function ScheduleCriteriaFields(props: ScheduleCriteriaFieldsProps) {
   // In a loading scope the editor reads nothing (the customer list is a request that suspends): the same fields
   // render with no customers, and draw themselves in the scope.
-  if (useLoadingScope()) return <ScheduleCriteriaFieldsView {...props} organizations={NO_ORGANIZATIONS} loading />;
+  if (useLoadingScope()) return <ScheduleCriteriaFieldsView {...props} organizations={NO_ITEMS} loading />;
   return <ScheduleCriteriaFieldsContent {...props} />;
 }
 

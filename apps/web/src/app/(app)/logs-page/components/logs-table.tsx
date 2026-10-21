@@ -1,7 +1,6 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -41,6 +40,8 @@ import {
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   type EmptyStateProps,
+  GatedSuspense,
+  NO_ITEMS,
   onboardingGuideButton,
   type TableDateFilter,
   useRetryKey,
@@ -62,7 +63,6 @@ import { LogDrawerDetails } from './log-drawer-details';
 // GraphQL definitions
 // ----------------------------------------------------------------
 
-const NO_LOGS: LogRow[] = [];
 /** The Log ID header before the rows land: the same header, inert (no calendar to act on yet). */
 const INERT_LOG_ID_HEADER = <DateColumnHeader label="Log ID" />;
 
@@ -535,7 +535,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
   const scoped = useLoadingScope();
   const loadingTable = (
     <LogsTableView<LogRow>
-      logs={NO_LOGS}
+      logs={NO_ITEMS}
       loading
       filters={tableFilters}
       onFilterChange={handleFilterChange}
@@ -560,26 +560,22 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       hideSearch={isEmpty}
       onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      {scoped ? (
-        loadingTable
-      ) : (
-        <LoadingSuspense label="Loading logs" fallback={loadingTable}>
-          <LogsTableContent
-            deviceScoped={deviceScoped}
-            organizationLocked={Boolean(organizationId)}
-            backendFilters={backendFilters}
-            sort={sort}
-            dateFilter={dateFilter}
-            debouncedSearch={debouncedSearch}
-            tableFilters={tableFilters}
-            onFilterChange={handleFilterChange}
-            onRefreshRef={refreshRef}
-            onEmptyChange={setIsEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-          />
-        </LoadingSuspense>
-      )}
+      <GatedSuspense bare gated={scoped} label="Loading logs" view={loadingTable}>
+        <LogsTableContent
+          deviceScoped={deviceScoped}
+          organizationLocked={Boolean(organizationId)}
+          backendFilters={backendFilters}
+          sort={sort}
+          dateFilter={dateFilter}
+          debouncedSearch={debouncedSearch}
+          tableFilters={tableFilters}
+          onFilterChange={handleFilterChange}
+          onRefreshRef={refreshRef}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+        />
+      </GatedSuspense>
     </LogsPageView>
   );
 });

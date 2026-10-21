@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -8,6 +8,7 @@ import { useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { testClockPanelQuery as TestClockPanelQueryType } from '@/__generated__/testClockPanelQuery.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { type BillingMetricType, BillingProvisioningState } from '@/generated/schema-enums';
 import { formatDateTime } from '@/lib/format-date';
@@ -151,7 +152,7 @@ function TestClockPanelView({ frozenTime: queriedFrozenTime, onClockChanged }: T
 
       <p className="text-ods-text-primary text-h4">
         {loading ? (
-          <TextLineSkeleton type="inherit" as="span" className="w-64 max-w-full" />
+          <LoadingLine type="inherit" as="span" className="w-64 max-w-full" />
         ) : frozenTime ? (
           <>
             Virtual time: <span className="text-ods-warning">{formatDateTime(frozenTime)}</span>

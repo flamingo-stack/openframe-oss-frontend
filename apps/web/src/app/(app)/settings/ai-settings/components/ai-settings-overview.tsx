@@ -40,38 +40,28 @@ export function AiSettingsOverview({
   quickActions,
   quickActionsBanner,
 }: AiSettingsOverviewProps) {
-  // In a loading scope every part is drawn (each its own skeleton): which ones the data leaves out is not known yet.
-  if (useLoadingScope()) {
-    return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <AiSettingsCustomerCard />
-        <AiSettingsPreviews />
-        <AiSettingsQuickActionsSection
-          title="Assistant Quick Actions"
-          agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
-          bannerCopy={quickActionsBanner}
-        />
-      </div>
-    );
-  }
+  // One form: in a loading scope every part is drawn with no data (each its own skeleton), because which ones the
+  // data leaves out is not known yet.
+  const loading = useLoadingScope();
+  const showCard = loading || (aiConfig != null && view != null);
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      {aiConfig && view && (
+      {showCard && (
         <>
           <AiSettingsCustomerCard aiConfig={aiConfig} view={view} providerModelLabel={providerModelLabel} />
           <AiSettingsPreviews
-            assistantName={view.assistantName}
-            avatarUrl={getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
-            accentColor={view.accentColor}
+            assistantName={view?.assistantName}
+            avatarUrl={view && getFullImageUrl(view.assistantAvatar?.imageUrl, view.assistantAvatar?.hash)}
+            accentColor={view?.accentColor}
           />
         </>
       )}
       {/* `quickActions` is undefined while the defaults are still read: the section draws its own skeleton. */}
-      {aiConfig && (
+      {(loading || aiConfig) && (
         <AiSettingsQuickActionsSection
           title="Assistant Quick Actions"
           actions={quickActions}
-          isDefault={aiConfig.quickActionsIsDefault}
+          isDefault={aiConfig?.quickActionsIsDefault}
           agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
           // The assistant's glyphs take its configured accent (the chat tints
           // them the same way); pink is only the fallback.

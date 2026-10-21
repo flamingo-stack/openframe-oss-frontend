@@ -9,12 +9,11 @@ import type { scriptsRunPickerRelay_query$key } from '@/__generated__/scriptsRun
 import type { scriptsRunPickerRelayPaginationQuery } from '@/__generated__/scriptsRunPickerRelayPaginationQuery.graphql';
 import type { scriptsRunPickerRelayQuery as ScriptsRunPickerQueryType } from '@/__generated__/scriptsRunPickerRelayQuery.graphql';
 import { platformsToIds } from '@/app/(app)/scripts/shared/utils/script-mappers';
-import { noop, TitleLines } from '@/app/components/shared';
+import { NO_ITEMS, noop, TitleLines } from '@/app/components/shared';
 import { scriptsRunPickerRelayFragment, scriptsRunPickerRelayQuery } from '@/graphql/scripts/scripts-run-picker-relay';
 import { ScriptsTagFilter } from '../../../scripts/script/components/scripts-tag-filter';
 
 const PICKER_PAGE_SIZE = 20;
-const NO_OS_TYPES: string[] = [];
 
 interface PickerListProps {
   search: string;
@@ -56,7 +55,7 @@ function PickerRow({ script, onSelect }: { script: PickerScript | null; onSelect
         className="flex-1 justify-center"
       />
       <OSTypeBadgeGroup
-        osTypes={script ? platformsToIds(script.supportedPlatforms) : NO_OS_TYPES}
+        osTypes={script ? platformsToIds(script.supportedPlatforms) : NO_ITEMS}
         iconSize="w-4 h-4"
         loading={loading}
         className="shrink-0"

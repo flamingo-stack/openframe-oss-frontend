@@ -11,10 +11,10 @@ import {
   type FileAction,
   type FileItem,
   FileManager,
-  type FileManagerProps,
 } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useMeshFileManager } from '../../../hooks/use-mesh-file-manager';
@@ -29,9 +29,6 @@ interface FileManagerContainerProps {
   organizationName?: string;
   className?: string;
 }
-
-const NO_FILES: FileManagerProps['files'] = [];
-const NO_SELECTION: string[] = [];
 
 /**
  * The file manager before the device's file system answers: the real toolbar and table in their `loading` state,
@@ -315,9 +312,9 @@ export function FileManagerContainer({
           <LoadError message="Couldn't connect to the device's file system." onRetry={retryConnection} />
         ) : (
           <FileManager
-            files={held ? NO_FILES : files}
+            files={held ? NO_ITEMS : files}
             currentPath={held ? '' : currentPath}
-            selectedFiles={held ? NO_SELECTION : selectedFiles}
+            selectedFiles={held ? NO_ITEMS : selectedFiles}
             deviceName={deviceName || `Device ${deviceId}`}
             searchQuery={searchQuery}
             loading={

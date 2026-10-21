@@ -19,7 +19,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { useRetryKey, ValueText } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -235,7 +235,7 @@ function ScriptSummaryView({ script }: { script?: ScriptRecord }) {
     return (
       <>
         <ScriptTags tags={null} />
-        <ScriptSummaryCard name="" shellId="" platforms={[]} author={null} />
+        <ScriptSummaryCard name="" shellId="" platforms={NO_ITEMS} author={null} />
       </>
     );
   }

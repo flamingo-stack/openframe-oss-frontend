@@ -5,6 +5,7 @@ import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/com
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
 import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
@@ -124,7 +125,12 @@ export function OsTab({ device }: OsTabProps) {
               data={
                 loading
                   ? EMPTY_CARD
-                  : { title: osTitle || 'Operating System', subtitle: osSubtitle, items: deviceInfoItems(osRows) }
+                  : {
+                      title: osTitle || 'Operating System',
+                      // The subtitle row is in both forms: a device with no code name shows the empty mark.
+                      subtitle: osSubtitle || EMPTY_VALUE,
+                      items: deviceInfoItems(osRows),
+                    }
               }
               skeleton={{ rows: labelsOf(osRows), subtitle: true }}
             />

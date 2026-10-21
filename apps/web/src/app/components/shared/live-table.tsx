@@ -10,14 +10,41 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { NO_ITEMS } from './no-next-page';
 
-/** The gap under every row of a live list, its skeleton rows included. */
-const ROW_GAP_CLASS = 'mb-1';
+/**
+ * The gap under every row of a list table, its skeleton rows included. Every table that gaps its rows uses this one
+ * class (a `DataTable.Body` outside `LiveTable` passes it as its `rowClassName`).
+ */
+export const LIVE_ROW_GAP_CLASS = 'mb-1';
+
+/**
+ * A refetch is in flight and the rows inside are the previous result: they are dimmed, never unmounted (swapping them
+ * for skeletons is the flash the deferred query avoids). The one place a list draws that dim; `LiveTable` wraps its
+ * table in it, and a list table that is not a `LiveTable` wraps itself.
+ */
+export function PendingDim({ isPending, children }: { isPending: boolean; children: ReactNode }) {
+  return <div className={cn('transition-opacity duration-200', isPending && 'opacity-60')}>{children}</div>;
+}
+
+/**
+ * How many skeleton rows the body draws while it loads: a paged list's `pageSize` (one full page; the next page's
+ * footer draws the same), or a list read whole's `skeletonRows` (its typical row count; such a list has no footer).
+ */
+export type LiveTableRows =
+  | {
+      /** The list's own page size: the body (and the next page's footer) draw that many skeleton rows. */
+      pageSize: number;
+      skeletonRows?: never;
+    }
+  | {
+      /** The typical row count of a list read whole (no paging): the body's skeleton rows. */
+      skeletonRows: number;
+      pageSize?: never;
+    };
 
 interface LiveTableShellProps<T> {
-  /** The list's own page size: the body (and the next page's footer) draw that many skeleton rows. */
-  pageSize: number;
   /** `false` lets the column header scroll with the rows (a table embedded in a scrolling section). Default `true`. */
   stickyHeader?: boolean;
   /** Pins the column header below the page's sticky toolbar. */
@@ -34,8 +61,8 @@ interface LiveTableShellProps<T> {
   sort?: DataTableSortState | null;
   onSortChange?: (columnId: string) => void;
   /**
-   * A refetch is in flight and the rows on screen are the previous result: they are dimmed, never unmounted (swapping
-   * them for skeletons is the flash the deferred query avoids). The one place a live list draws that dim.
+   * A refetch is in flight and the rows on screen are the previous result: they are dimmed (`PendingDim`), never
+   * unmounted.
    */
   isPending?: boolean;
   /** What the body says when the answer has no rows. */
@@ -45,8 +72,8 @@ interface LiveTableShellProps<T> {
   /** Click on a row (a list that opens a drawer rather than a page). Wins over `rowHref`. */
   onRowClick?: (row: T) => void;
   /**
-   * A row's own classes beside the row gap (an open row's ground). The gap itself is the table's (`mb-1`, on its
-   * skeleton rows too); the body skips a function on skeleton rows.
+   * A row's own classes beside the row gap (an open row's ground). The gap itself is the table's
+   * (`LIVE_ROW_GAP_CLASS`, on its skeleton rows too); the body skips a function on skeleton rows.
    */
   rowClassName?: (row: T) => string;
   /** Content attached below a row, inside the same card (the body's `renderSubRow`). */
@@ -58,6 +85,7 @@ interface LiveTableShellProps<T> {
 }
 
 export type LiveTableProps<T> = LiveTableShellProps<T> &
+  LiveTableRows &
   (
     | {
         /** The loaded table, built by the list's Relay container. */
@@ -85,7 +113,10 @@ export function LiveTable<T>(props: LiveTableProps<T>) {
   return <EmptyRowsLiveTable {...props} columns={props.columns} />;
 }
 
-function EmptyRowsLiveTable<T>({ columns, ...shell }: LiveTableShellProps<T> & { columns: ColumnDef<T>[] }) {
+function EmptyRowsLiveTable<T>({
+  columns,
+  ...shell
+}: LiveTableShellProps<T> & LiveTableRows & { columns: ColumnDef<T>[] }) {
   const table = useDataTable<T>({ data: NO_ITEMS, columns, enableSorting: false });
   return <LiveTableShell {...shell} table={table} />;
 }
@@ -93,6 +124,7 @@ function EmptyRowsLiveTable<T>({ columns, ...shell }: LiveTableShellProps<T> & {
 function LiveTableShell<T>({
   table,
   pageSize,
+  skeletonRows,
   stickyHeader = true,
   stickyHeaderOffset,
   showHeader = true,
@@ -109,9 +141,10 @@ function LiveTableShell<T>({
   renderSubRow,
   rowHeightClassName,
   footer,
-}: LiveTableShellProps<T> & { table: DataTableInstance<T> }) {
+}: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
+  const rows = pageSize ?? skeletonRows;
   return (
-    <div className={cn('transition-opacity duration-200', isPending && 'opacity-60')}>
+    <PendingDim isPending={isPending}>
       <DataTable table={table}>
         {showHeader && (
           <DataTable.Header
@@ -123,16 +156,16 @@ function LiveTableShell<T>({
           />
         )}
         <DataTable.Body
-          skeletonRows={pageSize}
+          skeletonRows={rows}
           emptyState={emptyState}
-          rowClassName={rowClassName ? (row: T) => cn(ROW_GAP_CLASS, rowClassName(row)) : ROW_GAP_CLASS}
+          rowClassName={rowClassName ? (row: T) => cn(LIVE_ROW_GAP_CLASS, rowClassName(row)) : LIVE_ROW_GAP_CLASS}
           rowHref={rowHref}
           onRowClick={onRowClick}
           renderSubRow={renderSubRow}
           rowHeightClassName={rowHeightClassName}
         />
-        {footer && <DataTable.InfiniteFooter {...footer} skeletonRows={pageSize} />}
+        {footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />}
       </DataTable>
-    </div>
+    </PendingDim>
   );
 }

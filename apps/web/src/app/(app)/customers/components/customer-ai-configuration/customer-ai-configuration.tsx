@@ -45,6 +45,7 @@ import {
 import { useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { toAgentAiConfigInput } from '@/app/(app)/settings/ai-settings/types/ai-logic.types';
 import { getDefaultClientView } from '@/app/(app)/settings/ai-settings/types/ai-settings';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
@@ -277,7 +278,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
               <div className="flex flex-col gap-[var(--spacing-system-l)]">
                 <span className="text-ods-text-primary text-h2">Assistant Quick Actions</span>
                 <AiSettingsQuickActions
-                  actions={loading ? [] : inheritedQuickActions}
+                  actions={loading ? NO_ITEMS : inheritedQuickActions}
                   // Unknown while loading: the header names whose list it is only once that is read.
                   isDefault={loading ? undefined : inheritedQuickActionsAreDefault}
                   agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}

@@ -17,6 +17,7 @@ import type {
   packageSearchFieldQuery$data,
   packageSearchFieldQuery as PackageSearchFieldQueryType,
 } from '@/__generated__/packageSearchFieldQuery.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { BrewPackageType, type PackageManagerType } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
 
@@ -79,8 +80,6 @@ const FIELD_COPY = {
   noOptionsText: 'No packages found',
 } as const;
 
-const NO_OPTIONS: AutocompleteOption[] = [];
-
 interface PackageSearchFieldProps {
   packageManager: PackageManagerType;
   value: SelectedPackage | null;
@@ -105,7 +104,7 @@ export function PackageSearchField(props: PackageSearchFieldProps) {
     return (
       <Autocomplete
         {...FIELD_COPY}
-        options={NO_OPTIONS}
+        options={NO_ITEMS}
         value={null}
         onChange={() => props.onChange(null)}
         disableClientFilter

@@ -37,6 +37,7 @@ import { toDesktopChatMessage } from '@/app/(app)/devices/types/remote-session-c
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
@@ -716,7 +717,7 @@ function RemoteDesktopSession() {
           )}
           {/* While the device is read the actions wait on it: the menu is empty and the buttons inert. */}
           <ActionsMenuDropdown
-            groups={deviceLoading ? [] : actionsMenuGroups}
+            groups={deviceLoading ? NO_ITEMS : actionsMenuGroups}
             open={deviceLoading ? false : undefined}
             triggerAriaLabel="Actions"
           />

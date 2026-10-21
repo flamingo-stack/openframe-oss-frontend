@@ -68,8 +68,6 @@ export function BillingSections({
           scope it draws itself without its query. */}
       <TestClockPanel onClockChanged={onClockChanged} />
 
-      <TestModeBanner />
-
       {/* Two AI counters, because AI runs on two figures: what the period gives
           away, and the balance it draws from once that is spent. */}
       {/* One column below md; three (devices and the AI pair) or one (devices alone) from md. */}
@@ -92,9 +90,11 @@ export function BillingSections({
 
       <InvoicesHistory subscription={subscription} />
 
-      {/* Below the first screen: each notice is a part only some subscriptions have (`data-loading-optional`), so
-          one appearing never moves the counters, the plan or the invoices. */}
+      {/* Below the first screen: each notice (and the test-mode banner) is a part only some accounts have
+          (`data-loading-optional`), so one appearing never moves the counters, the plan or the invoices. */}
       {notices}
+
+      <TestModeBanner />
     </>
   );
 }

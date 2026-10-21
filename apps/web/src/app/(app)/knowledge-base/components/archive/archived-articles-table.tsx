@@ -19,7 +19,7 @@ import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
@@ -123,7 +123,7 @@ export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
         {...props}
         rows={NO_ITEMS}
         totalCount={0}
-        listingIds={NO_LISTING_IDS}
+        listingIds={NO_ITEMS}
         infiniteScroll={NO_NEXT_PAGE}
       />
     );

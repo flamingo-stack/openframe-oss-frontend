@@ -14,6 +14,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { EmptyValue } from '@/app/components/shared/empty-value';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -196,7 +197,7 @@ export function UsersTab({ device }: UsersTabProps) {
       <DataTable table={table}>
         {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <UsersIcon />,
             title: 'No users found',

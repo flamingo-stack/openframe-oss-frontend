@@ -57,8 +57,8 @@ export function IdentityRow({
 }: IdentityRowProps) {
   const loading = useLoadingScope() || loadingProp;
 
-  const body = (
-    <>
+  return (
+    <LoadingRegion announce={loading} label={loadingLabel} className={className}>
       <SquareAvatar
         src={loading ? undefined : avatarSrc}
         fallback={name}
@@ -79,15 +79,7 @@ export function IdentityRow({
         emptySubline={emptySubline}
       />
       <div className="flex shrink-0 items-center gap-3">{action}</div>
-    </>
-  );
-
-  return loading ? (
-    <LoadingRegion label={loadingLabel} className={className}>
-      {body}
     </LoadingRegion>
-  ) : (
-    <div className={className}>{body}</div>
   );
 }
 

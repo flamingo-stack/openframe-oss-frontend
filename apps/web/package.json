@@ -34,7 +34,7 @@
     "lint:types": "NODE_OPTIONS=--max-old-space-size=8192 eslint . --config eslint.types.mjs --no-cache --max-warnings 0",
     "lint:cycles": "eslint . --config eslint.cycles.mjs --no-cache --max-warnings 0",
     "lint:ci": "eslint . --no-cache --config eslint.ci.mjs --max-warnings 0",
-    "check:loading": "node scripts/check-page-skeletons.mjs && node scripts/check-skeleton-full-page.mjs"
+    "check:loading": "node scripts/check-page-skeletons.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

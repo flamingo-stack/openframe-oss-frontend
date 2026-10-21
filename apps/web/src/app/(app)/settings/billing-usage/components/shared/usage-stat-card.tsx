@@ -1,9 +1,9 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 
 /**
  * How the counter is doing against whatever bounds it.
@@ -89,13 +89,13 @@ export function UsageStatCard({
       <div className="flex flex-col">
         <p className={cn(TITLE_CLASS, TONE_TEXT[shownTone])}>{title}</p>
         {loading ? (
-          <TextLineSkeleton type="h2" className="w-24" />
+          <LoadingLine type="h2" className="w-24" />
         ) : (
           <p className={cn(VALUE_CLASS, TONE_VALUE[shownTone])}>{value}</p>
         )}
       </div>
       {loading ? (
-        <TextLineSkeleton type="h6" className="w-32" />
+        <LoadingLine type="h6" className="w-32" />
       ) : (
         <p className={cn(CAPTION_CLASS, TONE_TEXT[shownTone])}>{caption}</p>
       )}

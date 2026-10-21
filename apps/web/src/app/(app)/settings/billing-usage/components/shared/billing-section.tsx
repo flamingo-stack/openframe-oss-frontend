@@ -2,15 +2,18 @@ import { AlertTriangleIcon, InfoCircleIcon } from '@flamingo-stack/openframe-fro
 import { LeaderRow, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
-// The "Test mode" banner, until `billing-live-mode` is on. Drawn the same while the
-// page loads, so the copy/chrome are defined once. Nothing until the
-// flag answers: a live account must never flash "no real charges".
+// The "Test mode" banner, until `billing-live-mode` is on. Nothing until the flag answers: a live account must never
+// flash "no real charges". Only test accounts have it, so it sits below the page's sections and is marked
+// `data-loading-optional`: appearing never moves them.
 export function TestModeBanner() {
   const gate = useFeatureFlagGate('billing-live-mode');
   if (gate !== 'off') return null;
 
   return (
-    <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent">
+    <div
+      data-loading-optional
+      className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent"
+    >
       <AlertTriangleIcon className="size-6 shrink-0" />
       <p className="flex-1 font-bold text-h3">
         Test mode — invoices and usage shown here are samples. No real charges are being made.
