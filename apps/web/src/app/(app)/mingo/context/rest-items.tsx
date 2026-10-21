@@ -25,7 +25,7 @@ import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE, useClientPaging } from
 const TICKETS_QUERY = `
   query MingoContextTickets($search: String, $first: Int, $after: String) {
     tickets(search: $search, first: $first, after: $after) {
-      edges { node { ticketId ticketNumber title status } }
+      edges { node { ticketId ticketNumber title statusDefinition { name } } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -37,7 +37,9 @@ interface GraphQlEnvelope<T> {
 }
 interface TicketsData {
   tickets?: {
-    edges?: Array<{ node: { ticketId: string; ticketNumber?: number; title?: string; status?: string } }>;
+    edges?: Array<{
+      node: { ticketId: string; ticketNumber?: number; title?: string; statusDefinition?: { name: string } | null };
+    }>;
     pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
   };
 }
@@ -65,7 +67,7 @@ async function fetchTicketsPage(
     // The picked label becomes the chip's fallback label, so it carries the
     // number the same way the resolved chip does.
     label: formatTicketRef(e.node, e.node.ticketId),
-    description: e.node.status || undefined,
+    description: e.node.statusDefinition?.name || undefined,
   }));
   return { items, nextCursor: conn?.pageInfo?.hasNextPage ? (conn.pageInfo.endCursor ?? null) : null };
 }
