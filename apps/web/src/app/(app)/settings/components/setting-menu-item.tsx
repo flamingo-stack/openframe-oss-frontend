@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -13,6 +14,8 @@ interface SettingMenuItemProps {
   description: string;
   /** Inline stamp after the title, e.g. a "Beta" `Tag` (Figma 2097-117139). */
   badge?: ReactNode;
+  /** One card of a read list (the help center's legal documents): marked for the height gate in both forms. */
+  listItem?: boolean;
 }
 
 // Shared so the loading card below can't drift from the card it stands in for. The two
@@ -26,20 +29,35 @@ const ICON_FRAME_CLASSES =
 const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)]';
 
 /**
- * The card while the grid's gates (a feature flag, a role) have not answered which cards it holds. Everything on a
- * card is fixed copy, so it is drawn for real; only the link is left out, since the card may not be one this
- * workspace keeps. Same frames as the card, so the slot is exactly its size.
+ * The card while the grid's gates (a feature flag, a role) have not answered which cards it holds. A card's fixed
+ * copy is drawn for real; a title or description still to be read (`''`, a read list's card) is a text bar of its
+ * line. Only the link is left out, since the card may not be one this workspace keeps. Same frames as the card, so
+ * the slot is exactly its size.
  */
-export function SettingMenuItemSkeleton({ icon, title, description, badge }: Omit<SettingMenuItemProps, 'href'>) {
+export function SettingMenuItemSkeleton({
+  icon,
+  title,
+  description,
+  badge,
+  listItem,
+}: Omit<SettingMenuItemProps, 'href'>) {
   return (
-    <div className={CARD_SHELL_CLASSES}>
+    <div className={CARD_SHELL_CLASSES} data-loading-item={listItem || undefined}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className="text-ods-text-primary text-h3">{title}</p>
+          {title ? (
+            <p className="text-ods-text-primary text-h3">{title}</p>
+          ) : (
+            <TextLineSkeleton type="h3" className="w-2/5" />
+          )}
           {badge}
         </div>
-        <p className="text-ods-text-secondary text-h6">{description}</p>
+        {description ? (
+          <p className="text-ods-text-secondary text-h6">{description}</p>
+        ) : (
+          <TextLineSkeleton type="h6" className="w-3/4" />
+        )}
       </div>
       <div className={CHEVRON_FRAME_CLASSES}>
         <Chevron02RightIcon className="size-6 text-ods-text-secondary" />
@@ -48,11 +66,13 @@ export function SettingMenuItemSkeleton({ icon, title, description, badge }: Omi
   );
 }
 
-export function SettingMenuItem({ href, icon, title, description, badge }: SettingMenuItemProps) {
+export function SettingMenuItem({ href, icon, title, description, badge, listItem }: SettingMenuItemProps) {
   if (useLoadingScope())
-    return <SettingMenuItemSkeleton icon={icon} title={title} description={description} badge={badge} />;
+    return (
+      <SettingMenuItemSkeleton icon={icon} title={title} description={description} badge={badge} listItem={listItem} />
+    );
   return (
-    <div className={CARD_SHELL_CLASSES}>
+    <div className={CARD_SHELL_CLASSES} data-loading-item={listItem || undefined}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
