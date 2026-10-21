@@ -2,11 +2,11 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SCRIPT_SHELL_TYPES } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { runCommandMutation as RunCommandMutationType } from '@/__generated__/runCommandMutation.graphql';
@@ -297,13 +297,7 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
         {/* The loader suspends on the record; until it lands the form draws
             itself in a loading scope (each field its own skeleton), and once
             the record is seeded the same fields unlock. */}
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading script">
-              <ScriptFields form={form} showErrors={false} disabled />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading script" fallback={<ScriptFields form={form} showErrors={false} disabled />}>
           {scriptId && <ScriptRecordLoader scriptId={scriptId} onResolved={setRecord} />}
           {record.status === 'missing' ? (
             <NotFoundError message="Script not found" />
@@ -315,7 +309,7 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
               initialTags={record.status === 'ready' ? record.tags : NO_TAGS}
             />
           )}
-        </Suspense>
+        </LoadingSuspense>
       </PageLayout>
 
       <TestScriptModal

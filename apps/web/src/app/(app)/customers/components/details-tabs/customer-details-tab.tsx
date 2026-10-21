@@ -1,8 +1,8 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, StackedRowsPanel, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { ValueText } from '@/app/components/shared/value-text';
 import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { buildCustomerContactRows, buildCustomerInfoRows, buildNoContactsRow } from './customer-details-rows';
@@ -23,16 +23,17 @@ const CONTACTS_SKELETON_ROWS = 1;
 const NOTES_SKELETON_LINES = 2;
 
 function CustomerNotesCard({ notes, loading }: { notes: string; loading: boolean }) {
+  const hasNotes = notes.trim() !== '';
   return (
     <section className={NOTES_CARD_CLASS}>
       <h2 className="text-ods-text-primary text-h2">Notes</h2>
-      {loading ? (
-        <TextLineSkeleton type="h4" lines={NOTES_SKELETON_LINES} />
-      ) : notes.trim() ? (
-        <p className="whitespace-pre-wrap break-words text-ods-text-primary text-h4">{notes}</p>
-      ) : (
-        <p className="text-ods-text-secondary text-h4">No notes yet — add them from Edit Customer.</p>
-      )}
+      <LoadingParagraph
+        loading={loading}
+        text={hasNotes ? notes : 'No notes yet — add them from Edit Customer.'}
+        tone={hasNotes ? 'primary' : 'secondary'}
+        className={hasNotes ? 'whitespace-pre-wrap break-words' : undefined}
+        lines={NOTES_SKELETON_LINES}
+      />
     </section>
   );
 }

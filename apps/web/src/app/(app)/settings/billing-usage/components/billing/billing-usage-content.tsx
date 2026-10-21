@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type {
   billingUsageContentQuery as BillingUsageContentQueryType,
@@ -65,16 +65,12 @@ const billingUsageContentQuery = graphql`
  * skeleton.
  */
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
-  const fallback = (
-    <LoadingFallback label="Loading billing and usage">
-      <BillingUsageScreen data={null} onRefetch={noop} />
-    </LoadingFallback>
-  );
-  if (loading) return fallback;
+  const view = <BillingUsageScreen data={null} onRefetch={noop} />;
+  if (loading) return <LoadingFallback label="Loading billing and usage">{view}</LoadingFallback>;
   return (
-    <Suspense fallback={fallback}>
+    <LoadingSuspense label="Loading billing and usage" fallback={view}>
       <BillingUsageQuery />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 
@@ -203,24 +199,32 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
         }
         notices={
           <>
-            {hasAi && subscription && <AiBalanceAlert subscription={subscription} />}
+            {hasAi && subscription && (
+              <div data-loading-optional className="contents">
+                <AiBalanceAlert subscription={subscription} />
+              </div>
+            )}
 
             {/* The system switched the refill off over a declined card: said here,
-                under the balance it stopped refilling. Nothing while it loads, and
+                after the page it stopped refilling. Nothing while it loads, and
                 nothing if it cannot be loaded — a notice is not worth an error. */}
             {autoTopUpOffered && (
-              <AutoTopUpIsland
-                label="AutoTopUpNotice"
-                fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
-              >
-                {autoTopUp => (
-                  <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />
-                )}
-              </AutoTopUpIsland>
+              <div data-loading-optional className="contents">
+                <AutoTopUpIsland
+                  label="AutoTopUpNotice"
+                  fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
+                >
+                  {autoTopUp => (
+                    <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />
+                  )}
+                </AutoTopUpIsland>
+              </div>
             )}
 
             {subscription && (
-              <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />
+              <div data-loading-optional className="contents">
+                <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />
+              </div>
             )}
           </>
         }

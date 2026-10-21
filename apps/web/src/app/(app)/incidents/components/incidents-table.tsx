@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -22,7 +22,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import {
   fetchQuery,
   readInlineData,
@@ -566,11 +566,11 @@ function IncidentsTableContent({
           />
           <DataTable.Body
             skeletonRows={PAGE_SIZE}
-            emptyMessage={
-              debouncedSearch
+            emptyState={{
+              title: debouncedSearch
                 ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No incidents found. Try adjusting your filters.'
-            }
+                : 'No incidents found. Try adjusting your filters.',
+            }}
             rowClassName="mb-1"
             rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
           />
@@ -747,7 +747,7 @@ function IncidentsList({
       {scoped ? (
         loadingTable
       ) : (
-        <Suspense fallback={<LoadingFallback label="Loading incidents">{loadingTable}</LoadingFallback>}>
+        <LoadingSuspense label="Loading incidents" fallback={loadingTable}>
           <IncidentsTableContent
             backendFilters={deferredFilters}
             debouncedSearch={deferredSearch}
@@ -764,7 +764,7 @@ function IncidentsList({
             refreshKey={refreshKey}
             emptyState={emptyState}
           />
-        </Suspense>
+        </LoadingSuspense>
       )}
     </div>
   );

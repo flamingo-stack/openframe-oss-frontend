@@ -28,8 +28,8 @@ import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
 /** Column layout per Figma 1755-93683: TICKET takes the rest, ASSIGNED 280, STATUS 200, two buttons. */
 const RECORDING_TICKET_COLUMNS = {
   ticket: { id: 'ticket', header: 'TICKET', width: 'flex-1 min-w-0', sortable: true },
-  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg', filterable: true },
-  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg', filterable: true },
+  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg' },
+  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

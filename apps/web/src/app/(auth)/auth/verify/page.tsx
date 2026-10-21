@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { AuthStatusFrame } from '../components/auth-status-frame';
@@ -11,15 +11,9 @@ import { AUTH_ERROR_REF } from '../constants/auth-error-codes';
 export default function VerifyEmailPage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the same screen stands in meanwhile.
-    <Suspense
-      fallback={
-        <LoadingFallback label="Verifying your email">
-          <VerifyEmailScreen />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Verifying your email" fallback={<VerifyEmailScreen />}>
       <VerifyEmailRedirect />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

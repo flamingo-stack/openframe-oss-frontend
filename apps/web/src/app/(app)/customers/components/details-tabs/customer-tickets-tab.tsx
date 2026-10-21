@@ -126,7 +126,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         />
         <DataTable.Body
           loading={isLoading}
-          emptyMessage="No tickets found for this customer."
+          emptyState={{ title: 'No tickets found for this customer.' }}
           rowHref={ticketRowHref}
           rowClassName="mb-1"
         />

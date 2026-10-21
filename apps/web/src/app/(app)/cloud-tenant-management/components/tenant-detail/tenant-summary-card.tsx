@@ -1,6 +1,5 @@
 'use client';
 
-import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   accessStateTag,
   formatLastRead,
@@ -8,13 +7,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SquareAvatar, LoadingWhen, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { tenantSummaryCard_connection$key } from '@/__generated__/tenantSummaryCard_connection.graphql';
 import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSummaryCard_identity.graphql';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
-import { formatConnectedAt, isReadable, providerPresentation } from '../../utils/tenant-presentation';
+import { formatConnectedAt, providerPresentation } from '../../utils/tenant-presentation';
 
 // The two-row identity card of the details page (Figma 2097-140910 / 2097-119207) and its one-row cut
 // on Edit / Reconnect (2097-123264). Own row classes: the employee card's `content-md:contents` folds into one row.
@@ -66,15 +64,6 @@ const tenantSummaryCardFragment = graphql`
 /** The provider logo's box: `MediaSkeleton.Icon size="md"` (h-6 w-6) is its loading shape. */
 const PROVIDER_LOGO_PX = 24;
 
-function IconValue({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <span className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <span className="shrink-0">{icon}</span>
-      <span className="truncate">{children}</span>
-    </span>
-  );
-}
-
 /** The provider: its logo and name. Before the record answers (`null`) the logo's box and a name bar. */
 function ProviderCell({ provider }: { provider: string | null }) {
   const { Logo, label } = providerPresentation(provider);
@@ -82,8 +71,9 @@ function ProviderCell({ provider }: { provider: string | null }) {
     <InfoCell
       label={LABELS.provider}
       skeletonWidth="w-36"
-      icon={provider == null ? <MediaSkeleton.Icon size="md" /> : undefined}
-      value={provider == null ? null : <IconValue icon={<Logo size={PROVIDER_LOGO_PX} />}>{label}</IconValue>}
+      icon={provider != null && <Logo size={PROVIDER_LOGO_PX} />}
+      iconSkeleton={{ size: 'md' }}
+      value={provider == null ? null : label}
     />
   );
 }
@@ -124,8 +114,7 @@ export function TenantIdentityCard({ connection }: { connection: tenantSummaryCa
 
 /**
  * The details page's card. Before the record answers (a loading scope) it is the connected card, the details page's
- * steady state, so the page does not jump when such a record lands; a tenant still awaiting consent adds its Domain
- * cell on arrival. Every cell is the real `InfoCell`, and the customer's avatar the real `SquareAvatar`, each drawing
+ * steady state, so the page does not jump when such a record lands. Every cell is the real `InfoCell`, and the customer's avatar the real `SquareAvatar`, each drawing
  * its own loading state.
  */
 export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key | null }) {
@@ -141,12 +130,9 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
       <div className={CARD_CLASSES}>
         <div className={ROW_CLASSES}>
           <ProviderCell provider={data?.provider ?? null} />
-          {/* Before the first consent the domain is the only identity the tenant has (Figma 2097-119207). */}
-          {data && !isReadable(data.access.state) && (
-            <div data-loading-optional className="contents">
-              <InfoCell label={LABELS.domain} value={data.domain} />
-            </div>
-          )}
+          {/* Always drawn, so the card has one cell count loading and loaded: before the first consent the domain is
+              the only identity the tenant has (Figma 2097-119207). */}
+          <InfoCell label={LABELS.domain} value={data?.domain} skeletonWidth="w-44" />
           <InfoCell
             label={LABELS.customer}
             skeletonWidth="w-44"

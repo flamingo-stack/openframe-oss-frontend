@@ -12,9 +12,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * exactly two things, and both are spelled out below rather than left implicit:
  * the STATUS column means different things (policy compliance vs the device's
  * own state, so a different `id` and accessor), and only the query table offers
- * column funnels. The funnels are not cosmetic — `DataTable.Header` keeps a
- * filterable header alive below `lg` and draws the icon beside its label — so
- * the header has to know about them, which is what `filterable` is for.
+ * column funnels (the live columns' `meta.filter`; the layout here is the same).
  *
  * Headers are the real uppercase strings the tables pass; `DataTable`
  * uppercases them in CSS anyway, but keeping them verbatim means a diff here is
@@ -57,13 +55,13 @@ export const POLICY_DEVICE_COLUMNS = {
   quickQuery: QUICK_QUERY,
 } satisfies Record<string, TableSkeletonColumn>;
 
-/** Query detail → Assigned Devices. Same layout, plus funnels on three headers. */
+/** Query detail → Assigned Devices. Same layout; its live columns add funnels on three headers. */
 export const QUERY_DEVICE_COLUMNS = {
   device: DEVICE,
-  organization: { ...ORGANIZATION, filterable: true },
-  os: { ...OS, filterable: true },
+  organization: ORGANIZATION,
+  os: OS,
   /** The device's own online state — hence `status`, where the policy table says `compliance`. */
-  status: { id: 'status', header: 'STATUS', width: 'w-[140px]', filterable: true },
+  status: { id: 'status', header: 'STATUS', width: 'w-[140px]' },
   open: OPEN,
   quickQuery: QUICK_QUERY,
 } satisfies Record<string, TableSkeletonColumn>;

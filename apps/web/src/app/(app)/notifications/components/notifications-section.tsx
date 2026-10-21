@@ -1,7 +1,7 @@
 'use client';
 
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BellCheckIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   DataTable,
@@ -13,7 +13,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type PreloadedQuery, usePaginationFragment, usePreloadedQuery } from 'react-relay';
 import type { notificationsSectionRelay_query$key as NotificationsSectionFragmentKey } from '@/__generated__/notificationsSectionRelay_query.graphql';
 import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPaginationQueryType } from '@/__generated__/notificationsSectionRelayPaginationQuery.graphql';
@@ -90,7 +90,10 @@ export function NotificationsSection({
           </div>
         )}
 
-        <Suspense fallback={<SectionTableFallback rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />}>
+        <LoadingSuspense
+          label={sectionLoadingLabel(rowVariant)}
+          fallback={<SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />}
+        >
           {queryRef ? (
             <SectionTable
               queryRef={queryRef}
@@ -102,9 +105,11 @@ export function NotificationsSection({
               stickyHeaderOffset={stickyHeaderOffset}
             />
           ) : (
-            <SectionTableFallback rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />
+            <LoadingFallback label={sectionLoadingLabel(rowVariant)}>
+              <SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />
+            </LoadingFallback>
           )}
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </PageLayout>
   );
@@ -187,8 +192,12 @@ function SectionTable({
   );
 }
 
-/** The section's query not answered yet: the same table, drawn in a loading scope with no rows. */
-function SectionTableFallback({
+function sectionLoadingLabel(rowVariant: 'unread' | 'read'): string {
+  return rowVariant === 'unread' ? 'Loading unread notifications' : 'Loading notifications';
+}
+
+/** The section's query not answered yet: the same table with no rows, drawn in the caller's loading scope. */
+function SectionTableLoading({
   rowVariant,
   stickyHeaderOffset,
 }: {
@@ -196,16 +205,14 @@ function SectionTableFallback({
   stickyHeaderOffset: string;
 }) {
   return (
-    <LoadingFallback label={rowVariant === 'unread' ? 'Loading unread notifications' : 'Loading notifications'}>
-      <SectionTableView
-        rows={EMPTY_ROWS}
-        rowVariant={rowVariant}
-        searchValue=""
-        hasNext={false}
-        isLoadingNext={false}
-        stickyHeaderOffset={stickyHeaderOffset}
-      />
-    </LoadingFallback>
+    <SectionTableView
+      rows={EMPTY_ROWS}
+      rowVariant={rowVariant}
+      searchValue=""
+      hasNext={false}
+      isLoadingNext={false}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 }
 

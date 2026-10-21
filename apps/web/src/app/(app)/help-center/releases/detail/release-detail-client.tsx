@@ -9,6 +9,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components';
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 // Injected roadmap section — wraps RoadmapGrid so linked roadmap items
@@ -49,8 +50,10 @@ function VideoDisplaySection(props: VideoDisplaySectionProps) {
 // inProgress }`). While it loads ONE table draws its skeleton: a published release
 // links completed work only (measured 2026-10-21 over all 23 releases: 22 with a
 // completed table, 0 with an in-progress one), so one table is the typical page.
+// It switches itself: in a loading scope (the page drawing itself) it reads nothing, like `isLoading`.
 function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; isLoading: boolean }) {
-  if (isLoading) return <DeliveryTable items={[]} isLoading />;
+  const loading = useLoadingScope() || isLoading;
+  if (loading) return <DeliveryTable items={[]} isLoading />;
   if (!data) return null;
   return (
     <>

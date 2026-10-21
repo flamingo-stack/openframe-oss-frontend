@@ -108,15 +108,16 @@
  * The `next/dynamic` exemption holds only for a `loading:` arrow INSIDE a
  * `dynamic(` (or `dynamic<Props>(`) call, never a `loading:` key of another object.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve, relative, basename } from 'node:path';
 import {
   declarationIndex,
   dynamicLoadingSpans,
   enclosingDeclaration,
   isComment,
+  lineOf,
   optedOut,
-  walkFiles,
+  readSources,
 } from './lib/source-scan.mjs';
 
 const root = process.env.PAGE_SKELETON_GATE_ROOT || resolve(dirname(new URL(import.meta.url).pathname), '..', 'src');
@@ -135,9 +136,16 @@ const PRIMITIVES = [
 const ROUTE_FILE = /^(page|layout|loading|template|not-found|error)\.tsx$/;
 const SCREEN_FILE = /-page(-ssr|-client)?\.tsx$/;
 
-/** Every `.tsx` (and, with `withTs`, `.ts`) file under `dir`, tests included (callers filter them). */
-function files(dir, withTs = false) {
-  return walkFiles(dir, { ts: withTs, tests: true });
+/** Every source file under `dirs` of `base`, read once: path -> { rel, source, lines } (tests and stories left out). */
+function readTree(base, dirs) {
+  const tree = new Map();
+  for (const [full, source] of readSources(
+    dirs.map(dir => join(base, dir)),
+    { ts: true },
+  )) {
+    tree.set(full, { rel: relative(base, full), source, lines: source.split('\n') });
+  }
+  return tree;
 }
 
 /** Whether a file under `app/` is page code (see the header). */
@@ -152,38 +160,20 @@ const MEMORY =
   /\b(?:pageFirstPaint|firstPaintKvStore|createFirstPaintMemory|careersSeed|refreshCareersSeed|lastKnownHomeLayout|rememberHomeLayout)\b/g;
 const SCREEN_SKELETON =
   /\b(?:function|const)\s+([A-Z][A-Za-z0-9]*(?:(?:Page|Screen|Detail|Article|View|Home|Deck|Editor|Center|Catalog)Skeleton|LoadingLayout))\b/;
+const OPT_OUT = 'loading-standard-ok:';
 
 /**
  * ONE SWITCH, PER COMPONENT (see the header): `<XSkeleton />` rendered outside X's own module and outside a
- * `*Skeleton` function, when X's module switches itself (calls `useLoadingScope`).
+ * `*Skeleton` function, when X's module switches itself (calls `useLoadingScope`). `tree` is reported on; `libTree`
+ * (the installed lib) is only indexed: the lib gates its own code.
  */
-function foreignSkeletonRenders(roots, indexRoots = []) {
+function foreignSkeletonRenders(tree, libTree) {
   const violations = [];
   const warnings = [];
-  const sources = new Map();
-  for (const { dir, label } of roots) {
-    for (const full of files(dir, true)) {
-      if (/\.(test|stories)\.tsx?$/.test(full)) continue;
-      sources.set(full, { rel: label + relative(dir, full), source: readFileSync(full, 'utf8') });
-    }
-  }
-  // The installed lib's source is INDEXED (where each lib component is declared, and whether it switches itself)
-  // but never reported on: the lib gates its own code. So a frontend parent picking `<ModelDisplaySkeleton>` for
-  // a lib `ModelDisplay` that switches on the scope fails here like any frontend component would.
-  const indexOnly = new Set();
-  for (const { dir, label } of indexRoots) {
-    for (const full of files(dir, true)) {
-      if (/\.(test|stories)\.tsx?$/.test(full)) continue;
-      sources.set(full, { rel: label + relative(dir, full), source: readFileSync(full, 'utf8') });
-      indexOnly.add(full);
-    }
-  }
-  // Where each component is declared, and whether that module switches itself.
-  const declaredIn = declarationIndex(new Map([...sources].map(([full, { source }]) => [full, source])));
-  const switches = full => /\buseLoadingScope\s*\(/.test(sources.get(full)?.source ?? '');
-  for (const [full, { rel, source }] of sources) {
-    if (indexOnly.has(full)) continue;
-    const lines = source.split('\n');
+  const all = new Map([...libTree, ...tree]);
+  const declaredIn = declarationIndex(new Map([...all].map(([full, { source }]) => [full, source])));
+  const switches = full => /\buseLoadingScope\s*\(/.test(all.get(full)?.source ?? '');
+  for (const [full, { rel, source, lines }] of tree) {
     const dynamicSpans = dynamicLoadingSpans(source);
     // AND ONE REGISTRY SLOT (see the header): a `skeleton:` arrow up to its entry's `render:`, with the components
     // that `render` draws.
@@ -207,10 +197,11 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
       const modules = [...(declaredIn.get(component) ?? [])];
       // A skeleton with no component of that name (a primitive such as `TextLineSkeleton`) is not a component's switch.
       if (!modules.length) continue;
-      const switched = modules.some(switches);
       if (dynamicSpans.some(([start, end]) => m.index > start && m.index < end)) continue;
+      const switched = modules.some(switches);
       const enclosing = enclosingDeclaration(source, m.index);
-      const line = source.slice(0, m.index).split('\n').length;
+      const line = lineOf(source, m.index);
+      if (isComment(lines[line - 1]) || optedOut(lines, line - 1, OPT_OUT)) continue;
       if (/Skeleton$/.test(enclosing)) {
         // A parent's own skeleton may compose a child's, UNLESS the parent itself renders `<Child />` (in this module)
         // and the child switches itself: the parent's skeleton then renders `<Child />` too (see the header).
@@ -219,14 +210,11 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
           r => enclosingDeclaration(source, r.index) === parent,
         );
         if (!(parentRendersChild && switched)) continue;
-        if (/loading-standard-ok:/.test(lines.slice(Math.max(0, line - 2), line).join('\n'))) continue;
         warnings.push(
           `${rel}:${line}: <${component}Skeleton> rendered by ${enclosing}, while ${parent} renders <${component} />, which switches itself (render <${component} /> in ${enclosing} too: one switch per component)`,
         );
         continue;
       }
-      if (/^\s*(\/\/|\*|\/\*)/.test(lines[line - 1])) continue;
-      if (/loading-standard-ok:/.test(lines.slice(Math.max(0, line - 2), line).join('\n'))) continue;
       if (switched) {
         violations.push(
           `${rel}:${line}: <${component}Skeleton> rendered outside ${component}'s module, which switches itself (render <${component} />: one switch per component)`,
@@ -242,10 +230,9 @@ function foreignSkeletonRenders(roots, indexRoots = []) {
 }
 
 /** The `*Skeleton` components the lib's source marks `@deprecated` (the JSDoc above their export, line comments between). */
-function deprecatedLibSkeletons(libSrc) {
+export function deprecatedLibSkeletons(libTree) {
   const names = new Set();
-  for (const full of files(libSrc, true)) {
-    const source = readFileSync(full, 'utf8');
+  for (const { source } of libTree.values()) {
     for (const m of source.matchAll(
       /\/\*\*((?:(?!\*\/)[\s\S])*)\*\/\s*(?:\/\/[^\n]*\n\s*)*export\s+(?:function|const)\s+([A-Z][A-Za-z0-9]*Skeleton)\b/g,
     )) {
@@ -255,183 +242,189 @@ function deprecatedLibSkeletons(libSrc) {
   return names;
 }
 
-/** What breaks the standard (`violations`, exit 1) and what is reported only (`warnings`: NO SCOPE SWITCH). */
-export { deprecatedLibSkeletons };
+// The rest of the standard, line by line, anywhere in `src/` (a line may opt out with `// loading-standard-ok: <why>`).
+const STANDARD = [
+  [/\bUnifiedSkeleton\b[^>]*\bh-\[[0-9.]*lh\]/, 'a text bar built from UnifiedSkeleton (use TextLineSkeleton)'],
+  [
+    /\banimate-pulse\b|animation-duration|\bbg-ods-skeleton\b/,
+    'a pulse or skeleton colour of its own (use the lib skeletons, LIVE_PULSE_CLASS for live dots)',
+  ],
+  [/fallback=\{\s*null\s*\}/, 'a Suspense fallback of null (draw the component skeleton)'],
+  [/fallback=\{<[^}]*?>[^<{]*\bLoading\b/, 'a Suspense fallback of "Loading" text (draw the component skeleton)'],
+  [
+    /^(?!.*<(?:Loader2|RefreshCw)\b).*\banimate-spin\b/,
+    'a spinner as a loading state (animate-spin only on an action progress icon: Loader2, RefreshCw)',
+  ],
+  [
+    // An action's progress icon spins; a READ's state never does: a spinner keyed on a read flag, or returned as the
+    // whole output, is a spinner standing for a loading state.
+    /\b(?:loading|isLoading|isFetching)\b[^\n]*<(?:Loader2|RefreshCw)\b[^>]*animate-spin|\breturn\s*\(?\s*<(?:Loader2|RefreshCw)\b/,
+    'a spinner as a loading state (a progress icon belongs to an action, never to a read)',
+  ],
+  [
+    />\s*(Loading|Checking)\b[^<{]*(\.\.\.|…)\s*<|['"`](Loading|Checking)\b[^'"`]*(\.\.\.|…)['"`]/,
+    '"Loading…" text as a loading state (draw the component skeleton)',
+  ],
+  [/>\s*Loading\b[^<{]*</, '"Loading" text as a loading state (draw the component skeleton)'],
+  [/\bplaceholder=\{?\s*['"`]Loading\b/, '"Loading" as a placeholder (draw the field in a loading scope)'],
+  [
+    /<(?:PageLoader|CompactPageLoader|ContentLoader|CardLoader|DetailLoader|FormLoader|ListLoader|ChatCardLoader|OpenmspHeartbeatLoader|Spinner)\b/,
+    'a loader component as a loading state (render the components in a loading scope)',
+  ],
+  [
+    /\b(?:loading|isLoading|isPending|isFetching)\s*\?\s*null\s*:\s*</,
+    'nothing drawn while loading (render the component in a loading scope)',
+  ],
+  [
+    /if\s*\(\s*(?:loading|isLoading|isPending|isFetching)\s*\)\s*(?:\{\s*)?return\s+null\b/,
+    'nothing drawn while loading (render the component in a loading scope)',
+  ],
+];
 
+// Whole-file rules (see the header).
+const SUSPENSE_TAG = /<Suspense\b([^>]*)>/g;
+const NULL_WHEN_MISSING = /if\s*\(\s*!\s*[A-Za-z_$][\w$.]*\s*\)\s*(?:\{\s*)?return\s+null\b/g;
+const READ_ANSWERED =
+  /\buseLoadingScope\s*\(|\bif\s*\([^)]*\b(?:loading|isLoading|isFetching|isPending)\b|\b(?:useLazyLoadQuery|usePreloadedQuery|useFragment|usePaginationFragment|useRefetchableFragment|useSuspenseQuery)\s*[<(]|\buse\s*\(/;
+const PROP_SWITCH =
+  /\bif\s*\(\s*(?:loading|isLoading)\s*\)\s*(?:\{\s*)?return\s*\(?\s*<[A-Z]\w*Skeleton\b|\b(?:loading|isLoading)\s*\?\s*\(?\s*<[A-Z]\w*Skeleton\b/g;
+
+/** What breaks the standard (`violations`, exit 1) and what is reported only (`warnings`: NO SCOPE SWITCH). */
 export function pageSkeletonReport(base = root) {
   const violations = [];
-  const wholeViewRoots = ['app', 'components', 'lib'].map(dir => ({ dir: join(base, dir), label: `${dir}/` }));
-  for (const { dir, label } of wholeViewRoots) {
-    for (const full of files(dir)) {
-      if (/\.(test|stories)\.tsx$/.test(full)) continue;
-      const rel = label + relative(dir, full);
-      const fileLines = readFileSync(full, 'utf8').split('\n');
-      fileLines.forEach((line, index) => {
-        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-        // The same documented exception the ONE SWITCH check honors: a marker on one of the two lines above.
-        if (/loading-standard-ok:/.test(fileLines.slice(Math.max(0, index - 2), index).join('\n'))) return;
-        const match = SCREEN_SKELETON.exec(line);
-        if (match) violations.push(`${rel}:${index + 1}: ${match[1]} (a whole-view skeleton)`);
-        if (/<DetailPageSkeleton\b/.test(line))
-          violations.push(`${rel}:${index + 1}: DetailPageSkeleton (a whole-page skeleton)`);
-      });
-    }
-  }
-  // The installed lib's source (see foreignSkeletonRenders): `node_modules` beside `src/`.
+  const report = (rel, line, why) => violations.push(`${rel}:${line}: ${why}`);
+  const tree = readTree(base, ['app', 'components', 'lib', 'hooks']);
+  const inTrees = (full, dirs) => dirs.some(dir => full.startsWith(join(base, dir) + '/'));
+
+  // The installed lib's source (see foreignSkeletonRenders): `node_modules` beside `src/`. Without it the two lib
+  // checks would pass by reading nothing, so its absence fails.
   const installedLib = join(base, '..', 'node_modules', '@flamingo-stack', 'openframe-frontend-core', 'src');
+  if (!existsSync(installedLib)) {
+    report(
+      'node_modules/@flamingo-stack/openframe-frontend-core',
+      0,
+      'the installed lib ships no src/ to index (install it)',
+    );
+  }
+  const libTree = existsSync(installedLib) ? readTree(installedLib, ['.']) : new Map();
+
+  // Whole-view skeletons, anywhere.
+  for (const [full, { rel, lines }] of tree) {
+    if (!inTrees(full, ['app', 'components', 'lib'])) continue;
+    lines.forEach((line, i) => {
+      if (isComment(line) || optedOut(lines, i, OPT_OUT)) return;
+      const match = SCREEN_SKELETON.exec(line);
+      if (match) report(rel, i + 1, `${match[1]} (a whole-view skeleton)`);
+      if (/<DetailPageSkeleton\b/.test(line)) report(rel, i + 1, 'DetailPageSkeleton (a whole-page skeleton)');
+    });
+  }
+
+  // ONE SWITCH, over app/ and components/.
   const foreign = foreignSkeletonRenders(
-    [
-      { dir: join(base, 'app'), label: 'app/' },
-      { dir: join(base, 'components'), label: 'components/' },
-    ],
-    existsSync(installedLib) ? [{ dir: installedLib, label: 'lib/' }] : [],
+    new Map([...tree].filter(([full]) => inTrees(full, ['app', 'components']))),
+    libTree,
   );
   violations.push(...foreign.violations);
+
   // A skeleton the installed lib marks `@deprecated` is never used: its replacement is the component in a scope.
-  const deprecated = existsSync(installedLib) ? deprecatedLibSkeletons(installedLib) : new Set();
-  if (deprecated.size) {
-    const pattern = new RegExp(`<(${[...deprecated].join('|')})\\b`, 'g');
-    for (const dir of ['app', 'components']) {
-      for (const full of files(join(base, dir), true)) {
-        if (/\.(test|stories)\.tsx?$/.test(full)) continue;
-        const source = readFileSync(full, 'utf8');
-        for (const m of source.matchAll(pattern)) {
-          const line = source.slice(0, m.index).split('\n').length;
-          violations.push(
-            `${relative(base, full)}:${line}: <${m[1]}> is deprecated in the lib (render the component in a loading scope)`,
-          );
-        }
+  const deprecated = deprecatedLibSkeletons(libTree);
+  const deprecatedUse = deprecated.size ? new RegExp(`<(${[...deprecated].join('|')})\\b`, 'g') : null;
+
+  for (const [full, { rel, source, lines }] of tree) {
+    const example = rel.startsWith(join('components', 'examples'));
+    if (deprecatedUse && inTrees(full, ['app', 'components'])) {
+      for (const m of source.matchAll(deprecatedUse)) {
+        report(
+          rel,
+          lineOf(source, m.index),
+          `<${m[1]}> is deprecated in the lib (render the component in a loading scope)`,
+        );
       }
     }
-  }
-  for (const dir of ['app', 'components', 'lib', 'hooks']) {
-    for (const full of files(join(base, dir), true)) {
-      const rel = relative(base, full);
-      const source = readFileSync(full, 'utf8');
-      const lineOf = index => source.slice(0, index).split('\n').length;
-      for (const m of source.matchAll(MEMORY))
-        violations.push(`${rel}:${lineOf(m.index)}: ${m[0]} (the removed first-paint memory)`);
-      for (const m of source.matchAll(/<StreamedPage\b[\s\S]*?\/>/g)) {
-        for (const prop of m[0].matchAll(/\b(skeleton|memory|remember)=/g)) {
-          violations.push(
-            `${rel}:${lineOf(m.index + prop.index)}: StreamedPage \`${prop[1]}\` (it takes a placeholder)`,
-          );
-        }
-      }
-      for (const m of source.matchAll(
-        /\b(standIn|isStandIn|STAND_IN_MARK|HoldStandIn|HoldText|HoldWords|HoldBox|useHolds|HELD_CONTROL_CLASS)\b|<Hold\b/g,
-      )) {
-        violations.push(`${rel}:${lineOf(m.index)}: ${m[0]} (stand-in data is retired: draw the component's skeleton)`);
+    for (const m of source.matchAll(MEMORY))
+      report(rel, lineOf(source, m.index), `${m[0]} (the removed first-paint memory)`);
+    for (const m of source.matchAll(/<StreamedPage\b[\s\S]*?\/>/g)) {
+      for (const prop of m[0].matchAll(/\b(skeleton|memory|remember)=/g)) {
+        report(rel, lineOf(source, m.index + prop.index), `StreamedPage \`${prop[1]}\` (it takes a placeholder)`);
       }
     }
-  }
-  // The rest of the standard, mechanically (anywhere in `src/`; a line may opt out with `// loading-standard-ok: <why>`):
-  //   - a text bar is `TextLineSkeleton`, never a `UnifiedSkeleton` sized in `lh`;
-  //   - one pulse: no `animate-pulse`, hand-set animation timing or `bg-ods-skeleton` outside the lib's skeleton components;
-  //   - a loading state is a skeleton: never "Loading…" text, and never a `Suspense` fallback of `null` or of text.
-  const STANDARD = [
-    [/\bUnifiedSkeleton\b[^>]*\bh-\[[0-9.]*lh\]/, 'a text bar built from UnifiedSkeleton (use TextLineSkeleton)'],
-    [
-      /\banimate-pulse\b|animation-duration|\bbg-ods-skeleton\b/,
-      'a pulse or skeleton colour of its own (use the lib skeletons, LIVE_PULSE_CLASS for live dots)',
-    ],
-    [/fallback=\{\s*null\s*\}/, 'a Suspense fallback of null (draw the component skeleton)'],
-    [/fallback=\{<[^}]*?>[^<{]*\bLoading\b/, 'a Suspense fallback of "Loading" text (draw the component skeleton)'],
-    [
-      /^(?!.*<(?:Loader2|RefreshCw)\b).*\banimate-spin\b/,
-      'a spinner as a loading state (animate-spin only on an action progress icon: Loader2, RefreshCw)',
-    ],
-    [
-      />\s*(Loading|Checking)\b[^<{]*(\.\.\.|\u2026)\s*<|['"`](Loading|Checking)\b[^'"`]*(\.\.\.|\u2026)['"`]/,
-      '"Loading…" text as a loading state (draw the component skeleton)',
-    ],
-    [/>\s*Loading\b[^<{]*</, '"Loading" text as a loading state (draw the component skeleton)'],
-    [
-      /<(?:PageLoader|CompactPageLoader|ContentLoader|CardLoader|DetailLoader|FormLoader|ListLoader|ChatCardLoader|OpenmspHeartbeatLoader|Spinner)\b/,
-      'a loader component as a loading state (render the components in a loading scope)',
-    ],
-    [
-      /\b(?:loading|isLoading|isPending)\s*\?\s*null\s*:\s*</,
-      'nothing drawn while loading (render the component in a loading scope)',
-    ],
-    [
-      /if\s*\(\s*(?:loading|isLoading|isPending)\s*\)\s*(?:\{\s*)?return\s+null\b/,
-      'nothing drawn while loading (render the component in a loading scope)',
-    ],
-    [/<Suspense>/, 'a Suspense with no fallback (use LoadingSuspense / LoadingFallback)'],
-  ];
-  for (const dir of ['app', 'components', 'lib', 'hooks']) {
-    for (const full of files(join(base, dir), true)) {
-      const rel = relative(base, full);
-      if (rel.startsWith(join('components', 'examples')) || /\.(test|stories)\.tsx?$/.test(full)) continue;
-      const standardLines = readFileSync(full, 'utf8').split('\n');
-      standardLines.forEach((line, index) => {
-        if (isComment(line) || optedOut(standardLines, index, 'loading-standard-ok:')) return;
-        for (const [pattern, name] of STANDARD) if (pattern.test(line)) violations.push(`${rel}:${index + 1}: ${name}`);
-      });
+    for (const m of source.matchAll(
+      /\b(standIn|isStandIn|STAND_IN_MARK|HoldStandIn|HoldText|HoldWords|HoldBox|useHolds|HELD_CONTROL_CLASS)\b|<Hold\b/g,
+    )) {
+      report(rel, lineOf(source, m.index), `${m[0]} (stand-in data is retired: draw the component's skeleton)`);
     }
-  }
-  // "Loading…" text split over JSX lines (`>\n  Loading thread…\n<`) (the lib
-  // has its own one-pulse test; this keeps loading TEXT out of both).
-  const MULTILINE_LOADING = />\s*\n\s*(Loading|Checking)\b[^<{]*(\.\.\.|\u2026)\s*\n?\s*</g;
-  const scan = (dir, label, patterns) => {
-    for (const full of files(dir, true)) {
-      const rel = label + relative(dir, full);
-      if (/\.(test|stories)\.tsx?$/.test(full)) continue;
-      const source = readFileSync(full, 'utf8');
-      const lines = source.split('\n');
-      for (const pattern of patterns) {
-        for (const m of source.matchAll(pattern)) {
-          const line = source.slice(0, m.index).split('\n').length;
-          const text = lines.slice(line - 1, line + 2).join('\n');
-          if (/loading-standard-ok:/.test(text)) continue;
-          violations.push(`${rel}:${line}: "Loading…" text as a loading state (draw the component skeleton)`);
-        }
-      }
-    }
-  };
-  for (const dir of ['app', 'components', 'lib', 'hooks']) scan(join(base, dir), `${dir}/`, [MULTILINE_LOADING]);
-  const check = full => {
-    const rel = relative(base, full);
-    if (basename(full) === 'loading.tsx') violations.push(`${rel}: a route-level loading.tsx`);
-    const source = readFileSync(full, 'utf8');
-    source.split('\n').forEach((line, index) => {
-      if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-      for (const [pattern, name] of PRIMITIVES) {
-        if (pattern.test(line)) violations.push(`${rel}:${index + 1}: ${name}`);
-      }
+    if (example) continue;
+    lines.forEach((line, i) => {
+      if (isComment(line) || optedOut(lines, i, OPT_OUT)) return;
+      for (const [pattern, why] of STANDARD) if (pattern.test(line)) report(rel, i + 1, why);
     });
-  };
-  // Page code renders no component skeleton, a Suspense `fallback=` included (the component switches itself; a
-  // fallback is the same component in a loading scope).
-  const renderedSkeletons = full => {
+    // "Loading…" text split over JSX lines (`>\n  Loading thread…\n<`).
+    for (const m of source.matchAll(/>\s*\n\s*(Loading|Checking)\b[^<{]*(\.\.\.|…)\s*\n?\s*</g)) {
+      const line = lineOf(source, m.index);
+      if (!optedOut(lines, line + 1, OPT_OUT))
+        report(rel, line, '"Loading…" text as a loading state (draw the component skeleton)');
+    }
+    // A Suspense with no fallback draws nothing while it waits.
+    for (const m of source.matchAll(SUSPENSE_TAG)) {
+      const line = lineOf(source, m.index);
+      if (!/\bfallback\s*=/.test(m[1]) && !isComment(lines[line - 1]) && !optedOut(lines, line - 1, OPT_OUT))
+        report(rel, line, 'a Suspense with no fallback (use LoadingSuspense / LoadingFallback)');
+    }
+    // Nothing drawn while a read is pending: `if (!data) return null` in a function that has not answered its read yet
+    // (no loading branch, no scope switch and no suspending read above it in the same function).
+    for (const m of full.endsWith('.tsx') ? source.matchAll(NULL_WHEN_MISSING) : []) {
+      const line = lineOf(source, m.index);
+      if (optedOut(lines, line - 1, OPT_OUT)) continue;
+      const owner = enclosingDeclaration(source, m.index);
+      // A component (capitalised), not a callback or a hook.
+      if (!/^[A-Z]/.test(owner)) continue;
+      const declarations = [
+        ...source.slice(0, m.index).matchAll(new RegExp(`\\b(?:function|const)\\s+${owner}\\b`, 'g')),
+      ];
+      const ownerAt = declarations.at(-1)?.index ?? 0;
+      if (
+        !READ_ANSWERED.test(source.slice(ownerAt, m.index)) &&
+        /\b(?:data|isLoading|loading|isFetching)\b/.test(source.slice(ownerAt, m.index))
+      ) {
+        report(rel, line, 'nothing drawn while the read is pending (draw the component in a loading scope)');
+      }
+    }
+    // A component that switches only on its prop draws its skeleton outside every loading scope: a screen in a scope
+    // gets the loaded form with no data. One switch: `useLoadingScope() || loading`.
+    if (!/\buseLoadingScope\s*\(/.test(source)) {
+      for (const m of source.matchAll(PROP_SWITCH)) {
+        const line = lineOf(source, m.index);
+        if (!optedOut(lines, line - 1, OPT_OUT))
+          report(rel, line, 'a switch on the loading prop alone (switch on useLoadingScope() || loading)');
+      }
+    }
+  }
+
+  // Page code: no skeleton primitive, no route `loading.tsx`, no component skeleton rendered (a Suspense `fallback=`
+  // included: the component switches itself; a fallback is the same component in a loading scope).
+  const pageCode = full => {
     const rel = relative(base, full);
-    const source = readFileSync(full, 'utf8');
-    const lines = source.split('\n');
-    // `next/dynamic`'s `loading: () => …` is the fallback while a component's code loads (one line): exempt.
+    if (inTrees(full, ['lib'])) return full.endsWith('.tsx');
+    if (inTrees(full, ['app'])) return full.endsWith('.tsx') && isPageFile(rel, base);
+    if (inTrees(full, ['components'])) return SCREEN_FILE.test(basename(full));
+    return false;
+  };
+  for (const [full, { rel, source, lines }] of tree) {
+    if (!pageCode(full)) continue;
+    if (basename(full) === 'loading.tsx') report(rel, 0, 'a route-level loading.tsx');
+    lines.forEach((line, i) => {
+      if (isComment(line)) return;
+      for (const [pattern, why] of PRIMITIVES) if (pattern.test(line)) report(rel, i + 1, why);
+    });
+    if (inTrees(full, ['lib'])) continue;
     const dynamicSpans = dynamicLoadingSpans(source);
     for (const m of source.matchAll(/<([A-Z][A-Za-z0-9.]*Skeleton)\b/g)) {
       if (dynamicSpans.some(([start, end]) => m.index > start && m.index < end)) continue;
-      const line = source.slice(0, m.index).split('\n').length;
-      const text = lines.slice(Math.max(0, line - 2), line).join('\n');
-      if (/loading-standard-ok:/.test(text)) continue;
-      violations.push(
-        `${rel}:${line}: <${m[1]}> rendered by page code (render the component: it draws its own skeleton)`,
-      );
+      const line = lineOf(source, m.index);
+      if (optedOut(lines, line - 1, OPT_OUT)) continue;
+      report(rel, line, `<${m[1]}> rendered by page code (render the component: it draws its own skeleton)`);
     }
-  };
-  for (const full of files(join(base, 'app'))) {
-    if (!isPageFile(relative(base, full), base)) continue;
-    check(full);
-    renderedSkeletons(full);
   }
-  // A screen under `components/` is page code too (see the header).
-  for (const full of files(join(base, 'components'))) {
-    if (!SCREEN_FILE.test(basename(full))) continue;
-    check(full);
-    renderedSkeletons(full);
-  }
-  for (const full of files(join(base, 'lib'))) check(full);
   return { violations, warnings: foreign.warnings };
 }
 

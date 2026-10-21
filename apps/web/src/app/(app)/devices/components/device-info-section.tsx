@@ -1,6 +1,5 @@
 'use client';
 
-import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   OSTypeIcon,
@@ -9,12 +8,12 @@ import {
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
+import { CustomerInfoCell } from '@/app/components/shared/customer-info-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { Device } from '../types/device.types';
-import { CustomerInfoCell } from './customer-info-cell';
 import { DeviceAddedByCell } from './device-added-by-cell';
 
 function formatDateWithTime(iso?: string): React.ReactNode {
@@ -67,27 +66,33 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const uuid = device?.osUuid || device?.machineId || device?.id;
 
   // Cells defined once and reused across both responsive layouts below. The icons are drawn from the device, so while
-  // it is read (the loading scope) each is a placeholder of its own size.
-  const typeIcon =
-    !loading && device ? (
-      renderDeviceTypeIcon(device.type, `${ICON_SIZE} text-ods-text-secondary`)
-    ) : (
-      <MediaSkeleton.Icon className={ICON_SIZE} />
-    );
-  const osIcon =
-    !loading && device ? (
-      <OSTypeIcon osType={device.osType || device.platform} size={OS_ICON_SIZE} />
-    ) : (
-      <MediaSkeleton.Icon className={OS_ICON_SIZE} />
-    );
+  // it is read (the loading scope) each cell draws an icon box of its own size in their place.
+  const typeIcon = renderDeviceTypeIcon(device?.type, `${ICON_SIZE} text-ods-text-secondary`);
+  const osIcon = <OSTypeIcon osType={device?.osType || device?.platform} size={OS_ICON_SIZE} />;
 
   // The original device name — with a nickname in the page title, this cell is
   // where the hostname stays visible alongside the custom name.
   const hostnameCell = (
     <InfoCell value={device ? device.hostname || getDeviceName(device) : null} label="Hostname" skeletonWidth="w-28" />
   );
-  const typeCell = <InfoCell value={device?.type} label="Type" icon={typeIcon} skeletonWidth="w-24" />;
-  const deviceCell = <InfoCell value={deviceLabel} label="Device" icon={osIcon} skeletonWidth="w-44" />;
+  const typeCell = (
+    <InfoCell
+      value={device?.type}
+      label="Type"
+      icon={typeIcon}
+      iconSkeleton={{ className: ICON_SIZE }}
+      skeletonWidth="w-24"
+    />
+  );
+  const deviceCell = (
+    <InfoCell
+      value={deviceLabel}
+      label="Device"
+      icon={osIcon}
+      iconSkeleton={{ className: OS_ICON_SIZE }}
+      skeletonWidth="w-44"
+    />
+  );
   const serialCell = <InfoCell value={serialNumber} label="Serial Number" skeletonWidth="w-52" />;
   const registeredCell = (
     <InfoCell value={formatDateWithTime(device?.registeredAt)} label="Registered" skeletonWidth="w-40" />

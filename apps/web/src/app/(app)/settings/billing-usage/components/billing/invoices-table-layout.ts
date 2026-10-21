@@ -60,7 +60,6 @@ const INVOICE_COLUMNS = {
     id: 'status',
     header: 'STATUS',
     width: 'flex-1 min-w-0',
-    filterable: true,
     hideAt: 'md',
   },
   // Never hidden: this is the link that pays the invoice, and it is the only

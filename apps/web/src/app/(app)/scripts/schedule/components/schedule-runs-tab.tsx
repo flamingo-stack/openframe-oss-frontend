@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ClockHistoryIcon,
   Filter02Icon,
@@ -16,7 +16,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleRunsRelay_query$key as RunsFragmentKey } from '@/__generated__/scheduleRunsRelay_query.graphql';
 import type { scheduleRunsRelayPaginationQuery as RunsPaginationQueryType } from '@/__generated__/scheduleRunsRelayPaginationQuery.graphql';
@@ -394,15 +394,14 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <Suspense
+      <LoadingSuspense
+        label="Loading schedule runs"
         fallback={
-          <LoadingFallback label="Loading schedule runs">
-            <EmptyLiveTable
-              columns={SCHEDULE_RUN_LOADING_COLUMNS}
-              pageSize={RUNS_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          </LoadingFallback>
+          <EmptyLiveTable
+            columns={SCHEDULE_RUN_LOADING_COLUMNS}
+            pageSize={RUNS_PAGE_SIZE}
+            stickyHeaderOffset={stickyHeaderOffset}
+          />
         }
       >
         <ScheduleRunsContent
@@ -419,7 +418,7 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           stickyHeaderOffset={stickyHeaderOffset}
           onEmptyChange={setIsEmpty}
         />
-      </Suspense>
+      </LoadingSuspense>
     </div>
   );
 });

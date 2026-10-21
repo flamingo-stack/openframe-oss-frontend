@@ -1,7 +1,6 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingParagraph, type ParagraphLines } from '../shared/loading-paragraph';
 import { LockScreenActionsMenu } from './lock-screen-actions';
 import { type PaywallCopy, paywallDescription } from './subscription-lock-copy';
 
@@ -14,13 +13,23 @@ interface PaywallHeaderProps {
 }
 
 /**
- * The paywall's second line: the fleet the plan is for. While billing is read it is two text bars (the sentence it
- * becomes), never the generic sentence; shared by this header and the activate-subscription modal.
+ * The fleet sentence's typical lines (about 120 characters of h6, ~840px): two in the activate-subscription modal and on
+ * a phone, one on the full-width page from `content-md` (an estimate from the copy's length, not measured).
  */
-export function PaywallDescription({ copy, deviceCount = null, loading: loadingProp }: PaywallHeaderProps) {
-  const loading = useLoadingScope() || !!loadingProp;
-  if (loading) return <TextLineSkeleton type="h6" lines={2} />;
-  return <p className="text-ods-text-secondary text-h6">{paywallDescription(copy, deviceCount)}</p>;
+const MODAL_DESCRIPTION_LINES = 2;
+const PAGE_DESCRIPTION_LINES: ParagraphLines = { base: 2, md: 1 };
+
+/**
+ * The paywall's second line: the fleet the plan is for. While billing is read it is the sentence's typical lines,
+ * never the generic sentence; shared by this header and the activate-subscription modal.
+ */
+export function PaywallDescription({
+  copy,
+  deviceCount = null,
+  loading,
+  lines = MODAL_DESCRIPTION_LINES,
+}: PaywallHeaderProps & { lines?: ParagraphLines }) {
+  return <LoadingParagraph loading={loading} text={paywallDescription(copy, deviceCount)} type="h6" lines={lines} />;
 }
 
 /**
@@ -47,7 +56,7 @@ export function PaywallHeader({ copy, deviceCount = null, loading }: PaywallHead
         <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
         <LockScreenActionsMenu triggerClassName="shrink-0" />
       </div>
-      <PaywallDescription copy={copy} deviceCount={deviceCount} loading={loading} />
+      <PaywallDescription copy={copy} deviceCount={deviceCount} loading={loading} lines={PAGE_DESCRIPTION_LINES} />
     </div>
   );
 }

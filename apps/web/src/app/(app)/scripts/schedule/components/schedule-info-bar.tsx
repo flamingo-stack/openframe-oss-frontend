@@ -1,6 +1,6 @@
 'use client';
 
-import { MediaSkeleton, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -46,13 +46,22 @@ interface ScheduleInfoBarFromDataProps {
 }
 
 /** One value/label cell, 80px tall from `md` up — the row height the design fixes. The run's own bar shares it. */
-export const INFO_BAR_CELL_CLASS =
+const INFO_BAR_CELL_CLASS =
   'px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
+
+/** A cell's classes on an info bar (the schedule's, and the run's, which matches it). */
+export function infoBarCell(className?: string): string {
+  return cn(INFO_BAR_CELL_CLASS, className);
+}
+
+/** The bar's card frame (the schedule's, and the run's). */
+export const INFO_BAR_FRAME_CLASS =
+  'flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card';
 
 /** A top-row cell stacked over another on a phone (two columns), divided from it. */
 export const DIVIDED_CELL_CLASS = 'border-b border-ods-border content-md:border-b-0';
 
-/** The platform icons' size, shared by the loaded icons and their loading placeholder. */
+/** The platform icons' size (the group draws one icon box of it while loading). */
 const PLATFORM_ICON_CLASS = 'w-5 h-5';
 
 /**
@@ -82,10 +91,12 @@ export function ScheduleInfoBarFromData({
   const showName = shows(name);
   const showOffline = shows(ifDeviceOffline);
   const showAddedBy = shows(addedBy);
-  const cell = (className?: string) => cn(INFO_BAR_CELL_CLASS, className);
+  const cell = infoBarCell;
+  // Switches itself: in the loading scope one platform icon's box, at the size the icons are drawn.
+  const platformIcons = <OSTypeBadgeGroup osTypes={platforms} iconSize={PLATFORM_ICON_CLASS} />;
 
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <div className={INFO_BAR_FRAME_CLASS}>
       {showName && (
         <div className="grid grid-cols-2 border-b border-ods-border">
           <InfoCell label="Schedule Name" value={name} className={cell()} />
@@ -108,13 +119,7 @@ export function ScheduleInfoBarFromData({
             <InfoCell label="Repeat" value={repeat} skeletonWidth="w-16" className={cell()} />
           </>
         )}
-        <InfoCell
-          label="Supported Platform"
-          value={<OSTypeBadgeGroup osTypes={platforms} iconSize={PLATFORM_ICON_CLASS} />}
-          // One platform icon's box: the icons are drawn at this size once read.
-          valueSkeleton={<MediaSkeleton.Icon className={PLATFORM_ICON_CLASS} />}
-          className={cell()}
-        />
+        <InfoCell label="Supported Platform" value={platformIcons} valueSkeleton={platformIcons} className={cell()} />
       </div>
       {/* A row of its own, not extra cells in the grid above — the design keeps
           the offline rule and authorship on a separate line from the timing,

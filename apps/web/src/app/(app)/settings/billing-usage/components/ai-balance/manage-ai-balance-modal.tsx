@@ -1,9 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ModalV2Content } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { manageAiBalanceModalQuery as ManageAiBalanceModalQueryType } from '@/__generated__/manageAiBalanceModalQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
@@ -70,15 +69,12 @@ export function ManageAiBalanceModal({ isOpen, onClose }: ManageAiBalanceModalPr
           </ModalV2Content>
         }
       >
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading AI balance settings">
-              <ManageAiBalanceForm data={null} onClose={onClose} />
-            </LoadingFallback>
-          }
+        <LoadingSuspense
+          label="Loading AI balance settings"
+          fallback={<ManageAiBalanceForm data={null} onClose={onClose} />}
         >
           <ManageAiBalanceContent onClose={onClose} />
-        </Suspense>
+        </LoadingSuspense>
       </ErrorBoundary>
     </SimpleModal>
   );

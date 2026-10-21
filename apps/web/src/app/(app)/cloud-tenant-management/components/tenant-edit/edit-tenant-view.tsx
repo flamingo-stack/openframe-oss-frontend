@@ -9,7 +9,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { routes } from '@/lib/routes';
-import { TenantFormFrame } from '../shared/tenant-form-frame';
+import { SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import { TenantRecordLoader, type TenantRecordState } from './tenant-record-loader';
 import { useEditTenantForm } from './use-edit-tenant-form';
@@ -29,8 +29,7 @@ export function EditTenantView({ id }: { id: string }) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Save Integration',
-      variant: 'accent',
+      ...SAVE_PLACEHOLDER,
       onClick: handleSave,
       disabled: !ready || isSubmitting,
       loading: isSubmitting,

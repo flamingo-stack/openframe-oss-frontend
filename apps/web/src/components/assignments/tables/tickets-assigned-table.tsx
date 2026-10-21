@@ -39,7 +39,7 @@ export function TicketsAssignedTable({ tickets, isLoading }: TicketsAssignedTabl
       <TicketTableBody
         tickets={filtered}
         isLoading={isLoading}
-        emptyMessage="No tickets assigned."
+        emptyState={{ title: 'No tickets assigned.' }}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

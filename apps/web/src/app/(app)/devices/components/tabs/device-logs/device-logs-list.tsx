@@ -1,7 +1,7 @@
 'use client';
 
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState } from 'react';
@@ -16,7 +16,8 @@ import { useGridInfiniteScroll } from '../../../hooks/use-grid-infinite-scroll';
 import { useIsAtTop } from '../../../hooks/use-is-at-top';
 import { groupByLocalDay } from '../../../utils/device-log-time';
 import { TabEmptyState } from '../tab-empty-state';
-import { DeviceLogDayHeader, type DeviceLogEntry, DeviceLogRow } from './device-log-row';
+import { DEVICE_LOG_LIST_CLASS, DEVICE_LOG_SENTINEL_CLASS } from './device-log-layout';
+import { DeviceLogDayGroup, type DeviceLogEntry, DeviceLogRow } from './device-log-row';
 
 const PAGE_SIZE = 100;
 
@@ -101,14 +102,11 @@ interface DeviceLogsListProps {
 function DeviceLogsLoadingPage({ dayHeader = false }: { dayHeader?: boolean }) {
   return (
     <LoadingWhen loading>
-      <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        {dayHeader && <DeviceLogDayHeader date={null} />}
-        <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
-          {Array.from({ length: PAGE_SIZE }, (_, index) => (
-            <DeviceLogRow key={index} entry={null} selected={false} onSelect={noop} />
-          ))}
-        </ul>
-      </section>
+      <DeviceLogDayGroup date={dayHeader ? null : undefined}>
+        <LoadingItems count={PAGE_SIZE}>
+          {() => <DeviceLogRow entry={null} selected={false} onSelect={noop} />}
+        </LoadingItems>
+      </DeviceLogDayGroup>
     </LoadingWhen>
   );
 }
@@ -121,8 +119,8 @@ function DeviceLogsLoadingPage({ dayHeader = false }: { dayHeader?: boolean }) {
 export function DeviceLogsList(props: DeviceLogsListProps) {
   if (useLoadingScope()) {
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <div aria-hidden="true" className="h-px" />
+      <div className={DEVICE_LOG_LIST_CLASS}>
+        <div aria-hidden="true" className={DEVICE_LOG_SENTINEL_CLASS} />
         <DeviceLogsLoadingPage dayHeader />
       </div>
     );
@@ -210,8 +208,8 @@ function DeviceLogsListQuery({
   );
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <div ref={topRef} aria-hidden="true" className="h-px" />
+    <div className={DEVICE_LOG_LIST_CLASS}>
+      <div ref={topRef} aria-hidden="true" className={DEVICE_LOG_SENTINEL_CLASS} />
       {tailFailed && <SectionLoadError message="Auto-update failed. Retrying in 30 seconds." />}
       {edges.length === 0 ? (
         isPending ? (
@@ -229,30 +227,28 @@ function DeviceLogsListQuery({
         <div
           aria-busy={isPending || isLoadingNext}
           className={cn(
-            'flex flex-col gap-[var(--spacing-system-xxs)] transition-opacity motion-reduce:transition-none',
+            DEVICE_LOG_LIST_CLASS,
+            'transition-opacity motion-reduce:transition-none',
             // The dim waits half a second, and lifts at once: a fast answer swaps the rows without a flash.
             isPending && 'opacity-60 delay-500',
           )}
         >
           {days.map(day => (
-            <section key={day.key} className="flex flex-col gap-[var(--spacing-system-xxs)]">
-              <DeviceLogDayHeader date={day.date} />
-              <ul className="flex flex-col gap-[var(--spacing-system-xxs)]">
-                {day.rows.map(row => (
-                  <DeviceLogRow
-                    key={row.key}
-                    entry={row.item.node}
-                    deviceHostname={deviceHostname}
-                    selected={row.key === selectedKey}
-                    onSelect={entry => onSelect(row.key, entry)}
-                  />
-                ))}
-              </ul>
-            </section>
+            <DeviceLogDayGroup key={day.key} date={day.date}>
+              {day.rows.map(row => (
+                <DeviceLogRow
+                  key={row.key}
+                  entry={row.item.node}
+                  deviceHostname={deviceHostname}
+                  selected={row.key === selectedKey}
+                  onSelect={entry => onSelect(row.key, entry)}
+                />
+              ))}
+            </DeviceLogDayGroup>
           ))}
         </div>
       )}
-      <div ref={bottomRef} aria-hidden="true" className="h-px" />
+      <div ref={bottomRef} aria-hidden="true" className={DEVICE_LOG_SENTINEL_CLASS} />
       {isLoadingNext && <DeviceLogsLoadingPage />}
       {loadMoreFailed && <SectionLoadError message="Couldn't load older logs." onRetry={fetchNextPage} />}
       {edges.length > 0 && !hasNext && (

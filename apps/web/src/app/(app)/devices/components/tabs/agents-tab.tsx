@@ -31,21 +31,38 @@ const agentTypeToToolType: Record<string, string> = {
   osqueryd: 'OSQUERY',
 };
 
-/** The rows a connected agent's card reports (its labels drawn real while the device is read). */
-const AGENT_CARD_ROWS = ['Agent', 'Status', 'Last Seen', 'ID', 'Version', 'Updated'];
+/** The labels of an agent card's rows: static copy, read by the loaded card and by its loading form. */
+const AGENT_ROW_LABELS = {
+  agent: 'Agent',
+  status: 'Status',
+  lastSeen: 'Last Seen',
+  id: 'ID',
+  version: 'Version',
+  updated: 'Updated',
+} as const;
+
+/** The agents that report a live status (their cards carry Status and Last Seen). */
+const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
+
+/** The rows a connected, reporting agent's card shows: Status and Last Seen only for an agent with a live status. */
+function agentRowLabels(toolType: string): string[] {
+  const { agent, status, lastSeen, id, version, updated } = AGENT_ROW_LABELS;
+  return AGENT_TYPES_WITH_STATUS.has(toolType)
+    ? [agent, status, lastSeen, id, version, updated]
+    : [agent, id, version, updated];
+}
 
 /**
  * The cards the tab draws while the device is read, in the loaded order. The agent list has no page size: a typical
- * device reports one card per agent type the platform knows, each with a connected agent's rows and its real footer.
+ * device reports one card per agent type the platform knows, each with the rows that agent's loaded card shows and
+ * its real footer.
  */
 const AGENT_CARD_SKELETONS = Object.entries(agentTypeToToolType)
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([agentType, toolType]) => ({
     agentType,
-    shape: { rows: AGENT_CARD_ROWS, title: false, footer: getAgentFooter(toolType) ?? false },
+    shape: { rows: agentRowLabels(toolType), title: false, footer: getAgentFooter(toolType) ?? false },
   }));
-
-const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
 
 function getAgentDisplayStatus(
   toolType: string,
@@ -181,21 +198,24 @@ function agentCardData(agent: CombinedAgent): InfoCardData {
   // ToolBadge). Widened locally rather than cast at the call site so each
   // push below is still checked against a real shape.
   const items: Array<{ label?: string; value: ReactNode; copyable?: boolean; icon?: ReactNode }> = [
-    { label: 'Agent', value: <ToolBadge toolType={toolType} /> },
+    { label: AGENT_ROW_LABELS.agent, value: <ToolBadge toolType={toolType} /> },
   ];
 
   if (showStatusBlock && agent.status != null) {
-    items.push({ label: 'Status', value: <Tag label={statusConfig.label} variant={statusConfig.variant} /> });
+    items.push({
+      label: AGENT_ROW_LABELS.status,
+      value: <Tag label={statusConfig.label} variant={statusConfig.variant} />,
+    });
   }
 
   const lastSeen = showStatusBlock ? formatTimestamp(agent.lastSeen) : undefined;
-  if (lastSeen) items.push({ label: 'Last Seen', value: lastSeen });
+  if (lastSeen) items.push({ label: AGENT_ROW_LABELS.lastSeen, value: lastSeen });
 
-  if (agent.agentToolId) items.push({ label: 'ID', value: agent.agentToolId, copyable: true });
-  if (agent.version) items.push({ label: 'Version', value: agent.version });
+  if (agent.agentToolId) items.push({ label: AGENT_ROW_LABELS.id, value: agent.agentToolId, copyable: true });
+  if (agent.version) items.push({ label: AGENT_ROW_LABELS.version, value: agent.version });
 
   const updated = formatRelative(agent.updatedAt) ?? (showStatusBlock ? formatRelative(agent.lastFetched) : undefined);
-  if (updated) items.push({ label: 'Updated', value: updated });
+  if (updated) items.push({ label: AGENT_ROW_LABELS.updated, value: updated });
 
   // The cast is what the loose `any[]` used to be, now confined to the
   // one boundary that needs it: InfoCard's props model `value` as a

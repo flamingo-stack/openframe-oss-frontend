@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SsoJoinCard } from '@/app/(auth)/auth/components/sso-join-card';
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
 import { noop } from '@/app/components/shared/no-next-page';
@@ -43,25 +43,24 @@ import { routes } from '@/lib/routes';
 export default function SsoJoinPage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the card, in a loading scope, stands in.
-    <Suspense
+    <LoadingSuspense
+      label="Loading your account"
       fallback={
-        <LoadingFallback label="Loading your account">
-          <SsoJoinCardLayout>
-            <SsoJoinCard
-              pending={null}
-              agreedToTerms={false}
-              onAgreedToTermsChange={noop}
-              onSubmit={noop}
-              onBack={noop}
-              termsUrl={TERMS_URL}
-              privacyPolicyUrl={PRIVACY_POLICY_URL}
-            />
-          </SsoJoinCardLayout>
-        </LoadingFallback>
+        <SsoJoinCardLayout>
+          <SsoJoinCard
+            pending={null}
+            agreedToTerms={false}
+            onAgreedToTermsChange={noop}
+            onSubmit={noop}
+            onBack={noop}
+            termsUrl={TERMS_URL}
+            privacyPolicyUrl={PRIVACY_POLICY_URL}
+          />
+        </SsoJoinCardLayout>
       }
     >
       <SsoJoinContent />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

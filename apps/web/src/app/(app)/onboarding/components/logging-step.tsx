@@ -210,7 +210,7 @@ export function LoggingStep({
         <DataTable.Body
           loading={isLoading}
           skeletonRows={LOG_PREVIEW_LIMIT}
-          emptyMessage="No activity yet. Actions across your workspace will show up here."
+          emptyState={{ title: 'No activity yet. Actions across your workspace will show up here.' }}
           rowClassName="mb-1"
         />
       </DataTable>

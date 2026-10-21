@@ -6,6 +6,7 @@ import {
   DataTable,
   type DataTableSortState,
   DeviceCardCompact,
+  type NoDataProps,
   type OnChangeFn,
   type Row,
   resolveStatusTagProps,
@@ -217,10 +218,13 @@ export function getTicketOpenColumn(getUnreadCount?: (ticket: Dialog) => number 
   };
 }
 
+const DEFAULT_EMPTY_STATE: NoDataProps = { title: 'No tickets found.' };
+
 interface TicketTableBodyProps {
   tickets: Dialog[];
   isLoading?: boolean;
-  emptyMessage?: string;
+  /** The empty state's copy (`NoData`): a title, and a description when the table has one. */
+  emptyState?: NoDataProps;
   /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
   skeletonRows?: number;
   /** The list's page size: its loading state (body and infinite footer) draws one full page. */
@@ -246,7 +250,7 @@ interface TicketTableBodyProps {
 export function TicketTableBody({
   tickets,
   isLoading,
-  emptyMessage = 'No tickets found.',
+  emptyState = DEFAULT_EMPTY_STATE,
   skeletonRows,
   pageSize,
   stickyHeaderOffset,
@@ -293,7 +297,7 @@ export function TicketTableBody({
       <DataTable.Body
         loading={isLoading}
         skeletonRows={skeletonRows}
-        emptyMessage={emptyMessage}
+        emptyState={emptyState}
         rowClassName="mb-1"
         rowHref={ticketRowHref}
       />

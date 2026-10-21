@@ -1,9 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { addInsightNoteMutation as AddInsightNoteMutationType } from '@/__generated__/addInsightNoteMutation.graphql';
 import type { deleteInsightNoteMutation as DeleteInsightNoteMutationType } from '@/__generated__/deleteInsightNoteMutation.graphql';
@@ -135,9 +134,9 @@ export function IncidentNotes({ incidentId }: IncidentNotesProps) {
   if (useLoadingScope()) return emptySection;
   return (
     <ContentErrorBoundary title="Notes" message="Couldn't load notes.">
-      <Suspense fallback={<LoadingFallback label="Loading notes">{emptySection}</LoadingFallback>}>
+      <LoadingSuspense label="Loading notes" fallback={emptySection}>
         <IncidentNotesContent incidentId={incidentId} />
-      </Suspense>
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
 }

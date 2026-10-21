@@ -93,8 +93,9 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
 const ASSIGNED_ITEMS_LIMIT = 100;
 
 /**
- * How many rows an assigned list draws while it loads. The list is unbounded (its read limit only guards against
- * runaway data), so this is a typical count: an item usually carries a handful of assignments per kind.
+ * How many rows an assigned list draws while it loads. `ASSIGNED_ITEMS_LIMIT` is a SAFETY CAP on one read, not a page
+ * or a limit the list is shown at, so the full-page rule does not apply: the list is unbounded and draws this
+ * typical count (an item usually carries a handful of assignments per kind).
  */
 export const ASSIGNED_ITEMS_SKELETON_ROWS = 5;
 

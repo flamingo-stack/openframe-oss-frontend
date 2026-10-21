@@ -25,48 +25,71 @@ const GROUP_CLASS = 'flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]';
  */
 const GUARDRAILS_SKELETON_GROUPS = 2;
 
-/** The groups while the template's rules are on its way: each group's label a bar, its panel the lib's loading panel. */
-function GuardrailsPolicyGroupsSkeleton() {
+interface PolicyGroupProps {
+  /** The group's label; unread while loading. */
+  name: string;
+  categories: PermissionCategory[];
+  editMode: boolean;
+  onPolicyPermissionChange: NonNullable<GuardrailsPolicyGroupsProps['onPolicyPermissionChange']>;
+  onCategoryPermissionChange: NonNullable<GuardrailsPolicyGroupsProps['onCategoryPermissionChange']>;
+  loading: boolean;
+}
+
+/** One policy group, loaded and loading: its h5 label (a bar while loading) over its panel (the lib's own loading). */
+function PolicyGroup({
+  name,
+  categories,
+  editMode,
+  onPolicyPermissionChange,
+  onCategoryPermissionChange,
+  loading,
+}: PolicyGroupProps) {
   return (
-    <div className={GROUPS_CLASS}>
-      {Array.from({ length: GUARDRAILS_SKELETON_GROUPS }, (_, group) => (
-        <div key={group} className={GROUP_CLASS} data-loading-item>
-          <TextLineSkeleton type="h5" className="w-32" />
-          <PolicyConfigurationPanel
-            categories={NO_CATEGORIES}
-            editMode={false}
-            onPolicyPermissionChange={noop}
-            onCategoryPermissionChange={noop}
-            loading
-          />
-        </div>
-      ))}
+    <div className={GROUP_CLASS} data-loading-item>
+      {loading ? (
+        <TextLineSkeleton type="h5" className="w-32" />
+      ) : (
+        <TruncateText variant="h5" tone="secondary">
+          {name}
+        </TruncateText>
+      )}
+      <PolicyConfigurationPanel
+        categories={categories}
+        editMode={editMode}
+        onPolicyPermissionChange={onPolicyPermissionChange}
+        onCategoryPermissionChange={onCategoryPermissionChange}
+        loading={loading}
+      />
     </div>
   );
 }
 
-/** One PolicyConfigurationPanel per policy group, under an h5 section label. In a loading scope, its skeleton. */
+/**
+ * One PolicyConfigurationPanel per policy group, under an h5 section label. While the template's rules are on their
+ * way (or in a loading scope) the same groups, `GUARDRAILS_SKELETON_GROUPS` of them, each drawing its own loading form.
+ */
 export function GuardrailsPolicyGroups({
   groups,
   editMode = false,
   onPolicyPermissionChange = noop,
   onCategoryPermissionChange = noop,
 }: GuardrailsPolicyGroupsProps) {
-  if (useLoadingScope() || groups == null) return <GuardrailsPolicyGroupsSkeleton />;
+  const loading = useLoadingScope() || groups == null;
+  const entries: [string, PermissionCategory[]][] = groups
+    ? Array.from(groups.entries())
+    : Array.from({ length: GUARDRAILS_SKELETON_GROUPS }, (_, index) => [`loading-${index}`, NO_CATEGORIES]);
   return (
     <div className={GROUPS_CLASS}>
-      {Array.from(groups.entries()).map(([policyGroupName, categories]) => (
-        <div key={policyGroupName} className={GROUP_CLASS} data-loading-item>
-          <TruncateText variant="h5" tone="secondary">
-            {policyGroupName}
-          </TruncateText>
-          <PolicyConfigurationPanel
-            categories={categories}
-            editMode={editMode}
-            onPolicyPermissionChange={onPolicyPermissionChange}
-            onCategoryPermissionChange={onCategoryPermissionChange}
-          />
-        </div>
+      {entries.map(([policyGroupName, categories]) => (
+        <PolicyGroup
+          key={policyGroupName}
+          name={policyGroupName}
+          categories={loading ? NO_CATEGORIES : categories}
+          editMode={!loading && editMode}
+          onPolicyPermissionChange={onPolicyPermissionChange}
+          onCategoryPermissionChange={onCategoryPermissionChange}
+          loading={loading}
+        />
       ))}
     </div>
   );

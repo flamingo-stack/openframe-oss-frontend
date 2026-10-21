@@ -18,6 +18,7 @@ import {
 import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
@@ -39,9 +40,6 @@ const QUERY_TABS: TabItem[] = [
   { id: DEVICES_TAB, label: 'Assigned Devices', icon: MonitorIcon },
 ];
 const DEFAULT_QUERY_TAB: QueryDetailTab = RESULTS_TAB;
-
-/** The gap between an info cell's value and its label. */
-const CELL_GAP_CLASS = 'gap-[var(--spacing-system-xxs)]';
 
 function isQueryDetailTab(value: string): value is QueryDetailTab {
   return TAB_IDS.queryDetails.some(tab => tab === value);
@@ -162,7 +160,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
               label="Description"
               value={details?.description ? <span className="whitespace-normal">{details.description}</span> : null}
               skeletonWidth="w-2/3"
-              className={CELL_GAP_CLASS}
+              className={DETAIL_CELL_GAP_CLASS}
             />
           </div>
 
@@ -171,7 +169,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
               label="Frequency"
               value={details ? formatInterval(details.interval) : ''}
               skeletonWidth="w-24"
-              className={CELL_GAP_CLASS}
+              className={DETAIL_CELL_GAP_CLASS}
             />
           </div>
         </div>
@@ -204,7 +202,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
                   <QueryReportTable
                     data={rows}
                     loading={!details || isReportLoading}
-                    emptyMessage="No report results available"
+                    emptyState={{ title: 'No report results available' }}
                     columnOrder={['device', 'last_fetched']}
                     showExport={false}
                   />

@@ -2,9 +2,8 @@ import { FlamingoMarkIcon } from '@flamingo-stack/openframe-frontend-core/compon
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
 /**
- * The "Powered by Flamingo" footer link the full-screen surfaces share (the
- * setup wizard; the lock, account-deletion and error screens draw the same
- * row inline).
+ * The "Powered by Flamingo" footer link the full-screen surfaces share (the setup wizard, the auth status pages, the
+ * inactive workspace).
  */
 export function PoweredByFlamingo({ className }: { className?: string }) {
   return (

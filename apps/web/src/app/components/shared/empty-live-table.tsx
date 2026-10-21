@@ -26,7 +26,7 @@ export function EmptyLiveTable<T>({ columns, pageSize, stickyHeaderOffset }: Emp
   return (
     <DataTable table={table}>
       <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-      <DataTable.Body skeletonRows={pageSize} emptyMessage="" rowClassName="mb-1" />
+      <DataTable.Body skeletonRows={pageSize} rowClassName="mb-1" />
     </DataTable>
   );
 }

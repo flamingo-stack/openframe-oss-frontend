@@ -1,6 +1,5 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ChatTypingIndicator } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   CheckCircleIcon,
@@ -9,6 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback } from 'react';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { accessStateHint, checkResultTag, isReadable, providerPresentation } from '../../utils/tenant-presentation';
@@ -38,6 +38,9 @@ const LINK_PLACEHOLDER: Record<ConsentMode, string> = {
   // was consumed by the consent that was later withdrawn. Reconnect mints one.
   details: 'No consent link is outstanding — use Reconnect to issue a new one.',
 };
+
+/** The two lines the provider's consent instruction runs to at the card's usual width. */
+const CONSENT_INSTRUCTION_SKELETON_LINES = 2;
 
 const CONSENT_CARD_CLASSES =
   'flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
@@ -114,13 +117,12 @@ export function ConsentLinkPanel({
         </div>
       )}
       <div className={CONSENT_CARD_CLASSES}>
-        {loading ? (
-          <TextLineSkeleton type="h4" lines={2} />
-        ) : (
-          <p className="text-ods-text-primary text-h4">
-            {mode === 'reconnect' ? reapproveInstruction : consentInstruction}
-          </p>
-        )}
+        <LoadingParagraph
+          loading={loading}
+          text={mode === 'reconnect' ? reapproveInstruction : consentInstruction}
+          tone="primary"
+          lines={CONSENT_INSTRUCTION_SKELETON_LINES}
+        />
         <Input
           readOnly
           disabled={loading}

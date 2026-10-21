@@ -1,8 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 import { AuthErrorScreen } from '../components/auth-error-screen';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
 
@@ -16,15 +15,9 @@ export default function AuthErrorPage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the screen itself, in a loading scope,
     // stands in until the URL is read.
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading the error details">
-          <AuthErrorScreen />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading the error details" fallback={<AuthErrorScreen />}>
       <AuthErrorFromUrl />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

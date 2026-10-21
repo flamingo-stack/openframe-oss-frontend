@@ -1,10 +1,9 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { actionPackageVersionQuery as ActionPackageVersionQueryType } from '@/__generated__/actionPackageVersionQuery.graphql';
-import { EmptyValue } from '@/app/components/shared';
+import { ValueText } from '@/app/components/shared';
 import type { PackageManagerType } from '@/generated/schema-enums';
 
 /** A catalog package's newest published version. */
@@ -22,6 +21,9 @@ const actionPackageVersionQuery = graphql`
   }
 `;
 
+/** The version's bar while the catalog is read. */
+const VERSION_SKELETON_WIDTH = 'w-20';
+
 interface ActionPackageVersionProps {
   packageManager: PackageManagerType;
   packageName: string;
@@ -35,14 +37,9 @@ interface ActionPackageVersionProps {
  */
 export function ActionPackageVersion(props: ActionPackageVersionProps) {
   if (useLoadingScope()) {
-    return <ActionPackageVersionSkeleton />;
+    return <ValueText value={null} skeletonWidth={VERSION_SKELETON_WIDTH} />;
   }
   return <ActionPackageVersionQuery {...props} />;
-}
-
-/** The version line before the catalog answers. */
-function ActionPackageVersionSkeleton() {
-  return <TextLineSkeleton type="h4" as="span" className="w-20" />;
 }
 
 function ActionPackageVersionQuery({ packageManager, packageName }: ActionPackageVersionProps) {
@@ -51,5 +48,5 @@ function ActionPackageVersionQuery({ packageManager, packageName }: ActionPackag
     { packageManager, packageId: packageName, packageType: null },
     { fetchPolicy: 'store-or-network' },
   );
-  return <>{packageDetails.versions[0]?.version ?? <EmptyValue />}</>;
+  return <ValueText value={packageDetails.versions[0]?.version} skeletonWidth={VERSION_SKELETON_WIDTH} />;
 }

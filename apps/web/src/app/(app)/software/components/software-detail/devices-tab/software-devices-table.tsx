@@ -281,11 +281,11 @@ function SoftwareDevicesTableRows({
         />
         <DataTable.Body
           skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
-          emptyMessage={
-            debouncedSearch
+          emptyState={{
+            title: debouncedSearch
               ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No devices with the selected status. Try adjusting your filter.'
-          }
+              : 'No devices with the selected status. Try adjusting your filter.',
+          }}
           rowClassName="mb-1"
           rowHref={deviceHref}
         />

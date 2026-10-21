@@ -1,10 +1,10 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { AgentMark, LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { memo, type ReactNode, Suspense } from 'react';
+import { memo, type ReactNode } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -198,15 +198,9 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
   return (
     <IncidentDetailsFrame
       header={
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading incident">
-              <IncidentHeaderView />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading incident" fallback={<IncidentHeaderView />}>
           <IncidentHeader incidentId={incidentId} />
-        </Suspense>
+        </LoadingSuspense>
       }
       body={
         // Notes sit between the card and the evidence but fetch on their own:
@@ -214,25 +208,16 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
         // assigned tickets come last: most incidents have none, so the section
         // appears with its rows below everything the page always shows.
         <>
-          <Suspense
-            fallback={
-              <LoadingFallback label="Loading incident summary">
-                <IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />
-              </LoadingFallback>
-            }
+          <LoadingSuspense
+            label="Loading incident summary"
+            fallback={<IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />}
           >
             <IncidentSummary incidentId={incidentId} />
-          </Suspense>
+          </LoadingSuspense>
           <IncidentNotes incidentId={incidentId} />
-          <Suspense
-            fallback={
-              <LoadingFallback label="Loading query results">
-                <IncidentQueryResults />
-              </LoadingFallback>
-            }
-          >
+          <LoadingSuspense label="Loading query results" fallback={<IncidentQueryResults />}>
             <IncidentEvidence incidentId={incidentId} />
-          </Suspense>
+          </LoadingSuspense>
           <IncidentAssignedTickets incidentId={incidentId} />
         </>
       }

@@ -1,11 +1,10 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
@@ -32,7 +31,7 @@ import {
 } from '../../shared/components/executions-table';
 import { InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
-import { DIVIDED_CELL_CLASS, INFO_BAR_CELL_CLASS } from './schedule-info-bar';
+import { DIVIDED_CELL_CLASS, INFO_BAR_FRAME_CLASS, infoBarCell } from './schedule-info-bar';
 
 interface ScheduleRunDetailsViewProps {
   /** `ScheduleRun` global id — see `routes.scripts.schedules.run`. */
@@ -57,7 +56,7 @@ const EXECUTIONS_EMPTY_STATE = {
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
 /** A cell of the run's bar: the schedule's own info bar cell (80px on md+), so the two bars match. */
-const runCell = (className?: string) => cn(INFO_BAR_CELL_CLASS, className);
+const runCell = infoBarCell;
 
 /**
  * The run's info bar. Without the run (or in a loading scope) it draws itself: the same cells and labels, every
@@ -74,7 +73,7 @@ function RunInfoBar({ run }: { run?: RunNode }) {
   const executedBy = <InitiatorIdentity initiator={initiator} size="sm" loading={loading} />;
 
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <div className={INFO_BAR_FRAME_CLASS}>
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
@@ -294,29 +293,17 @@ function RunExecutionRows({
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading the run">
-            <RunHeaderView />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading the run" fallback={<RunHeaderView />}>
         <RunHeader runId={runId} />
-      </Suspense>
+      </LoadingSuspense>
 
       {/* No gap: the executions block carries its own top padding (the sticky
           toolbar's `pt-l`), the same contract the details pages give their tab
           bodies. */}
       <div className="flex flex-1 flex-col">
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading run details">
-              <RunInfoBar />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading run details" fallback={<RunInfoBar />}>
           <RunSummary runId={runId} />
-        </Suspense>
+        </LoadingSuspense>
 
         {/* The whole shell, exactly as the two Execution History tabs render it —
             same search box, same funnels, same sticky toolbar and boundary. It

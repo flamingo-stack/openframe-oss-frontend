@@ -1,9 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ModalV2Content, ModalV2Footer } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
 import type { activateSubscriptionModalQuery as ActivateSubscriptionModalQueryType } from '@/__generated__/activateSubscriptionModalQuery.graphql';
@@ -73,15 +72,9 @@ export function ActivateSubscriptionModal({ isOpen, status, onClose }: ActivateS
           </ModalV2Content>
         }
       >
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading plans">
-              <ActivateSubscriptionBody copy={copy} query={null} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading plans" fallback={<ActivateSubscriptionBody copy={copy} query={null} />}>
           <ActivateSubscriptionContent copy={copy} />
-        </Suspense>
+        </LoadingSuspense>
       </ErrorBoundary>
     </SimpleModal>
   );

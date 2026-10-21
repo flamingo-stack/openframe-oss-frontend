@@ -1,11 +1,12 @@
 'use client';
 
-import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
+import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -27,8 +28,11 @@ function Row({ children }: { children: ReactNode }) {
 
 /** A cell of the strip. */
 function Cell({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
+  return <div className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>{children}</div>;
 }
+
+/** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
+const DESCRIPTION_SKELETON_LINES = 2;
 
 /** The device-type icon's box, shared by the icon and its loading placeholder. */
 const DEVICE_ICON_CLASS = 'size-6';
@@ -47,7 +51,8 @@ interface IncidentSummaryCardProps {
  *
  * In a loading scope (or without the incident) it draws itself: the same cells
  * and labels, the values bars (`InfoCell`), the tags tag-shaped bars, the
- * device icon and customer logo their own placeholders.
+ * device icon and customer logo their own placeholders. Every cell is drawn in
+ * both forms ("Until" reads the empty mark unless the incident is snoozed).
  */
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
   const loading = useLoadingScope() || !incident;
@@ -55,33 +60,25 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
 
   return (
     <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        {loading ? (
-          <>
-            <TextLineSkeleton type="h4" className="w-64 max-w-full" />
-            <TextLineSkeleton type="h6" className="w-full max-w-[720px]" />
-          </>
-        ) : (
-          <>
-            <TruncateText variant="h4">{incident.title}</TruncateText>
-            {/* Always drawn: what the detecting query looks for, which nearly every finding states; one without it
-                shows the empty mark, so the line the loading form draws is always there. */}
-            <p className="text-ods-text-secondary text-h6">{incident.description || <EmptyValue />}</p>
-          </>
-        )}
-      </div>
+      {/* The description is always drawn: what the detecting query looks for, which nearly every finding states; one
+          without it shows the empty mark. It wraps, so while loading it draws its typical line count. */}
+      <TitleLines
+        title={incident?.title ?? ''}
+        subline={incident?.description}
+        wrapSubline
+        sublineLines={DESCRIPTION_SKELETON_LINES}
+        titleSkeletonWidth="w-64"
+        sublineSkeletonWidth="w-full max-w-[720px]"
+        loading={loading}
+        className="gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]"
+      />
 
       <Row>
         <Cell>
           <InfoCell
             loading={loading}
-            icon={
-              loading ? (
-                <MediaSkeleton.Icon className={DEVICE_ICON_CLASS} />
-              ) : (
-                renderDeviceTypeIcon(incident.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)
-              )
-            }
+            icon={renderDeviceTypeIcon(incident?.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)}
+            iconSkeleton={{ className: DEVICE_ICON_CLASS }}
             value={
               // Only a device that resolved gets a link — a QA seed or a retired
               // machine has no page to land on.
@@ -100,28 +97,18 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           />
         </Cell>
         <Cell>
-          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
-            {/* Draws its own size-10 skeleton in the loading scope. */}
-            <EntityImage
-              src={incident?.organizationImageUrl}
-              alt={incident?.organizationName || 'Customer'}
-              sizeClassName="size-10"
-            />
-            <InfoCell
-              loading={loading}
-              value={
-                incident ? (
-                  <Link
-                    href={routes.customers.details(incident.organizationId)}
-                    className="text-ods-accent underline hover:text-ods-accent-hover"
-                  >
-                    {incident.organizationName || incident.organizationId}
-                  </Link>
-                ) : null
-              }
-              label="Customer"
-            />
-          </div>
+          <CustomerInfoCell
+            label="Customer"
+            customer={
+              incident
+                ? {
+                    id: incident.organizationId,
+                    name: incident.organizationName || incident.organizationId,
+                    logoUrl: incident.organizationImageUrl,
+                  }
+                : null
+            }
+          />
         </Cell>
         <Cell>
           <InfoCell loading={loading} value={incident ? formatDateTime(incident.detectedAt) : ''} label="Detected" />
@@ -160,11 +147,10 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
             label="Status"
           />
         </Cell>
-        {snoozedUntil && (
-          <Cell>
-            <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
-          </Cell>
-        )}
+        {/* Always drawn, so the strip keeps its cells: the empty mark unless the incident is snoozed. */}
+        <Cell>
+          <InfoCell loading={loading} value={snoozedUntil ? formatDateTime(snoozedUntil) : EMPTY_VALUE} label="Until" />
+        </Cell>
       </Row>
     </div>
   );

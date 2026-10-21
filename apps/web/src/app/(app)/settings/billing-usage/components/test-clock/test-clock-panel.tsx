@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { testClockPanelQuery as TestClockPanelQueryType } from '@/__generated__/testClockPanelQuery.graphql';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -44,15 +44,12 @@ export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   if (loading) return <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />;
 
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading the test clock">
-          <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />
-        </LoadingFallback>
-      }
+    <LoadingSuspense
+      label="Loading the test clock"
+      fallback={<TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />}
     >
       <TestClockPanelContent onClockChanged={onClockChanged} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

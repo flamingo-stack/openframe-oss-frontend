@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense, useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
 import {
@@ -113,15 +113,9 @@ export function UnpaidInvoicesScreen({ status }: UnpaidInvoicesScreenProps) {
       }
     >
       <UnpaidInvoicesShell>
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading invoices">
-              <UnpaidInvoicesMain status={status} invoices={null} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading invoices" fallback={<UnpaidInvoicesMain status={status} invoices={null} />}>
           <UnpaidInvoicesContent status={status} />
-        </Suspense>
+        </LoadingSuspense>
       </UnpaidInvoicesShell>
     </ErrorBoundary>
   );

@@ -6,7 +6,7 @@ import { useForm, useFormState } from 'react-hook-form';
 import { SectionLoadError } from '@/app/components/shared';
 import { ConsentBlock } from '../consent/consent-block';
 import { MINT_FAILED } from '../consent/use-start-consent';
-import { TenantFormFrame } from '../shared/tenant-form-frame';
+import { GENERATE_LINK_LABEL, SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { ProviderField } from '../tenant-form/provider-field';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import type { TenantFormRecord } from '../tenant-form/tenant-form-helpers';
@@ -45,8 +45,7 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Save Integration',
-      variant: 'accent',
+      ...SAVE_PLACEHOLDER,
       onClick: handleSave,
       disabled: editingDomain || busy || isMinting || check.isChecking,
       loading: isSaving,
@@ -71,7 +70,7 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
             loading={isGenerating}
             className="w-full content-md:w-auto"
           >
-            Generate Connection Link
+            {GENERATE_LINK_LABEL}
           </Button>
         </div>
       ) : (

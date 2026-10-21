@@ -12,10 +12,14 @@ import { fullPageProblems, fullPageReport } from '../../scripts/check-skeleton-f
 const roots: string[] = [];
 
 /** A fixture project: `src/` holding `files` (paths relative to the project root, e.g. `src/app/x.tsx`). */
-function project(files: Record<string, string>): string {
+const INSTALLED_LIB = 'node_modules/@flamingo-stack/openframe-frontend-core/src';
+
+function project(files: Record<string, string>, { lib = true } = {}): string {
   const root = mkdtempSync(join(tmpdir(), 'loading-gates-'));
   roots.push(root);
-  for (const [rel, source] of Object.entries(files)) {
+  // An installed lib with a src/ folder, as the real install ships (the gate fails when it is missing).
+  const all = lib ? { [`${INSTALLED_LIB}/index.ts`]: 'export {};\n', ...files } : files;
+  for (const [rel, source] of Object.entries(all)) {
     mkdirSync(dirname(join(root, rel)), { recursive: true });
     writeFileSync(join(root, rel), source);
   }
@@ -27,8 +31,8 @@ afterEach(() => {
 });
 
 /** Everything the one-switch gate reports for a fixture project. */
-function pageProblems(files: Record<string, string>): string {
-  const { violations, warnings } = pageSkeletonReport(project(files));
+function pageProblems(files: Record<string, string>, options?: { lib?: boolean }): string {
+  const { violations, warnings } = pageSkeletonReport(project(files, options));
   return [...violations, ...warnings].join('\n');
 }
 
@@ -125,14 +129,6 @@ describe('check-page-skeletons', () => {
     ).toBe('');
   });
 
-  it('allows an action progress icon to spin', () => {
-    expect(
-      pageProblems({
-        'src/components/thing.tsx': 'export function Thing() { return <Loader2 className="animate-spin" />; }\n',
-      }),
-    ).toBe('');
-  });
-
   it('exempts a next/dynamic loading arrow only inside dynamic()', () => {
     const lib = 'node_modules/@flamingo-stack/openframe-frontend-core/src/components/ui/model.tsx';
     const model = BADGE.replaceAll('Badge', 'Model');
@@ -159,6 +155,57 @@ describe('check-page-skeletons', () => {
       'src/components/thing.tsx': 'export function Thing() { return <OldFormSkeleton />; }\n',
     });
     expect(report).toContain('<OldFormSkeleton> is deprecated in the lib');
+  });
+
+  it.each([
+    [
+      'a spinner keyed on a read',
+      'if (isFetching) return <Loader2 className="animate-spin" />;',
+      'a progress icon belongs to an action',
+    ],
+    [
+      'a Suspense with attributes and no fallback',
+      'return <Suspense key="k"><X /></Suspense>;',
+      'a Suspense with no fallback',
+    ],
+    ['"Loading" as a placeholder', 'return <Input placeholder="Loading devices" />;', '"Loading" as a placeholder'],
+    ['null on a fetching flag', 'return isFetching ? null : <Row />;', 'nothing drawn while loading'],
+    [
+      'null while the read is pending',
+      'const { data } = useThing();\n  if (!data) return null;\n  return <Row />;',
+      'nothing drawn while the read is pending',
+    ],
+    [
+      'a switch on the prop alone',
+      'if (loading) return <RowSkeleton />;\n  return <Row />;',
+      'a switch on the loading prop alone',
+    ],
+  ])('fails %s', (_name, body, expected) => {
+    const report = pageProblems({
+      'src/components/thing.tsx': `export function Thing({ loading, isFetching }: { loading: boolean; isFetching: boolean }) {\n  ${body}\n}\n`,
+    });
+    expect(report).toContain(expected);
+  });
+
+  it('passes return null after the read has answered, and an action spinner', () => {
+    expect(
+      pageProblems({
+        'src/components/thing.tsx':
+          'export function Thing() {\n  const { data } = useLazyLoadQuery(q, {});\n  if (!data) return null;\n  return <Row />;\n}\n',
+      }),
+    ).toBe('');
+    expect(
+      pageProblems({
+        'src/components/thing.tsx':
+          'export function Thing({ isSubmitting }: { isSubmitting: boolean }) {\n  return <Button>{isSubmitting && <Loader2 className="animate-spin" />}Save</Button>;\n}\n',
+      }),
+    ).toBe('');
+  });
+
+  it('fails when the installed lib has no src to index', () => {
+    expect(
+      pageProblems({ 'src/components/thing.tsx': 'export function Thing() { return <div />; }\n' }, { lib: false }),
+    ).toContain('the installed lib ships no src/');
   });
 
   it('honours the opt-out marker', () => {
@@ -243,6 +290,31 @@ describe('check-skeleton-full-page', () => {
     expect(problems(`${scope}return <div>{!loading && rows.length === 0 ? <Empty /> : <List />}</div>;`)).toHaveLength(
       0,
     );
+  });
+
+  it('COUNT SOURCE: fails a skeleton count laundered through another constant', () => {
+    expect(
+      problems('const CARDS = 6;\nfunction ListSkeleton() {\n  return Array.from({ length: CARDS }, () => null);\n}'),
+    ).toHaveLength(1);
+    expect(
+      problems(
+        'function ListSkeleton() {\n  return Array.from({ length: CARDS_SKELETON_COUNT }, () => <div key={0} data-loading-item />);\n}',
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('ITEM MARK: checks a list drawn from a pageSize variable too', () => {
+    const unmarked = project({
+      'src/app/list.tsx':
+        'export function List({ pageSize }: { pageSize: number }) {\n  return Array.from({ length: pageSize }, (_, i) => <div key={i} />);\n}\n',
+    });
+    expect(fullPageReport(unmarked).problems).toHaveLength(1);
+  });
+
+  it('OPTIONAL MARK: fails a part keyed on a read field in a switching component', () => {
+    const scope = 'const loading = useLoadingScope();\n';
+    expect(problems(`${scope}return <div>{record?.extra && <Aside />}</div>;`)).toHaveLength(1);
+    expect(problems(`${scope}return <div>{record?.extra && <aside data-loading-optional />}</div>;`)).toHaveLength(0);
   });
 
   it('honours the opt-out marker', () => {

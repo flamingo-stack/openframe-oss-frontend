@@ -1,9 +1,9 @@
 'use client';
 
-import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Component, type ReactNode, Suspense } from 'react';
+import { Component, type ReactNode } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetails_log$key } from '@/__generated__/logDrawerDetails_log.graphql';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
@@ -112,18 +112,12 @@ export function LogDrawerDetails({ log, fallback }: LogDrawerDetailsProps) {
         })
       }
     >
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading log details">
-            <LogDrawerDetailsText />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading log details" fallback={<LogDrawerDetailsText />}>
         <LogDrawerDetailsContent
           variables={{ toolEventId, ingestDay, toolType, eventType, timestamp }}
           fallback={fallback}
         />
-      </Suspense>
+      </LoadingSuspense>
     </LogDrawerDetailsErrorBoundary>
   );
 }

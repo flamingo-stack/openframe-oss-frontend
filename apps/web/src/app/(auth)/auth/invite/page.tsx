@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type AuthSsoProvider,
   CompleteAccountForm,
@@ -8,7 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ComponentProps, type ReactNode, Suspense, useState } from 'react';
+import { type ComponentProps, type ReactNode, useState } from 'react';
 import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import {
   isValidPersonName,
@@ -79,15 +79,12 @@ export default function InvitePage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
     // stands in until the URL (the invitation id) is read.
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading your invitation">
-          <InviteView form={{ loading: true, ssoProvidersLoading: true }} />
-        </LoadingFallback>
-      }
+    <LoadingSuspense
+      label="Loading your invitation"
+      fallback={<InviteView form={{ loading: true, ssoProvidersLoading: true }} />}
     >
       <InviteContent />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

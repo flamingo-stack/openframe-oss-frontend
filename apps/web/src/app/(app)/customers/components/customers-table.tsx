@@ -188,11 +188,11 @@ export function CustomersTable({ status }: CustomersTableProps) {
             isLoading={isLoading}
             // Same rule as `showEmptyState`, one component down: zero rows after a
             // failed or offline load must not read as "you have no customers".
-            emptyMessage={
-              canClaimEmpty
+            emptyState={{
+              title: canClaimEmpty
                 ? 'No customers found. Try adjusting your search or filters.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            }}
             pageSize={ORGANIZATIONS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}
             dateFilter={dateFilter}

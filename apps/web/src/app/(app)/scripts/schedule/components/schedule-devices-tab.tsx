@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DevicesList,
   type DevicesListNarrowing,
@@ -8,7 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragmentKey } from '@/__generated__/scriptScheduleDevicesRelay_schedule.graphql';
@@ -205,15 +205,9 @@ function ScheduleDevicesTabLoading() {
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading devices">
-          <ScheduleDevicesTabLoading />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading devices" fallback={<ScheduleDevicesTabLoading />}>
       <ScheduleDevicesTabContent scheduleId={scheduleId} />
-    </Suspense>
+    </LoadingSuspense>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';

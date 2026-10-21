@@ -2,12 +2,10 @@
 
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   archivedArticlesTable_query$data,
@@ -20,6 +18,7 @@ import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
+import { KnowledgeBaseTable, NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
@@ -111,7 +110,6 @@ interface ArchivedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_LISTING_IDS: readonly string[] = [];
 /**
  * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table with no rows, which is
  * the table's own loading state; otherwise it runs the query, which suspends, so it lives under the view's
@@ -134,7 +132,6 @@ export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
 
 function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
   const { search, tagIds } = props;
-  const { toast } = useToast();
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ArchivedArticlesTableQueryType>(
     archivedArticlesTableQuery,
@@ -154,16 +151,7 @@ function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
   const archived = data.archivedArticles;
   const rows = archived.edges.map(edge => edge.node);
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more articles', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
 
   return (
     <ArchivedArticlesRows
@@ -171,7 +159,7 @@ function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
       rows={rows}
       totalCount={archived.filteredCount}
       listingIds={[archived.__id]}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      infiniteScroll={infiniteScroll}
     />
   );
 }
@@ -209,25 +197,17 @@ function ArchivedArticlesRows({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="article" totalCount={totalCount} />}
-          />
-          <DataTable.Body
-            skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-            emptyState={{
-              title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.',
-            }}
-            rowClassName="mb-1"
-            rowHref={rowHref}
-          />
-          {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />}
-        </DataTable>
-      </div>
+      <KnowledgeBaseTable
+        table={table}
+        rowCount={rows.length}
+        totalCount={totalCount}
+        itemName="article"
+        emptyTitle={isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.'}
+        rowHref={rowHref}
+        infiniteScroll={infiniteScroll}
+        isPending={isPending}
+        stickyHeaderOffset={stickyHeaderOffset}
+      />
 
       {dialog && (
         <UnarchiveArticleModal

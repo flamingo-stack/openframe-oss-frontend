@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { Suspense } from 'react';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import type { ReactNode } from 'react';
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
 import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
@@ -42,73 +42,68 @@ interface SoftwareActionDetailViewProps {
  * their own `QueryIsland` — one request between them — and the logs' search
  * toolbar between the last two is real from the first frame.
  */
+/**
+ * One island of the page: its view with no record in a loading scope stands in twice, for the flag's own window
+ * (`loading`, when the query is not sent at all) and while its query is in flight (the boundary's fallback).
+ */
+function ActionIsland({
+  label,
+  loading,
+  view,
+  children,
+}: {
+  label: string;
+  loading: boolean;
+  view: ReactNode;
+  children: ReactNode;
+}) {
+  if (loading) return <LoadingFallback label={label}>{view}</LoadingFallback>;
+  return (
+    <LoadingSuspense label={label} fallback={view}>
+      {children}
+    </LoadingSuspense>
+  );
+}
+
 export function SoftwareActionDetailView({ actionId, loading = false }: SoftwareActionDetailViewProps) {
   const variables = { id: actionId };
-
-  // Each island's fallback stands in for it twice: while its query is in
-  // flight, and for the flag's own window, when the query is not sent at all.
-  // It is the island's own component with no record, in a loading scope, where
-  // it draws its own loading state.
-  const titleFallback = (
-    <LoadingFallback label="Loading action">
-      <ActionDetailHeader action={null} />
-    </LoadingFallback>
-  );
-  const summaryFallback = (
-    <LoadingFallback label="Loading action">
-      <ActionDetailSummary action={null} />
-    </LoadingFallback>
-  );
 
   return (
     // No page padding here: it lives on the page's wrapper around
     // `ContentErrorBoundary`, so a thrown query keeps the fallback indented.
     <div className="flex w-full flex-col">
       {/* The bar stands for the title: whether this is an update or an install is the record's answer. */}
-      {loading ? (
-        titleFallback
-      ) : (
-        <Suspense fallback={titleFallback}>
-          <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
-            {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
-          </QueryIsland>
-        </Suspense>
-      )}
+      <ActionIsland label="Loading action" loading={loading} view={<ActionDetailHeader action={null} />}>
+        <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
+          {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
+        </QueryIsland>
+      </ActionIsland>
 
       <div className="flex flex-1 flex-col">
-        {loading ? (
-          summaryFallback
-        ) : (
-          <Suspense fallback={summaryFallback}>
-            <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
-              {({ softwareAction }) => <ActionDetailSummary action={softwareAction} />}
-            </QueryIsland>
-          </Suspense>
-        )}
+        <ActionIsland label="Loading action" loading={loading} view={<ActionDetailSummary action={null} />}>
+          <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
+            {({ softwareAction }) => <ActionDetailSummary action={softwareAction} />}
+          </QueryIsland>
+        </ActionIsland>
 
         <ExecutionsTabShell clientSearch searchPlaceholder="Search for Logs">
-          {state => {
+          {state => (
             // Its own boundary, so loading draws this table's columns rather
             // than the shell's script-execution loading state.
-            const tableFallback = (
-              <LoadingFallback label="Loading the action log">
-                <ActionDetailLogs action={null} state={state} />
-              </LoadingFallback>
-            );
-            return loading ? (
-              tableFallback
-            ) : (
-              <Suspense fallback={tableFallback}>
-                <QueryIsland<SoftwareActionDetailViewQueryType>
-                  query={softwareActionDetailViewQuery}
-                  variables={variables}
-                  fetchPolicy="store-or-network"
-                >
-                  {({ softwareAction }) => <ActionDetailLogs action={softwareAction} state={state} />}
-                </QueryIsland>
-              </Suspense>
-            );
-          }}
+            <ActionIsland
+              label="Loading the action log"
+              loading={loading}
+              view={<ActionDetailLogs action={null} state={state} />}
+            >
+              <QueryIsland<SoftwareActionDetailViewQueryType>
+                query={softwareActionDetailViewQuery}
+                variables={variables}
+                fetchPolicy="store-or-network"
+              >
+                {({ softwareAction }) => <ActionDetailLogs action={softwareAction} state={state} />}
+              </QueryIsland>
+            </ActionIsland>
+          )}
         </ExecutionsTabShell>
       </div>
     </div>

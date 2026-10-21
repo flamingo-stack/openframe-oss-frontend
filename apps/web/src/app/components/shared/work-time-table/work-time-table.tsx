@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChartDonutIcon,
@@ -30,7 +30,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { format, isValid, parseISO } from 'date-fns';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/__generated__/deleteTimeEntryMutation.graphql';
 import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
@@ -370,7 +370,7 @@ function WorkTimeTableData({ vars, fetchKey, ...viewProps }: WorkTimeTableDataPr
 
 /**
  * The stats row and the entry table, from props. The Suspense fallback renders it with no data in a loading
- * scope (`LoadingFallback`): the stat cards and the table draw their own loading states (a full page of rows).
+ * scope: the stat cards and the table draw their own loading states (a full page of rows).
  */
 function WorkTimeTableView({
   showEmployee,
@@ -444,7 +444,7 @@ function WorkTimeTableView({
       ) : (
         <DataTable table={table}>
           <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
-          <DataTable.Body emptyMessage="No work time entries for this period." skeletonRows={PAGE_SIZE} />
+          <DataTable.Body emptyState={{ title: 'No work time entries for this period.' }} skeletonRows={PAGE_SIZE} />
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
@@ -714,12 +714,9 @@ function LiveWorkTimeTable({
           <LoadError message="Couldn't load work time entries." onRetry={() => setRetryNonce(nonce => nonce + 1)} />
         }
       >
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading work time">
-              <WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />
-            </LoadingFallback>
-          }
+        <LoadingSuspense
+          label="Loading work time"
+          fallback={<WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />}
         >
           <WorkTimeTableData
             showEmployee={showEmployee}
@@ -734,7 +731,7 @@ function LiveWorkTimeTable({
             onColumnFiltersChange={onColumnFiltersChange}
             richEmptyState={richEmptyState}
           />
-        </Suspense>
+        </LoadingSuspense>
       </ErrorBoundary>
 
       {onAddWorkTimeOpenChange && (

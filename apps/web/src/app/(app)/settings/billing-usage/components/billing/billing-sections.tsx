@@ -40,12 +40,12 @@ interface BillingSectionsProps {
   onClockChanged: () => void;
   /** The paid-tokens card with its auto top-up mark; without it, the card without the mark. */
   paidAiCard?: ReactNode;
-  /** What sits under the counters (the AI balance alert, the auto top-up notice, the device overage). */
+  /** What sits after the invoices (the AI balance alert, the auto top-up notice, the device overage), each optional. */
   notices?: ReactNode;
 }
 
 /**
- * The billing page's body, in order: the notices, the counters, the plan and the invoices. One module for the page
+ * The billing page's body, in order: the counters, the plan, the invoices and the notices. One module for the page
  * (`BillingUsageScreen`) and the wait for its code (`BillingUsageContentSkeleton`), which renders it with no data in a
  * loading scope, so the two can never draw different pages.
  */
@@ -88,11 +88,13 @@ export function BillingSections({
         )}
       </div>
 
-      {notices}
-
       <PlanSections subscription={subscription} billingPlan={billingPlan} />
 
       <InvoicesHistory subscription={subscription} />
+
+      {/* Below the first screen: each notice is a part only some subscriptions have (`data-loading-optional`), so
+          one appearing never moves the counters, the plan or the invoices. */}
+      {notices}
     </>
   );
 }

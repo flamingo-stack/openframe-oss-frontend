@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { OSTypeBadgeGroup, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
@@ -42,7 +42,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
@@ -568,11 +568,11 @@ function SchedulesTableContent({
           />
           <DataTable.Body
             skeletonRows={PAGE_SIZE}
-            emptyMessage={
-              debouncedSearch
+            emptyState={{
+              title: debouncedSearch
                 ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No schedules found. Try adjusting your filters or add a new schedule.'
-            }
+                : 'No schedules found. Try adjusting your filters or add a new schedule.',
+            }}
             rowClassName="mb-1"
             rowHref={scheduleRowHref}
           />
@@ -861,11 +861,10 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
           </div>
         )}
 
-        <Suspense
+        <LoadingSuspense
+          label="Loading schedules"
           fallback={
-            <LoadingFallback label="Loading schedules">
-              <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
-            </LoadingFallback>
+            <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
           }
         >
           <SchedulesTableContent
@@ -884,7 +883,7 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
             stickyHeaderOffset={stickyHeaderOffset}
             archived={archived}
           />
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </PageLayout>
   );

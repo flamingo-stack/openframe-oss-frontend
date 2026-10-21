@@ -27,13 +27,8 @@ export interface TableSkeletonColumn {
   /** Real column declares `meta.sortable` — its header renders a sort icon. */
   sortable?: boolean;
   /**
-   * Real column renders a filter dropdown. Declarative only: the live column states its filter through
-   * `liveColumnMeta`'s `extra`, which is what keeps its header below `lg`.
-   */
-  filterable?: boolean;
-  /**
-   * Real column's header hosts a `DateColumnHeader` (calendar popover). Like
-   * `filterable`, this is layout-affecting rather than cosmetic: the icon sits
+   * Real column's header hosts a `DateColumnHeader` (calendar popover). This
+   * is layout-affecting rather than cosmetic: the icon sits
    * beside the label, so a header without it draws a bare label.
    *
    * It also keeps the header cell alive below `lg` (see `alwaysShowHeader`

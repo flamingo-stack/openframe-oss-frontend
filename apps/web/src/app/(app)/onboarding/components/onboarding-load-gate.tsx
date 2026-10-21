@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 
 interface OnboardingLoadGateProps {
   /** Progress is not read yet (or the surface is about to leave): the view is drawn in a loading scope. */
@@ -26,7 +26,9 @@ export function OnboardingLoadGate({ pending, label, view, children }: Onboardin
       {pending ? (
         view
       ) : (
-        <Suspense fallback={<LoadingFallback label={label}>{view}</LoadingFallback>}>{children}</Suspense>
+        <LoadingSuspense label={label} fallback={view}>
+          {children}
+        </LoadingSuspense>
       )}
     </LoadingWhen>
   );

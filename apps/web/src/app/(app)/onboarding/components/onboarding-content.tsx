@@ -4,7 +4,15 @@ import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-fron
 import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ComponentType, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -131,6 +139,25 @@ export function OnboardingContent() {
   );
 }
 
+/** Re-reads on back/forward and on the synthetic `hashchange` that `navigateSamePageHash` fires for our own writes. */
+function subscribeToHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange);
+  return () => window.removeEventListener('hashchange', onChange);
+}
+
+/**
+ * The step the URL hash opens (`/onboarding#step-tickets`), unknown fragments → null. Read from the first client
+ * render (null on the server), so the loading page opens the same row the loaded one will, before progress arrives,
+ * and the loaded page hands it to the accordion hook from its mount.
+ */
+function useHashStep(): UserOnboardingStepId | null {
+  return useSyncExternalStore(
+    subscribeToHash,
+    () => onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)),
+    () => null,
+  );
+}
+
 const PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
 
@@ -160,6 +187,8 @@ function OnboardingView({
   children,
 }: OnboardingViewProps) {
   const loading = useLoadingScope();
+  // While progress is read the row the URL opens is drawn open, as it will be once loaded.
+  const hashStep = useHashStep();
   const progress = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps, loading);
   const { nextStep, allDone } = progress;
   const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
@@ -219,7 +248,7 @@ function OnboardingView({
                 next={item.step === nextStep}
                 title={item.title}
                 description={item.description}
-                expanded={wiring?.expanded}
+                expanded={loading ? item.step === hashStep : wiring?.expanded}
                 onExpandedChange={wiring?.onExpandedChange}
               >
                 {wiring?.body}
@@ -249,25 +278,9 @@ function LoadedOnboardingContent() {
 
   const completedSteps = user?.completedSteps ?? [];
 
-  // The URL hash mirrors the open accordion block (`/onboarding#step-tickets`) —
-  // the hub's same-page anchor model. Each row's DOM id is its anchor
-  // (`onboardingStepAnchorId`); the fragment parses back to a step here, unknown
-  // fragments → null. Lazy initializer: this component only mounts client-side
-  // (behind the `isLoaded` gate), so reading `location.hash` during the first
-  // render is safe and gives the deep-linked step to the accordion hook from
-  // the start — an effect would run after the hook's mount anchor.
-  const [hashStep, setHashStep] = useState<UserOnboardingStepId | null>(() =>
-    typeof window === 'undefined'
-      ? null
-      : onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)),
-  );
-  // Back/forward + the synthetic `hashchange` that `navigateSamePageHash` fires
-  // for our own writes — both funnel into the same parsed-state refresh.
-  useEffect(() => {
-    const refresh = () => setHashStep(onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)));
-    window.addEventListener('hashchange', refresh);
-    return () => window.removeEventListener('hashchange', refresh);
-  }, []);
+  // The URL hash mirrors the open accordion block (`/onboarding#step-tickets`) — the hub's same-page anchor model.
+  // Each row's DOM id is its anchor (`onboardingStepAnchorId`); see `useHashStep`.
+  const hashStep = useHashStep();
 
   // Open/close → hash write. Opening goes through the canonical
   // `navigateSamePageHash` (replaceState — a step toggle is not a history step —

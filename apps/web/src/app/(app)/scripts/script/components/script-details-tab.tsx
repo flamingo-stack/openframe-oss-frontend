@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { memo, Suspense, useLayoutEffect, useMemo, useState } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { memo, useLayoutEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -122,15 +122,9 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
         </div>
       )}
 
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading script details">
-            <ScriptParamCardsView />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading script details" fallback={<ScriptParamCardsView />}>
         <ScriptParamCards scriptId={scriptId} onResolved={setState} />
-      </Suspense>
+      </LoadingSuspense>
     </div>
   );
 });

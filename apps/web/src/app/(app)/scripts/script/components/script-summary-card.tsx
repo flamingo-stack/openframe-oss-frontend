@@ -1,11 +1,10 @@
 'use client';
 
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { scriptShellLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { TitleLines } from '@/app/components/shared';
+import { DETAIL_CELL_CLASS, DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { displayValue } from '@/lib/empty-value';
 
@@ -76,30 +75,18 @@ export function ScriptSummaryCard({
 
   return (
     <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        {loading ? <TextLineSkeleton type="h4" className="w-56" /> : <TruncateText variant="h4">{name}</TruncateText>}
-        {loading ? (
-          <TextLineSkeleton type="h6" className="w-72 max-w-full" />
-        ) : description ? (
-          <TruncateText variant="h6" tone="secondary">
-            {description}
-          </TruncateText>
-        ) : (
-          <span className="text-h6">
-            <EmptyValue />
-          </span>
-        )}
-      </div>
+      <TitleLines
+        title={name}
+        subline={description}
+        titleSkeletonWidth="w-56"
+        sublineSkeletonWidth="w-72"
+        className="gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]"
+      />
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
         {stats.map(stat => (
           // A value-over-label cell: the shared InfoCell, its value a bar in a loading scope.
-          <div key={stat.label} className="flex min-w-[140px] flex-[1_0_0]">
-            <InfoCell
-              value={stat.value}
-              label={stat.label}
-              skeletonWidth="w-28"
-              className="gap-[var(--spacing-system-xxs)]"
-            />
+          <div key={stat.label} className={DETAIL_CELL_CLASS}>
+            <InfoCell value={stat.value} label={stat.label} skeletonWidth="w-28" className={DETAIL_CELL_GAP_CLASS} />
           </div>
         ))}
         <MetaSpacer count={stats.length} />

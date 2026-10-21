@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   EXECUTION_COLUMNS,
   ExecutionDeviceCell,
@@ -31,7 +31,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { readInlineData } from 'relay-runtime';
 import type { executionFacets_filters$key as ExecutionFacetsKey } from '@/__generated__/executionFacets_filters.graphql';
 import type { executionFields_execution$key as ExecutionFieldsKey } from '@/__generated__/executionFields_execution.graphql';
@@ -74,10 +74,8 @@ export const EXECUTIONS_PAGE_SIZE = 20;
  * Column layout — ONE declaration, the lib's (`EXECUTION_COLUMNS` in render
  * order as `EXECUTIONS_TABLE_COLUMNS`), read by {@link executionColumns} (the
  * loaded table and its loading state draw the same columns) and by the lib's own
- * picture of this table. Widths, `hideAt` and `filterable` were written out twice before, and the copies
- * drifted: the skeleton's three filterable columns lost their `filterable`, so
- * their funnels were missing while loading and popped in with the facets,
- * shifting every label. See `table-column-layout.ts`.
+ * picture of this table. Widths and `hideAt` were written out twice before, and the copies drifted.
+ * See `table-column-layout.ts`.
  */
 
 export type { ScriptExecutionFilterInput, SortInput };
@@ -753,15 +751,14 @@ export function ExecutionsTabShell({
           />
         </div>
       )}
-      <Suspense
+      <LoadingSuspense
+        label="Loading executions"
         fallback={
-          <LoadingFallback label="Loading executions">
-            <EmptyLiveTable
-              columns={LOADING_COLUMNS}
-              pageSize={EXECUTIONS_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          </LoadingFallback>
+          <EmptyLiveTable
+            columns={LOADING_COLUMNS}
+            pageSize={EXECUTIONS_PAGE_SIZE}
+            stickyHeaderOffset={stickyHeaderOffset}
+          />
         }
       >
         {children({
@@ -781,7 +778,7 @@ export function ExecutionsTabShell({
           stickyHeaderOffset,
           onEmptyChange: setIsEmpty,
         })}
-      </Suspense>
+      </LoadingSuspense>
     </div>
   );
 }

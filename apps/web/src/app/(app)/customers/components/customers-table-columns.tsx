@@ -12,7 +12,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, useMemo } from 'react';
+import { type ComponentProps, type ReactNode, useMemo } from 'react';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { EmptyValue } from '@/app/components/shared/empty-value';
 import { formatDateTime } from '@/lib/format-date';
@@ -149,10 +149,13 @@ export function CustomersSearchInput({ value, onChange }: CustomersSearchInputPr
   );
 }
 
+const NO_CUSTOMERS = { title: 'No customers found.' };
+
 interface CustomersTableBodyProps {
   customers: Customer[];
   isLoading?: boolean;
-  emptyMessage?: string;
+  /** The row the body draws when there is no customer to list. */
+  emptyState?: ComponentProps<typeof DataTable.Body>['emptyState'];
   /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
   skeletonRows?: number;
   /** The list's page size: its loading state (body and infinite footer) draws one full page. */
@@ -166,7 +169,7 @@ interface CustomersTableBodyProps {
 export function CustomersTableBody({
   customers,
   isLoading,
-  emptyMessage = 'No customers found.',
+  emptyState = NO_CUSTOMERS,
   skeletonRows,
   pageSize,
   stickyHeaderOffset,
@@ -208,7 +211,7 @@ export function CustomersTableBody({
       <DataTable.Body
         loading={isLoading}
         skeletonRows={skeletonRows}
-        emptyMessage={emptyMessage}
+        emptyState={emptyState}
         rowClassName="mb-1"
         rowHref={customerRowHref}
       />

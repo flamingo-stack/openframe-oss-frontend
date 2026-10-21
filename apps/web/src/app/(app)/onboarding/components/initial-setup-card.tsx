@@ -27,7 +27,7 @@ import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
 import { MingoStep } from './mingo-step';
 import { MspSetupStep } from './msp-setup-step';
-import { OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
+import { ONBOARDING_STEP_LIST_CLASS, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
 import { OnboardingLoadGate } from './onboarding-load-gate';
 
@@ -46,9 +46,6 @@ interface StepMeta {
    */
   requiresData?: { step: DataDetectableStep; hint: string };
 }
-
-const STEP_LIST_CLASS =
-  'flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0';
 
 /** The four steps' static presentation. Bodies are wired up in {@link InitialSetupCardContent}. */
 const STEP_META: readonly StepMeta[] = [
@@ -173,7 +170,7 @@ function InitialSetupCardView({
           progress, so it settles independently in both states. */}
       <BookCallSection />
 
-      <div className={STEP_LIST_CLASS}>
+      <div className={ONBOARDING_STEP_LIST_CLASS}>
         {STEP_META.map(meta => {
           const wiring = loading ? undefined : stepWiring?.(meta.step);
           return (

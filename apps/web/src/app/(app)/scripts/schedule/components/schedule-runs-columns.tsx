@@ -26,14 +26,12 @@ export const RUNS_PAGE_SIZE = 20;
 
 /**
  * Column layout — ONE declaration, read by {@link scheduleRunColumns} (the
- * loaded table and its loading state draw the same columns). Widths, `hideAt` and `filterable` were written
- * out twice before, and the copies drifted: the skeleton's Status column lost
- * its `filterable`, so the funnel was missing while loading and popped in with
- * the facets, shifting the label. See `table-column-layout.ts`.
+ * loaded table and its loading state draw the same columns). Widths and `hideAt` were written out twice
+ * before, and the copies drifted. See `table-column-layout.ts`.
  */
 const RUN_COLUMNS = {
   executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0', dateFilterable: true },
-  status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
+  status: { id: 'status', header: 'Status', width: 'w-[120px]' },
   responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg' },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md' },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },

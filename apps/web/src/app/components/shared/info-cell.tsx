@@ -1,8 +1,8 @@
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingWhen, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { isEmptyValue } from '@/lib/empty-value';
-import { EmptyValue } from './empty-value';
+import { ValueText } from './value-text';
 
 /**
  * InfoCell — reusable cell with primary value and secondary label, used in
@@ -15,15 +15,19 @@ import { EmptyValue } from './empty-value';
  * - `<InfoCell value="example.com" label="Website" href="https://example.com" />`
  *
  * Loading: in a loading scope (or with `loading`) the cell draws itself with its label real and its value a text bar
- * of the value's own line (`skeletonWidth`). The icon and a non-text value (`valueSkeleton`) are drawn in a loading
- * scope, so a caller passes the REAL component (a status tag, an icon that switches itself) and it draws its own
- * skeleton. Callers render the cell, never a copy of it.
+ * of the value's own line (`skeletonWidth`). A text value (a string or a number) is the shared `ValueText`. A plain
+ * icon is replaced by an icon box while loading when the caller states its size (`iconSkeleton`), so a caller passes
+ * only the REAL icon; an icon that switches itself, and a non-text value (`valueSkeleton`), are drawn in a loading
+ * scope where they draw their own skeleton. Callers render the cell, never a copy of it.
  */
 export interface InfoCellProps {
   /** The value — missing, blank or a formatter's empty mark draws the muted empty mark, so callers pass the raw field. */
   value: React.ReactNode;
   label: string;
+  /** The REAL icon. When it does not switch itself, state `iconSkeleton` and the cell draws its box while loading. */
   icon?: React.ReactNode;
+  /** The icon's box while loading (the lib's `MediaSkeleton.Icon` size and classes), for a plain icon. */
+  iconSkeleton?: { size?: 'sm' | 'md' | 'lg'; className?: string };
   /** When set, the whole cell becomes an external link. */
   href?: string;
   className?: string;
@@ -42,6 +46,7 @@ export function InfoCell({
   value,
   label,
   icon,
+  iconSkeleton,
   href,
   className,
   loading,
@@ -50,22 +55,23 @@ export function InfoCell({
   labelSkeletonWidth,
 }: InfoCellProps) {
   const isLoading = useLoadingScope() || !!loading;
+  /** The value when it is text (or missing): drawn by `ValueText`, like every text value. */
+  const text = typeof value === 'string' || typeof value === 'number' || isEmptyValue(value) ? value : undefined;
+  const isText = isLoading || text !== undefined || isEmptyValue(value);
   const content = (
     <div className={`flex min-w-0 flex-1 flex-col justify-center ${className ?? ''}`}>
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         <LoadingWhen loading={isLoading}>
-          {icon && <span className="shrink-0">{icon}</span>}
-          {isLoading ? (
+          {isLoading && iconSkeleton ? (
+            <MediaSkeleton.Icon size={iconSkeleton.size} className={`shrink-0 ${iconSkeleton.className ?? ''}`} />
+          ) : (
+            icon && <span className="shrink-0">{icon}</span>
+          )}
+          {isLoading && valueSkeleton ? (
+            <div className="min-w-0 flex-1">{valueSkeleton}</div>
+          ) : isText ? (
             <div className="min-w-0 flex-1">
-              {valueSkeleton ?? <TextLineSkeleton type="h4" className={skeletonWidth} />}
-            </div>
-          ) : isEmptyValue(value) ? (
-            <div className="min-w-0 flex-1 text-h4">
-              <EmptyValue />
-            </div>
-          ) : typeof value === 'string' ? (
-            <div className="min-w-0 flex-1">
-              <TruncateText>{value}</TruncateText>
+              <ValueText value={isLoading ? null : text} loading={isLoading} skeletonWidth={skeletonWidth} />
             </div>
           ) : (
             <div className="truncate text-ods-text-primary text-h4">{value}</div>

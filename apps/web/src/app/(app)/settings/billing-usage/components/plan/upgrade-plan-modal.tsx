@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { Suspense, useState } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { upgradePlanModalQuery as UpgradePlanModalQueryType } from '@/__generated__/upgradePlanModalQuery.graphql';
 import { noop } from '@/app/components/shared/no-next-page';
@@ -89,19 +89,18 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
         {/* The picker draws its own pending state, so the wait shows the real
             controls rather than a spinner where the plan will be — the same
             component, with no refs to read yet. */}
-        <Suspense
+        <LoadingSuspense
+          label="Loading plans"
           fallback={
-            <LoadingFallback label="Loading plans">
-              <DevicePlanPicker
-                productRef={null}
-                subscriptionProductRef={null}
-                onUpdatesChange={noop /* the loading frame reports nothing: no selection to submit yet */}
-              />
-            </LoadingFallback>
+            <DevicePlanPicker
+              productRef={null}
+              subscriptionProductRef={null}
+              onUpdatesChange={noop /* the loading frame reports nothing: no selection to submit yet */}
+            />
           }
         >
           <UpgradePlanBody onUpdatesChange={setUpdates} />
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </SimpleModal>
   );

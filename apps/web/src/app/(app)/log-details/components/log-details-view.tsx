@@ -24,6 +24,12 @@ interface LogDetailsViewProps {
   timestamp: string;
 }
 
+/**
+ * How many lines a log's message typically runs to: an agent's one-sentence event, which wraps to two lines on a
+ * phone and fits one line from `content-md` up.
+ */
+const LOG_MESSAGE_SKELETON_LINES = { base: 2, md: 1 } as const;
+
 const getSeverityVariant = (severity: string): 'success' | 'warning' | 'error' | 'grey' | 'critical' => {
   switch (severity?.toUpperCase()) {
     case 'ERROR':
@@ -125,7 +131,18 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
                   {log ? (
                     log.message || 'No message available'
                   ) : (
-                    <TextLineSkeleton type="h4" className="w-2/3 max-w-[480px]" />
+                    <>
+                      <TextLineSkeleton
+                        type="h4"
+                        lines={LOG_MESSAGE_SKELETON_LINES.base}
+                        className="w-full content-md:hidden"
+                      />
+                      <TextLineSkeleton
+                        type="h4"
+                        lines={LOG_MESSAGE_SKELETON_LINES.md}
+                        className="hidden w-full content-md:block"
+                      />
+                    </>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-ods-text-secondary text-h6">

@@ -173,13 +173,13 @@ export function Queries() {
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No queries found." under the strip
             // above. Same rule, one component down.
-            emptyMessage={
-              canClaimEmpty
+            emptyState={{
+              title: canClaimEmpty
                 ? debouncedSearch
                   ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No queries found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            }}
             hasMore={visibleCount < filteredQueries.length}
             onLoadMore={handleLoadMore}
           />

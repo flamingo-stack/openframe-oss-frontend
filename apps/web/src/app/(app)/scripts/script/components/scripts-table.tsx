@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, LoadingFallback, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, OSTypeBadgeGroup, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
@@ -35,7 +35,7 @@ import {
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { archiveScriptMutation as ArchiveScriptMutationType } from '@/__generated__/archiveScriptMutation.graphql';
@@ -607,11 +607,11 @@ function ScriptsTableContent({
           <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
           <DataTable.Body
             skeletonRows={PAGE_SIZE}
-            emptyMessage={
-              debouncedSearch
+            emptyState={{
+              title: debouncedSearch
                 ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No scripts found. Try adjusting your filters or add a new script.'
-            }
+                : 'No scripts found. Try adjusting your filters or add a new script.',
+            }}
             rowClassName="mb-1"
             rowHref={scriptRowHref}
           />
@@ -802,11 +802,10 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
           </div>
         )}
 
-        <Suspense
+        <LoadingSuspense
+          label="Loading scripts"
           fallback={
-            <LoadingFallback label="Loading scripts">
-              <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
-            </LoadingFallback>
+            <EmptyLiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
           }
         >
           <ScriptsTableContent
@@ -822,7 +821,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
             stickyHeaderOffset={stickyHeaderOffset}
             archived={archived}
           />
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </PageLayout>
   );

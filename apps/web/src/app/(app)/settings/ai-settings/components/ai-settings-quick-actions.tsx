@@ -212,7 +212,7 @@ export function AiSettingsQuickActions({
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} />
         <DataTable.Body
-          emptyMessage="No quick actions configured."
+          emptyState={{ title: 'No quick actions configured.' }}
           rowClassName="mb-1"
           skeletonRows={QUICK_ACTIONS_SKELETON_ROWS}
         />

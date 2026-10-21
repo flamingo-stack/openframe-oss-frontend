@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { memo, Suspense } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { memo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -92,15 +92,9 @@ function ScheduleScriptsTabLoading() {
  */
 export const ScheduleScriptsTab = memo(function ScheduleScriptsTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading scripts">
-          <ScheduleScriptsTabLoading />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading scripts" fallback={<ScheduleScriptsTabLoading />}>
       <ScheduleScriptsTabContent scheduleId={scheduleId} />
-    </Suspense>
+    </LoadingSuspense>
   );
 });
 ScheduleScriptsTab.displayName = 'ScheduleScriptsTab';

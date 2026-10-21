@@ -1,12 +1,9 @@
 'use client';
 
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
+import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
 import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 
 interface WorkspaceInactiveScreenProps {
@@ -61,14 +58,7 @@ const DEFAULT_DESCRIPTION =
 export function WorkspaceInactiveScreen({ title, description, action, loading }: WorkspaceInactiveScreenProps = {}) {
   return (
     <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
+      <OpenframeLockup />
 
       <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
@@ -92,18 +82,7 @@ export function WorkspaceInactiveScreen({ title, description, action, loading }:
         />
       </div>
 
-      <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)]">
-        <a
-          href="https://flamingo.run"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-[var(--spacing-system-xs)] rounded-md bg-transparent p-[var(--spacing-system-m)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-        >
-          <span className="text-h6">Powered by</span>
-          <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-          <span className="font-semibold text-code">Flamingo</span>
-        </a>
-      </div>
+      <PoweredByFlamingo />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core
 import { useEffect, useState } from 'react';
 import { useFormState } from 'react-hook-form';
 import type { DirectoryProvider } from '@/generated/schema-enums';
-import { TenantFormFrame } from '../shared/tenant-form-frame';
+import { GENERATE_LINK_LABEL, TenantFormFrame } from '../shared/tenant-form-frame';
 import { ProviderField } from '../tenant-form/provider-field';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import { useNewTenantForm } from './use-new-tenant-form';
@@ -48,7 +48,7 @@ export function NewTenantView() {
           loading={isCreating}
           className="w-full content-md:w-auto"
         >
-          Generate Connection Link
+          {GENERATE_LINK_LABEL}
         </Button>
       </div>
     </TenantFormFrame>

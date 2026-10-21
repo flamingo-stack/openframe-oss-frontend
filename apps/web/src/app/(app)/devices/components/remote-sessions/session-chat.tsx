@@ -40,6 +40,7 @@ export function SessionChat({ messages, employee, className }: SessionChatProps)
           {messages.map(message => (
             <RemoteDesktopChatMessageRow
               key={message.id}
+              data-loading-item
               authorName={message.author}
               isTechnician={message.fromTechnician}
               avatarUrl={employee.avatarUrl}

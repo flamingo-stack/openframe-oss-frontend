@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { graphql } from 'react-relay';
 import type { dataLossModuleRowsIncidentsQuery } from '@/__generated__/dataLossModuleRowsIncidentsQuery.graphql';
 import type { dataLossModuleRowsIntegrationsQuery } from '@/__generated__/dataLossModuleRowsIntegrationsQuery.graphql';
@@ -67,15 +67,9 @@ function ModuleRow({ gate, label, children }: { gate: FeatureFlagGate; label: st
   }
   return (
     <ContentErrorBoundary label={label} fallback={() => <></>}>
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading what the workspace loses">
-            <DataLossItem />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading what the workspace loses" fallback={<DataLossItem />}>
         {children}
-      </Suspense>
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
 }

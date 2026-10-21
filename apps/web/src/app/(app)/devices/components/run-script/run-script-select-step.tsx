@@ -1,13 +1,7 @@
 'use client';
 
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import {
-  LoadingSuspense,
-  MediaSkeleton,
-  OSTypeBadgeGroup,
-  TextLineSkeleton,
-} from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingItems, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -15,11 +9,12 @@ import type { scriptsRunPickerRelay_query$key } from '@/__generated__/scriptsRun
 import type { scriptsRunPickerRelayPaginationQuery } from '@/__generated__/scriptsRunPickerRelayPaginationQuery.graphql';
 import type { scriptsRunPickerRelayQuery as ScriptsRunPickerQueryType } from '@/__generated__/scriptsRunPickerRelayQuery.graphql';
 import { platformsToIds } from '@/app/(app)/scripts/shared/utils/script-mappers';
-import { noop } from '@/app/components/shared';
+import { noop, TitleLines } from '@/app/components/shared';
 import { scriptsRunPickerRelayFragment, scriptsRunPickerRelayQuery } from '@/graphql/scripts/scripts-run-picker-relay';
 import { ScriptsTagFilter } from '../../../scripts/script/components/scripts-tag-filter';
 
 const PICKER_PAGE_SIZE = 20;
+const NO_OS_TYPES: string[] = [];
 
 interface PickerListProps {
   search: string;
@@ -37,37 +32,35 @@ interface PickerScript {
   supportedPlatforms: Parameters<typeof platformsToIds>[0];
 }
 
-/** One script to pick: name over description, its OS badges. Null (or a loading scope) draws the row's loading form. */
+/**
+ * One script to pick: name over description, its OS badges. Null (or a loading scope) draws the row's loading form:
+ * the same row, its name and description bars (most scripts carry a description, so the line is always drawn: one
+ * with none reads the empty mark), its OS badges one icon box (the group switches itself).
+ */
 function PickerRow({ script, onSelect }: { script: PickerScript | null; onSelect: (scriptId: string) => void }) {
   const loading = useLoadingScope() || !script;
-  if (loading) {
-    return (
-      <div data-loading-item className={PICKER_ROW_CLASS}>
-        <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <TextLineSkeleton type="h4" className="w-40" />
-          {/* Most scripts carry a description: the typical row draws its line. */}
-          <TextLineSkeleton type="h6" className="w-56 max-w-full" />
-        </div>
-        <MediaSkeleton.Icon size="sm" className="shrink-0" />
-      </div>
-    );
-  }
   return (
     <button
       type="button"
-      onClick={() => onSelect(script.id)}
+      disabled={loading}
+      onClick={script ? () => onSelect(script.id) : undefined}
       data-loading-item
       className={`${PICKER_ROW_CLASS} text-left hover:bg-ods-bg-hover`}
     >
-      <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TruncateText variant="h4">{script.name}</TruncateText>
-        {script.description && (
-          <TruncateText variant="h6" tone="secondary">
-            {script.description}
-          </TruncateText>
-        )}
-      </div>
-      <OSTypeBadgeGroup osTypes={platformsToIds(script.supportedPlatforms)} iconSize="w-4 h-4" />
+      <TitleLines
+        title={script?.name ?? ''}
+        subline={script?.description}
+        titleSkeletonWidth="w-40"
+        sublineSkeletonWidth="w-56"
+        loading={loading}
+        className="flex-1 justify-center"
+      />
+      <OSTypeBadgeGroup
+        osTypes={script ? platformsToIds(script.supportedPlatforms) : NO_OS_TYPES}
+        iconSize="w-4 h-4"
+        loading={loading}
+        className="shrink-0"
+      />
     </button>
   );
 }
@@ -76,9 +69,7 @@ function PickerRow({ script, onSelect }: { script: PickerScript | null; onSelect
 function PickerLoadingPage() {
   return (
     <LoadingWhen loading>
-      {Array.from({ length: PICKER_PAGE_SIZE }, (_, index) => (
-        <PickerRow key={index} script={null} onSelect={noop} />
-      ))}
+      <LoadingItems count={PICKER_PAGE_SIZE}>{() => <PickerRow script={null} onSelect={noop} />}</LoadingItems>
     </LoadingWhen>
   );
 }

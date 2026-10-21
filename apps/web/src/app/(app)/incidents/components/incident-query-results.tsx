@@ -29,11 +29,11 @@ export function IncidentQueryResults({ incident }: { incident?: Incident }) {
         skeletonRows={INCIDENT_EVIDENCE_SKELETON_ROWS}
         skeletonColumns={INCIDENT_EVIDENCE_SKELETON_COLUMNS}
         showExport={false}
-        emptyMessage={
-          incident?.queryResult
+        emptyState={{
+          title: incident?.queryResult
             ? 'The latest run of the detecting query returned no rows.'
-            : 'Evidence was not kept for this incident.'
-        }
+            : 'Evidence was not kept for this incident.',
+        }}
       />
     </QueryResultsFrame>
   );

@@ -1,10 +1,9 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { DashboardInfoCard, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usageViewQuery as UsageViewQueryType, usageViewQuery$data } from '@/__generated__/usageViewQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -60,16 +59,12 @@ const usageViewQuery = graphql`
  */
 export function UsageView({ loading = false }: { loading?: boolean }) {
   // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
-  const fallback = (
-    <LoadingFallback label="Loading usage">
-      <UsageScreen data={null} />
-    </LoadingFallback>
-  );
-  if (loading) return fallback;
+  const view = <UsageScreen data={null} />;
+  if (loading) return <LoadingFallback label="Loading usage">{view}</LoadingFallback>;
   return (
-    <Suspense fallback={fallback}>
+    <LoadingSuspense label="Loading usage" fallback={view}>
       <UsageQuery />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

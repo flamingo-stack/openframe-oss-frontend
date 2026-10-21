@@ -57,19 +57,11 @@ export function toTenantSessionRow(node: TenantSessionNode): TenantSessionRow {
 /** Figma 2539-21701: SESSION / DEVICE / CUSTOMER / EXPIRES; tablet drops CUSTOMER, mobile keeps SESSION only. */
 export const TENANT_SESSION_COLUMNS = {
   session: REMOTE_SESSION_COLUMNS.session,
-  device: { id: 'device', header: 'DEVICE', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
-  customer: { id: 'customer', header: 'CUSTOMER', width: 'flex-1 min-w-0', hideAt: 'lg', filterable: true },
+  device: { id: 'device', header: 'DEVICE', width: 'flex-1 min-w-0', hideAt: 'md' },
+  customer: { id: 'customer', header: 'CUSTOMER', width: 'flex-1 min-w-0', hideAt: 'lg' },
   expires: REMOTE_SESSION_COLUMNS.expires,
   actions: REMOTE_SESSION_COLUMNS.actions,
 } as const satisfies Record<string, TableSkeletonColumn>;
-
-export const TENANT_SESSION_COLUMN_ORDER: TableSkeletonColumn[] = [
-  TENANT_SESSION_COLUMNS.session,
-  TENANT_SESSION_COLUMNS.device,
-  TENANT_SESSION_COLUMNS.customer,
-  TENANT_SESSION_COLUMNS.expires,
-  TENANT_SESSION_COLUMNS.actions,
-];
 
 /** The page's URL state: the header funnels and the SESSION calendar. */
 export interface TenantSessionsParams {

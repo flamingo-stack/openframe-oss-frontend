@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ComponentProps, Suspense, useEffect, useState } from 'react';
+import { type ComponentProps, useEffect, useState } from 'react';
 import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { usePasswordPair } from '@/app/(auth)/auth/hooks/use-password-pair';
 import { noop } from '@/app/components/shared/no-next-page';
@@ -40,15 +40,9 @@ export default function PasswordResetPage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
     // stands in until the URL (the reset token) is read.
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading password reset">
-          <PasswordResetView />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading password reset" fallback={<PasswordResetView />}>
       <PasswordResetContent />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

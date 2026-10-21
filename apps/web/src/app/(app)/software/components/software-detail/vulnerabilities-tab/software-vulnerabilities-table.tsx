@@ -245,7 +245,7 @@ function SoftwareVulnerabilitiesTableRows({
         />
         <DataTable.Body
           skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
-          emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
+          emptyState={{ title: `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.` }}
           rowClassName="mb-1"
           rowHref={rowHref}
         />

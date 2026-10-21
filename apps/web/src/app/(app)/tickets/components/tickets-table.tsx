@@ -197,9 +197,11 @@ export function TicketsTable({
   );
 
   const title = isArchived ? 'Archived Tickets' : 'Tickets';
-  const emptyMessage = isArchived
-    ? 'No archived tickets found. Try adjusting your search or filters.'
-    : 'No tickets found. Try adjusting your search or filters.';
+  const emptyTableState = {
+    title: isArchived
+      ? 'No archived tickets found. Try adjusting your search or filters.'
+      : 'No tickets found. Try adjusting your search or filters.',
+  };
 
   // The archive has no status/assignee/customer/new-messages filters at all.
   const hasFilterModal = !isArchived;
@@ -282,7 +284,7 @@ export function TicketsTable({
             <TicketTableBody
               tickets={tickets}
               isLoading={isLoading}
-              emptyMessage={emptyMessage}
+              emptyState={emptyTableState}
               pageSize={TICKETS_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}
               isArchived={isArchived}

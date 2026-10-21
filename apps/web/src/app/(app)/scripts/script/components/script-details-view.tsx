@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   InboxArrowUpIcon,
@@ -14,7 +14,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
@@ -282,26 +282,14 @@ export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId 
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading the script">
-            <ScriptHeaderView scriptId={scriptId} />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading the script" fallback={<ScriptHeaderView scriptId={scriptId} />}>
         <ScriptHeader scriptId={scriptId} />
-      </Suspense>
+      </LoadingSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading script details">
-              <ScriptSummaryView />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading script details" fallback={<ScriptSummaryView />}>
           <ScriptSummary scriptId={scriptId} />
-        </Suspense>
+        </LoadingSuspense>
 
         {/* `TabNavigation` renders as a fragment, so its bar and its body are
             siblings — left as direct children of the column above they would be

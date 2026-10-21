@@ -1,7 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -21,7 +21,6 @@ import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import {
   forwardRef,
-  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -564,7 +563,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       {scoped ? (
         loadingTable
       ) : (
-        <Suspense fallback={<LoadingFallback label="Loading logs">{loadingTable}</LoadingFallback>}>
+        <LoadingSuspense label="Loading logs" fallback={loadingTable}>
           <LogsTableContent
             deviceScoped={deviceScoped}
             organizationLocked={Boolean(organizationId)}
@@ -579,7 +578,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
             mobileFilterOpen={mobileFilterOpen}
             onMobileFilterClose={() => setMobileFilterOpen(false)}
           />
-        </Suspense>
+        </LoadingSuspense>
       )}
     </LogsPageView>
   );

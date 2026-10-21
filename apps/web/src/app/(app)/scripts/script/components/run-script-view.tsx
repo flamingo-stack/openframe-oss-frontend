@@ -2,7 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
@@ -13,7 +13,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
@@ -349,15 +349,9 @@ function RunScriptContent({ scriptId }: RunScriptViewProps) {
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading script">
-          <RunScriptForm scriptId={scriptId} />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading script" fallback={<RunScriptForm scriptId={scriptId} />}>
       <RunScriptContent scriptId={scriptId} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 

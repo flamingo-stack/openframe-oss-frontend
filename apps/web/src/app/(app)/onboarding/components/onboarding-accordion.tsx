@@ -1,6 +1,6 @@
 'use client';
 
-import { InteractiveSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -46,9 +46,9 @@ export interface OnboardingAccordionItemProps {
    */
   id?: string;
   /**
-   * Loading state: renders the row frame with its real (static) icon, title and description; the trailing control
-   * keeps the box the loaded one has for the `status`/`next` the caller passes (a status tag and the chevron button,
-   * or the requirement hint's width), as skeletons. A collapsed body is not mounted; an expanded one is, and draws its
+   * Loading state: renders the row frame with its real (static) icon, title, description and chevron (inert); the
+   * status pill the caller's `status`/`next` names draws its own skeleton, and a requirement hint is a bar of its
+   * width. A collapsed body is not mounted; an expanded one is, and draws its
    * own loading form. Inside a loading scope the row switches to it by itself. @default false
    */
   loading?: boolean;
@@ -58,6 +58,34 @@ export interface OnboardingAccordionItemProps {
 
 /** The trailing status tag + chevron group, loaded and loading. */
 const TRAILING_CLASS = 'flex shrink-0 items-center gap-[var(--spacing-system-s)]';
+/** The bordered frame of a list of steps (the Get Started groups, the dashboard's Initial Setup card). */
+export const ONBOARDING_STEP_LIST_CLASS =
+  'flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0';
+
+/** A step's status pill: its read state, so a bar of the pill's own frame while it loads. */
+const STEP_PILL = {
+  complete: { label: 'Complete', className: 'bg-ods-success-secondary text-ods-success' },
+  next: { label: 'Next', className: 'bg-ods-accent-secondary text-ods-accent' },
+} as const;
+
+/** The trailing status pill ("Complete", "Next"), one component loaded and loading: in a loading scope (or with
+ *  `loading`) it is the lib's tag skeleton, the pill's 32px frame. */
+function StepStatusPill({ kind, loading: loadingProp }: { kind: keyof typeof STEP_PILL; loading: boolean }) {
+  const loading = useLoadingScope() || loadingProp;
+  if (loading) return <Tag label="" loading />;
+  const pill = STEP_PILL[kind];
+  return (
+    <span
+      className={cn(
+        'flex h-8 items-center justify-center rounded-md px-[var(--spacing-system-xsf)] text-h5',
+        pill.className,
+      )}
+    >
+      {pill.label}
+    </span>
+  );
+}
+
 /** The requirement hint of a locked step, loaded and loading. */
 const HINT_CLASS = 'shrink-0 whitespace-nowrap text-right text-ods-text-secondary text-h6';
 
@@ -89,6 +117,7 @@ export function OnboardingAccordionItem({
   const isCompleted = !loading && status === 'completed';
   const [internalExpanded, setInternalExpanded] = React.useState(!isDisabled && defaultExpanded);
   const expanded = !isDisabled && (controlledExpanded ?? internalExpanded);
+  const pillKind = status === 'completed' ? 'complete' : status === 'active' && next ? 'next' : null;
 
   const toggle = React.useCallback(() => {
     if (isDisabled) return;
@@ -149,27 +178,16 @@ export function OnboardingAccordionItem({
               <p className={HINT_CLASS}>{requirementHint}</p>
             )
           ) : null
-        ) : loading ? (
-          <div className={TRAILING_CLASS}>
-            {(status === 'completed' || next) && <Tag label="" loading />}
-            <InteractiveSkeleton.Button size="icon" />
-          </div>
         ) : (
           <div className={TRAILING_CLASS}>
-            {isCompleted ? (
-              <span className="flex h-8 items-center justify-center rounded-md bg-ods-success-secondary px-[var(--spacing-system-xsf)] text-ods-success text-h5">
-                Complete
-              </span>
-            ) : next ? (
-              <span className="flex h-8 items-center justify-center rounded-md bg-ods-accent-secondary px-[var(--spacing-system-xsf)] text-ods-accent text-h5">
-                Next
-              </span>
-            ) : null}
+            {pillKind && <StepStatusPill kind={pillKind} loading={loading} />}
+            {/* The chevron is static: drawn for real, inert while the row loads. */}
             <Button
               variant="outline"
               size="icon"
               type="button"
               onClick={toggle}
+              disabled={loading}
               aria-expanded={expanded}
               aria-label={expanded ? `Collapse ${title}` : `Expand ${title}`}
             >
@@ -222,9 +240,7 @@ export function OnboardingAccordionGroup({ label, children, className }: Onboard
   return (
     <div className={cn('flex w-full flex-col gap-[var(--spacing-system-xxs)]', className)}>
       {label ? <p className="text-ods-text-secondary text-h5">{label}</p> : null}
-      <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
-        {children}
-      </div>
+      <div className={ONBOARDING_STEP_LIST_CLASS}>{children}</div>
     </div>
   );
 }

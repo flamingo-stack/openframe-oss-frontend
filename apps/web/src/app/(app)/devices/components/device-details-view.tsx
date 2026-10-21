@@ -220,25 +220,28 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
         titleAdornment={<DeviceStatusTag status={normalizedDevice?.status} />}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {/* First-connect indication: shown only until every agent has registered
-          per design; a later disconnect never re-triggers it. The design is a
-          bare warning strip, so the component's outer card is neutralized —
-          tailwind-merge keeps the overrides. */}
-        {normalizedDevice && isDeviceStillConnecting(normalizedDevice) && (
-          <WarningBlock
-            title="Device is still connecting — some data and features aren't available yet."
-            className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
-          />
-        )}
-
         {/* Tab Navigation */}
         <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
           {tabId => (
-            <TabContent
-              activeTab={tabId}
-              TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
-              componentProps={{ device: normalizedDevice }}
-            />
+            <>
+              {/* First-connect indication: shown only until every agent has registered per design; a later
+                disconnect never re-triggers it. Only some devices are still connecting, so it sits below the tab
+                strip, over the open tab, where its arrival moves nothing above it. The design is a bare warning
+                strip, so the component's outer card is neutralized — tailwind-merge keeps the overrides. */}
+              {normalizedDevice && isDeviceStillConnecting(normalizedDevice) && (
+                <div data-loading-optional>
+                  <WarningBlock
+                    title="Device is still connecting — some data and features aren't available yet."
+                    className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
+                  />
+                </div>
+              )}
+              <TabContent
+                activeTab={tabId}
+                TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
+                componentProps={{ device: normalizedDevice }}
+              />
+            </>
           )}
         </TabNavigation>
 

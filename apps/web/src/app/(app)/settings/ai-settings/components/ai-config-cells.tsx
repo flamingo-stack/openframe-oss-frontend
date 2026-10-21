@@ -1,6 +1,6 @@
 'use client';
 
-import { MediaSkeleton, NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
+import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import type { AgentAiConfig } from '../types/ai-settings';
@@ -36,12 +36,11 @@ export function aiConfigCells({ aiConfig, providerModelLabel, loading, providerL
       value={aiConfig && LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
       label={providerLabel}
       icon={
-        aiConfig && !loading ? (
+        aiConfig && (
           <NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />
-        ) : (
-          <MediaSkeleton.Icon size="md" />
         )
       }
+      iconSkeleton={{ size: 'md' }}
     />,
     <InfoCell
       key="provider-model"

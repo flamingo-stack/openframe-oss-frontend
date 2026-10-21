@@ -1,15 +1,11 @@
 'use client';
 
-import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  SquareAvatar,
-  Tag,
-  TruncateText,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { User } from '@/app/(auth)/auth/stores';
+import { TitleLines } from '@/app/components/shared/title-lines';
 import { getFullImageUrl } from '@/lib/image-url';
 
 interface IdentityRowProps {
@@ -32,8 +28,11 @@ interface IdentityRowProps {
   subline?: string;
   /** Drawn after the secondary line once loaded (a "Not verified" button). */
   sublineAside?: ReactNode;
-  /** Draw the secondary line's bar while loading: only when every record carries the line. */
-  sublineWhileLoading?: boolean;
+  /**
+   * `mark`: every record carries the secondary line (its bar is drawn while loading, an empty one is the empty mark);
+   * `none` (the default): only some do (no bar while loading, no line when empty).
+   */
+  emptySubline?: 'mark' | 'none';
   /** The trailing action; the caller draws it real and disabled (or its own placeholder) while loading. */
   action: ReactNode;
 }
@@ -53,7 +52,7 @@ export function IdentityRow({
   nameAside,
   subline,
   sublineAside,
-  sublineWhileLoading = false,
+  emptySubline = 'none',
   action,
 }: IdentityRowProps) {
   const loading = useLoadingScope() || loadingProp;
@@ -67,32 +66,18 @@ export function IdentityRow({
         variant={avatarVariant}
         loading={loading}
       />
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className={`flex items-center gap-2 ${nameAside === undefined ? '' : 'min-h-8'}`}>
-          {loading ? (
-            <TextLineSkeleton type="h4" className="w-40 max-w-full" />
-          ) : (
-            <>
-              <div className="min-w-0">
-                <TruncateText>{name}</TruncateText>
-              </div>
-              {nameAside}
-            </>
-          )}
-        </div>
-        {loading
-          ? sublineWhileLoading && <TextLineSkeleton type="h6" className="w-56 max-w-full" />
-          : subline && (
-              <div className="flex items-center gap-2">
-                <div className="min-w-0">
-                  <TruncateText variant="h6" tone="secondary">
-                    {subline}
-                  </TruncateText>
-                </div>
-                {sublineAside}
-              </div>
-            )}
-      </div>
+      <TitleLines
+        className="flex-1 overflow-hidden"
+        loading={loading}
+        title={name}
+        titleAside={nameAside}
+        titleClassName={nameAside === undefined ? undefined : 'min-h-8'}
+        titleSkeletonWidth="w-40"
+        subline={subline}
+        sublineAside={sublineAside}
+        sublineSkeletonWidth="w-56"
+        emptySubline={emptySubline}
+      />
       <div className="flex shrink-0 items-center gap-3">{action}</div>
     </>
   );
@@ -106,8 +91,8 @@ export function IdentityRow({
   );
 }
 
-/** The signed-in user's row frame: the profile card's, unless a caller sets its own. */
-const USER_ROW_CLASS = 'flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]';
+/** An identity row's frame on the settings cards: the profile card's and the organization card's. */
+export const USER_ROW_CLASS = 'flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]';
 
 interface UserIdentityRowProps {
   /** The signed-in user; `null` while it is read. */
@@ -142,7 +127,7 @@ export function UserIdentityRow({
       avatarVariant="round"
       nameAside={user?.roles?.map(role => <Tag key={role} variant="outline" label={role} />) ?? null}
       subline={user?.email}
-      sublineWhileLoading
+      emptySubline="mark"
       sublineAside={
         user?.emailVerified === false && (
           <button

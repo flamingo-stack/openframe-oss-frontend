@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -301,26 +301,17 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense
-        fallback={
-          <LoadingFallback label="Loading the schedule">
-            <ScheduleHeaderView scheduleId={scheduleId} />
-          </LoadingFallback>
-        }
-      >
+      <LoadingSuspense label="Loading the schedule" fallback={<ScheduleHeaderView scheduleId={scheduleId} />}>
         <ScheduleHeader scheduleId={scheduleId} />
-      </Suspense>
+      </LoadingSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading schedule details">
-              <ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} addedBy="" ifDeviceOffline="" />
-            </LoadingFallback>
-          }
+        <LoadingSuspense
+          label="Loading schedule details"
+          fallback={<ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} addedBy="" ifDeviceOffline="" />}
         >
           <ScheduleInfoBar scheduleId={scheduleId} />
-        </Suspense>
+        </LoadingSuspense>
 
         {/* The strip's own island — WHICH tabs exist is the schedule's answer
             (no Schedule Runs on an event-driven one). Its fallback is the same

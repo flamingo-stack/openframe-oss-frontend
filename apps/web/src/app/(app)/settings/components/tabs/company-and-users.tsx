@@ -340,12 +340,13 @@ export function CompanyAndUsersTab() {
           <DataTable.Header rightSlot={<DataTable.RowCount />} stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
           <DataTable.Body
             loading={isLoading || isMutating}
-            emptyMessage={
-              error ||
-              (debouncedSearch
-                ? `No users found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No users or invitations found.')
-            }
+            emptyState={{
+              title:
+                error ||
+                (debouncedSearch
+                  ? `No users found matching "${debouncedSearch}". Try adjusting your search.`
+                  : 'No users or invitations found.'),
+            }}
             rowHref={employeeRowHref}
           />
         </DataTable>

@@ -1,7 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { Suspense } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import type { DeviceOrganizationOption } from '../hooks/use-device-organizations';
 import { NewDeviceContent, NewDeviceForm } from './new-device-content';
 
@@ -9,14 +8,11 @@ const NO_ORGANIZATIONS: readonly DeviceOrganizationOption[] = [];
 
 export default function NewDevicePage() {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading device setup">
-          <NewDeviceForm orgs={NO_ORGANIZATIONS} preselectedOrgId={null} />
-        </LoadingFallback>
-      }
+    <LoadingSuspense
+      label="Loading device setup"
+      fallback={<NewDeviceForm orgs={NO_ORGANIZATIONS} preselectedOrgId={null} />}
     >
       <NewDeviceContent />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

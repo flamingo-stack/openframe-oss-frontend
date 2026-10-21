@@ -29,7 +29,7 @@ export function CustomersAssignedTable({ customers, isLoading }: CustomersAssign
       <CustomersTableBody
         customers={filtered}
         isLoading={isLoading}
-        emptyMessage="No customers assigned."
+        emptyState={{ title: 'No customers assigned.' }}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

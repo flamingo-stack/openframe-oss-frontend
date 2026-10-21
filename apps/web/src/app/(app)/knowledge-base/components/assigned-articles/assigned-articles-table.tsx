@@ -4,7 +4,6 @@ import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-fro
 import {
   ActionsMenuDropdown,
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -33,6 +32,7 @@ import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
+import { KnowledgeBaseTable, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { type AssignedArticlesTarget, targetNoun } from './assigned-articles-target';
 
@@ -230,16 +230,7 @@ function AssignedArticlesTableQuery(props: AssignedArticlesTableProps) {
     });
   };
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more articles', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
 
   return (
     <AssignedArticlesRows
@@ -247,7 +238,7 @@ function AssignedArticlesTableQuery(props: AssignedArticlesTableProps) {
       rows={rows}
       totalCount={items.filteredCount}
       onUnassign={handleUnassign}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      infiniteScroll={infiniteScroll}
     />
   );
 }
@@ -300,26 +291,20 @@ function AssignedArticlesRows({
   }
 
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="article" totalCount={totalCount} />}
-        />
-        <DataTable.Body
-          skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-          emptyState={{
-            title: listing.search
-              ? `No articles found matching "${listing.search}". Try adjusting your search.`
-              : 'No articles match the selected tags. Try adjusting your filters.',
-          }}
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {rows.length > 0 && <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />}
-      </DataTable>
-    </div>
+    <KnowledgeBaseTable
+      table={table}
+      rowCount={rows.length}
+      totalCount={totalCount}
+      itemName="article"
+      emptyTitle={
+        listing.search
+          ? `No articles found matching "${listing.search}". Try adjusting your search.`
+          : 'No articles match the selected tags. Try adjusting your filters.'
+      }
+      rowHref={rowHref}
+      infiniteScroll={infiniteScroll}
+      isPending={isPending}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 }

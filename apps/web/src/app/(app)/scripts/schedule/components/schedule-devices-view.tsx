@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceSelectionMode,
   DeviceSelectionModeRadio,
@@ -14,7 +14,7 @@ import {
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { noop } from '@/app/components/shared';
@@ -78,15 +78,9 @@ interface ScheduleDevicesViewProps {
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading schedule">
-          <ScheduleDevicesShell scheduleId={scheduleId} />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading schedule" fallback={<ScheduleDevicesShell scheduleId={scheduleId} />}>
       <ScheduleDevicesContent scheduleId={scheduleId} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }
 
@@ -372,13 +366,7 @@ function ScheduleDevicesContent({ scheduleId }: ScheduleDevicesViewProps) {
             and a fade — however light — is time between the click and the
             readable half. Each branch is its own component type, so React
             replaces the subtree on its own; there is no wrapper to key. */}
-        <Suspense
-          fallback={
-            <LoadingFallback label="Loading devices">
-              <SchedulePickerLoading mode={selectionMode} />
-            </LoadingFallback>
-          }
-        >
+        <LoadingSuspense label="Loading devices" fallback={<SchedulePickerLoading mode={selectionMode} />}>
           {selectionMode === 'criteria' ? (
             <ScheduleCriteriaPicker
               scheduleId={scheduleId}
@@ -404,7 +392,7 @@ function ScheduleDevicesContent({ scheduleId }: ScheduleDevicesViewProps) {
               onRemoveAll={removeAllDevices}
             />
           )}
-        </Suspense>
+        </LoadingSuspense>
       </div>
     </PageLayout>
   );

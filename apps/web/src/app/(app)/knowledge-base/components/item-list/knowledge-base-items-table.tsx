@@ -3,12 +3,10 @@
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect } from 'react';
 import {
   fetchQuery,
@@ -35,6 +33,7 @@ import {
   type KnowledgeBaseListing,
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
+import { KnowledgeBaseTable, NO_LISTING_IDS, useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
@@ -148,7 +147,6 @@ interface KnowledgeBaseItemsTableProps {
   stickyHeaderOffset: string;
 }
 
-const NO_LISTING_IDS: readonly string[] = [];
 /**
  * The rows of a knowledge base level. In a loading scope (the view's Suspense fallback) it draws the table with no
  * rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under the
@@ -171,7 +169,6 @@ export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
 
 function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
   const { listing } = props;
-  const { toast } = useToast();
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
   // Mingo can add a row from the chat; its create refetches the list.
@@ -202,16 +199,7 @@ function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
 
   const rows = items.edges.map(edge => edge.node);
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more items', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more items');
 
   return (
     <KnowledgeBaseItemsRows
@@ -219,7 +207,7 @@ function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
       rows={rows}
       totalCount={items.filteredCount}
       listingIds={[items.__id]}
-      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      infiniteScroll={infiniteScroll}
     />
   );
 }
@@ -272,29 +260,21 @@ function KnowledgeBaseItemsRows({
           description="Create your first article or folder to start building your knowledge base"
         />
       ) : (
-        // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-        <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-          <DataTable table={table}>
-            <DataTable.Header
-              stickyHeader
-              stickyHeaderOffset={stickyHeaderOffset}
-              rightSlot={<DataTable.RowCount itemName="item" totalCount={totalCount} />}
-            />
-            <DataTable.Body
-              skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
-              emptyState={{
-                title: listing.search
-                  ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
-                  : 'No articles match the selected tags. Try adjusting your filters.',
-              }}
-              rowClassName="mb-1"
-              rowHref={rowHref}
-            />
-            {rows.length > 0 && (
-              <DataTable.InfiniteFooter {...infiniteScroll} skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE} />
-            )}
-          </DataTable>
-        </div>
+        <KnowledgeBaseTable
+          table={table}
+          rowCount={rows.length}
+          totalCount={totalCount}
+          itemName="item"
+          emptyTitle={
+            listing.search
+              ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
+              : 'No articles match the selected tags. Try adjusting your filters.'
+          }
+          rowHref={rowHref}
+          infiniteScroll={infiniteScroll}
+          isPending={isPending}
+          stickyHeaderOffset={stickyHeaderOffset}
+        />
       )}
 
       {/* Outside both branches: deleting the last row swaps the table for the empty state mid-dialog. */}

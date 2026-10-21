@@ -5,7 +5,13 @@ import type { ReactNode } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 
-/** Save in the title bar before it can act (no record, or a step before the connect step): drawn, locked. */
+/** The label of the button that mints a connection's consent link (the New form and the Connect form's domain edit). */
+export const GENERATE_LINK_LABEL = 'Generate Connection Link';
+
+/**
+ * Save in the title bar before it can act (no record, or a step before the connect step): drawn, locked. A form's
+ * live Save spreads it and sets its own handler and state, so the label is written once.
+ */
 export const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
 
 /**

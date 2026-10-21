@@ -1,8 +1,10 @@
 export { ContentErrorBoundary, useRetryKey } from './content-error-boundary';
 export { CVE_SEVERITY, CVE_SEVERITY_BANDS, cveSeverityRank, resolveCveSeverity } from './cve/cve-severity';
 export { CveSeverityTag } from './cve/cve-severity-tag';
+export { CustomerInfoCell, type CustomerInfoCellProps } from './customer-info-cell';
 export { DateColumnHeader, type DateColumnHeaderProps, type TableDateFilter } from './date-column-header';
 export { DateWithAge } from './date-with-age';
+export { DETAIL_CELL_CLASS, DETAIL_CELL_GAP_CLASS } from './detail-cell';
 export { DeviceInfoSection } from './device-info-section';
 export { DevicesPanel, type DevicesPanelProps } from './devices-panel';
 export { EMBEDDED_PAGE_OFFSET } from './embedded-page';
@@ -22,5 +24,6 @@ export { SectionLoadError, type SectionLoadErrorProps } from './section-load-err
 export { type SelectableTag, SelectableTagsRow } from './selectable-tags-row';
 export { liveColumnMeta, type TableSkeletonColumn } from './table-column-layout';
 export { TagFilterBar } from './tag-filter-bar';
+export { TitleLines, type TitleLinesProps } from './title-lines';
 export { ValueText } from './value-text';
 export * from './tags';

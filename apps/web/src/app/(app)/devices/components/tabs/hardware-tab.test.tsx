@@ -16,6 +16,15 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 
+// The lib reads the breakpoint for per-width line counts; jsdom has no matchMedia.
+window.matchMedia ??= ((query: string) =>
+  ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }) as unknown as MediaQueryList) as typeof window.matchMedia;
+
 let container: HTMLDivElement;
 let root: Root;
 

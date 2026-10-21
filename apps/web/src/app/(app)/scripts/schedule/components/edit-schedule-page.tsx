@@ -2,13 +2,13 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ScheduleFormFields,
   type ScheduleScriptSearchSlotProps,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -124,18 +124,17 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
         {/* The loader suspends on the record; until it lands the form draws
             itself in a loading scope (each field its own skeleton), and once
             the record is seeded the same fields unlock. */}
-        <Suspense
+        <LoadingSuspense
+          label="Loading schedule"
           fallback={
-            <LoadingFallback label="Loading schedule">
-              <ScheduleFormFields
-                showErrors={false}
-                disabled
-                renderScriptSearch={renderScriptSearch}
-                timeReferenceGate={deviceTimeGate}
-                platforms={AVAILABLE_PLATFORMS}
-                comingSoonPlatforms={DISABLED_PLATFORMS}
-              />
-            </LoadingFallback>
+            <ScheduleFormFields
+              showErrors={false}
+              disabled
+              renderScriptSearch={renderScriptSearch}
+              timeReferenceGate={deviceTimeGate}
+              platforms={AVAILABLE_PLATFORMS}
+              comingSoonPlatforms={DISABLED_PLATFORMS}
+            />
           }
         >
           {scheduleId && <ScheduleRecordLoader scheduleId={scheduleId} onResolved={setRecord} />}
@@ -151,7 +150,7 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
               comingSoonPlatforms={DISABLED_PLATFORMS}
             />
           )}
-        </Suspense>
+        </LoadingSuspense>
       </PageLayout>
     </FormProvider>
   );

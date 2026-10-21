@@ -38,7 +38,7 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
       <DevicesTableBody
         devices={filtered}
         isLoading={isLoading}
-        emptyMessage="No devices assigned."
+        emptyState={{ title: 'No devices assigned.' }}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

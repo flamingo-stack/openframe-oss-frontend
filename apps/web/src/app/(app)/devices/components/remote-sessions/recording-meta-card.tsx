@@ -4,10 +4,10 @@ import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/ico
 import { LoadingWhen, SquareAvatar, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
+import { CustomerInfoCell } from '@/app/components/shared/customer-info-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { formatDate, formatDateTime } from '@/lib/format-date';
 import type { RecordingDetail } from '../../types/session-recording';
-import { CustomerInfoCell } from '../customer-info-cell';
 import { formatBytes, formatDurationMs } from './format';
 import { keepReasonText } from './recording-keep';
 

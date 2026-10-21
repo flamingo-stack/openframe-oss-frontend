@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
   ExecutionStatusCell,
@@ -12,10 +12,11 @@ import { Copy01Icon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core
 import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useEffect, useMemo } from 'react';
+import { type ReactNode, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
 import { noop, useRetryKey } from '@/app/components/shared';
+import { DETAIL_CELL_CLASS, DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scriptExecutionDetailRelayQuery } from '@/graphql/scripts/script-execution-detail-relay';
@@ -42,10 +43,6 @@ const IN_FLIGHT_POLL_INTERVAL_MS = 5000;
 
 type ExecutionNode = NonNullable<ScriptExecutionDetailQueryType['response']['node']>;
 
-/** A cell's place on the card's wrapping rows: at least 140px, sharing the row evenly. */
-const CELL_CLASS = 'flex min-w-[140px] flex-[1_0_0]';
-const CELL_GAP_CLASS = 'gap-[var(--spacing-system-xxs)]';
-
 /**
  * A value-over-label cell: the shared {@link InfoCell}, which draws its value as a bar in a loading scope, or as
  * `valueSkeleton` when the value is not text.
@@ -62,8 +59,14 @@ function DetailCell({
   valueSkeleton?: ReactNode;
 }) {
   return (
-    <div className={CELL_CLASS}>
-      <InfoCell value={value} label={label} icon={icon} valueSkeleton={valueSkeleton} className={CELL_GAP_CLASS} />
+    <div className={DETAIL_CELL_CLASS}>
+      <InfoCell
+        value={value}
+        label={label}
+        icon={icon}
+        valueSkeleton={valueSkeleton}
+        className={DETAIL_CELL_GAP_CLASS}
+      />
     </div>
   );
 }
@@ -86,7 +89,7 @@ function TimingRow({
   return (
     <div className={CARD_ROW_CLASS}>
       <DetailCell value={zone} label={zoneLabel} />
-      <div className={cn(ROW_CLASS, 'min-w-[140px] flex-[1_0_0]')}>
+      <div className={cn(ROW_CLASS, DETAIL_CELL_CLASS)}>
         <DetailCell value={start} label="Start Time" />
         <DetailCell value={finish} label="Finish Time" />
       </div>
@@ -96,7 +99,7 @@ function TimingRow({
 
 /**
  * "Executed by": the person (linked to their page) and the chip of what dispatched the run. It switches itself: in a
- * loading scope the person draws its skeleton and the chip (shown only for a scheduled or assistant run) is left out.
+ * loading scope the person draws its skeleton and the chip (shown only for a scheduled or assistant run) draws nothing.
  */
 function ExecutedByValue({ execution }: { execution: ExecutionNode | null }) {
   const loading = useLoadingScope() || !execution;
@@ -105,13 +108,9 @@ function ExecutedByValue({ execution }: { execution: ExecutionNode | null }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <InitiatorIdentity initiator={toInitiator(execution?.initiator)} size="md" loading={loading} />
-      {/* Only a scheduled or assistant run has a chip (a manual run, the common case, draws none): left out while
-          loading, inline beside the name, so it moves nothing. */}
-      {!loading && (
-        <span data-loading-optional className="contents">
-          <ExecutionSourceBadge source={execution?.source} />
-        </span>
-      )}
+      {/* Only a scheduled or assistant run has a chip (a manual run, the common case, draws none). Drawn in the loading
+          scope too, where it has no source and draws nothing: inline beside the name, so it moves nothing. */}
+      <ExecutionSourceBadge source={execution?.source} />
     </div>
   );
 }
@@ -311,20 +310,19 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
   const handleBack = useSafeBack(routes.scripts.list);
 
   return (
-    <Suspense
+    <LoadingSuspense
+      label="Loading execution details"
+      // The page before its execution: the same page, drawing itself in the loading scope.
       fallback={
-        // The page before its execution: the same page, drawing itself in the loading scope.
-        <LoadingFallback label="Loading execution details">
-          <ExecutionDetailsPage
-            execution={null}
-            isInFlight={false}
-            onBack={handleBack}
-            actions={LOADING_EXECUTION_ACTIONS}
-          />
-        </LoadingFallback>
+        <ExecutionDetailsPage
+          execution={null}
+          isInFlight={false}
+          onBack={handleBack}
+          actions={LOADING_EXECUTION_ACTIONS}
+        />
       }
     >
       <ScriptExecutionDetailsContent executionId={executionId} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

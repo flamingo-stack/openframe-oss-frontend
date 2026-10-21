@@ -4,29 +4,33 @@ import type { InfoCardData } from '@flamingo-stack/openframe-frontend-core';
 import { InfoCard, ToolIcon } from '@flamingo-stack/openframe-frontend-core';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
-import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
+import { EMPTY_CARD } from '@/app/components/shared/info-card-loading';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface FullInformationSectionProps {
   logDetails?: LogEntry | null;
 }
 
-/**
- * The rows a typical log carries, in the card's order: their labels are drawn real while the log is read. Most logs
- * come from a device, so `deviceId` is drawn; `userId` appears only on some, so the loading card leaves it out.
- */
-const LOADING_ROWS = [
-  { label: 'toolEventId' },
-  { label: 'ingestDay' },
-  { label: 'toolType' },
-  { label: 'eventType' },
-  { label: 'severity' },
-  { label: 'deviceId' },
-  { label: 'timestamp' },
-];
+/** The card's row labels, in its order: ONE table, read by the loaded card and by its loading shape. */
+const ROW = {
+  toolEventId: 'toolEventId',
+  ingestDay: 'ingestDay',
+  toolType: 'toolType',
+  eventType: 'eventType',
+  severity: 'severity',
+  userId: 'userId',
+  deviceId: 'deviceId',
+  timestamp: 'timestamp',
+} as const;
 
-/** The card's loading shape: one row per label above, no title (the loaded card has none). */
-const LOADING_SKELETON = { rows: labelsOf(LOADING_ROWS), title: false };
+/**
+ * The card's loading shape: the rows a typical log carries, their labels real, no title (the loaded card has none).
+ * Most logs come from a device, so `deviceId` is drawn; `userId` appears only on some, so it is left out.
+ */
+const LOADING_SKELETON = {
+  rows: [ROW.toolEventId, ROW.ingestDay, ROW.toolType, ROW.eventType, ROW.severity, ROW.deviceId, ROW.timestamp],
+  title: false,
+};
 
 export function FullInformationSection({ logDetails }: FullInformationSectionProps) {
   // In a loading scope the card has no rows yet: `InfoCard` draws its own skeleton, its row labels real.
@@ -47,19 +51,19 @@ export function FullInformationSection({ logDetails }: FullInformationSectionPro
       ? EMPTY_CARD
       : {
           items: [
-            { label: 'toolEventId', value: logDetails.toolEventId },
-            { label: 'ingestDay', value: logDetails.ingestDay },
+            { label: ROW.toolEventId, value: logDetails.toolEventId },
+            { label: ROW.ingestDay, value: logDetails.ingestDay },
             {
-              label: 'toolType',
+              label: ROW.toolType,
               value: toToolLabel(logDetails.toolType),
               icon: <ToolIcon toolType={normalizeToolTypeWithFallback(logDetails.toolType)} size={16} />,
             },
-            { label: 'eventType', value: logDetails.eventType },
-            { label: 'severity', value: logDetails.severity },
-            ...(logDetails.userId ? [{ label: 'userId', value: logDetails.userId }] : []),
-            ...(logDetails.deviceId ? [{ label: 'deviceId', value: logDetails.deviceId }] : []),
+            { label: ROW.eventType, value: logDetails.eventType },
+            { label: ROW.severity, value: logDetails.severity },
+            ...(logDetails.userId ? [{ label: ROW.userId, value: logDetails.userId }] : []),
+            ...(logDetails.deviceId ? [{ label: ROW.deviceId, value: logDetails.deviceId }] : []),
             // The wire value, like every other row here — the formatted date is in the page header.
-            { label: 'timestamp', value: logDetails.timestamp },
+            { label: ROW.timestamp, value: logDetails.timestamp },
           ],
         };
 

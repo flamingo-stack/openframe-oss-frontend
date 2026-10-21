@@ -246,7 +246,11 @@ export function ApiKeysTab() {
     >
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" />} />
-        <DataTable.Body loading={isLoading} emptyMessage={error || 'No API keys found.'} onRowClick={openDetails} />
+        <DataTable.Body
+          loading={isLoading}
+          emptyState={{ title: error || 'No API keys found.' }}
+          onRowClick={openDetails}
+        />
       </DataTable>
       <CreateApiKeyModal
         isOpen={isCreateOpen}

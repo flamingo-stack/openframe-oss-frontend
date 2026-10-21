@@ -151,9 +151,10 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
 
   // Assign Ticket, then Keep Recording or Release Keeping once kept (Figma
   // 1755-93683 / 1755-94111); outline per the design, where `menu-primary`
-  // would default to accent.
+  // would default to accent. While the recording is read the header draws the typical pair (a recording that is not
+  // kept yet: Assign Ticket, Keep Recording), real and inert (`loadingActions`).
   const actions: PageActionButton[] = [];
-  if (recording) {
+  if (recording || isLoading) {
     actions.push({
       label: 'Assign Ticket',
       icon: <PlusCircleIcon size={24} />,
@@ -168,7 +169,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       variant: 'outline',
       onClick: () => setIsReleaseOpen(true),
     });
-  } else if (recording && canKeepSession(recording)) {
+  } else if (isLoading || (recording && canKeepSession(recording))) {
     actions.push({
       label: 'Keep Recording',
       icon: <LockIcon size={24} />,
@@ -244,6 +245,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
       showHeader={!isFullscreen}
       actionsVariant="menu-primary"
       actions={actions}
+      loadingActions={isLoading}
       menuActions={menuActions}
     >
       {/* Outside the player wrapper so it stays usable when the recording itself

@@ -16,16 +16,18 @@
  *    `*Skeleton` element, or a literal-length list (`Array.from({ length: N })`, `Array(N)`, `[0, 1, 2].map`) inside a
  *    `*Skeleton` function, on a line that reads a loading flag, or in a module-level constant a skeleton or a loading
  *    branch uses, fails.
- * 3. COUNT SOURCE: `skeletonRows={x}` / `skeletonCount={x}` names a page size, a limit, a `*_SKELETON_*` typical
+ * 3. COUNT SOURCE: `skeletonRows={x}` / `skeletonCount={x}`, and the length of a skeleton list (`Array.from({ length:
+ *    x })` in a `*Skeleton` function or a loading branch), names a page size, a limit, a `*_SKELETON_*` typical
  *    constant, `first` (a connection's page) or `pageSize` (a pass-through `skeletonRows={skeletonRows}` is checked
- *    where its caller names it).
+ *    where its caller names it). A list fetched with a SAFETY CAP rather than a page (`first: 100` so a runaway list
+ *    stays bounded) is not a limited list: it draws a declared `*_SKELETON_*` typical count, stated where it is declared.
  * 4. ITEM MARK: a skeleton list drawn from a page size, a limit or a `*_SKELETON_*` constant marks each item
  *    (`data-loading-item`, or the `listItem` / `listItems` prop that sets it), and so does the loaded list beside it
  *    (a `.map(` within the same expression): the runtime gate counts both. The mark may sit inside the item's
  *    component, found through its IMPORT (or its declaration in the same file), or, for a list built into a variable
  *    and rendered later, anywhere in the file.
  * 5. OPTIONAL MARK: in a component that switches on the loading scope, a part left out while loading
- *    (`{!loading && …}`, `{!isLoading && …}`) is optional: it carries `data-loading-optional` so the runtime gate
+ *    (`{!loading && …}`, `{!isLoading && …}`, or a part keyed on a read field, `{record?.field && <…>}`) is optional: it carries `data-loading-optional` so the runtime gate
  *    measures the loaded page without it. Not counted: an error or offline state (a failure, not a part of the record)
  *    the loaded half of an explicit pair (`{loading && <bar />}` within the twelve lines above, drawing the slot), and a
  *    ternary that chooses between two forms of one slot (`{!loading && empty ? <Empty /> : <List />}`).
@@ -46,10 +48,10 @@ const LOADING_FLAG = /\b(isLoading|loading|useLoadingScope)\b/;
 const COUNT_PROP = /\b(skeletonRows|skeletonCount)=\{\s*([A-Za-z_$][\w$.]*)\s*\}/g;
 const COUNT_SOURCE = /(PAGE_SIZE|LIMIT|_SKELETON_|^first$|\.first$|pageSize|page_size|limit$)/;
 const LIST_FROM_COUNT = /Array\.from\(\{\s*length:\s*([A-Za-z_$][\w$.]*)\s*\}/;
-const LIST_COUNT_NAME = /(PAGE_SIZE|LIMIT|_SKELETON_)/;
+const LIST_COUNT_NAME = /(PAGE_SIZE|LIMIT|_SKELETON_|pageSize|limit)/i;
 const ITEM_MARK = /data-loading-item|\blistItems?\b/;
 const OPTIONAL_MARK = /data-loading-optional/;
-const LEFT_OUT_WHILE_LOADING = /\{\s*!\s*(?:loading|isLoading)\s*&&/;
+const LEFT_OUT_WHILE_LOADING = /\{\s*!\s*(?:loading|isLoading)\s*&&|\{\s*[a-z]\w*(?:\?\.\w+)+\s*&&\s*\(?\s*</;
 const SWITCHES = /\buseLoadingScope\s*\(|<LoadingWhen\b/;
 const MARK_WINDOW = 12;
 const LOADED_WINDOW = 15;
@@ -118,6 +120,15 @@ export function fullPageProblems(file, source, { sources = new Map(), srcRoot = 
           `${where} — ${name} is a literal-length list used while loading; name a page size, limit or *_SKELETON_* count`,
         );
       }
+    }
+
+    // 2b. A count laundered through another constant: a skeleton list (in a `*Skeleton` function or a loading branch)
+    // whose length names neither a page size, a limit, nor a `*_SKELETON_*` constant.
+    const counted = line.match(LIST_FROM_COUNT);
+    if (counted && !COUNT_SOURCE.test(counted[1]) && (/Skeleton$/.test(owner) || LOADING_FLAG.test(line))) {
+      problems.push(
+        `${where} — a skeleton list of ${counted[1]} items; name the page size, limit or a *_SKELETON_* constant`,
+      );
     }
 
     // 3. COUNT SOURCE

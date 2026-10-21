@@ -15,7 +15,7 @@ import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
 import { MINT_FAILED, useStartConsent } from '../consent/use-start-consent';
-import { TenantFormFrame } from '../shared/tenant-form-frame';
+import { SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
 
 const reconnectTenantViewQuery = graphql`
@@ -69,8 +69,7 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Save Integration',
-      variant: 'accent',
+      ...SAVE_PLACEHOLDER,
       // Nothing of its own to write: back to the details page, which the probe has already updated.
       onClick: () => safeBackOrReplace(router, routes.cloudTenantManagement.details(id)),
       disabled: !connection || isMinting || isChecking,

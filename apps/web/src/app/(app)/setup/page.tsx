@@ -1,7 +1,6 @@
 'use client';
 
-import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
-import { Suspense } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SetupWelcomeFrame, SetupWizard } from './components/setup-wizard';
 
 /**
@@ -13,14 +12,8 @@ import { SetupWelcomeFrame, SetupWizard } from './components/setup-wizard';
  */
 export default function SetupPage() {
   return (
-    <Suspense
-      fallback={
-        <LoadingFallback label="Loading setup">
-          <SetupWelcomeFrame />
-        </LoadingFallback>
-      }
-    >
+    <LoadingSuspense label="Loading setup" fallback={<SetupWelcomeFrame />}>
       <SetupWizard />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

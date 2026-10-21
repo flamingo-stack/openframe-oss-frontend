@@ -2,7 +2,7 @@
 
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
-import { IdentityRow } from './identity-row';
+import { IdentityRow, USER_ROW_CLASS } from './identity-row';
 
 interface MspOrganizationCardProps {
   name: string;
@@ -14,7 +14,6 @@ interface MspOrganizationCardProps {
   onEditOrganization?: () => void;
 }
 
-const ROW_CLASS = 'flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]';
 const editIcon = <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />;
 
 /**
@@ -27,7 +26,7 @@ const editIcon = <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />;
 export function MspOrganizationCard({ name, website, logoUrl, loading, onEditOrganization }: MspOrganizationCardProps) {
   return (
     <IdentityRow
-      className={ROW_CLASS}
+      className={USER_ROW_CLASS}
       loading={loading}
       loadingLabel="Loading your organization"
       name={name || 'Your Organization'}

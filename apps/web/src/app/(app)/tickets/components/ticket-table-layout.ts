@@ -36,11 +36,6 @@ const TICKET_COLUMNS = {
 export { TICKET_COLUMNS };
 
 interface TicketColumnLayoutOptions {
-  /**
-   * Archived tickets have no status filter, so their STATUS header renders a
-   * plain label and does NOT survive below `lg` the way a filterable one does.
-   */
-  isArchived?: boolean;
   /** Drop SOURCE — redundant on the device-scoped list, which is device-scoped already. */
   withSource?: boolean;
   /** Trailing open-in-new-tab column (`getTicketOpenColumn`). */
@@ -54,7 +49,6 @@ interface TicketColumnLayoutOptions {
 
 /** Ordered layout for a ticket table, as the live builder and its skeletons render it. */
 export function ticketTableColumns({
-  isArchived = false,
   withSource = true,
   withOpen = true,
   widths,
@@ -63,7 +57,7 @@ export function ticketTableColumns({
     TICKET_COLUMNS.title,
     ...(withSource ? [TICKET_COLUMNS.source] : []),
     TICKET_COLUMNS.assignee,
-    { ...TICKET_COLUMNS.status, filterable: !isArchived },
+    TICKET_COLUMNS.status,
     ...(withOpen ? [TICKET_COLUMNS.open] : []),
   ];
 
