@@ -20,6 +20,7 @@ import {
 import { OpenItemButton } from '@/app/(app)/knowledge-base/components/shared/open-item-button';
 import { liveColumnMeta } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
+import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
 /**
  * An assigned article as this table draws it. The assignments are read by raw
@@ -102,7 +103,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="item" />} />
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={3}
+          skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
           emptyState={{ title: 'No articles assigned.' }}
           rowHref={rowHref}
         />

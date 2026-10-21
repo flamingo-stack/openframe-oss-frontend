@@ -12,8 +12,10 @@ import {
   IconTile,
   type Row,
   StackedRowsPanel,
+  LoadingWhen,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -42,6 +44,9 @@ export function resolveQuickActionAccent(
 export const MINGO_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'Mingo', agentSlug: 'mingo' };
 export const ASSISTANT_QUICK_ACTIONS_CONFIG: QuickActionsAgentConfig = { agentLabel: 'AI Assistant', agentSlug: 'fae' };
 
+const NO_ACTIONS: AiQuickAction[] = [];
+const NO_BANNER_ROWS: never[] = [];
+
 /** Overrides the source banner's two text lines (title + caption). */
 export interface QuickActionsBannerCopy {
   value: string;
@@ -55,7 +60,9 @@ export interface QuickActionsBannerCopy {
  * `copy` overrides the default OpenFrame-vs-org wording — the per-customer view
  * uses it because there "default" means "inherited from the global config".
  */
-export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault: boolean; copy?: QuickActionsBannerCopy }) {
+export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: boolean; copy?: QuickActionsBannerCopy }) {
+  // Whose actions are in effect is read: while loading, the panel's own one-row skeleton.
+  if (useLoadingScope() || isDefault == null) return <StackedRowsPanel rows={NO_BANNER_ROWS} skeleton={{ rows: 1 }} />;
   return (
     <StackedRowsPanel
       rows={[
@@ -80,7 +87,7 @@ export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault: boole
   );
 }
 
-/** View-mode section: heading + source banner + read-only list. */
+/** View-mode section: heading + source banner + read-only list. In a loading scope, every part its own skeleton. */
 export function AiSettingsQuickActionsSection({
   title,
   actions,
@@ -90,27 +97,44 @@ export function AiSettingsQuickActionsSection({
   bannerCopy,
 }: {
   title: string;
-  actions: AiQuickAction[];
-  isDefault: boolean;
+  /** Unread while loading. */
+  actions?: AiQuickAction[];
+  /** Unread while loading. */
+  isDefault?: boolean;
   agentConfig: QuickActionsAgentConfig;
   /** Glyph tint override - see `resolveQuickActionAccent`. */
   accent?: QuickActionAccent;
   /** Overrides the source banner copy (leaves the list header on `isDefault`). */
   bannerCopy?: QuickActionsBannerCopy;
 }) {
+  // Loading: the banner (`StackedRowsPanel`) and the table (`DataTable`) draw their own skeletons in the scope.
+  const loading = useLoadingScope() || actions == null;
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <span className="text-ods-text-primary text-h2">{title}</span>
-      <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
-      <AiSettingsQuickActions actions={actions} isDefault={isDefault} agentConfig={agentConfig} accent={accent} />
-    </div>
+    <LoadingWhen loading={loading}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <span className="text-ods-text-primary text-h2">{title}</span>
+        <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
+        <AiSettingsQuickActions
+          actions={actions ?? NO_ACTIONS}
+          isDefault={isDefault}
+          agentConfig={agentConfig}
+          accent={accent}
+        />
+      </div>
+    </LoadingWhen>
   );
 }
 
+/**
+ * Rows the loading list draws. The list is not paged (every action arrives at once), so there is no page size: this
+ * is a typical count.
+ */
+const QUICK_ACTIONS_SKELETON_ROWS = 4;
+
 interface AiSettingsQuickActionsProps {
   actions: AiQuickAction[];
-  /** True → OpenFrame (Product Hub) defaults; false → the organization's customs. */
-  isDefault: boolean;
+  /** True → OpenFrame (Product Hub) defaults; false → the organization's customs. Unknown while loading. */
+  isDefault?: boolean;
   agentConfig: QuickActionsAgentConfig;
   /** Glyph tint override - see `resolveQuickActionAccent`. */
   accent?: QuickActionAccent;
@@ -137,7 +161,11 @@ export function AiSettingsQuickActions({
     () => [
       {
         accessorKey: 'name',
-        header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
+        // No header while loading: whose list it is (OpenFrame's or the organization's) is what is read.
+        header:
+          isDefault == null
+            ? ''
+            : `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
         cell: ({ row }: { row: Row<AiQuickAction> }) => {
           const icon = renderQuickActionIcon({
             name: row.original.iconName ?? undefined,
@@ -175,7 +203,11 @@ export function AiSettingsQuickActions({
     <div className={cn(className)}>
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} />
-        <DataTable.Body emptyMessage="No quick actions configured." rowClassName="mb-1" />
+        <DataTable.Body
+          emptyMessage="No quick actions configured."
+          rowClassName="mb-1"
+          skeletonRows={QUICK_ACTIONS_SKELETON_ROWS}
+        />
       </DataTable>
     </div>
   );

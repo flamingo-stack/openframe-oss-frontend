@@ -1,6 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -11,7 +12,11 @@ import {
   LogsTableView,
   type UiLogEntry,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { DateFilterResult, DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type DateFilterResult,
+  type DateRange,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import {
@@ -52,13 +57,16 @@ import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
-import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
 // ----------------------------------------------------------------
 
 const LOGS_PAGE_SIZE = 20;
+
+const NO_LOGS: LogRow[] = [];
+/** The Log ID header before the rows land: the same header, inert (no calendar to act on yet). */
+const INERT_LOG_ID_HEADER = <DateColumnHeader label="Log ID" />;
 
 const logsTableRelayQuery = graphql`
   query logsTableRelayQuery(
@@ -517,6 +525,23 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
+  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: the same table view
+  // draws its own loading rows. It is also the Suspense fallback while the first page is in flight.
+  const scoped = useLoadingScope();
+  const loadingTable = (
+    <LogsTableView<LogRow>
+      logs={NO_LOGS}
+      loading
+      filters={tableFilters}
+      onFilterChange={handleFilterChange}
+      search={debouncedSearch}
+      dateFilter={dateFilter}
+      logIdHeader={INERT_LOG_ID_HEADER}
+      deviceScoped={Boolean(deviceId)}
+      organizationLocked={Boolean(organizationId)}
+    />
+  );
+
   return (
     <LogsPageView
       onRefresh={handleRefresh}
@@ -529,22 +554,26 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       hideSearch={isEmpty}
       onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      <Suspense fallback={<LogsTableSkeleton />}>
-        <LogsTableContent
-          deviceId={deviceId}
-          organizationLocked={Boolean(organizationId)}
-          backendFilters={backendFilters}
-          sort={sort}
-          dateFilter={dateFilter}
-          debouncedSearch={debouncedSearch}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          onRefreshRef={refreshRef}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-        />
-      </Suspense>
+      {scoped ? (
+        loadingTable
+      ) : (
+        <Suspense fallback={<LoadingFallback label="Loading logs">{loadingTable}</LoadingFallback>}>
+          <LogsTableContent
+            deviceId={deviceId}
+            organizationLocked={Boolean(organizationId)}
+            backendFilters={backendFilters}
+            sort={sort}
+            dateFilter={dateFilter}
+            debouncedSearch={debouncedSearch}
+            tableFilters={tableFilters}
+            onFilterChange={handleFilterChange}
+            onRefreshRef={refreshRef}
+            onEmptyChange={setIsEmpty}
+            mobileFilterOpen={mobileFilterOpen}
+            onMobileFilterClose={() => setMobileFilterOpen(false)}
+          />
+        </Suspense>
+      )}
     </LogsPageView>
   );
 });

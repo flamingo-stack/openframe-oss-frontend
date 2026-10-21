@@ -7,6 +7,7 @@ import {
   PageError,
   SearchInput,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
@@ -18,7 +19,7 @@ import {
   ticketRowHref,
 } from '../../../tickets/components/ticket-table-columns';
 import { DEVICE_TICKET_COLUMNS } from '../../../tickets/components/ticket-table-layout';
-import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
@@ -28,6 +29,8 @@ interface TicketsTabProps {
 }
 
 export function TicketsTab({ device }: TicketsTabProps) {
+  // The device has not answered (the page's loading scope), or the first page has not.
+  const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -54,9 +57,8 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // Reuse the shared ticket columns, but drop the device/source column — it's redundant on a
   // device-scoped list — and keep the trailing open-in-new-tab action.
   // With SOURCE dropped the shared flex widths drift, so ASSIGNEE/STATUS are pinned to fixed
-  // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, which `DeviceDetailsSkeleton` reads
-  // too — the page-level skeleton, the tab's own loading skeleton and the loaded table then
-  // share one declaration (no header jump between loading phases).
+  // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, the one declaration of this table's
+  // layout.
   const { isUserDeleted } = useUserStatusMap();
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
@@ -91,8 +93,9 @@ export function TicketsTab({ device }: TicketsTabProps) {
   });
 
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
+  const loading = scoped || isLoading;
 
-  if (error) {
+  if (!loading && error) {
     return <PageError message={error} />;
   }
 
@@ -100,7 +103,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // hide the search too (unless a search is active or still loading).
   const hasSearch = debouncedSearch.trim().length > 0;
   const isEmpty = tickets.length === 0;
-  const showChrome = isLoading || !isEmpty || hasSearch;
+  const showChrome = loading || !isEmpty || hasSearch;
 
   // Genuinely no tickets (no data before any search manipulation) → the plain
   // design empty state: icon + title + description only — the rich
@@ -108,7 +111,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // keeps the table chrome and its compact empty state below. Only once the
   // server has nothing further to page in — an empty first page with a next
   // page is still "loading", not "empty".
-  if (!isLoading && isEmpty && !hasNextPage && !hasSearch) {
+  if (!loading && isEmpty && !hasNextPage && !hasSearch) {
     return (
       <TabEmptyState
         icon={<TagIcon />}
@@ -130,7 +133,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
       )}
 
       <DataTable table={table}>
-        {(isLoading || !isEmpty) && (
+        {(loading || !isEmpty) && (
           <DataTable.Header
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
@@ -138,8 +141,8 @@ export function TicketsTab({ device }: TicketsTabProps) {
           />
         )}
         <DataTable.Body
-          loading={isLoading}
-          skeletonRows={8}
+          loading={loading}
+          skeletonRows={TICKETS_PAGE_SIZE}
           emptyState={{
             icon: <TagIcon />,
             title: 'No tickets found',
@@ -154,7 +157,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
-          skeletonRows={2}
+          skeletonRows={TICKETS_PAGE_SIZE}
         />
       </DataTable>
     </div>

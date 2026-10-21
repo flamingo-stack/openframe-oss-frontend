@@ -13,13 +13,15 @@
  *
  * When `href` is set the chip is a link to the entity's page — a NEW TAB on
  * desktop web, the SAME window where a new tab is unavailable or unwanted (see
- * `useSameWindowLinks`). Also exports the loading skeleton and an error boundary
- * so a per-type chip is always: skeleton while fetching → resolved chip → plain
- * id chip if the fetch throws (never crashes the message).
+ * `useSameWindowLinks`). In a loading scope the chip draws its own skeleton
+ * (`MentionTagSkeleton`); `MentionTagFallback` is the Suspense fallback that puts
+ * it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
+ * always: skeleton while fetching → resolved chip → plain id chip if the fetch
+ * throws (never crashes the message).
  */
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingScope, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -59,6 +61,8 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   const router = useRouter();
   const newTab = !sameWindow && !onOpen;
+
+  if (useLoadingScope()) return <MentionTagSkeleton icon={icon} />;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
@@ -111,15 +115,30 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
 }
 
+/** The chip's own loading state: the same chip shell (no link) with an inline skeleton bar for the label. */
+function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
+  return (
+    <Tag
+      as="span"
+      variant="badge"
+      icon={icon}
+      label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />}
+      className={CHIP_CLASS}
+    />
+  );
+}
+
 /**
- * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
- * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
- * and a "loading" read out mid-sentence for each would bury the message itself.
+ * Suspense fallback of a per-type chip: the chip itself in a loading scope. Inline (a `span`: the chip lives
+ * inside a `<p>`), and busy without a status of its own: a message can hold several chips loading at once, and
+ * a "loading" read out mid-sentence for each would bury the message itself.
  */
-export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
+export function MentionTagFallback({ icon }: { icon?: ReactNode }) {
   return (
     <LoadingRegion as="span" status={false} className="contents">
-      <MentionTag icon={icon} label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />} />
+      <LoadingScope bare>
+        <MentionTag icon={icon} label="" />
+      </LoadingScope>
     </LoadingRegion>
   );
 }

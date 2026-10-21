@@ -1,6 +1,10 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  InteractiveSkeleton,
+  LoadingRegion,
+  TextLineSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -39,13 +43,7 @@ export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   if (!testClockEnabled) return null;
 
   return (
-    <Suspense
-      fallback={
-        <LoadingRegion label="Loading the test clock">
-          <UnifiedSkeleton className="h-[104px] w-full rounded-md" />
-        </LoadingRegion>
-      }
-    >
+    <Suspense fallback={<TestClockPanelContentSkeleton />}>
       <TestClockPanelContent onClockChanged={onClockChanged} />
     </Suspense>
   );
@@ -58,6 +56,36 @@ const testClockPanelQuery = graphql`
     }
   }
 `;
+
+const PANEL_CLASS =
+  'flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]';
+
+/** The panel's header row: fixed copy, the same loaded and loading. */
+function TestClockPanelHeader() {
+  return (
+    <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+      <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+      <p className="font-bold text-ods-warning text-h3">Stripe Test Clock</p>
+      <span className="rounded-sm bg-ods-warning px-[var(--spacing-system-xxs)] text-ods-bg text-h5">Dev only</span>
+    </div>
+  );
+}
+
+/** The panel while the clock is on its way: the header is real, the time a bar, the controls inert boxes. */
+function TestClockPanelContentSkeleton() {
+  return (
+    <LoadingRegion label="Loading the test clock" className={PANEL_CLASS}>
+      <TestClockPanelHeader />
+      <TextLineSkeleton type="h4" className="w-64 max-w-full" />
+      <div className="flex flex-wrap items-end gap-[var(--spacing-system-s)]">
+        <InteractiveSkeleton.Input className="w-24" />
+        <InteractiveSkeleton.Input className="w-24" />
+        <InteractiveSkeleton.Button />
+        <InteractiveSkeleton.Button />
+      </div>
+    </LoadingRegion>
+  );
+}
 
 function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
   const daysInputId = useId();
@@ -114,12 +142,8 @@ function TestClockPanelContent({ onClockChanged }: TestClockPanelProps) {
   const isProvisioningReady = provisioning.status?.state === BillingProvisioningState.READY;
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-        <p className="font-bold text-ods-warning text-h3">Stripe Test Clock</p>
-        <span className="rounded-sm bg-ods-warning px-[var(--spacing-system-xxs)] text-ods-bg text-h5">Dev only</span>
-      </div>
+    <div className={PANEL_CLASS}>
+      <TestClockPanelHeader />
 
       <p className="text-ods-text-primary text-h4">
         {frozenTime ? (

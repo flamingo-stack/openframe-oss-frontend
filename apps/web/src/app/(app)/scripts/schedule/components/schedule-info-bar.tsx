@@ -1,8 +1,8 @@
 'use client';
 
-import { OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { OSTypeBadgeGroup, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { isDeviceLocalTime } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ValueText } from '@/app/components/shared/value-text';
 import type { ScheduleTimeReference } from '@/generated/schema-enums';
 import { ScriptScheduleTrigger } from '@/generated/schema-enums';
@@ -48,6 +48,13 @@ interface ScheduleInfoBarFromDataProps {
 const CELL_CLASS =
   'flex flex-col items-start justify-center min-w-0 px-[var(--spacing-system-mf)] py-[var(--spacing-system-sf)] content-md:py-0 content-md:h-[80px]';
 
+const BAR_CLASS = 'flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card';
+const LABEL_CLASS = 'text-ods-text-secondary text-h6';
+
+/**
+ * The schedule's info bar. In a loading scope it draws its own skeleton: the name row when the page shows one
+ * (`name` given, `''` while loading), the timing row and the trailing row.
+ */
 export function ScheduleInfoBarFromData({
   name,
   note,
@@ -60,11 +67,12 @@ export function ScheduleInfoBarFromData({
   trigger,
   timeReference,
 }: ScheduleInfoBarFromDataProps) {
+  if (useLoadingScope()) return <ScheduleInfoBarSkeleton withName={name !== undefined} />;
   const isEventDriven = trigger === ScriptScheduleTrigger.DEVICE_ONLINE;
   const timeLabel = isDeviceLocalTime(timeReference) ? `Time (${DEVICE_LOCAL_TIME_NOTE})` : 'Time';
 
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <div className={BAR_CLASS}>
       {name && (
         <div className="grid grid-cols-2 border-b border-ods-border">
           <div className={CELL_CLASS}>
@@ -127,6 +135,44 @@ export function ScheduleInfoBarFromData({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** One loading cell: the value a bar on its `text-h4` line, the label the real static copy. */
+function SkeletonCell({ label, valueWidth, className }: { label: string; valueWidth: string; className?: string }) {
+  return (
+    <div className={`${CELL_CLASS} ${className ?? ''}`}>
+      <TextLineSkeleton type="h4" className={`max-w-full ${valueWidth}`} />
+      <span className={LABEL_CLASS}>{label}</span>
+    </div>
+  );
+}
+
+/**
+ * The bar before its schedule: the timing row and the trailing row (every schedule has an author and an offline
+ * behavior, so the loaded bar is two storeys tall in practice), plus the name row when the page shows one.
+ */
+function ScheduleInfoBarSkeleton({ withName }: { withName: boolean }) {
+  const divided = 'border-b border-ods-border content-md:border-b-0';
+  return (
+    <div className={BAR_CLASS}>
+      {withName && (
+        <div className="grid grid-cols-2 border-b border-ods-border">
+          <SkeletonCell label="Schedule Name" valueWidth="w-32" />
+          <SkeletonCell label="Note" valueWidth="w-24" />
+        </div>
+      )}
+      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
+        <SkeletonCell label="Date" valueWidth="w-24" className={divided} />
+        <SkeletonCell label="Time" valueWidth="w-20" className={divided} />
+        <SkeletonCell label="Repeat" valueWidth="w-16" />
+        <SkeletonCell label="Supported Platform" valueWidth="w-12" />
+      </div>
+      <div className="grid grid-cols-1 content-md:grid-cols-2">
+        <SkeletonCell label="If Device Offline" valueWidth="w-28" className={divided} />
+        <SkeletonCell label="Added by" valueWidth="w-24" />
+      </div>
     </div>
   );
 }

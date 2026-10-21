@@ -2,7 +2,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 
 /**
  * Column layout of the Invoices History table — read by the live table and by
- * `BillingUsageSkeleton`, which stands in for it.
+ * `BillingUsageContentSkeleton`, which stands in for it while the billing module's code downloads.
  *
  * Declared apart from `invoices-history.tsx` for the reason the shared
  * `table-column-layout` module exists: a skeleton must not import the real table
@@ -90,3 +90,9 @@ export const INVOICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
   INVOICE_COLUMNS.status,
   INVOICE_COLUMNS.actions,
 ];
+
+/**
+ * Rows the invoices table draws while it loads. The history is not paged (Stripe's whole list arrives at once), so
+ * there is no page size to draw: this is the typical count, short because a workspace's invoice history is short.
+ */
+export const INVOICES_SKELETON_ROWS = 3;

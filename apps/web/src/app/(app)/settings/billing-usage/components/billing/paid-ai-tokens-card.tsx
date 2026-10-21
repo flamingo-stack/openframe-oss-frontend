@@ -1,6 +1,7 @@
 'use client';
 
 import { Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { paidAiTokensCard_subscription$key } from '@/__generated__/paidAiTokensCard_subscription.graphql';
 import { formatCurrency } from '@/lib/format-currency';
@@ -17,7 +18,8 @@ const paidAiTokensCardFragment = graphql`
 `;
 
 interface PaidAiTokensCardProps {
-  subscription: paidAiTokensCard_subscription$key;
+  /** `null` only while the page loads. */
+  subscription: paidAiTokensCard_subscription$key | null;
   /**
    * The standing refill arrangement. `null` while it is on its way, when it
    * could not be loaded, and on a trial — which has no balance to refill. The
@@ -28,7 +30,9 @@ interface PaidAiTokensCardProps {
 
 /** The prepaid balance AI draws from once the grant is spent, and what it is worth. */
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
-  const ai = aiBalanceState(useFragment(paidAiTokensCardFragment, subscription));
+  const data = useFragment(paidAiTokensCardFragment, subscription);
+  if (useLoadingScope() || data == null) return <UsageStatCard title="Paid AI Tokens" loading />;
+  const ai = aiBalanceState(data);
 
   return (
     <UsageStatCard

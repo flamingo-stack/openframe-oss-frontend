@@ -2,14 +2,13 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { unarchiveArticleModal_article$key } from '@/__generated__/unarchiveArticleModal_article.graphql';
 import type { unarchiveArticleModalMutation as UnarchiveArticleModalMutationType } from '@/__generated__/unarchiveArticleModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { FolderPicker } from '../shared/folder-picker';
-import { FolderPickerFallback } from '../shared/folder-picker-fallback';
 import { type FolderTarget, ROOT_FOLDER } from '../shared/folder-tree';
 import {
   invalidateArchiveListing,
@@ -115,14 +114,12 @@ export function UnarchiveArticleModal({
       }
     >
       <p className="text-ods-text-primary text-h4">Restore To</p>
-      <Suspense fallback={<FolderPickerFallback placeholder={ROOT_FOLDER.name} />}>
-        <FolderPicker
-          value={target ? target.id : undefined}
-          onSelect={setTarget}
-          placeholder={ROOT_FOLDER.name}
-          disabled={isInFlight}
-        />
-      </Suspense>
+      <FolderPicker
+        value={target ? target.id : undefined}
+        onSelect={setTarget}
+        placeholder={ROOT_FOLDER.name}
+        disabled={isInFlight}
+      />
     </SimpleModal>
   );
 }

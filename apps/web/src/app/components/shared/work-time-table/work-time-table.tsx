@@ -26,6 +26,7 @@ import {
   SquareAvatar,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { format, isValid, parseISO } from 'date-fns';
@@ -411,7 +412,8 @@ function WorkTimeTableData({
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
             onLoadMore={() => loadNext(PAGE_SIZE)}
-            skeletonRows={2}
+            // The next page it waits on is one page.
+            skeletonRows={PAGE_SIZE}
           />
         </DataTable>
       )}
@@ -419,10 +421,7 @@ function WorkTimeTableData({
   );
 }
 
-/**
- * Loading state for the stats row + entry table. Exported so the route-level
- * Worktime skeleton renders THIS, not a copy of it.
- */
+/** Loading state for the stats row + entry table: a full page of rows. */
 function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   const columns = useMemo(() => buildColumns(showEmployee, showCustomer, noop, noop), [showEmployee, showCustomer]);
   const table = useDataTable<WorkTimeRow>({
@@ -455,7 +454,7 @@ function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: b
 
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={8} />
+        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} />
       </DataTable>
     </LoadingRegion>
   );
@@ -481,13 +480,68 @@ export interface WorkTimeTableProps {
 }
 
 /**
+ * The filters with nothing typed and the table in its loading state: what the component is in a loading scope,
+ * where it reads nothing (no option lists, no entries).
+ */
+function WorkTimeTablePending({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <WorkTimeFilters search="" onSearchChange={noop} range={undefined} onRangeChange={noop} />
+      <WorkTimeTableSkeleton showEmployee={showEmployee} showCustomer={showCustomer} />
+    </div>
+  );
+}
+
+/** The search box and the date range above the table. */
+function WorkTimeFilters({
+  search,
+  onSearchChange,
+  range,
+  onRangeChange,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  range: DateRange | undefined;
+  onRangeChange: (range: DateRange | undefined) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
+      <Input
+        value={search}
+        onChange={e => onSearchChange(e.target.value)}
+        placeholder="Search for Work Time"
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
+        className="w-full content-md:flex-1"
+      />
+      <DatePicker
+        mode="range"
+        value={range}
+        onChange={onRangeChange}
+        formatDate={formatDate}
+        numberOfMonths={2}
+        placeholder="Select dates"
+        className="content-md:w-[276px]"
+      />
+    </div>
+  );
+}
+
+/**
  * Stats + search/date filters + paginated time-entry table + edit/delete (and optional
  * add) modals. Shared by the employee details page (single employee), the tenant Worktime
  * page (all users, Employee + Customer columns), and the customer details Worktime tab
  * (one customer, Employee column). The header/title and the "Add Work Time" trigger are
- * owned by the caller; this owns the data and the modals.
+ * owned by the caller; this owns the data and the modals. In a loading scope it draws its
+ * own loading state and reads nothing.
  */
-export function WorkTimeTable({
+export function WorkTimeTable(props: WorkTimeTableProps) {
+  if (useLoadingScope()) {
+    return <WorkTimeTablePending showEmployee={!!props.showEmployee} showCustomer={!!props.showCustomer} />;
+  }
+  return <LiveWorkTimeTable {...props} />;
+}
+
+function LiveWorkTimeTable({
   employeeId,
   organizationGlobalId,
   showEmployee = false,
@@ -631,24 +685,7 @@ export function WorkTimeTable({
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search for Work Time"
-          startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
-          className="w-full content-md:flex-1"
-        />
-        <DatePicker
-          mode="range"
-          value={range}
-          onChange={setRange}
-          formatDate={formatDate}
-          numberOfMonths={2}
-          placeholder="Select dates"
-          className="content-md:w-[276px]"
-        />
-      </div>
+      <WorkTimeFilters search={search} onSearchChange={setSearch} range={range} onRangeChange={setRange} />
 
       <ErrorBoundary
         key={retryNonce}

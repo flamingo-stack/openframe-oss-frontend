@@ -5,6 +5,7 @@ import {
   DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -110,8 +111,34 @@ interface ArchivedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The archive's rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderOffset }: ArchivedArticlesTableProps) {
+const NO_ROWS: readonly ArchivedRow[] = [];
+const NO_LISTING_IDS: readonly string[] = [];
+const noop = () => {};
+
+/**
+ * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table with no rows, which is
+ * the table's own loading state; otherwise it runs the query, which suspends, so it lives under the view's
+ * `<Suspense>`.
+ */
+export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <ArchivedArticlesRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        listingIds={NO_LISTING_IDS}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <ArchivedArticlesTableQuery {...props} />;
+}
+
+function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
+  const { search, tagIds } = props;
   const { toast } = useToast();
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ArchivedArticlesTableQueryType>(
@@ -143,10 +170,47 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
     });
   };
 
+  return (
+    <ArchivedArticlesRows
+      {...props}
+      rows={rows}
+      totalCount={archived.filteredCount}
+      listingIds={[archived.__id]}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface ArchivedArticlesRowsProps extends ArchivedArticlesTableProps {
+  rows: readonly ArchivedRow[];
+  totalCount: number;
+  /** The connections the unarchive dialog marks stale. */
+  listingIds: readonly string[];
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function ArchivedArticlesRows({
+  rows,
+  totalCount,
+  listingIds,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  search,
+  tagIds,
+  isPending,
+  stickyHeaderOffset,
+}: ArchivedArticlesRowsProps) {
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ArchivedRow, 'unarchive'>();
 
   const table = useDataTable<ArchivedRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: rows as ArchivedRow[],
     columns: buildColumns(row => openDialog(row, 'unarchive')),
     getRowId,
     enableSorting: false,
@@ -162,9 +226,10 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
           <DataTable.Header
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="article" totalCount={archived.filteredCount} />}
+            rightSlot={<DataTable.RowCount itemName="article" totalCount={totalCount} />}
           />
           <DataTable.Body
+            skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
             emptyState={{
               title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.',
             }}
@@ -175,8 +240,8 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
             <DataTable.InfiniteFooter
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
-              onLoadMore={fetchNextPage}
-              skeletonRows={2}
+              onLoadMore={onLoadMore}
+              skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
             />
           )}
         </DataTable>
@@ -187,7 +252,7 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
           article={dialog.row}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingIds={[archived.__id]}
+          listingIds={listingIds}
         />
       )}
     </>

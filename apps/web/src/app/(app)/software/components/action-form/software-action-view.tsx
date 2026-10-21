@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   DEVICE_STATUS,
@@ -18,7 +18,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { Suspense, useMemo } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -49,9 +48,9 @@ function renderPackageSearch({ packageManager, value, onChange }: PackageSearchS
     <ErrorBoundary key={packageManager} fallback={<PackageSearchFieldPlaceholder error="Couldn't search packages." />}>
       <Suspense
         fallback={
-          <LoadingRegion label="Loading packages" className="contents">
-            <PackageSearchFieldPlaceholder />
-          </LoadingRegion>
+          <LoadingFallback label="Loading packages">
+            <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
+          </LoadingFallback>
         }
       >
         <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
@@ -109,23 +108,22 @@ export function SoftwareActionView({
   const { bundleId, deviceCount, createError, retryCreate, markSubmitted } = useDraftBundle({ enabled: !loading });
   const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
-  const renderDevicePicker = ({ osTypesKey }: SoftwareDeviceScope) =>
-    loading ? (
-      <ServerDevicePickerSkeleton />
-    ) : (
-      <ScopedBundleDevicePicker
-        // A new OS set is a different candidate list, not a refetch of this
-        // one: remounting drops straight to the skeleton instead of leaving
-        // the previous OS's devices on screen, and addable, while the
-        // deferred query catches up. The picker's search and funnels go with
-        // it, which is right: they narrowed a list that no longer exists.
-        key={osTypesKey}
-        osTypesKey={osTypesKey}
-        bundleId={bundleId}
-        createError={createError}
-        onRetryCreate={retryCreate}
-      />
-    );
+  // While the flag has not answered there is no draft (`useDraftBundle` is off), so the picker draws its own
+  // loading state and fetches nothing.
+  const renderDevicePicker = ({ osTypesKey }: SoftwareDeviceScope) => (
+    <ScopedBundleDevicePicker
+      // A new OS set is a different candidate list, not a refetch of this
+      // one: remounting drops straight to the skeleton instead of leaving
+      // the previous OS's devices on screen, and addable, while the
+      // deferred query catches up. The picker's search and funnels go with
+      // it, which is right: they narrowed a list that no longer exists.
+      key={osTypesKey}
+      osTypesKey={osTypesKey}
+      bundleId={bundleId}
+      createError={createError}
+      onRetryCreate={retryCreate}
+    />
+  );
 
   return (
     <SoftwareActionForm<ScheduleTimeReference>

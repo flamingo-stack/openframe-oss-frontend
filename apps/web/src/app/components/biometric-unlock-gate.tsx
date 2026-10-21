@@ -80,8 +80,9 @@ export function BiometricUnlockGate({ onUseAnotherLogin }: BiometricUnlockGatePr
             variant="outline"
             onClick={handleUseAnotherLogin}
             disabled={isUnlocking || isLeaving}
+            loading={isLeaving}
           >
-            {isLeaving ? 'Loading…' : 'Log in another way'}
+            Log in another way
           </Button>
         </div>
       </div>

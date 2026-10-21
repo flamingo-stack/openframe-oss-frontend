@@ -7,6 +7,7 @@ import {
   DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect } from 'react';
@@ -151,20 +152,36 @@ interface AssignedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The rows of the Assigned Articles tab — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function AssignedArticlesTable({
-  target,
-  listing,
-  isPending,
-  refreshKey,
-  onChanged,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: AssignedArticlesTableProps) {
+const NO_ROWS: readonly ArticleRow[] = [];
+const noop = () => {};
+
+/**
+ * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table with
+ * no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under
+ * the tab's `<Suspense>`.
+ */
+export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <AssignedArticlesRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        onUnassign={noop}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <AssignedArticlesTableQuery {...props} />;
+}
+
+function AssignedArticlesTableQuery(props: AssignedArticlesTableProps) {
+  const { target, listing, refreshKey, onChanged } = props;
   const { toast } = useToast();
   const retryKey = useRetryKey();
 
-  const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
   const variables: AssignedArticlesTableQueryType['variables'] = {
     filter: {
       assignedTo: { targetType: target.targetType, targetId: target.targetId },
@@ -230,16 +247,55 @@ export function AssignedArticlesTable({
     });
   };
 
+  return (
+    <AssignedArticlesRows
+      {...props}
+      rows={rows}
+      totalCount={items.filteredCount}
+      onUnassign={handleUnassign}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface AssignedArticlesRowsProps extends AssignedArticlesTableProps {
+  rows: readonly ArticleRow[];
+  totalCount: number;
+  onUnassign: (row: ArticleRow) => void;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function AssignedArticlesRows({
+  rows,
+  totalCount,
+  onUnassign,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  target,
+  listing,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: AssignedArticlesRowsProps) {
+  const loading = useLoadingScope();
+  const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
   const table = useDataTable<ArticleRow>({
-    data: rows,
-    columns: buildColumns(handleUnassign),
+    // The table only ever reads the page it is handed.
+    data: rows as ArticleRow[],
+    columns: buildColumns(onUnassign),
     getRowId,
     enableSorting: false,
   });
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); nothing assigned at all gets the tab's empty state instead.
-  const showEmptyState = !hasFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !hasFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -262,9 +318,10 @@ export function AssignedArticlesTable({
         <DataTable.Header
           stickyHeader
           stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="article" totalCount={items.filteredCount} />}
+          rightSlot={<DataTable.RowCount itemName="article" totalCount={totalCount} />}
         />
         <DataTable.Body
+          skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
           emptyState={{
             title: listing.search
               ? `No articles found matching "${listing.search}". Try adjusting your search.`
@@ -277,8 +334,8 @@ export function AssignedArticlesTable({
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            onLoadMore={onLoadMore}
+            skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
           />
         )}
       </DataTable>

@@ -1,13 +1,14 @@
 'use client';
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SectionLoadError } from '@/app/components/shared';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useDevicesOverview } from '../hooks/use-dashboard-stats';
-import { DevicesOverviewSkeleton } from './dashboard-skeletons';
 
 type DeviceStatusCard = {
   status: string;
@@ -18,8 +19,41 @@ type DeviceStatusCard = {
   progressVariant: 'success' | 'error' | 'warning' | 'info';
 };
 
+type DevicesOverviewData = ReturnType<typeof useDevicesOverview>;
+
+const DEVICE_CARDS = ['Online Devices', 'Offline Devices', 'Pending Devices', 'Archived Devices'] as const;
+
+/** The section while the counts load: the real header and the four cards with their real titles. */
+export function DevicesOverviewSkeleton() {
+  return (
+    <LoadingRegion label="Loading devices overview">
+      <TitleBlock title="Devices Overview" />
+      <div className="grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4">
+        {DEVICE_CARDS.map(title => (
+          <DashboardInfoCard
+            key={title}
+            loading
+            value=""
+            title={title}
+            showProgress
+            loadingShowsPercentage
+            percentageDisplay="plain"
+          />
+        ))}
+      </div>
+    </LoadingRegion>
+  );
+}
+
+/** The device counts, read. */
 export function DevicesOverviewSection() {
-  const devices = useDevicesOverview();
+  return <DevicesOverview devices={useDevicesOverview()} />;
+}
+
+/** The section over the counts it is handed; with none (or in a loading scope) it draws its own skeleton. */
+export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) {
+  const loading = useLoadingScope() || !devices || devices.isLoading;
+  if (loading) return <DevicesOverviewSkeleton />;
 
   const statusCards: DeviceStatusCard[] = [
     {
@@ -51,10 +85,6 @@ export function DevicesOverviewSection() {
       progressVariant: 'info',
     },
   ];
-
-  if (devices.isLoading) {
-    return <DevicesOverviewSkeleton />;
-  }
 
   return (
     <div>

@@ -2,7 +2,7 @@
 
 import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
@@ -20,7 +20,8 @@ import type { ScheduleScript } from '../types/schedule-detail.types';
 import { effectiveScriptParams, type StoredScriptCustomParams } from '../utils/schedule-script-params';
 
 interface ScheduleScriptCardProps {
-  script: ScheduleScript;
+  /** Absent while the schedule loads: the card draws its own (collapsed) skeleton. */
+  script?: ScheduleScript;
   /**
    * This schedule's override for the script, when it has one. Absent means the
    * card shows the script's own defaults — which is what the schedule runs.
@@ -89,6 +90,11 @@ function ScriptParamsPanel({
  *   read than the script page it links to.
  */
 export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardProps) {
+  if (useLoadingScope() || !script) return <ScheduleScriptCardSkeleton />;
+  return <ScheduleScriptCardContent script={script} customParams={customParams} />;
+}
+
+function ScheduleScriptCardContent({ script, customParams }: ScheduleScriptCardProps & { script: ScheduleScript }) {
   const router = useRouter();
   const isMdUp = useContentMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -124,7 +130,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
   const envRows = envPairsToParamRows(envVarsToPairs(effective.envVars));
 
   return (
-    <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
+    <div data-loading-item className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
       {/* Desktop splits the header down the middle — Name owns one half, and the
           actions ride the end of the Timeout half. Mobile drops "Script Details"
           (it moves down into the Environment Vars panel), so the row is a flat
@@ -253,9 +259,9 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
 }
 
 /** A collapsed {@link ScheduleScriptCard} — which on a phone is the header alone. */
-export function ScheduleScriptCardSkeleton() {
+function ScheduleScriptCardSkeleton() {
   return (
-    <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
+    <div data-loading-item className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] content-md:h-[80px] content-md:gap-[var(--spacing-system-m)] content-md:py-0">
         <div className="flex min-w-0 flex-1 flex-col">
           <UnifiedSkeleton className="mb-1 h-6 w-44" />

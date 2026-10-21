@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -18,6 +18,7 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema, formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -38,9 +39,8 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
-import { EmptyState, liveColumnMeta, skeletonColumnDefs, useRetryKey } from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -70,7 +70,7 @@ import {
 import { type IncidentRow, toIncidentRow, toTransitionTable } from '../utils/incident-transform';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentSeverityTag, IncidentStatusTag } from './incident-tags';
-import { DEVICE_INCIDENTS_TABLE_COLUMNS, INCIDENT_COLUMNS } from './incidents-table-columns';
+import { INCIDENT_COLUMNS } from './incidents-table-columns';
 import { archiveResolvedAction, INCIDENT_TAB_VIEWS } from './incidents-tabs';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
@@ -117,6 +117,183 @@ function statusTime(row: IncidentRow): string {
     return formatDateTime(row.snoozedUntil);
   }
   return formatDateTime(row.detectedAt);
+}
+
+/** The filter options each filterable column offers (the facets of the current answer). */
+interface IncidentColumnOptions {
+  type: FacetOption[];
+  customer: FacetOption[];
+  severity: FacetOption[];
+  status: FacetOption[];
+  assignee: FacetOption[];
+}
+
+const NO_COLUMN_OPTIONS: IncidentColumnOptions = { type: [], customer: [], severity: [], status: [], assignee: [] };
+
+interface IncidentColumnsInput {
+  options: IncidentColumnOptions;
+  deviceScoped: boolean;
+  statusLocked: boolean;
+  renderRowActions: (row: IncidentRow) => ReactNode;
+}
+
+/** The table's columns: the loaded table and its loading state draw the same ones. */
+function incidentColumns({
+  options,
+  deviceScoped,
+  statusLocked,
+  renderRowActions,
+}: IncidentColumnsInput): ColumnDef<IncidentTableRow>[] {
+  // The Device column filters by CUSTOMER (its second line): the API has no
+  // device facet, and a customer narrows the fleet the way a technician does.
+  const deviceColumn: ColumnDef<IncidentTableRow> = {
+    accessorKey: 'organizationId',
+    header: INCIDENT_COLUMNS.device.header,
+    cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+      <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+        <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+          {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
+          <div className="min-w-0 flex-1">
+            <TruncateText>{row.original.deviceName}</TruncateText>
+          </div>
+        </div>
+        {row.original.organizationName && (
+          <TruncateText variant="h6" tone="secondary">
+            {row.original.organizationName}
+          </TruncateText>
+        )}
+      </div>
+    ),
+    enableSorting: false,
+    filterFn: multiSelectFilterFn,
+    meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: { options: options.customer } }),
+  };
+  return [
+    {
+      accessorKey: 'type',
+      header: INCIDENT_COLUMNS.incident.header,
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+          <TruncateText>{row.original.title}</TruncateText>
+          {/* The Status column is hidden below lg; its time line moves under the title. */}
+          <div className="hidden min-w-0 content-lg:block">
+            <TruncateText variant="h6" tone="secondary">
+              {labelOf(INCIDENT_TYPE_LABELS, row.original.type)}
+            </TruncateText>
+          </div>
+          <div className="min-w-0 content-lg:hidden">
+            <TruncateText variant="h6" tone="secondary">
+              {statusTime(row.original)}
+            </TruncateText>
+          </div>
+        </div>
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: { options: options.type } }),
+    },
+    ...(deviceScoped ? [] : [deviceColumn]),
+    {
+      accessorKey: 'severity',
+      header: INCIDENT_COLUMNS.severity.header,
+      // The cell is a column flexbox, so a bare Tag stretches to the column
+      // width — `items-start` keeps it at its own width, as in the Status cell.
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div className="flex flex-col items-start">
+          <IncidentSeverityTag severity={row.original.severity} />
+        </div>
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: { options: options.severity } }),
+    },
+    {
+      accessorKey: 'status',
+      header: INCIDENT_COLUMNS.status.header,
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
+          <IncidentStatusTag status={row.original.status} />
+          <TruncateText variant="h6" tone="secondary">
+            {statusTime(row.original)}
+          </TruncateText>
+        </div>
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: statusLocked
+        ? liveColumnMeta(INCIDENT_COLUMNS.status)
+        : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: { options: options.status } }),
+    },
+    {
+      id: INCIDENT_COLUMNS.assignee.id,
+      accessorFn: (row: IncidentTableRow) => row.assignee?.id,
+      header: INCIDENT_COLUMNS.assignee.header,
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div className="flex min-w-0 items-center">
+          <IncidentAssignee incident={row.original} />
+        </div>
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      // Rightmost filterable column: anchor the dropdown to the right edge so it
+      // never flips placement (start↔end) on open/close.
+      meta: liveColumnMeta(INCIDENT_COLUMNS.assignee, {
+        filter: { options: options.assignee, placement: 'bottom-end' },
+      }),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+          {renderRowActions(row.original)}
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
+    },
+    {
+      // The Mingo button, as `mingoActionFor` decides it (see `IncidentTableRow`
+      // for why the cell reads nothing but the row).
+      id: 'mingo',
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => {
+        const { label, onClick, disabled, loading } = row.original.mingoAction;
+        return (
+          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+            <Button
+              onClick={onClick}
+              variant="outline"
+              size="icon"
+              leftIcon={<AgentMark agent="mingo" className="size-5" />}
+              aria-label={label}
+              title={label}
+              disabled={disabled}
+              loading={loading}
+              className="bg-ods-card"
+            />
+          </div>
+        );
+      },
+      enableSorting: false,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.mingo),
+    },
+    {
+      id: 'open',
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
+        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+          <Button
+            onClick={openInNewTab(routes.incidents.details(row.original.id))}
+            variant="outline"
+            size="icon"
+            leftIcon={<ArrowRightUpIcon className="size-5" />}
+            aria-label="Open in new tab"
+            className="bg-ods-card"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(INCIDENT_COLUMNS.open),
+    },
+  ];
 }
 
 // ----------------------------------------------------------------
@@ -288,173 +465,36 @@ function IncidentsTableContent({
     useIncidentTransitions(refreshAfterTransition);
   const transitionTable = toTransitionTable(queryData);
 
-  const columns = useMemo<ColumnDef<IncidentTableRow>[]>(() => {
-    const renderRowActions = (row: IncidentRow) => {
-      const items = transitionMenuItems(row, transitionTable, transition, isMutating);
-      return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
-    };
-    // The Device column filters by CUSTOMER (its second line): the API has no
-    // device facet, and a customer narrows the fleet the way a technician does.
-    const deviceColumn: ColumnDef<IncidentTableRow> = {
-      accessorKey: 'organizationId',
-      header: INCIDENT_COLUMNS.device.header,
-      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-        <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-            {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
-            <div className="min-w-0 flex-1">
-              <TruncateText>{row.original.deviceName}</TruncateText>
-            </div>
-          </div>
-          {row.original.organizationName && (
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.organizationName}
-            </TruncateText>
-          )}
-        </div>
-      ),
-      enableSorting: false,
-      filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: { options: customerOptions } }),
-    };
-    return [
-      {
-        accessorKey: 'type',
-        header: INCIDENT_COLUMNS.incident.header,
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-            <TruncateText>{row.original.title}</TruncateText>
-            {/* The Status column is hidden below lg; its time line moves under the title. */}
-            <div className="hidden min-w-0 content-lg:block">
-              <TruncateText variant="h6" tone="secondary">
-                {labelOf(INCIDENT_TYPE_LABELS, row.original.type)}
-              </TruncateText>
-            </div>
-            <div className="min-w-0 content-lg:hidden">
-              <TruncateText variant="h6" tone="secondary">
-                {statusTime(row.original)}
-              </TruncateText>
-            </div>
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.incident, { filter: { options: typeOptions } }),
-      },
-      ...(deviceScoped ? [] : [deviceColumn]),
-      {
-        accessorKey: 'severity',
-        header: INCIDENT_COLUMNS.severity.header,
-        // The cell is a column flexbox, so a bare Tag stretches to the column
-        // width — `items-start` keeps it at its own width, as in the Status cell.
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div className="flex flex-col items-start">
-            <IncidentSeverityTag severity={row.original.severity} />
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.severity, { filter: { options: severityOptions } }),
-      },
-      {
-        accessorKey: 'status',
-        header: INCIDENT_COLUMNS.status.header,
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
-            <IncidentStatusTag status={row.original.status} />
-            <TruncateText variant="h6" tone="secondary">
-              {statusTime(row.original)}
-            </TruncateText>
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: statusLocked
-          ? liveColumnMeta(INCIDENT_COLUMNS.status)
-          : liveColumnMeta(INCIDENT_COLUMNS.status, { filter: { options: statusOptions } }),
-      },
-      {
-        id: INCIDENT_COLUMNS.assignee.id,
-        accessorFn: (row: IncidentTableRow) => row.assignee?.id,
-        header: INCIDENT_COLUMNS.assignee.header,
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div className="flex min-w-0 items-center">
-            <IncidentAssignee incident={row.original} />
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        // Rightmost filterable column: anchor the dropdown to the right edge so it
-        // never flips placement (start↔end) on open/close.
-        meta: liveColumnMeta(INCIDENT_COLUMNS.assignee, {
-          filter: { options: assigneeOptions, placement: 'bottom-end' },
-        }),
-      },
-      {
-        id: 'actions',
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            {renderRowActions(row.original)}
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.actions),
-      },
-      {
-        // The Mingo button, as `mingoActionFor` decides it (see `IncidentTableRow`
-        // for why the cell reads nothing but the row).
-        id: 'mingo',
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => {
-          const { label, onClick, disabled, loading } = row.original.mingoAction;
-          return (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={onClick}
-                variant="outline"
-                size="icon"
-                leftIcon={<AgentMark agent="mingo" className="size-5" />}
-                aria-label={label}
-                title={label}
-                disabled={disabled}
-                loading={loading}
-                className="bg-ods-card"
-              />
-            </div>
-          );
+  const columns = useMemo<ColumnDef<IncidentTableRow>[]>(
+    () =>
+      incidentColumns({
+        options: {
+          type: typeOptions,
+          customer: customerOptions,
+          severity: severityOptions,
+          status: statusOptions,
+          assignee: assigneeOptions,
         },
-        enableSorting: false,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.mingo),
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(routes.incidents.details(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="size-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(INCIDENT_COLUMNS.open),
-      },
-    ];
-  }, [
-    transition,
-    transitionTable,
-    isMutating,
-    typeOptions,
-    customerOptions,
-    severityOptions,
-    statusOptions,
-    assigneeOptions,
-    deviceScoped,
-    statusLocked,
-  ]);
+        deviceScoped,
+        statusLocked,
+        renderRowActions: (row: IncidentRow) => {
+          const items = transitionMenuItems(row, transitionTable, transition, isMutating);
+          return items.length > 0 ? <ActionsMenuDropdown groups={[{ items }]} /> : null;
+        },
+      }),
+    [
+      transition,
+      transitionTable,
+      isMutating,
+      typeOptions,
+      customerOptions,
+      severityOptions,
+      statusOptions,
+      assigneeOptions,
+      deviceScoped,
+      statusLocked,
+    ],
+  );
 
   const filterGroups = [
     { id: INCIDENT_COLUMNS.incident.id, title: 'Category', options: typeOptions },
@@ -533,7 +573,7 @@ function IncidentsTableContent({
             hasNextPage={hasNext && !pageFailed}
             isFetchingNextPage={isLoadingNext}
             onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            skeletonRows={PAGE_SIZE}
           />
         </DataTable>
       </div>
@@ -559,35 +599,45 @@ function IncidentsTableContent({
 }
 
 // ----------------------------------------------------------------
-// Loading skeleton
+// The table before its first answer
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: IncidentRow[] = [];
+const NO_ROWS: IncidentTableRow[] = [];
+const noRowActions = () => null;
 
-interface IncidentsTableSkeletonProps {
-  layout: readonly TableSkeletonColumn[];
+interface IncidentsTableLoadingProps {
+  deviceScoped: boolean;
+  statuses: readonly InsightStatus[];
   stickyHeaderOffset: string;
 }
 
-function IncidentsTableSkeleton({ layout, stickyHeaderOffset }: IncidentsTableSkeletonProps) {
-  // Same layout the live table renders, trailing action columns included, so
-  // the loading header reserves the same widths and stays aligned.
-  const columns = useMemo<ColumnDef<IncidentRow>[]>(() => skeletonColumnDefs<IncidentRow>(layout), [layout]);
-
-  const table = useDataTable<IncidentRow>({
-    data: EMPTY_ROWS,
+/**
+ * The live table with no rows yet: the same columns and header, its body and row count drawing their own skeletons
+ * in the loading scope it is rendered in (the Suspense fallback, or a page still waiting on its flag).
+ */
+function IncidentsTableLoading({ deviceScoped, statuses, stickyHeaderOffset }: IncidentsTableLoadingProps) {
+  const columns = incidentColumns({
+    options: NO_COLUMN_OPTIONS,
+    deviceScoped,
+    statusLocked: statuses.length === 1,
+    renderRowActions: noRowActions,
+  });
+  const table = useDataTable<IncidentTableRow>({
+    data: NO_ROWS,
     columns,
-    getRowId: (row: IncidentRow) => row.id,
+    getRowId: (row: IncidentTableRow) => row.id,
     enableSorting: false,
   });
 
   return (
-    <LoadingRegion label="Loading incidents">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
-    </LoadingRegion>
+    <DataTable table={table}>
+      <DataTable.Header
+        stickyHeader
+        stickyHeaderOffset={stickyHeaderOffset}
+        rightSlot={<DataTable.RowCount totalCount={undefined} />}
+      />
+      <DataTable.Body skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+    </DataTable>
   );
 }
 
@@ -614,8 +664,6 @@ interface IncidentsListProps {
   statuses: readonly InsightStatus[];
   /** The statuses listed while none is chosen; all of `statuses` when omitted. A module constant too. */
   defaultStatuses?: readonly InsightStatus[];
-  /** The table's layout while it loads — the same one the live columns follow. */
-  skeletonColumns: readonly TableSkeletonColumn[];
   refreshKey?: number;
   emptyState: ReactNode;
 }
@@ -629,7 +677,6 @@ function IncidentsList({
   machineId,
   statuses,
   defaultStatuses = statuses,
-  skeletonColumns,
   refreshKey = 0,
   emptyState,
 }: IncidentsListProps) {
@@ -646,6 +693,11 @@ function IncidentsList({
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   const deviceScoped = machineId !== undefined;
+  // In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty.
+  const scoped = useLoadingScope();
+  const loadingTable = (
+    <IncidentsTableLoading deviceScoped={deviceScoped} statuses={statuses} stickyHeaderOffset={stickyHeaderOffset} />
+  );
 
   // URL params are untyped strings — keep only real enum members (and, for
   // status, only the list's own; none on a single-status tab, which has no
@@ -719,24 +771,28 @@ function IncidentsList({
         </div>
       )}
 
-      <Suspense fallback={<IncidentsTableSkeleton layout={skeletonColumns} stickyHeaderOffset={stickyHeaderOffset} />}>
-        <IncidentsTableContent
-          backendFilters={deferredFilters}
-          debouncedSearch={deferredSearch}
-          tableFilters={tableFilters}
-          isPending={isPending}
-          onFilterChange={handleFilterChange}
-          onEmptyChange={setIsEmpty}
-          toolbarHidden={isEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          deviceScoped={deviceScoped}
-          statuses={statuses}
-          refreshKey={refreshKey}
-          emptyState={emptyState}
-        />
-      </Suspense>
+      {scoped ? (
+        loadingTable
+      ) : (
+        <Suspense fallback={<LoadingFallback label="Loading incidents">{loadingTable}</LoadingFallback>}>
+          <IncidentsTableContent
+            backendFilters={deferredFilters}
+            debouncedSearch={deferredSearch}
+            tableFilters={tableFilters}
+            isPending={isPending}
+            onFilterChange={handleFilterChange}
+            onEmptyChange={setIsEmpty}
+            toolbarHidden={isEmpty}
+            mobileFilterOpen={mobileFilterOpen}
+            onMobileFilterClose={() => setMobileFilterOpen(false)}
+            stickyHeaderOffset={stickyHeaderOffset}
+            deviceScoped={deviceScoped}
+            statuses={statuses}
+            refreshKey={refreshKey}
+            emptyState={emptyState}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -813,7 +869,6 @@ export function IncidentsTable({ tab }: { tab: IncidentsTab }) {
         onSearchChange={value => setParam('search', value)}
         onSelectionsChange={setParams}
         statuses={view.statuses}
-        skeletonColumns={view.columns}
         refreshKey={refreshKey}
         emptyState={<EmptyState icon={<EmptyIcon />} title={view.empty.title} description={view.empty.description} />}
       />
@@ -876,7 +931,6 @@ export function DeviceIncidentsTable({ machineId, emptyState }: DeviceIncidentsT
       machineId={machineId}
       statuses={ALL_INCIDENT_STATUSES}
       defaultStatuses={WORKING_SET_STATUSES}
-      skeletonColumns={DEVICE_INCIDENTS_TABLE_COLUMNS}
       emptyState={emptyState}
     />
   );

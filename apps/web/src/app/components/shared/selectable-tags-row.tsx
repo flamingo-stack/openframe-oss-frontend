@@ -2,7 +2,12 @@
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ActionsMenuDropdown, FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  FloatingTooltip,
+  Tag,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -26,6 +31,8 @@ interface SelectableTagsRowProps {
   tags: ReadonlyArray<SelectableTag>;
   selectedIds: ReadonlyArray<string>;
   onAdd: (tag: SelectableTag) => void;
+  /** The tags have not been read yet (a client read); inside a loading scope the row switches itself. */
+  loading?: boolean;
 }
 
 /**
@@ -33,7 +40,8 @@ interface SelectableTagsRowProps {
  * not fit on one line collapses into a "…" chip that opens an actions menu of
  * the remaining tags; each caller supplies its own (already-fetched) tag list.
  */
-export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRowProps) {
+export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingProp }: SelectableTagsRowProps) {
+  const loading = useLoadingScope() || !!loadingProp;
   const available = useMemo(() => {
     const selected = new Set(selectedIds);
     return tags.filter(tag => !selected.has(tag.id));
@@ -44,6 +52,7 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
     reserveInputWidth: false,
   });
 
+  if (loading) return <SelectableTagsRowSkeleton />;
   if (available.length === 0) return null;
 
   const visible = available.slice(0, visibleCount);
@@ -115,7 +124,7 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
 // and gap as the real Tag chips, with varied widths so the placeholder reads as tags.
 const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
 
-export function SelectableTagsRowSkeleton() {
+function SelectableTagsRowSkeleton() {
   return (
     <LoadingRegion label="Loading tags" className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
       {SKELETON_TAG_WIDTHS.map((width, idx) => (

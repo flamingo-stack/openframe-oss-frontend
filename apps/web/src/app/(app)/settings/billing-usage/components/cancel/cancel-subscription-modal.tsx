@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Button,
   Select,
@@ -8,6 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  LoadingWhen,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useId, useState } from 'react';
@@ -18,7 +19,6 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { CancellationEffectiveDate } from './cancellation-effective-date';
 import { DataLossBox } from './data-loss-box';
 import { DataLossCoreRows } from './data-loss-core-rows';
-import { DataLossRowsSkeleton } from './data-loss-rows-skeleton';
 
 /**
  * Two parts of the dialog read the server — the date the subscription runs to,
@@ -107,13 +107,9 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
       <ContentErrorBoundary label="CancellationEffectiveDate" fallback={() => <></>}>
         <Suspense
           fallback={
-            <LoadingRegion
-              label="Loading the end date"
-              className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4"
-            >
-              <span>Your subscription will remain active until:</span>
-              <UnifiedSkeleton className="h-5 w-20" />
-            </LoadingRegion>
+            <LoadingFallback label="Loading the end date">
+              <CancellationEffectiveDate query={null} />
+            </LoadingFallback>
           }
         >
           <QueryIsland<CancelSubscriptionModalQueryType>
@@ -132,7 +128,14 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
 
       <DataLossBox>
         <ContentErrorBoundary label="DataLossCoreRows" fallback={() => <></>}>
-          <Suspense fallback={<DataLossRowsSkeleton />}>
+          {/* No element of its own: the rows are `li`s of the box's list. */}
+          <Suspense
+            fallback={
+              <LoadingWhen loading>
+                <DataLossCoreRows query={null} />
+              </LoadingWhen>
+            }
+          >
             <QueryIsland<CancelSubscriptionModalQueryType>
               query={cancelSubscriptionModalQuery}
               variables={{}}

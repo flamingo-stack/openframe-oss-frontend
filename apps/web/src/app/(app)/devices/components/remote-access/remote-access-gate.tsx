@@ -2,7 +2,8 @@
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LIVE_PULSE_CLASS } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
@@ -90,7 +91,6 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   };
 
   if (gate === 'off') return <>{children}</>;
-  if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') {
     return (
       <ApprovedSessionScope
@@ -105,8 +105,15 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
 
   const target = deviceName || 'this device';
 
+  /** The request is on its way or waiting for the end user: a live busy mark, never a loading one. */
+  const busyMark = <Loading01Icon className={cn('h-8 w-8 text-ods-text-secondary', LIVE_PULSE_CLASS)} />;
+
   let body: ReactNode;
-  if (policyDenied) {
+  if (gate === 'loading') {
+    // The flag has not answered: the flow's own page, its canvas still empty. The session surface is never
+    // mounted before the gate says how it starts.
+    body = null;
+  } else if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.
     body = (
@@ -124,12 +131,12 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   } else if (approval.state === 'idle' || approval.state === 'requesting') {
     // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
     // proceeds to the awaiting screen).
-    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = busyMark;
   } else if (approval.state === 'awaiting') {
     const request = approval.request;
     body = (
       <>
-        <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+        {busyMark}
         <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
           <h2 className="text-ods-text-primary text-h3">Waiting for approval</h2>
           <p className="text-ods-text-secondary text-h6">

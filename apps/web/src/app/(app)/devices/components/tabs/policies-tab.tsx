@@ -2,7 +2,7 @@
 
 import { PoliciesTable, type PolicyTableRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { FolderShieldIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -30,6 +30,8 @@ function parsePlatforms(platform: string | undefined): string[] {
 }
 
 export function PoliciesTab({ device }: PoliciesTabProps) {
+  // The device has not answered: the search and the table draw their loading state.
+  const loading = useLoadingScope();
   const router = useRouter();
   const [search, setSearch] = useState('');
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -58,7 +60,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
       }));
   }, [policies, search, router]);
 
-  if (!device) {
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<FolderShieldIcon />}
@@ -72,7 +74,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
   // plain design empty state: icon + title + description only — the
   // rich onboarding version stays on the Monitoring page. A search with zero
   // matches keeps the table chrome and its compact empty state below.
-  if (policies.length === 0) {
+  if (!loading && policies.length === 0) {
     return (
       <TabEmptyState
         icon={<FolderShieldIcon />}
@@ -84,7 +86,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
 
   // Hide the search on a truly empty table (no rows, no active search) so the tab shows only
   // the centered empty state — matching the table's hidden header.
-  const showSearch = rows.length > 0 || search.trim().length > 0;
+  const showSearch = loading || rows.length > 0 || search.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
@@ -105,6 +107,7 @@ export function PoliciesTab({ device }: PoliciesTabProps) {
 
       <PoliciesTable
         rows={rows}
+        isLoading={loading}
         stickyHeader
         stickyHeaderOffset={stickyHeaderOffset}
         rowAsLink

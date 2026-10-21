@@ -1,19 +1,19 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense } from 'react';
 import { isBillingHidden } from '@/lib/billing-visibility';
 import { UsageView } from '../usage/usage-view';
-import { BillingUsageSkeleton } from './billing-usage-skeleton';
+import { BillingUsageContentSkeleton } from './billing-usage-content-skeleton';
 
 // Lazy so a build that may not show payments (the mobile builds) never
 // pulls the billing page in:
 // its query carries prices, next payment and invoices, and its module carries
 // the cancel/resume/checkout flows. Static, they would ride along with the
-// usage-only page that replaces it.
+// usage-only page that replaces it. While its code downloads it is the one
+// wait the page cannot draw itself in, so its own skeleton stands for it.
 const BillingUsageContent = dynamic(
   () => import('./billing-usage-content').then(m => ({ default: m.BillingUsageContent })),
-  { ssr: false, loading: () => <BillingUsageSkeleton /> },
+  { ssr: false, loading: () => <BillingUsageContentSkeleton /> },
 );
 
 /**
@@ -25,12 +25,9 @@ const BillingUsageContent = dynamic(
  *     desktop build.
  *
  * The choice happens before either component mounts, so the mobile builds never
- * run the billing query or its cancellation hooks.
+ * run the billing query or its cancellation hooks. `loading` (the page's gates
+ * have not answered) draws the chosen page in its loading scope, without its query.
  */
-export function BillingUsageView() {
-  return (
-    <Suspense fallback={<BillingUsageSkeleton />}>
-      {isBillingHidden() ? <UsageView /> : <BillingUsageContent />}
-    </Suspense>
-  );
+export function BillingUsageView({ loading = false }: { loading?: boolean }) {
+  return isBillingHidden() ? <UsageView loading={loading} /> : <BillingUsageContent loading={loading} />;
 }

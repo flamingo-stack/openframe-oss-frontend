@@ -4,7 +4,7 @@ import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import type { Device } from '../types/device.types';
 
 interface DeviceTagsSectionProps {
-  device: Device;
+  device: Device | null;
 }
 
 /**
@@ -12,7 +12,8 @@ interface DeviceTagsSectionProps {
  * key:value tags as chips. Hidden entirely when the device has no tags.
  */
 export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
-  const tagValues = device.tags?.flatMap(tag =>
+  // Only some devices carry tags: nothing is drawn for them while the device is read.
+  const tagValues = device?.tags?.flatMap(tag =>
     tag.values.map(value => ({ id: `${tag.tagId}-${value}`, key: tag.key, value })),
   );
 
@@ -21,7 +22,7 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
   }
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-s)]">
+    <div data-loading-optional className="flex flex-col gap-[var(--spacing-system-s)]">
       <p className="text-ods-text-secondary text-h5">Device Tags</p>
       <div className="flex flex-wrap items-center gap-2">
         {tagValues.map(tag => (

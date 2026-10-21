@@ -6,9 +6,7 @@ import {
   Button,
   NoData,
   PageLayout,
-  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChatsIcon,
@@ -22,11 +20,14 @@ import {
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { LIVE_PULSE_CLASS, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
+import { RemoteDesktopDeviceInfo } from '@/app/(app)/devices/components/remote-desktop/remote-desktop-device-info';
+import { SessionChatPanel } from '@/app/(app)/devices/components/remote-desktop/session-chat-panel';
 import { RecordingWarningAlert } from '@/app/(app)/devices/components/remote-sessions/recording-storage-banner';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
@@ -54,7 +55,6 @@ import {
   SHORTCUT_DESCRIPTIONS,
   shortcutAction,
 } from './remote-shortcuts';
-import { SessionChatPanel } from './session-chat-panel';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 
 interface LegacyDeviceData {
@@ -660,30 +660,34 @@ function RemoteDesktopSession() {
   const currentDisplayLabel = currentDisplay === null ? 'Display' : displayLabel(currentDisplay);
 
   if (!legacyDeviceData && isDeviceLoading) {
+    // The page draws itself while the device is read: the device block its own loading state, the controls (inert,
+    // their set waits on the device) and the canvas's frame.
     return (
-      <PageLayout
-        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back', onClick: handleBack }}
-      >
-        <LoadingRegion className="contents" label="Loading device">
-          <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-              <UnifiedSkeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
-              <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-                <UnifiedSkeleton className="h-5 w-48" />
-                <UnifiedSkeleton className="h-4 w-36" />
+      <LoadingWhen loading>
+        <PageLayout
+          className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          backButton={{ label: 'Back', onClick: handleBack }}
+        >
+          <div className="flex flex-shrink-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
+            <div className="flex flex-col gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
+              <RemoteDesktopDeviceInfo title="" subtitle="" />
+              <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
+                <ActionsMenuDropdown groups={[]} open={false} triggerAriaLabel="Actions" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Enter fullscreen"
+                  disabled
+                  leftIcon={<Expand02Icon />}
+                />
+                <Button variant="outline" size="icon" aria-label="Settings" disabled leftIcon={<Settings01Icon />} />
               </div>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
             </div>
           </div>
 
           <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
-        </LoadingRegion>
-      </PageLayout>
+        </PageLayout>
+      </LoadingWhen>
     );
   }
 
@@ -708,18 +712,10 @@ function RemoteDesktopSession() {
   }
 
   const deviceInfoBlock = (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-      <div className="flex-shrink-0 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)]">
-        <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
-      </div>
-      <div className="flex min-w-0 flex-col">
-        <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
-        <TruncateText
-          variant="h6"
-          tone="secondary"
-        >{`Desktop • ${organizationName || 'Unknown Customer'}`}</TruncateText>
-      </div>
-    </div>
+    <RemoteDesktopDeviceInfo
+      title={deviceName || `Device ${deviceId}`}
+      subtitle={`Desktop • ${organizationName || 'Unknown Customer'}`}
+    />
   );
 
   // Header per Figma 2155-109503 (desktop) / 2164-111246 (tablet): the device
@@ -811,7 +807,7 @@ function RemoteDesktopSession() {
             {[0, 1, 2].map(i => (
               <span
                 key={i}
-                className="size-1 animate-pulse rounded-full bg-ods-text-secondary"
+                className={`size-1 rounded-full bg-ods-text-secondary ${LIVE_PULSE_CLASS}`}
                 style={{ animationDelay: `${i * 250}ms` }}
               />
             ))}
@@ -824,7 +820,8 @@ function RemoteDesktopSession() {
       )}
       {connectionStatus === 'reconnecting' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
-          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          {/* A busy mark while it reconnects: a live state, never a loading one. */}
+          <Loading01Icon className={`h-8 w-8 text-ods-text-secondary ${LIVE_PULSE_CLASS}`} />
           <span className="text-ods-text-primary text-h4">Connection lost</span>
           <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetail_article$key } from '@/__generated__/articleDetail_article.graphql';
 import { AssignedItemsView } from '@/components/assignments';
@@ -22,15 +23,39 @@ const articleDetailFragment = graphql`
   }
 `;
 
-/** An article's page: the title with its actions, then the article top to bottom. */
-export function ArticleDetail({ article }: { article: articleDetail_article$key }) {
+/** The entry every status but "archived" settles into — the placeholder is sized off it. */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Edit Article' }];
+
+const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
+
+/**
+ * An article's page: the title with its actions, then the article top to bottom. In a loading scope (the page's
+ * Suspense fallback) the title, the card and the text draw their own loading states; tags and attachments are
+ * only some articles' and are left out until the article answers.
+ */
+export function ArticleDetail({ article }: { article: articleDetail_article$key | null }) {
+  if (useLoadingScope() || !article) {
+    return (
+      <>
+        <ArticleDetailTitle title="Article" loading actions={LOADING_ACTIONS} loadingActions />
+        <div className={BODY_CLASS}>
+          <ArticleDetailSummary article={null} />
+          <ArticleDetailBody article={null} />
+        </div>
+      </>
+    );
+  }
+  return <LoadedArticleDetail article={article} />;
+}
+
+function LoadedArticleDetail({ article }: { article: articleDetail_article$key }) {
   const data = useFragment(articleDetailFragment, article);
   const { actions, menuActions, dialogs } = useArticleDetailActions(data);
 
   return (
     <>
       <ArticleDetailTitle title={data.name} actions={actions} menuActions={menuActions} />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
+      <div className={BODY_CLASS}>
         <ArticleDetailTags article={data} />
         <ArticleDetailSummary article={data} />
         <ArticleDetailBody article={data} />

@@ -1,13 +1,13 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { memo, Suspense } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
 import { customParamsByScriptId } from '../utils/schedule-script-params';
-import { ScheduleScriptCard, ScheduleScriptCardSkeleton } from './schedule-script-card';
+import { ScheduleScriptCard } from './schedule-script-card';
 
 /**
  * The part that reads the schedule, and therefore the part that suspends.
@@ -61,19 +61,20 @@ function ScheduleScriptsTabContent({ scheduleId }: { scheduleId: string }) {
 }
 
 /**
- * ONE card: a schedule that runs nothing is not a schedule, so the first card is
- * the only one certain to be there. A second placeholder would promise an entry
- * most schedules do not have and then collapse, taking the page's height with
- * it — the same reason the tab's own empty case draws nothing at all.
+ * How many cards the loading tab draws. ONE: a schedule that runs nothing is not
+ * a schedule, so the first card is the only one certain to be there; a second
+ * would promise an entry most schedules do not have and then collapse.
  */
-export function ScheduleScriptsTabSkeleton() {
+export const SCHEDULE_SCRIPTS_SKELETON_COUNT = 1;
+
+/** The tab before its schedule: the same list, its cards drawing their own skeletons in the loading scope. */
+function ScheduleScriptsTabLoading() {
   return (
-    <LoadingRegion
-      label="Loading scripts"
-      className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
-    >
-      <ScheduleScriptCardSkeleton />
-    </LoadingRegion>
+    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
+      {Array.from({ length: SCHEDULE_SCRIPTS_SKELETON_COUNT }, (_, i) => (
+        <ScheduleScriptCard key={i} />
+      ))}
+    </div>
   );
 }
 
@@ -81,14 +82,20 @@ export function ScheduleScriptsTabSkeleton() {
  * "Scheduled Scripts" tab — the recipe the schedule runs, in order.
  *
  * Carries its own boundary: a tab that suspends is the tab's business, not the
- * page's, so switching to it draws this skeleton and leaves the header, the
+ * page's, so switching to it draws the tab's loading state and leaves the header, the
  * timing bar and the tab strip untouched.
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleScriptsTab = memo(function ScheduleScriptsTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense fallback={<ScheduleScriptsTabSkeleton />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading scripts">
+          <ScheduleScriptsTabLoading />
+        </LoadingFallback>
+      }
+    >
       <ScheduleScriptsTabContent scheduleId={scheduleId} />
     </Suspense>
   );

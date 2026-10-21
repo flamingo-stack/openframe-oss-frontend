@@ -1,8 +1,9 @@
 'use client';
 
 import { TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { scriptShellLabel } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getOSLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { ValueText } from '@/app/components/shared/value-text';
@@ -75,7 +76,8 @@ function shellLabel(shellId: string): string {
  * Summary card shown on the script details and run pages: the name + description
  * header, then a metadata strip (shell type, platforms, and — on details —
  * timeout). The strip is laid out on a 4-column grid; a trailing spacer keeps
- * the cells aligned when there are fewer than 4.
+ * the cells aligned when there are fewer than 4. In a loading scope it draws its
+ * own skeleton, with the stat set `showTimeout` and `author` pick.
  */
 export function ScriptSummaryCard({
   name,
@@ -86,6 +88,18 @@ export function ScriptSummaryCard({
   showTimeout = true,
   author,
 }: ScriptSummaryCardProps) {
+  if (useLoadingScope()) {
+    return (
+      <ScriptSummaryCardSkeleton
+        stats={[
+          'shell',
+          'platforms',
+          ...(showTimeout ? (['timeout'] as const) : []),
+          ...(author !== undefined ? (['author'] as const) : []),
+        ]}
+      />
+    );
+  }
   const platformsText = platforms.map(getOSLabel).join(', ');
 
   const stats = [
@@ -121,26 +135,15 @@ export const RUN_SUMMARY_STATS: readonly ScriptSummaryStat[] = ['shell', 'platfo
 /** Default skeleton stats — the details-page set (`showTimeout` on, author shown). */
 const DEFAULT_SKELETON_STATS: readonly ScriptSummaryStat[] = ['shell', 'platforms', 'timeout', 'author'];
 
-/** Label-bar width per stat, sized to its real `text-h6` label so the strip keeps its rhythm. */
-const STAT_LABEL_WIDTHS: Record<ScriptSummaryStat, string> = {
-  shell: 'w-20',
-  platforms: 'w-32',
-  timeout: 'w-28',
-  author: 'w-16',
-};
-
 /**
  * Skeleton for {@link ScriptSummaryCard}: the name header followed by the
- * metadata strip. Both lines of every stat cell are bars — the value on the
- * loaded card's `text-h4` line height (`h-6`), the label on its `text-h6` one
- * (`h-5`), so nothing jumps when the record lands. Pass the same stat set the
- * loaded card will show (default: the details-page 4). Mirrors the real card's
- * trailing spacer so widths line up.
+ * metadata strip. Each stat's value is a bar on the loaded card's `text-h4`
+ * line, its label the real static copy. Pass the same stat set the loaded card
+ * shows (default: the details-page 4). Mirrors the real card's trailing spacer
+ * so widths line up.
  *
  * The DESCRIPTION line is deliberately absent: the loaded card drops it when the
  * script has none, so a bar there would promise a row that collapses on arrival.
- * The stat cells stay — the card renders all four whatever the record says,
- * writing "—" where it has no answer.
  */
 export function ScriptSummaryCardSkeleton({
   stats = DEFAULT_SKELETON_STATS,
@@ -150,13 +153,15 @@ export function ScriptSummaryCardSkeleton({
   return (
     <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        <UnifiedSkeleton className="h-6 w-56" />
+        <TextLineSkeleton type="h4" className="w-56" />
       </div>
       <div className="flex flex-wrap items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]">
         {stats.map(stat => (
           <MetaCell key={stat}>
-            <UnifiedSkeleton className="h-6 w-28" />
-            <UnifiedSkeleton className={`h-5 max-w-full ${STAT_LABEL_WIDTHS[stat]}`} />
+            <TextLineSkeleton type="h4" className="w-28" />
+            <TruncateText variant="h6" tone="secondary">
+              {STAT_LABELS[stat]}
+            </TruncateText>
           </MetaCell>
         ))}
         <MetaSpacer count={stats.length} />

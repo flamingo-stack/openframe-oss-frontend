@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   InboxArrowUpIcon,
@@ -10,6 +11,7 @@ import {
   type ActionsMenuGroup,
   type PageActionButton,
   TabNavigation,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, Suspense, useCallback, useMemo } from 'react';
@@ -29,7 +31,6 @@ import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds, shellToId } from '../../shared/utils/script-mappers';
 import { DETAIL_TABS, SCRIPT_DEFAULT_TAB, scriptTabBody } from './script-detail-tabs';
-import { ScriptHeaderSkeleton, ScriptSummarySkeleton } from './script-details-skeleton';
 import { ScriptSummaryCard } from './script-summary-card';
 
 interface ScriptDetailsViewProps {
@@ -46,14 +47,46 @@ interface ScriptDetailsViewProps {
  * to survive a bad id, and the summary below reports the miss once.
  */
 function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
-  const { toast } = useToast();
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const script = data.script;
+  return <ScriptHeaderView scriptId={scriptId} script={data.script} />;
+}
+
+type ScriptRecord = ScriptDetailQueryType['response']['script'];
+
+/**
+ * One label-width action placeholder, which is what the header settles into
+ * either way: an active script offers "Run Script", an archived one a single
+ * "Unarchive". WHICH is the record's answer, so the slot is a neutral bar.
+ */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Script action' }];
+
+/** The header's own loading state: the real `TitleBlock` (static title, working Back), its action slot a bar. */
+function ScriptHeaderSkeleton() {
+  const handleBack = useSafeBack(routes.scripts.list);
+  return (
+    <TitleBlock
+      title="Script Details"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={LOADING_ACTIONS}
+      loadingActions
+      actionsVariant="menu-primary"
+    />
+  );
+}
+
+/** The header over the record (`null`: not found), or (record unread, or in a loading scope) its own skeleton. */
+function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { script?: ScriptRecord }) {
+  if (useLoadingScope() || script === undefined) return <ScriptHeaderSkeleton />;
+  return <ScriptHeaderLoaded scriptId={scriptId} script={script} />;
+}
+
+function ScriptHeaderLoaded({ scriptId, script }: ScriptDetailsViewProps & { script: ScriptRecord }) {
+  const { toast } = useToast();
 
   const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
   const isArchived = script?.status === ScriptStatus.ARCHIVED;
@@ -179,8 +212,18 @@ function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
     { id: scriptId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const script = data.script;
+  return <ScriptSummaryView script={data.script} />;
+}
 
+/**
+ * The tag chips and the summary card over the record (`null`: not found). With
+ * the record unread (or in a loading scope) the card draws its own skeleton; the
+ * tags are optional, so none are drawn while loading.
+ */
+function ScriptSummaryView({ script }: { script?: ScriptRecord }) {
+  if (useLoadingScope() || script === undefined) {
+    return <ScriptSummaryCard name="" shellId="" platforms={[]} author={null} />;
+  }
   if (!script) {
     return <NotFoundError message="Script not found" />;
   }
@@ -225,12 +268,24 @@ export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId 
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<ScriptHeaderSkeleton />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading the script">
+            <ScriptHeaderView scriptId={scriptId} />
+          </LoadingFallback>
+        }
+      >
         <ScriptHeader scriptId={scriptId} />
       </Suspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense fallback={<ScriptSummarySkeleton />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading script details">
+              <ScriptSummaryView />
+            </LoadingFallback>
+          }
+        >
           <ScriptSummary scriptId={scriptId} />
         </Suspense>
 

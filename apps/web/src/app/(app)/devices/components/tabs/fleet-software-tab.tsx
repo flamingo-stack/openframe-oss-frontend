@@ -17,6 +17,7 @@ import {
   type SortingState,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -67,6 +68,7 @@ function formatLastUsed(dateString?: string): string {
  * the module on it draws the module's table instead (`software-tab.tsx`).
  */
 export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
+  const loading = useLoadingScope();
   const queryClient = useQueryClient();
   const allSoftware = device?.software || EMPTY_SOFTWARE;
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -172,71 +174,74 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
     onSortingChange: setSorting,
   });
 
-  if (!device) {
-    return (
-      <TabEmptyState
-        icon={<WebDesignIcon />}
-        title="No software found"
-        description="Installed software for this device will appear here."
-      />
-    );
-  }
-
-  if (allSoftware.length === 0) {
-    const fleetSource = device.sources?.fleet;
-
-    if (fleetSource === 'error') {
+  // The device has not answered: the tab draws itself in the loading scope, every part its own skeleton.
+  if (!loading) {
+    if (!device) {
       return (
         <TabEmptyState
           icon={<WebDesignIcon />}
-          title="Couldn't load software data"
-          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
-          buttonLabel="Retry"
-          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+          title="No software found"
+          description="Installed software for this device will appear here."
         />
       );
     }
 
-    if (fleetSource === 'skipped-disconnected') {
+    if (allSoftware.length === 0) {
+      const fleetSource = device.sources?.fleet;
+
+      if (fleetSource === 'error') {
+        return (
+          <TabEmptyState
+            icon={<WebDesignIcon />}
+            title="Couldn't load software data"
+            description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+            buttonLabel="Retry"
+            onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+          />
+        );
+      }
+
+      if (fleetSource === 'skipped-disconnected') {
+        return (
+          <TabEmptyState
+            icon={<WebDesignIcon />}
+            title="Fleet is not connected"
+            description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
+          />
+        );
+      }
+
+      // Agent still deploying → the design's connecting-state copy.
+      if (fleetSource === 'skipped-pending') {
+        return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
+      }
+
+      // Not yet collected: the host has never completed a software inventory scan
+      // (software_updated_at unset/sentinel).
+      if (fleetTimestampMs(device.software_updated_at) === null) {
+        return (
+          <TabEmptyState
+            icon={<WebDesignIcon />}
+            title="Collecting software inventory"
+            description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
+          />
+        );
+      }
+
       return (
         <TabEmptyState
           icon={<WebDesignIcon />}
-          title="Fleet is not connected"
-          description="The Fleet agent for this device is disconnected, so its software inventory is unavailable."
+          title="No software found"
+          description="Installed software for this device will appear here."
         />
       );
     }
-
-    // Agent still deploying → the design's connecting-state copy.
-    if (fleetSource === 'skipped-pending') {
-      return <TabDeployingEmptyState icon={<WebDesignIcon />} section="Software" />;
-    }
-
-    // Not yet collected: the host has never completed a software inventory scan
-    // (software_updated_at unset/sentinel).
-    if (fleetTimestampMs(device.software_updated_at) === null) {
-      return (
-        <TabEmptyState
-          icon={<WebDesignIcon />}
-          title="Collecting software inventory"
-          description="This device hasn't reported its installed software yet. It will appear here once the inventory arrives."
-        />
-      );
-    }
-
-    return (
-      <TabEmptyState
-        icon={<WebDesignIcon />}
-        title="No software found"
-        description="Installed software for this device will appear here."
-      />
-    );
   }
 
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active, so the user can still clear it).
   const hasSearch = debouncedSearch.trim().length > 0;
-  const isEmpty = software.length === 0;
+  const isEmpty = !loading && software.length === 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>

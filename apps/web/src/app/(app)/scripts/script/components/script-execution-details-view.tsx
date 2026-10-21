@@ -1,7 +1,7 @@
 'use client';
 
 import { NotFoundError, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
   ExecutionStatusCell,
@@ -307,10 +307,7 @@ function DetailCellSkeleton({ valueWidth = 'w-28', label }: { valueWidth?: strin
  */
 function ExecutionDetailsCardSkeleton() {
   return (
-    <LoadingRegion
-      label="Loading execution details"
-      className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card"
-    >
+    <div className="overflow-hidden rounded-[8px] border border-ods-border bg-ods-card">
       <div className={CARD_ROW_CLASS}>
         <DetailCellSkeleton valueWidth="w-40" label="Script Name" />
         <DetailCellSkeleton valueWidth="w-20" label="Privilege Level" />
@@ -343,7 +340,7 @@ function ExecutionDetailsCardSkeleton() {
         <UnifiedSkeleton className="h-6 w-3/4 max-w-full" />
         <div className="text-ods-text-secondary text-h6">Result</div>
       </div>
-    </LoadingRegion>
+    </div>
   );
 }
 
@@ -366,23 +363,20 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
   return (
     <Suspense
       fallback={
-        // `loading` + `while-loading` draws a bar where the execution UUID will
-        // land. `always` merely reserved the line and left it blank, which read
-        // as a header that had finished with nothing to show.
-        //
-        // It costs the title: `loading` is a single flag on the frozen
-        // `TitleBlock` and swaps title AND subtitle for bars, even though this
-        // page's title is a constant. Splitting them needs a new prop there.
-        <PageLayout
-          title="Script Execution Details"
-          loading
-          subtitleRow="while-loading"
-          backButton={{ label: 'Back', onClick: handleBack }}
-          actions={LOADING_EXECUTION_ACTIONS}
-          className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        >
-          <ExecutionDetailsCardSkeleton />
-        </PageLayout>
+        // The page before its execution: the constant title real, the subtitle
+        // (the execution UUID, read) `''`, which the title block draws as a bar
+        // in the loading scope, and the card its own skeleton.
+        <LoadingFallback label="Loading execution details">
+          <PageLayout
+            title="Script Execution Details"
+            subtitle=""
+            backButton={{ label: 'Back', onClick: handleBack }}
+            actions={LOADING_EXECUTION_ACTIONS}
+            className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          >
+            <ExecutionDetailsCardSkeleton />
+          </PageLayout>
+        </LoadingFallback>
       }
     >
       <ScriptExecutionDetailsContent executionId={executionId} />

@@ -1,6 +1,8 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ChatInput } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useRef } from 'react';
 import { SessionChatMessageRow } from '@/app/(app)/devices/components/remote-sessions/session-chat-message-row';
@@ -26,6 +28,30 @@ interface SessionChatPanelProps {
 }
 
 /**
+ * Messages drawn while the dialog's history is read. The history has no page size: a typical session opens with a
+ * few lines.
+ */
+const SESSION_CHAT_SKELETON_MESSAGES = 3;
+
+/** The history while it is read: message rows in `SessionChatMessageRow`'s geometry, name and time over the body. */
+function SessionChatHistorySkeleton() {
+  return (
+    <>
+      {Array.from({ length: SESSION_CHAT_SKELETON_MESSAGES }, (_, index) => (
+        <div key={index} data-loading-item className="flex flex-col gap-[var(--spacing-system-xxs)]">
+          <div className="flex items-center gap-[var(--spacing-system-xxs)]">
+            <TextLineSkeleton type="h4" className="w-32" />
+            <span className="flex-1" />
+            <TextLineSkeleton type="h6" className="w-12" />
+          </div>
+          <TextLineSkeleton type="h4" className="w-3/4" />
+        </div>
+      ))}
+    </>
+  );
+}
+
+/**
  * Chat with the end user during a remote session: the message stream
  * bottom-aligned above the composer. The end user's side is the session block
  * in openframe-chat; the "JOINED CHAT" badge is that side's indication only
@@ -33,6 +59,8 @@ interface SessionChatPanelProps {
  */
 export function SessionChatPanel({ messages, loading, technician, sending, onSend, variant }: SessionChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The page is loading (its scope), or the dialog's history is.
+  const historyLoading = useLoadingScope() || Boolean(loading);
 
   // Keep the newest message in view as the stream grows.
   useEffect(() => {
@@ -52,10 +80,10 @@ export function SessionChatPanel({ messages, loading, technician, sending, onSen
     >
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col justify-end gap-[var(--spacing-system-xsf)]">
-          {messages.length === 0 ? (
-            <p className="text-center text-ods-text-muted text-h6">
-              {loading ? 'Loading the chat...' : 'No messages yet - say hello to the user.'}
-            </p>
+          {messages.length === 0 && historyLoading ? (
+            <SessionChatHistorySkeleton />
+          ) : messages.length === 0 ? (
+            <p className="text-center text-ods-text-muted text-h6">No messages yet - say hello to the user.</p>
           ) : (
             messages.map(message => (
               <SessionChatMessageRow

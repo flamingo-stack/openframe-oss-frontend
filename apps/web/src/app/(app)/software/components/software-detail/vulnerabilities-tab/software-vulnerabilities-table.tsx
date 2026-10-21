@@ -8,6 +8,7 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -23,7 +24,6 @@ import type {
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
@@ -144,17 +144,32 @@ interface SoftwareVulnerabilitiesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Vulnerabilities tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function SoftwareVulnerabilitiesTable({
-  softwareId,
-  debouncedSearch,
-  sort,
-  sortState,
-  onSortChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareVulnerabilitiesTableProps) {
+const NO_ROWS: readonly SoftwareVulnerabilityRow[] = [];
+const noop = () => {};
+
+/**
+ * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
+ * with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives
+ * under the tab's `<Suspense>`.
+ */
+export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <SoftwareVulnerabilitiesTableRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <SoftwareVulnerabilitiesTableQuery {...props} />;
+}
+
+function SoftwareVulnerabilitiesTableQuery(props: SoftwareVulnerabilitiesTableProps) {
+  const { softwareId, debouncedSearch, sort } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
     softwareVulnerabilitiesTableQuery,
@@ -174,8 +189,45 @@ export function SoftwareVulnerabilitiesTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_VULNERABILITIES_PAGE_SIZE);
   };
 
+  return (
+    <SoftwareVulnerabilitiesTableRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface SoftwareVulnerabilitiesTableRowsProps extends SoftwareVulnerabilitiesTableProps {
+  rows: readonly SoftwareVulnerabilityRow[];
+  totalCount: number;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareVulnerabilitiesTableRows({
+  rows,
+  totalCount,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  debouncedSearch,
+  sortState,
+  onSortChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareVulnerabilitiesTableRowsProps) {
+  const loading = useLoadingScope();
+
   const table = useDataTable<SoftwareVulnerabilityRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: rows as SoftwareVulnerabilityRow[],
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
@@ -183,7 +235,7 @@ export function SoftwareVulnerabilitiesTable({
 
   // A search that finds nothing keeps the table (its own "no match" row); a
   // title with no CVEs at all gets the section's empty state instead.
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -210,7 +262,7 @@ export function SoftwareVulnerabilitiesTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
+          skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
           emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
           rowClassName="mb-1"
           rowHref={rowHref}
@@ -220,8 +272,8 @@ export function SoftwareVulnerabilitiesTable({
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            onLoadMore={onLoadMore}
+            skeletonRows={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
           />
         )}
       </DataTable>

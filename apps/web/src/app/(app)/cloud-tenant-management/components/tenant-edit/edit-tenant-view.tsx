@@ -1,15 +1,16 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
+  LoadingWhen,
   PageLayout,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
-import { TenantSummaryCardSkeleton } from '../tenant-detail/tenant-summary-card';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import { TenantRecordLoader, type TenantRecordState } from './tenant-record-loader';
 import { useEditTenantForm } from './use-edit-tenant-form';
@@ -45,24 +46,28 @@ export function EditTenantView({ id }: { id: string }) {
       actions={actions}
       actionsVariant="primary-buttons"
     >
-      {/* The status below announces the wait, so the card's own region stays quiet. */}
-      <Suspense fallback={<TenantSummaryCardSkeleton identityOnly region={false} />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading tenant">
+            <TenantRecordLoader id={id} onResolved={setRecord} />
+          </LoadingFallback>
+        }
+      >
         <TenantRecordLoader id={id} onResolved={setRecord} />
       </Suspense>
-      {/* Locked fields announce nothing on their own; the text switches, the live region stays mounted. */}
-      <span role="status" className="sr-only">
-        {record.status === 'loading' ? 'Loading tenant…' : ''}
-      </span>
       {record.status === 'missing' ? (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       ) : (
-        <TenantFormFields
-          control={form.control}
-          disabled={!ready || isSubmitting}
-          hideDomain
-          includeOrganization={ready ? record.organization : null}
-          customersEnabled={ready}
-        />
+        // Until the record has seeded them the fields are locked and the customer list draws its own loading state.
+        <LoadingWhen loading={record.status === 'loading'}>
+          <TenantFormFields
+            control={form.control}
+            disabled={!ready || isSubmitting}
+            hideDomain
+            includeOrganization={ready ? record.organization : null}
+            customersEnabled={ready}
+          />
+        </LoadingWhen>
       )}
     </PageLayout>
   );

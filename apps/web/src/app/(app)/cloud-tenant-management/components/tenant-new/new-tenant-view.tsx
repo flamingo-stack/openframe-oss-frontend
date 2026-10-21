@@ -1,7 +1,12 @@
 'use client';
 'use no memo';
 
-import { Button, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  type PageActionButton,
+  PageLayout,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useState } from 'react';
 import { useFormState } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -16,9 +21,12 @@ const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant:
 
 /**
  * `/cloud-tenant-management/new` before a record exists (Figma 2097-122192): the provider picker,
- * the three fields and "Generate Connection Link". Success moves to `?id=` — `ConnectTenantView`.
+ * the three fields and "Generate Connection Link". Success moves to `?id=` — `ConnectTenantView`. In a
+ * loading scope (the module's flag window) the fields are locked and the picker and the customer list draw their
+ * own loading states without fetching.
  */
 export function NewTenantView() {
+  const loading = useLoadingScope();
   const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const { form, isCreating, generateLink } = useNewTenantForm();
   // The frames draw Generate disabled until the form is complete; `mode: 'onChange'` keeps this live.
@@ -43,7 +51,7 @@ export function NewTenantView() {
     >
       <TenantFormFields
         control={form.control}
-        disabled={isCreating}
+        disabled={isCreating || loading}
         providerField={<ProviderField control={form.control} disabled={isCreating} onOffered={setOffered} />}
       />
       <div>

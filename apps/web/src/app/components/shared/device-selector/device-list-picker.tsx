@@ -8,6 +8,7 @@ import {
   DeviceSelectorSkeleton,
   ErrorBoundary,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { useDeviceList } from '@/app/(app)/devices/hooks/use-device-list';
 import type { Device } from '@/app/(app)/devices/types/device.types';
@@ -77,11 +78,15 @@ function DeviceListPickerContent({
  * re-derive a fallback that can drift from the selector it replaces. Callers
  * still control WHETHER it mounts — a Relay query runs because its component is
  * rendered, which is what the old `enabled` flag expressed, so gate with
- * `{isOpen && <DeviceListPicker … />}`.
+ * `{isOpen && <DeviceListPicker … />}`. In a loading scope it draws its own
+ * skeleton and runs nothing.
  */
 export function DeviceListPicker(props: DeviceListPickerProps) {
   const { showSelectionModeRadio, singleSelect, hideColumns } = props;
   const [retryNonce, setRetryNonce] = useState(0);
+  // In a loading scope (a parent's Suspense fallback) the picker is its skeleton and
+  // mounts no query: nothing in a scope fetches.
+  const inScope = useLoadingScope();
 
   const skeleton = (
     <DeviceSelectorSkeleton
@@ -90,6 +95,8 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
       hideColumns={hideColumns}
     />
   );
+
+  if (inScope) return skeleton;
 
   return (
     // The Relay hook THROWS on failure, and every caller here holds unsaved work

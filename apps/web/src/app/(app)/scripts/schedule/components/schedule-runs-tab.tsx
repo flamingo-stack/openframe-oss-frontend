@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ClockHistoryIcon,
   Filter02Icon,
@@ -40,7 +41,7 @@ import { executionStatusLabel, initiatorInitials, initiatorName } from '../../sh
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
-  ScheduleRunsSkeleton,
+  ScheduleRunsLoading,
   type UiRun,
   useScheduleRunColumns,
 } from './schedule-runs-columns';
@@ -240,7 +241,7 @@ function ScheduleRunsContent({
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
               onLoadMore={fetchNextPage}
-              skeletonRows={2}
+              skeletonRows={RUNS_PAGE_SIZE}
             />
           )}
         </DataTable>
@@ -396,7 +397,13 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <Suspense fallback={<ScheduleRunsSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading schedule runs">
+            <ScheduleRunsLoading stickyHeaderOffset={stickyHeaderOffset} />
+          </LoadingFallback>
+        }
+      >
         <ScheduleRunsContent
           scheduleId={scheduleId}
           debouncedSearch={deferredSearch}

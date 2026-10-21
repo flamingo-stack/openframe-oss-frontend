@@ -1,18 +1,14 @@
 'use client';
 
-import { SOFTWARE_ACTION_DETAIL_TITLE } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { Suspense } from 'react';
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
-import { EXECUTIONS_PAGE_SIZE, ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
-import { TableSkeleton, QueryIsland } from '@/app/components/shared';
-import { routes } from '@/lib/routes';
-import { DetailTitle } from '../shared/detail-title';
+import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
+import { QueryIsland } from '@/app/components/shared';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';
-import { ActionDetailSummarySkeleton } from './action-detail-summary-skeleton';
-import { SOFTWARE_LOG_TABLE_COLUMNS } from './software-logs-columns';
 
 /**
  * One install/update run. Null for an id with no dispatched run behind it,
@@ -51,8 +47,18 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
 
   // Each island's fallback stands in for it twice: while its query is in
   // flight, and for the flag's own window, when the query is not sent at all.
-  const titleFallback = <DetailTitle title={SOFTWARE_ACTION_DETAIL_TITLE} backTo={routes.software.actions} loading />;
-  const summaryFallback = <ActionDetailSummarySkeleton />;
+  // It is the island's own component with no record, in a loading scope, where
+  // it draws its own loading state.
+  const titleFallback = (
+    <LoadingFallback label="Loading action">
+      <ActionDetailHeader action={null} />
+    </LoadingFallback>
+  );
+  const summaryFallback = (
+    <LoadingFallback label="Loading action">
+      <ActionDetailSummary action={null} />
+    </LoadingFallback>
+  );
 
   return (
     // No page padding here: it lives on the page's wrapper around
@@ -83,14 +89,11 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
         <ExecutionsTabShell clientSearch searchPlaceholder="Search for Logs">
           {state => {
             // Its own boundary, so loading draws this table's columns rather
-            // than the shell's script-execution skeleton.
+            // than the shell's script-execution loading state.
             const tableFallback = (
-              <TableSkeleton
-                label="Loading the action log"
-                columns={SOFTWARE_LOG_TABLE_COLUMNS}
-                rows={EXECUTIONS_PAGE_SIZE}
-                stickyHeaderOffset={state.stickyHeaderOffset}
-              />
+              <LoadingFallback label="Loading the action log">
+                <ActionDetailLogs action={null} state={state} />
+              </LoadingFallback>
             );
             return loading ? (
               tableFallback

@@ -16,6 +16,7 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
@@ -34,9 +35,32 @@ interface PolicyDevicesTableProps {
   policyQuery?: string;
 }
 
-export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: PolicyDevicesTableProps) {
-  const { rows, isLoading } = usePolicyDevicesTable(policyId, assignedHostIds);
+/** The policy's devices are every assigned host, unpaged: the loading body draws this typical count. */
+export const POLICY_DEVICES_SKELETON_ROWS = 5;
 
+const NO_ROWS: PolicyDeviceRow[] = [];
+
+/**
+ * The policy's devices. In a loading scope (the policy itself still loading) it reads nothing and draws the table's
+ * own loading rows; otherwise it reads the devices and draws them.
+ */
+export function PolicyDevicesTable(props: PolicyDevicesTableProps) {
+  if (useLoadingScope()) return <PolicyDevicesTableView rows={NO_ROWS} isLoading policyQuery={props.policyQuery} />;
+  return <PolicyDevicesTableContent {...props} />;
+}
+
+function PolicyDevicesTableContent({ policyId, assignedHostIds, policyQuery }: PolicyDevicesTableProps) {
+  const { rows, isLoading } = usePolicyDevicesTable(policyId, assignedHostIds);
+  return <PolicyDevicesTableView rows={rows} isLoading={isLoading} policyQuery={policyQuery} />;
+}
+
+interface PolicyDevicesTableViewProps {
+  rows: PolicyDeviceRow[];
+  isLoading: boolean;
+  policyQuery?: string;
+}
+
+function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesTableViewProps) {
   const [quickQueryIds, setQuickQueryIds] = useState<Set<string>>(new Set());
 
   const hasQuery = Boolean(policyQuery?.trim());
@@ -202,7 +226,7 @@ export function PolicyDevicesTable({ policyId, assignedHostIds, policyQuery }: P
       {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
       <DataTable.Body
         loading={isLoading}
-        skeletonRows={5}
+        skeletonRows={POLICY_DEVICES_SKELETON_ROWS}
         emptyState={{
           icon: <MonitorIcon />,
           title: 'No devices assigned',

@@ -1,7 +1,7 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -15,12 +15,10 @@ interface SettingMenuItemProps {
   badge?: ReactNode;
 }
 
-// Shared so the placeholder below can't drift from the card it stands in for. The two
+// Shared so the loading card below can't drift from the card it stands in for. The two
 // frames are what set the card's height, and neither carries a height class: each is
 // `sf` padding + a 24px glyph + its own 1px border = 50px. With the shell's `m` padding
-// and border that makes the card 84px on desktop and 76px below md — so the placeholder
-// reproduces the frames rather than approximating them with a sized block (an `h-12`
-// stand-in came out 48px, and the card 2px short at both breakpoints).
+// and border that makes the card 84px on desktop and 76px below md.
 const CARD_SHELL_CLASSES =
   'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] flex gap-[var(--spacing-system-s)] items-center';
 const ICON_FRAME_CLASSES =
@@ -28,37 +26,31 @@ const ICON_FRAME_CLASSES =
 const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)]';
 
 /**
- * Holds a grid slot for a card whose visibility isn't known yet — a feature flag or a
- * role that hasn't answered. Chrome (both frames) is drawn for real; only the glyphs and
- * the text are placeholders, so the slot is exactly the size of whatever lands in it.
+ * The card while the grid's gates (a feature flag, a role) have not answered which cards it holds. Everything on a
+ * card is fixed copy, so it is drawn for real; only the link is left out, since the card may not be one this
+ * workspace keeps. Same frames as the card, so the slot is exactly its size.
  */
-export function SettingMenuItemSkeleton() {
+export function SettingMenuItemSkeleton({ icon, title, description, badge }: Omit<SettingMenuItemProps, 'href'>) {
   return (
     <div className={CARD_SHELL_CLASSES}>
-      <div className={ICON_FRAME_CLASSES}>
-        <UnifiedSkeleton className="h-6 w-6 rounded" />
-      </div>
-      {/* Each bar sits in a box the height of the line it replaces (`text-h3` title,
-          `text-h6` description) but is only as tall as the glyphs themselves. Filling the
-          whole line box made the two bars touch and read as one slab; leading is what
-          separates real text, so the placeholder borrows it — and the block still totals
-          exactly what the two `<p>`s do. */}
+      <div className={ICON_FRAME_CLASSES}>{icon}</div>
       <div className="min-w-0 flex-1">
-        <div className="flex h-[var(--font-line-space-h3-body)] items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h3-body)] w-32 max-w-full rounded-md" />
+        <div className="flex items-center gap-[var(--spacing-system-xs)]">
+          <p className="text-ods-text-primary text-h3">{title}</p>
+          {badge}
         </div>
-        <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
-        </div>
+        <p className="text-ods-text-secondary text-h6">{description}</p>
       </div>
       <div className={CHEVRON_FRAME_CLASSES}>
-        <UnifiedSkeleton className="h-6 w-6 rounded" />
+        <Chevron02RightIcon className="size-6 text-ods-text-secondary" />
       </div>
     </div>
   );
 }
 
 export function SettingMenuItem({ href, icon, title, description, badge }: SettingMenuItemProps) {
+  if (useLoadingScope())
+    return <SettingMenuItemSkeleton icon={icon} title={title} description={description} badge={badge} />;
   return (
     <div className={CARD_SHELL_CLASSES}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>

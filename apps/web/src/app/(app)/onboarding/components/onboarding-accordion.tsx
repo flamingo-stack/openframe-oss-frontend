@@ -2,7 +2,7 @@
 
 import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import React from 'react';
 
@@ -46,10 +46,10 @@ export interface OnboardingAccordionItemProps {
    */
   id?: string;
   /**
-   * Loading state: renders the row frame exactly as an `active` step, but the title,
-   * description and trailing status control are all skeleton bars (only the leading
-   * icon stays real), and the body is not mounted. Kept pixel-identical in height to
-   * the loaded row so the page skeleton reuses it verbatim without a jump. @default false
+   * Loading state: renders the row frame exactly as an `active` step with its real
+   * (static) icon, title and description; only the trailing status control, the one
+   * thing that is read, is a skeleton, and the body is not mounted. Inside a loading
+   * scope the row switches to it by itself. @default false
    */
   loading?: boolean;
   /** Expanded body. Not implemented yet — the step body is wired up later. */
@@ -74,11 +74,12 @@ export function OnboardingAccordionItem({
   defaultExpanded = false,
   expanded: controlledExpanded,
   onExpandedChange,
-  loading = false,
+  loading: loadingProp = false,
   children,
   ref,
   id,
 }: OnboardingAccordionItemProps) {
+  const loading = useLoadingScope() || loadingProp;
   const isDisabled = !loading && status === 'disabled';
   const isCompleted = !loading && status === 'completed';
   const [internalExpanded, setInternalExpanded] = React.useState(!isDisabled && defaultExpanded);
@@ -121,8 +122,7 @@ export function OnboardingAccordionItem({
           {isCompleted ? <CheckCircleIcon /> : icon}
         </div>
 
-        {/* Title + description — skeleton bars while loading (kept inside the real
-            `<p>` line boxes so the row height is identical to the loaded one). */}
+        {/* Title + description — static copy, drawn for real in every state. */}
         {/* Full-strength type in every state. A locked step used to dim both
             lines to the border grey, which read as "this step is broken"
             rather than "not yet" — and it made the one row the visitor most
@@ -130,12 +130,8 @@ export function OnboardingAccordionItem({
             What marks it locked is the trailing hint and the missing chevron,
             which is exactly how the design draws it. */}
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <p className="text-ods-text-primary text-h3">
-            {loading ? <UnifiedSkeleton as="span" className="h-4 w-40 content-md:h-5" /> : title}
-          </p>
-          <p className="text-ods-text-secondary text-h6">
-            {loading ? <UnifiedSkeleton as="span" className="h-3 w-64" /> : description}
-          </p>
+          <p className="text-ods-text-primary text-h3">{title}</p>
+          <p className="text-ods-text-secondary text-h6">{description}</p>
         </div>
 
         {/* Trailing: skeleton (loading) / requirement hint (disabled) / complete tag + chevron / chevron.

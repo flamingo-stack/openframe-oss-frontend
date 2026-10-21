@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { freeAiTokensCard_subscription$key } from '@/__generated__/freeAiTokensCard_subscription.graphql';
 import { formatCompactCount } from '@/lib/format-number';
@@ -13,8 +14,10 @@ const freeAiTokensCardFragment = graphql`
 `;
 
 /** The period's free grant, and how much of it is gone. */
-export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key }) {
-  const ai = aiBalanceState(useFragment(freeAiTokensCardFragment, subscription));
+export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key | null }) {
+  const data = useFragment(freeAiTokensCardFragment, subscription);
+  if (useLoadingScope() || data == null) return <UsageStatCard title="Free AI Tokens" loading />;
+  const ai = aiBalanceState(data);
 
   return (
     <UsageStatCard

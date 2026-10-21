@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getFullImageUrl } from '@/lib/image-url';
 import type { AgentAiConfig, AiQuickAction, ClientView } from '../types/ai-settings';
 import { AiSettingsCustomerCard } from './ai-settings-customer-card';
@@ -39,6 +40,20 @@ export function AiSettingsOverview({
   quickActions,
   quickActionsBanner,
 }: AiSettingsOverviewProps) {
+  // In a loading scope every part is drawn (each its own skeleton): which ones the data leaves out is not known yet.
+  if (useLoadingScope()) {
+    return (
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <AiSettingsCustomerCard />
+        <AiSettingsPreviews />
+        <AiSettingsQuickActionsSection
+          title="Assistant Quick Actions"
+          agentConfig={ASSISTANT_QUICK_ACTIONS_CONFIG}
+          bannerCopy={quickActionsBanner}
+        />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {aiConfig && view && (

@@ -152,7 +152,10 @@ interface CustomersTableBodyProps {
   customers: Customer[];
   isLoading?: boolean;
   emptyMessage?: string;
+  /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
   skeletonRows?: number;
+  /** The list's page size: its loading state (body and infinite footer) draws one full page. */
+  pageSize?: number;
   stickyHeaderOffset?: string;
   footerSlot?: ReactNode;
   /** When set, the Last Activity header hosts the date sort + range popover. */
@@ -163,7 +166,8 @@ export function CustomersTableBody({
   customers,
   isLoading,
   emptyMessage = 'No customers found.',
-  skeletonRows = 10,
+  skeletonRows,
+  pageSize,
   stickyHeaderOffset,
   footerSlot,
   dateFilter,
@@ -189,6 +193,8 @@ export function CustomersTableBody({
     columns,
     getRowId: row => row.id,
     enableSorting: false,
+    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
+    initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
   });
 
   return (

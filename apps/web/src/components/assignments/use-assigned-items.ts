@@ -89,7 +89,14 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
   }
 `;
 
-const PAGE_SIZE = 100;
+/** A safety cap on one read, not a page: the assigned lists are unbounded in practice. */
+const ASSIGNED_ITEMS_LIMIT = 100;
+
+/**
+ * How many rows an assigned list draws while it loads. The list is unbounded (its read limit only guards against
+ * runaway data), so this is a typical count: an item usually carries a handful of assignments per kind.
+ */
+export const ASSIGNED_ITEMS_SKELETON_ROWS = 5;
 
 /** Every `assignedItems` read, of any item — what a write to assignments invalidates. */
 export const ASSIGNED_ITEMS_QUERY_KEY = ['assignments', 'assigned-items'] as const;
@@ -209,7 +216,7 @@ async function fetchAssignedItems(
   const data = await postGraphQl<AssignedItemsData>(ASSIGNED_ITEMS_QUERY, {
     itemId,
     targetType,
-    first: PAGE_SIZE,
+    first: ASSIGNED_ITEMS_LIMIT,
   });
 
   const refs: AssignmentRef[] = [];

@@ -15,6 +15,7 @@ import {
   PageError,
   SquareAvatar,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -68,6 +69,7 @@ function ProfileCardSkeleton() {
 }
 
 export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) {
+  const inScope = useLoadingScope();
   const user = useAuthStore(state => state.user);
   // `/me`'s own answer, taken from the session query rather than the store — the `!user`
   // branch below explains why that distinction is the whole fix.
@@ -85,6 +87,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
 
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
 
+  if (inScope) return <ProfileCardSkeleton />;
   if (!user) {
     // Two situations this used to conflate.
     //
@@ -207,7 +210,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
           already-open panel) — do not add one here, it would swallow the whole modal
           and put us back to nothing rendering until the round-trip finished. */}
       {isNotificationSettingsOpen && (
-        <ErrorBoundary fallback={null}>
+        <ErrorBoundary fallback={null /* loading-standard-ok: an error boundary's fallback, not a loading state */}>
           <NotificationSettingsModal onClose={() => setIsNotificationSettingsOpen(false)} />
         </ErrorBoundary>
       )}

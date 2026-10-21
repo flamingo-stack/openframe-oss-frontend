@@ -1,7 +1,8 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatJson, type JsonToken, tokenizeJson } from '../utils/json-highlight';
 
@@ -9,7 +10,12 @@ interface JsonPanelProps {
   /** Section title, also what the copy button and its toast call the payload ("Input", "Output"). */
   title: string;
   value: unknown;
+  /** The payload is not here yet: the card draws its code as a typical block of lines. */
+  loading?: boolean;
 }
+
+/** A typical payload's pretty-printed length, drawn while it loads (the payload is unbounded). */
+export const JSON_PANEL_SKELETON_LINES = 17;
 
 // Property names and values take the two attention colours the design uses for
 // them; punctuation stays the body colour so the structure reads as plain text.
@@ -26,8 +32,9 @@ const TOKEN_CLASS: Record<JsonToken['type'], string | undefined> = {
  * scrolls, so a long command output is never cut off; a string keeps its
  * escapes (`\n` stays `\n`), as the design shows it.
  */
-export function JsonPanel({ title, value }: JsonPanelProps) {
-  const json = formatJson(value);
+export function JsonPanel({ title, value, loading: loadingProp = false }: JsonPanelProps) {
+  const loading = useLoadingScope() || loadingProp;
+  const json = loading ? '' : formatJson(value);
   const { copy, copied } = useCopyToClipboard({
     successDescription: `${title} copied to clipboard`,
     errorDescription: `Unable to copy ${title.toLowerCase()}`,
@@ -41,6 +48,7 @@ export function JsonPanel({ title, value }: JsonPanelProps) {
           variant="link"
           size="compact"
           onClick={() => copy(json)}
+          disabled={loading}
           leftIcon={copied ? <CheckIcon className="text-ods-success" /> : <Copy02Icon />}
         >
           Copy {title}
@@ -49,17 +57,21 @@ export function JsonPanel({ title, value }: JsonPanelProps) {
 
       <div className="w-full rounded-[6px] border border-ods-border bg-ods-card">
         <div className="p-4 content-md:p-6">
-          <pre className="min-w-0 whitespace-pre-wrap break-words text-ods-text-primary text-code">
-            {tokenizeJson(json).map((token, i) =>
-              token.type === 'punct' ? (
-                token.text
-              ) : (
-                <span key={i} className={TOKEN_CLASS[token.type]}>
-                  {token.text}
-                </span>
-              ),
-            )}
-          </pre>
+          {loading ? (
+            <TextLineSkeleton type="code" lines={JSON_PANEL_SKELETON_LINES} />
+          ) : (
+            <pre className="min-w-0 whitespace-pre-wrap break-words text-ods-text-primary text-code">
+              {tokenizeJson(json).map((token, i) =>
+                token.type === 'punct' ? (
+                  token.text
+                ) : (
+                  <span key={i} className={TOKEN_CLASS[token.type]}>
+                    {token.text}
+                  </span>
+                ),
+              )}
+            </pre>
+          )}
         </div>
       </div>
     </section>

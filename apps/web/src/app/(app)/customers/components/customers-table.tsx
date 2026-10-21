@@ -26,7 +26,7 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
-import { type CustomersDateQuery, useCustomers } from '../hooks/use-customers';
+import { type CustomersDateQuery, ORGANIZATIONS_PAGE_SIZE, useCustomers } from '../hooks/use-customers';
 import { type CustomersDateFilter, CustomersSearchInput, CustomersTableBody } from './customers-table-columns';
 
 const EMPTY_FILTER_GROUPS: never[] = [];
@@ -194,7 +194,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
                 ? 'No customers found. Try adjusting your search or filters.'
                 : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
             }
-            skeletonRows={10}
+            pageSize={ORGANIZATIONS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}
             dateFilter={dateFilter}
             footerSlot={
@@ -203,7 +203,6 @@ export function CustomersTable({ status }: CustomersTableProps) {
                   hasNextPage={hasNextPage}
                   isFetchingNextPage={isFetchingNextPage}
                   onLoadMore={handleLoadMore}
-                  skeletonRows={2}
                 />
               )
             }

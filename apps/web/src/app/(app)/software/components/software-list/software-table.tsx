@@ -5,6 +5,7 @@ import {
   DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useEffect } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -15,7 +16,7 @@ import type {
 import { liveColumnMeta } from '@/app/components/shared';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
+import { FLEET_LIST_PAGE_SIZE } from '../shared/fleet-list-paging';
 import { OpenRowButton } from '../shared/open-row-button';
 import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
@@ -105,6 +106,8 @@ export function SoftwareTable({
   stickyHeaderOffset,
   infiniteScroll,
 }: SoftwareTableProps) {
+  // The rows have not answered yet: the table draws its own loading state, never the empty one.
+  const loading = useLoadingScope();
   const rows = useFragment(softwareTableFragment, rowRefs);
 
   const table = useDataTable<SoftwareRow>({
@@ -117,7 +120,7 @@ export function SoftwareTable({
 
   // A search that finds nothing keeps the table (its own "no match" row); a list
   // with nothing in it at all gets the surface's empty state instead.
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -139,7 +142,7 @@ export function SoftwareTable({
           rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
         />
         <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
+          skeletonRows={FLEET_LIST_PAGE_SIZE}
           emptyState={{
             title: debouncedSearch
               ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
@@ -154,7 +157,7 @@ export function SoftwareTable({
             hasNextPage={infiniteScroll.hasNextPage}
             isFetchingNextPage={infiniteScroll.isFetchingNextPage}
             onLoadMore={infiniteScroll.onLoadMore}
-            skeletonRows={2}
+            skeletonRows={FLEET_LIST_PAGE_SIZE}
           />
         )}
       </DataTable>

@@ -1,10 +1,10 @@
 'use client';
 
-import { SsoJoinForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { AuthFormSkeleton } from '@/app/(auth)/auth/components/auth-page-skeleton';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { SsoJoinCard } from '@/app/(auth)/auth/components/sso-join-card';
 import { SsoJoinCardLayout } from '@/app/(auth)/auth/components/sso-join-card-layout';
 import { isMobileAuthLoginOnly } from '@/lib/app-mode';
 import { authApiClient, type PendingSsoJoin } from '@/lib/auth-api-client';
@@ -39,7 +39,34 @@ import { routes } from '@/lib/routes';
  * with a reason; the BFF checks it against its allow-list and 302s into the app. The page never
  * navigates to the address itself.
  */
+const noop = () => {};
+
 export default function SsoJoinPage() {
+  return (
+    // `useSearchParams` bails out to the client during the static prerender: the card, in a loading scope, stands in.
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading your account">
+          <SsoJoinCardLayout>
+            <SsoJoinCard
+              pending={null}
+              agreedToTerms={false}
+              onAgreedToTermsChange={noop}
+              onSubmit={noop}
+              onBack={noop}
+              termsUrl={TERMS_URL}
+              privacyPolicyUrl={PRIVACY_POLICY_URL}
+            />
+          </SsoJoinCardLayout>
+        </LoadingFallback>
+      }
+    >
+      <SsoJoinContent />
+    </Suspense>
+  );
+}
+
+function SsoJoinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -109,32 +136,18 @@ export default function SsoJoinPage() {
     router.push(routes.auth.login);
   };
 
-  if (!pending) {
-    return (
-      <SsoJoinCardLayout>
-        <AuthFormSkeleton variant="sso-join" />
-      </SsoJoinCardLayout>
-    );
-  }
-
-  // Either name can be missing (Apple, or a provider that only asserts an address); the form falls
-  // back to the email when both are.
-  const name = [pending.firstName, pending.lastName].filter(Boolean).join(' ');
   // The sheet is served by the web deployment, so the URL, not the shell, marks the flow as mobile.
   const mobileLoginOnly = mobileReturn !== null && isMobileAuthLoginOnly();
 
   return (
     <SsoJoinCardLayout>
-      <SsoJoinForm
-        name={name}
-        email={pending.email}
-        organizationName={pending.tenantName}
+      <SsoJoinCard
+        pending={pending}
         // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
         // person is joining an organization that already exists. The label leaves the name out: the
         // identity row above shows it, and a long one pushed the button past the card.
         submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
         termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
-        roles={pending.roles ?? []}
         agreedToTerms={agreedToTerms}
         onAgreedToTermsChange={setAgreedToTerms}
         onSubmit={handleSubmit}

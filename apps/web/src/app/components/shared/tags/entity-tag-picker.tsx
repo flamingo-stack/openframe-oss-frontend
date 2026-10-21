@@ -2,7 +2,7 @@
 
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Autocomplete, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { entityTagPickerQuery as EntityTagPickerQueryType } from '@/__generated__/entityTagPickerQuery.graphql';
@@ -41,12 +41,11 @@ const DEFAULT_LABEL = 'Search and add Tags';
 const DEFAULT_EMPTY_PLACEHOLDER = 'Search to Add Tags';
 
 /**
- * Suspense fallback for {@link EntityTagPicker}: the real `Autocomplete`,
+ * {@link EntityTagPicker} while its vocabulary is read: the real `Autocomplete`,
  * disabled and empty, with the same label / placeholder / search adornment —
  * pixel-identical to the loaded picker, so the swap causes zero layout shift.
- * Pass the same `label` / `emptyPlaceholder` overrides as the picker call site.
  */
-export function EntityTagPickerFallback({
+function EntityTagPickerSkeleton({
   label = DEFAULT_LABEL,
   emptyPlaceholder = DEFAULT_EMPTY_PLACEHOLDER,
 }: {
@@ -102,9 +101,18 @@ interface EntityTagPickerProps {
  * new name and confirming creates the tag immediately and swaps the optimistic
  * entry for the persisted id. Shared by the script and article editors.
  *
- * Suspends on the vocabulary query — render inside a `<Suspense>` boundary.
+ * Suspends on the vocabulary query — render inside a `<Suspense>` boundary whose
+ * fallback is the same picker in a loading scope (`LoadingFallback`), where it draws
+ * its own skeleton and runs no query.
  */
-export function EntityTagPicker({
+export function EntityTagPicker(props: EntityTagPickerProps) {
+  if (useLoadingScope()) {
+    return <EntityTagPickerSkeleton label={props.label} emptyPlaceholder={props.emptyPlaceholder} />;
+  }
+  return <LiveEntityTagPicker {...props} />;
+}
+
+function LiveEntityTagPicker({
   entityType,
   selectedIds,
   onChange,

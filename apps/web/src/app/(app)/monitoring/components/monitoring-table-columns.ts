@@ -4,11 +4,9 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * Column layout for the two monitoring detail device tables — the policy detail
  * page's Devices section and the query detail page's Assigned Devices tab.
  *
- * Data-only on purpose (see `table-column-layout.ts`): each table is drawn by
- * two renderers — the live one and `MonitoringDetailSkeleton`, which stands in
- * for the page while the Fleet request is in flight. Both read the SAME
- * declaration, so a skeleton header cannot drift from the loaded one's the way
- * every other pair did before their layouts were centralised.
+ * Data-only on purpose (see `table-column-layout.ts`): each table reads its
+ * columns' header, width and breakpoint from here, loaded or loading (in a
+ * loading scope the same table draws its own body skeleton).
  *
  * The two tables are the same layout down to the class strings; they differ in
  * exactly two things, and both are spelled out below rather than left implicit:
@@ -16,7 +14,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * own state, so a different `id` and accessor), and only the query table offers
  * column funnels. The funnels are not cosmetic — `DataTable.Header` keeps a
  * filterable header alive below `lg` and draws the icon beside its label — so
- * the skeleton has to know about them, which is what `filterable` is for.
+ * the header has to know about them, which is what `filterable` is for.
  *
  * Headers are the real uppercase strings the tables pass; `DataTable`
  * uppercases them in CSS anyway, but keeping them verbatim means a diff here is
@@ -69,23 +67,3 @@ export const QUERY_DEVICE_COLUMNS = {
   open: OPEN,
   quickQuery: QUICK_QUERY,
 } satisfies Record<string, TableSkeletonColumn>;
-
-/** Render order — the live table and the page skeleton read the same list. */
-export const POLICY_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  POLICY_DEVICE_COLUMNS.device,
-  POLICY_DEVICE_COLUMNS.organization,
-  POLICY_DEVICE_COLUMNS.os,
-  POLICY_DEVICE_COLUMNS.compliance,
-  POLICY_DEVICE_COLUMNS.open,
-  POLICY_DEVICE_COLUMNS.quickQuery,
-];
-
-/** Render order — the live table and the page skeleton read the same list. */
-export const QUERY_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  QUERY_DEVICE_COLUMNS.device,
-  QUERY_DEVICE_COLUMNS.organization,
-  QUERY_DEVICE_COLUMNS.os,
-  QUERY_DEVICE_COLUMNS.status,
-  QUERY_DEVICE_COLUMNS.open,
-  QUERY_DEVICE_COLUMNS.quickQuery,
-];

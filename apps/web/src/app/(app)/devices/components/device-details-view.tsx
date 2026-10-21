@@ -10,11 +10,13 @@ import {
   TabNavigation,
   Tag,
 } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   getDeviceStatusConfig,
   WarningBlock,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -25,7 +27,6 @@ import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useDeviceActionsMenu } from '../hooks/use-device-actions-menu';
 import { useDeviceDetails } from '../hooks/use-device-details';
 import { isDeviceStillConnecting } from '../utils/tool-connection-status';
-import { DeviceDetailsSkeleton } from './device-details-skeleton';
 import { RecordingStorageBanner } from './remote-sessions/recording-storage-banner';
 import { RunScriptModal } from './run-script/run-script-modal';
 import { useDeviceTabs } from './tabs/device-tabs';
@@ -37,6 +38,18 @@ import { useDeviceTabs } from './tabs/device-tabs';
 // set it from here. The token is 16px below md / 24px from md, the same scale the
 // buttons and the menu's own icon cells use.
 const DETAIL_ICON_SIZE = 'w-[var(--icon-size-icon-size)] h-[var(--icon-size-icon-size)]';
+
+/** The status `Tag`'s box: `h-8 rounded-md`. */
+const STATUS_TAG_BOX = 'h-8 shrink-0 rounded-md';
+
+/** The device's status beside its title; while the device is read, the tag's own box. */
+function DeviceStatusTag({ status }: { status: string | undefined }) {
+  if (useLoadingScope() || status === undefined) {
+    return <UnifiedSkeleton className={`${STATUS_TAG_BOX} w-20`} />;
+  }
+  const statusConfig = getDeviceStatusConfig(status);
+  return <Tag label={statusConfig.label} variant={statusConfig.variant} />;
+}
 
 interface DeviceDetailsViewProps {
   deviceId: string;
@@ -166,78 +179,87 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
     router.push(`${window.location.pathname}?${params.toString()}`);
   };
 
-  if (isLoading) {
-    return <DeviceDetailsSkeleton activeTab={activeTab} />;
-  }
-
-  if (error) {
+  if (!isLoading && error) {
     return <LoadError message={`Error loading device: ${error}`} />;
   }
 
-  if (!normalizedDevice) {
+  if (!isLoading && !normalizedDevice) {
     return <NotFoundError message="Device not found" />;
   }
 
   // Top-level header buttons reuse the shared menu items registry — only the
-  // `variant` field is appended to turn them into `PageActionButton`s.
-  const actions: PageActionButton[] = [
-    ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
-    { ...deviceMenuItems.remoteShell, variant: 'outline' },
-  ];
+  // `variant` field is appended to turn them into `PageActionButton`s. Their set
+  // depends on the device (its OS picks the Remote Shell shape), so while it is
+  // read the header draws them as placeholders (`loadingActions`).
+  const actions: PageActionButton[] = normalizedDevice
+    ? [
+        ...(deviceMenuItems.remoteControl ? [{ ...deviceMenuItems.remoteControl, variant: 'outline' as const }] : []),
+        { ...deviceMenuItems.remoteShell, variant: 'outline' },
+      ]
+    : [];
 
-  const title = getDeviceName(normalizedDevice) || 'Unknown Device';
-  const lastUpdated = normalizedDevice.updatedAt || normalizedDevice.lastSeen;
-  const subtitle = lastUpdated ? `Updated ${formatRelativeTime(lastUpdated)}` : undefined;
-  const statusConfig = getDeviceStatusConfig(normalizedDevice.status);
+  // While the device is read the title and the subtitle are empty: the header draws their bars in the scope.
+  const title = normalizedDevice ? getDeviceName(normalizedDevice) || 'Unknown Device' : '';
+  const lastUpdated = normalizedDevice?.updatedAt || normalizedDevice?.lastSeen;
+  const subtitle = normalizedDevice ? (lastUpdated ? `Updated ${formatRelativeTime(lastUpdated)}` : undefined) : '';
 
   return (
-    // Core PageLayout's built-in TitleBlock; the device status rides inline with the
-    // title via the additive `titleAdornment` slot (no host-side header replica).
-    <PageLayout
-      title={title}
-      subtitle={subtitle}
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      menuActions={menuActions}
-      actionsVariant="menu-primary"
-      titleAdornment={<Tag label={statusConfig.label} variant={statusConfig.variant} />}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {/* First-connect indication: shown only until every agent has registered
+    // The page draws itself while the device is read: every part in the scope draws its own loading state
+    // (the header's title and actions, the tab bar, the open tab).
+    <LoadingWhen loading={isLoading}>
+      {/* Core PageLayout's built-in TitleBlock; the device status rides inline with the
+          title via the additive `titleAdornment` slot (no host-side header replica). */}
+      <PageLayout
+        title={title}
+        subtitle={subtitle}
+        // The real header always renders a subtitle ("Updated X ago"); reserved while loading.
+        subtitleRow={isLoading ? 'always' : undefined}
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={actions}
+        menuActions={normalizedDevice ? menuActions : undefined}
+        loadingActions={isLoading}
+        actionsVariant="menu-primary"
+        titleAdornment={<DeviceStatusTag status={normalizedDevice?.status} />}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        {/* First-connect indication: shown only until every agent has registered
           per design; a later disconnect never re-triggers it. The design is a
           bare warning strip, so the component's outer card is neutralized —
           tailwind-merge keeps the overrides. */}
-      {isDeviceStillConnecting(normalizedDevice) && (
-        <WarningBlock
-          title="Device is still connecting — some data and features aren't available yet."
-          className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
-        />
-      )}
-
-      {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. */}
-      <RecordingStorageBanner className="mb-[var(--spacing-system-l)]" />
-
-      {/* Tab Navigation */}
-      <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange}>
-        {tabId => (
-          <TabContent
-            activeTab={tabId}
-            TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
-            componentProps={{ device: normalizedDevice }}
+        {normalizedDevice && isDeviceStillConnecting(normalizedDevice) && (
+          <WarningBlock
+            title="Device is still connecting — some data and features aren't available yet."
+            className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
           />
         )}
-      </TabNavigation>
 
-      {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
+        {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. */}
+        <RecordingStorageBanner className="mb-[var(--spacing-system-l)]" />
+
+        {/* Tab Navigation */}
+        <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
+          {tabId => (
+            <TabContent
+              activeTab={tabId}
+              TabComponent={getTabComponent(deviceTabs, tabId) ?? null}
+              componentProps={{ device: normalizedDevice }}
+            />
+          )}
+        </TabNavigation>
+
+        {/* Run Script — native Scripts modal (GraphQL run API). The legacy Tactical
           ScriptsModal was removed together with the Tactical RMM integration. */}
-      <RunScriptModal
-        isOpen={isScriptsModalOpen}
-        onClose={() => setIsScriptsModalOpen(false)}
-        machineId={normalizedDevice.machineId}
-        onViewDeviceLogs={handleDeviceLogs}
-      />
+        {normalizedDevice && (
+          <RunScriptModal
+            isOpen={isScriptsModalOpen}
+            onClose={() => setIsScriptsModalOpen(false)}
+            machineId={normalizedDevice.machineId}
+            onViewDeviceLogs={handleDeviceLogs}
+          />
+        )}
 
-      {confirmationDialogs}
-    </PageLayout>
+        {confirmationDialogs}
+      </PageLayout>
+    </LoadingWhen>
   );
 }

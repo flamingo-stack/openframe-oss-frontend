@@ -14,7 +14,7 @@ import {
   ShieldKeyholeIcon,
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ComponentType, useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -33,7 +33,7 @@ import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { EmailVerificationModal } from './email-verification-modal';
-import { SettingMenuItem, SettingMenuItemSkeleton } from './setting-menu-item';
+import { SettingMenuItem } from './setting-menu-item';
 
 interface SettingsNavItem {
   href: string;
@@ -240,35 +240,33 @@ export function SettingsHub() {
         <BiometricLoginCard />
       </div>
 
-      {/* Navigation Cards Grid */}
+      {/* Navigation Cards Grid: until every gate has answered, the full default set this build can show (the app
+          mode and the shell are known synchronously, so only Billing's presence is in question), each card drawing
+          itself in the loading scope, rather than a lone cell wedged between real cards. */}
       <LoadingRegion
         label="Loading settings"
         announce={!gatesResolved}
         className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2"
       >
-        {gatesResolved
-          ? visibleItems.map(item => {
-              const {
-                icon: Icon,
-                title,
-                description,
-              } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
-              return (
-                <SettingMenuItem
-                  key={item.href}
-                  href={item.href}
-                  icon={<Icon size={24} />}
-                  title={title}
-                  description={description}
-                  badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
-                />
-              );
-            })
-          : // Whole grid as placeholders until every gate has answered, rather than a
-            // lone grey cell wedged between real cards. The count is the full default
-            // set this build can show — the app mode is known synchronously, so only
-            // Billing's and Download Apps' presence is actually in question.
-            defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
+        <LoadingWhen loading={!gatesResolved}>
+          {(gatesResolved ? visibleItems : defaultItems).map(item => {
+            const {
+              icon: Icon,
+              title,
+              description,
+            } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
+            return (
+              <SettingMenuItem
+                key={item.href}
+                href={item.href}
+                icon={<Icon size={24} />}
+                title={title}
+                description={description}
+                badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
+              />
+            );
+          })}
+        </LoadingWhen>
       </LoadingRegion>
 
       {/* Log Out — pinned to the bottom-left of the page */}

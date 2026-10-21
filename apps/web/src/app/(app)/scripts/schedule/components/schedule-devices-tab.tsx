@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DevicesList,
   type DevicesListNarrowing,
@@ -175,18 +175,21 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
           hasNextPage: hasNext,
           isFetchingNextPage: isLoadingNext,
           onLoadMore: fetchNextPage,
-          skeletonRows: 2,
+          skeletonRows: PAGE_SIZE,
         }}
       />
     </div>
   );
 }
 
-export function ScheduleDevicesTabSkeleton() {
+const NO_DEVICES: Device[] = [];
+
+/** The tab before its devices: the same list in its loading state. */
+function ScheduleDevicesTabLoading() {
   return (
-    <LoadingRegion label="Loading devices" className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={[]} isLoading emptyState={EMPTY_STATE} />
-    </LoadingRegion>
+    <div className="pt-[var(--spacing-system-l)]">
+      <DevicesList devices={NO_DEVICES} isLoading emptyState={EMPTY_STATE} />
+    </div>
   );
 }
 
@@ -194,14 +197,20 @@ export function ScheduleDevicesTabSkeleton() {
  * "Assigned Devices" tab — the machines this schedule runs on.
  *
  * Carries its own boundary: a tab that suspends is the tab's business, not the
- * page's, so switching to it draws this skeleton and leaves the header, the
+ * page's, so switching to it draws the tab's loading state and leaves the header, the
  * timing bar and the tab strip untouched.
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading devices">
+          <ScheduleDevicesTabLoading />
+        </LoadingFallback>
+      }
+    >
       <ScheduleDevicesTabContent scheduleId={scheduleId} />
     </Suspense>
   );

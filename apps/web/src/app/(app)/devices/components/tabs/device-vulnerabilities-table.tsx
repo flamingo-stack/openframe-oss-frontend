@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { deviceVulnerabilitiesTable_query$key } from '@/__generated__/deviceVulnerabilitiesTable_query.graphql';
@@ -58,8 +59,33 @@ interface DeviceVulnerabilitiesTableProps {
   stickyHeaderOffset: string;
 }
 
+const NO_ROWS: never[] = [];
+const NO_NEXT_PAGE = { hasNextPage: false, isFetchingNextPage: false, onLoadMore: () => {} };
+
+/**
+ * The Vulnerabilities tab's rows. In a loading scope (the device or the module's flag has not answered, or the Suspense
+ * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
+ */
+export function DeviceVulnerabilitiesTable(props: DeviceVulnerabilitiesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <VulnerabilityTable
+        rows={NO_ROWS}
+        totalCount={0}
+        debouncedSearch={props.debouncedSearch}
+        isPending={false}
+        emptyState={props.emptyState}
+        onEmptyChange={props.onEmptyChange}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <DeviceVulnerabilitiesTableQuery {...props} />;
+}
+
 /** The Vulnerabilities tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function DeviceVulnerabilitiesTable({
+function DeviceVulnerabilitiesTableQuery({
   machineId,
   debouncedSearch,
   isPending,

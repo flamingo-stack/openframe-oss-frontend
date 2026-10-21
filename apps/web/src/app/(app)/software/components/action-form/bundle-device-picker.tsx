@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   type DeviceSelectorNarrowing,
@@ -7,11 +8,11 @@ import {
   narrowingToFilter,
   type SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { ContentErrorBoundary } from '@/app/components/shared';
-import { ServerDevicePickerSkeleton } from '@/app/components/shared/device-selector/server-device-picker-lists';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { BundlePickerLists } from './bundle-picker-lists';
 import { useBundleDeviceAssignment } from './use-bundle-device-assignment';
@@ -49,9 +50,9 @@ function ThrowError({ error }: { error: Error }): never {
  * "Device Selection" on the Install / Update Software form. Its own boundary,
  * because the form around it holds unsaved work: a query that fails must not
  * reach the route's `error.tsx` and discard the packages the user has already
- * picked. The picker proper waits for the draft — the skeleton stands in until
- * the form has one — so there is a single set of lists, the bundle's, from the
- * first click on.
+ * picked. The picker proper waits for the draft — until the form has one it
+ * draws in a loading scope, its own loading state — so there is a single set of
+ * lists, the bundle's, from the first click on.
  */
 export function BundleDevicePicker({
   bundleId,
@@ -62,15 +63,21 @@ export function BundleDevicePicker({
 }: BundleDevicePickerProps) {
   return (
     <ContentErrorBoundary label="software-bundle-picker" message="Couldn't load devices." onRetry={onRetryCreate}>
-      <Suspense fallback={<ServerDevicePickerSkeleton />}>
-        {createError ? (
-          <ThrowError error={createError} />
-        ) : bundleId ? (
-          <BundleDevicePickerLists bundleId={bundleId} scope={scope} isDeviceDisabled={isDeviceDisabled} />
-        ) : (
-          <ServerDevicePickerSkeleton />
-        )}
-      </Suspense>
+      {createError ? (
+        <ThrowError error={createError} />
+      ) : (
+        <LoadingWhen loading={!bundleId}>
+          <Suspense
+            fallback={
+              <LoadingFallback label="Loading devices">
+                <BundleDevicePickerLists bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
+              </LoadingFallback>
+            }
+          >
+            <BundleDevicePickerLists bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
+          </Suspense>
+        </LoadingWhen>
+      )}
     </ContentErrorBoundary>
   );
 }

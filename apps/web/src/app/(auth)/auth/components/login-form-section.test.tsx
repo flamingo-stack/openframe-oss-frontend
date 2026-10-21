@@ -277,7 +277,7 @@ describe('LoginSection', () => {
     pressEnter();
     await settle();
     expect(onDiscover).toHaveBeenCalledTimes(2);
-    expect(container.textContent).toContain('Checking your account…');
+    expect(container.textContent).toContain('Checking your account…'); // loading-standard-ok: asserts the field status
     expect(enabledNames()).toEqual([]);
 
     await act(async () => answerRetry(ACME_CUSTOM));

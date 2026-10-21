@@ -1,7 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
@@ -20,7 +20,8 @@ export default function RemoteSessionsPage() {
     if (gate === 'off') router.replace(routes.devices.list);
   }, [gate, router]);
 
-  if (gate !== 'on') return <CompactPageLoader />;
+  // Until the gate answers the page draws itself: the sessions table its own loading state, asking for nothing.
+  const loading = gate !== 'on';
   return (
     <div className="flex w-full flex-col">
       <DevicesTabNavigation activeTab="remote-sessions" />
@@ -28,9 +29,11 @@ export default function RemoteSessionsPage() {
         title={REMOTE_SESSIONS_PAGE_TITLE}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        <RecordingStorageBanner />
+        {!loading && <RecordingStorageBanner />}
         <ContentErrorBoundary title="Remote Sessions" message="Couldn't load remote sessions.">
-          <TenantSessionsShell />
+          <LoadingWhen loading={loading}>
+            <TenantSessionsShell />
+          </LoadingWhen>
         </ContentErrorBoundary>
       </PageLayout>
     </div>

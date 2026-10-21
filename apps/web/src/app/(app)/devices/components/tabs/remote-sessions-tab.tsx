@@ -13,6 +13,7 @@ import {
   type SortDirection,
   type SortingState,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -74,7 +75,9 @@ const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COL
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
-  const { data, isLoading } = useSessionRecordings(deviceId);
+  const { data, isLoading: isQueryLoading } = useSessionRecordings(deviceId);
+  // The device has not answered (the page's loading scope), or this device's sessions have not.
+  const isLoading = useLoadingScope() || isQueryLoading;
   const deleteSession = useDeleteRemoteSession(deviceId ?? '');
   // The "Expires in N hours" countdown keeps moving while the tab is open.
   const now = useNow(60_000);
@@ -212,7 +215,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     });
   }, []);
 
-  if (!deviceId) {
+  if (!isLoading && !deviceId) {
     return (
       <TabEmptyState
         icon={<ComputerMouseIcon />}
@@ -286,7 +289,6 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         )}
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={4}
           rowClassName="mb-1"
           rowHref={recordingHref}
           emptyState={{

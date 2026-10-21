@@ -1,12 +1,13 @@
 'use client';
 
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   OSTypeIcon,
   renderDeviceTypeIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type React from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -27,6 +28,110 @@ function formatDateWithTime(iso?: string): React.ReactNode {
   );
 }
 
+const ROW_CLASS =
+  'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 content-md:min-h-20 border-b border-ods-border';
+const CARD_CLASS = 'flex flex-col rounded-md border border-ods-border bg-ods-card';
+/** Icons: 16px on mobile, 24px on tablet+ (matches the responsive design). */
+const ICON_SIZE = 'w-4 h-4 content-md:w-6 content-md:h-6';
+const OS_ICON_SIZE = 'w-5 h-5 content-md:w-7 content-md:h-7';
+
+/** An `InfoCell` while the device is read: the real label under a value bar (beside the icon's box, if any). */
+function InfoCellSkeleton({ label, valueWidth, iconClass }: { label: string; valueWidth: string; iconClass?: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+        {iconClass && <UnifiedSkeleton className={`${iconClass} shrink-0 rounded-[6px]`} />}
+        <TextLineSkeleton type="h4" className={valueWidth} />
+      </div>
+      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
+    </div>
+  );
+}
+
+/** The customer cell while the device is read: the logo's box beside the name bar and the real label. */
+function CustomerCellSkeleton() {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
+      <UnifiedSkeleton className="size-10 shrink-0 rounded-md" />
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <TextLineSkeleton type="h4" className="w-28" />
+        <p className="truncate text-ods-text-secondary text-h6">Customer ID (Site)</p>
+      </div>
+    </div>
+  );
+}
+
+/** The section while the device is read: the same responsive rows, the real labels, each value a bar. */
+function DeviceInfoSectionSkeleton() {
+  const hostname = <InfoCellSkeleton label="Hostname" valueWidth="w-28" />;
+  const deviceCell = <InfoCellSkeleton label="Device" valueWidth="w-44" iconClass={OS_ICON_SIZE} />;
+  const type = <InfoCellSkeleton label="Type" valueWidth="w-24" iconClass={ICON_SIZE} />;
+  const serial = <InfoCellSkeleton label="Serial Number" valueWidth="w-52" />;
+  const registered = <InfoCellSkeleton label="Registered" valueWidth="w-40" />;
+  const updated = <InfoCellSkeleton label="Updated" valueWidth="w-40" />;
+  const uuid = <InfoCellSkeleton label="UUID" valueWidth="w-48" iconClass={ICON_SIZE} />;
+  const customer = <CustomerCellSkeleton />;
+  // Draws its own skeleton in the scope.
+  const addedBy = <DeviceAddedByCell />;
+  const emptyCell = <div className="flex-1" aria-hidden="true" />;
+
+  return (
+    <div className={CARD_CLASS}>
+      <div className="flex flex-col content-lg:hidden">
+        <div className={ROW_CLASS}>
+          {hostname}
+          {deviceCell}
+        </div>
+        <div className={ROW_CLASS}>
+          {type}
+          {serial}
+        </div>
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-xs)] border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
+          {customer}
+        </div>
+        <div className="flex min-h-14 items-center border-b border-ods-border px-[var(--spacing-system-m)] content-md:hidden">
+          {addedBy}
+        </div>
+        <div className="hidden min-h-20 border-b border-ods-border px-[var(--spacing-system-m)] content-md:flex content-md:items-center content-md:gap-[var(--spacing-system-m)]">
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {addedBy}
+        </div>
+        <div className={ROW_CLASS}>
+          {registered}
+          {updated}
+        </div>
+        <div className="flex min-h-14 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] content-md:min-h-20">
+          {uuid}
+        </div>
+      </div>
+
+      <div className="hidden content-lg:flex content-lg:flex-col">
+        <div className={ROW_CLASS}>
+          {hostname}
+          {deviceCell}
+          {type}
+          {serial}
+        </div>
+        <div className={ROW_CLASS}>
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">{customer}</div>
+          {emptyCell}
+          {emptyCell}
+          {addedBy}
+        </div>
+        <div className={ROW_CLASS}>
+          {registered}
+          {updated}
+          {emptyCell}
+          {emptyCell}
+        </div>
+        <div className="flex min-h-20 items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)]">
+          {uuid}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface DeviceInfoSectionProps {
   device: Device | null;
 }
@@ -35,6 +140,10 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const { copy: copyUuid, copied: uuidCopied } = useCopyToClipboard({
     successDescription: 'UUID copied to clipboard',
   });
+
+  if (useLoadingScope()) {
+    return <DeviceInfoSectionSkeleton />;
+  }
 
   if (!device) {
     return (
@@ -51,8 +160,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
   const customerHref = device.organizationId ? routes.customers.details(device.organizationId) : undefined;
 
   // Cells defined once and reused across both responsive layouts below.
-  // Icons: 16px on mobile, 24px on tablet+ (matches the responsive design).
-  const iconSize = 'w-4 h-4 content-md:w-6 content-md:h-6';
+  const iconSize = ICON_SIZE;
   const typeIcon = renderDeviceTypeIcon(device.type, `${iconSize} text-ods-text-secondary`);
 
   // The original device name — with a nickname in the page title, this cell is
@@ -63,7 +171,7 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     <InfoCell
       value={deviceLabel}
       label="Device"
-      icon={<OSTypeIcon osType={device.osType || device.platform} size="w-5 h-5 content-md:w-7 content-md:h-7" />}
+      icon={<OSTypeIcon osType={device.osType || device.platform} size={OS_ICON_SIZE} />}
     />
   );
   const serialCell = <InfoCell value={serialNumber} label="Serial Number" />;
@@ -110,11 +218,10 @@ export function DeviceInfoSection({ device }: DeviceInfoSectionProps) {
     />
   );
 
-  const rowClass =
-    'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] min-h-14 content-md:min-h-20 border-b border-ods-border';
+  const rowClass = ROW_CLASS;
 
   return (
-    <div className="flex flex-col rounded-md border border-ods-border bg-ods-card">
+    <div className={CARD_CLASS}>
       {/* ===== Mobile + Tablet (< lg) ===== */}
       <div className="flex flex-col content-lg:hidden">
         <div className={rowClass}>

@@ -180,7 +180,7 @@ export function LoginSection({ onDiscover, onSso, genericProviders, isLoading }:
     !showStatus || showInvitationNotice
       ? undefined
       : status === 'checking'
-        ? { message: 'Checking your account…', variant: 'muted' as const }
+        ? { message: 'Checking your account…', variant: 'muted' as const } // loading-standard-ok: the field's live availability status, not a loading state
         : status === 'not-found'
           ? { message: 'No account found for this email. Please sign up first.', variant: 'error' as const }
           : status === 'error'

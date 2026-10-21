@@ -1,7 +1,9 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { packageManagerLabel, softwareActionCopy } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { actionDetailSummary_action$key } from '@/__generated__/actionDetailSummary_action.graphql';
 import { PackageManagerType } from '@/generated/schema-enums';
@@ -28,7 +30,12 @@ const actionDetailSummaryFragment = graphql`
  * single not-found report, so a bad id is stated once.
  */
 export function ActionDetailSummary({ action }: { action: actionDetailSummary_action$key | null | undefined }) {
+  const loading = useLoadingScope();
   const data = useFragment(actionDetailSummaryFragment, action);
+
+  if (loading) {
+    return <ActionDetailSummarySkeleton />;
+  }
 
   if (!data) {
     return <NotFoundError message="Software action not found" />;
@@ -48,7 +55,7 @@ export function ActionDetailSummary({ action }: { action: actionDetailSummary_ac
             label: LABELS.packageVersion,
             // No catalog to ask for a manager this build does not know.
             value: packageManager ? (
-              <SummaryValueIsland>
+              <SummaryValueIsland label="Loading package version">
                 <ActionPackageVersion packageManager={packageManager} packageName={software} />
               </SummaryValueIsland>
             ) : null,
@@ -60,6 +67,18 @@ export function ActionDetailSummary({ action }: { action: actionDetailSummary_ac
         ]}
       />
       <ActionDetailLogsHeading>{softwareActionCopy(data.action)?.logsHeading ?? 'Logs'}</ActionDetailLogsHeading>
+    </>
+  );
+}
+
+/** Same card and heading with the record's values as bars; the labels are real. */
+function ActionDetailSummarySkeleton() {
+  return (
+    <>
+      <SummaryCard columns={4} fields={Object.values(LABELS).map(label => ({ label, value: null }))} />
+      <ActionDetailLogsHeading>
+        <UnifiedSkeleton as="span" className="h-8 w-48" />
+      </ActionDetailLogsHeading>
     </>
   );
 }

@@ -1,10 +1,11 @@
 'use client';
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import { type ComponentType, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { UserOnboardingStep } from '@/generated/schema-enums';
@@ -29,7 +30,6 @@ import { MingoStep } from './mingo-step';
 import { MonitoringStep } from './monitoring-step';
 import { OnboardingAccordionGroup, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
-import { OnboardingSkeleton } from './onboarding-skeleton';
 import { ScriptingStep } from './scripting-step';
 import { TicketsStep } from './tickets-step';
 
@@ -116,10 +116,87 @@ export function OnboardingContent() {
   }, [onboardingV2, isLoaded, initialSetupComplete, lockedOut, router]);
 
   if (onboardingV2 !== 'off' || !isLoaded || !initialSetupComplete || lockedOut) {
-    return <OnboardingSkeleton />;
+    return <PendingOnboardingContent />;
   }
 
-  return <LoadedOnboardingContent />;
+  // The step bodies stay mounted while collapsed, and some of them suspend on their own
+  // reads: the page keeps its header and rows meanwhile.
+  return (
+    <Suspense fallback={<PendingOnboardingContent />}>
+      <LoadedOnboardingContent />
+    </Suspense>
+  );
+}
+
+const PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
+const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
+
+/**
+ * The page before progress is in: the real header (its copy is static, Skip held off until
+ * there is progress to skip), the booking offer, and the step rows, each of which draws its
+ * own status as a skeleton (`OnboardingAccordionItem`'s `loading` mode). The rows' bodies
+ * are not mounted, so nothing here suspends.
+ */
+function PendingOnboardingContent() {
+  return (
+    <PageLayout
+      title="Get Started"
+      subtitle={`${USER_ONBOARDING_STEPS.length} steps to complete`}
+      actions={[
+        {
+          label: 'Skip Onboarding',
+          variant: 'outline',
+          icon: <FastForwardIcon className="size-5" />,
+          disabled: true,
+        },
+      ]}
+      actionsVariant="icon-buttons"
+      className={PAGE_CLASS}
+      contentClassName={CONTENT_CLASS}
+    >
+      <BookCallSection />
+      <OnboardingSteps />
+    </PageLayout>
+  );
+}
+
+/**
+ * Every group and row of the tour. With `renderItem` the rows are the loaded ones; without it
+ * (progress not read yet) or in a loading scope each row draws its own loading state.
+ */
+function OnboardingSteps({
+  renderItem,
+}: {
+  renderItem?: (item: (typeof USER_ONBOARDING_GROUPS)[number]['items'][number]) => ReactNode;
+}) {
+  if (!renderItem) {
+    return (
+      <LoadingRegion className="contents" label="Loading onboarding">
+        {USER_ONBOARDING_GROUPS.map(group => (
+          <OnboardingAccordionGroup key={group.label} label={group.label}>
+            {group.items.map(item => (
+              <OnboardingAccordionItem
+                key={item.step}
+                icon={item.icon}
+                title={item.title}
+                description={item.description}
+                loading
+              />
+            ))}
+          </OnboardingAccordionGroup>
+        ))}
+      </LoadingRegion>
+    );
+  }
+  return (
+    <>
+      {USER_ONBOARDING_GROUPS.map(group => (
+        <OnboardingAccordionGroup key={group.label} label={group.label}>
+          {group.items.map(item => renderItem(item))}
+        </OnboardingAccordionGroup>
+      ))}
+    </>
+  );
 }
 
 /** The loaded page body — mounted by {@link OnboardingContent} once progress is in. */
@@ -234,8 +311,8 @@ function LoadedOnboardingContent() {
       subtitle={allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
       actions={actions}
       actionsVariant="icon-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
+      className={PAGE_CLASS}
+      contentClassName={CONTENT_CLASS}
     >
       {allDone && (
         <OnboardingCompleteBanner
@@ -251,35 +328,33 @@ function LoadedOnboardingContent() {
       {/* The "walk me through it instead" offer, above the steps it replaces. */}
       <BookCallSection />
 
-      {USER_ONBOARDING_GROUPS.map(group => (
-        <OnboardingAccordionGroup key={group.label} label={group.label}>
-          {group.items.map(item => {
-            const StepBody = STEP_BODY[item.step];
-            return (
-              <OnboardingAccordionItem
-                key={item.step}
-                ref={refOf(item.step)}
-                id={onboardingStepAnchorId(item.step)}
-                icon={item.icon}
-                status={statusOf(item.step)}
-                next={item.step === nextStep}
-                title={item.title}
-                description={item.description}
+      <OnboardingSteps
+        renderItem={item => {
+          const StepBody = STEP_BODY[item.step];
+          return (
+            <OnboardingAccordionItem
+              key={item.step}
+              ref={refOf(item.step)}
+              id={onboardingStepAnchorId(item.step)}
+              icon={item.icon}
+              status={statusOf(item.step)}
+              next={item.step === nextStep}
+              title={item.title}
+              description={item.description}
+              expanded={expandedOf(item.step)}
+              onExpandedChange={onExpandedChangeOf(item.step)}
+            >
+              <StepBody
+                completed={doneOf(item.step)}
+                completing={completingOf(item.step)}
+                onComplete={completeOf(item.step)}
+                onCompleteBackground={completeBackgroundOf(item.step)}
                 expanded={expandedOf(item.step)}
-                onExpandedChange={onExpandedChangeOf(item.step)}
-              >
-                <StepBody
-                  completed={doneOf(item.step)}
-                  completing={completingOf(item.step)}
-                  onComplete={completeOf(item.step)}
-                  onCompleteBackground={completeBackgroundOf(item.step)}
-                  expanded={expandedOf(item.step)}
-                />
-              </OnboardingAccordionItem>
-            );
-          })}
-        </OnboardingAccordionGroup>
-      ))}
+              />
+            </OnboardingAccordionItem>
+          );
+        }}
+      />
 
       <ConfirmDialog
         open={skipConfirmOpen}

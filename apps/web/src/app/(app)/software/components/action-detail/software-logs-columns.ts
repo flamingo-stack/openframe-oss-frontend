@@ -1,8 +1,8 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 
 /**
- * Column layout for Software Update Details' per-device logs, shared by the
- * live table and its skeleton — see `table-column-layout.ts` for why this
+ * Column layout for Software Update Details' per-device logs, read by the
+ * live table — see `table-column-layout.ts` for why this
  * module is data-only.
  */
 const SOFTWARE_LOG_COLUMNS = {
@@ -13,11 +13,3 @@ const SOFTWARE_LOG_COLUMNS = {
 } satisfies Record<string, TableSkeletonColumn>;
 
 export { SOFTWARE_LOG_COLUMNS };
-
-/** Render order for the live table and its skeleton. */
-export const SOFTWARE_LOG_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  SOFTWARE_LOG_COLUMNS.device,
-  SOFTWARE_LOG_COLUMNS.customer,
-  SOFTWARE_LOG_COLUMNS.status,
-  SOFTWARE_LOG_COLUMNS.result,
-];

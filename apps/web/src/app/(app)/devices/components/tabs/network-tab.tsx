@@ -2,6 +2,7 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { Hierarchy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
@@ -39,7 +40,35 @@ function Labeled({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+const EMPTY_CARD = { items: [] };
+
+/** The Network tab while the device is read: its sections with their real headings, each card its own skeleton. */
+function NetworkTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <Labeled title="Network">
+        <InfoCard data={EMPTY_CARD} skeleton={{ rows: 3, title: false }} />
+      </Labeled>
+      <Labeled title="Location">
+        <InfoCard data={EMPTY_CARD} skeleton={{ rows: 2, title: false }} />
+      </Labeled>
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
+        <Labeled title="IPv4 Addresses">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 1, title: false }} />
+        </Labeled>
+        <Labeled title="IPv6 Addresses">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 1, title: false }} />
+        </Labeled>
+      </div>
+    </div>
+  );
+}
+
 export function NetworkTab({ device }: NetworkTabProps) {
+  if (useLoadingScope()) {
+    return <NetworkTabSkeleton />;
+  }
+
   if (!device) {
     return (
       <TabEmptyState

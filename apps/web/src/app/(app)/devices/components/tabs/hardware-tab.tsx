@@ -2,6 +2,7 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
@@ -70,13 +71,49 @@ function HardwareEmptyState() {
   );
 }
 
+const EMPTY_CARD = { items: [] };
+
+/** The Hardware tab while the device is read: its blocks with their real headings, each card its own skeleton. */
+function HardwareTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <Row>
+        <Block heading="System">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 4, subtitle: true }} />
+        </Block>
+        <Block heading="Boot">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 4, title: false }} />
+        </Block>
+        <Block heading="CPU">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 4 }} />
+        </Block>
+      </Row>
+      <Row>
+        <Block heading="Memory">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 1, title: false }} />
+        </Block>
+      </Row>
+      <Row>
+        <Block heading="Storage">
+          <InfoCard data={EMPTY_CARD} skeleton={{ rows: 4, subtitle: true, progress: true }} />
+        </Block>
+      </Row>
+    </div>
+  );
+}
+
 export function HardwareTab({ device }: HardwareTabProps) {
+  const loading = useLoadingScope();
   // `Date.now()` in render makes the component impure: two renders of the same
   // device disagree, and the compiler cannot memoize around it. Sampled once on
   // mount instead — the figure is a coarse "3 days", and it already only moved
   // when something else happened to re-render this tab. Declared before the
   // early return below, because hooks may not be called conditionally.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
+
+  if (loading) {
+    return <HardwareTabSkeleton />;
+  }
 
   if (!device) {
     return <HardwareEmptyState />;

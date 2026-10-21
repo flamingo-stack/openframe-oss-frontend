@@ -1,12 +1,12 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   accessStateTag,
   formatLastRead,
   lastReadAt,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -93,9 +93,14 @@ function ConnectedCell({ connectedAt }: { connectedAt: unknown }) {
   );
 }
 
-/** The Edit / Reconnect cut: provider and domain only. */
-export function TenantIdentityCard({ connection }: { connection: tenantSummaryCard_identity$key }) {
-  const { provider, domain } = useFragment(tenantSummaryCardIdentityFragment, connection);
+/** The Edit / Reconnect cut: provider and domain only. Null before the record answers (its loading state). */
+export function TenantIdentityCard({ connection }: { connection: tenantSummaryCard_identity$key | null }) {
+  const loading = useLoadingScope();
+  const data = useFragment(tenantSummaryCardIdentityFragment, connection);
+  if (loading || !data) {
+    return <TenantSummaryCardSkeleton identityOnly />;
+  }
+  const { provider, domain } = data;
   return (
     <div className={CARD_CLASSES}>
       <div className={ROW_CLASSES}>
@@ -106,8 +111,13 @@ export function TenantIdentityCard({ connection }: { connection: tenantSummaryCa
   );
 }
 
-export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key }) {
+/** The details page's card. Null before the record answers (its loading state). */
+export function TenantSummaryCard({ connection }: { connection: tenantSummaryCard_connection$key | null }) {
+  const loading = useLoadingScope();
   const data = useFragment(tenantSummaryCardFragment, connection);
+  if (loading || !data) {
+    return <TenantSummaryCardSkeleton />;
+  }
   const { organization } = data;
   // `Instant` scalars are untyped (`any`); `unknown` keeps them out of the rest of the render.
   const connectedAt: unknown = data.connectedAt;
@@ -157,16 +167,9 @@ function CellSkeleton({ label, valueClassName }: { label: string; valueClassName
  * The connected card's rows, cells and labels — the details page's steady state — so the page does not
  * jump when such a record lands. A tenant still awaiting consent adds its Domain cell on arrival.
  */
-export function TenantSummaryCardSkeleton({
-  identityOnly = false,
-  region = true,
-}: {
-  identityOnly?: boolean;
-  /** `false` inside another loading region, which announces for the card. Default `true`. */
-  region?: boolean;
-}) {
+function TenantSummaryCardSkeleton({ identityOnly = false }: { identityOnly?: boolean }) {
   return (
-    <LoadingRegion label="Loading tenant" announce={region} className={CARD_CLASSES}>
+    <div className={CARD_CLASSES}>
       <div className={ROW_CLASSES}>
         <CellSkeleton label={LABELS.provider} valueClassName="h-6 w-36" />
         <CellSkeleton label={identityOnly ? LABELS.domainName : LABELS.customer} valueClassName="h-6 w-44" />
@@ -179,6 +182,6 @@ export function TenantSummaryCardSkeleton({
           <CellSkeleton label={LABELS.lastRead} valueClassName="h-6 w-28" />
         </div>
       )}
-    </LoadingRegion>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   TenantsTableView,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
@@ -75,8 +76,35 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The tenant rows: suspends on the query, so it lives under the view's `<Suspense>`. */
-export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
+const NO_ROWS: TenantRow[] = [];
+const noop = () => {};
+
+/**
+ * The tenant rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws the
+ * table with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it
+ * lives under the view's `<Suspense>`.
+ */
+export function TenantsTable(props: TenantsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <TenantsTableView
+        rows={NO_ROWS}
+        getHref={tenantRowHref}
+        search={props.search}
+        isPending={props.isPending}
+        totalCount={0}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        skeletonRows={TENANTS_PAGE_SIZE}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <TenantsTableQuery {...props} />;
+}
+
+function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
     tenantsTableQuery,

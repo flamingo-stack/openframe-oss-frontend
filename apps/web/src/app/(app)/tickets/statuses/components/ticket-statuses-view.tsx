@@ -6,6 +6,7 @@ import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import {
   Button,
   DEFAULT_CUSTOM_STATUS_COLOR,
+  LoadingWhen,
   type PageActionButton,
   PageLayout,
   TicketStatusConfigRow,
@@ -57,6 +58,7 @@ export function TicketStatusesView() {
     systemStatuses,
     persistedCustomIds,
     replacementOptionsFor,
+    isLoading,
   } = useTicketStatusesForm();
 
   const [pendingDelete, setPendingDelete] = useState<{ index: number; custom: CustomTicketStatus } | null>(null);
@@ -96,7 +98,7 @@ export function TicketStatusesView() {
       label: 'Save Statuses',
       onClick: submit,
       variant: 'accent',
-      disabled: !form.formState.isDirty || saveMutation.isPending,
+      disabled: isLoading || !form.formState.isDirty || saveMutation.isPending,
       loading: saveMutation.isPending,
     },
   ];
@@ -110,58 +112,61 @@ export function TicketStatusesView() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
     >
-      <form onSubmit={submit} className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-        <section aria-label="System statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          {systemTop.map(renderSystemRow)}
-        </section>
+      {/* While the statuses load the form draws itself in a loading scope: each part its own skeleton. */}
+      <LoadingWhen loading={isLoading}>
+        <form onSubmit={submit} className="flex w-full flex-col gap-[var(--spacing-system-l)]">
+          <section aria-label="System statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            {systemTop.map(renderSystemRow)}
+          </section>
 
-        <section aria-label="Custom statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          <TicketStatusConfigList
-            items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
-            onReorder={fieldArray.move}
-            getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
-            renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
-              <Controller
-                key={row.rhfKey}
-                control={form.control}
-                name={`customStatuses.${row.index}`}
-                render={({ field }) => (
-                  <TicketStatusConfigRow
-                    variant="custom"
-                    statusKey={field.value.id}
-                    name={field.value.name}
-                    onNameChange={value => field.onChange({ ...field.value, name: value })}
-                    color={field.value.color}
-                    presetKey={field.value.preset}
-                    onColorChange={next => field.onChange({ ...field.value, color: next.color, preset: next.preset })}
-                    onDelete={() => handleDelete(row.index, field.value)}
-                    deleteDisabled={!canDelete}
-                    deleteDisabledReason={!canDelete ? DELETE_DISABLED_REASON : undefined}
-                    dragHandleProps={dragHandleProps}
-                    isDragging={isDragging}
-                    moveButtons={moveButtons}
-                  />
-                )}
-              />
-            )}
-          />
+          <section aria-label="Custom statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            <TicketStatusConfigList
+              items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
+              onReorder={fieldArray.move}
+              getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
+              renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
+                <Controller
+                  key={row.rhfKey}
+                  control={form.control}
+                  name={`customStatuses.${row.index}`}
+                  render={({ field }) => (
+                    <TicketStatusConfigRow
+                      variant="custom"
+                      statusKey={field.value.id}
+                      name={field.value.name}
+                      onNameChange={value => field.onChange({ ...field.value, name: value })}
+                      color={field.value.color}
+                      presetKey={field.value.preset}
+                      onColorChange={next => field.onChange({ ...field.value, color: next.color, preset: next.preset })}
+                      onDelete={() => handleDelete(row.index, field.value)}
+                      deleteDisabled={!canDelete}
+                      deleteDisabledReason={!canDelete ? DELETE_DISABLED_REASON : undefined}
+                      dragHandleProps={dragHandleProps}
+                      isDragging={isDragging}
+                      moveButtons={moveButtons}
+                    />
+                  )}
+                />
+              )}
+            />
 
-          <Button
-            type="button"
-            variant="outline"
-            size="small"
-            onClick={handleAdd}
-            className="self-start"
-            leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
-          >
-            Add Status
-          </Button>
-        </section>
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={handleAdd}
+              className="self-start"
+              leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
+            >
+              Add Status
+            </Button>
+          </section>
 
-        <section aria-label="Resolved status" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          {systemBottom.map(renderSystemRow)}
-        </section>
-      </form>
+          <section aria-label="Resolved status" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            {systemBottom.map(renderSystemRow)}
+          </section>
+        </form>
+      </LoadingWhen>
 
       <DeleteStatusDialog
         isOpen={pendingDelete !== null}

@@ -1,16 +1,16 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { Suspense, useState } from 'react';
-import { type SelectableTag, TableSkeleton } from '@/app/components/shared';
+import type { SelectableTag } from '@/app/components/shared';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { ASSIGNED_ITEMS_QUERY_KEY } from '@/components/assignments';
-import { KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseTagsFilterModal } from '../shared/knowledge-base-tags-filter-modal';
 import { AssignArticleModal } from './assign-article-modal';
 import { AssignedArticlesTable } from './assigned-articles-table';
@@ -58,6 +58,31 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
     void queryClient.invalidateQueries({ queryKey: ASSIGNED_ITEMS_QUERY_KEY });
   };
 
+  const rows = (
+    <AssignedArticlesTable
+      target={target}
+      listing={{ search: deferredSearch, tagIds: deferredTagIds }}
+      isPending={isPending}
+      refreshKey={refreshKey}
+      onChanged={handleChanged}
+      onEmptyChange={setIsEmpty}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+  // Suspends on the tags; while they load the modal is drawn in a loading scope, its own loading state.
+  const tagsModal = (
+    <KnowledgeBaseTagsFilterModal
+      isOpen={isTagsOpen}
+      onClose={() => setIsTagsOpen(false)}
+      parentId={null}
+      archived={false}
+      assignedTo={target}
+      refreshKey={refreshKey}
+      selectedIds={tagIds}
+      onApply={applyTags}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
       <div className="flex flex-wrap items-center justify-between gap-[var(--spacing-system-m)]">
@@ -98,41 +123,13 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
           </div>
         )}
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              columns={KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS}
-              rows={KNOWLEDGE_BASE_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          }
-        >
-          <AssignedArticlesTable
-            target={target}
-            listing={{ search: deferredSearch, tagIds: deferredTagIds }}
-            isPending={isPending}
-            refreshKey={refreshKey}
-            onChanged={handleChanged}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
+        {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
+        <Suspense fallback={<LoadingFallback label="Loading articles">{rows}</LoadingFallback>}>{rows}</Suspense>
       </div>
 
       {/* Beside the toolbar, not inside it: the bar is a stacking context (`sticky` + `z-20`),
           and a modal inside it could never rise above the app header. */}
-      <Suspense fallback={null}>
-        <KnowledgeBaseTagsFilterModal
-          isOpen={isTagsOpen}
-          onClose={() => setIsTagsOpen(false)}
-          parentId={null}
-          archived={false}
-          assignedTo={target}
-          refreshKey={refreshKey}
-          selectedIds={tagIds}
-          onApply={applyTags}
-        />
-      </Suspense>
+      <Suspense fallback={<LoadingFallback label="Loading tags">{tagsModal}</LoadingFallback>}>{tagsModal}</Suspense>
 
       <AssignArticleModal
         target={target}

@@ -15,6 +15,7 @@ import { EP, HELP_CENTER_BASE } from '../../endpoints';
 // vote/refresh via the same /content endpoints as the standalone page.
 function RoadmapSection({
   items,
+  isLoading,
   onItemUpdate,
 }: {
   items: RoadmapItem[];
@@ -24,6 +25,7 @@ function RoadmapSection({
   return (
     <RoadmapGrid
       items={items}
+      isLoading={isLoading}
       onItemUpdate={onItemUpdate}
       buildRefreshUrl={EP.roadmapById}
       votingOptions={{ voteApiEndpoint: EP.roadmapVote }}

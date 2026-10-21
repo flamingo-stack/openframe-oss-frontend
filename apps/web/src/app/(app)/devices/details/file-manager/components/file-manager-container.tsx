@@ -1,8 +1,12 @@
 'use client';
 
 import { Button, LoadError, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { FileAction, FileItem } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
-import { FileManager, FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
+import {
+  type FileAction,
+  type FileItem,
+  FileManager,
+  type FileManagerProps,
+} from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -19,6 +23,25 @@ interface FileManagerContainerProps {
   organizationName?: string;
   className?: string;
 }
+
+const NO_FILES: FileManagerProps['files'] = [];
+const NO_SELECTION: string[] = [];
+
+/**
+ * The file manager before the device's file system answers: the real toolbar and table in their `loading` state,
+ * with nothing in them. The page draws the same while the device itself is read.
+ */
+export const FILE_MANAGER_LOADING_PROPS = {
+  files: NO_FILES,
+  currentPath: '',
+  selectedFiles: NO_SELECTION,
+  loading: true,
+  showCheckboxes: true,
+  showSearch: true,
+  showActions: true,
+  disableSearch: true,
+  className: 'min-h-0 flex-1',
+} satisfies FileManagerProps;
 
 export function FileManagerContainer({
   deviceId,
@@ -294,7 +317,7 @@ export function FileManagerContainer({
         {connectionState === 'failed' ? (
           <LoadError message="Couldn't connect to the device's file system." onRetry={retryConnection} />
         ) : showFileManagerSkeleton ? (
-          <FileManagerSkeleton />
+          <FileManager {...FILE_MANAGER_LOADING_PROPS} deviceName={deviceName || `Device ${deviceId}`} />
         ) : (
           <FileManager
             files={files}

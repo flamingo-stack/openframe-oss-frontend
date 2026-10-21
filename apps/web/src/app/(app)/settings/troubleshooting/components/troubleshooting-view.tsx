@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BuildingsIcon,
   MonitorOffIcon,
@@ -12,7 +13,6 @@ import { type ReactNode, Suspense, useMemo, useState } from 'react';
 import { DeviceLogDrawer } from '@/app/(app)/devices/components/tabs/device-logs/device-log-drawer';
 import type { DeviceLogEntry } from '@/app/(app)/devices/components/tabs/device-logs/device-log-row';
 import { DeviceLogsList } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-list';
-import { DeviceLogsListSkeleton } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-skeleton';
 import { useDeferredLogList } from '@/app/(app)/devices/hooks/use-deferred-log-list';
 import {
   deviceLogParamReset,
@@ -136,6 +136,23 @@ export function TroubleshootingView() {
     },
   ];
 
+  // The same list in the Suspense fallback, where it draws its own skeleton in the loading scope.
+  const logsList = (
+    <DeviceLogsList
+      key={deferredList.key}
+      machineIds={deferredList.machineIds}
+      organizationIds={deferredList.organizationIds}
+      filter={deferredList.filter}
+      isPending={isPending}
+      autoUpdate={autoUpdate && !filters.rangeClosed}
+      hasFilters={hasFilters}
+      onResetFilters={resetFilters}
+      emptyDescription={deferredList.organizationIds ? CUSTOMER_EMPTY_DESCRIPTION : undefined}
+      selectedKey={selected?.key ?? null}
+      onSelect={(key, entry) => setSelected({ key, entry })}
+    />
+  );
+
   return (
     <PageLayout
       title="Troubleshooting"
@@ -160,21 +177,7 @@ export function TroubleshootingView() {
         resetKey={deferredList.key}
         fallback={unknownPickFallback}
       >
-        <Suspense fallback={<DeviceLogsListSkeleton />}>
-          <DeviceLogsList
-            key={deferredList.key}
-            machineIds={deferredList.machineIds}
-            organizationIds={deferredList.organizationIds}
-            filter={deferredList.filter}
-            isPending={isPending}
-            autoUpdate={autoUpdate && !filters.rangeClosed}
-            hasFilters={hasFilters}
-            onResetFilters={resetFilters}
-            emptyDescription={deferredList.organizationIds ? CUSTOMER_EMPTY_DESCRIPTION : undefined}
-            selectedKey={selected?.key ?? null}
-            onSelect={(key, entry) => setSelected({ key, entry })}
-          />
-        </Suspense>
+        <Suspense fallback={<LoadingFallback label="Loading logs">{logsList}</LoadingFallback>}>{logsList}</Suspense>
       </ContentErrorBoundary>
       <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} />
     </PageLayout>

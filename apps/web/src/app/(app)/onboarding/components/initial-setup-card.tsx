@@ -1,9 +1,10 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
@@ -40,6 +41,10 @@ interface StepMeta {
  * The four steps' static presentation, shared with {@link InitialSetupSkeleton}
  * so the skeleton matches the card 1:1. Bodies are wired up in the card.
  */
+/** The rows' container, shared by the loaded card and its skeleton. */
+const STEP_LIST_CLASS =
+  'flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0';
+
 const STEP_META: readonly StepMeta[] = [
   {
     step: TenantOnboardingStep.MSP_SETUP,
@@ -75,11 +80,12 @@ const STEP_META: readonly StepMeta[] = [
  * Tenant "Initial Setup" block on the Dashboard. Mount gate only: nothing until
  * onboarding progress has loaded, and permanently hidden once Initial Setup is
  * complete (a one-time surface). When active, it renders {@link InitialSetupCardContent},
- * which suspends on its step counts — the loading skeleton is the dashboard
- * `<Suspense fallback={<InitialSetupSkeleton />}>` that wraps this card, so the whole
- * load (counts + the content's own suspending queries) shows one skeleton, not two.
+ * which suspends on its step counts; the card owns that boundary and draws its own
+ * {@link InitialSetupSkeleton} meanwhile, so the whole load (counts + the content's own
+ * suspending queries) shows one skeleton, not two. In a loading scope it is that skeleton.
  */
 export function InitialSetupCard() {
+  const inScope = useLoadingScope();
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
 
@@ -91,6 +97,8 @@ export function InitialSetupCard() {
     setShown(true);
   }
 
+  if (inScope) return <InitialSetupSkeleton />;
+
   // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
   // the content fires its queries the instant it mounts.
   if (!isLoaded || !tenant) {
@@ -100,7 +108,11 @@ export function InitialSetupCard() {
     return null;
   }
 
-  return <InitialSetupCardContent />;
+  return (
+    <Suspense fallback={<InitialSetupSkeleton />}>
+      <InitialSetupCardContent />
+    </Suspense>
+  );
 }
 
 /**
@@ -190,18 +202,8 @@ function InitialSetupCardContent() {
   };
 
   return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
-        <p className="text-ods-text-secondary text-h6">
-          {allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
-        </p>
-      </div>
-
-      {/* The "walk me through it instead" offer, above the steps it replaces. */}
-      <BookCallSection />
-
-      <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
+    <InitialSetupFrame subtitle={allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}>
+      <div className={STEP_LIST_CLASS}>
         {STEP_META.map(meta => (
           <OnboardingAccordionItem
             key={meta.step}
@@ -230,47 +232,39 @@ function InitialSetupCardContent() {
           onAction={() => router.push(routes.onboarding)}
         />
       )}
+    </InitialSetupFrame>
+  );
+}
+
+/** The card's frame: the section, its real header, and the booking offer above the steps. */
+function InitialSetupFrame({ subtitle, children }: { subtitle: string; children: ReactNode }) {
+  return (
+    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
+      <div className="flex min-w-0 flex-col">
+        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
+        <p className="text-ods-text-secondary text-h6">{subtitle}</p>
+      </div>
+
+      {/* The "walk me through it instead" offer, above the steps it replaces. It reads
+          its own data (scheduling links, walkthrough video), none of which is onboarding
+          progress, so it settles independently in both states. */}
+      <BookCallSection />
+
+      {children}
     </section>
   );
 }
 
 /**
- * Loading placeholder for the card, rendered 1:1 from the same frame and `STEP_META`
- * as {@link InitialSetupCardContent}: identical section, header and four accordion rows.
- * A FULL skeleton — the header title/subtitle and each row's title/description are all
- * skeleton bars (via `OnboardingAccordionItem`'s `loading` mode), only the leading step
- * icons stay real. Kept pixel-identical in height to the loaded card.
- *
- * Used as the `<Suspense>` fallback around the card (see dashboard-content): the card
- * body renders `DeviceSetupStep`, whose `useDeviceOrganizations` suspends, so reusing
- * this same skeleton keeps the loading → content transition seamless (no empty gap).
+ * The card while its step signals load, from the same frame and `STEP_META` as
+ * {@link InitialSetupCardContent}: the real header (its copy is static), the booking
+ * offer and the four rows with their real icons, titles and descriptions; only each
+ * row's status control is a skeleton (`OnboardingAccordionItem`'s `loading` mode).
  */
-export function InitialSetupSkeleton() {
+function InitialSetupSkeleton() {
   return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
-            `text-h6` line boxes so the header height matches the loaded card exactly.
-            Decorative `div` wrappers (not `h2`/`p`), so the loading card adds no empty heading
-            or paragraph to the page; the type utilities carry the height. */}
-        <div className="text-ods-text-primary text-h2">
-          <UnifiedSkeleton className="inline-block h-6 w-40 align-middle" />
-        </div>
-        <div className="text-ods-text-secondary text-h6">
-          <UnifiedSkeleton className="inline-block h-3 w-52 max-w-full align-middle" />
-        </div>
-      </div>
-
-      {/* The REAL block, not a placeholder: it reads its own data (scheduling links,
-          walkthrough video), none of which is onboarding progress — so it settles
-          independently, and rendering it here is what keeps the rows from jumping
-          down when the card loads. */}
-      <BookCallSection />
-
-      <LoadingRegion
-        label="Loading setup steps"
-        className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0"
-      >
+    <InitialSetupFrame subtitle={`${TENANT_ONBOARDING_STEPS.length} steps to complete`}>
+      <LoadingRegion label="Loading setup steps" className={STEP_LIST_CLASS}>
         {STEP_META.map(meta => (
           <OnboardingAccordionItem
             key={meta.step}
@@ -281,6 +275,6 @@ export function InitialSetupSkeleton() {
           />
         ))}
       </LoadingRegion>
-    </section>
+    </InitialSetupFrame>
   );
 }

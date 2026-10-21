@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { currentPlanSection_billingPlan$key } from '@/__generated__/currentPlanSection_billingPlan.graphql';
 import type { currentPlanSection_subscription$key } from '@/__generated__/currentPlanSection_subscription.graphql';
@@ -44,13 +45,31 @@ const currentPlanSectionBillingPlanFragment = graphql`
 `;
 
 interface CurrentPlanSectionProps {
-  subscription: currentPlanSection_subscription$key;
+  /** `null` only while the page loads. */
+  subscription: currentPlanSection_subscription$key | null;
   billingPlan: currentPlanSection_billingPlan$key | null;
+}
+
+/**
+ * The section while the subscription is on its way: every row a paid plan typically states (each is present only
+ * when its own field is, which the response has not said yet), labels real and values as bars.
+ */
+export function CurrentPlanSectionSkeleton() {
+  return (
+    <SectionBlock title="Current Plan">
+      <BillingRow label="Billing Cycle" loading />
+      <BillingRow label="Device Rate" loading />
+      <BillingRow label="Free AI Tokens" loading />
+      <BillingRow label="Next Payment" loading />
+      <BillingRow label="Next Billing Date" loading />
+    </SectionBlock>
+  );
 }
 
 export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSectionProps) {
   const data = useFragment(currentPlanSectionSubscriptionFragment, subscription);
   const catalog = useFragment(currentPlanSectionBillingPlanFragment, billingPlan);
+  if (useLoadingScope() || data == null) return <CurrentPlanSectionSkeleton />;
   const schedule = planSchedule(data);
   const products = catalog?.products ?? [];
 

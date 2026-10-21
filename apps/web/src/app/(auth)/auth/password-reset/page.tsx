@@ -1,14 +1,44 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { BackToLoginLink, PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import { getPasswordError } from '@/app/(auth)/auth/constants/registration-validation';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
+const noop = () => {};
+
 export default function PasswordResetPage() {
+  return (
+    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
+    // stands in until the URL (the reset token) is read.
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading password reset">
+          <StandaloneAuthShell>
+            <PasswordResetForm
+              password=""
+              confirmPassword=""
+              onPasswordChange={noop}
+              onConfirmPasswordChange={noop}
+              onSubmit={noop}
+              onCancel={noop}
+              onBackToLogin={noop}
+              submitDisabled
+            />
+          </StandaloneAuthShell>
+        </LoadingFallback>
+      }
+    >
+      <PasswordResetContent />
+    </Suspense>
+  );
+}
+
+function PasswordResetContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();

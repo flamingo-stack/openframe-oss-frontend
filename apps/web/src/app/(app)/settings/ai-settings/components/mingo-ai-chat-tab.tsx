@@ -1,6 +1,7 @@
 'use client';
 'use no memo';
 
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
@@ -21,12 +22,31 @@ import { AiSettingsQuickActionsEditor } from './ai-settings-quick-actions-editor
 export { MINGO_AI_CHAT_FORM_ID } from '../types/mingo-ai-chat.types';
 
 interface MingoAiChatTabProps {
-  aiConfig: AgentAiConfig;
+  /** `null` while the configuration loads: the tab draws its own skeleton. */
+  aiConfig: AgentAiConfig | null;
   isEditMode: boolean;
   onSubmit: (input: AgentAiConfigInput) => void;
 }
 
-export function MingoAiChatTab({ aiConfig, isEditMode, onSubmit }: MingoAiChatTabProps) {
+/** The read-only tab while the configuration loads, each part drawing its own skeleton in the scope. */
+function MingoAiChatTabSkeleton() {
+  return (
+    <LoadingWhen loading>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <AiSettingsAdminCard />
+        <AiSettingsQuickActionsSection title="Mingo Quick Actions" agentConfig={MINGO_QUICK_ACTIONS_CONFIG} />
+      </div>
+    </LoadingWhen>
+  );
+}
+
+export function MingoAiChatTab({ aiConfig, ...props }: MingoAiChatTabProps) {
+  // The form below is seeded once from the configuration, so it mounts only when that is in hand.
+  if (useLoadingScope() || aiConfig == null) return <MingoAiChatTabSkeleton />;
+  return <MingoAiChatTabContent aiConfig={aiConfig} {...props} />;
+}
+
+function MingoAiChatTabContent({ aiConfig, isEditMode, onSubmit }: MingoAiChatTabProps & { aiConfig: AgentAiConfig }) {
   const form = useForm<MingoAiChatFormValues>({
     resolver: zodResolver(mingoAiChatSchema),
     defaultValues: getMingoAiChatDefaults(aiConfig),

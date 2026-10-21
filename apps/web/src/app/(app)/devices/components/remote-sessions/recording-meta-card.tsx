@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { LockIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { EntityImage, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, SquareAvatar, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -47,11 +47,19 @@ function MetaCell({ label, adornment, children, className }: MetaCellProps) {
  * mockups both collapse it to two columns in four rows, with the row dividers
  * always spanning the card.
  */
-export function RecordingMetaCard({ recording }: { recording: RecordingDetail }) {
+const CARD_CLASS =
+  'grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4';
+
+export function RecordingMetaCard({ recording }: { recording: RecordingDetail | null }) {
+  // The recording has not answered (the page's loading scope).
+  if (useLoadingScope() || !recording) {
+    return <RecordingMetaCardSkeleton />;
+  }
+
   const dash = <span className="text-ods-text-secondary">-</span>;
 
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4">
+    <div className={CARD_CLASS}>
       <MetaCell label="Date">{formatDateTime(recording.startedAt)}</MetaCell>
       <MetaCell label="Resolution">{recording.resolution ?? dash}</MetaCell>
       <MetaCell label="Duration">
@@ -118,21 +126,35 @@ export function RecordingMetaCard({ recording }: { recording: RecordingDetail })
   );
 }
 
-export function RecordingMetaCardSkeleton() {
+/** The card while the recording is read: the same cells and real labels, each value (and avatar) a placeholder. */
+function RecordingMetaCardSkeleton() {
+  const value = <TextLineSkeleton type="h4" as="span" className="w-28" />;
   return (
-    <LoadingRegion
-      label="Loading recording details"
-      className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-ods-border bg-ods-card content-lg:grid-cols-4"
-    >
-      {Array.from({ length: 8 }, (_, index) => (
-        <div
-          key={index}
-          className="flex h-20 flex-col justify-center gap-[var(--spacing-system-xxs)] border-b border-ods-border px-[var(--spacing-system-m)] last:border-b-0"
-        >
-          <UnifiedSkeleton className="h-5 w-32" />
-          <UnifiedSkeleton className="h-3.5 w-20" />
-        </div>
-      ))}
-    </LoadingRegion>
+    <div className={CARD_CLASS}>
+      <MetaCell label="Date">{value}</MetaCell>
+      <MetaCell label="Resolution">{value}</MetaCell>
+      <MetaCell label="Duration">{value}</MetaCell>
+      <MetaCell label="File size">{value}</MetaCell>
+      <MetaCell label="Hostname" className="content-lg:border-b-0">
+        {value}
+      </MetaCell>
+      <MetaCell
+        label="Customer ID (Site)"
+        className="content-lg:border-b-0"
+        adornment={<UnifiedSkeleton className="size-10 shrink-0 rounded-[4px]" />}
+      >
+        {value}
+      </MetaCell>
+      <MetaCell
+        label="Employee"
+        className="border-b-0"
+        adornment={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}
+      >
+        {value}
+      </MetaCell>
+      <MetaCell label="Expires on" className="border-b-0">
+        {value}
+      </MetaCell>
+    </div>
   );
 }

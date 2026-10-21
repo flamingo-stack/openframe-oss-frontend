@@ -1,8 +1,7 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CheckboxBlock, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { CheckboxBlock, Input, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { DeviceLogLevelChips } from '@/app/(app)/devices/components/tabs/device-logs/device-log-level-chips';
 import { DeviceLogRangeSelect } from '@/app/(app)/devices/components/tabs/device-logs/device-log-range-select';
@@ -55,13 +54,11 @@ export function TroubleshootingToolbar({
           customerFilter === 'off' ? 'content-lg:grid-cols-3' : 'content-lg:grid-cols-4',
         )}
       >
-        {customerFilter === 'on' && (
-          <OrganizationFilter value={customers} onChange={onCustomersChange} maxItems={TROUBLESHOOTING_PICK_LIMIT} />
-        )}
-        {customerFilter === 'loading' && (
-          <LoadingRegion label="Loading customers">
-            <UnifiedSkeleton className="h-12 rounded-md" />
-          </LoadingRegion>
+        {/* Until the flag answers, the picker draws its own skeleton in the loading scope. */}
+        {customerFilter !== 'off' && (
+          <LoadingWhen loading={customerFilter === 'loading'}>
+            <OrganizationFilter value={customers} onChange={onCustomersChange} maxItems={TROUBLESHOOTING_PICK_LIMIT} />
+          </LoadingWhen>
         )}
         <DeviceFilter value={devices} onChange={onDevicesChange} organizationIds={organizationIds} />
         <div className="flex flex-wrap gap-[var(--spacing-system-xs)]">

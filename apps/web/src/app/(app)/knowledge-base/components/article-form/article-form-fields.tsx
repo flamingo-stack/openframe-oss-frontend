@@ -1,15 +1,15 @@
 'use client';
 'use no memo';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { FieldWrapper, FileUpload, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
-import { EntityTagPicker, EntityTagPickerFallback } from '@/app/components/shared/tags';
+import { EntityTagPicker } from '@/app/components/shared/tags';
 import { AssignmentsField } from '@/components/assignments';
 import { TagEntityType } from '@/generated/schema-enums';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
 import { FolderPicker } from '../shared/folder-picker';
-import { FolderPickerFallback } from '../shared/folder-picker-fallback';
 import { MarkdownEditor, SimpleMarkdownRenderer } from '../shared/lazy-markdown';
 import type { ArticleFormData } from './article-form.types';
 import type { ArticleAttachments } from './use-article-attachments';
@@ -72,9 +72,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
           control={control}
           render={({ field }) => (
             <FieldWrapper label="Folder">
-              <Suspense fallback={<FolderPickerFallback />}>
-                <FolderPicker value={field.value} onSelect={target => field.onChange(target.id)} disabled={disabled} />
-              </Suspense>
+              <FolderPicker value={field.value} onSelect={target => field.onChange(target.id)} disabled={disabled} />
             </FieldWrapper>
           )}
         />
@@ -84,7 +82,23 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
         name="tags"
         control={control}
         render={({ field }) => (
-          <Suspense fallback={<EntityTagPickerFallback emptyPlaceholder={TAGS_PLACEHOLDER} />}>
+          <Suspense
+            fallback={
+              <LoadingFallback label="Loading tags">
+                <EntityTagPicker
+                  entityType={TagEntityType.KNOWLEDGE_ARTICLE}
+                  selectedIds={field.value}
+                  onChange={field.onChange}
+                  initialTags={initialTags}
+                  emptyPlaceholder={TAGS_PLACEHOLDER}
+                  maxCreateLength={25}
+                  deletable
+                  disabled={disabled}
+                  entityLabel="article"
+                />
+              </LoadingFallback>
+            }
+          >
             <EntityTagPicker
               entityType={TagEntityType.KNOWLEDGE_ARTICLE}
               selectedIds={field.value}

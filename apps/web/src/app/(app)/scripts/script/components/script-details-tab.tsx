@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { memo, Suspense, useLayoutEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
@@ -53,6 +54,17 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
   }, [source, onResolved]);
 
   // Not-found is reported once, by the summary card above; render nothing here.
+  return <ScriptParamCardsView script={script} />;
+}
+
+type ScriptRecord = ScriptDetailQueryType['response']['script'];
+
+/**
+ * The two optional cards over a script. Without one (still loading, or not
+ * found) nothing: both cards are optional, so the loading state reserves no
+ * room for rows that may never come.
+ */
+function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
   if (!script) {
     return null;
   }
@@ -88,7 +100,7 @@ function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolv
  * It is dropped once the answer says the script has no body — that is the one
  * case where the block does not belong on the page at all.
  *
- * The cards get NO placeholder, deliberately. Both are optional and independent
+ * The cards draw nothing while loading, deliberately. Both are optional and independent
  * — plenty of scripts take neither arguments nor environment variables — so a
  * skeleton there promises rows that may never come and then collapses, shoving
  * the editor up by its own height. A placeholder is only owed to content that is
@@ -105,7 +117,13 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-lf)] pt-[var(--spacing-system-l)]">
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading script details">
+            <ScriptParamCardsView />
+          </LoadingFallback>
+        }
+      >
         <ScriptParamCards scriptId={scriptId} onResolved={setState} />
       </Suspense>
 

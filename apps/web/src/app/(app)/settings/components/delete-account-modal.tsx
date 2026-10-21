@@ -1,5 +1,6 @@
 'use client';
 
+import { InteractiveSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -10,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
   SquareAvatar,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -45,11 +47,25 @@ const SUPPORT_EMAIL = 'hello@openframe.ai';
  * rather than a select nothing can be chosen from: a confirm that stays disabled
  * with no explanation is the dead end App Review reads as "no account deletion".
  */
+const NEW_OWNER_FIELD_CLASS = 'flex flex-col gap-[var(--spacing-system-xs)]';
+
+/** The picker while the members are on their way: the label is real, the field a bar of the select's height. */
+function NewOwnerSelectSkeleton() {
+  return (
+    <div className={NEW_OWNER_FIELD_CLASS}>
+      <Label>New Owner</Label>
+      <InteractiveSkeleton.Input />
+    </div>
+  );
+}
+
 function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disabled }: NewOwnerSelectProps) {
   const { users, isLoading } = useUsers(0, 1000);
   const candidates = users.filter(u => u.id !== currentUserId && u.status === UserStatus.Active);
 
-  if (!isLoading && candidates.length === 0) {
+  if (useLoadingScope() || isLoading) return <NewOwnerSelectSkeleton />;
+
+  if (candidates.length === 0) {
     return (
       <p className="text-ods-text-primary text-h4">
         You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
@@ -62,14 +78,12 @@ function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disa
     );
   }
 
-  const placeholder = isLoading ? 'Loading users...' : 'Select new owner';
-
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+    <div className={NEW_OWNER_FIELD_CLASS}>
       <Label htmlFor="new-owner-select">New Owner</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id="new-owner-select">
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder="Select new owner" />
         </SelectTrigger>
         <SelectContent>
           {candidates.map(candidate => {

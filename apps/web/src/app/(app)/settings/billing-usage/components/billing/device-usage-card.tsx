@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { deviceUsageCard_subscription$key } from '@/__generated__/deviceUsageCard_subscription.graphql';
@@ -48,8 +49,10 @@ function caption(isTrial: boolean, trialEndsOn: string | null, prepaid: boolean,
 }
 
 /** Devices under management, against the package that covers them. */
-export function DeviceUsageCard({ subscription }: { subscription: deviceUsageCard_subscription$key }) {
+export function DeviceUsageCard({ subscription }: { subscription: deviceUsageCard_subscription$key | null }) {
   const data = useFragment(deviceUsageCardFragment, subscription);
+  // `null` only while the page loads (it renders itself in a loading scope with no subscription yet).
+  if (useLoadingScope() || data == null) return <UsageStatCard title="Device Usage" loading />;
   const device = deviceAllocation(data);
   const schedule = planSchedule(data);
 

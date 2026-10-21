@@ -1,7 +1,7 @@
 'use client';
 
 import { getApprovalMeta, isApprovalNotification } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { BellCheckIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   DataTable,
@@ -10,6 +10,7 @@ import {
   type PageActionButton,
   PageLayout,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -59,20 +60,21 @@ export function NotificationsSection({
   onMarkRead,
   onDelete,
 }: NotificationsSectionProps) {
-  const [isEmpty, setIsEmpty] = useState(true);
+  // `null` until the list answers: the search stays drawn while it loads, the header actions wait for rows.
+  const [isEmpty, setIsEmpty] = useState<boolean | null>(null);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
   return (
     <PageLayout
       title={title}
-      actions={isEmpty ? undefined : actions}
+      actions={isEmpty === false ? actions : undefined}
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
       <div className="flex flex-col" style={containerStyle}>
         {/* Genuinely no notifications (no active search) → the rich empty state stands alone;
             the search input is hidden per the empty-state convention. A search that matched
             nothing keeps the input so the query can be adjusted. */}
-        {!(isEmpty && !searchValue.trim()) && (
+        {!(isEmpty === true && !searchValue.trim()) && (
           <div
             ref={toolbarRef}
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center bg-ods-bg p-[var(--spacing-system-l)]"
@@ -87,7 +89,7 @@ export function NotificationsSection({
           </div>
         )}
 
-        <Suspense fallback={<SectionTableSkeleton rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />}>
+        <Suspense fallback={<SectionTableFallback rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />}>
           {queryRef ? (
             <SectionTable
               queryRef={queryRef}
@@ -99,7 +101,7 @@ export function NotificationsSection({
               stickyHeaderOffset={stickyHeaderOffset}
             />
           ) : (
-            <SectionTableSkeleton rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />
+            <SectionTableFallback rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />
           )}
         </Suspense>
       </div>
@@ -117,6 +119,7 @@ interface SectionTableProps {
   stickyHeaderOffset: string;
 }
 
+/** The section's query: reads the notifications page and hands the rows to `SectionTableView`. */
 function SectionTable({
   queryRef,
   rowVariant,
@@ -152,6 +155,88 @@ function SectionTable({
     [data.notifications.edges],
   );
 
+  const onLoadMore = useCallback(() => {
+    if (!hasNext || isLoadingNext) return;
+    loadNext(NOTIFICATIONS_SECTION_PAGE_SIZE, {
+      onComplete: err => {
+        if (err) {
+          toast({ title: 'Error loading more notifications', description: err.message, variant: 'destructive' });
+        }
+      },
+    });
+  }, [hasNext, isLoadingNext, loadNext, toast]);
+
+  const isEmpty = rows.length === 0;
+  useEffect(() => {
+    onEmptyChange(isEmpty);
+  }, [isEmpty, onEmptyChange]);
+
+  return (
+    <SectionTableView
+      rows={rows}
+      rowVariant={rowVariant}
+      searchValue={searchValue}
+      onMarkRead={onMarkRead}
+      onDelete={onDelete}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={onLoadMore}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+}
+
+/** The section's query not answered yet: the same table, drawn in a loading scope with no rows. */
+function SectionTableFallback({
+  rowVariant,
+  stickyHeaderOffset,
+}: {
+  rowVariant: 'unread' | 'read';
+  stickyHeaderOffset: string;
+}) {
+  return (
+    <LoadingFallback label={rowVariant === 'unread' ? 'Loading unread notifications' : 'Loading notifications'}>
+      <SectionTableView
+        rows={EMPTY_ROWS}
+        rowVariant={rowVariant}
+        searchValue=""
+        hasNext={false}
+        isLoadingNext={false}
+        stickyHeaderOffset={stickyHeaderOffset}
+      />
+    </LoadingFallback>
+  );
+}
+
+interface SectionTableViewProps {
+  rows: NotificationRow[];
+  rowVariant: 'unread' | 'read';
+  searchValue: string;
+  onMarkRead?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore?: () => void;
+  stickyHeaderOffset: string;
+}
+
+/**
+ * The notifications table, from props only. In a loading scope it draws one full page of skeleton rows
+ * (`NOTIFICATIONS_SECTION_PAGE_SIZE`, through the table's page size) under its real header.
+ */
+export function SectionTableView({
+  rows,
+  rowVariant,
+  searchValue,
+  onMarkRead,
+  onDelete,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  stickyHeaderOffset,
+}: SectionTableViewProps) {
+  const loading = useLoadingScope();
+
   // Subscribed, not read imperatively: the action cell decides `href` vs `onClick` at
   // RENDER time, so a snapshot would freeze whatever the shell had published when the
   // first row rendered and never pick up the flags landing.
@@ -179,23 +264,9 @@ function SectionTable({
     data: rows,
     columns,
     getRowId: row => row.id,
+    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
+    initialState: { pagination: { pageIndex: 0, pageSize: NOTIFICATIONS_SECTION_PAGE_SIZE } },
   });
-
-  const onLoadMore = useCallback(() => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(NOTIFICATIONS_SECTION_PAGE_SIZE, {
-      onComplete: err => {
-        if (err) {
-          toast({ title: 'Error loading more notifications', description: err.message, variant: 'destructive' });
-        }
-      },
-    });
-  }, [hasNext, isLoadingNext, loadNext, toast]);
-
-  const isEmpty = rows.length === 0;
-  useEffect(() => {
-    onEmptyChange(isEmpty);
-  }, [isEmpty, onEmptyChange]);
 
   const trimmedSearch = searchValue.trim();
   const emptyState: NoDataProps = trimmedSearch
@@ -210,7 +281,7 @@ function SectionTable({
           rowVariant === 'read' ? HISTORY_RETENTION_NOTE : "You're all up to date with system alerts and messages.",
       };
 
-  if (isEmpty) {
+  if (!loading && rows.length === 0) {
     return <EmptyState {...emptyState} />;
   }
 
@@ -223,12 +294,9 @@ function SectionTable({
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
         <DataTable.Body rowClassName="mb-1" renderSubRow={renderSubRow} />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNext}
-          isFetchingNextPage={isLoadingNext}
-          onLoadMore={onLoadMore}
-          skeletonRows={2}
-        />
+        {onLoadMore && (
+          <DataTable.InfiniteFooter hasNextPage={hasNext} isFetchingNextPage={isLoadingNext} onLoadMore={onLoadMore} />
+        )}
       </DataTable>
       {rowVariant === 'read' && (
         <p className="mt-[var(--spacing-system-l)] text-center text-ods-text-secondary text-h6">
@@ -236,33 +304,5 @@ function SectionTable({
         </p>
       )}
     </>
-  );
-}
-
-function SectionTableSkeleton({
-  rowVariant,
-  stickyHeaderOffset,
-}: {
-  rowVariant: 'unread' | 'read';
-  stickyHeaderOffset: string;
-}) {
-  const columns = useMemo(() => buildNotificationColumns({ rowVariant }), [rowVariant]);
-  const table = useDataTable<NotificationRow>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: row => row.id,
-  });
-
-  return (
-    <LoadingRegion label={rowVariant === 'unread' ? 'Loading unread notifications' : 'Loading notifications'}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" />}
-        />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={4} rowClassName="mb-1" />
-      </DataTable>
-    </LoadingRegion>
   );
 }

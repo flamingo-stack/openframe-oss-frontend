@@ -1,6 +1,7 @@
 'use client';
 
-import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useMemo, useState } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useAssignedItems } from '@/components/assignments';
@@ -78,20 +79,26 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
       actions={actions}
     >
       {isEdit && (
-        <Suspense fallback={null}>
+        // The record's island renders nothing; while it loads, its fallback is the one "Loading article" announcement.
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading article">
+              <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
+            </LoadingFallback>
+          }
+        >
           <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
         </Suspense>
       )}
-      {/* Locked fields announce nothing on their own; the text switches, the live region stays mounted. */}
-      <span role="status" className="sr-only">
-        {isLoaded ? '' : 'Loading article…'}
-      </span>
-      <ArticleFormFields
-        form={form}
-        disabled={!isLoaded || isSubmitting}
-        initialTags={record?.tags ?? NO_TAGS}
-        attachments={attachments}
-      />
+      {/* Until the article and its assignments have seeded the form, the fields draw their own loading states. */}
+      <LoadingWhen loading={!isLoaded}>
+        <ArticleFormFields
+          form={form}
+          disabled={!isLoaded || isSubmitting}
+          initialTags={record?.tags ?? NO_TAGS}
+          attachments={attachments}
+        />
+      </LoadingWhen>
     </PageLayout>
   );
 }

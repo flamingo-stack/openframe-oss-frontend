@@ -1,6 +1,11 @@
 'use client';
 
-import { InfoSection, type InfoSectionRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  InfoSection,
+  type InfoSectionRow,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantIntegrationSectionQuery as TenantIntegrationSectionQueryType } from '@/__generated__/tenantIntegrationSectionQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -40,8 +45,24 @@ function MultiLineValue({ lines }: { lines: readonly string[] }) {
   );
 }
 
-/** The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row. Suspends: mount it under `<Suspense>`. */
-export function TenantIntegrationSection({ id }: { id: string }) {
+interface TenantIntegrationSectionProps {
+  id: string;
+  /** The page already holds the record, so the loading rows carry the provider's directory id label. */
+  provider: string;
+}
+
+/**
+ * The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row. Suspends: mount it under
+ * `<Suspense>`. In a loading scope (that boundary's fallback) it draws its own loading state and reads nothing.
+ */
+export function TenantIntegrationSection(props: TenantIntegrationSectionProps) {
+  if (useLoadingScope()) {
+    return <TenantIntegrationSectionSkeleton provider={props.provider} />;
+  }
+  return <TenantIntegrationSectionQuery id={props.id} />;
+}
+
+function TenantIntegrationSectionQuery({ id }: { id: string }) {
   const retryKey = useRetryKey();
   const { directoryConnection: data } = useLazyLoadQuery<TenantIntegrationSectionQueryType>(
     tenantIntegrationSectionQuery,
@@ -83,5 +104,23 @@ export function TenantIntegrationSection({ id }: { id: string }) {
     },
   ];
 
+  return <InfoSection title="Integration" rows={rows} />;
+}
+
+const bar = (width: string): InfoSectionRow['value'] => ({
+  type: 'custom',
+  content: <UnifiedSkeleton as="span" className={`h-6 ${width}`} />,
+});
+
+/** The section while its live read loads: the caption and every label real, the values as bars. */
+function TenantIntegrationSectionSkeleton({ provider }: { provider: string }) {
+  const rows: InfoSectionRow[] = [
+    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: bar('w-32') },
+    { id: 'directory-id', label: providerPresentation(provider).directoryIdLabel, value: bar('w-64') },
+    { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: bar('w-48') },
+    { id: 'scopes', label: INTEGRATION_LABELS.scopes, value: bar('w-56') },
+    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: bar('w-72') },
+    { id: 'domains', label: INTEGRATION_LABELS.domains, value: bar('w-40') },
+  ];
   return <InfoSection title="Integration" rows={rows} />;
 }

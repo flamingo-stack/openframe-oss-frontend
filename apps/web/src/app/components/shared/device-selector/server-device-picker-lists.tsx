@@ -7,6 +7,7 @@ import {
   DeviceSelectorSkeleton,
   type SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo } from 'react';
 import type { deviceSelectorFields_machine$key } from '@/__generated__/deviceSelectorFields_machine.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
@@ -63,6 +64,8 @@ interface ServerDevicePickerListsProps {
   onAddAll: () => void;
   onRemoveAll: () => void;
   isDeviceDisabled?: (device: Device) => string | undefined;
+  /** The halves have not been read yet (a client read); inside a loading scope the picker switches itself. */
+  loading?: boolean;
 }
 
 /**
@@ -93,7 +96,9 @@ export function ServerDevicePickerLists({
   onAddAll,
   onRemoveAll,
   isDeviceDisabled,
+  loading: loadingProp,
 }: ServerDevicePickerListsProps) {
+  const loading = useLoadingScope() || !!loadingProp;
   const availableEdges = available.connection?.edges;
   const selectedEdges = selected.connection?.edges;
 
@@ -123,6 +128,8 @@ export function ServerDevicePickerLists({
     if (half.hasNext && !half.isLoadingNext) half.loadNext(DEVICE_PICKER_PAGE_SIZE);
   }, [half]);
 
+  if (loading) return <ServerDevicePickerSkeleton />;
+
   return (
     <DeviceSelector
       devices={isAvailable ? availableRows : selectedRows}
@@ -137,7 +144,8 @@ export function ServerDevicePickerLists({
         hasNextPage: half.hasNext,
         isFetchingNextPage: half.isLoadingNext,
         onLoadMore: loadMore,
-        skeletonRows: 2,
+        // The next page the footer is waiting on is one picker page.
+        skeletonRows: DEVICE_PICKER_PAGE_SIZE,
       }}
       server={{
         activeTab,
@@ -167,6 +175,6 @@ export function ServerDevicePickerLists({
  * drift: locked with `disabled`, which blocks every interaction and leaves the
  * picker's SHAPE alone — the Available / Selected tab strip included.
  */
-export function ServerDevicePickerSkeleton() {
+function ServerDevicePickerSkeleton() {
   return <DeviceSelectorSkeleton showSelectionModeRadio={false} />;
 }

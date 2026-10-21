@@ -14,6 +14,7 @@ import {
   type SortingState,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
@@ -65,6 +66,7 @@ function severityOf(vuln: { cvss_score?: number | null }) {
  * Fleet's `details_link` (NVD) — without the module there is no CVE page to open.
  */
 export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps) {
+  const loading = useLoadingScope();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -196,89 +198,92 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
     });
   }, []);
 
-  if (!device) {
-    return (
-      <TabEmptyState
-        icon={<BracketSquareCheckIcon />}
-        title="No vulnerabilities found"
-        description="Detected vulnerabilities for this device will appear here."
-      />
-    );
-  }
-
-  // An empty list is only "no vulnerabilities" once the pipeline actually ran —
-  // otherwise say which stage it is at. A non-empty list renders as usual (a
-  // stale scan alongside existing results is intentionally not flagged).
-  if (vulnerabilities.length === 0) {
-    const reason = getVulnerabilitiesEmptyReason(device);
-
-    if (reason === 'error') {
+  // The device has not answered: the tab draws itself in the loading scope, every part its own skeleton.
+  if (!loading) {
+    if (!device) {
       return (
         <TabEmptyState
           icon={<BracketSquareCheckIcon />}
-          title="Couldn't load vulnerability data"
-          description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
-          buttonLabel="Retry"
-          onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+          title="No vulnerabilities found"
+          description="Detected vulnerabilities for this device will appear here."
         />
       );
     }
 
-    if (reason === 'disconnected') {
-      return (
-        <TabEmptyState
-          icon={<BracketSquareCheckIcon />}
-          title="Fleet is not connected"
-          description="The Fleet agent for this device is disconnected, so vulnerability data is unavailable."
-        />
-      );
-    }
+    // An empty list is only "no vulnerabilities" once the pipeline actually ran —
+    // otherwise say which stage it is at. A non-empty list renders as usual (a
+    // stale scan alongside existing results is intentionally not flagged).
+    if (vulnerabilities.length === 0) {
+      const reason = getVulnerabilitiesEmptyReason(device);
 
-    if (reason === 'collecting') {
-      // Agent still deploying → the design's connecting-state copy;
-      // agent live but the first inventory scan hasn't finished → collecting copy.
-      if (device.sources?.fleet === 'skipped-pending') {
-        return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;
+      if (reason === 'error') {
+        return (
+          <TabEmptyState
+            icon={<BracketSquareCheckIcon />}
+            title="Couldn't load vulnerability data"
+            description="Fleet didn't respond for this device. Data refreshes automatically — or retry now."
+            buttonLabel="Retry"
+            onButtonClick={() => queryClient.invalidateQueries({ queryKey: deviceQueryKeys.detail(device.machineId) })}
+          />
+        );
       }
+
+      if (reason === 'disconnected') {
+        return (
+          <TabEmptyState
+            icon={<BracketSquareCheckIcon />}
+            title="Fleet is not connected"
+            description="The Fleet agent for this device is disconnected, so vulnerability data is unavailable."
+          />
+        );
+      }
+
+      if (reason === 'collecting') {
+        // Agent still deploying → the design's connecting-state copy;
+        // agent live but the first inventory scan hasn't finished → collecting copy.
+        if (device.sources?.fleet === 'skipped-pending') {
+          return <TabDeployingEmptyState icon={<BracketSquareCheckIcon />} section="Vulnerabilities" />;
+        }
+        return (
+          <TabEmptyState
+            icon={<BracketSquareCheckIcon />}
+            title="Collecting software inventory"
+            description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+          />
+        );
+      }
+
+      if (reason === 'scan-pending') {
+        return (
+          <TabEmptyState
+            icon={<BracketSquareCheckIcon />}
+            title="Vulnerability scan pending"
+            description="The latest software inventory hasn't been checked for vulnerabilities yet. Check back shortly."
+          />
+        );
+      }
+
       return (
         <TabEmptyState
           icon={<BracketSquareCheckIcon />}
-          title="Collecting software inventory"
-          description="This device hasn't reported its installed software yet. Vulnerabilities will appear once the inventory arrives."
+          title="No vulnerabilities found"
+          description="Detected vulnerabilities for this device will appear here."
         />
       );
     }
-
-    if (reason === 'scan-pending') {
-      return (
-        <TabEmptyState
-          icon={<BracketSquareCheckIcon />}
-          title="Vulnerability scan pending"
-          description="The latest software inventory hasn't been checked for vulnerabilities yet. Check back shortly."
-        />
-      );
-    }
-
-    return (
-      <TabEmptyState
-        icon={<BracketSquareCheckIcon />}
-        title="No vulnerabilities found"
-        description="Detected vulnerabilities for this device will appear here."
-      />
-    );
   }
 
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active, so the user can still clear it).
   const hasSearch = search.trim().length > 0;
-  const isEmpty = filtered.length === 0;
+  const isEmpty = !loading && filtered.length === 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
       {/* Results are on screen but the last matching run predates the current
           software inventory — e.g. a patched CVE may still show as active until
           the hourly run catches up. */}
-      {isVulnerabilityScanPending(device) && <DataSyncBanner />}
+      {device && isVulnerabilityScanPending(device) && <DataSyncBanner />}
 
       {(!isEmpty || hasSearch) && (
         <div

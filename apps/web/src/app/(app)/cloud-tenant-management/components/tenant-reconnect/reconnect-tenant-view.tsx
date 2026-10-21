@@ -1,9 +1,11 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
   PageLayout,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
@@ -16,7 +18,6 @@ import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
 import { MINT_FAILED, useStartConsent } from '../consent/use-start-consent';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
-import { TenantFormSkeleton } from '../tenant-form/tenant-form-skeleton';
 
 const reconnectTenantViewQuery = graphql`
   query reconnectTenantViewQuery($id: ID!) {
@@ -29,7 +30,33 @@ const reconnectTenantViewQuery = graphql`
   }
 `;
 
+const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
+const noop = () => {};
+
+/**
+ * The page's record and everything that waits for it. In a loading scope (the view's Suspense fallback, or the
+ * module's flag window) the chrome is real, the identity card and the consent block draw their own loading states,
+ * and nothing is read or minted.
+ */
 function ReconnectTenantContent({ id }: { id: string }) {
+  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
+  if (useLoadingScope()) {
+    return (
+      <PageLayout
+        title="Reconnect Tenant Integration"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        actions={[SAVE_PLACEHOLDER]}
+        actionsVariant="primary-buttons"
+      >
+        <TenantIdentityCard connection={null} />
+        <ConsentBlock mode="reconnect" provider="" consentUrl={null} checking={false} verdict={null} onCheck={noop} />
+      </PageLayout>
+    );
+  }
+  return <ReconnectTenantContentQuery id={id} />;
+}
+
+function ReconnectTenantContentQuery({ id }: { id: string }) {
   const router = useRouter();
   const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const retryKey = useRetryKey();
@@ -94,7 +121,13 @@ function ReconnectTenantContent({ id }: { id: string }) {
 /** `/cloud-tenant-management/reconnect` (Figma 2108-81037): the identity card over the re-approve consent card. */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
-    <Suspense fallback={<TenantFormSkeleton variant="reconnect" />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading tenant">
+          <ReconnectTenantContent id={id} />
+        </LoadingFallback>
+      }
+    >
       <ReconnectTenantContent id={id} />
     </Suspense>
   );

@@ -15,6 +15,7 @@ import {
   type PageActionButton,
   PageError,
   PageLayout,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -327,6 +328,7 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // error boundary without the panel having to reach inside the content that threw.
   const searchParams = useSearchParams();
   const resetKey = searchParams.toString();
+  const inScope = useLoadingScope();
 
   const chrome = {
     title: props.title ?? 'Devices',
@@ -340,6 +342,22 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // which of the two shapes to draw. Anything but 'grid' is the 'table' default
   // the params hook applies.
   const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
+
+  // The panel's loading state, drawn by the panel: in a loading scope (or behind
+  // the boundary below) it is its own view in `loading`, with no query mounted.
+  const pending = (
+    <DevicesPanelSkeleton
+      {...chrome}
+      viewMode={viewMode}
+      hideColumns={props.hideColumns}
+      hideFilters={props.hideFilters}
+      archiveHref={props.archiveHref}
+      showAddDevice={props.showAddDevice}
+      noOrganizations={props.noOrganizations}
+      isCheckingOrganizations={props.isCheckingOrganizations}
+    />
+  );
+  if (inScope) return pending;
 
   return (
     <ContentErrorBoundary
@@ -366,20 +384,7 @@ export function DevicesPanel(props: DevicesPanelProps) {
         </PageLayout>
       )}
     >
-      <Suspense
-        fallback={
-          <DevicesPanelSkeleton
-            {...chrome}
-            viewMode={viewMode}
-            hideColumns={props.hideColumns}
-            hideFilters={props.hideFilters}
-            archiveHref={props.archiveHref}
-            showAddDevice={props.showAddDevice}
-            noOrganizations={props.noOrganizations}
-            isCheckingOrganizations={props.isCheckingOrganizations}
-          />
-        }
-      >
+      <Suspense fallback={pending}>
         <DevicesPanelContent {...props} />
       </Suspense>
     </ContentErrorBoundary>

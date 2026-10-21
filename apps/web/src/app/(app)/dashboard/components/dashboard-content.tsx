@@ -2,15 +2,14 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense } from 'react';
-import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
+import { InitialSetupCard } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { CustomersOverviewSection } from './customers-overview';
-import { DevicesOverviewSection } from './devices-overview';
+import { CustomersOverview, CustomersOverviewSection } from './customers-overview';
+import { DevicesOverview, DevicesOverviewSection } from './devices-overview';
 import { MingoIntroBanner } from './mingo-intro-banner';
-import { TicketsOverviewSection } from './tickets-overview';
+import { TicketsOverview, TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
@@ -19,6 +18,23 @@ const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing
 /** The v2 banner's wrapper: below it the same gap the PageLayout keeps between its
  *  sections, so the banner reads as one of them. */
 const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-system-l)]`;
+/** The overview sections' page chrome: PageLayout supplies the gap between sections. */
+const OVERVIEWS_PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
+
+/**
+ * The three overview sections with no data, which draw their own skeletons: what the app
+ * shell holds in the page slot while it waits on the onboarding answer (`holdsDashboard`),
+ * rendered in a loading scope, so the hand-over to the real page moves nothing.
+ */
+export function DashboardOverviews() {
+  return (
+    <PageLayout className={OVERVIEWS_PAGE_CLASS}>
+      <DevicesOverview />
+      {isSaasTenantMode() && <TicketsOverview />}
+      <CustomersOverview />
+    </PageLayout>
+  );
+}
 
 /**
  * Dashboard content component - extracted for dynamic import with loading skeleton
@@ -48,26 +64,13 @@ export default function DashboardContent() {
           <MingoIntroBanner />
         </div>
       )}
-      {/* Onboarding — deliberately OUTSIDE the PageLayout below.
-          Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
-          `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
-          bubbling to the route-level `loading.tsx` and re-flashing the whole dashboard
-          skeleton. Fallback is the card skeleton (not `null`) so the suspend doesn't
-          flash an empty gap between the card's own count-loading skeleton and its
-          content — the same skeleton carries through while onboarding progress
-          (the tenant step-detection round-trips) loads. */}
+      {/* Onboarding — deliberately OUTSIDE the PageLayout below. The card owns the
+          boundary for its suspending queries (e.g. DeviceSetupStep's
+          `useDeviceOrganizations`) and draws its own skeleton while they load. */}
       {legacySetup && (
-        <Suspense
-          fallback={
-            <div className={ONBOARDING_WRAPPER_CLASS}>
-              <InitialSetupSkeleton />
-            </div>
-          }
-        >
-          <div className={ONBOARDING_WRAPPER_CLASS}>
-            <InitialSetupCard />
-          </div>
-        </Suspense>
+        <div className={ONBOARDING_WRAPPER_CLASS}>
+          <InitialSetupCard />
+        </div>
       )}
       <div
         className={cn('transition-opacity duration-300', dimDashboard && 'pointer-events-none select-none opacity-40')}
@@ -75,7 +78,7 @@ export default function DashboardContent() {
       >
         {/* Standard page chrome: PageLayout supplies the gap between sections; each
             section renders its own TitleBlock header (with the TitleBlock's own pt/mb). */}
-        <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+        <PageLayout className={OVERVIEWS_PAGE_CLASS}>
           <DevicesOverviewSection />
           {showTickets && <TicketsOverviewSection />}
           <CustomersOverviewSection />

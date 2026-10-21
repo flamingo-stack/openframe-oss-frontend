@@ -1,9 +1,11 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceSelectionMode,
   DeviceSelectionModeRadio,
+  DeviceSelector,
   type DeviceSelectorNarrowing,
   EMPTY_NARROWING,
   narrowingToFilter,
@@ -23,10 +25,15 @@ import { routes } from '@/lib/routes';
 import { platformsToIds } from '../../shared/utils/script-mappers';
 import { useScheduleDeviceAssignment } from '../hooks/use-schedule-device-assignment';
 import { useScheduleSelectionMode } from '../hooks/use-schedule-selection-mode';
-import { criteriaEqual, criteriaFromStored, type ScheduleCriteria } from '../utils/schedule-criteria';
+import {
+  criteriaEqual,
+  criteriaFromStored,
+  EMPTY_SCHEDULE_CRITERIA,
+  type ScheduleCriteria,
+} from '../utils/schedule-criteria';
 import { formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
+import { ScheduleCriteriaFields } from './schedule-criteria-fields';
 import { ScheduleCriteriaPicker } from './schedule-criteria-picker';
-import { SchedulePickerSkeleton } from './schedule-devices-skeleton';
 import { ScheduleInfoBarFromData } from './schedule-info-bar';
 import { SchedulePickerLists } from './schedule-picker-lists';
 
@@ -64,10 +71,81 @@ interface ScheduleDevicesViewProps {
  *
  * Suspends on the SETTINGS query — a small read of the mode, the rule and the
  * info bar's fields — so the picker's own (heavy) device query loads under a
- * page that is already drawn. The route renders `ScheduleDevicesSkeleton` while
- * the settings are in flight.
+ * page that is already drawn. While the settings are in flight the page draws
+ * itself without them (`ScheduleDevicesShell`).
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
+  return (
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading schedule">
+          <ScheduleDevicesShell scheduleId={scheduleId} />
+        </LoadingFallback>
+      }
+    >
+      <ScheduleDevicesContent scheduleId={scheduleId} />
+    </Suspense>
+  );
+}
+
+const noop = () => {};
+const NO_DEVICES: never[] = [];
+
+/**
+ * The finish button's slot, not the button: `loadingActions` turns this into a
+ * neutral bar. Which button it becomes is the schedule's own answer (a specific
+ * assignment exits through "Done", a rule is saved through "Save Devices").
+ */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Finish', variant: 'accent' }];
+
+/**
+ * The page before its settings land: the title, a working Back, the info bar
+ * (drawing its own skeleton in the scope) and the real mode block, locked with
+ * nothing marked. The picker is NOT here: its two halves are different surfaces,
+ * so drawing one would answer the question this state is waiting on.
+ */
+function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
+  const handleBack = useSafeBack(routes.scripts.schedules.details(scheduleId));
+  return (
+    <PageLayout
+      title="Schedule Devices"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={LOADING_ACTIONS}
+      loadingActions
+      actionsVariant="primary-buttons"
+      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <ScheduleInfoBarFromData name="" note="" date="" time="" repeat="" platforms={[]} />
+        <DeviceSelectionModeRadio value="" disabled />
+      </div>
+    </PageLayout>
+  );
+}
+
+/**
+ * The picker half while its devices load: the real `DeviceSelector` both halves
+ * draw, in its loading state for the mode being loaded, locked, with the
+ * criteria fields drawing their own skeleton.
+ */
+function SchedulePickerLoading({ mode }: { mode: DeviceSelectionMode }) {
+  return (
+    <DeviceSelector
+      devices={NO_DEVICES}
+      loading
+      disabled
+      showSelectionModeRadio={false}
+      selectionMode={mode}
+      criteriaContent={
+        mode === 'criteria' ? (
+          <ScheduleCriteriaFields criteria={EMPTY_SCHEDULE_CRITERIA} onChange={noop} deviceFilters={undefined} />
+        ) : undefined
+      }
+    />
+  );
+}
+
+function ScheduleDevicesContent({ scheduleId }: ScheduleDevicesViewProps) {
   const router = useRouter();
   // The SETTINGS query, not the full schedule: this page branches on
   // `selectionMode`, and the detail query would make that answer wait behind the
@@ -289,7 +367,13 @@ export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
             and a fade — however light — is time between the click and the
             readable half. Each branch is its own component type, so React
             replaces the subtree on its own; there is no wrapper to key. */}
-        <Suspense fallback={<SchedulePickerSkeleton mode={selectionMode} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading devices">
+              <SchedulePickerLoading mode={selectionMode} />
+            </LoadingFallback>
+          }
+        >
           {selectionMode === 'criteria' ? (
             <ScheduleCriteriaPicker
               scheduleId={scheduleId}

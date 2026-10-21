@@ -61,6 +61,9 @@ const logDetailsUrl = (log: LogEntry): string =>
     timestamp: log.timestamp,
   });
 
+/** How many logs the preview shows: the list's limit, which its loading table draws in full. */
+const LOG_PREVIEW_LIMIT = 3;
+
 /**
  * Inner body of the "Logging" onboarding step — an activity-trail preview. It pulls
  * the first three real logs ({@link ../../logs-page/hooks/use-logs}) into a compact
@@ -84,7 +87,7 @@ export function LoggingStep({
 
   const rows: LogRow[] = useMemo(
     () =>
-      logs.slice(0, 3).map(log => ({
+      logs.slice(0, LOG_PREVIEW_LIMIT).map(log => ({
         id: log.toolEventId,
         logId: log.toolEventId,
         timestamp: formatDateTime(log.timestamp),
@@ -206,7 +209,7 @@ export function LoggingStep({
         <DataTable.Header rightSlot={<DataTable.RowCount />} />
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={3}
+          skeletonRows={LOG_PREVIEW_LIMIT}
           emptyMessage="No activity yet. Actions across your workspace will show up here."
           rowClassName="mb-1"
         />

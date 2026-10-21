@@ -6,7 +6,7 @@ import {
   getDeviceOperatingSystem,
   getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DeviceCard, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { DEVICE_DETAILS_BUTTON_BOX, DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
@@ -16,7 +16,26 @@ interface DeviceInfoSectionProps {
   device?: PartialNamedDevice; // Accept device data from log or dialog
 }
 
-export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
+/** The section while the device is read: the real title over the device card's own skeleton. */
+function DeviceInfoSectionSkeleton() {
+  return (
+    <LoadingRegion label="Loading device info" className="flex w-full flex-col gap-1">
+      <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
+      <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
+    </LoadingRegion>
+  );
+}
+
+/**
+ * The device a log or ticket names, as its card. Reads the device itself when only an id is given; in a loading
+ * scope it draws its own skeleton and reads nothing.
+ */
+export function DeviceInfoSection(props: DeviceInfoSectionProps) {
+  if (useLoadingScope()) return <DeviceInfoSectionSkeleton />;
+  return <LiveDeviceInfoSection {...props} />;
+}
+
+function LiveDeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
   const { deviceDetails, isLoading } = useDeviceDetails(deviceId && !deviceFromProps ? deviceId : null, {
     polling: false,
   });
@@ -25,14 +44,7 @@ export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceI
   const device = deviceFromProps || deviceDetails;
 
   // Show loading state only if we're fetching and don't have data from props
-  if (isLoading && !deviceFromProps) {
-    return (
-      <LoadingRegion label="Loading device info" className="flex w-full flex-col gap-1">
-        <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-        <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
-      </LoadingRegion>
-    );
-  }
+  if (isLoading && !deviceFromProps) return <DeviceInfoSectionSkeleton />;
 
   // If no device details available, don't show anything
   if (!device && !deviceId) {

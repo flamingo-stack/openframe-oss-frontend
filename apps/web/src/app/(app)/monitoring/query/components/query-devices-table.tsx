@@ -25,6 +25,7 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
@@ -44,8 +45,32 @@ interface QueryDevicesTableProps {
   query?: string;
 }
 
-export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
+/** The query's devices are every assigned host, unpaged: the loading body draws this typical count. */
+export const QUERY_DEVICES_SKELETON_ROWS = 5;
+
+const NO_ROWS: QueryDeviceRow[] = [];
+
+/**
+ * The query's devices. In a loading scope (the query itself still loading) it reads nothing and draws the table's
+ * own loading rows; otherwise it reads the devices and draws them.
+ */
+export function QueryDevicesTable(props: QueryDevicesTableProps) {
+  if (useLoadingScope()) return <QueryDevicesTableView rows={NO_ROWS} isLoading query={props.query} />;
+  return <QueryDevicesTableContent {...props} />;
+}
+
+function QueryDevicesTableContent({ queryId, query }: QueryDevicesTableProps) {
   const { rows, isLoading } = useQueryDevicesTable(queryId);
+  return <QueryDevicesTableView rows={rows} isLoading={isLoading} query={query} />;
+}
+
+interface QueryDevicesTableViewProps {
+  rows: QueryDeviceRow[];
+  isLoading: boolean;
+  query?: string;
+}
+
+function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableViewProps) {
   const isMdUp = useContentMdUp();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -318,7 +343,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
         {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={5}
+          skeletonRows={QUERY_DEVICES_SKELETON_ROWS}
           emptyState={emptyState}
           rowHref={rowHref}
           renderSubRow={renderSubRow}

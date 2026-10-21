@@ -20,7 +20,7 @@ import {
   TrashIcon,
   UnlockIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadError, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -51,7 +51,7 @@ import { DeleteSessionDialog } from './delete-session-dialog';
 import { DevLocalFileLoader } from './dev-local-file-loader';
 import { PlayerControls } from './player-controls';
 import { keepReasonText, keptUsageText, releaseDueOn } from './recording-keep';
-import { RecordingMetaCard, RecordingMetaCardSkeleton } from './recording-meta-card';
+import { RecordingMetaCard } from './recording-meta-card';
 import { RecordingPlayer } from './recording-player';
 import type { RecordingTicket } from './recording-tickets';
 import { RecordingTicketsSection } from './recording-tickets-section';
@@ -61,7 +61,8 @@ import { canDeleteSession, canKeepSession } from './session-status';
 import { useRecordingPlayer } from './use-recording-player';
 
 interface RemoteSessionViewProps {
-  recordingId: string;
+  /** Null until the page knows it may ask (the recordings gate and the id): the view draws its loading state. */
+  recordingId: string | null;
 }
 
 /**
@@ -80,7 +81,9 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const { toast } = useToast();
   const recordingQuery = useSessionRecording(recordingId);
   const recording = recordingQuery.data;
-  const { isLoading, isOffline, error: loadError } = queryState(recordingQuery);
+  const query = queryState(recordingQuery);
+  const { isOffline, error: loadError } = query;
+  const isLoading = recordingId === null || query.isLoading;
   const player = useRecordingPlayer();
   // An unknown id, a deleted session, an expired or deleted file: the server
   // has nothing to show, which is a 404 rather than a load error to retry.
@@ -114,8 +117,8 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const activeEventId = hasPlayback ? activeSessionEventId(events, player.currentMs) : null;
   useReportRecordingPlayed(recording?.id ?? null, player.state);
   const tickets = useRecordingTickets(recording ? recordingId : null).data ?? [];
-  const assignTickets = useAssignRecordingTickets(recordingId);
-  const unassignTicket = useUnassignRecordingTicket(recordingId);
+  const assignTickets = useAssignRecordingTickets(recordingId ?? '');
+  const unassignTicket = useUnassignRecordingTicket(recordingId ?? '');
   // The picker searches the tenant's tickets only while it is open, and offers none already linked.
   const ticketSearchResults = useTicketSearchOptions(useDebounce(ticketSearch, 300), undefined, isAssignOpen);
   const assignedTicketIds = new Set(tickets.map(ticket => ticket.id));
@@ -261,8 +264,11 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
           (failedToLoad || notFound) && 'hidden',
         )}
       >
-        {!isFullscreen &&
-          (isLoading ? <RecordingMetaCardSkeleton /> : recording && <RecordingMetaCard recording={recording} />)}
+        {!isFullscreen && (isLoading || recording) && (
+          <LoadingWhen loading={isLoading}>
+            <RecordingMetaCard recording={recording ?? null} />
+          </LoadingWhen>
+        )}
         {/* With a chat the player and the transcript are two columns on
             desktop, each under its own label; without one the player spans
             the page. */}

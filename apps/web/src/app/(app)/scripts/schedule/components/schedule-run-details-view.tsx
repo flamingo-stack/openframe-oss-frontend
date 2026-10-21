@@ -1,12 +1,14 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type PageActionButton,
   SquareAvatar,
+  TagSkeleton,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense, useCallback, useMemo } from 'react';
@@ -78,7 +80,13 @@ function RunInfoCell({ label, children, className }: { label: string; children: 
 
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
-function RunInfoBar({ run }: { run: RunNode }) {
+/** The run's info bar; without the run (or in a loading scope) its own skeleton. */
+function RunInfoBar({ run }: { run?: RunNode }) {
+  if (useLoadingScope() || !run) return <RunInfoBarSkeleton />;
+  return <RunInfoBarLoaded run={run} />;
+}
+
+function RunInfoBarLoaded({ run }: { run: RunNode }) {
   const initiator = 'initiator' in run ? run.initiator : null;
   const status = 'status' in run ? run.status : null;
   const dispatchedAt = 'dispatchedAt' in run ? run.dispatchedAt : null;
@@ -155,44 +163,32 @@ function RunInfoBar({ run }: { run: RunNode }) {
   );
 }
 
-/** Mirrors `RunInfoBar`'s two rows so the header keeps its height while loading. */
+/** `RunInfoBar`'s two rows, its labels real and every value a bar on its `text-h4` line. */
 function RunInfoBarSkeleton() {
+  const divided = 'border-b border-ods-border content-md:border-b-0';
   return (
-    <LoadingRegion
-      label="Loading run details"
-      className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card"
-    >
+    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
-        {['responded', 'by', 'status', 'spacer'].map(cell => (
-          <div
-            key={cell}
-            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
-          >
-            <div className="text-h4">
-              <UnifiedSkeleton className="inline-block h-3 w-20 max-w-full content-md:h-4" />
-            </div>
-            <div className="text-h6">
-              <UnifiedSkeleton className="inline-block h-2.5 w-14 max-w-full content-md:h-3" />
-            </div>
-          </div>
-        ))}
+        <RunInfoCell label="Devices Responded" className={divided}>
+          <TextLineSkeleton type="h4" className="w-20 max-w-full" />
+        </RunInfoCell>
+        <RunInfoCell label="Executed by" className={divided}>
+          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+        </RunInfoCell>
+        <RunInfoCell label="Status">
+          <TagSkeleton />
+        </RunInfoCell>
+        <div className="hidden content-md:block" />
       </div>
       <div className="grid grid-cols-2">
-        {['start', 'finish'].map(cell => (
-          <div
-            key={cell}
-            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
-          >
-            <div className="text-h4">
-              <UnifiedSkeleton className="inline-block h-3 w-32 max-w-full content-md:h-4" />
-            </div>
-            <div className="text-h6">
-              <UnifiedSkeleton className="inline-block h-2.5 w-16 max-w-full content-md:h-3" />
-            </div>
-          </div>
-        ))}
+        <RunInfoCell label="Start Time">
+          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+        </RunInfoCell>
+        <RunInfoCell label="Finish Time">
+          <TextLineSkeleton type="h4" className="w-32 max-w-full" />
+        </RunInfoCell>
       </div>
-    </LoadingRegion>
+    </div>
   );
 }
 
@@ -236,7 +232,15 @@ function useScheduleRun(runId: string, fetchPolicy: 'store-and-network' | 'store
  */
 function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
   const { executionId, scheduleId } = useScheduleRun(runId, 'store-and-network');
+  return <RunHeaderView executionId={executionId ?? null} scheduleId={scheduleId} />;
+}
 
+/**
+ * The header over the run. Without it (`executionId` undefined, a loading scope)
+ * the subtitle reads as `''`, which `TitleBlock` draws as a bar in its scope; the
+ * title is a constant and stays real.
+ */
+function RunHeaderView({ executionId, scheduleId = '' }: { executionId?: string | null; scheduleId?: string }) {
   // Back to the fires of the schedule this run belongs to; a bad id has no
   // schedule to return to, so it falls back to the list.
   const handleBack = useSafeBack(
@@ -246,35 +250,13 @@ function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <TitleBlock
       title={PAGE_TITLE}
-      subtitle={executionId}
+      subtitle={executionId === undefined ? '' : (executionId ?? undefined)}
       // A run always has an executionId, so the row never collapses once loaded —
       // and the fallback below holds the same line with a bar in it.
       subtitleRow="always"
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={NO_ACTIONS}
     />
-  );
-}
-
-/**
- * `loading` + `while-loading` is what draws the bar where the executionId will
- * land. It costs the title: `loading` is a single flag on the frozen
- * `TitleBlock` and swaps title AND subtitle for bars, even though this page's
- * title is a constant. Splitting them needs a new prop there.
- */
-function RunHeaderSkeleton() {
-  const handleBack = useSafeBack(routes.scripts.schedules.list);
-
-  return (
-    <LoadingRegion className="contents" label="Loading the run">
-      <TitleBlock
-        title={PAGE_TITLE}
-        loading
-        subtitleRow="while-loading"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={NO_ACTIONS}
-      />
-    </LoadingRegion>
   );
 }
 
@@ -392,7 +374,13 @@ function RunExecutionRows({
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<RunHeaderSkeleton />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading the run">
+            <RunHeaderView />
+          </LoadingFallback>
+        }
+      >
         <RunHeader runId={runId} />
       </Suspense>
 
@@ -400,7 +388,13 @@ export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
           toolbar's `pt-l`), the same contract the details pages give their tab
           bodies. */}
       <div className="flex flex-1 flex-col">
-        <Suspense fallback={<RunInfoBarSkeleton />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading run details">
+              <RunInfoBar />
+            </LoadingFallback>
+          }
+        >
           <RunSummary runId={runId} />
         </Suspense>
 

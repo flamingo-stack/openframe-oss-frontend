@@ -10,6 +10,7 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useCallback, useMemo } from 'react';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -36,7 +37,8 @@ export interface QueriesTableProps {
   stickyHeaderOffset?: string;
   /** Rendered at the right edge of the header (e.g. a row count). */
   rightSlot?: ReactNode;
-  skeletonRows?: number;
+  /** Rows the loading table draws: the caller's page size (the list it shows), never a fold. */
+  skeletonRows: number;
   /** Infinite "load more" footer. */
   hasMore?: boolean;
   onLoadMore?: () => void;
@@ -50,17 +52,18 @@ export interface QueriesTableProps {
  */
 export function QueriesTable({
   rows,
-  isLoading = false,
+  isLoading: isLoadingProp = false,
   emptyMessage,
   emptyState,
   rowAsLink = false,
   stickyHeader = false,
   stickyHeaderOffset,
   rightSlot,
-  skeletonRows = 10,
+  skeletonRows,
   hasMore = false,
   onLoadMore,
 }: QueriesTableProps) {
+  const isLoading = useLoadingScope() || isLoadingProp;
   // Reserve the actions column while loading so the column count stays stable across
   // skeleton → loading → loaded (otherwise it appears once rows arrive and shifts every
   // column — the "jitter"). Loaded rows in every caller carry actions.
@@ -158,7 +161,13 @@ export function QueriesTable({
         rowHref={rowHref}
       />
       {hasMore && onLoadMore && (
-        <DataTable.InfiniteFooter hasNextPage isFetchingNextPage={false} onLoadMore={onLoadMore} skeletonRows={2} />
+        <DataTable.InfiniteFooter
+          hasNextPage
+          isFetchingNextPage={false}
+          onLoadMore={onLoadMore}
+          // The next page it waits on is one page of the list.
+          skeletonRows={skeletonRows}
+        />
       )}
     </DataTable>
   );

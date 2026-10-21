@@ -1,11 +1,14 @@
 'use client';
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FileManager } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import { useSearchParams } from 'next/navigation';
-import { FileManagerContainer } from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
+import {
+  FILE_MANAGER_LOADING_PROPS,
+  FileManagerContainer,
+} from '@/app/(app)/devices/details/file-manager/components/file-manager-container';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getToolConnection } from '@/app/(app)/devices/utils/device-action-utils';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
@@ -42,7 +45,23 @@ export default function FileManagerPage() {
   );
 
   if (isLoading) {
-    return <FileManagerPageSkeleton onBack={handleBack} />;
+    // The page draws itself while the device is read: the subtitle (the device's name) its bar, the file manager
+    // its loading state.
+    return (
+      <LoadingWhen loading>
+        <PageLayout
+          title="File Manager"
+          subtitle=""
+          className={`${PAGE_PADDING} h-full`}
+          contentClassName="flex min-h-0 flex-col overflow-hidden"
+          backButton={{ label: 'Back', onClick: handleBack }}
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <FileManager {...FILE_MANAGER_LOADING_PROPS} />
+          </div>
+        </PageLayout>
+      </LoadingWhen>
+    );
   }
 
   if (error) {
@@ -97,27 +116,5 @@ export default function FileManagerPage() {
       deviceName={deviceName}
       className={PAGE_PADDING}
     />
-  );
-}
-
-interface FileManagerPageSkeletonProps {
-  onBack: () => void;
-}
-
-function FileManagerPageSkeleton({ onBack }: FileManagerPageSkeletonProps) {
-  return (
-    <PageLayout
-      title="File Manager"
-      className={`${PAGE_PADDING} h-full`}
-      contentClassName="flex min-h-0 flex-col overflow-hidden"
-      backButton={{
-        label: 'Back',
-        onClick: onBack,
-      }}
-    >
-      <LoadingRegion className="flex min-h-0 flex-1 flex-col" label="Loading file manager">
-        <FileManagerSkeleton region={false} />
-      </LoadingRegion>
-    </PageLayout>
   );
 }

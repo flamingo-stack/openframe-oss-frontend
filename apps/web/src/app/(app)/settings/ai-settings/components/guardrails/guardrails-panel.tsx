@@ -1,8 +1,9 @@
 'use client';
 
 import { LoadError, NoData } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { EmptyState } from '@/app/components/shared/empty-state';
 import { GuardrailsPolicyGroups } from './guardrails-policy-groups';
 import { GuardrailsPresetCard } from './guardrails-preset-card';
@@ -22,16 +23,10 @@ interface GuardrailsPanelProps {
  * GraphQL data instead — see `customer-guardrails-tab.tsx`.
  */
 export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
-  if (editor.isLoading) {
-    return (
-      <LoadingRegion label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-sf)]">
-        <UnifiedSkeleton className="h-20 w-full" />
-        <UnifiedSkeleton className="h-64 w-full" />
-      </LoadingRegion>
-    );
-  }
+  // While the templates load, the panel draws itself in a loading scope: every part its own skeleton.
+  const loading = editor.isLoading;
 
-  if (editor.loadError) {
+  if (!loading && editor.loadError) {
     return (
       <LoadError
         message="Couldn't load guardrails policies. The service may be temporarily unavailable."
@@ -40,7 +35,7 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
     );
   }
 
-  if (!editor.hasTemplates) {
+  if (!loading && !editor.hasTemplates) {
     return (
       <EmptyState
         icon={<ShieldCheckIcon />}
@@ -50,48 +45,55 @@ export function GuardrailsPanel({ editor, isEditMode }: GuardrailsPanelProps) {
     );
   }
 
+  const rulesLoading = loading || editor.isDetailLoading;
+
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
-        <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
-        <div className="flex min-w-0 flex-col">
-          <p className="text-ods-text-primary text-h4">Default settings for all customers</p>
-          <p className="text-ods-text-secondary text-h6">
-            Individual customers can be customized separately in their settings.
-          </p>
+    <LoadingRegion
+      label="Loading guardrails"
+      announce={loading}
+      className="flex flex-col gap-[var(--spacing-system-l)]"
+    >
+      <LoadingWhen loading={loading}>
+        <div className="flex items-center gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
+          <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
+          <div className="flex min-w-0 flex-col">
+            <p className="text-ods-text-primary text-h4">Default settings for all customers</p>
+            <p className="text-ods-text-secondary text-h6">
+              Individual customers can be customized separately in their settings.
+            </p>
+          </div>
         </div>
-      </div>
 
-      {isEditMode ? (
-        <GuardrailsTemplatePicker
-          options={editor.templateOptions}
-          value={editor.selectedTemplateId}
-          disabled={editor.isDetailLoading}
-          onSelect={editor.selectTemplate}
-          onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
-        />
-      ) : (
-        <GuardrailsPresetCard label={editor.activePresetLabel} />
-      )}
+        {isEditMode ? (
+          <GuardrailsTemplatePicker
+            options={editor.templateOptions}
+            value={editor.selectedTemplateId}
+            disabled={editor.isDetailLoading}
+            onSelect={editor.selectTemplate}
+            onCreateCustomPolicyFrom={editor.createCustomPolicyFrom}
+          />
+        ) : (
+          <GuardrailsPresetCard label={editor.activePresetLabel} />
+        )}
 
-      {editor.isDetailLoading ? (
-        <LoadingRegion label="Loading policy rules">
-          <UnifiedSkeleton className="h-64 w-full" />
-        </LoadingRegion>
-      ) : editor.policyGroups.size === 0 ? (
-        <NoData
-          icon={<ShieldCheckIcon />}
-          title="This policy template has no rules"
-          className="py-[var(--spacing-system-xxl)]"
-        />
-      ) : (
-        <GuardrailsPolicyGroups
-          groups={editor.policyGroups}
-          editMode={editor.canEditRules}
-          onPolicyPermissionChange={editor.setPolicyPermission}
-          onCategoryPermissionChange={editor.applyCategoryPermission}
-        />
-      )}
-    </div>
+        {/* The rules load on their own (a template change re-reads them): the groups draw their own skeleton. */}
+        {!rulesLoading && editor.policyGroups.size === 0 ? (
+          <NoData
+            icon={<ShieldCheckIcon />}
+            title="This policy template has no rules"
+            className="py-[var(--spacing-system-xxl)]"
+          />
+        ) : (
+          <LoadingWhen loading={rulesLoading}>
+            <GuardrailsPolicyGroups
+              groups={editor.policyGroups}
+              editMode={editor.canEditRules}
+              onPolicyPermissionChange={editor.setPolicyPermission}
+              onCategoryPermissionChange={editor.applyCategoryPermission}
+            />
+          </LoadingWhen>
+        )}
+      </LoadingWhen>
+    </LoadingRegion>
   );
 }

@@ -1,8 +1,7 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 
 /**
- * Column layout for the Software Actions list, shared by the live table and its
- * skeleton — see `table-column-layout.ts` for why this module is data-only.
+ * Column layout for the Software Actions list, read by the live table — see `table-column-layout.ts` for why this module is data-only.
  */
 const SOFTWARE_ACTION_COLUMNS = {
   software: { id: 'software', header: 'Software', width: 'flex-1 min-w-0' },
@@ -15,15 +14,5 @@ const SOFTWARE_ACTION_COLUMNS = {
 } satisfies Record<string, TableSkeletonColumn>;
 
 export { SOFTWARE_ACTION_COLUMNS };
-
-/** `/software/actions` — render order for the live table and its skeleton. */
-export const SOFTWARE_ACTION_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  SOFTWARE_ACTION_COLUMNS.software,
-  SOFTWARE_ACTION_COLUMNS.action,
-  SOFTWARE_ACTION_COLUMNS.engine,
-  SOFTWARE_ACTION_COLUMNS.status,
-  SOFTWARE_ACTION_COLUMNS.processedDevices,
-  SOFTWARE_ACTION_COLUMNS.open,
-];
 
 export const SOFTWARE_ACTIONS_PAGE_SIZE = 20;

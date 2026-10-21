@@ -1,10 +1,12 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DashboardInfoCard, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DashboardInfoCard, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
-import type { usageViewQuery as UsageViewQueryType } from '@/__generated__/usageViewQuery.graphql';
+import type { usageViewQuery as UsageViewQueryType, usageViewQuery$data } from '@/__generated__/usageViewQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { formatCount } from '@/lib/format-number';
@@ -56,8 +58,22 @@ const usageViewQuery = graphql`
  * Dropped: prices, Next Payment, invoices, trial/plan-end dates, "Package"/
  *        "Pay as you go" labels, and every Update/Activate/Pay/Cancel action.
  */
-export function UsageView() {
-  const handleBack = useSafeBack(routes.settings.root());
+export function UsageView({ loading = false }: { loading?: boolean }) {
+  // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
+  const fallback = (
+    <LoadingFallback label="Loading usage">
+      <UsageScreen data={null} />
+    </LoadingFallback>
+  );
+  if (loading) return fallback;
+  return (
+    <Suspense fallback={fallback}>
+      <UsageQuery />
+    </Suspense>
+  );
+}
+
+function UsageQuery() {
   const data = useLazyLoadQuery<UsageViewQueryType>(
     usageViewQuery,
     {},
@@ -68,10 +84,17 @@ export function UsageView() {
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
     },
   );
+  return <UsageScreen data={data} />;
+}
 
-  const subscription = data.subscription;
+/** The page drawn from its query's answer; `data` is `null` while it loads (it draws itself in a loading scope). */
+export function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
+  const loading = useLoadingScope() || data == null;
+  const handleBack = useSafeBack(routes.settings.root());
+  const subscription = data?.subscription ?? null;
   const device = subscription ? deviceAllocation(subscription) : null;
-  const hasAi = subscription?.products.some(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? false;
+  // While it loads, both cards and both sections: what the workspace carries is what has not answered yet.
+  const hasAi = loading || (subscription?.products.some(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? false);
 
   const activeDevices = subscription?.usage?.activeDevices ?? 0;
   const inactiveDevices = subscription?.usage?.inactiveDevices ?? 0;
@@ -92,7 +115,7 @@ export function UsageView() {
   // users learn to scroll past.
   const deviceOverLimit = device?.overLimit ?? false;
 
-  const showDeviceLimit = !devicePerUse && deviceLimit > 0;
+  const showDeviceLimit = loading || (!devicePerUse && deviceLimit > 0);
   const showLimits = showDeviceLimit;
 
   return (
@@ -108,6 +131,7 @@ export function UsageView() {
         )}
       >
         <DashboardInfoCard
+          loading={loading}
           title="Device Usage"
           value={devicesUsed}
           percentage={devicePerUse ? undefined : devicePct}
@@ -115,7 +139,7 @@ export function UsageView() {
           showProgress={showDeviceLimit}
           progressOverflow="wrap"
         />
-        {hasAi && <DashboardInfoCard title="AI Usage" value={aiTokensUsed} />}
+        {hasAi && <DashboardInfoCard loading={loading} title="AI Usage" value={aiTokensUsed} />}
       </div>
 
       {deviceOverLimit && (

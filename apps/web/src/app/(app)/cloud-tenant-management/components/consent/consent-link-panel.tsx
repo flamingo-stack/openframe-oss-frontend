@@ -38,7 +38,7 @@ export const LINK_PLACEHOLDER: Record<ConsentMode, string> = {
   details: 'No consent link is outstanding — use Reconnect to issue a new one.',
 };
 
-/** The card frame, shared with `ConsentPanelSkeleton` so the loading card has the same geometry. */
+/** The card frame, shared with `ConsentBlock`'s loading state so the loading card has the same geometry. */
 export const CONSENT_CARD_CLASSES =
   'flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
 /** The frames set the URL a step below body scale. */

@@ -1,7 +1,8 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { CloudIcon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Alert, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Alert, Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
 import { fetchQuery, graphql, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { consentAnnouncementBannerQuery as BannerQueryType } from '@/__generated__/consentAnnouncementBannerQuery.graphql';
@@ -19,7 +20,17 @@ const consentAnnouncementBannerQuery = graphql`
   }
 `;
 
+/**
+ * The notice, when there is one. Most workspaces have none (it shows only after a release asks for permissions the
+ * connected tenants have not granted), so while the query is in flight (a loading scope) nothing is drawn and
+ * nothing is read: a placeholder would be a box that most often vanishes.
+ */
 function AnnouncementAlert() {
+  if (useLoadingScope()) return null;
+  return <AnnouncementAlertQuery />;
+}
+
+function AnnouncementAlertQuery() {
   const retryKey = useRetryKey();
   const environment = useRelayEnvironment();
   const data = useLazyLoadQuery<BannerQueryType>(
@@ -74,7 +85,13 @@ export function ConsentAnnouncementBanner() {
         <SectionLoadError {...loadErrorProps(isOffline, "Couldn't check for re-authorization notices.", retry)} />
       )}
     >
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Checking for re-authorization notices">
+            <AnnouncementAlert />
+          </LoadingFallback>
+        }
+      >
         <AnnouncementAlert />
       </Suspense>
     </ContentErrorBoundary>

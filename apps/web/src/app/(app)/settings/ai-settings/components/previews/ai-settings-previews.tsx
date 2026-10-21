@@ -1,8 +1,8 @@
 'use client';
 
-import { useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
+import { UnifiedSkeleton, useAgentIdentityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExpandSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useCallback, useState } from 'react';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -12,9 +12,32 @@ import { FaeWelcomePreview } from './fae-welcome-preview';
 import { PREVIEW_THEME_CLASS } from './preview-theme';
 
 interface AiSettingsPreviewsProps {
-  assistantName: string;
+  /** Unread while loading (with `accentColor`). */
+  assistantName?: string;
   avatarUrl?: string;
-  accentColor: string;
+  accentColor?: string;
+}
+
+const MOBILE_BUTTON_LABEL = 'Preview Assistant';
+const THUMBNAILS_CLASS =
+  'hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid';
+
+/**
+ * The previews while the assistant's name and accent are on their way: the phone's button is fixed copy (drawn,
+ * disabled), each thumbnail the frame `ScaledPreviewFrame` draws (the Fae window's aspect).
+ */
+export function AiSettingsPreviewsSkeleton() {
+  return (
+    <>
+      <Button type="button" variant="outline" fullWidth className="content-md:hidden" disabled>
+        {MOBILE_BUTTON_LABEL}
+      </Button>
+      <div className={THUMBNAILS_CLASS}>
+        <UnifiedSkeleton className="aspect-[1024/800] w-full rounded-md" />
+        <UnifiedSkeleton className="aspect-[1024/800] w-full rounded-md" />
+      </div>
+    </>
+  );
 }
 
 /**
@@ -60,6 +83,8 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
   const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
   const resolvedAvatarUrl = avatarUrl || faeAvatar;
 
+  if (useLoadingScope() || assistantName == null || accentColor == null) return <AiSettingsPreviewsSkeleton />;
+
   return (
     <>
       {/* Just the affordance: every consumer already renders the assistant's
@@ -72,10 +97,10 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
         className="content-md:hidden"
         onClick={() => openPreview('welcome')}
       >
-        Preview Assistant
+        {MOBILE_BUTTON_LABEL}
       </Button>
 
-      <div className="hidden grid-cols-2 items-start gap-[var(--spacing-system-l)] rounded-md bg-ods-bg content-md:grid">
+      <div className={THUMBNAILS_CLASS}>
         <ThumbnailTrigger label="Open the welcome screen preview at full size" onOpen={() => openPreview('welcome')}>
           <FaeWelcomePreview assistantName={assistantName} avatarUrl={resolvedAvatarUrl} accentColor={accentColor} />
         </ThumbnailTrigger>

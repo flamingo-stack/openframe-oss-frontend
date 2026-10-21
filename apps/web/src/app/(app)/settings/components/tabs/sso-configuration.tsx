@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   PasscodeIcon,
   PenEditIcon,
@@ -20,6 +20,7 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -48,7 +49,8 @@ type UiProviderRow = {
 export function SsoConfigurationTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [providers, setProviders] = useState<UiProviderRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading from the first render: the list is read on mount, and an empty first frame reads as "no configurations".
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{
     open: boolean;
@@ -439,55 +441,15 @@ export function SsoConfigurationTab() {
       }
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
-      {isOpenframeLoading || isDomainLoading ? (
-        <LoadingRegion label="Loading sign-in options" as={Card} className="border-ods-border bg-ods-card p-4">
-          <div className="flex flex-col gap-6">
-            {[0, 1].map(row => (
-              <div key={row} className="flex items-start gap-3">
-                <UnifiedSkeleton className="h-5 w-5 shrink-0 rounded" />
-                <div className="flex flex-1 flex-col gap-1">
-                  <UnifiedSkeleton className="h-5 w-48 content-md:w-64" />
-                  <UnifiedSkeleton className="h-4 w-full content-md:w-96" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </LoadingRegion>
-      ) : (
-        (openframeSso || tenantDomain) && (
-          <Card className="overflow-hidden border-ods-border bg-ods-card">
-            {openframeSso && (
-              <CheckboxWithDescription
-                id="openframe-sso-enabled"
-                checked={openframeSso.enabled}
-                onCheckedChange={handleOpenframeCheckedChange}
-                disabled={isOpenframeUpdating}
-                title="Enable OpenFrame SSO"
-                description="Allow users to sign up and sign in with an OpenFrame account."
-                className="items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
-              />
-            )}
-            {tenantDomain && (
-              <CheckboxWithDescription
-                id="shared-auto-provision"
-                checked={tenantDomain.autoAllow}
-                onCheckedChange={handleAutoProvisionToggle}
-                disabled={tenantDomain.generic || isAutoProvisionUpdating}
-                title="Open access for your domains"
-                description={
-                  tenantDomain.generic
-                    ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
-                    : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
-                }
-                className={cn(
-                  'items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4',
-                  openframeSso && 'border-t border-ods-border',
-                )}
-              />
-            )}
-          </Card>
-        )
-      )}
+      <SignInOptionsCard
+        loading={isOpenframeLoading || isDomainLoading}
+        openframeSso={openframeSso}
+        tenantDomain={tenantDomain}
+        isOpenframeUpdating={isOpenframeUpdating}
+        isAutoProvisionUpdating={isAutoProvisionUpdating}
+        onOpenframeCheckedChange={handleOpenframeCheckedChange}
+        onAutoProvisionToggle={handleAutoProvisionToggle}
+      />
 
       <Input
         startAdornment={<SearchIcon />}
@@ -604,5 +566,86 @@ export function SsoConfigurationTab() {
         }}
       />
     </PageLayout>
+  );
+}
+
+const OPTION_ROW_CLASS =
+  'items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4';
+const OPENFRAME_SSO_TITLE = 'Enable OpenFrame SSO';
+const OPENFRAME_SSO_DESCRIPTION = 'Allow users to sign up and sign in with an OpenFrame account.';
+const OPEN_ACCESS_TITLE = 'Open access for your domains';
+
+interface SignInOptionsCardProps {
+  /** The OpenFrame login or the tenant domain has not answered: the card draws its own skeleton. */
+  loading: boolean;
+  openframeSso: { enabled: boolean } | null;
+  tenantDomain: TenantDomainInfo | null;
+  isOpenframeUpdating: boolean;
+  isAutoProvisionUpdating: boolean;
+  onOpenframeCheckedChange: (checked: boolean) => void;
+  onAutoProvisionToggle: (checked: boolean) => void;
+}
+
+/**
+ * The card while the two answers are on their way: both rows a workspace typically has, titles real (fixed copy);
+ * the checkbox state and the domain-dependent description are bars.
+ */
+function SignInOptionsCardSkeleton() {
+  return (
+    <LoadingRegion label="Loading sign-in options" as={Card} className="overflow-hidden border-ods-border bg-ods-card">
+      {[OPENFRAME_SSO_TITLE, OPEN_ACCESS_TITLE].map((title, row) => (
+        <div key={title} className={cn('flex items-center gap-3 p-4', row > 0 && 'border-t border-ods-border')}>
+          <UnifiedSkeleton className="h-5 w-5 shrink-0 rounded-sm" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-ods-text-primary text-h4">{title}</span>
+            <TextLineSkeleton type="h6" className="w-full content-md:w-96" />
+          </div>
+        </div>
+      ))}
+    </LoadingRegion>
+  );
+}
+
+/** Tenant-wide sign-in options: the built-in OpenFrame login and open access for the tenant domain. */
+function SignInOptionsCard({
+  loading,
+  openframeSso,
+  tenantDomain,
+  isOpenframeUpdating,
+  isAutoProvisionUpdating,
+  onOpenframeCheckedChange,
+  onAutoProvisionToggle,
+}: SignInOptionsCardProps) {
+  if (useLoadingScope() || loading) return <SignInOptionsCardSkeleton />;
+  if (!openframeSso && !tenantDomain) return null;
+  return (
+    <Card className="overflow-hidden border-ods-border bg-ods-card">
+      {openframeSso && (
+        <CheckboxWithDescription
+          id="openframe-sso-enabled"
+          checked={openframeSso.enabled}
+          onCheckedChange={onOpenframeCheckedChange}
+          disabled={isOpenframeUpdating}
+          title={OPENFRAME_SSO_TITLE}
+          description={OPENFRAME_SSO_DESCRIPTION}
+          className={OPTION_ROW_CLASS}
+        />
+      )}
+      {tenantDomain && (
+        <CheckboxWithDescription
+          id="shared-auto-provision"
+          checked={tenantDomain.autoAllow}
+          onCheckedChange={onAutoProvisionToggle}
+          disabled={tenantDomain.generic || isAutoProvisionUpdating}
+          title={OPEN_ACCESS_TITLE}
+          description={
+            tenantDomain.generic
+              ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
+              : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
+          }
+          className={cn(OPTION_ROW_CLASS, openframeSso && 'border-t border-ods-border')}
+        />
+      )}
+    </Card>
   );
 }

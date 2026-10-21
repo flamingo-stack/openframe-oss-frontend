@@ -1,9 +1,14 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { PageError, SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  PageError,
+  SquareAvatar,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -15,7 +20,32 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { EditProfileModal } from '../edit-profile-modal';
 import { EmailVerificationModal } from '../email-verification-modal';
 
+const CARD_CLASS = 'flex items-center gap-4 rounded-md border border-ods-border bg-ods-card p-4';
+const editIcon = <PenEditIcon className="h-5 w-5" />;
+
+/** The card while the profile is on its way: avatar, name and email are bars; the Edit button is fixed copy. */
+function ProfileTabSkeleton() {
+  return (
+    <LoadingRegion label="Loading your profile" className="pt-6">
+      <div className={CARD_CLASS}>
+        {/* `SquareAvatar size="lg"` is 48px: the skeleton's `md`. */}
+        <MediaSkeleton.Avatar size="md" className="shrink-0" />
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <TextLineSkeleton type="h4" className="w-40 max-w-full" />
+          <TextLineSkeleton type="h6" className="w-56 max-w-full" />
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <Button variant="outline" disabled leftIcon={editIcon}>
+            <span className="font-bold">Edit Profile</span>
+          </Button>
+        </div>
+      </div>
+    </LoadingRegion>
+  );
+}
+
 export function ProfileTab() {
+  const inScope = useLoadingScope();
   const { toast } = useToast();
   const user = useAuthStore(state => state.user);
   const isLoadingProfile = useAuthStore(state => state.isLoadingProfile);
@@ -97,13 +127,7 @@ export function ProfileTab() {
   // Get display name
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : EMPTY_VALUE;
 
-  if (isLoadingProfile && !user) {
-    return (
-      <LoadingRegion label="Loading your profile" className="pt-6">
-        <UnifiedSkeleton className="h-20 w-full rounded-md" />
-      </LoadingRegion>
-    );
-  }
+  if (inScope || (isLoadingProfile && !user)) return <ProfileTabSkeleton />;
 
   if (!user) {
     return (
@@ -116,7 +140,7 @@ export function ProfileTab() {
   return (
     <div className="pt-6">
       {/* Profile Card */}
-      <div className="flex items-center gap-4 rounded-md border border-ods-border bg-ods-card p-4">
+      <div className={CARD_CLASS}>
         {/* Avatar */}
         <SquareAvatar
           src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
@@ -176,11 +200,7 @@ export function ProfileTab() {
           >
             <span className="font-bold">User Logs</span>
           </Button> */}
-          <Button
-            variant="outline"
-            onClick={() => setIsEditModalOpen(true)}
-            leftIcon={<PenEditIcon className="h-5 w-5" />}
-          >
+          <Button variant="outline" onClick={() => setIsEditModalOpen(true)} leftIcon={editIcon}>
             <span className="font-bold">Edit Profile</span>
           </Button>
         </div>

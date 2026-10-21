@@ -1,7 +1,8 @@
 'use client';
 'use no memo';
 
-import { Alert, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { Alert, RadioGroupBlock, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useEffect, useMemo } from 'react';
 import { type Control, Controller } from 'react-hook-form';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -9,7 +10,6 @@ import type { providerFieldQuery as ProviderFieldQueryType } from '@/__generated
 import { useRetryKey } from '@/app/components/shared';
 import type { DirectoryProvider } from '@/generated/schema-enums';
 import { PROVIDER_ORDER, providerPresentation } from '../../utils/tenant-presentation';
-import { ProviderFieldSkeleton } from './provider-field-skeleton';
 import type { TenantFormData } from './tenant-form.types';
 
 const providerFieldQuery = graphql`
@@ -75,11 +75,35 @@ function ProviderOptions({ control, disabled = false, locked = false, onOffered 
   );
 }
 
-/** The provider radio of the New form, over the providers this deployment has enabled. */
+/**
+ * The provider radio of the New form, over the providers this deployment has enabled. In a loading scope (its own
+ * Suspense fallback, or the page's) it draws its own loading state and reads nothing.
+ */
 export function ProviderField(props: ProviderFieldProps) {
+  if (useLoadingScope()) {
+    return <ProviderFieldSkeleton />;
+  }
   return (
-    <Suspense fallback={<ProviderFieldSkeleton />}>
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading providers">
+          <ProviderField {...props} />
+        </LoadingFallback>
+      }
+    >
       <ProviderOptions {...props} />
     </Suspense>
   );
+}
+
+// The radio as it will stand, locked and unselected, over every provider this build knows. Which of
+// them the deployment offers is the only thing that changes on arrival.
+const LOADING_OPTIONS = PROVIDER_ORDER.map(provider => {
+  const { label, radioDescription } = providerPresentation(provider);
+  return { value: provider, label, description: radioDescription };
+});
+
+/** `ProviderField` before its options are known: the real radio, disabled. */
+function ProviderFieldSkeleton() {
+  return <RadioGroupBlock options={LOADING_OPTIONS} variant="grouped" disabled aria-label="Provider" />;
 }

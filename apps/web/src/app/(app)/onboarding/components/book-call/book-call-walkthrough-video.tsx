@@ -13,12 +13,14 @@
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InlineWalkthroughVideo } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useWalkthroughVideoData } from '@/app/hooks/use-walkthrough-video-data';
 import { useInlineWalkthroughClaim } from '@/lib/inline-walkthrough-signal';
 
 export function BookCallWalkthroughVideo({ className }: { className?: string }) {
-  const { video, isLoading } = useWalkthroughVideoData();
+  const { video, isLoading: isReading } = useWalkthroughVideoData();
+  const isLoading = useLoadingScope() || isReading;
   // Mirrors the lib's own render guard so the claim tracks what is actually on
   // screen — claiming with no playable source would leave the user no video at
   // all.

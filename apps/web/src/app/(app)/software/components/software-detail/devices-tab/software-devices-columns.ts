@@ -2,8 +2,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 import { FLEET_LIST_PAGE_SIZE } from '../../shared/fleet-list-paging';
 
 /**
- * Column layout for Software → Devices, shared by the live table and its
- * `<Suspense>` skeleton — see `table-column-layout.ts` for why this module is
+ * Column layout for Software → Devices, read by the live table — see `table-column-layout.ts` for why this module is
  * data-only (no imports, no JSX).
  */
 const SOFTWARE_DEVICE_COLUMNS = {
@@ -21,13 +20,6 @@ const SOFTWARE_DEVICE_COLUMNS = {
 } satisfies Record<string, TableSkeletonColumn>;
 
 export { SOFTWARE_DEVICE_COLUMNS };
-
-/** Render order for the live table and its skeleton. */
-export const SOFTWARE_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  SOFTWARE_DEVICE_COLUMNS.device,
-  SOFTWARE_DEVICE_COLUMNS.softwareVersion,
-  SOFTWARE_DEVICE_COLUMNS.open,
-];
 
 /**
  * The only value allowed to reach `SortInput.field` on this list — anything else

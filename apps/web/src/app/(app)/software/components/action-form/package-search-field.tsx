@@ -5,7 +5,11 @@ import {
   PACKAGE_SEARCH_PLACEHOLDER,
   type SelectedPackage,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Autocomplete, type AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Autocomplete,
+  type AutocompleteOption,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useDeferredValue, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -67,6 +71,16 @@ function toOption(pkg: SelectedPackage): AutocompleteOption {
   return { value: packageKey(pkg), label: pkg.name, description: pkg.description ?? undefined };
 }
 
+/** The field's static copy, the same loading and loaded. */
+const FIELD_COPY = {
+  label: PACKAGE_SEARCH_LABEL,
+  labelVariant: 'large',
+  placeholder: PACKAGE_SEARCH_PLACEHOLDER,
+  noOptionsText: 'No packages found',
+} as const;
+
+const NO_OPTIONS: AutocompleteOption[] = [];
+
 interface PackageSearchFieldProps {
   packageManager: PackageManagerType;
   value: SelectedPackage | null;
@@ -83,9 +97,25 @@ interface PackageSearchFieldProps {
  * and typeable from the first paint, never the disabled placeholder, and a query
  * typed meanwhile simply supersedes it.
  *
- * Callers key it by package manager: switching catalogs starts a fresh search.
+ * Callers key it by package manager: switching catalogs starts a fresh search. In a loading scope (its caller's
+ * Suspense fallback) it draws the field's own loading state and reads nothing.
  */
-export function PackageSearchField({ packageManager, value, onChange }: PackageSearchFieldProps) {
+export function PackageSearchField(props: PackageSearchFieldProps) {
+  if (useLoadingScope()) {
+    return (
+      <Autocomplete
+        {...FIELD_COPY}
+        options={NO_OPTIONS}
+        value={null}
+        onChange={() => props.onChange(null)}
+        disableClientFilter
+      />
+    );
+  }
+  return <PackageSearchFieldQuery {...props} />;
+}
+
+function PackageSearchFieldQuery({ packageManager, value, onChange }: PackageSearchFieldProps) {
   const [search, setSearch] = useState('');
   const query = useDebounce(search, 300).trim();
   const deferredQuery = useDeferredValue<string | null>(query, NOT_YET);
@@ -105,8 +135,7 @@ export function PackageSearchField({ packageManager, value, onChange }: PackageS
 
   return (
     <Autocomplete
-      label={PACKAGE_SEARCH_LABEL}
-      labelVariant="large"
+      {...FIELD_COPY}
       options={known.map(toOption)}
       value={value ? packageKey(value) : null}
       onChange={key => onChange(known.find(pkg => packageKey(pkg) === key) ?? null)}
@@ -114,9 +143,7 @@ export function PackageSearchField({ packageManager, value, onChange }: PackageS
         if (reason !== 'reset') setSearch(next);
       }}
       disableClientFilter
-      placeholder={PACKAGE_SEARCH_PLACEHOLDER}
       loading={isSearching}
-      noOptionsText="No packages found"
     />
   );
 }

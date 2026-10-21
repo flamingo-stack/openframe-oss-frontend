@@ -57,6 +57,7 @@ export function DeviceLogRow({ entry, deviceHostname, selected, onSelect }: Devi
 
   return (
     <li
+      data-loading-item
       className={cn(
         'overflow-hidden rounded-md border transition-colors duration-200 motion-reduce:transition-none',
         selected ? 'border-ods-border bg-ods-card' : 'border-transparent',

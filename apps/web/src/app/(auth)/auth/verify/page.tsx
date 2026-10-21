@@ -1,17 +1,42 @@
 'use client';
 
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
+import { AuthStatusFrame } from '../components/auth-status-frame';
 import { AUTH_ERROR_REF } from '../constants/auth-error-codes';
 
 export default function VerifyEmailPage() {
+  return (
+    // `useSearchParams` bails out to the client during the static prerender: the same screen stands in meanwhile.
+    <Suspense
+      fallback={
+        <LoadingFallback label="Verifying your email">
+          <VerifyEmailScreen />
+        </LoadingFallback>
+      }
+    >
+      <VerifyEmailRedirect />
+    </Suspense>
+  );
+}
+
+/** The screen the visitor sees while they are sent on: the logo and a progress mark. */
+function VerifyEmailScreen() {
+  return (
+    <AuthStatusFrame>
+      <div className="flex size-6 items-center justify-center gap-[6px]">
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] rounded-full bg-ods-text-primary" />
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.27s_infinite] rounded-full bg-ods-text-primary" />
+        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.54s_infinite] rounded-full bg-ods-text-primary" />
+      </div>
+    </AuthStatusFrame>
+  );
+}
+
+function VerifyEmailRedirect() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token') || '';
@@ -38,33 +63,5 @@ export default function VerifyEmailPage() {
     window.location.href = verifyUrl.toString();
   }, [token, router]);
 
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
-      <div className="flex items-center gap-2">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
-
-      <div className="flex size-6 items-center justify-center gap-[6px]">
-        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] rounded-full bg-ods-text-primary" />
-        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.27s_infinite] rounded-full bg-ods-text-primary" />
-        <span className="animate-[dotTravel_0.8s_cubic-bezier(0.4,0,0.2,1)_0.54s_infinite] rounded-full bg-ods-text-primary" />
-      </div>
-
-      <a
-        href="https://flamingo.run"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-      >
-        <span className="text-h6">Powered by</span>
-        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-        <span className="font-semibold text-code">Flamingo</span>
-      </a>
-    </div>
-  );
+  return <VerifyEmailScreen />;
 }

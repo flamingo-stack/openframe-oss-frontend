@@ -2,6 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
@@ -11,7 +12,7 @@ import {
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
@@ -57,7 +58,8 @@ function getMachineId(device: Device): string | undefined {
 
 interface RunScriptFormProps {
   scriptId: string;
-  script: ScriptDetailData;
+  /** Absent while the script loads: the form draws itself in its loading scope. */
+  script?: ScriptDetailData;
 }
 
 function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
@@ -225,11 +227,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         <ScriptSummaryCard
-          name={script.name}
-          description={script.description}
-          shellId={shellToId(script.shell)}
+          name={script?.name ?? ''}
+          description={script?.description}
+          shellId={shellToId(script?.shell)}
           platforms={supportedPlatforms}
-          author={script.author ? initiatorName(script.author) : null}
+          author={script?.author ? initiatorName(script.author) : null}
           showTimeout={false}
         />
 
@@ -319,13 +321,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   );
 }
 
-/**
- * "Run Script" — the per-run config (timeout, privilege, args, env) over the
- * device picker. Suspends on the script query; the route renders
- * `RunScriptSkeleton` while that is in flight, so the form mounts once, already
- * seeded (no editor here, but the same contract as the edit page).
- */
-export function RunScriptView({ scriptId }: RunScriptViewProps) {
+function RunScriptContent({ scriptId }: RunScriptViewProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
@@ -339,6 +335,26 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
   // Keyed by id: the router reuses this route segment when only `?id=` changes,
   // so without the key a hop from script A to B would keep A's run config.
   return <RunScriptForm key={scriptId} scriptId={scriptId} script={data.script} />;
+}
+
+/**
+ * "Run Script": the per-run config (timeout, privilege, args, env) over the
+ * device picker. Suspends on the script query; while that is in flight the
+ * same form draws itself without the script, so the form mounts once, already
+ * seeded (no editor here, but the same contract as the edit page).
+ */
+export function RunScriptView({ scriptId }: RunScriptViewProps) {
+  return (
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading script">
+          <RunScriptForm scriptId={scriptId} />
+        </LoadingFallback>
+      }
+    >
+      <RunScriptContent scriptId={scriptId} />
+    </Suspense>
+  );
 }
 
 export default RunScriptView;

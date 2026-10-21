@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, Suspense } from 'react';
 import { graphql } from 'react-relay';
 import type { dataLossModuleRowsIncidentsQuery } from '@/__generated__/dataLossModuleRowsIncidentsQuery.graphql';
@@ -14,7 +15,6 @@ import { ContentErrorBoundary, QueryIsland } from '@/app/components/shared';
 import type { FeatureFlagGate } from '@/lib/feature-flags';
 import { pluralNoun } from '@/lib/pluralize';
 import { DataLossItem, DataLossStat } from './data-loss-item';
-import { DataLossRowSkeleton } from './data-loss-rows-skeleton';
 
 // One query per module, not fields on the dialog's shared query: where a module is
 // off or not deployed, its field fails the whole document and would take the end
@@ -55,11 +55,16 @@ const integrationsQuery = graphql`
 /** Nothing when the module is off, zero or failed; a loading line until both the flag and the count answer. */
 function ModuleRow({ gate, label, children }: { gate: FeatureFlagGate; label: string; children: ReactNode }) {
   if (gate === 'off') return null;
-  const skeleton = <DataLossRowSkeleton width="w-2/5" />;
-  if (gate === 'loading') return skeleton;
+  // The row while the flag or its count is on its way: the line itself, in a loading scope.
+  const loadingRow = (
+    <LoadingWhen loading>
+      <DataLossItem />
+    </LoadingWhen>
+  );
+  if (gate === 'loading') return loadingRow;
   return (
     <ContentErrorBoundary label={label} fallback={() => <></>}>
-      <Suspense fallback={skeleton}>{children}</Suspense>
+      <Suspense fallback={loadingRow}>{children}</Suspense>
     </ContentErrorBoundary>
   );
 }

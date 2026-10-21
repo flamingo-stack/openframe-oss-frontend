@@ -2,8 +2,8 @@
 
 import type { ApprovalLevel } from '@flamingo-stack/openframe-frontend-core';
 import { Button, CheckboxBlock, LoadError, NoData } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -71,6 +71,7 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
   function CustomerGuardrailsSettingsImpl({ organizationId }, ref) {
     const router = useRouter();
     const { toast } = useToast();
+    const scoped = useLoadingScope();
 
     const { guardrails, isLoading: isGuardrailsLoading, error, refetch } = useOrganizationGuardrails(organizationId);
     const {
@@ -237,19 +238,15 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       setUseDefault(true);
     };
 
-    if (isGuardrailsLoading || isTemplatesLoading) {
-      return (
-        <LoadingRegion label="Loading guardrails" className="flex flex-col gap-[var(--spacing-system-sf)]">
-          <UnifiedSkeleton className="h-16 w-full" />
-          <UnifiedSkeleton className="h-64 w-full" />
-        </LoadingRegion>
-      );
-    }
+    // While the guardrails load the block draws itself in a loading scope: the checkbox block's copy for real,
+    // checked (the starting state, and most customers use the default), then the preset card and the policy groups
+    // each their own skeleton.
+    const loading = scoped || isGuardrailsLoading || isTemplatesLoading;
 
     // The templates list drives seeding, the picker, and preset labels — a
     // failure there would otherwise misrender the org as "using defaults"
     // with a dead picker, so it is as fatal as the org query failing.
-    if (error || templatesError || !guardrails) {
+    if (!loading && (error || templatesError || !guardrails)) {
       return (
         <LoadError
           message="Couldn't load customer guardrails. The service may be temporarily unavailable."
@@ -261,98 +258,100 @@ export const CustomerGuardrailsSettings = forwardRef<CustomerGuardrailsHandle, C
       );
     }
 
-    const activePresetLabel = templates.find(t => t.id === activeTemplateId)?.displayName || 'None';
+    const activePresetLabel = loading ? '' : templates.find(t => t.id === activeTemplateId)?.displayName || 'None';
     const selectedRadioValue = selection?.kind === 'custom' ? ORG_CUSTOM_OPTION_ID : (selection?.templateId ?? '');
 
     return (
-      <div className="flex flex-col gap-[var(--spacing-system-l)]">
-        <CheckboxBlock
-          id="use-default-guardrails"
-          label="Use the default AI-Assistant guardrails"
-          description="Inherits all guardrail settings from your global configuration."
-          checked={useDefault}
-          onCheckedChange={checked => handleToggle(Boolean(checked))}
-          trailing={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={e => {
-                e.preventDefault();
-                router.push(routes.settings.aiSettings({ tab: 'guardrails', edit: true }));
-              }}
-              leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-              className="w-full content-md:w-auto"
-            >
-              Edit Default Guardrails
-            </Button>
-          }
-        />
-
-        {useDefault ? (
-          <>
-            <GuardrailsPresetCard label={activePresetLabel} muted />
-            {inheritedGroups.size > 0 && <GuardrailsPolicyGroups groups={inheritedGroups} />}
-          </>
-        ) : (
-          <>
-            <GuardrailsTemplatePicker
-              options={templateOptions}
-              value={selectedRadioValue}
-              disabled={isDetailLoading}
-              onSelect={selectOption}
-              onCreateCustomPolicyFrom={createCustomPolicyFrom}
-            />
-
-            {isDetailLoading ? (
-              <LoadingRegion label="Loading policy rules">
-                <UnifiedSkeleton className="h-64 w-full" />
-              </LoadingRegion>
-            ) : editorGroups.size === 0 ? (
-              <NoData
-                icon={<ShieldCheckIcon />}
-                title="This policy template has no rules"
-                className="py-[var(--spacing-system-xxl)]"
-              />
-            ) : (
-              <GuardrailsPolicyGroups
-                groups={editorGroups}
-                editMode={selection?.kind === 'custom'}
-                onPolicyPermissionChange={setPolicyPermission}
-                onCategoryPermissionChange={applyCategoryPermission}
-              />
-            )}
-          </>
-        )}
-
-        <ConfirmDialog
-          open={confirmResetOpen}
-          onOpenChange={setConfirmResetOpen}
-          title="Default Guardrails"
-          description="The custom guardrails for this customer will be removed. They will follow the tenant default guardrails instead."
-          confirmLabel="Use default"
-          variant="destructive"
-          isPending={isResetting}
-          pendingLabel="Removing..."
-          onConfirm={async () => {
-            try {
-              await reset();
-              setUseDefault(true);
-              setConfirmResetOpen(false);
-              toast({
-                title: 'Saved',
-                description: 'Customer now follows the default guardrails',
-                variant: 'success',
-              });
-            } catch (err) {
-              toast({
-                title: 'Save failed',
-                description: err instanceof Error ? err.message : 'Failed to remove the custom guardrails',
-                variant: 'destructive',
-              });
+      <LoadingWhen loading={loading}>
+        <div className="flex flex-col gap-[var(--spacing-system-l)]">
+          <CheckboxBlock
+            id="use-default-guardrails"
+            label="Use the default AI-Assistant guardrails"
+            description="Inherits all guardrail settings from your global configuration."
+            checked={useDefault}
+            disabled={loading}
+            onCheckedChange={checked => handleToggle(Boolean(checked))}
+            trailing={
+              <Button
+                type="button"
+                variant="outline"
+                onClick={e => {
+                  e.preventDefault();
+                  router.push(routes.settings.aiSettings({ tab: 'guardrails', edit: true }));
+                }}
+                leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
+                className="w-full content-md:w-auto"
+              >
+                Edit Default Guardrails
+              </Button>
             }
-          }}
-        />
-      </div>
+          />
+
+          {useDefault ? (
+            <>
+              <GuardrailsPresetCard label={activePresetLabel} muted />
+              {(loading || inheritedGroups.size > 0) && <GuardrailsPolicyGroups groups={inheritedGroups} />}
+            </>
+          ) : (
+            <>
+              <GuardrailsTemplatePicker
+                options={templateOptions}
+                value={selectedRadioValue}
+                disabled={isDetailLoading}
+                onSelect={selectOption}
+                onCreateCustomPolicyFrom={createCustomPolicyFrom}
+              />
+
+              {!isDetailLoading && editorGroups.size === 0 ? (
+                <NoData
+                  icon={<ShieldCheckIcon />}
+                  title="This policy template has no rules"
+                  className="py-[var(--spacing-system-xxl)]"
+                />
+              ) : (
+                // The template's rules load on a preset switch: the groups draw their own skeleton meanwhile.
+                <LoadingWhen loading={isDetailLoading}>
+                  <GuardrailsPolicyGroups
+                    groups={editorGroups}
+                    editMode={selection?.kind === 'custom'}
+                    onPolicyPermissionChange={setPolicyPermission}
+                    onCategoryPermissionChange={applyCategoryPermission}
+                  />
+                </LoadingWhen>
+              )}
+            </>
+          )}
+
+          <ConfirmDialog
+            open={confirmResetOpen}
+            onOpenChange={setConfirmResetOpen}
+            title="Default Guardrails"
+            description="The custom guardrails for this customer will be removed. They will follow the tenant default guardrails instead."
+            confirmLabel="Use default"
+            variant="destructive"
+            isPending={isResetting}
+            pendingLabel="Removing..."
+            onConfirm={async () => {
+              try {
+                await reset();
+                setUseDefault(true);
+                setConfirmResetOpen(false);
+                toast({
+                  title: 'Saved',
+                  description: 'Customer now follows the default guardrails',
+                  variant: 'success',
+                });
+              } catch (err) {
+                toast({
+                  title: 'Save failed',
+                  description: err instanceof Error ? err.message : 'Failed to remove the custom guardrails',
+                  variant: 'destructive',
+                });
+              }
+            }}
+          />
+        </div>
+      </LoadingWhen>
     );
   },
 );

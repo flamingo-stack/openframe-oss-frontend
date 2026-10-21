@@ -12,6 +12,12 @@ import { useHostQueries } from '../../hooks/use-host-queries';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
 
+/**
+ * Rows drawn while the device's query reports are read. The reports come as one unpaged list: a typical device
+ * carries a handful of scheduled queries.
+ */
+const QUERIES_TAB_SKELETON_ROWS = 10;
+
 interface QueriesTabProps {
   device: Device | null;
 }
@@ -94,6 +100,7 @@ export function QueriesTab({ device }: QueriesTabProps) {
       <QueriesTable
         rows={rows}
         isLoading={reportsLoading || queriesLoading}
+        skeletonRows={QUERIES_TAB_SKELETON_ROWS}
         rowAsLink
         stickyHeader
         stickyHeaderOffset={stickyHeaderOffset}

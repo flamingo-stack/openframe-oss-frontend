@@ -1,12 +1,11 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadError, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { TabBarSkeleton } from '@/app/components/shared';
 import { loadErrorProps } from '@/lib/query-state';
 import {
   useAdminAiConfig,
@@ -32,7 +31,7 @@ import type { CustomerAiAssistantSubmit } from '../types/customer-ai-assistant.t
 import { MINGO_AI_CHAT_FORM_ID } from '../types/mingo-ai-chat.types';
 import { useAiSettingsActions } from './ai-settings-actions';
 import { AiSettingsLayout } from './ai-settings-layout';
-import { type AiSettingsTabId, AiSettingsTabs, useVisibleAiSettingsTabs } from './ai-settings-tabs';
+import { AI_SETTINGS_TABS, type AiSettingsTabId, AiSettingsTabs, useVisibleAiSettingsTabs } from './ai-settings-tabs';
 import { CUSTOMER_AI_ASSISTANT_FORM_ID, CustomerAiAssistantTab } from './customer-ai-assistant-tab';
 import { DEVICE_GUARDRAILS_FORM_ID, DeviceGuardrailsTab } from './device-guardrails/device-guardrails-tab';
 import { GUARDRAILS_FORM_ID, GuardrailsTab } from './guardrails/guardrails-tab';
@@ -45,8 +44,9 @@ const FORM_ID_BY_TAB: Record<AiSettingsTabId, string> = {
   'device-guardrails': DEVICE_GUARDRAILS_FORM_ID,
 };
 
-/** Two always-visible tabs stand in for the set until the flags answer. */
-const TAB_WIDTHS = ['w-[300px]', 'w-[280px]'] as const;
+/** The tabs no flag hides: the set the page draws until the flag that shapes it answers. */
+const ALWAYS_VISIBLE_TABS = AI_SETTINGS_TABS.filter(tab => tab.id !== 'device-guardrails');
+const NO_OP = () => {};
 
 /**
  * The page waits for the flags that shape its tab set before choosing a tab:
@@ -56,17 +56,25 @@ const TAB_WIDTHS = ['w-[300px]', 'w-[280px]'] as const;
  */
 export function AiSettings() {
   const visibleTabs = useVisibleAiSettingsTabs();
+  const searchParams = useSearchParams();
 
   if (!visibleTabs) {
+    // The page in its loading scope: the tab bar and the tab a link names (else the first), each drawing its own
+    // skeleton. Nothing in the scope reads, so no tab's query starts before the set is known.
+    const loadingTab: AiSettingsTabId = searchParams.get('tab') === 'customer' ? 'customer' : 'mingo';
     return (
       <AiSettingsLayout>
-        <LoadingRegion label="Loading AI settings" className="contents">
-          <TabBarSkeleton widths={TAB_WIDTHS} />
-          <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-            <UnifiedSkeleton className="h-20 w-full rounded-md" />
-            <UnifiedSkeleton className="h-64 w-full rounded-md" />
-          </div>
-        </LoadingRegion>
+        <LoadingFallback label="Loading AI settings">
+          <AiSettingsTabs tabs={ALWAYS_VISIBLE_TABS} activeTab={loadingTab} onTabChange={NO_OP}>
+            {() =>
+              loadingTab === 'customer' ? (
+                <CustomerAiAssistantTab aiConfig={null} view={null} isEditMode={false} onSubmit={NO_OP} />
+              ) : (
+                <MingoAiChatTab aiConfig={null} isEditMode={false} onSubmit={NO_OP} />
+              )
+            }
+          </AiSettingsTabs>
+        </LoadingFallback>
       </AiSettingsLayout>
     );
   }
@@ -264,19 +272,9 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
     <AiSettingsLayout actions={headerActions} mobileBottomActions={isEditMode}>
       <AiSettingsTabs tabs={visibleTabs} activeTab={effectiveTab} onTabChange={handleTabChange}>
         {activeId => {
-          // Keep the tab bar visible; show skeletons while the tab config loads.
-          if (isLoading) {
-            return (
-              <LoadingRegion label="Loading AI settings" className="flex flex-col gap-[var(--spacing-system-l)]">
-                <UnifiedSkeleton className="h-20 w-full rounded-md" />
-                <UnifiedSkeleton className="h-64 w-full rounded-md" />
-              </LoadingRegion>
-            );
-          }
-
           // Nothing cached: the failure copy instead of editable defaults, so real
           // settings can't be overwritten on save.
-          if (isOffline || hasLoadError) {
+          if (!isLoading && (isOffline || hasLoadError)) {
             return (
               <LoadError
                 {...loadErrorProps(
@@ -298,16 +296,23 @@ function AiSettingsContent({ visibleTabs }: { visibleTabs: TabItem[] }) {
 
           if (activeId === 'customer') {
             return (
+              // While the tab's configuration loads (`null`), the tab draws its own skeleton below the tab bar.
               <CustomerAiAssistantTab
-                aiConfig={clientAiConfig}
-                view={view}
+                aiConfig={isLoading ? null : clientAiConfig}
+                view={isLoading ? null : view}
                 isEditMode={isEditMode}
                 onSubmit={handleCustomerSubmit}
               />
             );
           }
 
-          return <MingoAiChatTab aiConfig={adminAiConfig} isEditMode={isEditMode} onSubmit={handleMingoSubmit} />;
+          return (
+            <MingoAiChatTab
+              aiConfig={isLoading ? null : adminAiConfig}
+              isEditMode={isEditMode}
+              onSubmit={handleMingoSubmit}
+            />
+          );
         }}
       </AiSettingsTabs>
     </AiSettingsLayout>

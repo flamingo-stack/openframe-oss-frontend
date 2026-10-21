@@ -6,6 +6,7 @@ import {
   DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useEffect } from 'react';
@@ -147,13 +148,34 @@ interface KnowledgeBaseItemsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The rows of a knowledge base level — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function KnowledgeBaseItemsTable({
-  listing,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: KnowledgeBaseItemsTableProps) {
+const NO_ROWS: readonly ItemRow[] = [];
+const NO_LISTING_IDS: readonly string[] = [];
+const noop = () => {};
+
+/**
+ * The rows of a knowledge base level. In a loading scope (the view's Suspense fallback) it draws the table with no
+ * rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under the
+ * view's `<Suspense>`.
+ */
+export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <KnowledgeBaseItemsRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        listingIds={NO_LISTING_IDS}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <KnowledgeBaseItemsTableQuery {...props} />;
+}
+
+function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
+  const { listing } = props;
   const { toast } = useToast();
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
@@ -196,11 +218,49 @@ export function KnowledgeBaseItemsTable({
     });
   };
 
+  return (
+    <KnowledgeBaseItemsRows
+      {...props}
+      rows={rows}
+      totalCount={items.filteredCount}
+      listingIds={[items.__id]}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface KnowledgeBaseItemsRowsProps extends KnowledgeBaseItemsTableProps {
+  rows: readonly ItemRow[];
+  totalCount: number;
+  /** The connections a row's dialog marks stale. */
+  listingIds: readonly string[];
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function KnowledgeBaseItemsRows({
+  rows,
+  totalCount,
+  listingIds,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  listing,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: KnowledgeBaseItemsRowsProps) {
+  const loading = useLoadingScope();
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ItemRow, ItemDialogKind>();
 
   const isSubtree = isSubtreeListing(listing);
   const table = useDataTable<ItemRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: rows as ItemRow[],
     columns: buildColumns(isSubtree, openDialog),
     getRowId,
     enableSorting: false,
@@ -208,7 +268,7 @@ export function KnowledgeBaseItemsTable({
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); a level with nothing on it gets the page's empty state instead.
-  const showEmptyState = !isSubtree && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !isSubtree && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -229,9 +289,10 @@ export function KnowledgeBaseItemsTable({
             <DataTable.Header
               stickyHeader
               stickyHeaderOffset={stickyHeaderOffset}
-              rightSlot={<DataTable.RowCount itemName="item" totalCount={items.filteredCount} />}
+              rightSlot={<DataTable.RowCount itemName="item" totalCount={totalCount} />}
             />
             <DataTable.Body
+              skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
               emptyState={{
                 title: listing.search
                   ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
@@ -244,8 +305,8 @@ export function KnowledgeBaseItemsTable({
               <DataTable.InfiniteFooter
                 hasNextPage={hasNext}
                 isFetchingNextPage={isLoadingNext}
-                onLoadMore={fetchNextPage}
-                skeletonRows={2}
+                onLoadMore={onLoadMore}
+                skeletonRows={KNOWLEDGE_BASE_PAGE_SIZE}
               />
             )}
           </DataTable>
@@ -259,7 +320,7 @@ export function KnowledgeBaseItemsTable({
           kind={dialog.kind}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingIds={[items.__id]}
+          listingIds={listingIds}
         />
       )}
     </>

@@ -2,8 +2,7 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 import { FLEET_LIST_PAGE_SIZE } from '../../shared/fleet-list-paging';
 
 /**
- * Column layout for Software → Vulnerabilities, shared by the live table and
- * its `<Suspense>` skeleton — see `table-column-layout.ts` for why this module
+ * Column layout for Software → Vulnerabilities, read by the live table — see `table-column-layout.ts` for why this module
  * is data-only (no imports, no JSX).
  */
 const SOFTWARE_VULNERABILITY_COLUMNS = {
@@ -22,14 +21,6 @@ const SOFTWARE_VULNERABILITY_COLUMNS = {
 } satisfies Record<string, TableSkeletonColumn>;
 
 export { SOFTWARE_VULNERABILITY_COLUMNS };
-
-/** Render order for the live table and its skeleton. */
-export const SOFTWARE_VULNERABILITIES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  SOFTWARE_VULNERABILITY_COLUMNS.cveId,
-  SOFTWARE_VULNERABILITY_COLUMNS.affectedVersion,
-  SOFTWARE_VULNERABILITY_COLUMNS.discoveredAt,
-  SOFTWARE_VULNERABILITY_COLUMNS.open,
-];
 
 /** Backend sort fields this list offers — anything else in the URL is ignored. */
 export const SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS: readonly string[] = [

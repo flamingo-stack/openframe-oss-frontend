@@ -1,19 +1,18 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useMemo, useState } from 'react';
 import type { SoftwareActionFilterInput } from '@/__generated__/softwareActionsTableQuery.graphql';
-import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { SoftwareSearchToolbar } from '../shared/software-search-toolbar';
 import { SOFTWARE_SECTIONS } from '../shared/software-sections';
-import { SOFTWARE_ACTION_TABLE_COLUMNS, SOFTWARE_ACTIONS_PAGE_SIZE } from './software-actions-columns';
 import { type SoftwareActionSelections, SoftwareActionsTable } from './software-actions-table';
 
 const PAGE_ACTIONS: PageActionButton[] = [
@@ -82,12 +81,14 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
   // both. No sort: the list keeps the backend's own order, newest first.
   const { deferredFilters, deferredSearch, isPending } = useDeferredQuery(filter, debouncedSearch);
 
-  // The rows before they answer — the same for a query in flight and for the flag's own window.
-  const tableSkeleton = (
-    <TableSkeleton
-      label="Loading software actions"
-      columns={SOFTWARE_ACTION_TABLE_COLUMNS}
-      rows={SOFTWARE_ACTIONS_PAGE_SIZE}
+  const rows = (
+    <SoftwareActionsTable
+      backendFilters={deferredFilters}
+      debouncedSearch={deferredSearch}
+      selections={selections}
+      onSelectionsChange={next => setParams(next)}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
@@ -107,21 +108,13 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
           />
         )}
 
-        {loading ? (
-          tableSkeleton
-        ) : (
-          <Suspense fallback={tableSkeleton}>
-            <SoftwareActionsTable
-              backendFilters={deferredFilters}
-              debouncedSearch={deferredSearch}
-              selections={selections}
-              onSelectionsChange={next => setParams(next)}
-              isPending={isPending}
-              onEmptyChange={setIsEmpty}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
+        {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
+            itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+        <LoadingWhen loading={loading}>
+          <Suspense fallback={<LoadingFallback label="Loading software actions">{rows}</LoadingFallback>}>
+            {rows}
           </Suspense>
-        )}
+        </LoadingWhen>
       </div>
     </PageLayout>
   );

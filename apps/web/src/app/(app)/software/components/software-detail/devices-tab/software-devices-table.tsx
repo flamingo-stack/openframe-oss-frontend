@@ -7,6 +7,7 @@ import {
   type DataTableSortState,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -25,7 +26,6 @@ import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
-import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
@@ -162,20 +162,32 @@ interface SoftwareDevicesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Devices tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function SoftwareDevicesTable({
-  softwareId,
-  backendFilters,
-  debouncedSearch,
-  sort,
-  sortState,
-  onSortChange,
-  statusFilter,
-  onStatusFilterChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareDevicesTableProps) {
+const NO_ROWS: readonly SoftwareDeviceRow[] = [];
+const noop = () => {};
+
+/**
+ * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
+ * with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives
+ * under the tab's `<Suspense>`.
+ */
+export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <SoftwareDevicesTableRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <SoftwareDevicesTableQuery {...props} />;
+}
+
+function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
+  const { softwareId, backendFilters, debouncedSearch, sort } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareDevicesTableQueryType>(
     softwareDevicesTableQuery,
@@ -202,6 +214,45 @@ export function SoftwareDevicesTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
   };
 
+  return (
+    <SoftwareDevicesTableRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
+  rows: readonly SoftwareDeviceRow[];
+  totalCount: number;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareDevicesTableRows({
+  rows,
+  totalCount,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  backendFilters,
+  debouncedSearch,
+  sortState,
+  onSortChange,
+  statusFilter,
+  onStatusFilterChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareDevicesTableRowsProps) {
+  const loading = useLoadingScope();
+
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     SOFTWARE_DEVICE_COLUMNS.softwareVersion.id,
     statusFilter,
@@ -209,7 +260,8 @@ export function SoftwareDevicesTable({
   );
 
   const table = useDataTable<SoftwareDeviceRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: rows as SoftwareDeviceRow[],
     columns: buildColumns(),
     getRowId,
     enableSorting: false,
@@ -219,7 +271,7 @@ export function SoftwareDevicesTable({
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
   // row); a title on no device at all gets the section's empty state instead.
-  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -246,7 +298,7 @@ export function SoftwareDevicesTable({
           onSortChange={onSortChange}
         />
         <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
+          skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
           emptyMessage={
             debouncedSearch
               ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
@@ -260,8 +312,8 @@ export function SoftwareDevicesTable({
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            onLoadMore={onLoadMore}
+            skeletonRows={SOFTWARE_DEVICES_PAGE_SIZE}
           />
         )}
       </DataTable>

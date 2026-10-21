@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -36,7 +35,7 @@ export const RUNS_PAGE_SIZE = 20;
 
 /**
  * Column layout — ONE declaration, read by the live table below and by
- * {@link ScheduleRunsSkeleton}. Widths, `hideAt` and `filterable` were written
+ * {@link ScheduleRunsLoading}. Widths, `hideAt` and `filterable` were written
  * out twice before, and the copies drifted: the skeleton's Status column lost
  * its `filterable`, so the funnel was missing while loading and popped in with
  * the facets, shifting the label. See `table-column-layout.ts`.
@@ -290,7 +289,7 @@ export function useScheduleRunColumns(
 
 const EMPTY_ROWS: UiRun[] = [];
 
-export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
+export function ScheduleRunsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
   // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
   // into a filter with no options yet — the header then draws the real control,
   // funnel included, instead of growing one when the facets land. The Execution
@@ -318,17 +317,9 @@ export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffse
   });
 
   return (
-    <LoadingRegion label="Loading schedule runs">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body
-          loading
-          loadingRegion={false}
-          skeletonRows={RUNS_PAGE_SIZE}
-          emptyMessage=""
-          rowClassName="mb-1"
-        />
-      </DataTable>
-    </LoadingRegion>
+    <DataTable table={table}>
+      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
+      <DataTable.Body skeletonRows={RUNS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+    </DataTable>
   );
 }

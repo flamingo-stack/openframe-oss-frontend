@@ -1,7 +1,7 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { useUser } from '@/app/(app)/settings/hooks/use-user';
 import type { UserRecord } from '@/app/(app)/settings/hooks/use-users';
@@ -29,23 +29,12 @@ function AddedByFrame({ avatar, children }: { avatar?: React.ReactNode; children
   );
 }
 
-/**
- * Same frame with the avatar and the name as placeholders; the label is the real text. `region={false}`
- * inside another loading region, which announces for the cell.
- */
-export function DeviceAddedByCellSkeleton({ region = true }: { region?: boolean } = {}) {
+/** Same frame with the avatar and the name as placeholders; the label is the real text. */
+function DeviceAddedByCellSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading who added the device" announce={region}>
-      <AddedByFrame avatar={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}>
-        <span className="relative inline-block w-28 align-middle text-h4">
-          {/* Invisible char establishes the real line-box height of the name. */}
-          <span className="invisible" aria-hidden>
-            &nbsp;
-          </span>
-          <UnifiedSkeleton className="absolute left-0 right-0 top-1/2 h-[0.85em] -translate-y-1/2 rounded-[6px]" />
-        </span>
-      </AddedByFrame>
-    </LoadingRegion>
+    <AddedByFrame avatar={<UnifiedSkeleton className="size-8 shrink-0 rounded-full" />}>
+      <TextLineSkeleton type="h4" className="w-28" />
+    </AddedByFrame>
   );
 }
 
@@ -68,6 +57,12 @@ interface DeviceAddedByCellProps {
  */
 export function DeviceAddedByCell({ userId }: DeviceAddedByCellProps) {
   const { user, isLoading, error } = useUser(userId ?? '');
+  // The device (the page's loading scope) or the user has not answered yet.
+  const loading = useLoadingScope() || (Boolean(userId) && isLoading);
+
+  if (loading) {
+    return <DeviceAddedByCellSkeleton />;
+  }
 
   if (!userId || error) {
     return (
@@ -77,10 +72,6 @@ export function DeviceAddedByCell({ userId }: DeviceAddedByCellProps) {
         </div>
       </AddedByFrame>
     );
-  }
-
-  if (isLoading) {
-    return <DeviceAddedByCellSkeleton />;
   }
 
   if (!user) {

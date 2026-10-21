@@ -1,16 +1,18 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   CheckboxBlock,
   LoadError,
+  LoadingWhen,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { forwardRef, useImperativeHandle, useState } from 'react';
@@ -57,7 +59,7 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
   const [choice, setChoice] = useState<{ useDefault: boolean; mode: RemoteAccessMode } | null>(null);
 
   // isPending, not isLoading: the queries wait for the feature flags to answer, and that wait is loading too.
-  const isLoading = tenant.isPending || organization.isPending;
+  const isLoading = useLoadingScope() || tenant.isPending || organization.isPending;
   const savedMode = organization.data?.mode ?? null;
   const tenantMode = tenant.data?.mode ?? 'APPROVAL_REQUIRED';
 
@@ -73,16 +75,9 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
     },
   }));
 
-  if (isLoading) {
-    return (
-      <LoadingRegion label="Loading remote access settings" className="flex flex-col gap-[var(--spacing-system-l)]">
-        <UnifiedSkeleton className="h-16 w-full rounded-md" />
-        <UnifiedSkeleton className="h-14 w-full rounded-md" />
-      </LoadingRegion>
-    );
-  }
-
-  if (tenant.error || organization.error) {
+  // While the policies load the block draws itself in a loading scope: the checkbox block's copy for real, checked
+  // (most customers use the default), and the default permission card with its label and the mode as a bar.
+  if (!isLoading && (tenant.error || organization.error)) {
     return (
       <LoadError
         message="Couldn't load customer device guardrails. The service may be temporarily unavailable."
@@ -95,59 +90,70 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
   }
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <CheckboxBlock
-        id="use-default-device-guardrails"
-        label="Use the default device guardrails"
-        description="Inherits all guardrail settings from your global configuration."
-        checked={useDefault}
-        onCheckedChange={checked => setChoice({ useDefault: Boolean(checked), mode: selectedMode })}
-        trailing={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={e => {
-              e.preventDefault();
-              router.push(routes.settings.aiSettings({ tab: 'device-guardrails', edit: true }));
-            }}
-            leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-            className="w-full content-md:w-auto"
-          >
-            Edit Default Guardrails
-          </Button>
-        }
-      />
+    <LoadingWhen loading={isLoading}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <CheckboxBlock
+          id="use-default-device-guardrails"
+          label="Use the default device guardrails"
+          description="Inherits all guardrail settings from your global configuration."
+          checked={useDefault}
+          disabled={isLoading}
+          onCheckedChange={checked => setChoice({ useDefault: Boolean(checked), mode: selectedMode })}
+          trailing={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={e => {
+                e.preventDefault();
+                router.push(routes.settings.aiSettings({ tab: 'device-guardrails', edit: true }));
+              }}
+              leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
+              className="w-full content-md:w-auto"
+            >
+              Edit Default Guardrails
+            </Button>
+          }
+        />
 
-      {useDefault ? (
-        <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
-          <InfoCell
-            value={<span className="text-ods-text-secondary">{REMOTE_ACCESS_MODE_META[tenantMode].label}</span>}
-            label="Default Remote Access Permission"
-          />
-        </div>
-      ) : (
-        <div className="content-md:w-1/2">
-          <Select
-            value={selectedMode}
-            onValueChange={value => setChoice({ useDefault: false, mode: value as RemoteAccessMode })}
-          >
-            <SelectTrigger label="Default Remote Access Permission">
-              {/* Children override Radix's item mirror: label only when closed. */}
-              <SelectValue>{REMOTE_ACCESS_MODE_META[selectedMode].label}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {REMOTE_ACCESS_MODES.map(mode => (
-                <SelectItem key={mode} value={mode}>
-                  <span className="flex flex-col text-left">
-                    <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
-                    <span className="text-ods-text-secondary text-h6">{REMOTE_ACCESS_MODE_META[mode].description}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-    </div>
+        {useDefault ? (
+          <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
+            <InfoCell
+              value={
+                isLoading ? (
+                  <TextLineSkeleton type="h4" className="w-40" />
+                ) : (
+                  <span className="text-ods-text-secondary">{REMOTE_ACCESS_MODE_META[tenantMode].label}</span>
+                )
+              }
+              label="Default Remote Access Permission"
+            />
+          </div>
+        ) : (
+          <div className="content-md:w-1/2">
+            <Select
+              value={selectedMode}
+              onValueChange={value => setChoice({ useDefault: false, mode: value as RemoteAccessMode })}
+            >
+              <SelectTrigger label="Default Remote Access Permission">
+                {/* Children override Radix's item mirror: label only when closed. */}
+                <SelectValue>{REMOTE_ACCESS_MODE_META[selectedMode].label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {REMOTE_ACCESS_MODES.map(mode => (
+                  <SelectItem key={mode} value={mode}>
+                    <span className="flex flex-col text-left">
+                      <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
+                      <span className="text-ods-text-secondary text-h6">
+                        {REMOTE_ACCESS_MODE_META[mode].description}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    </LoadingWhen>
   );
 });

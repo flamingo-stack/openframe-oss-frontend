@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -12,6 +13,7 @@ import {
   type PageActionButton,
   type TabItem,
   TabNavigation,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
@@ -36,9 +38,7 @@ import {
   scheduleDetailTabs,
   scheduleTabBody,
 } from './schedule-detail-tabs';
-import { ScheduleHeaderSkeleton } from './schedule-details-skeleton';
 import { ScheduleInfoBarFromData } from './schedule-info-bar';
-import { ScheduleInfoBarSkeleton } from './schedule-info-bar-skeleton';
 
 interface ScheduleDetailsViewProps {
   scheduleId: string;
@@ -58,8 +58,42 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
     { id: scheduleId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const schedule = data.scriptSchedule;
+  return <ScheduleHeaderView scheduleId={scheduleId} schedule={data.scriptSchedule} />;
+}
 
+type ScheduleRecord = ScheduleDetailQueryType['response']['scriptSchedule'];
+
+/**
+ * The shape the header settles into while the record loads: `loadingActions`
+ * turns each entry into a placeholder sized like the button it will become.
+ * ONE entry, because one is all a schedule is guaranteed to have (an archived
+ * one offers a single "Unarchive"). The label sizes the placeholder.
+ */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Schedule action', variant: 'outline' }];
+
+/** The header's own loading state: the real `TitleBlock`, its title and actions as placeholders, Back working. */
+function ScheduleHeaderSkeleton() {
+  const handleBack = useSafeBack(routes.scripts.schedules.list);
+  return (
+    <TitleBlock
+      title=""
+      loading
+      loadingActions
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={LOADING_ACTIONS}
+      actionsVariant="icon-buttons"
+    />
+  );
+}
+
+/** The header over the record (`null`: not found), or (record unread, or in a loading scope) its own skeleton. */
+function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps & { schedule?: ScheduleRecord }) {
+  const loading = useLoadingScope() || schedule === undefined;
+  if (loading) return <ScheduleHeaderSkeleton />;
+  return <ScheduleHeaderLoaded scheduleId={scheduleId} schedule={schedule} />;
+}
+
+function ScheduleHeaderLoaded({ scheduleId, schedule }: ScheduleDetailsViewProps & { schedule: ScheduleRecord }) {
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
   const { isArchived, isArchiving, isPending, toggleArchive } = useScheduleArchive(schedule);
 
@@ -279,12 +313,24 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<ScheduleHeaderSkeleton />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading the schedule">
+            <ScheduleHeaderView scheduleId={scheduleId} />
+          </LoadingFallback>
+        }
+      >
         <ScheduleHeader scheduleId={scheduleId} />
       </Suspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense fallback={<ScheduleInfoBarSkeleton />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading schedule details">
+              <ScheduleInfoBarFromData date="" time="" repeat="" platforms={[]} />
+            </LoadingFallback>
+          }
+        >
           <ScheduleInfoBar scheduleId={scheduleId} />
         </Suspense>
 

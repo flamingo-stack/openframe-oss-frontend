@@ -1,8 +1,14 @@
 'use client';
 
-import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckIcon, Chevron02LeftIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, PageLayout, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  LoadingWhen,
+  PageLayout,
+  Tag,
+  TagSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -15,7 +21,6 @@ import { formatLogDetailsForCopy } from '../../logs-page/utils/format-log-detail
 import { useLogDetails } from '../hooks/use-log-details';
 import { DetailsSection } from './details-section';
 import { FullInformationSection } from './full-information-section';
-import { LogDetailsSkeleton } from './log-details-skeleton';
 
 interface LogDetailsViewProps {
   logId: string;
@@ -65,13 +70,11 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
     }
   };
 
-  // Loading state
-  if (isLoading) {
-    return <LogDetailsSkeleton onBack={handleBackToLogs} />;
-  }
+  // Until the request answers (it starts after the first render) the page draws itself without the log.
+  const loading = isLoading || (!logDetails && !error);
 
   // Error state
-  if (error || !logDetails) {
+  if (!loading && (error || !logDetails)) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center">
         <div className="text-center">
@@ -89,55 +92,66 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
     );
   }
 
-  return (
-    <PageLayout
-      title="Log Details"
-      backButton={{
-        label: 'Back',
-        onClick: handleBackToLogs,
-      }}
-      actions={[
-        {
-          label: 'Copy Log Details',
-          onClick: handleCopyLogDetails,
-          variant: 'outline' as const,
-          icon: copied ? <CheckIcon className="h-6 w-6 text-ods-success" /> : <Copy02Icon className="h-6 w-6" />,
-        },
-      ]}
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div className="flex w-full flex-col gap-6">
-        {/* Status and Timestamp */}
-        <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
-          <Tag label={logDetails.severity} variant={getSeverityVariant(logDetails.severity)} />
-          <span className="text-ods-text-primary text-h4">{formatDateTime(logDetails.timestamp)}</span>
-        </div>
+  const log = loading ? null : logDetails;
 
-        {/* Log Summary Card */}
-        <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
-          <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
-            <div className="flex w-full flex-col gap-2">
-              <div className="break-words text-ods-text-primary text-h4">
-                {logDetails.message || 'No message available'}
-              </div>
-              <div className="flex items-center gap-2 text-ods-text-secondary text-h6">
-                <ToolBadge toolType={normalizeToolTypeWithFallback(logDetails.toolType)} />
-                <span>•</span>
-                <span>{logDetails.eventType}</span>
+  return (
+    <LoadingWhen loading={!log}>
+      <PageLayout
+        title="Log Details"
+        backButton={{
+          label: 'Back',
+          onClick: handleBackToLogs,
+        }}
+        actions={[
+          {
+            label: 'Copy Log Details',
+            onClick: handleCopyLogDetails,
+            variant: 'outline' as const,
+            disabled: !log,
+            icon: copied ? <CheckIcon className="h-6 w-6 text-ods-success" /> : <Copy02Icon className="h-6 w-6" />,
+          },
+        ]}
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        <div className="flex w-full flex-col gap-6">
+          {/* Status and Timestamp */}
+          <div className="flex flex-col items-start gap-3 content-md:flex-row content-md:items-center content-md:gap-4">
+            {log ? <Tag label={log.severity} variant={getSeverityVariant(log.severity)} /> : <TagSkeleton />}
+            <span className="text-ods-text-primary text-h4">
+              {log ? formatDateTime(log.timestamp) : <TextLineSkeleton type="h4" as="span" className="w-40" />}
+            </span>
+          </div>
+
+          {/* Log Summary Card */}
+          <div className="w-full rounded-[8px] border border-ods-border bg-ods-card">
+            <div className="flex flex-col items-start gap-4 p-4 content-md:p-6">
+              <div className="flex w-full flex-col gap-2">
+                <div className="break-words text-ods-text-primary text-h4">
+                  {log ? (
+                    log.message || 'No message available'
+                  ) : (
+                    <TextLineSkeleton type="h4" className="w-2/3 max-w-[480px]" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-ods-text-secondary text-h6">
+                  <ToolBadge toolType={normalizeToolTypeWithFallback(log?.toolType ?? '')} />
+                  <span>•</span>
+                  <span>{log ? log.eventType : <TextLineSkeleton type="h6" as="span" className="w-28" />}</span>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Device Info Section */}
+          {(!log || log.deviceId) && <DeviceInfoSection deviceId={log?.deviceId} device={log?.device} />}
+
+          {/* Full Information Section */}
+          <FullInformationSection logDetails={log} />
+
+          {/* Details Section */}
+          <DetailsSection logDetails={log} />
         </div>
-
-        {/* Device Info Section */}
-        {logDetails.deviceId && <DeviceInfoSection deviceId={logDetails.deviceId} device={logDetails.device} />}
-
-        {/* Full Information Section */}
-        <FullInformationSection logDetails={logDetails} />
-
-        {/* Details Section */}
-        <DetailsSection logDetails={logDetails} />
-      </div>
-    </PageLayout>
+      </PageLayout>
+    </LoadingWhen>
   );
 }

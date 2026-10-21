@@ -16,6 +16,7 @@ import {
   SelectValue,
   Tag,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -78,7 +79,13 @@ interface ScheduleCriteriaFieldsProps {
  * the preview under the fields shows that intersection, so an unsupported pick
  * visibly matches nothing.
  */
-export function ScheduleCriteriaFields({ criteria, onChange, deviceFilters, disabled }: ScheduleCriteriaFieldsProps) {
+export function ScheduleCriteriaFields(props: ScheduleCriteriaFieldsProps) {
+  // In a loading scope the editor reads nothing (the customer list is a request): it draws its own skeleton.
+  if (useLoadingScope()) return <ScheduleCriteriaFieldsSkeleton />;
+  return <ScheduleCriteriaFieldsContent {...props} />;
+}
+
+function ScheduleCriteriaFieldsContent({ criteria, onChange, deviceFilters, disabled }: ScheduleCriteriaFieldsProps) {
   const organizations = useDeviceOrganizations(100);
 
   const orgOptions = useMemo<AutocompleteOption[]>(
@@ -200,7 +207,7 @@ function CustomCriteriaField() {
  * that `FieldWrapper` gives them, so the editor doesn't resize under the user
  * when the options land.
  */
-export function ScheduleCriteriaFieldsSkeleton() {
+function ScheduleCriteriaFieldsSkeleton() {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-md:grid-cols-4">

@@ -11,8 +11,8 @@
  */
 export const FLEET_LIST_PAGE_SIZE = 100;
 
-/** What a loading table draws — a screenful, not a page: 100 placeholder rows would only cost DOM. */
-export const FLEET_LIST_SKELETON_ROWS = 20;
+/** The infinite scroll of a list whose rows have not answered yet: nothing to load on. */
+export const NO_NEXT_PAGE = { hasNextPage: false, isFetchingNextPage: false, onLoadMore: () => {} } as const;
 
 /** Each settled search term is a full rebuild on the backend, so wait for the user to finish typing. */
 export const FLEET_SEARCH_DEBOUNCE_MS = 500;

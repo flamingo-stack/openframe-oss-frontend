@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ComputerMouseIcon,
   Filter02Icon,
@@ -15,6 +15,7 @@ import {
   FilterModal,
   type NoDataProps,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -71,6 +72,7 @@ const NO_SESSIONS: NoDataProps = {
 };
 
 const EMPTY_ROWS: TenantSessionRow[] = [];
+const noop = () => {};
 
 // ----------------------------------------------------------------
 // Table
@@ -89,7 +91,34 @@ interface TenantSessionsTableProps {
   onDeleted: () => void;
 }
 
-function TenantSessionsTable({
+/**
+ * The sessions table. In a loading scope (the recordings gate or the first page has not answered) it draws its own
+ * skeleton: the live columns with inert funnels, and asks for nothing (not even the funnels' options).
+ */
+function TenantSessionsTable(props: TenantSessionsTableProps) {
+  if (useLoadingScope()) {
+    return <TenantSessionsTableSkeleton />;
+  }
+  return <TenantSessionsTableLoaded {...props} />;
+}
+
+/** The mobile filters button: the header funnels go with the header cells below `md`. */
+function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
+  return (
+    <div className="flex justify-end content-md:hidden">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onClick}
+        disabled={!onClick}
+        aria-label="Open filters"
+        leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+      />
+    </div>
+  );
+}
+
+function TenantSessionsTableLoaded({
   rows,
   totalCount,
   hasNext,
@@ -167,15 +196,7 @@ function TenantSessionsTable({
     <>
       {/* On mobile the header funnels go with the header cells: the standard
           filters button opens the same filters as a modal. */}
-      <div className="flex justify-end content-md:hidden">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setMobileFilterOpen(true)}
-          aria-label="Open filters"
-          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-        />
-      </div>
+      <MobileFiltersButton onClick={() => setMobileFilterOpen(true)} />
 
       {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
       <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
@@ -186,13 +207,18 @@ function TenantSessionsTable({
               rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
             />
           )}
-          <DataTable.Body skeletonRows={4} emptyState={emptyState} rowClassName="mb-1" rowHref={recordingHref} />
+          <DataTable.Body
+            skeletonRows={PAGE_SIZE}
+            emptyState={emptyState}
+            rowClassName="mb-1"
+            rowHref={recordingHref}
+          />
           {rows.length > 0 && (
             <DataTable.InfiniteFooter
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
               onLoadMore={onLoadMore}
-              skeletonRows={2}
+              skeletonRows={PAGE_SIZE}
             />
           )}
         </DataTable>
@@ -243,7 +269,7 @@ function TenantSessionsTable({
 // Skeleton
 // ----------------------------------------------------------------
 
-export function TenantSessionsSkeleton() {
+function TenantSessionsTableSkeleton() {
   // The live layout with inert funnels and an inert calendar, so the header
   // does not shift when the rows arrive.
   const columns = useMemo<ColumnDef<TenantSessionRow>[]>(
@@ -267,12 +293,13 @@ export function TenantSessionsSkeleton() {
   });
 
   return (
-    <LoadingRegion label="Loading remote sessions">
+    <>
+      <MobileFiltersButton />
       <DataTable table={table}>
         <DataTable.Header stickyHeader />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+        <DataTable.Body loading skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
       </DataTable>
-    </LoadingRegion>
+    </>
   );
 }
 
@@ -288,7 +315,28 @@ interface TenantSessionsContentProps extends Omit<
   refreshKey: number;
 }
 
-function TenantSessionsContent({ variables, refreshKey, ...tableProps }: TenantSessionsContentProps) {
+/** The first page. In a loading scope (the Suspense fallback, the gate) it runs no query: the table draws itself. */
+function TenantSessionsContent(props: TenantSessionsContentProps) {
+  if (useLoadingScope()) {
+    return (
+      <TenantSessionsTable
+        rows={EMPTY_ROWS}
+        totalCount={0}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+        isPending={false}
+        tableFilters={props.tableFilters}
+        onFilterChange={props.onFilterChange}
+        dateFilter={props.dateFilter}
+        onDeleted={props.onDeleted}
+      />
+    );
+  }
+  return <TenantSessionsContentQuery {...props} />;
+}
+
+function TenantSessionsContentQuery({ variables, refreshKey, ...tableProps }: TenantSessionsContentProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantSessionsQuery>(
     tenantRemoteSessionsRelayQuery,
@@ -404,21 +452,25 @@ export function TenantSessionsShell() {
     [sortDirection, dateRange, handleDateFilterApply],
   );
 
+  const content = (
+    <TenantSessionsContent
+      variables={deferredVariables}
+      refreshKey={refreshKey}
+      isPending={isPending}
+      tableFilters={tableFilters}
+      onFilterChange={handleFilterChange}
+      dateFilter={dateFilter}
+      // The delete marked the session stale in the store, so the refetch
+      // suspends; as a transition it keeps the rows on screen meanwhile
+      // instead of dropping the table to its skeleton.
+      onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <Suspense fallback={<TenantSessionsSkeleton />}>
-        <TenantSessionsContent
-          variables={deferredVariables}
-          refreshKey={refreshKey}
-          isPending={isPending}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          dateFilter={dateFilter}
-          // The delete marked the session stale in the store, so the refetch
-          // suspends; as a transition it keeps the rows on screen meanwhile
-          // instead of dropping the table to its skeleton.
-          onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
-        />
+      <Suspense fallback={<LoadingFallback label="Loading remote sessions">{content}</LoadingFallback>}>
+        {content}
       </Suspense>
     </div>
   );

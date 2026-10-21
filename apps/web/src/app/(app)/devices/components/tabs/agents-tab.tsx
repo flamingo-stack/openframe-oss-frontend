@@ -4,6 +4,7 @@ import { InfoCard, Tag } from '@flamingo-stack/openframe-frontend-core';
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceStatusConfig } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { TerminalBrowserIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime, normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -28,6 +29,38 @@ const agentTypeToToolType: Record<string, string> = {
   'openframe-client': 'OPENFRAME_CLIENT',
   osqueryd: 'OSQUERY',
 };
+
+/**
+ * Cards the tab draws while the device is read. The agent list has no page size: a typical device reports one card
+ * per agent type the platform knows.
+ */
+const AGENT_CARDS_SKELETON_COUNT = Object.keys(agentTypeToToolType).length;
+
+const AGENTS_SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
+const AGENTS_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
+const AGENTS_GRID_CLASS =
+  'grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3';
+const AGENT_CARD_SKELETON_DATA = { items: [] };
+
+/** The Agents tab while the device is read: the real heading, each card its own InfoCard skeleton. */
+function AgentsTabSkeleton() {
+  return (
+    <section className={AGENTS_SECTION_CLASS}>
+      <h3 className={AGENTS_HEADING_CLASS}>Agent Versions</h3>
+      <div className={AGENTS_GRID_CLASS}>
+        {Array.from({ length: AGENT_CARDS_SKELETON_COUNT }, (_, index) => (
+          <div key={index} data-loading-item className="h-full">
+            <InfoCard
+              data={AGENT_CARD_SKELETON_DATA}
+              skeleton={{ rows: 4, title: false, footer: true }}
+              className="h-full"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const AGENT_TYPES_WITH_STATUS = new Set(['FLEET_MDM', 'MESHCENTRAL']);
 
@@ -57,6 +90,14 @@ function formatRelative(value: string | undefined): string | undefined {
 }
 
 export function AgentsTab({ device }: AgentsTabProps) {
+  if (useLoadingScope()) {
+    return <AgentsTabSkeleton />;
+  }
+
+  return <AgentsTabCards device={device} />;
+}
+
+function AgentsTabCards({ device }: AgentsTabProps) {
   const toolConnections = Array.isArray(device?.toolConnections) ? device.toolConnections : [];
   const installedAgents = Array.isArray(device?.installedAgents) ? device.installedAgents : [];
 
@@ -146,9 +187,9 @@ export function AgentsTab({ device }: AgentsTabProps) {
   }
 
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="uppercase text-ods-text-secondary text-h5">Agent Versions</h3>
-      <div className="grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)] content-md:grid-cols-2 content-lg:grid-cols-3">
+    <section className={AGENTS_SECTION_CLASS}>
+      <h3 className={AGENTS_HEADING_CLASS}>Agent Versions</h3>
+      <div className={AGENTS_GRID_CLASS}>
         {combinedAgents.map((agent, idx) => {
           const toolType = normalizeToolTypeWithFallback(agent.toolType);
           const statusConfig = getDeviceStatusConfig(agent.status ?? 'offline');
@@ -184,14 +225,15 @@ export function AgentsTab({ device }: AgentsTabProps) {
           if (updated) items.push({ label: 'Updated', value: updated });
 
           return (
-            <InfoCard
-              key={`${agent.agentType}-${agent.agentToolId || idx}`}
-              // The cast is what the loose `any[]` used to be, now confined to the
-              // one boundary that needs it: InfoCard's props model `value` as a
-              // string, and these rows are Tags and badges.
-              data={{ items: items as { label?: string; value: string }[], footer: getAgentFooter(agent.toolType) }}
-              className="h-full"
-            />
+            <div key={`${agent.agentType}-${agent.agentToolId || idx}`} data-loading-item className="h-full">
+              <InfoCard
+                // The cast is what the loose `any[]` used to be, now confined to the
+                // one boundary that needs it: InfoCard's props model `value` as a
+                // string, and these rows are Tags and badges.
+                data={{ items: items as { label?: string; value: string }[], footer: getAgentFooter(agent.toolType) }}
+                className="h-full"
+              />
+            </div>
           );
         })}
       </div>

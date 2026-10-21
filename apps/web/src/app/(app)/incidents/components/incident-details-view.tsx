@@ -1,11 +1,10 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, type ReactNode, Suspense } from 'react';
-import { NotesSectionSkeleton } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -16,12 +15,12 @@ import { useIncident, useIncidentDetail } from '../hooks/use-incident';
 import { useLatestIncidentDialog } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
-import { transitionsFrom } from '../utils/incident-transform';
+import { type Incident, type IncidentTransitionTable, transitionsFrom } from '../utils/incident-transform';
 import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
-import { IncidentQueryResults, IncidentQueryResultsSkeleton } from './incident-query-results';
-import { IncidentSummaryCard, IncidentSummaryCardSkeleton } from './incident-summary-card';
+import { IncidentQueryResults } from './incident-query-results';
+import { IncidentSummaryCard } from './incident-summary-card';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
@@ -44,7 +43,23 @@ const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
  */
 function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   const { incident, transitions } = useIncidentDetail(incidentId);
+  return <IncidentHeaderView incident={incident} transitions={transitions} />;
+}
 
+interface IncidentHeaderViewProps {
+  /** Absent while the record loads: the header draws its own skeleton. */
+  incident?: Incident;
+  transitions?: IncidentTransitionTable;
+}
+
+/** The header over a record, or (without one, or in a loading scope) its own skeleton. */
+function IncidentHeaderView({ incident, transitions }: IncidentHeaderViewProps) {
+  const loading = useLoadingScope() || !incident || !transitions;
+  if (loading) return <IncidentHeaderSkeleton />;
+  return <IncidentHeaderLoaded incident={incident} transitions={transitions} />;
+}
+
+function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeaderViewProps>) {
   const handleBack = useSafeBack(routes.incidents.list);
   const mingoControls = useFixWithMingo();
   // One Mingo button: reopen the chat already started from this incident, or start one.
@@ -118,7 +133,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   );
 }
 
-/** The summary card — the same record as the header (see `useIncident`). */
+/** The summary card: the same record as the header (see `useIncident`). */
 function IncidentSummary({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentSummaryCard incident={incident} assigneeSlot={<IncidentAssignee incident={incident} />} />;
@@ -137,18 +152,17 @@ const LOADING_ACTIONS: PageActionButton[] = [
   { label: 'Resolve' },
 ];
 
-function IncidentHeaderSkeleton({ region = true }: { region?: boolean } = {}) {
+/** The header's own loading state: the static title and back button, the record's actions as placeholders. */
+function IncidentHeaderSkeleton() {
   const handleBack = useSafeBack(routes.incidents.list);
   return (
-    <LoadingRegion className="contents" label="Loading incident" announce={region}>
-      <TitleBlock
-        title="Incident Details"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={LOADING_ACTIONS}
-        loadingActions
-        actionsVariant="icon-buttons"
-      />
-    </LoadingRegion>
+    <TitleBlock
+      title="Incident Details"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={LOADING_ACTIONS}
+      loadingActions
+      actionsVariant="icon-buttons"
+    />
   );
 }
 
@@ -162,45 +176,62 @@ function IncidentDetailsFrame({ header, body }: { header: ReactNode; body: React
   );
 }
 
-/** The whole page before it may render at all (the feature flag still unanswered). */
-export function IncidentDetailsSkeleton() {
-  return (
-    <IncidentDetailsFrame
-      header={<IncidentHeaderSkeleton region={false} />}
-      body={
-        <LoadingRegion className="contents" label="Loading incident">
-          <IncidentSummaryCardSkeleton region={false} />
-          <NotesSectionSkeleton region={false} />
-          <IncidentQueryResultsSkeleton region={false} />
-        </LoadingRegion>
-      }
-    />
-  );
-}
-
 /**
  * Incident details page. Composes the frozen `TitleBlock` by hand (not
  * `PageLayout`) so only the pieces that read the record suspend — the same
  * shape as the script details page.
  */
 export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incidentId }: IncidentDetailsViewProps) {
+  // In a loading scope (the feature flag still unanswered) nothing may read: every part draws itself without data.
+  if (useLoadingScope()) {
+    return (
+      <IncidentDetailsFrame
+        header={<IncidentHeaderView />}
+        body={
+          <>
+            <IncidentSummaryCard assigneeSlot={null} />
+            <IncidentNotes incidentId={incidentId} />
+            <IncidentQueryResults />
+          </>
+        }
+      />
+    );
+  }
   return (
     <IncidentDetailsFrame
       header={
-        <Suspense fallback={<IncidentHeaderSkeleton />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading incident">
+              <IncidentHeaderView />
+            </LoadingFallback>
+          }
+        >
           <IncidentHeader incidentId={incidentId} />
         </Suspense>
       }
       body={
-        // Notes sit between the card and the evidence but fetch on their own —
+        // Notes sit between the card and the evidence but fetch on their own:
         // they need only the id, so they do not wait behind the record.
         <>
-          <Suspense fallback={<IncidentSummaryCardSkeleton />}>
+          <Suspense
+            fallback={
+              <LoadingFallback label="Loading incident summary">
+                <IncidentSummaryCard assigneeSlot={null} />
+              </LoadingFallback>
+            }
+          >
             <IncidentSummary incidentId={incidentId} />
           </Suspense>
           <IncidentNotes incidentId={incidentId} />
           <IncidentAssignedTickets incidentId={incidentId} />
-          <Suspense fallback={<IncidentQueryResultsSkeleton />}>
+          <Suspense
+            fallback={
+              <LoadingFallback label="Loading query results">
+                <IncidentQueryResults />
+              </LoadingFallback>
+            }
+          >
             <IncidentEvidence incidentId={incidentId} />
           </Suspense>
         </>

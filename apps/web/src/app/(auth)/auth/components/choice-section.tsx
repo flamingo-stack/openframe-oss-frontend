@@ -13,6 +13,9 @@ import {
 } from '../hooks/use-registration-availability';
 import { ForgotPasswordModal } from './forgot-password-modal';
 
+/** A field's live availability status under the input, not a loading state. */
+const CHECKING_AVAILABILITY = 'Checking availability…'; // loading-standard-ok: a field's live status
+
 interface AuthChoiceSectionProps {
   onCreateOrganization: (orgName: string, domain: string, email: string) => void;
   onSignIn: (email: string) => Promise<void>;
@@ -163,7 +166,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 <p className="mt-1 text-ods-error text-h6">Enter a valid email address</p>
               )}
               {isOrgEmailValid && emailStatus === 'checking' && (
-                <p className="mt-1 text-ods-text-secondary text-h6">Checking availability…</p>
+                <p className="mt-1 text-ods-text-secondary text-h6">{CHECKING_AVAILABILITY}</p>
               )}
               {isOrgEmailValid && emailStatus === 'taken' && (
                 <p className="mt-1 text-ods-error text-h6">This email is already registered. Sign in instead.</p>
@@ -242,7 +245,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 />
               )}
               {isSaasShared && domain.trim() && domainStatus === 'checking' && (
-                <p className="text-ods-text-secondary text-h6">Checking availability…</p>
+                <p className="text-ods-text-secondary text-h6">{CHECKING_AVAILABILITY}</p>
               )}
               {isSaasShared && domain.trim() && domainStatus === 'taken' && (
                 <p className="text-ods-error text-h6">This domain is already taken. Please try another one.</p>
@@ -295,7 +298,7 @@ export function AuthChoiceSection({ onCreateOrganization, onSignIn, isLoading }:
                 variant="accent"
                 className="!w-full md:!w-full"
               >
-                {isCheckingDomain ? 'Checking...' : 'Continue'}
+                Continue
               </Button>
             </div>
           </div>

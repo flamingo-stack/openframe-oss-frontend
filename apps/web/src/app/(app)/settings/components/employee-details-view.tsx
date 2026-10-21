@@ -1,9 +1,9 @@
 'use client';
 
 import { LoadError, NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -17,7 +17,7 @@ import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../mingo/context/context-types';
 import { useTrackOpenView } from '../../mingo/context/use-track-open-view';
 import { useUser } from '../hooks/use-user';
-import { UserStatus, useDeleteUser, useUpdateProfile } from '../hooks/use-users';
+import { type UserRecord, UserStatus, useDeleteUser, useUpdateProfile } from '../hooks/use-users';
 import { ConfirmDeleteUserModal } from './confirm-delete-user-modal';
 import { DeleteAccountModal } from './delete-account-modal';
 import { EditProfileModal } from './edit-profile-modal';
@@ -33,11 +33,12 @@ const CARD_CONTAINER =
 const CARD_ROW =
   'flex items-center gap-[var(--spacing-system-m)] px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] content-md:contents';
 
-function ProfileFieldSkeleton({ valueClassName }: { valueClassName: string }) {
+/** A field while the employee is on its way: the value is a bar, the label is fixed copy and stays real. */
+function EmployeeFieldSkeleton({ label, valueClassName }: { label: string; valueClassName: string }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-      <UnifiedSkeleton className={valueClassName} />
-      <UnifiedSkeleton className="h-4 w-16" />
+    <div className="flex min-w-0 flex-1 flex-col justify-center">
+      <TextLineSkeleton type="h4" className={valueClassName} />
+      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
     </div>
   );
 }
@@ -49,15 +50,80 @@ function EmployeeSummarySkeleton() {
         <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
           {/* Mirrors the loaded avatar: 36px on mobile, 48px on md+. */}
           <UnifiedSkeleton className="size-9 shrink-0 rounded-full content-md:size-12" />
-          <ProfileFieldSkeleton valueClassName="h-6 w-32" />
+          <EmployeeFieldSkeleton label="Name" valueClassName="w-32" />
         </div>
-        <ProfileFieldSkeleton valueClassName="h-6 w-40" />
+        <EmployeeFieldSkeleton label="Email" valueClassName="w-40" />
       </div>
       <div className={`${CARD_ROW} border-t border-ods-border`}>
-        <ProfileFieldSkeleton valueClassName="h-6 w-24" />
-        <ProfileFieldSkeleton valueClassName="h-8 w-16 rounded-md" />
+        <EmployeeFieldSkeleton label="Role" valueClassName="w-24" />
+        <EmployeeFieldSkeleton label="Status" valueClassName="w-16" />
       </div>
     </LoadingRegion>
+  );
+}
+
+/** The employee's card: name, email, role and status, or the deleted variant. `null` while the employee loads. */
+function EmployeeSummary({ user, displayName }: { user: UserRecord | null; displayName: string }) {
+  if (useLoadingScope() || user == null) return <EmployeeSummarySkeleton />;
+  const role = (user.roles || []).join(', ') || EMPTY_VALUE;
+  const isActive = user.status === UserStatus.Active;
+
+  if (isDeletedUserStatus(user.status)) {
+    // Deleted variant per design: a single row with the red placeholder
+    // avatar, the name and the status tag — the role row is dropped.
+    // Admin-DELETED users keep their real name AND email (data is kept for
+    // revival); SELF_DELETED users are anonymized server-side and their
+    // synthetic email is hidden entirely.
+    return (
+      <div className={CARD_CONTAINER}>
+        <div className={CARD_ROW}>
+          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
+            {/* Design sizes the placeholder responsively: 36px with a 16px icon on
+                mobile, 48px with a 24px icon on md+ (1095-50238 vs 1095-46586).
+                `DeletedUserAvatar` has fixed buckets only, so the container and its
+                svg are overridden here instead of forking the lib component. */}
+            <DeletedUserAvatar
+              size="lg"
+              className="h-9 w-9 content-md:h-12 content-md:w-12 [&>svg]:h-4 [&>svg]:w-4 content-md:[&>svg]:h-6 content-md:[&>svg]:w-6"
+            />
+            <InfoCell value={displayName} label="Name" />
+          </div>
+          {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
+          <InfoCell
+            value={<Tag label={isSelfDeletedUserStatus(user.status) ? 'SELF DELETED' : 'DELETED'} variant="grey" />}
+            label="Status"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={CARD_CONTAINER}>
+      <div className={CARD_ROW}>
+        <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
+          {/* Same responsive sizing as the deleted variant: 36px on mobile,
+              48px on md+ — SquareAvatar's buckets are fixed, and its cn is
+              tailwind-merge, so the className override wins. */}
+          <SquareAvatar
+            src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
+            fallback={displayName}
+            size="lg"
+            variant="round"
+            className="h-9 w-9 content-md:h-12 content-md:w-12"
+          />
+          <InfoCell value={displayName} label="Name" />
+        </div>
+        <InfoCell value={user.email} label="Email" />
+      </div>
+      <div className={`${CARD_ROW} border-t border-ods-border`}>
+        <InfoCell value={role} label="Role" />
+        <InfoCell
+          value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
+          label="Status"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -95,7 +161,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
   }
 
   // The non-breaking space below reserves the title's h1 height while loading
-  // (PageLayout's title is string-only, so the bar can't be a UnifiedSkeleton) — it
+  // (PageLayout's title is string-only, so the bar can't be a skeleton) — it
   // keeps the card from jumping. Spelled as a literal NBSP, not &nbsp;, because
   // the value is handed straight to a string-typed prop.
   const displayName = user
@@ -103,8 +169,6 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
       ? `${user.firstName || ''} ${user.lastName || ''}`.trim()
       : user.email
     : ' ';
-  const role = user ? (user.roles || []).join(', ') || EMPTY_VALUE : '';
-  const isActive = user?.status === UserStatus.Active;
   const isDeleted = isDeletedUserStatus(user?.status);
 
   const isOwner = (user?.roles || []).some(r => r?.toLowerCase?.() === 'owner');
@@ -174,61 +238,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
           : undefined
       }
     >
-      {!user ? (
-        <EmployeeSummarySkeleton />
-      ) : isDeleted ? (
-        // Deleted variant per design: a single row with the red placeholder
-        // avatar, the name and the status tag — the role row is dropped.
-        // Admin-DELETED users keep their real name AND email (data is kept for
-        // revival); SELF_DELETED users are anonymized server-side and their
-        // synthetic email is hidden entirely.
-        <div className={CARD_CONTAINER}>
-          <div className={CARD_ROW}>
-            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
-              {/* Design sizes the placeholder responsively: 36px with a 16px icon on
-                  mobile, 48px with a 24px icon on md+ (1095-50238 vs 1095-46586).
-                  `DeletedUserAvatar` has fixed buckets only, so the container and its
-                  svg are overridden here instead of forking the lib component. */}
-              <DeletedUserAvatar
-                size="lg"
-                className="h-9 w-9 content-md:h-12 content-md:w-12 [&>svg]:h-4 [&>svg]:w-4 content-md:[&>svg]:h-6 content-md:[&>svg]:w-6"
-              />
-              <InfoCell value={displayName} label="Name" />
-            </div>
-            {!isSelfDeletedUserStatus(user.status) && <InfoCell value={user.email} label="Email" />}
-            <InfoCell
-              value={<Tag label={isSelfDeletedUserStatus(user.status) ? 'SELF DELETED' : 'DELETED'} variant="grey" />}
-              label="Status"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className={CARD_CONTAINER}>
-          <div className={CARD_ROW}>
-            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-m)]">
-              {/* Same responsive sizing as the deleted variant: 36px on mobile,
-                  48px on md+ — SquareAvatar's buckets are fixed, and its cn is
-                  tailwind-merge, so the className override wins. */}
-              <SquareAvatar
-                src={getFullImageUrl(user.image?.imageUrl, user.image?.hash)}
-                fallback={displayName}
-                size="lg"
-                variant="round"
-                className="h-9 w-9 content-md:h-12 content-md:w-12"
-              />
-              <InfoCell value={displayName} label="Name" />
-            </div>
-            <InfoCell value={user.email} label="Email" />
-          </div>
-          <div className={`${CARD_ROW} border-t border-ods-border`}>
-            <InfoCell value={role} label="Role" />
-            <InfoCell
-              value={<Tag label={isActive ? 'ACTIVE' : 'DELETED'} variant={isActive ? 'success' : 'grey'} />}
-              label="Status"
-            />
-          </div>
-        </div>
-      )}
+      <EmployeeSummary user={user ?? null} displayName={displayName} />
       <EmployeeWorkTime userId={userId} />
       <ConfirmDeleteUserModal
         open={isDeleteOpen}

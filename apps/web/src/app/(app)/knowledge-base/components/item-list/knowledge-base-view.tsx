@@ -1,17 +1,16 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { NewFolderModal } from '../dialogs/new-folder-modal';
 import { ROOT_FOLDER } from '../shared/folder-tree';
-import { KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseSearchToolbar } from '../shared/knowledge-base-search-toolbar';
 import { useTagSearchState } from '../shared/use-tag-search-state';
 import { KnowledgeBaseFolderTitle } from './knowledge-base-folder-title';
@@ -92,6 +91,15 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
   const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_KB_ARTICLE);
   const actions = pageActions(folderId, () => setIsNewFolderOpen(true), isEmpty, generateWithAi);
 
+  const rows = (
+    <KnowledgeBaseItemsTable
+      listing={{ parentId: folderId, search: deferredSearch, tagIds: deferredTagIds }}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     <div className="flex w-full flex-col">
       {folderId === null ? (
@@ -122,23 +130,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
           />
         )}
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              label="Loading articles"
-              columns={KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS}
-              rows={KNOWLEDGE_BASE_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          }
-        >
-          <KnowledgeBaseItemsTable
-            listing={{ parentId: folderId, search: deferredSearch, tagIds: deferredTagIds }}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
+        {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
+        <Suspense fallback={<LoadingFallback label="Loading articles">{rows}</LoadingFallback>}>{rows}</Suspense>
       </div>
 
       <NewFolderModal isOpen={isNewFolderOpen} onClose={() => setIsNewFolderOpen(false)} parentId={folderId} />

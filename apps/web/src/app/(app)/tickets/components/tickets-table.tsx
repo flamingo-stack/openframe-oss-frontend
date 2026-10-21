@@ -15,7 +15,7 @@ import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
-import { useTicketsQuery } from '../hooks/use-tickets-query';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../hooks/use-tickets-query';
 import type { TicketListSort } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
@@ -283,7 +283,7 @@ export function TicketsTable({
               tickets={tickets}
               isLoading={isLoading}
               emptyMessage={emptyMessage}
-              skeletonRows={10}
+              pageSize={TICKETS_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}
               isArchived={isArchived}
               statusOptions={statusOptions}
@@ -298,7 +298,6 @@ export function TicketsTable({
                   hasNextPage={hasNextPage}
                   isFetchingNextPage={isFetchingNextPage}
                   onLoadMore={handleFetchNextPage}
-                  skeletonRows={2}
                 />
               }
             />

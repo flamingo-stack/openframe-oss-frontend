@@ -1,11 +1,13 @@
 'use client';
 
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { softwareListTable_query$key } from '@/__generated__/softwareListTable_query.graphql';
 import type { softwareListTablePaginationQuery as SoftwareListTablePaginationQueryType } from '@/__generated__/softwareListTablePaginationQuery.graphql';
 import type { softwareListTableQuery as SoftwareListTableQueryType } from '@/__generated__/softwareListTableQuery.graphql';
 import { EmptyState, useRetryKey } from '@/app/components/shared';
+import { NO_NEXT_PAGE } from '../shared/fleet-list-paging';
 import { SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareTable } from './software-table';
 
@@ -57,8 +59,31 @@ interface SoftwareListTableProps {
   emptyDescription: string;
 }
 
-/** The Software inventory rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function SoftwareListTable({
+/**
+ * The Software inventory rows. In a loading scope (the frame's Suspense fallback, or the module's flag window) it
+ * draws the shared table with no rows, which is the table's own loading state; otherwise it runs the query, which
+ * suspends, so it lives under the frame's `<Suspense>`.
+ */
+export function SoftwareListTable(props: SoftwareListTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <SoftwareTable
+        rows={[]}
+        totalCount={0}
+        debouncedSearch={props.debouncedSearch}
+        isPending={props.isPending}
+        // Never drawn while loading: the table shows its loading rows, not the empty state.
+        emptyState={null}
+        onEmptyChange={props.onEmptyChange}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <SoftwareListTableQuery {...props} />;
+}
+
+function SoftwareListTableQuery({
   debouncedSearch,
   isPending,
   onEmptyChange,

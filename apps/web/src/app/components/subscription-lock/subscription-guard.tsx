@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, type ReactNode, Suspense, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionGuardQuery as SubscriptionGuardQueryType } from '@/__generated__/subscriptionGuardQuery.graphql';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { markSubscriptionLocked, markSubscriptionOpen } from '@/lib/subscription-gate';
 import { useSubscriptionLockSignal } from '@/lib/subscription-lock-signal';
@@ -111,9 +112,9 @@ export function SubscriptionGuard({ children }: { children: ReactNode }) {
           when this query drove a Suspense boundary directly. Swallowing it would
           leave the status null forever and strand the page area on its skeleton
           with nothing to signal why. */}
-      <Suspense fallback={null}>
+      <HydratorBoundary>
         {gate === 'on' && <SubscriptionStatusHydrator onResolved={setQueriedStatus} />}
-      </Suspense>
+      </HydratorBoundary>
       <SubscriptionLockContext.Provider value={value}>{children}</SubscriptionLockContext.Provider>
     </>
   );

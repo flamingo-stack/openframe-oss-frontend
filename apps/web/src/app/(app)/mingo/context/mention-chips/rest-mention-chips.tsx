@@ -23,7 +23,7 @@ import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
+import { MentionErrorBoundary, MentionTag, MentionTagFallback } from './mention-tag';
 
 interface Resolved {
   label: string;
@@ -108,7 +108,7 @@ function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
 export function RestMentionChip({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
   return (
     <MentionErrorBoundary fallback={<MentionTag icon={icon} label={fallbackLabel || id} />}>
-      <Suspense fallback={<MentionTagSkeleton icon={icon} />}>
+      <Suspense fallback={<MentionTagFallback icon={icon} />}>
         <RestInner marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
       </Suspense>
     </MentionErrorBoundary>

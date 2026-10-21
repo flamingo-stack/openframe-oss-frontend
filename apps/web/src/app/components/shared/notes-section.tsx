@@ -14,6 +14,7 @@ import {
   SquareAvatar,
   Textarea,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type KeyboardEvent, type ReactNode, useState } from 'react';
@@ -37,6 +38,8 @@ interface NotesSectionProps {
   onEditNote: (id: string, text: string) => void;
   /** Fired once the user has confirmed the delete — the section owns the confirmation step. */
   onDeleteNote: (id: string) => void;
+  /** The notes have not been read yet (a client read); inside a loading scope the section switches itself. */
+  loading?: boolean;
 }
 
 interface NoteEditorProps {
@@ -188,15 +191,14 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/** The heading with a bar where the first note lands. */
 /**
  * The heading over an "Add Note" sized bar — the shape of the loaded section
  * when there are no notes yet, which is what most records have. Notes, when
  * there are any, grow the section either way.
  */
-export function NotesSectionSkeleton({ region = true }: { region?: boolean } = {}) {
+function NotesSectionSkeleton() {
   return (
-    <LoadingRegion className="contents" label="Loading notes" announce={region}>
+    <LoadingRegion className="contents" label="Loading notes">
       <NotesSectionFrame>
         <UnifiedSkeleton className="h-8 w-28 rounded-md" />
       </NotesSectionFrame>
@@ -204,9 +206,19 @@ export function NotesSectionSkeleton({ region = true }: { region?: boolean } = {
   );
 }
 
-export function NotesSection({ notes, isAddingNote, onAddNote, onEditNote, onDeleteNote }: NotesSectionProps) {
+export function NotesSection({
+  notes,
+  isAddingNote,
+  onAddNote,
+  onEditNote,
+  onDeleteNote,
+  loading: loadingProp,
+}: NotesSectionProps) {
+  const loading = useLoadingScope() || !!loadingProp;
   const [isAdding, setIsAdding] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+
+  if (loading) return <NotesSectionSkeleton />;
 
   const confirmDelete = () => {
     if (noteToDelete) onDeleteNote(noteToDelete);

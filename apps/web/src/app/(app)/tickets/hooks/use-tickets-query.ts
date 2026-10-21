@@ -8,7 +8,8 @@ import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { type DialogsQueryParams, dialogsQueryKeys } from '../utils/query-keys';
 
-const TICKETS_PAGE_SIZE = 20;
+/** One page of a ticket list; a ticket table's loading state draws this many rows. */
+export const TICKETS_PAGE_SIZE = 20;
 
 export function useTicketsQuery({
   archived,

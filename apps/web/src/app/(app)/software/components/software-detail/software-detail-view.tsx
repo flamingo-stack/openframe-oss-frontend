@@ -1,8 +1,9 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, Suspense } from 'react';
 import { SoftwareDetailContent } from './software-detail-content';
-import { SoftwareDetailSkeleton } from './software-detail-skeleton';
 import { SoftwareDetailTabs } from './software-detail-tabs';
 
 interface SoftwareDetailViewProps {
@@ -33,13 +34,19 @@ export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({
     // The page padding lives on the wrapper around `ContentErrorBoundary` (see
     // `details/page.tsx`), so a thrown query keeps the chrome indented.
     <div className="flex w-full flex-col">
-      {loading ? (
-        <SoftwareDetailSkeleton />
-      ) : (
-        <Suspense fallback={<SoftwareDetailSkeleton />}>
+      {/* While the record loads, and for the flag's own window: the title and the card in a loading scope, where
+          each draws its own loading state and nothing fetches. */}
+      <LoadingWhen loading={loading}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading software">
+              <SoftwareDetailContent softwareId={softwareId} />
+            </LoadingFallback>
+          }
+        >
           <SoftwareDetailContent softwareId={softwareId} />
         </Suspense>
-      )}
+      </LoadingWhen>
 
       {/* `TabNavigation` renders as a fragment, so its bar and its body are
           siblings — grouped into ONE flex item, spaced off the card above. Each

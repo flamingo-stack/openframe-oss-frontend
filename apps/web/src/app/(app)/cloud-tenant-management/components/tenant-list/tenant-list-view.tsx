@@ -1,17 +1,21 @@
 'use client';
 
-import { TENANTS_TABLE_COLUMNS } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Input,
+  LoadingWhen,
+  type PageActionButton,
+  PageLayout,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useState } from 'react';
-import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { ConsentAnnouncementBanner } from './consent-announcement-banner';
-import { TENANTS_PAGE_SIZE, TenantsTable } from './tenants-table';
+import { TenantsTable } from './tenants-table';
 
 /**
  * The "Connect Tenant" split button (Figma 1699-8249): the label opens the connect page in place,
@@ -49,11 +53,11 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  const tableSkeleton = (
-    <TableSkeleton
-      label="Loading tenants"
-      columns={TENANTS_TABLE_COLUMNS}
-      rows={TENANTS_PAGE_SIZE}
+  const rows = (
+    <TenantsTable
+      search={deferredSearch}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
@@ -83,18 +87,11 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
             />
           </div>
         )}
-        {loading ? (
-          tableSkeleton
-        ) : (
-          <Suspense fallback={tableSkeleton}>
-            <TenantsTable
-              search={deferredSearch}
-              isPending={isPending}
-              onEmptyChange={setIsEmpty}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          </Suspense>
-        )}
+        {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
+            itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+        <LoadingWhen loading={loading}>
+          <Suspense fallback={<LoadingFallback label="Loading tenants">{rows}</LoadingFallback>}>{rows}</Suspense>
+        </LoadingWhen>
       </div>
     </PageLayout>
   );

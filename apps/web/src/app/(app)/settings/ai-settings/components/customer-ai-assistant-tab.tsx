@@ -1,7 +1,13 @@
 'use client';
 'use no memo';
 
-import { ColorPickerInput, ImageUploader, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ColorPickerInput,
+  ImageUploader,
+  Input,
+  LoadingWhen,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Controller } from 'react-hook-form';
 import { type CommitAvatar, useCustomerAiAssistantForm } from '../hooks/use-customer-ai-assistant-form';
 import { useHubDefaultQuickActions } from '../hooks/use-hub-default-quick-actions';
@@ -17,13 +23,32 @@ import { AiSettingsPreviews } from './previews/ai-settings-previews';
 export { CUSTOMER_AI_ASSISTANT_FORM_ID } from '../types/customer-ai-assistant.types';
 
 interface CustomerAiAssistantTabProps {
-  aiConfig: AgentAiConfig;
-  view: ClientView;
+  /** `null` (with `view`) while the configuration loads: the tab draws its own skeleton. */
+  aiConfig: AgentAiConfig | null;
+  view: ClientView | null;
   isEditMode: boolean;
   onSubmit: (payload: CustomerAiAssistantSubmit, commitAvatar: CommitAvatar) => void;
 }
 
-export function CustomerAiAssistantTab({ aiConfig, view, isEditMode, onSubmit }: CustomerAiAssistantTabProps) {
+export function CustomerAiAssistantTab({ aiConfig, view, ...props }: CustomerAiAssistantTabProps) {
+  // The form below is seeded once from the configuration, so it mounts only when that is in hand. Loading: the
+  // read-only overview, every part its own skeleton.
+  if (useLoadingScope() || aiConfig == null || view == null) {
+    return (
+      <LoadingWhen loading>
+        <AiSettingsOverview />
+      </LoadingWhen>
+    );
+  }
+  return <CustomerAiAssistantTabContent aiConfig={aiConfig} view={view} {...props} />;
+}
+
+function CustomerAiAssistantTabContent({
+  aiConfig,
+  view,
+  isEditMode,
+  onSubmit,
+}: CustomerAiAssistantTabProps & { aiConfig: AgentAiConfig; view: ClientView }) {
   const { form, avatarUrl, handleAvatarChange, handleAvatarRemove, handleSubmit } = useCustomerAiAssistantForm({
     aiConfig,
     view,

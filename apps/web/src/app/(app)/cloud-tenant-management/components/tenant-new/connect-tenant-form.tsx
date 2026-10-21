@@ -1,8 +1,13 @@
 'use client';
 'use no memo';
 
-import { Button, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useFormState } from 'react-hook-form';
+import {
+  Button,
+  type PageActionButton,
+  PageLayout,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useForm, useFormState } from 'react-hook-form';
 import { SectionLoadError } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
@@ -11,14 +16,23 @@ import { MINT_FAILED } from '../consent/use-start-consent';
 import { ProviderField } from '../tenant-form/provider-field';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import type { TenantFormRecord } from '../tenant-form/tenant-form-helpers';
+import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData } from '../tenant-form/tenant-form.types';
 import { useConnectTenantForm } from './use-connect-tenant-form';
 
 /**
  * The connect step (Figma 2097-122222 → 122274): the same form as the create step with provider
  * and domain locked, the consent card in place of the Generate button, Save live in the title bar.
- * Edit Domain brings the Generate button back until a fresh link stands.
+ * Edit Domain brings the Generate button back until a fresh link stands. With no record yet (a loading scope) it
+ * draws its own loading state.
  */
-export function ConnectTenantForm({ record }: { record: TenantFormRecord }) {
+export function ConnectTenantForm({ record }: { record: TenantFormRecord | null }) {
+  if (useLoadingScope() || !record) {
+    return <ConnectTenantFormSkeleton />;
+  }
+  return <LoadedConnectTenantForm record={record} />;
+}
+
+function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
   const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const {
     form,
@@ -89,6 +103,38 @@ export function ConnectTenantForm({ record }: { record: TenantFormRecord }) {
           />
         </>
       )}
+    </PageLayout>
+  );
+}
+
+const SAVE_PLACEHOLDER: PageActionButton = { label: 'Save Integration', variant: 'accent', disabled: true };
+const noop = () => {};
+
+/**
+ * The connect step before the record is known: the real chrome and the real controls, locked, over a throwaway
+ * form, so there is no second copy of the markup. Only what names the record (the consent instruction) is a bar,
+ * drawn by the consent block and the provider picker themselves.
+ */
+function ConnectTenantFormSkeleton() {
+  const form = useForm<TenantFormData>({ defaultValues: TENANT_FORM_DEFAULT_VALUES });
+  // Live, not a stub: Back works while the record loads.
+  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
+  return (
+    <PageLayout
+      title="New Tenant Integration"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={[SAVE_PLACEHOLDER]}
+      actionsVariant="primary-buttons"
+    >
+      <TenantFormFields
+        control={form.control}
+        disabled
+        domainLocked
+        providerField={<ProviderField control={form.control} disabled locked />}
+        customersEnabled={false}
+      />
+      {/* Before the record the block draws its own loading state; it reads only the mode. */}
+      <ConsentBlock mode="new" provider="" consentUrl={null} checking={false} verdict={null} onCheck={noop} />
     </PageLayout>
   );
 }

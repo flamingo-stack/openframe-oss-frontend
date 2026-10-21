@@ -1,6 +1,11 @@
 'use client';
 
-import { NotFoundError, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  NotFoundError,
+  type PageActionButton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -14,7 +19,6 @@ import { TenantConsentAlert } from './tenant-consent-alert';
 import { TenantConsentIssues } from './tenant-consent-issues';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantIntegrationSection } from './tenant-integration-section';
-import { TenantIntegrationSectionSkeleton } from './tenant-integration-section-skeleton';
 import { TenantSummaryCard } from './tenant-summary-card';
 
 // `directoryConnection` is nullable: an unknown id is a field error, which reaches the page as null.
@@ -41,8 +45,35 @@ interface TenantDetailContentProps {
   actions: PageActionButton[];
 }
 
-/** Everything on the details page that waits for the record. */
-export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
+/** The two entries the header settles into — the placeholders are sized off them. */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'Edit Integration' }];
+
+const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
+
+/**
+ * Everything on the details page that waits for the record. In a loading scope (the view's Suspense fallback, or
+ * the module's flag window) it draws the title as a bar and the card with its labels real and its values as bars,
+ * the shape both states share, and does not fetch. What follows the card (the consent hand-off of a tenant still
+ * to connect, or the integration rows of a connected one) is the record's answer, so nothing stands in for it.
+ *
+ * The actions are placeholders: Reconnect and Edit are links to a record the query has not confirmed yet — an
+ * unknown id settles into "Tenant not found" with no actions.
+ */
+export function TenantDetailContent(props: TenantDetailContentProps) {
+  if (useLoadingScope()) {
+    return (
+      <>
+        <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
+        <div className={BODY_CLASS}>
+          <TenantSummaryCard connection={null} />
+        </div>
+      </>
+    );
+  }
+  return <TenantDetailContentQuery {...props} />;
+}
+
+function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const { directoryConnection: connection } = useLazyLoadQuery<TenantDetailContentQueryType>(
@@ -66,7 +97,7 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
   return (
     <>
       <TenantDetailTitle title={connection.name} actions={actions} />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
+      <div className={BODY_CLASS}>
         <TenantSummaryCard connection={connection} />
         <TenantConsentAlert connection={connection} />
         <TenantConsentIssues connection={connection} />
@@ -75,8 +106,14 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
           <ContentErrorBoundary
             fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
           >
-            <Suspense fallback={<TenantIntegrationSectionSkeleton provider={connection.provider} />}>
-              <TenantIntegrationSection id={connection.id} />
+            <Suspense
+              fallback={
+                <LoadingFallback label="Loading integration">
+                  <TenantIntegrationSection id={connection.id} provider={connection.provider} />
+                </LoadingFallback>
+              }
+            >
+              <TenantIntegrationSection id={connection.id} provider={connection.provider} />
             </Suspense>
           </ContentErrorBoundary>
         ) : (

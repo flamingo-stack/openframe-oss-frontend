@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -29,8 +29,14 @@ function Cell({ children }: { children: ReactNode }) {
   return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
 }
 
+/** The card's frame, shared by the loaded card and its skeleton. */
+const CARD_CLASS = 'overflow-hidden rounded-[6px] border border-ods-border bg-ods-card';
+const HEADER_CLASS =
+  'flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]';
+
 interface IncidentSummaryCardProps {
-  incident: Incident;
+  /** Absent while the record loads: the card draws its own skeleton. */
+  incident?: Incident;
   /** The "Assigned" cell, which owns its own mutations — see `IncidentAssignee`. */
   assigneeSlot: ReactNode;
 }
@@ -41,11 +47,13 @@ interface IncidentSummaryCardProps {
  * assignee, and severity / category / interval / status (+ until, while snoozed).
  */
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
+  const loading = useLoadingScope() || !incident;
+  if (loading) return <IncidentSummaryCardSkeleton />;
   const snoozedUntil = incident.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
 
   return (
-    <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
+    <div className={CARD_CLASS}>
+      <div className={HEADER_CLASS}>
         <TruncateText variant="h4">{incident.title}</TruncateText>
         {incident.description && <p className="text-ods-text-secondary text-h6">{incident.description}</p>}
       </div>
@@ -124,7 +132,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
 }
 
 /** Same header + two strips, every value a bar, so the card keeps its height while the record loads. */
-export function IncidentSummaryCardSkeleton({ region = true }: { region?: boolean } = {}) {
+function IncidentSummaryCardSkeleton() {
   const cell = (label: string, index: number) => (
     <Cell key={index}>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
@@ -134,17 +142,13 @@ export function IncidentSummaryCardSkeleton({ region = true }: { region?: boolea
     </Cell>
   );
   return (
-    <LoadingRegion
-      label="Loading incident summary"
-      announce={region}
-      className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card"
-    >
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
+    <div className={CARD_CLASS}>
+      <div className={HEADER_CLASS}>
         <UnifiedSkeleton className="h-6 w-64" />
         <UnifiedSkeleton className="h-5 w-full max-w-[720px]" />
       </div>
       <Row>{['Device', 'Customer', 'Detected', 'Assigned'].map(cell)}</Row>
       <Row>{['Severity', 'Category', 'Interval', 'Status'].map(cell)}</Row>
-    </LoadingRegion>
+    </div>
   );
 }

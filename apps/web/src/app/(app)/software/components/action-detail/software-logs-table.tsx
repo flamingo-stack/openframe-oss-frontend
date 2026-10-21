@@ -8,6 +8,7 @@ import {
   type NoDataProps,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useMemo } from 'react';
@@ -136,6 +137,7 @@ const EMPTY_STATE: NoDataProps = {
 };
 
 const getRowId = (row: SoftwareLogRow) => row.id;
+const NO_ROWS: readonly SoftwareLogRow[] = [];
 
 interface SoftwareLogsTableProps {
   packageManager: PackageManagerType;
@@ -165,18 +167,7 @@ export function SoftwareLogsTable({
   actionLabel,
   state,
 }: SoftwareLogsTableProps) {
-  const {
-    backendFilters,
-    sort,
-    narrowSearch,
-    isPending,
-    tableFilters,
-    onFilterChange,
-    mobileFilterOpen,
-    onMobileFilterClose,
-    stickyHeaderOffset,
-    onEmptyChange,
-  } = state;
+  const { backendFilters, sort } = state;
 
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareLogsTableQueryType>(
@@ -202,10 +193,62 @@ export function SoftwareLogsTable({
     softwareLogsTable_query$key
   >(softwareLogsTableFragment, queryData);
 
+  const fetchNextPage = () => {
+    if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
+  };
+
+  return (
+    <SoftwareLogsRows
+      allRows={data.softwareExecutions?.edges.map(edge => edge.node) ?? NO_ROWS}
+      statusFacets={queryData.softwareExecutionFilters?.statuses ?? null}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+      actionLabel={actionLabel}
+      state={state}
+    />
+  );
+}
+
+type StatusFacets = NonNullable<SoftwareLogsTableQueryType['response']['softwareExecutionFilters']>['statuses'];
+
+interface SoftwareLogsRowsProps {
+  allRows: readonly SoftwareLogRow[];
+  statusFacets: StatusFacets | null;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+  actionLabel: string;
+  state: ExecutionsTabState;
+}
+
+/**
+ * The logs table itself, from the rows it is handed: no query, so it also draws in a loading scope, where the
+ * header is real and the body is its own loading rows (`ActionDetailLogs` renders it so before the run answers).
+ */
+export function SoftwareLogsRows({
+  allRows,
+  statusFacets,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  actionLabel,
+  state,
+}: SoftwareLogsRowsProps) {
+  const {
+    narrowSearch,
+    isPending,
+    tableFilters,
+    onFilterChange,
+    mobileFilterOpen,
+    onMobileFilterClose,
+    stickyHeaderOffset,
+    onEmptyChange,
+  } = state;
+  const loading = useLoadingScope();
   const { phases, toggle, collapsed } = useResultPhases();
 
   // The facet labels read the way this page's tags do ("Success", not "Completed").
-  const statusFacets = queryData.softwareExecutionFilters?.statuses;
   const statusOptions = useMemo<FacetOption[]>(
     () =>
       (statusFacets ?? []).map(facet => ({
@@ -218,12 +261,7 @@ export function SoftwareLogsTable({
   );
 
   const needle = narrowSearch.trim().toLowerCase();
-  const allRows = (data.softwareExecutions?.edges ?? []).map(edge => edge.node);
-  const logs = needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : allRows;
-
-  const fetchNextPage = () => {
-    if (hasNext && !isLoadingNext) loadNext(EXECUTIONS_PAGE_SIZE);
-  };
+  const logs = needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : [...allRows];
 
   // Memoized by hand on purpose: TanStack keys its column model on this array's
   // identity and `flexRender` mounts each `cell` function as a component, so a
@@ -297,7 +335,7 @@ export function SoftwareLogsTable({
   // Header, empty copy and the toolbar hand-off follow the script Execution
   // History table (`executions-table.tsx`), which reasons through each case.
   const hasActiveFilter = columnFilters.length > 0;
-  const showHeader = logs.length > 0 || hasActiveFilter || isPending;
+  const showHeader = loading || logs.length > 0 || hasActiveFilter || isPending;
 
   const resolvedEmptyState: NoDataProps = hasNext
     ? { icon: <SearchIcon />, title: 'Looking through the remaining logs…' }
@@ -311,7 +349,7 @@ export function SoftwareLogsTable({
         }
       : EMPTY_STATE;
 
-  const isEmptyState = logs.length === 0 && !narrowSearch && !hasActiveFilter && !hasNext && !isPending;
+  const isEmptyState = !loading && logs.length === 0 && !narrowSearch && !hasActiveFilter && !hasNext && !isPending;
   useEffect(() => {
     onEmptyChange(isEmptyState);
   }, [isEmptyState, onEmptyChange]);
@@ -340,8 +378,8 @@ export function SoftwareLogsTable({
             <DataTable.InfiniteFooter
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
-              onLoadMore={fetchNextPage}
-              skeletonRows={2}
+              onLoadMore={onLoadMore}
+              skeletonRows={EXECUTIONS_PAGE_SIZE}
               // The search narrows the loaded rows on the client, so a page can
               // arrive and add no match: progress is read off this count instead.
               loadedCount={allRows.length}

@@ -1,10 +1,10 @@
 'use client';
 
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { dataLossCoreRows_query$key } from '@/__generated__/dataLossCoreRows_query.graphql';
 import { pluralNoun } from '@/lib/pluralize';
 import { DataLossItem, DataLossStat } from './data-loss-item';
-import { DataLossRowsSkeleton } from './data-loss-rows-skeleton';
 import { useCancellationImpact } from './use-cancellation-impact';
 
 /**
@@ -41,15 +41,32 @@ const dataLossCoreRowsFragment = graphql`
 `;
 
 /**
+ * One bar per core row the box can state (devices, customers, tickets, articles, scripts, policies and queries,
+ * tracked hours): a fixed set, each with its own typical sentence width.
+ */
+const CORE_ROW_SKELETON_WIDTHS = ['w-1/2', 'w-1/3', 'w-3/4', 'w-2/3', 'w-2/5', 'w-3/4', 'w-1/2'] as const;
+
+export function DataLossCoreRowsSkeleton() {
+  return (
+    <LoadingWhen loading>
+      {CORE_ROW_SKELETON_WIDTHS.map((width, i) => (
+        <DataLossItem key={i} skeletonWidth={width} />
+      ))}
+    </LoadingWhen>
+  );
+}
+
+/**
  * A zero figure drops its row, or its half of a row. "Events across monitoring
  * policies" from the design is left out: nothing in the schema or Fleet counts them.
  */
-export function DataLossCoreRows({ query }: { query: dataLossCoreRows_query$key }) {
+export function DataLossCoreRows({ query }: { query: dataLossCoreRows_query$key | null }) {
   const data = useFragment(dataLossCoreRowsFragment, query);
   // Tickets (ai-agent) and policies/queries (Fleet): the rows wait for them too.
   const external = useCancellationImpact();
 
-  if (external == null) return <DataLossRowsSkeleton />;
+  // `query` is null only while the dialog's query is on its way (drawn in a loading scope).
+  if (useLoadingScope() || data == null || external == null) return <DataLossCoreRowsSkeleton />;
 
   const devices = data.subscription?.usage?.devicesUsed ?? 0;
   const customers = data.organizations.filteredCount;

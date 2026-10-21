@@ -1,10 +1,12 @@
 'use client';
 
+import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   FlamingoMarkIcon,
   OpenframeLogoIcon,
   OpenframeTextIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 
@@ -15,6 +17,34 @@ interface WorkspaceInactiveScreenProps {
   description?: string;
   /** The remedy, when this viewer has one from here — leads the action row. */
   action?: ReactNode;
+  /**
+   * The copy depends on something still being read (the viewer's role): the body copy draws its own skeleton.
+   * Inside a loading scope it does so by itself.
+   */
+  loading?: boolean;
+}
+
+const DEFAULT_DESCRIPTION =
+  "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team.";
+
+/** The body copy while it is not known yet: two lines in the paragraph's place. */
+function InactiveDescriptionSkeleton() {
+  return (
+    <LoadingRegion
+      label="Checking your access"
+      className="flex w-full flex-col items-center gap-[var(--spacing-system-xsf)]"
+    >
+      <TextSkeleton.Body className="w-full" />
+      <TextSkeleton.Body className="w-3/4" />
+    </LoadingRegion>
+  );
+}
+
+/** The screen's body copy; its own skeleton while it is not known yet (or in a loading scope). */
+function InactiveDescription({ text, loading: loadingProp }: { text: string; loading?: boolean }) {
+  const loading = useLoadingScope() || !!loadingProp;
+  if (loading) return <InactiveDescriptionSkeleton />;
+  return <p className="text-ods-text-secondary text-h4">{text}</p>;
 }
 
 /**
@@ -49,7 +79,7 @@ interface WorkspaceInactiveScreenProps {
  * and "contact the owner or an admin about the subscription" is the actionable
  * message.
  */
-export function WorkspaceInactiveScreen({ title, description, action }: WorkspaceInactiveScreenProps = {}) {
+export function WorkspaceInactiveScreen({ title, description, action, loading }: WorkspaceInactiveScreenProps = {}) {
   return (
     <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
       <div className="flex items-center gap-[var(--spacing-system-xsf)]">
@@ -64,10 +94,7 @@ export function WorkspaceInactiveScreen({ title, description, action }: Workspac
       <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
           <h1 className="text-ods-text-primary text-h2">{title ?? 'Workspace access is inactive'}</h1>
-          <p className="text-ods-text-secondary text-h4">
-            {description ??
-              "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."}
-          </p>
+          <InactiveDescription text={description ?? DEFAULT_DESCRIPTION} loading={loading} />
         </div>
 
         {/* Sign out, self-deletion and a support ticket, shared with the

@@ -1,12 +1,16 @@
 'use client';
 
-import { AlertTriangleIcon, InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
+import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
-import type { billingUsageContentQuery as BillingUsageContentQueryType } from '@/__generated__/billingUsageContentQuery.graphql';
+import type {
+  billingUsageContentQuery as BillingUsageContentQueryType,
+  billingUsageContentQuery$data,
+} from '@/__generated__/billingUsageContentQuery.graphql';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -19,7 +23,7 @@ import { ManageAiBalanceModal } from '../ai-balance/manage-ai-balance-modal';
 import { CancelSubscriptionFlow } from '../cancel/cancel-subscription-flow';
 import { ActivateSubscriptionModal } from '../plan/activate-subscription-modal';
 import { UpgradePlanModal } from '../plan/upgrade-plan-modal';
-import { TestModeBanner } from '../shared/billing-section';
+import { BillingReadOnlyNotice, TestModeBanner } from '../shared/billing-section';
 import { TestClockPanel } from '../test-clock/test-clock-panel';
 import { AiBalanceAlert } from './ai-balance-alert';
 import { DeviceOverageBlock } from './device-overage-block';
@@ -66,17 +70,33 @@ const billingUsageContentQuery = graphql`
 const PAGE_TITLE = 'Billing & Usage';
 const PAGE_CLASS_NAME = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 
-export function BillingUsageContent() {
-  const handleBack = useSafeBack(routes.settings.root());
-  // The desktop build: every figure below renders, and nothing that changes one
-  // does — the header's single action leaves for the web app instead (see
-  // `billing-visibility.ts`).
-  const readOnly = isBillingReadOnly();
+const NO_REFETCH = () => {};
+
+/**
+ * The billing page. While anything it waits on has not answered (the page's flag and role gates: `loading`; the
+ * query: the Suspense boundary), it is the same page drawn in a loading scope, where every part draws its own
+ * skeleton.
+ */
+export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
+  const fallback = (
+    <LoadingFallback label="Loading billing and usage">
+      <BillingUsageScreen data={null} onRefetch={NO_REFETCH} />
+    </LoadingFallback>
+  );
+  if (loading) return fallback;
+  return (
+    <Suspense fallback={fallback}>
+      <BillingUsageQuery />
+    </Suspense>
+  );
+}
+
+/** The page's query; everything it draws is `BillingUsageScreen`'s. */
+function BillingUsageQuery() {
   // Bumped after a change the store cannot reflect on its own: resume and cancel
   // answer with a bare Boolean, a plan change does not return the packages it
   // altered, and the test clock rewrites everything server-side.
   const [refreshKey, setRefreshKey] = useState(0);
-  const refetch = () => setRefreshKey(k => k + 1);
   const data = useLazyLoadQuery<BillingUsageContentQueryType>(
     billingUsageContentQuery,
     {},
@@ -88,6 +108,23 @@ export function BillingUsageContent() {
       networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
     },
   );
+  return <BillingUsageScreen data={data} onRefetch={() => setRefreshKey(k => k + 1)} />;
+}
+
+interface BillingUsageScreenProps {
+  /** `null` while the page loads: it draws itself in a loading scope. */
+  data: billingUsageContentQuery$data | null;
+  onRefetch: () => void;
+}
+
+/** The page drawn from its query's answer (props only, so it can draw itself while that answer is on its way). */
+export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScreenProps) {
+  const loading = useLoadingScope() || data == null;
+  const handleBack = useSafeBack(routes.settings.root());
+  // The desktop build: every figure below renders, and nothing that changes one
+  // does — the header's single action leaves for the web app instead (see
+  // `billing-visibility.ts`).
+  const readOnly = isBillingReadOnly();
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [activateModalOpen, setActivateModalOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -101,7 +138,7 @@ export function BillingUsageContent() {
   const openAiBalanceModal = () => setPageParam('action', MANAGE_AI_BALANCE_ACTION);
   const closeAiBalanceModal = () => setPageParam('action', '');
 
-  const subscription = data.subscription ?? null;
+  const subscription = data?.subscription ?? null;
   const status = resolveSubscriptionStatus(subscription?.status);
   // Carrying the AI product at all is what makes its usage worth showing; it is
   // metered, so there is no package to check for.
@@ -133,7 +170,7 @@ export function BillingUsageContent() {
   // presented as this tenant's plan, and the header would offer to change a plan
   // that does not exist — so the page states the absence instead of dressing it
   // up. (`SubscriptionGuard` reads the same absence as CANCELED and locks the app.)
-  if (subscription == null) {
+  if (!loading && subscription == null) {
     return (
       <PageLayout
         title={PAGE_TITLE}
@@ -155,6 +192,9 @@ export function BillingUsageContent() {
   // The same card with the mark missing: what the wait shows, and what a
   // failed arrangement query degrades to. Never a grey bar where a figure is.
   const paidCardWithoutAutoTopUp = <PaidAiTokensCard subscription={subscription} autoTopUp={null} />;
+  // While it loads, the row is all three cards: the AI pair is dropped only for a subscription that does not carry
+  // the AI product, which the response has not said yet, and two cards reflowing into three is the larger jump.
+  const showAiCards = loading || hasAi;
 
   return (
     <PageLayout
@@ -165,19 +205,10 @@ export function BillingUsageContent() {
       actions={header.actions}
       menuActions={header.menuActions}
     >
-      {/* Said out loud, because a billing page with no way to change anything
-          otherwise reads as a broken build. */}
-      {readOnly && (
-        <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-          <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
-          <p className="text-ods-text-secondary text-h4">
-            Billing and payments are managed in the browser. Manage Billing opens your workspace's billing page there.
-          </p>
-        </div>
-      )}
+      {readOnly && <BillingReadOnlyNotice />}
 
       {/* Dev-only; renders nothing (and issues no requests) unless the test-clock env flag is on. */}
-      <TestClockPanel onClockChanged={refetch} />
+      {!loading && <TestClockPanel onClockChanged={refetch} />}
 
       <TestModeBanner />
 
@@ -186,14 +217,14 @@ export function BillingUsageContent() {
       <div
         className={cn(
           'grid gap-[var(--spacing-system-m)]',
-          hasAi ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
+          showAiCards ? 'content-md:grid-cols-3' : 'content-md:grid-cols-1',
         )}
       >
         <DeviceUsageCard subscription={subscription} />
-        {hasAi && (
+        {showAiCards && (
           <>
             <FreeAiTokensCard subscription={subscription} />
-            {autoTopUpOffered ? (
+            {autoTopUpOffered && subscription ? (
               <AutoTopUpIsland label="AutoTopUp" fallback={paidCardWithoutAutoTopUp}>
                 {autoTopUp => <PaidAiTokensCard subscription={subscription} autoTopUp={autoTopUp} />}
               </AutoTopUpIsland>
@@ -204,20 +235,23 @@ export function BillingUsageContent() {
         )}
       </div>
 
-      {hasAi && <AiBalanceAlert subscription={subscription} />}
+      {hasAi && subscription && <AiBalanceAlert subscription={subscription} />}
 
       {/* The system switched the refill off over a declined card: said here,
           under the balance it stopped refilling. Nothing while it loads, and
           nothing if it cannot be loaded — a notice is not worth an error. */}
       {autoTopUpOffered && (
-        <AutoTopUpIsland label="AutoTopUpNotice" fallback={null}>
+        <AutoTopUpIsland
+          label="AutoTopUpNotice"
+          fallback={null} // loading-standard-ok: an optional notice (a refill switched off), nothing while it loads
+        >
           {autoTopUp => <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />}
         </AutoTopUpIsland>
       )}
 
-      <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />
+      {subscription && <DeviceOverageBlock subscription={subscription} onUpgrade={readOnly ? null : openPlanModal} />}
 
-      <PlanSections subscription={subscription} billingPlan={data.billingPlan ?? null} />
+      <PlanSections subscription={subscription} billingPlan={data?.billingPlan ?? null} />
 
       <InvoicesHistory subscription={subscription} />
 
@@ -243,7 +277,7 @@ export function BillingUsageContent() {
         onClose={() => setActivateModalOpen(false)}
       />
 
-      {cancelling && (
+      {cancelling && subscription && (
         <CancelSubscriptionFlow
           subscription={subscription}
           onClose={() => setCancelling(false)}

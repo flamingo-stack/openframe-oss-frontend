@@ -1,11 +1,12 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   AlertTriangleIcon,
   CheckCircleIcon,
   ShieldIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
@@ -46,6 +47,14 @@ const VALUE_COLOR: Record<SecurityStatus, string> = {
   neutral: 'text-ods-text-primary',
 };
 
+const STATUS_ROW_CLASS = 'flex h-6 w-full items-center gap-[var(--spacing-system-xs)]';
+const STATUS_ROW_LABEL_CLASS = 'whitespace-nowrap text-ods-text-secondary text-h4';
+const STATUS_CARD_CLASS =
+  'flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
+const STATUS_CARD_ROWS_CLASS = 'flex w-full flex-col gap-[var(--spacing-system-xs)]';
+const SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
+const SECTION_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
+
 function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
   const icon =
     status === 'success' ? (
@@ -57,8 +66,8 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
     ) : null;
 
   return (
-    <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-      <span className="whitespace-nowrap text-ods-text-secondary text-h4">{label}</span>
+    <div className={STATUS_ROW_CLASS}>
+      <span className={STATUS_ROW_LABEL_CLASS}>{label}</span>
       <div className="h-px flex-1 bg-ods-divider" />
       <div className="min-w-0">
         <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
@@ -71,9 +80,9 @@ function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
 /** Host-local replica of the design's posture card (core `InfoCard` can't color values or add status icons). */
 function SecurityStatusCard({ title, rows }: SecurityCard) {
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
+    <div className={STATUS_CARD_CLASS}>
       {title && <TruncateText>{title}</TruncateText>}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+      <div className={STATUS_CARD_ROWS_CLASS}>
         {rows.map(row => (
           <StatusRow key={row.label} {...row} />
         ))}
@@ -84,8 +93,8 @@ function SecurityStatusCard({ title, rows }: SecurityCard) {
 
 function SecuritySectionBlock({ title, cards }: Omit<SecuritySection, 'id'>) {
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
+    <section className={SECTION_CLASS}>
+      <h3 className={SECTION_HEADING_CLASS}>{title}</h3>
       <div
         className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)]', cards.length > 1 && 'content-lg:grid-cols-3')}
       >
@@ -201,7 +210,57 @@ function buildSections(device: Device): SecuritySection[] {
   return sections;
 }
 
+/** A posture card while the device is read: its real row labels, the title and each value a bar. */
+function SecurityStatusCardSkeleton({ labels }: { labels: string[] }) {
+  return (
+    <div className={STATUS_CARD_CLASS}>
+      <TextLineSkeleton type="h4" className="w-32" />
+      <div className={STATUS_CARD_ROWS_CLASS}>
+        {labels.map(label => (
+          <div key={label} className={STATUS_ROW_CLASS}>
+            <span className={STATUS_ROW_LABEL_CLASS}>{label}</span>
+            <div className="h-px flex-1 bg-ods-divider" />
+            <TextLineSkeleton type="h4" className="w-20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The Security tab while the device is read: the sections `buildSections` draws, with their real headings. */
+function SecurityTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <section className={SECTION_CLASS}>
+        <h3 className={SECTION_HEADING_CLASS}>Encryption</h3>
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)]">
+          <SecurityStatusCardSkeleton labels={['Disk Encryption']} />
+        </div>
+      </section>
+      <section className={SECTION_CLASS}>
+        <h3 className={SECTION_HEADING_CLASS}>Security Agents</h3>
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
+          <SecurityStatusCardSkeleton labels={['Version', 'Last Seen']} />
+          <SecurityStatusCardSkeleton labels={['Version', 'Status']} />
+          <SecurityStatusCardSkeleton labels={['Version', 'Status']} />
+        </div>
+      </section>
+      <section className={SECTION_CLASS}>
+        <h3 className={SECTION_HEADING_CLASS}>Posture</h3>
+        <div className="grid grid-cols-1 gap-[var(--spacing-system-l)]">
+          <SecurityStatusCardSkeleton labels={['Failing Policies', 'Total Issues']} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function SecurityTab({ device }: SecurityTabProps) {
+  if (useLoadingScope()) {
+    return <SecurityTabSkeleton />;
+  }
+
   if (!device) {
     return (
       <TabEmptyState

@@ -9,6 +9,7 @@ import {
   SearchInput,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
@@ -42,6 +43,7 @@ function roleLabel(user: UserRow): string {
 }
 
 export function UsersTab({ device }: UsersTabProps) {
+  const loading = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -140,37 +142,40 @@ export function UsersTab({ device }: UsersTabProps) {
     enableSorting: false,
   });
 
-  if (!device) {
-    return (
-      <TabEmptyState
-        icon={<UsersIcon />}
-        title="No users found"
-        description="User accounts on this device will appear here."
-      />
-    );
-  }
-
-  if (rows.length === 0) {
-    if (device.sources?.fleet === 'skipped-pending') {
-      return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+  // The device has not answered: the tab draws itself in the loading scope, every part its own skeleton.
+  if (!loading) {
+    if (!device) {
+      return (
+        <TabEmptyState
+          icon={<UsersIcon />}
+          title="No users found"
+          description="User accounts on this device will appear here."
+        />
+      );
     }
-    return (
-      <TabEmptyState
-        icon={<UsersIcon />}
-        title="No users found"
-        description="User accounts on this device will appear here."
-      />
-    );
+
+    if (rows.length === 0) {
+      if (device.sources?.fleet === 'skipped-pending') {
+        return <TabDeployingEmptyState icon={<UsersIcon />} section="Users" />;
+      }
+      return (
+        <TabEmptyState
+          icon={<UsersIcon />}
+          title="No users found"
+          description="User accounts on this device will appear here."
+        />
+      );
+    }
   }
 
   // Empty table → show only the centered empty state: hide the column header always, and
   // hide the search too (unless a search is active, so the user can still clear it).
   const hasSearch = debouncedSearch.trim().length > 0;
-  const isEmpty = filteredRows.length === 0;
+  const isEmpty = !loading && filteredRows.length === 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
-      {device.endUserEmails && device.endUserEmails.length > 0 && (
+      {device?.endUserEmails && device.endUserEmails.length > 0 && (
         <div className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
           <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
           {device.endUserEmails.map(email => (

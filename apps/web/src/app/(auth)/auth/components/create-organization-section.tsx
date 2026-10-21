@@ -131,7 +131,7 @@ export function CreateOrganizationSection({
   const emailStatusMessage = !isEmailValid
     ? undefined
     : emailStatus === 'checking'
-      ? { message: 'Checking availability…', variant: 'muted' as const }
+      ? { message: 'Checking availability…', variant: 'muted' as const } // loading-standard-ok: the field's live availability status, not a loading state
       : emailStatus === 'taken'
         ? { message: 'This email is already registered. Sign in instead.', variant: 'error' as const }
         : emailStatus === 'blocked'

@@ -2,6 +2,7 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { TerminalMonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
 import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
@@ -51,13 +52,36 @@ function OsEmptyState() {
   );
 }
 
+const EMPTY_CARD = { items: [] };
+
+/** The OS tab while the device is read: its sections with their real headings, each card its own skeleton. */
+function OsTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">
+        <Section title="Operating System">
+          <InfoCard className="flex-1" data={EMPTY_CARD} skeleton={{ rows: 5, subtitle: true }} />
+        </Section>
+        <Section title="Boot & Time">
+          <InfoCard className="flex-1" data={EMPTY_CARD} skeleton={{ rows: 5 }} />
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 export function OsTab({ device }: OsTabProps) {
+  const loading = useLoadingScope();
   // `Date.now()` in render makes the component impure: two renders of the same
   // device disagree, and the compiler cannot memoize around it. Sampled once on
   // mount instead — the figure is a coarse "3 days", and it already only moved
   // when something else happened to re-render this tab. Declared before the
   // early return below, because hooks may not be called conditionally.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
+
+  if (loading) {
+    return <OsTabSkeleton />;
+  }
 
   if (!device) {
     return <OsEmptyState />;

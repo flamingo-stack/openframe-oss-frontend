@@ -221,7 +221,10 @@ interface TicketTableBodyProps {
   tickets: Dialog[];
   isLoading?: boolean;
   emptyMessage?: string;
+  /** Skeleton rows for a list with no page size (an unpaged list); a paged list passes `pageSize` instead. */
   skeletonRows?: number;
+  /** The list's page size: its loading state (body and infinite footer) draws one full page. */
+  pageSize?: number;
   stickyHeaderOffset?: string;
   footerSlot?: ReactNode;
   isArchived?: boolean;
@@ -245,6 +248,7 @@ export function TicketTableBody({
   isLoading,
   emptyMessage = 'No tickets found.',
   skeletonRows,
+  pageSize,
   stickyHeaderOffset,
   footerSlot,
   isArchived,
@@ -272,6 +276,8 @@ export function TicketTableBody({
     getRowId: row => String(row.id),
     enableSorting: false,
     state: columnFilters !== undefined ? { columnFilters } : undefined,
+    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
+    initialState: pageSize ? { pagination: { pageIndex: 0, pageSize } } : undefined,
     onColumnFiltersChange,
   });
 

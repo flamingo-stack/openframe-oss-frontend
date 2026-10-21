@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Select,
   SelectContent,
@@ -8,6 +9,7 @@ import {
   SelectValue,
   SquareAvatar,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, Suspense } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -166,24 +168,37 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
   );
 }
 
-export function CustomerSelect({ enabled = true, includeOrganization, ...props }: CustomerSelectProps) {
-  const loading = <CustomerSelectShell {...props} options={NO_OPTIONS} placeholder="Loading customers…" disabled />;
-  if (!enabled) return loading;
+/**
+ * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own Suspense
+ * fallback, or the page's) it is the real field, locked, with no options, and reads nothing.
+ */
+export function CustomerSelect(props: CustomerSelectProps) {
+  const { enabled = true, includeOrganization, ...shellProps } = props;
+  const inScope = useLoadingScope();
+  if (!enabled || inScope) {
+    return <CustomerSelectShell {...shellProps} options={NO_OPTIONS} placeholder="Select Customer" disabled />;
+  }
 
   return (
     <ContentErrorBoundary
       fallback={() => (
         <CustomerSelectShell
-          {...props}
+          {...shellProps}
           options={NO_OPTIONS}
           placeholder="Couldn't load customers"
-          error={props.error ?? 'Reload the page to try again.'}
+          error={shellProps.error ?? 'Reload the page to try again.'}
           disabled
         />
       )}
     >
-      <Suspense fallback={loading}>
-        <CustomerSelectOptions {...props} includeOrganization={includeOrganization} />
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading customers">
+            <CustomerSelect {...props} />
+          </LoadingFallback>
+        }
+      >
+        <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />
       </Suspense>
     </ContentErrorBoundary>
   );

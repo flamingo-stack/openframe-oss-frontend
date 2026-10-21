@@ -2,7 +2,13 @@
 'use no memo';
 
 import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { Button, CheckboxBlock, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  CheckboxBlock,
+  Input,
+  Label,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
@@ -10,7 +16,10 @@ import { Controller, useForm } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
-import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
+import type {
+  scriptDetailRelayQuery as ScriptDetailQueryType,
+  scriptDetailRelayQuery$data,
+} from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { ScriptSummaryCard } from '@/app/(app)/scripts/script/components/script-summary-card';
 import { scriptArgumentSchema } from '@/app/(app)/scripts/shared/types/edit-script.types';
 import { initiatorName } from '@/app/(app)/scripts/shared/utils/execution-helpers';
@@ -48,14 +57,28 @@ interface RunScriptConfigStepProps {
  * `batchRunScript` to this one machine. Suspends on the detail query; render
  * inside a `<Suspense>`.
  */
-export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunScriptConfigStepProps) {
-  const { toast } = useToast();
+export function RunScriptConfigStep(props: RunScriptConfigStepProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
-    { id: scriptId },
+    { id: props.scriptId },
     { fetchPolicy: 'store-and-network' },
   );
-  const script = data.script;
+  return <RunScriptConfigStepView {...props} script={data.script ?? null} />;
+}
+
+/**
+ * The step over the script it is handed. The modal's Suspense fallback draws it in a loading scope with no script
+ * (every part its own loading state), so loading and loaded are one layout.
+ */
+export function RunScriptConfigStepView({
+  scriptId,
+  machineId,
+  onBack,
+  onRan,
+  script,
+}: RunScriptConfigStepProps & { script: scriptDetailRelayQuery$data['script'] | null }) {
+  const { toast } = useToast();
+  const loading = useLoadingScope();
   const [commitBatchRun, isRunning] = useMutation<BatchRunScriptMutationType>(batchRunScriptMutation);
 
   const { control, handleSubmit, reset } = useForm<RunFormData>({
@@ -108,7 +131,7 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
     }
   };
 
-  if (!script) {
+  if (!loading && !script) {
     return <p className="text-ods-text-secondary text-h6">Script not found.</p>;
   }
 
@@ -116,11 +139,11 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
     <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
       <div className="min-h-0 flex-1 space-y-[var(--spacing-system-l)] overflow-y-auto">
         <ScriptSummaryCard
-          name={script.name}
-          description={script.description}
-          shellId={shellToId(script.shell)}
-          platforms={platformsToIds(script.supportedPlatforms)}
-          author={script.author ? initiatorName(script.author) : null}
+          name={script?.name ?? ''}
+          description={script?.description}
+          shellId={script ? shellToId(script.shell) : ''}
+          platforms={script ? platformsToIds(script.supportedPlatforms) : []}
+          author={script?.author ? initiatorName(script.author) : null}
           showTimeout={false}
         />
 
@@ -189,13 +212,13 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
       </div>
 
       <div className="flex shrink-0 gap-[var(--spacing-system-mf)] border-t border-ods-border pt-[var(--spacing-system-mf)]">
-        <Button variant="outline" onClick={onBack} disabled={isRunning} className="flex-1">
+        <Button variant="outline" onClick={onBack} disabled={loading || isRunning} className="flex-1">
           Back
         </Button>
         <Button
           variant="accent"
           onClick={handleSubmit(onValid, onInvalid)}
-          disabled={isRunning}
+          disabled={loading || isRunning}
           loading={isRunning}
           className="flex-1"
         >

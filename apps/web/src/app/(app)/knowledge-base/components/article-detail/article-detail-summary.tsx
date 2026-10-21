@@ -1,7 +1,13 @@
 'use client';
 
 import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { Card, SquareAvatar, Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Card,
+  SquareAvatar,
+  Tag,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetailSummary_article$key } from '@/__generated__/articleDetailSummary_article.graphql';
@@ -64,9 +70,14 @@ function AuthorCell({ avatar, name }: { avatar: ReactNode; name: ReactNode }) {
   );
 }
 
-/** Who wrote the article, when it last changed and whether it is live. */
-export function ArticleDetailSummary({ article }: { article: articleDetailSummary_article$key }) {
-  const { status, createdAt, updatedAt, author } = useFragment(articleDetailSummaryFragment, article);
+/** Who wrote the article, when it last changed and whether it is live. Null before the article answers. */
+export function ArticleDetailSummary({ article }: { article: articleDetailSummary_article$key | null }) {
+  const loading = useLoadingScope();
+  const data = useFragment(articleDetailSummaryFragment, article);
+  if (loading || !data) {
+    return <ArticleDetailSummarySkeleton />;
+  }
+  const { status, createdAt, updatedAt, author } = data;
 
   const fullName = [author?.firstName, author?.lastName].filter(Boolean).join(' ');
   const authorName = fullName || author?.email || null;
@@ -111,7 +122,7 @@ export function ArticleDetailSummary({ article }: { article: articleDetailSummar
 }
 
 /** The card while the article loads: its cells and labels real, its values as bars. */
-export function ArticleDetailSummarySkeleton() {
+function ArticleDetailSummarySkeleton() {
   return (
     <div>
       <SummaryCard

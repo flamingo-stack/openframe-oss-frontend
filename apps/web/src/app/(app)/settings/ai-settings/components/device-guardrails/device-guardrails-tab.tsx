@@ -1,14 +1,16 @@
 'use client';
 'use no memo';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
+  LoadingWhen,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -58,7 +60,9 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
   if (isPending) {
     return (
       <LoadingRegion label="Loading remote access settings">
-        <UnifiedSkeleton className="h-20 w-full rounded-md" />
+        <LoadingWhen loading>
+          <DeviceGuardrailsPolicyCard policy={null} />
+        </LoadingWhen>
       </LoadingRegion>
     );
   }
@@ -75,16 +79,33 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
   return isEditMode ? (
     <DeviceGuardrailsForm policy={policy} onSaved={onSaved} />
   ) : (
-    <DeviceGuardrailsView policy={policy} />
+    <DeviceGuardrailsPolicyCard policy={policy} />
   );
 }
 
-function DeviceGuardrailsView({ policy }: { policy: TenantRemoteAccessPolicy }) {
+/* Same "table-cell" card as the customer tab: 60px/12px padding on
+   mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
+const VIEW_CARD_CLASS =
+  'flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20';
+const MODE_LABEL = 'Default Remote Access Permission';
+
+/** The card while the policy is on its way: the field's label is fixed copy, the mode a bar. */
+function DeviceGuardrailsPolicyCardSkeleton() {
   return (
-    /* Same "table-cell" card as the customer tab: 60px/12px padding on
-       mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
-    <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
-      <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label="Default Remote Access Permission" />
+    <div className={VIEW_CARD_CLASS}>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <TextLineSkeleton type="h4" className="w-40 max-w-full" />
+        <p className="truncate text-ods-text-secondary text-h6">{MODE_LABEL}</p>
+      </div>
+    </div>
+  );
+}
+
+function DeviceGuardrailsPolicyCard({ policy }: { policy: TenantRemoteAccessPolicy | null }) {
+  if (useLoadingScope() || policy == null) return <DeviceGuardrailsPolicyCardSkeleton />;
+  return (
+    <div className={VIEW_CARD_CLASS}>
+      <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label={MODE_LABEL} />
     </div>
   );
 }

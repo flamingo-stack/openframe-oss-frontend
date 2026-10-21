@@ -4,18 +4,23 @@ import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
+  LoadingWhen,
   ModalV2,
   ModalV2Content,
   ModalV2Footer,
   ModalV2Header,
   ModalV2Title,
   Switch,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { Suspense, useId, useState } from 'react';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 import type { notificationSettingsModalMutation as SettingsMutation } from '@/__generated__/notificationSettingsModalMutation.graphql';
-import type { notificationSettingsModalQuery as SettingsQuery } from '@/__generated__/notificationSettingsModalQuery.graphql';
+import type {
+  notificationSettingsModalQuery as SettingsQuery,
+  notificationSettingsModalQuery$data,
+} from '@/__generated__/notificationSettingsModalQuery.graphql';
 
 const settingsQuery = graphql`
   query notificationSettingsModalQuery {
@@ -50,11 +55,12 @@ const SAVE_BUTTON_CLASS = 'h-12 flex-1 bg-ods-accent text-ods-text-on-accent tex
 const ROW_SKELETON_CLASS = 'h-[44px] w-full shrink-0 md:h-[48px]';
 
 /**
- * Placeholder row count — a height hint for the skeleton only, NOT a claim about how
- * many groups exist. The real list is the server's; a mismatch just resizes the panel
- * once when it lands.
+ * Group rows the loading list draws. The list is the server's and not paged, so there is no page size: this is a
+ * typical count, NOT a claim about how many groups exist; a mismatch resizes the panel once when it lands.
  */
-const SKELETON_ROWS = 8;
+const NOTIFICATION_GROUPS_SKELETON_ROWS = 8;
+
+type NotificationSettings = notificationSettingsModalQuery$data['notificationSettings'];
 
 interface NotificationSettingsModalProps {
   onClose: () => void;
@@ -97,7 +103,14 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
       <ModalV2Header>
         <ModalV2Title>Notifications</ModalV2Title>
       </ModalV2Header>
-      <Suspense fallback={<NotificationSettingsSkeleton onClose={onClose} />}>
+      {/* A bare scope (no element), so Cancel stays live while the settings load. */}
+      <Suspense
+        fallback={
+          <LoadingWhen loading>
+            <NotificationSettingsFormView settings={null} onClose={onClose} />
+          </LoadingWhen>
+        }
+      >
         <NotificationSettingsForm onClose={onClose} />
       </Suspense>
     </ModalV2>
@@ -135,7 +148,7 @@ function SettingsFooter({
  * The switch is NOT rendered unchecked-and-disabled — that reads as a real answer and
  * then flips once the settings arrive.
  */
-function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
+function NotificationSettingsFormSkeleton({ onClose }: { onClose: () => void }) {
   return (
     <>
       <LoadingRegion className="contents" label="Loading notification settings">
@@ -143,8 +156,8 @@ function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
           <UnifiedSkeleton className={ROW_SKELETON_CLASS} />
           <div className="flex flex-col gap-[var(--spacing-system-xs)]">
             <span className="uppercase text-ods-text-secondary text-h5">Notify about</span>
-            {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-              <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} />
+            {Array.from({ length: NOTIFICATION_GROUPS_SKELETON_ROWS }, (_, index) => (
+              <UnifiedSkeleton key={index} className={ROW_SKELETON_CLASS} data-loading-item />
             ))}
           </div>
         </ModalV2Content>
@@ -154,20 +167,33 @@ function NotificationSettingsSkeleton({ onClose }: { onClose: () => void }) {
   );
 }
 
-/**
- * Renders only once the settings are in hand (it is what suspends), which is why the
- * form state can be seeded straight from `data` with no effect.
- */
+/** The query (it is what suspends); the form is `NotificationSettingsFormView`. */
 function NotificationSettingsForm({ onClose }: { onClose: () => void }) {
+  const data = useLazyLoadQuery<SettingsQuery>(settingsQuery, {}, { fetchPolicy: 'network-only' });
+  return <NotificationSettingsFormView settings={data.notificationSettings} onClose={onClose} />;
+}
+
+/**
+ * The form over the settings; `settings` is `null` while they load (drawn in the Suspense fallback's scope). The
+ * fallback and the loaded form are separate mounts, so the form state is seeded straight from `settings`, no effect.
+ */
+function NotificationSettingsFormView({
+  settings,
+  onClose,
+}: {
+  settings: NotificationSettings | null;
+  onClose: () => void;
+}) {
   const masterSwitchId = useId();
   const { toast } = useToast();
-  const data = useLazyLoadQuery<SettingsQuery>(settingsQuery, {}, { fetchPolicy: 'network-only' });
   const [commit, isSaving] = useMutation<SettingsMutation>(updateSettingsMutation);
 
-  const [enabled, setEnabled] = useState(data.notificationSettings.enabled);
+  const [enabled, setEnabled] = useState(settings?.enabled ?? false);
   const [groups, setGroups] = useState(() =>
-    data.notificationSettings.typeSettings.map(({ group, label, enabled: on }) => ({ group, label, enabled: on })),
+    (settings?.typeSettings ?? []).map(({ group, label, enabled: on }) => ({ group, label, enabled: on })),
   );
+
+  if (useLoadingScope() || settings == null) return <NotificationSettingsFormSkeleton onClose={onClose} />;
 
   const handleSave = () => {
     commit({

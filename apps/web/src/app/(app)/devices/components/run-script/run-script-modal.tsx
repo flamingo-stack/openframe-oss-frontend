@@ -1,10 +1,10 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { Suspense, useCallback, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { RunScriptConfigStep } from './run-script-config-step';
+import { RunScriptConfigStep, RunScriptConfigStepView } from './run-script-config-step';
 import { RunScriptSelectStep } from './run-script-select-step';
-import { RunScriptConfigStepSkeleton } from './run-script-skeletons';
 import { ScriptRunningModal } from './script-running-modal';
 
 interface RunScriptModalProps {
@@ -67,7 +67,19 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
         {step === 'select' || !scriptId ? (
           <RunScriptSelectStep onSelect={handleSelect} />
         ) : (
-          <Suspense fallback={<RunScriptConfigStepSkeleton />}>
+          <Suspense
+            fallback={
+              <LoadingFallback label="Loading script settings">
+                <RunScriptConfigStepView
+                  scriptId={scriptId}
+                  machineId={machineId}
+                  onBack={handleBack}
+                  onRan={() => setRan(true)}
+                  script={null}
+                />
+              </LoadingFallback>
+            }
+          >
             <RunScriptConfigStep
               scriptId={scriptId}
               machineId={machineId}

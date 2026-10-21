@@ -7,6 +7,7 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -159,6 +160,9 @@ function buildColumns(options: SoftwareActionFilterOptions): ColumnDef<SoftwareA
 
 const getRowId = (row: SoftwareActionRow) => row.id;
 
+const NO_ROWS: readonly SoftwareActionRow[] = [];
+const noop = () => {};
+
 interface SoftwareActionsTableProps {
   /** Deferred funnel selection — feeds the query (lags the live funnels during a refetch). */
   backendFilters: SoftwareActionFilterInput | null;
@@ -173,16 +177,32 @@ interface SoftwareActionsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Software Actions rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function SoftwareActionsTable({
-  backendFilters,
-  debouncedSearch,
-  selections,
-  onSelectionsChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareActionsTableProps) {
+const NO_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
+
+/**
+ * The Software Actions rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws
+ * the table with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it
+ * lives under the view's `<Suspense>`.
+ */
+export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <SoftwareActionsRows
+        {...props}
+        rows={NO_ROWS}
+        totalCount={0}
+        filterOptions={NO_FILTER_OPTIONS}
+        hasNext={false}
+        isLoadingNext={false}
+        onLoadMore={noop}
+      />
+    );
+  }
+  return <SoftwareActionsTableQuery {...props} />;
+}
+
+function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
+  const { backendFilters, debouncedSearch } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareActionsTableQueryType>(
     softwareActionsTableQuery,
@@ -206,10 +226,50 @@ export function SoftwareActionsTable({
   // the server, so a value no run has is never offered.
   const filterOptions = useSoftwareActionFilters();
 
+  return (
+    <SoftwareActionsRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      filterOptions={filterOptions}
+      hasNext={hasNext}
+      isLoadingNext={isLoadingNext}
+      onLoadMore={fetchNextPage}
+    />
+  );
+}
+
+interface SoftwareActionsRowsProps extends SoftwareActionsTableProps {
+  rows: readonly SoftwareActionRow[];
+  totalCount: number;
+  filterOptions: SoftwareActionFilterOptions;
+  hasNext: boolean;
+  isLoadingNext: boolean;
+  onLoadMore: () => void;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareActionsRows({
+  rows,
+  totalCount,
+  filterOptions,
+  hasNext,
+  isLoadingNext,
+  onLoadMore,
+  backendFilters,
+  debouncedSearch,
+  selections,
+  onSelectionsChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareActionsRowsProps) {
+  const loading = useLoadingScope();
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
 
   const table = useDataTable<SoftwareActionRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: rows as SoftwareActionRow[],
     columns: buildColumns(filterOptions),
     getRowId,
     enableSorting: false,
@@ -219,7 +279,7 @@ export function SoftwareActionsTable({
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
   // row); a tenant with no run at all gets the page's empty state instead.
-  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -259,8 +319,8 @@ export function SoftwareActionsTable({
           <DataTable.InfiniteFooter
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            onLoadMore={onLoadMore}
+            skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE}
           />
         )}
       </DataTable>

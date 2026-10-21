@@ -8,7 +8,8 @@ import { DeviceInfoSection } from '../device-info-section';
 import { DeviceTagsSection } from '../device-tags-section';
 
 interface OverviewTabProps {
-  device: Device;
+  /** Null while the device is read: the tab is drawn in the page's loading scope. */
+  device: Device | null;
 }
 
 /**

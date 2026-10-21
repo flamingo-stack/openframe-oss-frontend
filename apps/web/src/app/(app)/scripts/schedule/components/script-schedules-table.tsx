@@ -1,12 +1,11 @@
 'use client';
 
-import { LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
   SCHEDULE_COLUMNS,
   ScheduleDateTimeCell,
-  SCHEDULES_TABLE_COLUMNS,
   ScriptNameCell,
   isDeviceLocalTime,
   isEventTrigger,
@@ -43,7 +42,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { archiveScriptScheduleMutation as ArchiveScheduleMutationType } from '@/__generated__/archiveScriptScheduleMutation.graphql';
@@ -64,7 +63,6 @@ import {
   EmptyState,
   liveColumnMeta,
   onboardingGuideButton,
-  skeletonColumnDefs,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
@@ -86,7 +84,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { facetToMappedOptions } from '../../shared/utils/facet-options';
+import { type FacetOption, facetToMappedOptions } from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds } from '../../shared/utils/script-mappers';
 import { DEVICE_LOCAL_TIME_NOTE, formatScheduleStartAt, repeatToLabel } from '../utils/schedule-timing';
 import { ArchiveScheduleModal } from './archive-schedule-modal';
@@ -128,6 +126,107 @@ interface UiScheduleEntry {
   /** Which clock `startAt` is in — the Date & Time cell converts only a SERVER one. */
   timeReference: string;
   repeat: number | null;
+}
+
+/** The table's columns: the loaded table and its loading state draw the same ones. */
+function scheduleColumns({
+  options,
+  dateFilter,
+  renderRowActions,
+}: {
+  options: { platform: FacetOption[] };
+  /** The Date/Time header's calendar; absent while loading (the header draws inert). */
+  dateFilter?: TableDateFilter;
+  renderRowActions: (schedule: UiScheduleEntry) => ReactNode;
+}): ColumnDef<UiScheduleEntry>[] {
+  return [
+    {
+      accessorKey: 'name',
+      header: SCHEDULE_COLUMNS.name.header,
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+        <ScriptNameCell name={row.original.name} description={row.original.description} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.name),
+    },
+    {
+      accessorKey: 'supportedPlatforms',
+      header: SCHEDULE_COLUMNS.supportedPlatforms.header,
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+        <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: { options: options.platform } }),
+    },
+    {
+      id: 'dateTime',
+      // The cell IS `startAt`, the field the calendar filters and orders by —
+      // so the popover sits on this header rather than on a column of its own.
+      header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
+        // Event-driven schedules have no date/time — name the trigger instead
+        // of showing an em dash that reads as "not configured yet".
+        if (isEventTrigger(row.original.trigger)) {
+          return <TruncateText tone="secondary">Device Online</TruncateText>;
+        }
+        const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
+        if (!row.original.startAt) {
+          return <ValueText value={null} />;
+        }
+        // The reading rides the time, not a column of its own: a device-local
+        // row shows the wall clock each device reads on its own timezone, and
+        // an unmarked "6:00 PM" here reads as the viewer's.
+        return (
+          <ScheduleDateTimeCell
+            date={date}
+            time={
+              isDeviceLocalTime(row.original.timeReference) ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}` : time
+            }
+          />
+        );
+      },
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.dateTime),
+    },
+    {
+      id: 'repeat',
+      header: SCHEDULE_COLUMNS.repeat.header,
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
+        isEventTrigger(row.original.trigger) ? (
+          <ValueText value={null} />
+        ) : (
+          <span className="text-ods-text-primary text-h4">{repeatToLabel(row.original.repeat)}</span>
+        ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
+    },
+    {
+      accessorKey: 'deviceCount',
+      header: SCHEDULE_COLUMNS.deviceCount.header,
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+        <span className="text-ods-text-primary text-h4">{row.original.deviceCount}</span>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+        <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.actions),
+    },
+    {
+      id: 'open',
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
+        <OpenInNewTabCell href={routes.scripts.schedules.details(row.original.id)} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCHEDULE_COLUMNS.open),
+    },
+  ];
 }
 
 // ----------------------------------------------------------------
@@ -370,99 +469,7 @@ function SchedulesTableContent({
   }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: SCHEDULE_COLUMNS.name.header,
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <ScriptNameCell name={row.original.name} description={row.original.description} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.name),
-      },
-      {
-        accessorKey: 'supportedPlatforms',
-        header: SCHEDULE_COLUMNS.supportedPlatforms.header,
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <OSTypeBadgeGroup
-            osTypes={row.original.supportedPlatforms}
-            iconSize="w-4 h-4 content-md:w-6 content-md:h-6"
-          />
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.supportedPlatforms, { filter: { options: platformOptions } }),
-      },
-      {
-        id: 'dateTime',
-        // The cell IS `startAt`, the field the calendar filters and orders by —
-        // so the popover sits on this header rather than on a column of its own.
-        header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
-          // Event-driven schedules have no date/time — name the trigger instead
-          // of showing an em dash that reads as "not configured yet".
-          if (isEventTrigger(row.original.trigger)) {
-            return <TruncateText tone="secondary">Device Online</TruncateText>;
-          }
-          const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
-          if (!row.original.startAt) {
-            return <ValueText value={null} />;
-          }
-          // The reading rides the time, not a column of its own: a device-local
-          // row shows the wall clock each device reads on its own timezone, and
-          // an unmarked "6:00 PM" here reads as the viewer's.
-          return (
-            <ScheduleDateTimeCell
-              date={date}
-              time={
-                isDeviceLocalTime(row.original.timeReference)
-                  ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}`
-                  : time
-              }
-            />
-          );
-        },
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.dateTime),
-      },
-      {
-        id: 'repeat',
-        header: SCHEDULE_COLUMNS.repeat.header,
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
-          isEventTrigger(row.original.trigger) ? (
-            <ValueText value={null} />
-          ) : (
-            <span className="text-ods-text-primary text-h4">{repeatToLabel(row.original.repeat)}</span>
-          ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
-      },
-      {
-        accessorKey: 'deviceCount',
-        header: SCHEDULE_COLUMNS.deviceCount.header,
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <span className="text-ods-text-primary text-h4">{row.original.deviceCount}</span>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
-      },
-      {
-        id: 'actions',
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.actions),
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-          <OpenInNewTabCell href={routes.scripts.schedules.details(row.original.id)} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCHEDULE_COLUMNS.open),
-      },
-    ],
+    () => scheduleColumns({ options: { platform: platformOptions }, dateFilter, renderRowActions }),
     [renderRowActions, platformOptions, dateFilter],
   );
 
@@ -569,7 +576,7 @@ function SchedulesTableContent({
             hasNextPage={hasNext}
             isFetchingNextPage={isLoadingNext}
             onLoadMore={fetchNextPage}
-            skeletonRows={2}
+            skeletonRows={PAGE_SIZE}
           />
         </DataTable>
       </div>
@@ -611,19 +618,19 @@ function SchedulesTableContent({
 }
 
 // ----------------------------------------------------------------
-// Loading skeleton
+// The table before its first answer
 // ----------------------------------------------------------------
 
 const EMPTY_ROWS: UiScheduleEntry[] = [];
+const NO_PLATFORM_OPTIONS = { platform: [] };
+const noRowActions = () => null;
 
-function SchedulesTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
-  // Same layout the live table above renders, including the trailing action
-  // columns — so the loading header reserves the same widths and stays aligned.
-  const columns = useMemo<ColumnDef<UiScheduleEntry>[]>(
-    () => skeletonColumnDefs<UiScheduleEntry>(SCHEDULES_TABLE_COLUMNS),
-    [],
-  );
-
+/**
+ * The live table with no rows yet: the same columns and header, its body and
+ * row count drawing their own skeletons in the loading scope it is rendered in.
+ */
+function SchedulesTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+  const columns = scheduleColumns({ options: NO_PLATFORM_OPTIONS, renderRowActions: noRowActions });
   const table = useDataTable<UiScheduleEntry>({
     data: EMPTY_ROWS,
     columns,
@@ -632,12 +639,10 @@ function SchedulesTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: st
   });
 
   return (
-    <LoadingRegion label="Loading schedules">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
-    </LoadingRegion>
+    <DataTable table={table}>
+      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
+      <DataTable.Body skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+    </DataTable>
   );
 }
 
@@ -873,7 +878,13 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
           </div>
         )}
 
-        <Suspense fallback={<SchedulesTableSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
+        <Suspense
+          fallback={
+            <LoadingFallback label="Loading schedules">
+              <SchedulesTableLoading stickyHeaderOffset={stickyHeaderOffset} />
+            </LoadingFallback>
+          }
+        >
           <SchedulesTableContent
             backendFilters={deferredVars.filter}
             debouncedSearch={deferredSearch}

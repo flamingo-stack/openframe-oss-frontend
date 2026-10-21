@@ -43,7 +43,7 @@ import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentio
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
-import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
+import { MentionErrorBoundary, MentionTag, MentionTagFallback } from './mention-tag';
 
 interface GraphqlMentionChipProps {
   /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
@@ -272,7 +272,7 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
     <MentionErrorBoundary
       fallback={<MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}
     >
-      <Suspense fallback={<MentionTagSkeleton icon={icon} />}>
+      <Suspense fallback={<MentionTagFallback icon={icon} />}>
         <Inner kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
       </Suspense>
     </MentionErrorBoundary>

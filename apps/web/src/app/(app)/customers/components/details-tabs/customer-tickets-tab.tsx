@@ -19,7 +19,7 @@ import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { getTicketTableColumns } from '../../../tickets/components/ticket-table-columns';
-import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
 
@@ -47,6 +47,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     archived: false,
     search: debouncedSearch,
     organizationIds: [organizationId],
+    // While the customer loads the tab draws itself in a loading scope with no id: nothing is fetched then.
+    enabled: !!organizationId,
   });
 
   const { isUserDeleted } = useUserStatusMap();
@@ -81,6 +83,8 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
+    // No pagination row model: the page size only tells the body and the infinite footer how many rows a page is.
+    initialState: { pagination: { pageIndex: 0, pageSize: TICKETS_PAGE_SIZE } },
   });
 
   const ticketRowHref = useCallback((t: Dialog) => routes.tickets.dialog(t.id), []);
@@ -122,7 +126,6 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         />
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={8}
           emptyMessage="No tickets found for this customer."
           rowHref={ticketRowHref}
           rowClassName="mb-1"
@@ -131,7 +134,6 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           onLoadMore={handleLoadMore}
-          skeletonRows={2}
         />
       </DataTable>
     </div>

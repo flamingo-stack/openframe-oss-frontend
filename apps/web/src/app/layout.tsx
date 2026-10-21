@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { PublicEnvScript } from 'next-runtime-env';
-import { Suspense } from 'react';
 import './globals.css';
 import '@flamingo-stack/openframe-frontend-core/styles';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
@@ -25,6 +24,7 @@ import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
 import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
+import { HydratorBoundary } from './components/shared/hydrator-boundary';
 import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
@@ -144,9 +144,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 dev-ticket login exists precisely to point a local tenant build at
                 a remote tenant, and that mode has no auth pages of its own. */}
             {(isAuthEnabled() || runtimeEnv.enableDevTicketObserver()) && (
-              <Suspense fallback={null}>
+              <HydratorBoundary>
                 <DevTicketObserver />
-              </Suspense>
+              </HydratorBoundary>
             )}
             {/* Above NATS and the biometric gate: a refused bundle can do nothing
                 below it, so nothing below it mounts. */}

@@ -36,9 +36,3 @@ export const INCIDENTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
 export const DEVICE_INCIDENTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = INCIDENTS_TABLE_COLUMNS.filter(
   column => column !== INCIDENT_COLUMNS.device,
 );
-
-/** A single-status tab (Snoozed, Archived): every row has the same status, so Status offers no filter. */
-const LOCKED_STATUS_COLUMN: TableSkeletonColumn = { ...INCIDENT_COLUMNS.status, filterable: false };
-export const LOCKED_STATUS_INCIDENTS_TABLE_COLUMNS: readonly TableSkeletonColumn[] = INCIDENTS_TABLE_COLUMNS.map(
-  column => (column === INCIDENT_COLUMNS.status ? LOCKED_STATUS_COLUMN : column),
-);

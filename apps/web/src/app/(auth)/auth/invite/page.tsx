@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type AuthSsoProvider,
   BackToLoginLink,
@@ -8,7 +9,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import {
   getPasswordError,
@@ -32,7 +33,44 @@ function isInvalidInviteError(error: string | null): boolean {
   return !!error && (error.includes('Invitation not found') || error.includes('Invitation already used or revoked'));
 }
 
+const noop = () => {};
+
 export default function InvitePage() {
+  return (
+    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
+    // stands in until the URL (the invitation id) is read.
+    <Suspense
+      fallback={
+        <LoadingFallback label="Loading your invitation">
+          <StandaloneAuthShell>
+            <CompleteAccountForm
+              firstName=""
+              lastName=""
+              password=""
+              confirmPassword=""
+              onFirstNameChange={noop}
+              onLastNameChange={noop}
+              onPasswordChange={noop}
+              onConfirmPasswordChange={noop}
+              onSubmit={noop}
+              ssoProviders={[]}
+              onSsoClick={noop}
+              title="Accept Invitation"
+              subtitle="Complete your registration to join the organization"
+              submitLabel="Create Account"
+              submitDisabled
+              loading
+            />
+          </StandaloneAuthShell>
+        </LoadingFallback>
+      }
+    >
+      <InviteContent />
+    </Suspense>
+  );
+}
+
+function InviteContent() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();

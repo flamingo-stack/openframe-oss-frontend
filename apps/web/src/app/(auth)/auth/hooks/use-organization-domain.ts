@@ -133,7 +133,7 @@ export function useOrganizationDomain(organizationName: string): OrganizationDom
     !isSharedAuth || !domain.trim()
       ? undefined
       : status === 'checking'
-        ? { message: 'Checking availability…', variant: 'muted' as const }
+        ? { message: 'Checking availability…', variant: 'muted' as const } // loading-standard-ok: the field's live availability status, not a loading state
         : status === 'taken'
           ? { message: 'This domain is already taken. Please try another one.', variant: 'error' as const }
           : status === 'available'

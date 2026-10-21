@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   EXECUTION_COLUMNS,
   ExecutionDeviceCell,
@@ -79,7 +79,7 @@ export const EXECUTIONS_PAGE_SIZE = 20;
 /**
  * Column layout — ONE declaration, the lib's (`EXECUTION_COLUMNS` in render
  * order as `EXECUTIONS_TABLE_COLUMNS`), read by {@link ExecutionsTable}, by
- * {@link ExecutionsSkeleton} and by the lib's own picture of this table. Widths,
+ * {@link ExecutionsLoading} and by the lib's own picture of this table. Widths,
  * `hideAt` and `filterable` were written out twice before, and the copies
  * drifted: the skeleton's three filterable columns lost their `filterable`, so
  * their funnels were missing while loading and popped in with the facets,
@@ -544,7 +544,7 @@ export function ExecutionsTable({
               hasNextPage={hasNext}
               isFetchingNextPage={isLoadingNext}
               onLoadMore={onLoadMore}
-              skeletonRows={2}
+              skeletonRows={EXECUTIONS_PAGE_SIZE}
               loadedCount={loadedCount}
             />
           )}
@@ -576,7 +576,7 @@ export function ExecutionsTable({
 
 const EMPTY_ROWS: UiExecution[] = [];
 
-export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
+export function ExecutionsLoading({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
   // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
   // into a filter with no options yet — the header then draws the real control,
   // funnel included, instead of growing one when the facets land. The Execution
@@ -605,18 +605,10 @@ export function ExecutionsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?
   });
 
   return (
-    <LoadingRegion label="Loading executions">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body
-          loading
-          loadingRegion={false}
-          skeletonRows={EXECUTIONS_PAGE_SIZE}
-          emptyMessage=""
-          rowClassName="mb-1"
-        />
-      </DataTable>
-    </LoadingRegion>
+    <DataTable table={table}>
+      <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
+      <DataTable.Body skeletonRows={EXECUTIONS_PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
+    </DataTable>
   );
 }
 
@@ -826,7 +818,13 @@ export function ExecutionsTabShell({
           />
         </div>
       )}
-      <Suspense fallback={<ExecutionsSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
+      <Suspense
+        fallback={
+          <LoadingFallback label="Loading executions">
+            <ExecutionsLoading stickyHeaderOffset={stickyHeaderOffset} />
+          </LoadingFallback>
+        }
+      >
         {children({
           backendFilters: deferredVars.filter,
           sort: deferredVars.sort,
