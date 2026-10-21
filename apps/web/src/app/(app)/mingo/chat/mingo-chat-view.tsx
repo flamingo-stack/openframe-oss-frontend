@@ -10,7 +10,7 @@ import {
 import { Button, NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { type ReactNode, useLayoutEffect, useState } from 'react';
 import { useChatPageNodeStore } from '@/app/components/mingo-shell/chat-page-node-store';
 import { dockViewOf } from '@/app/components/mingo-shell/mingo-dock-route';
 import { routes } from '@/lib/routes';
@@ -89,7 +89,8 @@ export function MingoChatView({ dialogId }: { dialogId: string }) {
     );
   }
 
-  return <ChatThreadSlot />;
+  // `isMessagesLoading` covers the dialog's record as well as its messages.
+  return <ChatThreadSlot loaded={status === 'ready' && !chat?.state.isMessagesLoading} />;
 }
 
 /**
@@ -97,16 +98,28 @@ export function MingoChatView({ dialogId }: { dialogId: string }) {
  * real height (the thread scrolls inside it) and nothing clipping above it: the
  * thread's own menus and modals open inside it. The ref callback publishes the node
  * on mount and `null` on unmount, which hands the dock back its composer-only form.
- * Until the dock's chat has loaded (a cold start on a chat link) nothing portals in,
- * so the slot draws the chat's skeleton.
+ *
+ * The slot draws the chat's skeleton until the dock's chat has mounted (it loads
+ * lazily: a cold start on a chat link) AND the conversation has `loaded`, and only
+ * then lets the chat portal in (`threadReady`). Let in on mount, the chat drew its
+ * own skeleton over this one, then the messages under "New Chat" until the record
+ * landed. Once shown the thread stays: a chat picked from here loads in place.
  */
-function ChatThreadSlot() {
+function ChatThreadSlot({ loaded }: { loaded: boolean }) {
   useMingoChatThreadOnScreen();
   const setNode = useChatPageNodeStore(s => s.setNode);
   const chatMounted = useChatPageNodeStore(s => s.chatMounted);
+  const setThreadReady = useChatPageNodeStore(s => s.setThreadReady);
+  const [shown, setShown] = useState(false);
+  if (!shown && chatMounted && loaded) setShown(true);
+  // A layout effect: the thread portals in within the commit the skeleton leaves, one paint.
+  useLayoutEffect(() => {
+    setThreadReady(shown);
+    return () => setThreadReady(false);
+  }, [shown, setThreadReady]);
   return (
     <div ref={setNode} data-testid="mingo-chat-thread-slot" className="flex h-full min-h-0 flex-1 flex-col">
-      {!chatMounted && <ChatThreadSkeleton />}
+      {(!chatMounted || !shown) && <ChatThreadSkeleton />}
     </div>
   );
 }

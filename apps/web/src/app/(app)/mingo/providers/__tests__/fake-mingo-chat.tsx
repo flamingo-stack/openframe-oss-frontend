@@ -37,6 +37,7 @@ const noop = () => {};
 interface FakeChatOptions {
   activeDialogId?: string | null;
   dialogError?: string | null;
+  isMessagesLoading?: boolean;
   selectDialog?: (id: string | null) => void;
   sendInNewDialog?: (text: string) => Promise<void>;
 }
@@ -45,11 +46,18 @@ interface FakeChatOptions {
 export function makeFakeChat({
   activeDialogId = null,
   dialogError = null,
+  isMessagesLoading = false,
   selectDialog = noop,
   sendInNewDialog = async () => {},
 }: FakeChatOptions = {}): MingoUnifiedChat {
   return {
-    state: { activeDialogId, selectDialog, messages: [], dialogs: [] } as unknown as UnifiedChatState,
+    state: {
+      activeDialogId,
+      isMessagesLoading,
+      selectDialog,
+      messages: [],
+      dialogs: [],
+    } as unknown as UnifiedChatState,
     subscription: {
       activeDialogId,
       isSubscribed: activeDialogId !== null,

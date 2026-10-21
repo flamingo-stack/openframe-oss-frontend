@@ -1,6 +1,7 @@
 /**
  * The chat page draws no chat: it publishes the node the docked chat portals its
- * thread into (with the chat's skeleton in it until the chat has loaded), and counts
+ * thread into (with the chat's skeleton in it, and the thread held out, until the chat
+ * is up and the conversation has loaded), and counts
  * as the one place the open chat is on screen. When the dialog does not exist or fails to load, it shows that
  * instead of the node — so the dock falls back to its composer.
  */
@@ -79,7 +80,7 @@ function render(page: boolean) {
 beforeEach(() => {
   replace.mockReset();
   selectDialog.mockReset();
-  useChatPageNodeStore.setState({ node: null, chatMounted: false });
+  useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: false });
   queryClient = new QueryClient();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -108,14 +109,30 @@ describe('MingoChatView', () => {
     expect(useChatPageNodeStore.getState().node).toBeNull();
   });
 
-  it("draws the chat's skeleton in the slot until the dock's chat has loaded", () => {
-    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1', selectDialog }));
+  it("holds the chat's skeleton, and the thread out, until the dock's chat is up and the conversation has loaded", () => {
+    resetFakeChatProbe(makeFakeChat({ activeDialogId: 'd-1', isMessagesLoading: true, selectDialog }));
     render(true);
     const slot = () => container.querySelector('[data-testid="mingo-chat-thread-slot"]');
+    const threadReady = () => useChatPageNodeStore.getState().threadReady;
     expect(slot()?.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     act(() => useChatPageNodeStore.getState().setChatMounted(true));
+    expect(slot()?.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(threadReady()).toBe(false);
+
+    fakeChatProbe.result = makeFakeChat({ activeDialogId: 'd-1', selectDialog });
+    render(true);
     expect(slot()?.childElementCount).toBe(0);
+    expect(threadReady()).toBe(true);
+
+    // Loading again (an older page, a chat picked from here): the thread stays in.
+    fakeChatProbe.result = makeFakeChat({ activeDialogId: 'd-1', isMessagesLoading: true, selectDialog });
+    render(true);
+    expect(slot()?.childElementCount).toBe(0);
+    expect(threadReady()).toBe(true);
+
+    render(false);
+    expect(threadReady()).toBe(false);
   });
 
   it('shows a dialog that does not exist as such, with the way home, and no thread', () => {

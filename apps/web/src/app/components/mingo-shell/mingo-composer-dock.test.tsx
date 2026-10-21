@@ -234,7 +234,8 @@ describe('MingoComposerDock', () => {
     shell.mobile = false;
     identity.enabled = null;
     setSurface();
-    useChatPageNodeStore.setState({ node: null, chatMounted: false });
+    // A published node is a page that has let the thread in, unless a test says otherwise.
+    useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: true });
     useFeatureFlagsStore.getState().reset();
     useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
     useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, fullFrom: null });
@@ -264,6 +265,17 @@ describe('MingoComposerDock', () => {
       render('/mingo/chat/');
       expect('threadContainer' in props()).toBe(true);
       expect(props().threadContainer).toBeNull();
+    });
+
+    it('is null on the chat page until the page lets the thread in, then its node', () => {
+      const node = document.createElement('div');
+      useChatPageNodeStore.setState({ node, threadReady: false });
+      render('/mingo/chat/');
+      expect('threadContainer' in props()).toBe(true);
+      expect(props().threadContainer).toBeNull();
+      act(() => useChatPageNodeStore.setState({ threadReady: true }));
+      expect(props().threadContainer).toBe(node);
+      expect(panel.mounts).toBe(1);
     });
 
     it('is null everywhere else, even while a chat page node is still published', () => {

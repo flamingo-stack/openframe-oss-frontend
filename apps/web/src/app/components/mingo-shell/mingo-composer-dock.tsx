@@ -229,7 +229,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     setChatMounted(handle !== null);
     return () => setChatMounted(false);
   }, [handle, setChatMounted]);
-  const chatPageNode = useChatPageNodeStore(s => s.node);
+  // Only once the page lets the thread in: it holds its skeleton until the conversation has loaded.
+  const chatPageNode = useChatPageNodeStore(s => (s.threadReady ? s.node : null));
   // Ghost text from chips drawn outside the chat (Mingo's home Quick Actions).
   const previewText = useComposerPreviewStore(s => s.text);
 
