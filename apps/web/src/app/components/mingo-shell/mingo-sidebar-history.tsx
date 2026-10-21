@@ -73,6 +73,9 @@ export function MingoSidebarHistory() {
 
   const { state } = chat;
   const loading = state.isDialogsLoading;
+  // Out of `state` before a callback closes over it: `state` is new with every
+  // streamed chunk, and a rail prop keyed on it re-rendered every row per chunk.
+  const { loadMoreDialogs } = state;
   // In the phone drawer a navigation closes it (the layout watches the location), but
   // the chat already open, or the archive page already on screen, moves nothing.
   const open = (href: string) => {
@@ -124,7 +127,7 @@ export function MingoSidebarHistory() {
         // rows on screen mean it is a next page.
         isLoadingMore={loading && state.dialogs.length > 0}
         isLoadingHistory={loading && state.dialogs.length === 0}
-        onLoadMore={() => void state.loadMoreDialogs()}
+        onLoadMore={() => void loadMoreDialogs()}
         loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
         onRetry={state.reloadDialogs}
       />
@@ -216,6 +219,8 @@ export function MingoHistorySearch() {
   if (!enabled || !chat) return null;
   const { state } = chat;
   const loading = state.isDialogsLoading;
+  // As in the section: not keyed on `state`, which is new with every streamed chunk.
+  const { loadMoreDialogs } = state;
   return (
     <MingoChatSearchModal
       open={searchOpen}
@@ -233,7 +238,7 @@ export function MingoHistorySearch() {
       hasMore={state.hasMoreDialogs}
       isLoadingMore={loading && state.dialogs.length > 0}
       isLoadingHistory={loading && state.dialogs.length === 0}
-      onLoadMore={() => void state.loadMoreDialogs()}
+      onLoadMore={() => void loadMoreDialogs()}
       loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
       onRetry={state.reloadDialogs}
     />
