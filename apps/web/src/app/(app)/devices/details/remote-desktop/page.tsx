@@ -44,7 +44,6 @@ import { MeshTunnel, type TunnelState } from '@/lib/meshcentral/meshcentral-tunn
 import { DEFAULT_SETTINGS, RemoteDesktopSettings, type RemoteSettingsConfig } from '@/lib/meshcentral/remote-settings';
 import { routes } from '@/lib/routes';
 import { type ActionHandlers, createActionsMenuGroups } from './actions-menu-config';
-import { FullscreenToolbar } from './fullscreen-toolbar';
 import { RemoteSettingsModal } from './remote-settings-modal';
 import {
   comboLabel,
@@ -55,7 +54,9 @@ import {
   shortcutAction,
 } from './remote-shortcuts';
 import { SessionChatPanel } from './session-chat-panel';
+import { SessionToolbar } from './session-toolbar';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
+import { REMOTE_TOOLBAR_AUTO_HIDE_STORAGE_KEY, useAutoHideToolbar } from './use-auto-hide-toolbar';
 
 interface LegacyDeviceData {
   id: string;
@@ -248,6 +249,10 @@ function RemoteDesktopSession() {
     DEFAULT_REMOTE_SHORTCUTS,
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // "Auto-hide toolbar" (Settings): the session toolbar floats over the stream
+  // and slides away when idle, windowed as well as in fullscreen, so the remote
+  // screen gets the whole height. A per-browser preference, like the shortcuts.
+  const [autoHideToolbar, setAutoHideToolbar] = useLocalStorage<boolean>(REMOTE_TOOLBAR_AUTO_HIDE_STORAGE_KEY, false);
   // Page-visible connection lifecycle, driven from tunnel state changes. The
   // toasts stay, but terminal/transient states must be visible on the page
   // itself - a failed session used to leave a dead canvas behind a toast.
@@ -273,6 +278,12 @@ function RemoteDesktopSession() {
   const chat = useRemoteSessionChat(chatDialogId, showChat);
   // The end user wrote while the panel was closed: a dot on Open Chat until the panel opens.
   const chatUnread = chat.hasUnread && !showChat;
+  // Pinned while a modal opened from the toolbar is up and while the chat
+  // toggle carries an unread dot - a hidden dot is a missed message.
+  const toolbar = useAutoHideToolbar(autoHideToolbar, settingsOpen || shortcutsOpen || chatUnread);
+  // Fullscreen is always the overlay bar (Figma 1755-95622); windowed, the
+  // overlay replaces the pinned header card once auto-hide is on.
+  const overlayToolbar = isFullscreen || autoHideToolbar;
   const toggleChat = () => {
     // Opening reads what came in; closing reads what came in while it was open.
     chat.markRead();
@@ -796,7 +807,27 @@ function RemoteDesktopSession() {
     ) : null;
 
   const canvasContainer = (
-    <div className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}>
+    <div
+      className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black ${isFullscreen ? '' : 'rounded-lg'}`}
+      onPointerMove={toolbar.onPointerMove}
+      onPointerLeave={toolbar.onPointerLeave}
+    >
+      {overlayToolbar && (
+        <SessionToolbar
+          deviceName={deviceName || `Device ${deviceId}`}
+          displayMenuGroups={displayMenuGroups}
+          currentDisplayLabel={currentDisplayLabel}
+          actionsMenuGroups={actionsMenuGroups}
+          onOpenSettings={() => setSettingsOpen(true)}
+          fullscreen={isFullscreen}
+          onToggleFullscreen={isFullscreen ? exitFullscreen : enterFullscreen}
+          chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
+          chatUnread={chatUnread}
+          onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
+          visible={toolbar.visible}
+          hold={toolbar.hold}
+        />
+      )}
       <canvas
         ref={canvasRef}
         tabIndex={0}
@@ -895,21 +926,7 @@ function RemoteDesktopSession() {
       showHeader={!isFullscreen}
     >
       <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
-        {isFullscreen ? (
-          <FullscreenToolbar
-            deviceName={deviceName || `Device ${deviceId}`}
-            displayMenuGroups={displayMenuGroups}
-            currentDisplayLabel={currentDisplayLabel}
-            actionsMenuGroups={actionsMenuGroups}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onExitFullscreen={exitFullscreen}
-            chatOpen={chatDialogId && !sessionEnded ? showChat : undefined}
-            chatUnread={chatUnread}
-            onToggleChat={chatDialogId && !sessionEnded ? toggleChat : undefined}
-          />
-        ) : (
-          controlsBar
-        )}
+        {!overlayToolbar && controlsBar}
         {/* Figma 2328-20570: the session started while recording storage was full. Windowed only, as drawn. */}
         {!isFullscreen && remoteSession?.recordingSuppressed === 'storage_full' && (
           <RecordingWarningAlert className="flex-shrink-0">
@@ -934,6 +951,8 @@ function RemoteDesktopSession() {
         tunnelRef={tunnelRef}
         connectionState={state}
         onSettingsChange={setRemoteSettings}
+        autoHideToolbar={autoHideToolbar}
+        onAutoHideToolbarChange={setAutoHideToolbar}
       />
 
       {shortcutsOpen && (

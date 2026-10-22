@@ -7,63 +7,91 @@ import {
   Chevron02DownIcon,
   Collapse02Icon,
   Ellipsis01Icon,
+  Expand02Icon,
   MonitorIcon,
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 
-interface FullscreenToolbarProps {
+interface SessionToolbarProps {
   deviceName: string;
   displayMenuGroups: ActionsMenuGroup[];
   currentDisplayLabel: string;
   actionsMenuGroups: ActionsMenuGroup[];
   onOpenSettings: () => void;
-  onExitFullscreen: () => void;
+  /** In fullscreen the toolbar carries the dimmed logo and an exit button; windowed, an enter button. */
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
   /** Session chat toggle - omitted when the session has no chat. */
   chatOpen?: boolean;
   /** The end user wrote while the chat was closed: a dot on the toggle. */
   chatUnread?: boolean;
   onToggleChat?: () => void;
+  /**
+   * Auto-hide: slid out of view when false. The bar stays in the DOM so a Tab
+   * into it still works - `hold('focus', true)` then brings it back.
+   */
+  visible?: boolean;
+  /** Keeps the bar up while something is interacting with it (see `useAutoHideToolbar`). */
+  hold?: (key: string, held: boolean) => void;
 }
 
 /**
- * Compact overlay chrome for the fullscreen remote-desktop mode (Figma 1755-95622):
- * a floating semi-transparent bar at top-center (device name, display switcher,
- * actions / chat / exit-fullscreen / settings as 32px icon buttons) plus a
- * dimmed OpenFrame logo in the top-left corner of the stream. Rendered inside the fullscreen container,
- * absolutely positioned over the canvas.
+ * Compact overlay chrome over the remote-desktop stream (Figma 1755-95622, drawn
+ * for fullscreen): a floating semi-transparent bar at top-center (device name,
+ * display switcher, actions / chat / fullscreen / settings as 32px icon
+ * buttons) plus, in fullscreen, a dimmed OpenFrame logo in the top-left corner.
+ * Rendered inside the stream container, absolutely positioned over the canvas.
+ * Windowed, the same bar replaces the pinned header card when the user turns on
+ * "Auto-hide toolbar", so the stream gets the full height.
  */
-export function FullscreenToolbar({
+export function SessionToolbar({
   deviceName,
   displayMenuGroups,
   currentDisplayLabel,
   actionsMenuGroups,
   onOpenSettings,
-  onExitFullscreen,
+  fullscreen,
+  onToggleFullscreen,
   chatOpen = false,
   chatUnread = false,
   onToggleChat,
-}: FullscreenToolbarProps) {
+  visible = true,
+  hold,
+}: SessionToolbarProps) {
   return (
     <>
-      <OpenframeLogoIcon
-        color="var(--color-text-on-accent)"
-        secondaryColor="var(--color-text-primary)"
-        className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50"
-      />
+      {fullscreen && (
+        <OpenframeLogoIcon
+          color="var(--color-text-on-accent)"
+          secondaryColor="var(--color-text-primary)"
+          className="absolute left-[var(--spacing-system-mf)] top-[var(--spacing-system-mf)] z-10 h-6 w-6 opacity-50"
+        />
+      )}
       <div
-        className={
-          'absolute left-1/2 top-0 z-10 w-[calc(100%-7rem)] -translate-x-1/2 ' +
-          'flex items-center gap-[var(--spacing-system-xs)] ' +
-          'rounded-b-[6px] border-x border-b border-ods-border bg-ods-overlay ' +
-          'py-[var(--spacing-system-xsf)] pl-[var(--spacing-system-mf)] pr-[var(--spacing-system-xsf)]'
-        }
+        data-state={visible ? 'visible' : 'hidden'}
+        className={cn(
+          'absolute left-1/2 top-0 z-10 w-[calc(100%-7rem)] -translate-x-1/2',
+          'flex items-center gap-[var(--spacing-system-xs)]',
+          'rounded-b-[6px] border-x border-b border-ods-border bg-ods-overlay',
+          'py-[var(--spacing-system-xsf)] pl-[var(--spacing-system-mf)] pr-[var(--spacing-system-xsf)]',
+          'transition-[transform,opacity] duration-200 motion-reduce:transition-none',
+          !visible && 'pointer-events-none -translate-y-full opacity-0',
+        )}
+        onPointerEnter={() => hold?.('hover', true)}
+        onPointerLeave={() => hold?.('hover', false)}
+        onFocus={() => hold?.('focus', true)}
+        onBlur={event => {
+          if (!event.currentTarget.contains(event.relatedTarget)) hold?.('focus', false);
+        }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
           <span className="truncate text-ods-text-primary text-h6">{deviceName}</span>
           {displayMenuGroups.length > 0 && (
             <ActionsMenuDropdown
               groups={displayMenuGroups}
+              onOpenChange={open => hold?.('display-menu', open)}
               customTrigger={
                 <button
                   type="button"
@@ -85,6 +113,7 @@ export function FullscreenToolbar({
         <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-xs)]">
           <ActionsMenuDropdown
             groups={actionsMenuGroups}
+            onOpenChange={open => hold?.('actions-menu', open)}
             customTrigger={
               <Button
                 variant="outline"
@@ -112,9 +141,9 @@ export function FullscreenToolbar({
           <Button
             variant="outline"
             size="icon-sm"
-            aria-label="Exit fullscreen"
-            onClick={onExitFullscreen}
-            leftIcon={<Collapse02Icon className="h-4 w-4" />}
+            aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            onClick={onToggleFullscreen}
+            leftIcon={fullscreen ? <Collapse02Icon className="h-4 w-4" /> : <Expand02Icon className="h-4 w-4" />}
           />
           <Button
             variant="outline"
