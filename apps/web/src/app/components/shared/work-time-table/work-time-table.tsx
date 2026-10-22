@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChartDonutIcon,
@@ -58,7 +58,7 @@ import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
-import { LiveTable } from '../live-table';
+import { LiveTable, loadingPlaceholderRows } from '../live-table';
 import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, noop } from '../no-next-page';
 
 const PAGE_SIZE = 20;
@@ -135,7 +135,9 @@ interface QueryVars {
 }
 
 function EmployeeCell({ row }: { row: WorkTimeRow }) {
-  const isDeleted = isDeletedUserStatus(row.userStatus);
+  // A row still being read: the avatar and both lines draw their own loading forms.
+  const loading = useLoadingScope();
+  const isDeleted = !loading && isDeletedUserStatus(row.userStatus);
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
@@ -145,11 +147,12 @@ function EmployeeCell({ row }: { row: WorkTimeRow }) {
         <SquareAvatar src={row.userImageUrl} fallback={row.userName ?? '?'} size="sm" variant="round" />
       )}
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{row.userName ?? '–'}</TruncateText>
+        {/* An entry not read yet (no start) has no name to dash: the empty line draws its bar. */}
+        <TruncateText>{row.userName ?? (row.startedAt ? '–' : '')}</TruncateText>
         {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden. */}
-        {row.userEmail && !isSelfDeletedUserStatus(row.userStatus) && (
+        {(loading || (row.userEmail && !isSelfDeletedUserStatus(row.userStatus))) && (
           <TruncateText variant="h6" tone="secondary" mono>
-            {row.userEmail}
+            {row.userEmail ?? ''}
           </TruncateText>
         )}
       </div>
@@ -168,14 +171,7 @@ const employeeColumn: ColumnDef<WorkTimeRow> = {
 const timeColumn: ColumnDef<WorkTimeRow> = {
   id: 'time',
   header: 'TIME',
-  cell: ({ row }) => (
-    <div className="flex flex-col">
-      <span className="font-mono text-ods-text-primary text-h4">
-        {formatDurationLabel(row.original.durationSeconds)}
-      </span>
-      <span className="text-ods-text-secondary text-h6">{formatDate(row.original.startedAt)}</span>
-    </div>
-  ),
+  cell: ({ row }) => <TimeCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'w-24 content-md:w-32 shrink-0 flex-none' },
 };
@@ -183,23 +179,7 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
 const customerColumn: ColumnDef<WorkTimeRow> = {
   id: 'customer',
   header: 'CUSTOMER',
-  cell: ({ row }) => {
-    const { organizationName, organizationEmail, organizationImageUrl } = row.original;
-    if (!organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
-    return (
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
-        <EntityImage src={organizationImageUrl} alt={organizationName} className="size-12 content-md:size-12" />
-        <div className="flex min-w-0 flex-col">
-          <TruncateText>{organizationName}</TruncateText>
-          {organizationEmail && (
-            <TruncateText variant="h6" tone="secondary" mono>
-              {organizationEmail}
-            </TruncateText>
-          )}
-        </div>
-      </div>
-    );
-  },
+  cell: ({ row }) => <CustomerCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
 };
@@ -207,23 +187,102 @@ const customerColumn: ColumnDef<WorkTimeRow> = {
 const ticketNotesColumn: ColumnDef<WorkTimeRow> = {
   id: 'ticketNotes',
   header: 'TICKET & NOTES',
-  cell: ({ row }) => {
-    const { ticketNumber, ticketTitle, notes } = row.original;
-    const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : '–';
-    return (
-      <div className="flex min-w-0 flex-col">
-        <TruncateText>{ticketLabel}</TruncateText>
-        {notes && (
-          <TruncateText variant="h6" tone="secondary">
-            {notes}
-          </TruncateText>
-        )}
-      </div>
-    );
-  },
+  cell: ({ row }) => <TicketNotesCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
 };
+
+/** The duration over the day it was logged; two bars while the row is read. */
+function TimeCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) {
+    return (
+      <div className="flex flex-col">
+        <TextLineSkeleton type="h4" className="w-3/4" />
+        <TextLineSkeleton type="h6" className="w-1/2" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col">
+      <span className="font-mono text-ods-text-primary text-h4">{formatDurationLabel(row.durationSeconds)}</span>
+      <span className="text-ods-text-secondary text-h6">{formatDate(row.startedAt)}</span>
+    </div>
+  );
+}
+
+/** The customer's image, name and email; each its own loading form while the row is read. */
+function CustomerCell({ row }: { row: WorkTimeRow }) {
+  const loading = useLoadingScope();
+  const { organizationName, organizationEmail, organizationImageUrl } = row;
+  if (!loading && !organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
+      <EntityImage src={organizationImageUrl} alt={organizationName ?? ''} className="size-12 content-md:size-12" />
+      <div className="flex min-w-0 flex-col">
+        <TruncateText>{organizationName ?? ''}</TruncateText>
+        {(loading || organizationEmail) && (
+          <TruncateText variant="h6" tone="secondary" mono>
+            {organizationEmail ?? ''}
+          </TruncateText>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The ticket over the entry's notes; both draw their bars while the row is read. */
+function TicketNotesCell({ row }: { row: WorkTimeRow }) {
+  const loading = useLoadingScope();
+  const { ticketNumber, ticketTitle, notes } = row;
+  // An entry not read yet (no start) has no ticket to dash: the empty line draws its bar.
+  const noTicket = row.startedAt ? '–' : '';
+  const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : noTicket;
+  return (
+    <div className="flex min-w-0 flex-col">
+      <TruncateText>{ticketLabel}</TruncateText>
+      {(loading || notes) && (
+        <TruncateText variant="h6" tone="secondary">
+          {notes ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** Delete and edit. Static chrome: drawn real while the row is read, and inert. */
+function EntryActionsCell({
+  row,
+  onEdit,
+  onDelete,
+}: {
+  row: WorkTimeRow;
+  onEdit: (row: WorkTimeRow) => void;
+  onDelete: (row: WorkTimeRow) => void;
+}) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex items-center justify-end gap-[var(--spacing-system-xs)]">
+      <Button
+        variant="outline"
+        size="icon"
+        className="bg-ods-card"
+        aria-label="Delete Entry"
+        leftIcon={<TrashIcon className="h-5 w-5 text-ods-error" />}
+        onClick={() => onDelete(row)}
+        disabled={loading}
+      />
+      <Button
+        variant="outline"
+        size="icon"
+        className="bg-ods-card"
+        aria-label="Edit Entry"
+        leftIcon={<PenEditIcon className="h-5 w-5" />}
+        onClick={() => onEdit(row)}
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 function buildColumns(
   showEmployee: boolean,
@@ -236,26 +295,7 @@ function buildColumns(
   const actionsColumn: ColumnDef<WorkTimeRow> = {
     id: 'actions',
     header: '',
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end gap-[var(--spacing-system-xs)]">
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-ods-card"
-          aria-label="Delete Entry"
-          leftIcon={<TrashIcon className="h-5 w-5 text-ods-error" />}
-          onClick={() => onDelete(row.original)}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-ods-card"
-          aria-label="Edit Entry"
-          leftIcon={<PenEditIcon className="h-5 w-5" />}
-          onClick={() => onEdit(row.original)}
-        />
-      </div>
-    ),
+    cell: ({ row }) => <EntryActionsCell row={row.original} onEdit={onEdit} onDelete={onDelete} />,
     enableSorting: false,
     meta: { width: 'w-24 content-md:w-28 shrink-0 flex-none', align: 'right' },
   };
@@ -397,8 +437,10 @@ function WorkTimeTableView({
     () => buildColumns(showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions),
     [showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions],
   );
+  // In a loading scope the table holds one page of placeholder rows, drawn with the real cells.
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<WorkTimeRow>(PAGE_SIZE) : null), [loading]);
   const table = useDataTable<WorkTimeRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: row => row.id,
     enableSorting: false,
@@ -445,6 +487,7 @@ function WorkTimeTableView({
           totalCount={totalCount}
           emptyState={{ title: 'No work time entries for this period.' }}
           footer={infiniteScroll}
+          loadingCells={loading}
         />
       )}
     </>

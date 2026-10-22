@@ -1,6 +1,10 @@
 'use client';
 
-import { OSTypeBadgeGroup, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  OSTypeBadgeGroup,
+  LoadingSuspense,
+  TextLineSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
@@ -38,6 +42,7 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
@@ -129,6 +134,45 @@ interface UiScheduleEntry {
 }
 
 /**
+ * When a schedule starts: the date over the time. A row still being read draws the date and time lines as bars (most
+ * schedules have a start).
+ */
+function ScheduleStartCell({ schedule }: { schedule: UiScheduleEntry }) {
+  if (useLoadingScope()) return <ScheduleDateTimeCell date="" time="" />;
+  // Event-driven schedules have no date/time — name the trigger instead
+  // of showing an em dash that reads as "not configured yet".
+  if (isEventTrigger(schedule.trigger)) {
+    return <TruncateText tone="secondary">Device Online</TruncateText>;
+  }
+  if (!schedule.startAt) {
+    return <ValueText value={null} />;
+  }
+  const { date, time } = formatScheduleStartAt(schedule.startAt, schedule.timeReference);
+  // The reading rides the time, not a column of its own: a device-local
+  // row shows the wall clock each device reads on its own timezone, and
+  // an unmarked "6:00 PM" here reads as the viewer's.
+  return (
+    <ScheduleDateTimeCell
+      date={date}
+      time={isDeviceLocalTime(schedule.timeReference) ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}` : time}
+    />
+  );
+}
+
+/** How often a schedule repeats; a bar while the row is read. */
+function ScheduleRepeatCell({ schedule }: { schedule: UiScheduleEntry }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-20" />;
+  if (isEventTrigger(schedule.trigger)) return <ValueText value={null} />;
+  return <span className="text-ods-text-primary text-h4">{repeatToLabel(schedule.repeat)}</span>;
+}
+
+/** How many devices a schedule targets; a bar while the row is read. */
+function ScheduleDeviceCountCell({ schedule }: { schedule: UiScheduleEntry }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-8" />;
+  return <span className="text-ods-text-primary text-h4">{schedule.deviceCount}</span>;
+}
+
+/**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `options` (loading) the OS
  * funnel is pending.
  */
@@ -167,49 +211,21 @@ function scheduleColumns({
       // The cell IS `startAt`, the field the calendar filters and orders by —
       // so the popover sits on this header rather than on a column of its own.
       header: () => <DateColumnHeader label={SCHEDULE_COLUMNS.dateTime.header} filter={dateFilter} />,
-      cell: ({ row }: { row: Row<UiScheduleEntry> }) => {
-        // Event-driven schedules have no date/time — name the trigger instead
-        // of showing an em dash that reads as "not configured yet".
-        if (isEventTrigger(row.original.trigger)) {
-          return <TruncateText tone="secondary">Device Online</TruncateText>;
-        }
-        const { date, time } = formatScheduleStartAt(row.original.startAt, row.original.timeReference);
-        if (!row.original.startAt) {
-          return <ValueText value={null} />;
-        }
-        // The reading rides the time, not a column of its own: a device-local
-        // row shows the wall clock each device reads on its own timezone, and
-        // an unmarked "6:00 PM" here reads as the viewer's.
-        return (
-          <ScheduleDateTimeCell
-            date={date}
-            time={
-              isDeviceLocalTime(row.original.timeReference) ? `${time} · ${DEVICE_LOCAL_TIME_NOTE.toLowerCase()}` : time
-            }
-          />
-        );
-      },
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleStartCell schedule={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(SCHEDULE_COLUMNS.dateTime),
     },
     {
       id: 'repeat',
       header: SCHEDULE_COLUMNS.repeat.header,
-      cell: ({ row }: { row: Row<UiScheduleEntry> }) =>
-        isEventTrigger(row.original.trigger) ? (
-          <ValueText value={null} />
-        ) : (
-          <span className="text-ods-text-primary text-h4">{repeatToLabel(row.original.repeat)}</span>
-        ),
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleRepeatCell schedule={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(SCHEDULE_COLUMNS.repeat),
     },
     {
       accessorKey: 'deviceCount',
       header: SCHEDULE_COLUMNS.deviceCount.header,
-      cell: ({ row }: { row: Row<UiScheduleEntry> }) => (
-        <span className="text-ods-text-primary text-h4">{row.original.deviceCount}</span>
-      ),
+      cell: ({ row }: { row: Row<UiScheduleEntry> }) => <ScheduleDeviceCountCell schedule={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(SCHEDULE_COLUMNS.deviceCount),
     },

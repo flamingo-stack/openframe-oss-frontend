@@ -1,7 +1,6 @@
 'use client';
 
 import type { ApprovalLevel, PermissionCategory } from '@flamingo-stack/openframe-frontend-core';
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PolicyConfigurationPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { LoadingItems, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { noop, NO_ITEMS } from '@/app/components/shared';
@@ -45,13 +44,9 @@ function PolicyGroup({
   const isLoading = useLoadingScope() || loading;
   return (
     <div className={GROUP_CLASS} data-loading-item>
-      {isLoading ? (
-        <TextLineSkeleton type="h5" className="w-32" />
-      ) : (
-        <TruncateText variant="h5" tone="secondary">
-          {name}
-        </TruncateText>
-      )}
+      <TruncateText variant="h5" tone="secondary" loading={isLoading}>
+        {name}
+      </TruncateText>
       <PolicyConfigurationPanel
         categories={categories}
         editMode={editMode}

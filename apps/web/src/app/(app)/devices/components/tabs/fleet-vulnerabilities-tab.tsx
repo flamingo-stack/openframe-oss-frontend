@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   BracketSquareCheckIcon,
@@ -12,6 +13,7 @@ import {
   Input,
   type Row,
   type SortingState,
+  Tag,
   TruncateText,
   useDataTable,
   useLoadingScope,
@@ -21,7 +23,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { cveSeverityRank, resolveCveSeverity } from '@/app/components/shared/cve/cve-severity';
 import { CveSeverityTag } from '@/app/components/shared/cve/cve-severity-tag';
 import { DateWithAge } from '@/app/components/shared/date-with-age';
-import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
+import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import type { Device, Software, Vulnerability } from '../../types/device.types';
@@ -63,6 +65,68 @@ interface VulnerabilityWithSoftware extends Vulnerability {
 }
 
 const EMPTY_COLUMN_FILTERS: never[] = [];
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const FLEET_VULNERABILITIES_SKELETON_ROWS = 10;
+
+/** A placeholder row has no `unique_key`: it is keyed by its own id. */
+const vulnerabilityRowId = (row: VulnerabilityWithSoftware) => row.unique_key ?? (row as { id?: string }).id ?? '';
+
+/** The CVE's band and score; the tag's own skeleton on a loading row (a placeholder is not "unrated"). */
+function SeverityCell({ cvssScore }: { cvssScore: number | null | undefined }) {
+  if (useLoadingScope()) return <Tag label="" loading />;
+  return <CveSeverityTag severity={null} cvssScore={cvssScore} />;
+}
+
+/** The package name over its version; on a loading row both lines draw their bars (`TruncateText` with no text). */
+function SoftwareCell({ name, version }: { name: string; version: string | undefined }) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex min-w-0 flex-col justify-center">
+      <TruncateText>{name}</TruncateText>
+      {(loading || version) && (
+        <TruncateText variant="h6" tone="secondary">
+          {version ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** When the CVE was found, over its age (`DateWithAge`); on a loading row the same two lines as bars. */
+function DiscoveredCell({ date }: { date: string | undefined }) {
+  if (useLoadingScope()) {
+    return (
+      <div className="flex min-w-0 flex-col justify-center">
+        <TextLineSkeleton type="h4" className="w-3/4" />
+        <TextLineSkeleton type="h6" className="w-3/4" />
+      </div>
+    );
+  }
+  return <DateWithAge date={date} />;
+}
+
+/** Opens Fleet's details link; static chrome, drawn real and inert on a loading row. */
+function OpenDetailsButton({ vuln }: { vuln: VulnerabilityWithSoftware }) {
+  const loading = useLoadingScope();
+  if (!loading && !vuln.details_link) return null;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={() => window.open(vuln.details_link, '_blank', 'noopener,noreferrer')}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label={loading ? 'Open details' : `Open ${vuln.cve} details`}
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 /** Affected package for the mobile fold — name and version are separate lines from `md`. */
 function softwareLabel(vuln: VulnerabilityWithSoftware): string {
@@ -145,7 +209,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         header: FLEET_VULNERABILITY_COLUMNS.severity.header,
         accessorFn: (row: VulnerabilityWithSoftware) => cveSeverityRank(severityOf(row)),
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <CveSeverityTag severity={null} cvssScore={row.original.cvss_score} />
+          <SeverityCell cvssScore={row.original.cvss_score} />
         ),
         enableSorting: true,
         sortingFn: (a: Row<VulnerabilityWithSoftware>, b: Row<VulnerabilityWithSoftware>) =>
@@ -156,21 +220,14 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
         accessorKey: 'software_name',
         header: FLEET_VULNERABILITY_COLUMNS.software.header,
         cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => (
-          <div className="flex min-w-0 flex-col justify-center">
-            <TruncateText>{row.original.software_name}</TruncateText>
-            {row.original.software_version && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.software_version}
-              </TruncateText>
-            )}
-          </div>
+          <SoftwareCell name={row.original.software_name} version={row.original.software_version} />
         ),
         meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.software),
       },
       {
         accessorKey: 'created_at',
         header: FLEET_VULNERABILITY_COLUMNS.discovered.header,
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <DateWithAge date={row.original.created_at} />,
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <DiscoveredCell date={row.original.created_at} />,
         enableSorting: true,
         // Least-needed column for mobile triage — hidden below md, where the row keeps
         // CVE (+ the folded-in package), severity and the details button.
@@ -179,19 +236,7 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
       {
         id: FLEET_VULNERABILITY_COLUMNS.open.id,
         header: '',
-        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) =>
-          row.original.details_link ? (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={() => window.open(row.original.details_link, '_blank', 'noopener,noreferrer')}
-                variant="outline"
-                size="icon"
-                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-                aria-label={`Open ${row.original.cve} details`}
-                className="bg-ods-card"
-              />
-            </div>
-          ) : null,
+        cell: ({ row }: { row: Row<VulnerabilityWithSoftware> }) => <OpenDetailsButton vuln={row.original} />,
         enableSorting: false,
         meta: liveColumnMeta(FLEET_VULNERABILITY_COLUMNS.open),
       },
@@ -199,10 +244,16 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
     [],
   );
 
+  // In the tab's loading scope the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
+  // cell draws its own loading form.
+  const data = useMemo(
+    () => (loading ? loadingPlaceholderRows<VulnerabilityWithSoftware>(FLEET_VULNERABILITIES_SKELETON_ROWS) : filtered),
+    [loading, filtered],
+  );
   const table = useDataTable<VulnerabilityWithSoftware>({
-    data: filtered,
+    data,
     columns,
-    getRowId: (row: VulnerabilityWithSoftware) => row.unique_key,
+    getRowId: vulnerabilityRowId,
     clientSideSorting: true,
     state: { sorting, columnFilters: EMPTY_COLUMN_FILTERS },
     onSortingChange: setSorting,
@@ -326,6 +377,8 @@ export function FleetVulnerabilitiesTab({ device }: FleetVulnerabilitiesTabProps
           />
         )}
         <DataTable.Body
+          loadingCells={loading}
+          skeletonRows={FLEET_VULNERABILITIES_SKELETON_ROWS}
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <BracketSquareCheckIcon />,

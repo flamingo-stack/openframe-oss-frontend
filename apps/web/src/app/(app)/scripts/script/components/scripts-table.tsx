@@ -1,6 +1,12 @@
 'use client';
 
-import { AgentMark, OSTypeBadgeGroup, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  AgentMark,
+  LoadingSuspense,
+  MediaSkeleton,
+  OSTypeBadgeGroup,
+  TextLineSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
@@ -30,6 +36,7 @@ import {
   SquareAvatar,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -108,6 +115,87 @@ interface UiScriptEntry {
   hasAuthor: boolean;
 }
 
+/** The shell icon's size in the table. */
+const SHELL_ICON_CLASS = 'h-4 w-4 content-md:h-6 content-md:w-6';
+
+/** The shell's icon and name; an icon box and a bar while the row is read. */
+function ScriptShellCell({ shellType }: { shellType: string }) {
+  if (useLoadingScope()) {
+    return (
+      <span className="flex items-center gap-2">
+        <MediaSkeleton.Icon className={SHELL_ICON_CLASS} />
+        <TextLineSkeleton type="h4" as="span" className="w-24" />
+      </span>
+    );
+  }
+  return <ScriptShellBadge value={shellType} iconClassName={SHELL_ICON_CLASS} />;
+}
+
+/**
+ * "Added by" = Script.author. The author id is a User global id; decode it to the raw id the REST-backed employee
+ * page expects. The whole cell opens that user's page in a new tab (accent + underline). `data-no-row-click` stops the
+ * row's own navigation (to the script) so only the user page opens. While the row is read the avatar and the name draw
+ * their loading form (most scripts have an author).
+ */
+function ScriptAuthorCell({ script }: { script: UiScriptEntry }) {
+  if (useLoadingScope()) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <SquareAvatar variant="round" size="sm" />
+        <div className="min-w-0 flex-1">
+          <TruncateText>{''}</TruncateText>
+        </div>
+      </div>
+    );
+  }
+  if (!script.hasAuthor) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center">
+        <ValueText value={null} />
+      </div>
+    );
+  }
+  const rawAuthorId = script.authorId ? (decodeGlobalId(script.authorId)?.rawId ?? script.authorId) : '';
+  const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
+  const isDeleted = script.authorDeleted;
+  const avatar = isDeleted ? (
+    <DeletedUserAvatar size="sm" />
+  ) : (
+    <SquareAvatar
+      variant="round"
+      size="sm"
+      src={script.authorImage}
+      fallback={script.authorInitials}
+      alt={script.authorName}
+      initialsClassName="text-ods-text-secondary"
+    />
+  );
+  if (!href) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {avatar}
+        {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
+        <div className="min-w-0 flex-1">
+          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{script.authorName}</TruncateText>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
+      <button type="button" onClick={openInNewTab(href)} className="flex w-full min-w-0 items-center gap-2 text-left">
+        {avatar}
+        {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
+        <div className="min-w-0 flex-1">
+          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+            {script.authorName}
+          </TruncateText>
+        </div>
+      </button>
+    </div>
+  );
+}
+
 /** The filter options each filterable column offers (the facets of the current answer). */
 interface ScriptColumnOptions {
   shell: FacetOption[];
@@ -139,9 +227,7 @@ function scriptColumns({
     {
       accessorKey: 'shellType',
       header: SCRIPT_COLUMNS.shellType.header,
-      cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-        <ScriptShellBadge value={row.original.shellType} iconClassName="h-4 w-4 content-md:h-6 content-md:w-6" />
-      ),
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptShellCell shellType={row.original.shellType} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: facetFilter(options?.shell) }),
@@ -162,66 +248,7 @@ function scriptColumns({
       // is `authorId` so the option values (ids) match the server filter.
       accessorKey: 'authorId',
       header: SCRIPT_COLUMNS.authorId.header,
-      // The author id is a User global id; decode it to the raw id the REST-backed
-      // employee page expects. The whole cell opens that user's page in a new tab
-      // (accent + underline). `data-no-row-click` stops the row's own navigation
-      // (to the script) so only the user page opens.
-      cell: ({ row }: { row: Row<UiScriptEntry> }) => {
-        if (!row.original.hasAuthor) {
-          return (
-            <div className="flex min-w-0 flex-1 items-center">
-              <ValueText value={null} />
-            </div>
-          );
-        }
-        const rawAuthorId = row.original.authorId
-          ? (decodeGlobalId(row.original.authorId)?.rawId ?? row.original.authorId)
-          : '';
-        const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
-        const isDeleted = row.original.authorDeleted;
-        const avatar = isDeleted ? (
-          <DeletedUserAvatar size="sm" />
-        ) : (
-          <SquareAvatar
-            variant="round"
-            size="sm"
-            src={row.original.authorImage}
-            fallback={row.original.authorInitials}
-            alt={row.original.authorName}
-            initialsClassName="text-ods-text-secondary"
-          />
-        );
-        if (!href) {
-          return (
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              {avatar}
-              {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
-              <div className="min-w-0 flex-1">
-                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                  {row.original.authorName}
-                </TruncateText>
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={openInNewTab(href)}
-              className="flex w-full min-w-0 items-center gap-2 text-left"
-            >
-              {avatar}
-              {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
-              <div className="min-w-0 flex-1">
-                <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-                  {row.original.authorName}
-                </TruncateText>
-              </div>
-            </button>
-          </div>
-        );
-      },
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptAuthorCell script={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       // Rightmost filterable column: anchor the dropdown to the right edge so it

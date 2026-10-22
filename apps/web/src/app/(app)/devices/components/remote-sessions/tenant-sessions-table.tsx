@@ -26,7 +26,7 @@ import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
 import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -102,7 +102,8 @@ function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
 
 /**
  * The sessions table. In a loading scope (the recordings gate or the first page has not answered) it draws itself:
- * the live columns and header with inert funnels, each part its own loading state, and asks for nothing (not even the
+ * the live columns and header with inert funnels over one page of placeholder rows drawn with the real cells, each
+ * part its own loading state, and asks for nothing (not even the
  * funnels' options).
  */
 function TenantSessionsTable({
@@ -153,8 +154,11 @@ function TenantSessionsTable({
 
   // Filtering, sorting and paging all happen on the server: the table renders
   // what it is given and only reports the funnels' picks.
+  // In a loading scope the table holds one page of placeholder rows, drawn with the real cells (each cell draws its
+  // own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<TenantSessionRow>(PAGE_SIZE) : null), [loading]);
   const table = useDataTable<TenantSessionRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: (row: TenantSessionRow) => row.id,
     enableSorting: false,
@@ -200,6 +204,7 @@ function TenantSessionsTable({
         emptyState={emptyState}
         rowHref={recordingHref}
         footer={rows.length > 0 ? infiniteScroll : null}
+        loadingCells={loading}
       />
 
       <FilterModal

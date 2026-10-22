@@ -35,7 +35,12 @@ import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { GatedSuspense } from '../gated-suspense';
-import { DevicesPanelSkeleton } from './devices-panel-boundaries';
+import { NO_ITEMS } from '../no-next-page';
+
+/** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
+const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
+/** The grid's filter row while the facets are out: every column with its static label, holding the row's height. */
+const PENDING_FILTER_COLUMNS = getDeviceFilterColumns(null);
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
 function renderDeviceRowActions(device: Device): ReactNode {
@@ -347,17 +352,32 @@ export function DevicesPanel(props: DevicesPanelProps) {
   const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
 
   // The panel's loading state, drawn by the panel: in a loading scope (the gate below) or behind the boundary it is
-  // its own view in `loading`, with no query mounted.
+  // its own view in `loading`, with no query mounted. Everything here is a prop or a URL value, none of it the device
+  // query: the header buttons come from the one declaration the loaded panel reads (`buildDevicePanelActions`), the
+  // view switch reflects `?viewMode` (table and grid are different shapes), and the filter toolbar is the real one
+  // with empty tags. Only what the request answers draws its loading form: the rows.
   const pending = (
-    <DevicesPanelSkeleton
-      {...chrome}
+    <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
+      loading
+      title={chrome.title}
+      backButton={chrome.backButton}
+      className={cn(chrome.offsetClassName, chrome.className)}
       viewMode={viewMode}
+      actions={buildDevicePanelActions({
+        archiveHref: props.archiveHref,
+        showAddDevice: props.showAddDevice,
+        noOrganizations: props.noOrganizations,
+        isCheckingOrganizations: props.isCheckingOrganizations,
+        addCustomerHref: routes.customers.new,
+        disabled: true,
+      })}
+      devices={NO_ITEMS}
+      filterColumns={PENDING_FILTER_COLUMNS}
+      // The loaded table always carries a row-actions column, and it takes real width from the others.
+      actionsColumn={PENDING_ACTIONS_COLUMN}
       hideColumns={props.hideColumns}
       hideFilters={props.hideFilters}
-      archiveHref={props.archiveHref}
-      showAddDevice={props.showAddDevice}
-      noOrganizations={props.noOrganizations}
-      isCheckingOrganizations={props.isCheckingOrganizations}
     />
   );
   return (

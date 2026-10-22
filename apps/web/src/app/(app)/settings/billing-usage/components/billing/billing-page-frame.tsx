@@ -34,7 +34,7 @@ interface BillingPageFrameProps {
 
 /**
  * The billing page's frame: its title, its back link and its header actions. Static, so the page
- * (`BillingUsageScreen`) and the wait for its code (`BillingUsageContentSkeleton`) draw one frame, never two copies.
+ * (`BillingUsageScreen`) and the wait for its code (`billing-usage-view.tsx`'s dynamic fallback) draw one frame, never two copies.
  */
 export function BillingPageFrame({ actions, menuActions, loadingActions = false, children }: BillingPageFrameProps) {
   const handleBack = useSafeBack(routes.settings.root());

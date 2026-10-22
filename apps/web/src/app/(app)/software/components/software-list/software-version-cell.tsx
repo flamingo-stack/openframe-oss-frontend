@@ -1,7 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareVersionCell_software$key } from '@/__generated__/softwareVersionCell_software.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -22,13 +22,14 @@ const softwareVersionCellFragment = graphql`
  * fleet (empty when none reported), and how many older ones are still in use.
  */
 export function SoftwareVersionCell({ software }: { software: softwareVersionCell_software$key }) {
-  const { currentVersion, versionStatus, olderVersionsCount } = useFragment(softwareVersionCellFragment, software);
-  const olderCount = olderVersionsCount ?? 0;
+  // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
+  const data = useFragment(softwareVersionCellFragment, useLoadingScope() ? null : software);
+  const olderCount = data?.olderVersionsCount ?? 0;
   return (
     <div className="flex min-w-0 flex-col justify-center">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        <ValueText value={currentVersion} />
-        {versionStatus === SoftwareVersionStatus.OUTDATED && (
+        <ValueText value={data?.currentVersion} />
+        {data?.versionStatus === SoftwareVersionStatus.OUTDATED && (
           <Tag label={OUTDATED_TAG.label} variant={OUTDATED_TAG.variant} />
         )}
       </div>

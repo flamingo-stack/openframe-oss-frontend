@@ -10,8 +10,7 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
-import { NO_ITEMS } from './no-next-page';
+import { type ReactNode, useMemo } from 'react';
 
 /**
  * The gap under every row of a list table, its skeleton rows included. Every table that gaps its rows uses this one
@@ -26,6 +25,16 @@ export const LIVE_ROW_GAP_CLASS = 'mb-1';
  */
 export function PendingDim({ isPending, children }: { isPending: boolean; children: ReactNode }) {
   return <div className={cn('transition-opacity duration-200', isPending && 'opacity-60')}>{children}</div>;
+}
+
+/**
+ * One page of rows still being read: an id each and nothing a cell can show. A table holds them while it loads and its
+ * body draws them with their REAL cells (`DataTable.Body`'s `loadingCells`): every part of a cell switches itself in
+ * the body's loading scope, so a loading row is the loaded row's own layout. A cell must therefore read its row's
+ * fields as possibly absent and draw them through parts that switch (`TruncateText`, `Tag`, a cell's own switch).
+ */
+export function loadingPlaceholderRows<T>(count: number): T[] {
+  return Array.from({ length: count }, (_, index) => ({ id: `loading-${index}` }) as T);
 }
 
 /**
@@ -82,6 +91,12 @@ interface LiveTableShellProps<T> {
   rowHeightClassName?: string;
   /** The next page's infinite-scroll sentinel; `null` (or omitted) draws none. */
   footer?: Omit<DataTableInfiniteFooterProps, 'skeletonRows'> | null;
+  /**
+   * The table holds placeholder rows while it loads (`loadingPlaceholderRows`, one page): the body draws them with
+   * their real cells in its loading scope. Set by the `columns` form itself; a list that builds its own table over
+   * placeholder rows while loading sets it too.
+   */
+  loadingCells?: boolean;
 }
 
 export type LiveTableProps<T> = LiveTableShellProps<T> &
@@ -95,8 +110,9 @@ export type LiveTableProps<T> = LiveTableShellProps<T> &
     | {
         /**
          * Before the first page answers: the live table's own columns, from the same builder the loaded table calls
-         * (funnels pending, no row actions). The table is built here with no rows and drawn in the caller's loading
-         * scope, where the body and the row count draw their own skeletons.
+         * (funnels pending, no row actions). The table is built here over one page of placeholder rows
+         * (`loadingPlaceholderRows`) and drawn in the caller's loading scope, where every cell and the row count draw
+         * their own loading form.
          */
         columns: ColumnDef<T>[];
         table?: never;
@@ -110,15 +126,17 @@ export type LiveTableProps<T> = LiveTableShellProps<T> &
  */
 export function LiveTable<T>(props: LiveTableProps<T>) {
   if (props.table) return <LiveTableShell {...props} table={props.table} />;
-  return <EmptyRowsLiveTable {...props} columns={props.columns} />;
+  return <LoadingRowsLiveTable {...props} columns={props.columns} />;
 }
 
-function EmptyRowsLiveTable<T>({
+function LoadingRowsLiveTable<T>({
   columns,
   ...shell
 }: LiveTableShellProps<T> & LiveTableRows & { columns: ColumnDef<T>[] }) {
-  const table = useDataTable<T>({ data: NO_ITEMS, columns, enableSorting: false });
-  return <LiveTableShell {...shell} table={table} />;
+  const count = shell.pageSize ?? shell.skeletonRows;
+  const data = useMemo(() => loadingPlaceholderRows<T>(count), [count]);
+  const table = useDataTable<T>({ data, columns, enableSorting: false });
+  return <LiveTableShell {...shell} table={table} loadingCells />;
 }
 
 function LiveTableShell<T>({
@@ -141,6 +159,7 @@ function LiveTableShell<T>({
   renderSubRow,
   rowHeightClassName,
   footer,
+  loadingCells = false,
 }: LiveTableShellProps<T> & LiveTableRows & { table: DataTableInstance<T> }) {
   const rows = pageSize ?? skeletonRows;
   return (
@@ -156,6 +175,7 @@ function LiveTableShell<T>({
           />
         )}
         <DataTable.Body
+          loadingCells={loadingCells}
           skeletonRows={rows}
           emptyState={emptyState}
           rowClassName={rowClassName ? (row: T) => cn(LIVE_ROW_GAP_CLASS, rowClassName(row)) : LIVE_ROW_GAP_CLASS}

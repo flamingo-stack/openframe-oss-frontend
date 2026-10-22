@@ -1,6 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -14,7 +15,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { EmptyValue } from '@/app/components/shared/empty-value';
-import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
+import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -50,6 +51,31 @@ function roleLabel(user: UserRow): string {
   if (user.type === 'person') return 'User account';
   if (user.type) return `${user.type} account`;
   return 'System user';
+}
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const USERS_TAB_SKELETON_ROWS = 10;
+
+/** The account name over its role; on a loading row both lines are bars (a placeholder has no role). */
+function UserNameCell({ user }: { user: UserRow }) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex min-w-0 flex-col justify-center">
+      <TruncateText>{user.username}</TruncateText>
+      <TruncateText variant="h6" tone="secondary" loading={loading}>
+        {roleLabel(user)}
+      </TruncateText>
+    </div>
+  );
+}
+
+/** The account type; a bar of its line on a loading row. */
+function UserTypeCell({ type }: { type: string | undefined }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
+  return <span className="capitalize text-ods-text-primary text-h4">{type || <EmptyValue />}</span>;
 }
 
 export function UsersTab({ device }: UsersTabProps) {
@@ -88,14 +114,7 @@ export function UsersTab({ device }: UsersTabProps) {
       {
         accessorKey: 'username',
         header: USER_COLUMNS.username.header,
-        cell: ({ row }: { row: Row<UserRow> }) => (
-          <div className="flex min-w-0 flex-col justify-center">
-            <TruncateText>{row.original.username}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {roleLabel(row.original)}
-            </TruncateText>
-          </div>
-        ),
+        cell: ({ row }: { row: Row<UserRow> }) => <UserNameCell user={row.original} />,
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.username),
       },
@@ -109,9 +128,7 @@ export function UsersTab({ device }: UsersTabProps) {
       {
         accessorKey: 'type',
         header: USER_COLUMNS.type.header,
-        cell: ({ row }: { row: Row<UserRow> }) => (
-          <span className="capitalize text-ods-text-primary text-h4">{row.original.type || <EmptyValue />}</span>
-        ),
+        cell: ({ row }: { row: Row<UserRow> }) => <UserTypeCell type={row.original.type} />,
         enableSorting: false,
         meta: liveColumnMeta(USER_COLUMNS.type),
       },
@@ -145,8 +162,14 @@ export function UsersTab({ device }: UsersTabProps) {
     [],
   );
 
+  // In the tab's loading scope the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
+  // cell draws its own loading form (a placeholder is not logged in, so its status is the empty value's bar).
+  const data = useMemo(
+    () => (loading ? loadingPlaceholderRows<UserRow>(USERS_TAB_SKELETON_ROWS) : filteredRows),
+    [loading, filteredRows],
+  );
   const table = useDataTable<UserRow>({
-    data: filteredRows,
+    data,
     columns,
     getRowId: (row: UserRow) => row.id,
     enableSorting: false,
@@ -197,6 +220,8 @@ export function UsersTab({ device }: UsersTabProps) {
       <DataTable table={table}>
         {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
         <DataTable.Body
+          loadingCells={loading}
+          skeletonRows={USERS_TAB_SKELETON_ROWS}
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <UsersIcon />,

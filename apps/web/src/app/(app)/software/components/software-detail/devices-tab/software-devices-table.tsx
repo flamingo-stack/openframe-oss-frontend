@@ -8,7 +8,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareDevicesTable_query$data,
@@ -28,7 +28,7 @@ import {
   NO_NEXT_PAGE,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -102,9 +102,13 @@ const softwareDevicesTableFragment = graphql`
 
 type SoftwareDeviceRow = NonNullable<softwareDevicesTable_query$data['softwareDevices']>['edges'][number]['node'];
 
-/** The device's page — by its agent machine id, or the global id for a device with no agent yet. */
-function deviceHref(row: SoftwareDeviceRow): string {
-  return routes.devices.details(row.device.machineId || row.device.id);
+/**
+ * The device's page — by its agent machine id, or the global id for a device with no agent yet. A loading placeholder
+ * (`loadingPlaceholderRows`) has no device yet, and no page.
+ */
+function deviceHref(row: SoftwareDeviceRow): string | null {
+  const { device } = row as Partial<SoftwareDeviceRow>;
+  return device ? routes.devices.details(device.machineId || device.id) : null;
 }
 
 /** The columns, with the Status funnel over the states the backend reports. */
@@ -134,7 +138,7 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
-        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original))} />
+        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original) ?? '')} />
       ),
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
@@ -151,7 +155,9 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
  * `row.device.id`. Position is a safe tiebreaker here and nowhere else: the
  * list only ever appends pages, and a sort or funnel change rebuilds it whole.
  */
-const getRowId = (row: SoftwareDeviceRow, index: number) => `${row.device.id}\0${index}`;
+const getRowId = (row: SoftwareDeviceRow, index: number) =>
+  // A loading placeholder (`loadingPlaceholderRows`) has no device yet: it keys on its own id.
+  `${(row as Partial<SoftwareDeviceRow>).device?.id ?? (row as { id?: string }).id}\0${index}`;
 
 interface SoftwareDevicesTableProps {
   softwareId: string;
@@ -171,7 +177,7 @@ interface SoftwareDevicesTableProps {
 
 /**
  * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
- * with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives
+ * over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it lives
  * under the tab's `<Suspense>`.
  */
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
@@ -248,9 +254,15 @@ function SoftwareDevicesTableRows({
     onStatusFilterChange,
   );
 
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareDeviceRow>(SOFTWARE_DEVICES_PAGE_SIZE) : null),
+    [loading],
+  );
+
   const table = useDataTable<SoftwareDeviceRow>({
     // The table only ever reads the page it is handed.
-    data: rows as SoftwareDeviceRow[],
+    data: placeholderRows ?? (rows as SoftwareDeviceRow[]),
     columns: buildColumns(),
     getRowId,
     enableSorting: false,
@@ -280,6 +292,7 @@ function SoftwareDevicesTableRows({
     <LiveTable
       table={table}
       pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
+      loadingCells={loading}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"
       totalCount={totalCount}

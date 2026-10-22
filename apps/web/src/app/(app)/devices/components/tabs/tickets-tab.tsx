@@ -11,7 +11,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
@@ -87,15 +87,19 @@ export function TicketsTab({ device }: TicketsTabProps) {
     return [...base, getTicketOpenColumn()];
   }, [isUserDeleted]);
 
+  const loading = scoped || isLoading;
+  // While the device or the first page is read the table holds one page of placeholder rows, drawn with the real
+  // cells (each cell draws its own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<Dialog>(TICKETS_PAGE_SIZE) : null), [loading]);
+
   const table = useDataTable<Dialog>({
-    data: tickets,
+    data: loadingRows ?? tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
   });
 
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
-  const loading = scoped || isLoading;
 
   if (!loading && error) {
     return <PageError message={error} />;
@@ -153,6 +157,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
           }}
           rowHref={ticketRowHref}
           footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
+          loadingCells={loading}
         />
       </LoadingWhen>
     </div>

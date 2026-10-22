@@ -46,7 +46,7 @@ interface BillingSectionsProps {
 
 /**
  * The billing page's body, in order: the counters, the plan, the invoices and the notices. One module for the page
- * (`BillingUsageScreen`) and the wait for its code (`BillingUsageContentSkeleton`), which renders it with no data in a
+ * (`BillingUsageScreen`) and the wait for its code (`billing-usage-view.tsx`'s dynamic fallback), which renders it with no data in a
  * loading scope, so the two can never draw different pages.
  */
 export function BillingSections({

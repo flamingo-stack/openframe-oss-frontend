@@ -8,7 +8,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareActionsTable_query$data,
@@ -27,7 +27,7 @@ import {
   NO_NEXT_PAGE,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -186,7 +186,7 @@ const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engine
 
 /**
  * The Software Actions rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws
- * the table with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it
+ * the table over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it
  * lives under the view's `<Suspense>`.
  */
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
@@ -263,10 +263,15 @@ function SoftwareActionsRows({
 }: SoftwareActionsRowsProps) {
   const loading = useLoadingScope();
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareActionRow>(SOFTWARE_ACTIONS_PAGE_SIZE) : null),
+    [loading],
+  );
 
   const table = useDataTable<SoftwareActionRow>({
     // The table only ever reads the page it is handed.
-    data: rows as SoftwareActionRow[],
+    data: placeholderRows ?? (rows as SoftwareActionRow[]),
     columns: buildColumns(filterOptions),
     getRowId,
     enableSorting: false,
@@ -296,6 +301,7 @@ function SoftwareActionsRows({
     <LiveTable
       table={table}
       pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
+      loadingCells={loading}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"
       totalCount={totalCount}

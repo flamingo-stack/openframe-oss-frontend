@@ -19,7 +19,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
+import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
@@ -40,6 +40,12 @@ interface RemoteSessionsTabProps {
 
 const EMPTY_RECORDINGS: RecordingSummary[] = [];
 const EMPTY_COLUMN_FILTERS: ColumnFiltersState = [];
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const REMOTE_SESSIONS_SKELETON_ROWS = 10;
 
 /** Newest session first, like every history list on the device page. */
 const DEFAULT_SORTING: SortingState = [{ id: REMOTE_SESSION_COLUMNS.session.id, desc: true }];
@@ -192,8 +198,14 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     [dateFilter, employeeOptions, now, router],
   );
 
+  // While the sessions are read the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
+  // cell draws its own loading form.
+  const tableData = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<RecordingSummary>(REMOTE_SESSIONS_SKELETON_ROWS) : recordings),
+    [isLoading, recordings],
+  );
   const table = useDataTable<RecordingSummary>({
-    data: recordings,
+    data: tableData,
     columns,
     getRowId: (row: RecordingSummary) => row.id,
     clientSideSorting: true,
@@ -290,6 +302,8 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         )}
         <DataTable.Body
           loading={isLoading}
+          loadingCells={isLoading}
+          skeletonRows={REMOTE_SESSIONS_SKELETON_ROWS}
           rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={recordingHref}
           emptyState={{

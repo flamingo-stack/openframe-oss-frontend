@@ -7,11 +7,12 @@ import {
   PageError,
   SearchInput,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
@@ -31,6 +32,8 @@ interface CustomerTicketsTabProps {
 
 export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) {
   const router = useRouter();
+  // While the customer loads the tab is drawn in the page's loading scope (no id, nothing fetched).
+  const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -61,8 +64,13 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     [isUserDeleted],
   );
 
+  const loading = scoped || isLoading;
+  // While the customer or the first page is read the table holds one page of placeholder rows, drawn with the real
+  // cells (each cell draws its own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<Dialog>(TICKETS_PAGE_SIZE) : null), [loading]);
+
   const table = useDataTable<Dialog>({
-    data: tickets,
+    data: loadingRows ?? tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
@@ -99,7 +107,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
       </div>
 
       {/* The first page is a client read: the table draws its own loading state in this scope. */}
-      <LoadingWhen loading={isLoading}>
+      <LoadingWhen loading={loading}>
         <LiveTable
           table={table}
           pageSize={TICKETS_PAGE_SIZE}
@@ -110,6 +118,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
           emptyState={{ title: 'No tickets found for this customer.' }}
           rowHref={ticketRowHref}
           footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
+          loadingCells={loading}
         />
       </LoadingWhen>
     </div>

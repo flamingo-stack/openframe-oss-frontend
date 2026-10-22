@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -115,6 +115,8 @@ function enumFacetOptions(facet: readonly FacetEntry[], labels: Record<string, s
  * API has no status-changed timestamp yet.
  */
 function statusTime(row: IncidentRow): string {
+  // A row still being read has no time: its line draws its bar.
+  if (!row.detectedAt) return '';
   if (row.status === InsightStatus.NEW) {
     return formatRelativeTime(row.detectedAt);
   }
@@ -153,21 +155,7 @@ function incidentColumns({
   const deviceColumn: ColumnDef<IncidentTableRow> = {
     accessorKey: 'organizationId',
     header: INCIDENT_COLUMNS.device.header,
-    cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-      <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-        <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-          {renderDeviceTypeIcon(row.original.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')}
-          <div className="min-w-0 flex-1">
-            <TruncateText>{row.original.deviceName}</TruncateText>
-          </div>
-        </div>
-        {row.original.organizationName && (
-          <TruncateText variant="h6" tone="secondary">
-            {row.original.organizationName}
-          </TruncateText>
-        )}
-      </div>
-    ),
+    cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentDeviceCell row={row.original} />,
     enableSorting: false,
     filterFn: multiSelectFilterFn,
     meta: liveColumnMeta(INCIDENT_COLUMNS.device, { filter: facetFilter(options?.customer) }),
@@ -178,11 +166,11 @@ function incidentColumns({
       header: INCIDENT_COLUMNS.incident.header,
       cell: ({ row }: { row: Row<IncidentTableRow> }) => (
         <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-          <TruncateText>{row.original.title}</TruncateText>
+          <TruncateText>{row.original.title ?? ''}</TruncateText>
           {/* The Status column is hidden below lg; its time line moves under the title. */}
           <div className="hidden min-w-0 content-lg:block">
             <TruncateText variant="h6" tone="secondary">
-              {labelOf(INCIDENT_TYPE_LABELS, row.original.type)}
+              {row.original.type ? labelOf(INCIDENT_TYPE_LABELS, row.original.type) : ''}
             </TruncateText>
           </div>
           <div className="min-w-0 content-lg:hidden">
@@ -259,45 +247,80 @@ function incidentColumns({
       // The Mingo button, as `mingoActionFor` decides it (see `IncidentTableRow`
       // for why the cell reads nothing but the row).
       id: 'mingo',
-      cell: ({ row }: { row: Row<IncidentTableRow> }) => {
-        const { label, onClick, disabled, loading } = row.original.mingoAction;
-        return (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={onClick}
-              variant="outline"
-              size="icon"
-              leftIcon={<AgentMark agent="mingo" className="size-5" />}
-              aria-label={label}
-              title={label}
-              disabled={disabled}
-              loading={loading}
-              className="bg-ods-card"
-            />
-          </div>
-        );
-      },
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentMingoCell row={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(INCIDENT_COLUMNS.mingo),
     },
     {
       id: 'open',
-      cell: ({ row }: { row: Row<IncidentTableRow> }) => (
-        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-          <Button
-            onClick={openInNewTab(routes.incidents.details(row.original.id))}
-            variant="outline"
-            size="icon"
-            leftIcon={<ArrowRightUpIcon className="size-5" />}
-            aria-label="Open in new tab"
-            className="bg-ods-card"
-          />
-        </div>
-      ),
+      cell: ({ row }: { row: Row<IncidentTableRow> }) => <IncidentOpenCell row={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(INCIDENT_COLUMNS.open),
     },
   ];
+}
+
+/** The device (its type icon and name) over its customer; each part its own loading form while the row is read. */
+function IncidentDeviceCell({ row }: { row: IncidentTableRow }) {
+  const loading = useLoadingScope() && !row.deviceName;
+  return (
+    <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+        {loading ? (
+          <UnifiedSkeleton className="size-6 shrink-0 rounded" />
+        ) : (
+          renderDeviceTypeIcon(row.deviceType ?? undefined, 'size-6 shrink-0 text-ods-text-secondary')
+        )}
+        <div className="min-w-0 flex-1">
+          <TruncateText>{row.deviceName ?? ''}</TruncateText>
+        </div>
+      </div>
+      {(loading || row.organizationName) && (
+        <TruncateText variant="h6" tone="secondary">
+          {row.organizationName ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** The Mingo button, as `mingoActionFor` decides it. While the row is read it is drawn real, and inert. */
+function IncidentMingoCell({ row }: { row: IncidentTableRow }) {
+  const inScope = useLoadingScope();
+  const action = inScope ? undefined : row.mingoAction;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={action?.onClick}
+        variant="outline"
+        size="icon"
+        leftIcon={<AgentMark agent="mingo" className="size-5" />}
+        aria-label={action?.label ?? 'Mingo'}
+        title={action?.label}
+        disabled={action ? action.disabled : true}
+        loading={action?.loading}
+        className="bg-ods-card"
+      />
+    </div>
+  );
+}
+
+/** Opens the incident in a new tab. While the row is read the button is drawn real, and inert. */
+function IncidentOpenCell({ row }: { row: IncidentTableRow }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(routes.incidents.details(row.id))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="size-5" />}
+        aria-label="Open in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
 }
 
 // ----------------------------------------------------------------

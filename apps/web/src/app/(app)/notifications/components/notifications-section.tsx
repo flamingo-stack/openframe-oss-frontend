@@ -19,7 +19,7 @@ import type { notificationsSectionRelayPaginationQuery as NotificationsSectionPa
 import type { notificationsSectionRelayQuery as NotificationsSectionRelayQueryType } from '@/__generated__/notificationsSectionRelayQuery.graphql';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { EmptyState, type InfiniteScroll, NO_ITEMS } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { NotificationReadStatus } from '@/generated/schema-enums';
 import {
@@ -219,8 +219,8 @@ interface SectionTableViewProps {
 }
 
 /**
- * The notifications table, from props only. In a loading scope it draws one full page of skeleton rows
- * (`NOTIFICATIONS_SECTION_PAGE_SIZE`) under its real header.
+ * The notifications table, from props only. In a loading scope it holds one full page of placeholder rows
+ * (`NOTIFICATIONS_SECTION_PAGE_SIZE`) drawn with its real cells under its real header.
  */
 export function SectionTableView({
   rows,
@@ -245,6 +245,8 @@ export function SectionTableView({
 
   const renderSubRow = useCallback(
     (item: NotificationRow) => {
+      // A placeholder row (the table still loading) carries no notification.
+      if (!item.notification) return null;
       if (!isApprovalNotification(item.notification) || !getApprovalMeta(item.notification)) return null;
       return (
         <NotificationApprovalSubRow
@@ -256,8 +258,15 @@ export function SectionTableView({
     [rowVariant, onMarkRead],
   );
 
+  // In a loading scope the table holds one page of placeholder rows, drawn with the real cells (each cell draws its
+  // own loading form).
+  const loadingRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<NotificationRow>(NOTIFICATIONS_SECTION_PAGE_SIZE) : null),
+    [loading],
+  );
+
   const table = useDataTable<NotificationRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: row => row.id,
   });
@@ -288,6 +297,7 @@ export function SectionTableView({
         itemName="result"
         renderSubRow={renderSubRow}
         footer={infiniteScroll}
+        loadingCells={loading}
       />
       {rowVariant === 'read' && (
         <p className="mt-[var(--spacing-system-l)] text-center text-ods-text-secondary text-h6">

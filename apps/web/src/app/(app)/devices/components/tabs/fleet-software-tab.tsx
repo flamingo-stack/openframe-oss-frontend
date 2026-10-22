@@ -1,6 +1,7 @@
 'use client';
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CodeIcon,
   GridIcon,
@@ -23,7 +24,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { type ComponentType, useMemo, useState } from 'react';
-import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
+import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -70,6 +71,61 @@ function formatLastUsed(dateString?: string): string {
 }
 
 /**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const FLEET_SOFTWARE_SKELETON_ROWS = 10;
+
+/** The title over its version; on a loading row both lines draw their bars (`TruncateText` with no text). */
+function SoftwareNameCell({ name, version }: { name: string; version: string | undefined }) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex min-w-0 flex-col justify-center">
+      <TruncateText>{name}</TruncateText>
+      {(loading || version) && (
+        <TruncateText variant="h6" tone="secondary">
+          {version ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** Where the title came from, glyph and label; on a loading row the glyph is a bar of its size and the label a bar. */
+function SourceCell({ source }: { source: string | undefined }) {
+  const loading = useLoadingScope();
+  // The source's glyph is a plain icon component (no loading form of its own): a bar of its size on a loading row.
+  const { Icon: SourceGlyph, label } = getSourceIcon(source ?? '');
+  return (
+    <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
+      {loading ? (
+        <MediaSkeleton.Icon className="h-4 w-4 shrink-0 content-md:h-6 content-md:w-6" />
+      ) : (
+        <SourceGlyph className="h-4 w-4 shrink-0 content-md:h-6 content-md:w-6" />
+      )}
+      <div className="min-w-0">
+        <TruncateText tone="secondary" loading={loading}>
+          {label}
+        </TruncateText>
+      </div>
+    </div>
+  );
+}
+
+/** The title's issue count as a tag; the tag's own skeleton on a loading row (a placeholder has no count). */
+function VulnerabilityCountCell({ count }: { count: number }) {
+  if (useLoadingScope()) return <Tag label="" loading className="w-fit" />;
+  if (count === 0) return <Tag label="NO ISSUES" variant="success" className="w-fit" />;
+  return <Tag label={`${count} ${count === 1 ? 'ISSUE' : 'ISSUES'}`} variant="error" className="w-fit" />;
+}
+
+/** When the title was last opened; a bar of its line on a loading row. */
+function LastUsedCell({ date }: { date: string | undefined }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h6" className="w-3/4" />;
+  return <div className="text-ods-text-primary text-h6">{formatLastUsed(date)}</div>;
+}
+
+/**
  * Device → Software over the Fleet host payload: the inventory the device query
  * already carries (`device.software`, mapped in `use-device-details.ts`), so the
  * tab costs no request of its own and searches and sorts client-side over the
@@ -99,14 +155,7 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
         accessorKey: 'name',
         header: FLEET_SOFTWARE_COLUMNS.name.header,
         cell: ({ row }: { row: Row<Software> }) => (
-          <div className="flex min-w-0 flex-col justify-center">
-            <TruncateText>{row.original.name}</TruncateText>
-            {row.original.version && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.version}
-              </TruncateText>
-            )}
-          </div>
+          <SoftwareNameCell name={row.original.name} version={row.original.version} />
         ),
         enableSorting: true,
         meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.name),
@@ -114,33 +163,17 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
       {
         accessorKey: 'source',
         header: FLEET_SOFTWARE_COLUMNS.source.header,
-        cell: ({ row }: { row: Row<Software> }) => {
-          const { Icon, label } = getSourceIcon(row.original.source);
-          return (
-            <div className="inline-flex min-w-0 items-center gap-[var(--spacing-system-xs)] text-ods-text-secondary">
-              <Icon className="h-4 w-4 shrink-0 content-md:h-6 content-md:w-6" />
-              <div className="min-w-0">
-                <TruncateText tone="secondary">{label}</TruncateText>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<Software> }) => <SourceCell source={row.original.source} />,
         enableSorting: true,
         meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.source),
       },
       {
         id: FLEET_SOFTWARE_COLUMNS.vulnerabilities.id,
         header: FLEET_SOFTWARE_COLUMNS.vulnerabilities.header,
-        accessorFn: (row: Software) => row.vulnerabilities.length,
-        cell: ({ row }: { row: Row<Software> }) => {
-          const vulnCount = row.original.vulnerabilities.length;
-          if (vulnCount === 0) {
-            return <Tag label="NO ISSUES" variant="success" className="w-fit" />;
-          }
-          return (
-            <Tag label={`${vulnCount} ${vulnCount === 1 ? 'ISSUE' : 'ISSUES'}`} variant="error" className="w-fit" />
-          );
-        },
+        accessorFn: (row: Software) => row.vulnerabilities?.length ?? 0,
+        cell: ({ row }: { row: Row<Software> }) => (
+          <VulnerabilityCountCell count={row.original.vulnerabilities?.length ?? 0} />
+        ),
         enableSorting: true,
         sortingFn: (rowA: Row<Software>, rowB: Row<Software>) => {
           const a = rowA.original.vulnerabilities.length;
@@ -164,9 +197,7 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
       {
         accessorKey: 'last_opened_at',
         header: FLEET_SOFTWARE_COLUMNS.lastUsed.header,
-        cell: ({ row }: { row: Row<Software> }) => (
-          <div className="text-ods-text-primary text-h6">{formatLastUsed(row.original.last_opened_at)}</div>
-        ),
+        cell: ({ row }: { row: Row<Software> }) => <LastUsedCell date={row.original.last_opened_at} />,
         enableSorting: true,
         meta: liveColumnMeta(FLEET_SOFTWARE_COLUMNS.lastUsed),
       },
@@ -174,8 +205,14 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
     [],
   );
 
+  // In the tab's loading scope the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
+  // cell draws its own loading form.
+  const data = useMemo(
+    () => (loading ? loadingPlaceholderRows<Software>(FLEET_SOFTWARE_SKELETON_ROWS) : software),
+    [loading, software],
+  );
   const table = useDataTable<Software>({
-    data: software,
+    data,
     columns,
     getRowId: (row: Software) => String(row.id),
     clientSideSorting: true,
@@ -266,6 +303,8 @@ export function FleetSoftwareTab({ device }: FleetSoftwareTabProps) {
       <DataTable table={table}>
         {!isEmpty && <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />}
         <DataTable.Body
+          loadingCells={loading}
+          skeletonRows={FLEET_SOFTWARE_SKELETON_ROWS}
           rowClassName={LIVE_ROW_GAP_CLASS}
           emptyState={{
             icon: <WebDesignIcon />,

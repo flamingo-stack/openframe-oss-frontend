@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { DeviceTypeTile, OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -20,6 +21,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -96,22 +98,13 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
         id: POLICY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
         header: POLICY_DEVICE_COLUMNS.organization.header,
-        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
-          const r = row.original;
-          const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
-          return (
-            <div className="flex items-center gap-3">
-              <EntityImage
-                src={fullImageUrl}
-                alt={r.organization || 'Customer'}
-                className="size-12 content-md:size-12"
-              />
-              <div className="flex min-w-0 flex-1 flex-col justify-center">
-                <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+          <DeviceCustomerCell
+            organization={row.original.organization}
+            imageUrl={row.original.organizationImageUrl}
+            imageHash={row.original.organizationImageHash}
+          />
+        ),
         meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.organization),
       },
       {
@@ -129,59 +122,24 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
         id: POLICY_DEVICE_COLUMNS.compliance.id,
         accessorKey: 'complianceStatus',
         header: POLICY_DEVICE_COLUMNS.compliance.header,
-        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
-          const r = row.original;
-          if (r.complianceStatus === 'pending') return <Tag label="Pending" variant="warning" />;
-          return (
-            <Tag
-              label={r.complianceStatus === 'non-compliant' ? 'Non-Compliant' : 'Passing'}
-              variant={r.complianceStatus === 'non-compliant' ? 'error' : 'success'}
-            />
-          );
-        },
+        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => <ComplianceCell status={row.original.complianceStatus} />,
         meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.compliance),
       },
       {
         id: POLICY_DEVICE_COLUMNS.open.id,
-        cell: ({ row }: { row: Row<PolicyDeviceRow> }) =>
-          row.original.machineId ? (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={openInNewTab(routes.devices.details(row.original.machineId))}
-                variant="outline"
-                size="icon"
-                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-                aria-label="Open in new tab"
-                className="bg-ods-card"
-              />
-            </div>
-          ) : null,
+        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => <DeviceOpenCell machineId={row.original.machineId} />,
         enableSorting: false,
         meta: liveColumnMeta(POLICY_DEVICE_COLUMNS.open),
       },
       {
         id: POLICY_DEVICE_COLUMNS.quickQuery.id,
-        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => {
-          const isOpen = quickQueryIds.has(String(row.original.id));
-          return (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={() => toggleQuickQuery(String(row.original.id))}
-                variant="outline"
-                disabled={!isOpen && !hasQuery}
-                leftIcon={
-                  isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />
-                }
-                aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
-                aria-expanded={isOpen}
-                className="w-full bg-ods-card"
-              >
-                {/* Icon-only on mobile, per design. */}
-                <span className="hidden content-md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
-              </Button>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<PolicyDeviceRow> }) => (
+          <QuickQueryToggle
+            isOpen={quickQueryIds.has(String(row.original.id))}
+            hasQuery={hasQuery}
+            onToggle={() => toggleQuickQuery(String(row.original.id))}
+          />
+        ),
         enableSorting: false,
         // Fixed column width (matching the header's empty cell) so the flex
         // columns before it stretch identically in the header and the rows;
@@ -192,8 +150,15 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
     [quickQueryIds, toggleQuickQuery, hasQuery],
   );
 
+  // While loading the table holds one typical list of placeholder rows, drawn with the real cells (`loadingCells`):
+  // every part of a row draws its own loading form, so a loading row is the loaded row's own layout.
+  const loadingRows = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<PolicyDeviceRow>(MONITORING_DEVICES_SKELETON_ROWS) : null),
+    [isLoading],
+  );
+
   const table = useDataTable<PolicyDeviceRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: (row: PolicyDeviceRow) => String(row.id),
     enableSorting: false,
@@ -222,6 +187,7 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
       {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
       <DataTable.Body
         loading={isLoading}
+        loadingCells={isLoading}
         skeletonRows={MONITORING_DEVICES_SKELETON_ROWS}
         emptyState={{
           icon: <MonitorIcon />,
@@ -232,5 +198,95 @@ function PolicyDevicesTableView({ rows, isLoading, policyQuery }: PolicyDevicesT
         renderSubRow={renderSubRow}
       />
     </DataTable>
+  );
+}
+
+/** A device's customer: its logo over the name beside it. Each part draws its own loading form while the row is read. */
+export function DeviceCustomerCell({
+  organization,
+  imageUrl,
+  imageHash,
+}: {
+  organization: string | null | undefined;
+  imageUrl: string | null | undefined;
+  imageHash: string | null | undefined;
+}) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex items-center gap-3">
+      <EntityImage
+        src={getFullImageUrl(imageUrl, imageHash)}
+        alt={organization || 'Customer'}
+        className="size-12 content-md:size-12"
+      />
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        {loading && !organization ? (
+          <TextLineSkeleton type="h4" className="w-3/4" />
+        ) : (
+          <span className="break-words text-ods-text-primary text-h4">{organization || ''}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Opens the device's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+export function DeviceOpenCell({ machineId }: { machineId: string | null | undefined }) {
+  const loading = useLoadingScope();
+  if (!loading && !machineId) return null;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading || !machineId ? undefined : openInNewTab(routes.devices.details(machineId))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
+
+/** The row's Quick Query / Close toggle. Static chrome: drawn real while the row is read, and inert. */
+export function QuickQueryToggle({
+  isOpen,
+  hasQuery,
+  onToggle,
+}: {
+  isOpen: boolean;
+  hasQuery: boolean;
+  onToggle: () => void;
+}) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={onToggle}
+        variant="outline"
+        disabled={loading || (!isOpen && !hasQuery)}
+        leftIcon={isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />}
+        aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
+        aria-expanded={isOpen}
+        className="w-full bg-ods-card"
+      >
+        {/* Icon-only on mobile, per design. */}
+        <span className="hidden content-md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
+      </Button>
+    </div>
+  );
+}
+
+/** The device's compliance with this policy as its tag; the tag's own loading form while the row is read. */
+function ComplianceCell({ status }: { status: PolicyDeviceRow['complianceStatus'] | undefined }) {
+  const loading = useLoadingScope() && !status;
+  if (status === 'pending') return <Tag label="Pending" variant="warning" />;
+  return (
+    <Tag
+      label={status === 'non-compliant' ? 'Non-Compliant' : 'Passing'}
+      variant={status === 'non-compliant' ? 'error' : 'success'}
+      loading={loading}
+    />
   );
 }

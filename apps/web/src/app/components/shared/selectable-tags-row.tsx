@@ -28,6 +28,12 @@ const MAX_TAG_LABEL_LENGTH = 24;
 /** The row's frame, one line of chips tall (a tag chip is `h-8`): loading, loaded and empty alike. */
 const ROW_CLASS = 'flex min-h-8 items-center gap-[var(--spacing-system-xxs)] overflow-hidden';
 
+/**
+ * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size, so the declared count
+ * is this list's length), each the lib's `Tag` in its loading form at varied widths so the placeholder reads as tags.
+ */
+const TAG_SKELETON_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
+
 const formatTagLabel = (key: string): string =>
   key.length > MAX_TAG_LABEL_LENGTH ? `${key.slice(0, MAX_TAG_LABEL_LENGTH)}…` : key;
 
@@ -56,7 +62,15 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
     reserveInputWidth: false,
   });
 
-  if (loading) return <SelectableTagsRowSkeleton />;
+  if (loading) {
+    return (
+      <LoadingRegion label="Loading tags" className={ROW_CLASS}>
+        <LoadingItems count={TAG_SKELETON_WIDTHS.length}>
+          {index => <Tag label="" loading data-loading-item className={cn('shrink-0', TAG_SKELETON_WIDTHS[index])} />}
+        </LoadingItems>
+      </LoadingRegion>
+    );
+  }
   // Nothing left to add: the row keeps its line, so the list under it does not move when the tags answer.
   if (available.length === 0) return <div className={ROW_CLASS} />;
 
@@ -66,6 +80,7 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
   return (
     <div className="relative">
       <div ref={middleRef} className={ROW_CLASS}>
+        {/* loading-standard-ok(ITEM_MARK): each item's Tag (inside its tooltip, which adds no element) carries data-loading-item */}
         {visible.map(tag => {
           const isTruncated = tag.key.length > MAX_TAG_LABEL_LENGTH;
           return (
@@ -123,21 +138,5 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingPr
         ))}
       </div>
     </div>
-  );
-}
-
-/**
- * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size, so the declared count
- * is this list's length), each the lib's `Tag` in its loading form at varied widths so the placeholder reads as tags.
- */
-const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
-
-function SelectableTagsRowSkeleton() {
-  return (
-    <LoadingRegion label="Loading tags" className={ROW_CLASS}>
-      <LoadingItems count={SKELETON_TAG_WIDTHS.length}>
-        {index => <Tag label="" loading data-loading-item className={cn('shrink-0', SKELETON_TAG_WIDTHS[index])} />}
-      </LoadingItems>
-    </LoadingRegion>
   );
 }

@@ -46,16 +46,6 @@ const dataLossCoreRowsFragment = graphql`
  */
 const CORE_ROW_SKELETON_WIDTHS = ['w-1/2', 'w-1/3', 'w-3/4', 'w-2/3', 'w-2/5', 'w-3/4', 'w-1/2'] as const;
 
-function DataLossCoreRowsSkeleton() {
-  return (
-    <LoadingWhen loading>
-      <LoadingItems count={CORE_ROW_SKELETON_WIDTHS.length}>
-        {index => <DataLossItem skeletonWidth={CORE_ROW_SKELETON_WIDTHS[index]} />}
-      </LoadingItems>
-    </LoadingWhen>
-  );
-}
-
 /**
  * A zero figure drops its row, or its half of a row. "Events across monitoring
  * policies" from the design is left out: nothing in the schema or Fleet counts them.
@@ -66,7 +56,15 @@ export function DataLossCoreRows({ query }: { query: dataLossCoreRows_query$key 
   const external = useCancellationImpact();
 
   // `query` is null only while the dialog's query is on its way (drawn in a loading scope).
-  if (useLoadingScope() || data == null || external == null) return <DataLossCoreRowsSkeleton />;
+  if (useLoadingScope() || data == null || external == null) {
+    return (
+      <LoadingWhen loading>
+        <LoadingItems count={CORE_ROW_SKELETON_WIDTHS.length}>
+          {index => <DataLossItem skeletonWidth={CORE_ROW_SKELETON_WIDTHS[index]} />}
+        </LoadingItems>
+      </LoadingWhen>
+    );
+  }
 
   const devices = data.subscription?.usage?.devicesUsed ?? 0;
   const customers = data.organizations.filteredCount;

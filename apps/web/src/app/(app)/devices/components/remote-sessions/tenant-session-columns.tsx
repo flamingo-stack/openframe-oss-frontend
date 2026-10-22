@@ -7,6 +7,7 @@ import {
   EntityImage,
   type Row,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { tenantRemoteSessionsRelay_query$data as TenantSessionsData } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayQuery$variables as TenantSessionsVariables } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
@@ -137,19 +138,21 @@ export interface TenantSessionColumnsOptions {
   onDelete: (row: TenantSessionRow) => void;
 }
 
+/** The device's icon, name and hostname. On a loading row the icon is drawn real and both lines draw their bars. */
 function DeviceCell({ row }: { row: TenantSessionRow }) {
-  if (!row.device) {
+  const loading = useLoadingScope() && !row.device;
+  if (!loading && !row.device) {
     return <ValueText value={null} />;
   }
-  const { name, hostname } = row.device;
+  const { name = '', hostname = null } = row.device ?? {};
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <MonitorIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />
       <div className="flex min-w-0 flex-col justify-center">
         <TruncateText tone={isRecordingGone(row) ? 'secondary' : 'primary'}>{name}</TruncateText>
-        {hostname && hostname !== name && (
+        {(loading || (hostname && hostname !== name)) && (
           <TruncateText variant="h6" tone="secondary">
-            {hostname}
+            {hostname ?? ''}
           </TruncateText>
         )}
       </div>
@@ -157,11 +160,13 @@ function DeviceCell({ row }: { row: TenantSessionRow }) {
   );
 }
 
+/** The customer's logo and name. On a loading row the image and the name draw their own loading forms. */
 function CustomerCell({ row }: { row: TenantSessionRow }) {
-  if (!row.customer?.name) {
+  const loading = useLoadingScope() && !row.customer;
+  if (!loading && !row.customer?.name) {
     return <ValueText value={null} />;
   }
-  const { name, logoUrl } = row.customer;
+  const { name = '', logoUrl = null } = row.customer ?? {};
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-sf)]">
       <EntityImage

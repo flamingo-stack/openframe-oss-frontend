@@ -21,7 +21,7 @@ import type { softwareLogsTableQuery as SoftwareLogsTableQueryType } from '@/__g
 import { EXECUTIONS_PAGE_SIZE, type ExecutionsTabState } from '@/app/(app)/scripts/shared/components/executions-table';
 import type { FacetOption } from '@/app/(app)/scripts/shared/utils/facet-options';
 import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { PackageManagerType, SoftwareAction } from '@/generated/schema-enums';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../shared/column-filters';
@@ -219,7 +219,7 @@ interface SoftwareLogsRowsProps {
 
 /**
  * The logs table itself, from the rows it is handed: no query, so it also draws in a loading scope, where the
- * header is real and the body is its own loading rows (`ActionDetailLogs` renders it so before the run answers).
+ * header is real and the body is one page of placeholder rows with their real cells (`ActionDetailLogs` renders it so before the run answers).
  */
 export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, actionLabel, state }: SoftwareLogsRowsProps) {
   const {
@@ -247,8 +247,14 @@ export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, action
     [statusFacets],
   );
 
+  // While the run is read the table holds one page of placeholder rows, drawn with their real cells (never narrowed:
+  // a placeholder has nothing to match).
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareLogRow>(EXECUTIONS_PAGE_SIZE) : null),
+    [loading],
+  );
   const needle = narrowSearch.trim().toLowerCase();
-  const logs = needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : [...allRows];
+  const logs = placeholderRows ?? (needle ? allRows.filter(row => matchesSoftwareLog(row, needle)) : [...allRows]);
 
   // Memoized by hand on purpose: TanStack keys its column model on this array's
   // identity and `flexRender` mounts each `cell` function as a component, so a
@@ -345,6 +351,7 @@ export function SoftwareLogsRows({ allRows, statusFacets, infiniteScroll, action
       <LiveTable
         table={table}
         pageSize={EXECUTIONS_PAGE_SIZE}
+        loadingCells={loading}
         stickyHeaderOffset={stickyHeaderOffset}
         showHeader={showHeader}
         itemName="result"

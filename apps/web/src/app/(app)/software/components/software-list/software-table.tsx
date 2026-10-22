@@ -158,8 +158,8 @@ function SoftwareTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: stri
 
 /**
  * The software table. Without `rows` (its first page not read yet, the caller's loading scope) it draws its
- * own loading form: the same table with no rows, where the body and the count draw their own skeletons. Every surface
- * that lists these renders this one component in both states.
+ * own loading form: the same table over one page of placeholder rows with their real cells, each in its own loading
+ * form, and the count its own. Every surface that lists these renders this one component in both states.
  */
 export function SoftwareTable(props: SoftwareTableProps | { stickyHeaderOffset: string }) {
   if (!('rows' in props)) return <SoftwareTableLoading {...props} />;

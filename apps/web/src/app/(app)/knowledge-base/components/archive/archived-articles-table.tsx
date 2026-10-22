@@ -6,6 +6,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   archivedArticlesTable_query$data,
@@ -14,7 +15,7 @@ import type {
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
 import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
@@ -112,9 +113,9 @@ interface ArchivedArticlesTableProps {
 }
 
 /**
- * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table with no rows, which is
- * the table's own loading state; otherwise it runs the query, which suspends, so it lives under the view's
- * `<Suspense>`.
+ * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table over one page of
+ * placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends,
+ * so it lives under the view's `<Suspense>`.
  */
 export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
   if (useLoadingScope()) {
@@ -184,11 +185,17 @@ function ArchivedArticlesRows({
   isPending,
   stickyHeaderOffset,
 }: ArchivedArticlesRowsProps) {
+  const loading = useLoadingScope();
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ArchivedRow, 'unarchive'>();
 
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<ArchivedRow>(KNOWLEDGE_BASE_PAGE_SIZE) : null),
+    [loading],
+  );
   const table = useDataTable<ArchivedRow>({
     // The table only ever reads the page it is handed.
-    data: rows as ArchivedRow[],
+    data: placeholderRows ?? (rows as ArchivedRow[]),
     columns: buildColumns(row => openDialog(row, 'unarchive')),
     getRowId,
     enableSorting: false,
@@ -201,6 +208,7 @@ function ArchivedArticlesRows({
       <LiveTable
         table={table}
         pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
+        loadingCells={loading}
         totalCount={totalCount}
         itemName="article"
         emptyState={{ title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.' }}

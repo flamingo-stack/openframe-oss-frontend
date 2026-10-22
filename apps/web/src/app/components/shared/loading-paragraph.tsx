@@ -29,17 +29,6 @@ export interface LoadingParagraphProps {
   lines?: ParagraphLines;
 }
 
-/** The paragraph while its copy is not known yet: its typical lines in the paragraph's own type step, at its width. */
-function LoadingParagraphSkeleton({ type, lines }: { type: keyof typeof TYPE_CLASS; lines: ParagraphLines }) {
-  if (typeof lines === 'number') return <TextLineSkeleton type={type} lines={lines} className="w-full" />;
-  return (
-    <>
-      <TextLineSkeleton type={type} lines={lines.base} className="w-full content-md:hidden" />
-      <TextLineSkeleton type={type} lines={lines.md} className="hidden w-full content-md:flex" />
-    </>
-  );
-}
-
 /**
  * A paragraph whose copy is read (the auth server's error description, a CVE's description, a customer's notes): its
  * typical lines while `text` is undefined, `loading` is set, or in a loading scope; the paragraph once it is known.
@@ -54,7 +43,16 @@ export function LoadingParagraph({
   lines = PARAGRAPH_SKELETON_LINES,
 }: LoadingParagraphProps) {
   if (useLoadingScope() || !!loading || text === undefined) {
-    const skeleton = <LoadingParagraphSkeleton type={type} lines={lines} />;
+    // Its typical lines in the paragraph's own type step, at its width.
+    const skeleton =
+      typeof lines === 'number' ? (
+        <TextLineSkeleton type={type} lines={lines} className="w-full" />
+      ) : (
+        <>
+          <TextLineSkeleton type={type} lines={lines.base} className="w-full content-md:hidden" />
+          <TextLineSkeleton type={type} lines={lines.md} className="hidden w-full content-md:flex" />
+        </>
+      );
     return label ? (
       <LoadingRegion label={label} className="w-full">
         {skeleton}

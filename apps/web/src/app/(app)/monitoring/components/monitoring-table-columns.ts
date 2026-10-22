@@ -5,8 +5,9 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * page's Devices section and the query detail page's Assigned Devices tab.
  *
  * Data-only on purpose (see `table-column-layout.ts`): each table reads its
- * columns' header, width and breakpoint from here, loaded or loading (in a
- * loading scope the same table draws its own body skeleton).
+ * columns' header, width and breakpoint from here, loaded or loading (while
+ * loading the same table draws its real cells over placeholder rows, each part in
+ * its own loading form).
  *
  * The two tables are the same layout down to the class strings; they differ in
  * exactly two things, and both are spelled out below rather than left implicit:

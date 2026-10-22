@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -10,13 +11,14 @@ import {
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { formatRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ComponentProps, useMemo } from 'react';
 import type { InfiniteScroll } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { EmptyValue } from '@/app/components/shared/empty-value';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -39,16 +41,18 @@ export interface UiCustomerEntry {
 }
 
 export function CustomerNameCell({ org }: { org: UiCustomerEntry }) {
+  // A row still being read has no field: the image, the name and the email line each draw their own loading form.
+  const loading = useLoadingScope();
   const fullImageUrl = getFullImageUrl(org.imageUrl, org.imageHash);
 
   return (
     <div className="flex min-w-0 items-center gap-4">
-      <EntityImage src={fullImageUrl} alt={org.name} className="size-12 content-md:size-12" />
+      <EntityImage src={fullImageUrl} alt={org.name ?? ''} className="size-12 content-md:size-12" />
       <div className="flex min-w-0 flex-col justify-center">
-        <TruncateText>{org.name}</TruncateText>
-        {org.email && (
+        <TruncateText>{org.name ?? ''}</TruncateText>
+        {(org.email || loading) && (
           <TruncateText variant="h6" tone="secondary">
-            {org.email}
+            {org.email ?? ''}
           </TruncateText>
         )}
       </div>
@@ -84,17 +88,7 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
   {
     accessorKey: 'deviceCount',
     header: 'Devices',
-    cell: ({ row }: { row: Row<UiCustomerEntry> }) => {
-      const { deviceCount, numberOfEmployees } = row.original;
-      const devicesLabel = deviceCount === null ? <EmptyValue /> : pluralize(deviceCount, 'device');
-      const usersLabel = pluralize(numberOfEmployees, 'user');
-      return (
-        <div className="flex min-w-0 flex-col justify-center">
-          <span className="truncate text-ods-text-primary text-h4">{devicesLabel}</span>
-          <span className="truncate text-ods-text-secondary text-h6">{usersLabel}</span>
-        </div>
-      );
-    },
+    cell: ({ row }: { row: Row<UiCustomerEntry> }) => <CustomerCountsCell org={row.original} />,
     meta: { width: 'w-[200px] shrink-0', hideAt: 'md' },
   },
   {
@@ -104,9 +98,9 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
     header: dateFilter ? () => <DateColumnHeader label="Last Activity" filter={dateFilter} /> : 'Last Activity',
     cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
       <div className="flex min-w-0 flex-col justify-center">
-        <TruncateText>{row.original.lastActivityDate}</TruncateText>
+        <TruncateText>{row.original.lastActivityDate ?? ''}</TruncateText>
         <TruncateText variant="h6" tone="secondary">
-          {row.original.lastActivityRelative}
+          {row.original.lastActivityRelative ?? ''}
         </TruncateText>
       </div>
     ),
@@ -115,22 +109,50 @@ export const buildCustomersColumns = (dateFilter?: CustomersDateFilter): ColumnD
   },
   {
     id: 'open',
-    cell: ({ row }: { row: Row<UiCustomerEntry> }) => (
-      <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-        <Button
-          onClick={openInNewTab(routes.customers.details(row.original.organizationId))}
-          variant="outline"
-          size="icon"
-          leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-          aria-label="Open in new tab"
-          className="bg-ods-card"
-        />
-      </div>
-    ),
+    cell: ({ row }: { row: Row<UiCustomerEntry> }) => <OpenCustomerButton org={row.original} />,
     enableSorting: false,
     meta: { width: 'w-12 shrink-0 flex-none ml-auto', hideAt: 'md', align: 'right' },
   },
 ];
+
+/** The customer's devices over its users; two bars while the row is read. */
+function CustomerCountsCell({ org }: { org: UiCustomerEntry }) {
+  if (useLoadingScope() && org.numberOfEmployees === undefined) {
+    return (
+      <div className="flex min-w-0 flex-col justify-center">
+        <TextLineSkeleton type="h4" className="w-3/4" />
+        <TextLineSkeleton type="h6" className="w-1/2" />
+      </div>
+    );
+  }
+  const { deviceCount, numberOfEmployees } = org;
+  const devicesLabel = deviceCount === null ? <EmptyValue /> : pluralize(deviceCount, 'device');
+  const usersLabel = pluralize(numberOfEmployees, 'user');
+  return (
+    <div className="flex min-w-0 flex-col justify-center">
+      <span className="truncate text-ods-text-primary text-h4">{devicesLabel}</span>
+      <span className="truncate text-ods-text-secondary text-h6">{usersLabel}</span>
+    </div>
+  );
+}
+
+/** Opens the customer's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+function OpenCustomerButton({ org }: { org: UiCustomerEntry }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(routes.customers.details(org.organizationId))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 export const customerRowHref = (row: UiCustomerEntry) => routes.customers.details(row.organizationId);
 
@@ -201,8 +223,15 @@ export function CustomersTableBody({
 
   const columns = useMemo(() => buildCustomersColumns(dateFilter), [dateFilter]);
 
+  // While the first page is read the table holds one page of placeholder rows, drawn with the real cells.
+  const loadingCount = rowCount.pageSize ?? rowCount.skeletonRows;
+  const loadingRows = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<UiCustomerEntry>(loadingCount) : null),
+    [isLoading, loadingCount],
+  );
+
   const table = useDataTable<UiCustomerEntry>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: row => row.id,
     enableSorting: false,
@@ -219,6 +248,7 @@ export function CustomersTableBody({
         emptyState={emptyState}
         rowHref={customerRowHref}
         footer={footer}
+        loadingCells={isLoading}
       />
     </LoadingWhen>
   );

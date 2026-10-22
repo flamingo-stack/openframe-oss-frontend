@@ -17,11 +17,13 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -61,6 +63,34 @@ const statusToVariant = {
 
 const employeeRowHref = (record: UnifiedUserRecord) =>
   record.type === RecordType.User ? employeeDetailHref(record.id) : null;
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const USERS_SKELETON_ROWS = 10;
+
+/**
+ * Opens a user's page in a new tab; nothing for an invitation. Static chrome: on a loading row (no record yet) it is
+ * drawn real and inert, so the column holds the loaded row's button.
+ */
+function OpenUserButton({ record }: { record: UnifiedUserRecord }) {
+  const loading = useLoadingScope();
+  if (!loading && record.type !== RecordType.User) return null;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(employeeDetailHref(record.id))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 export function CompanyAndUsersTab() {
   const handleBack = useSafeBack(routes.settings.root());
@@ -273,23 +303,7 @@ export function CompanyAndUsersTab() {
       },
       {
         id: 'open',
-        cell: ({ row }: { row: Row<UnifiedUserRecord> }) => {
-          if (row.original.type !== RecordType.User) {
-            return null;
-          }
-          return (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={openInNewTab(employeeDetailHref(row.original.id))}
-                variant="outline"
-                size="icon"
-                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-                aria-label="Open in new tab"
-                className="bg-ods-card"
-              />
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<UnifiedUserRecord> }) => <OpenUserButton record={row.original} />,
         enableSorting: false,
         meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
       },
@@ -297,8 +311,16 @@ export function CompanyAndUsersTab() {
     [handleRevokeRequest, handleRemoveRequest, handleResendRequest],
   );
 
+  // The first read (no user on screen yet): the table holds placeholder rows, drawn with their real cells
+  // (`loadingCells`): the avatar, the name and email lines, the role and the status tag each draw their own loading
+  // form. A refetch keeps the users on screen.
+  const loadingRows = isLoading && filteredRecords.length === 0;
+  const data = useMemo(
+    () => (loadingRows ? loadingPlaceholderRows<UnifiedUserRecord>(USERS_SKELETON_ROWS) : filteredRecords),
+    [loadingRows, filteredRecords],
+  );
   const table = useDataTable<UnifiedUserRecord>({
-    data: filteredRecords,
+    data,
     columns,
     getRowId: (row: UnifiedUserRecord) => row.id,
     enableSorting: false,
@@ -340,6 +362,8 @@ export function CompanyAndUsersTab() {
           <DataTable.Header rightSlot={<DataTable.RowCount />} stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
           <DataTable.Body
             loading={isLoading || isMutating}
+            loadingCells={loadingRows}
+            skeletonRows={USERS_SKELETON_ROWS}
             emptyState={{
               title:
                 error ||

@@ -1,8 +1,9 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 
 /**
- * Column layout of the Invoices History table, read by its column builder (`invoices-table-columns.tsx`). The
- * table draws its own loading state from the same columns (`DataTable.Body loading`).
+ * Column layout of the Invoices History table, read by its column builder (`invoices-table-columns.tsx`). While the
+ * history is read the table holds `INVOICES_SKELETON_ROWS` placeholder rows and the body draws them with these same
+ * cells (`DataTable.Body loadingCells`), each cell its own loading form.
  *
  * ## Narrow widths are handled by `hideAt`, like every other table here
  *
@@ -74,7 +75,7 @@ const INVOICE_COLUMNS = {
 export { INVOICE_COLUMNS };
 
 /**
- * Rows the invoices table draws while it loads. The history is not paged (Stripe's whole list arrives at once), so
+ * Placeholder rows the invoices table holds (and draws with its real cells) while it loads. The history is not paged (Stripe's whole list arrives at once), so
  * there is no page size to draw: this is the typical count, short because a workspace's invoice history is short.
  */
 export const INVOICES_SKELETON_ROWS = 3;

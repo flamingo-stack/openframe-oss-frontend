@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
@@ -9,6 +10,7 @@ import {
   type Row,
   Tag,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo } from 'react';
@@ -17,7 +19,7 @@ import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/share
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { type Initiator, InitiatorIdentity } from '../../shared/components/initiator-identity';
+import { type Initiator, InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
 import { facetFilter } from '../../shared/utils/facet-options';
 
@@ -66,8 +68,13 @@ export function runDetailsHref(run: UiRun): string {
   return routes.scripts.schedules.run(run.id);
 }
 
+/** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
+const NO_INITIATOR = toInitiator(null);
+
 /** "Executed by" — an avatar plus either the user's name (linked) or "Scheduled". */
 function InitiatorCell({ run }: { run: UiRun }) {
+  // A row still being read: the avatar and the name draw their loading form (most fires are a person's).
+  if (useLoadingScope()) return <InitiatorIdentity initiator={NO_INITIATOR} size="md" inRow />;
   if (run.isScheduled) {
     return (
       <TruncateText tone="secondary" className="flex-1">
@@ -77,6 +84,49 @@ function InitiatorCell({ run }: { run: UiRun }) {
   }
 
   return <InitiatorIdentity initiator={run.initiator} size="md" inRow />;
+}
+
+/** A fire's status as its tag; the tag's own loading form while the row is read. */
+function RunStatusCell({ status }: { status: string }) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex">
+      <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} loading={loading} />
+    </div>
+  );
+}
+
+/**
+ * "80/150" = devices we have processed at least one result from, over the devices the fire targeted. The denominator
+ * is greyed so the eye lands on the number that moves; no slack around the slash, it reads as one value rather than
+ * two. A bar on its line while the row is read.
+ */
+function RunDevicesCell({ run }: { run: UiRun }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-16" />;
+  return (
+    <span className="whitespace-nowrap text-ods-text-primary text-h4">
+      {run.responded}
+      <span className="text-ods-text-secondary">/{run.total}</span>
+    </span>
+  );
+}
+
+/** Opens the run's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+function OpenRunButton({ run }: { run: UiRun }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(runDetailsHref(run))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open run details in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
 }
 
 /**
@@ -158,14 +208,7 @@ function scheduleRunColumns({
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }: { row: Row<UiRun> }) => (
-        <div className="flex">
-          <Tag
-            label={executionStatusLabel(row.original.status)}
-            variant={executionStatusVariant(row.original.status)}
-          />
-        </div>
-      ),
+      cell: ({ row }: { row: Row<UiRun> }) => <RunStatusCell status={row.original.status} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(RUN_COLUMNS.status, { filter: facetFilter(statusOptions) }),
@@ -177,12 +220,7 @@ function scheduleRunColumns({
       // devices the fire targeted. The denominator is greyed so the eye lands
       // on the number that moves; no slack around the slash, it reads as one
       // value rather than two.
-      cell: ({ row }: { row: Row<UiRun> }) => (
-        <span className="whitespace-nowrap text-ods-text-primary text-h4">
-          {row.original.responded}
-          <span className="text-ods-text-secondary">/{row.original.total}</span>
-        </span>
-      ),
+      cell: ({ row }: { row: Row<UiRun> }) => <RunDevicesCell run={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(RUN_COLUMNS.responded),
     },
@@ -190,7 +228,8 @@ function scheduleRunColumns({
       // The column's value is the initiator's id so a future server facet can reuse it;
       // the cell renders the name (or "Scheduled" for an automatic fire).
       id: 'initiatorId',
-      accessorFn: (run: UiRun) => run.initiator.id,
+      // A placeholder row (the table's loading form) has no initiator.
+      accessorFn: (run: UiRun) => run.initiator?.id,
       header: 'Executed by',
       cell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} />,
       enableSorting: false,
@@ -211,18 +250,7 @@ function scheduleRunColumns({
     },
     {
       id: 'open',
-      cell: ({ row }: { row: Row<UiRun> }) => (
-        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-          <Button
-            onClick={openInNewTab(runDetailsHref(row.original))}
-            variant="outline"
-            size="icon"
-            leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-            aria-label="Open run details in new tab"
-            className="bg-ods-card"
-          />
-        </div>
-      ),
+      cell: ({ row }: { row: Row<UiRun> }) => <OpenRunButton run={row.original} />,
       enableSorting: false,
       meta: liveColumnMeta(RUN_COLUMNS.open),
     },

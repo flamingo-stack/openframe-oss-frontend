@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   PasscodeIcon,
   PenEditIcon,
@@ -25,6 +26,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
@@ -39,6 +41,35 @@ import { SsoConfigurationDetailsModal } from '../sso-configuration-details-modal
  * a typical workspace configures one or two providers. A typical count, not a claim about how many exist.
  */
 const SSO_SKELETON_ROWS = 2;
+
+/** A secondary text cell; a bar of its line on a loading row (a loading scope, no provider yet). */
+function SecondaryText({ text }: { text: string }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
+  return (
+    <TruncateText variant="h4" tone="secondary">
+      {text}
+    </TruncateText>
+  );
+}
+
+/** The edit button: static chrome, drawn real and inert on a loading row. */
+function EditProviderButton({ displayName, onEdit }: { displayName: string | undefined; onEdit: () => void }) {
+  const loading = useLoadingScope();
+  return (
+    // A square edit icon button on every breakpoint (designs 1614-66071/66116);
+    // it must not trigger the row's Configuration Details click.
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label={`Edit ${displayName ?? 'configuration'}`}
+        onClick={loading ? undefined : onEdit}
+        leftIcon={<PenEditIcon />}
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 type UiProviderRow = {
   id: string;
@@ -348,7 +379,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <Tag className="self-start" label={row.original.status.label} variant={row.original.status.variant} />
+          <Tag className="self-start" label={row.original.status?.label} variant={row.original.status?.variant} />
         ),
         meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
@@ -356,9 +387,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'allowedDomains',
         header: 'Allowed Domains',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h4" tone="secondary">
-            {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'none'}
-          </TruncateText>
+          <SecondaryText text={row.original.allowedDomains?.length ? row.original.allowedDomains.join(', ') : 'none'} />
         ),
         meta: { width: 'w-[220px] shrink-0', hideAt: 'md' },
       },
@@ -366,9 +395,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'hasConfig',
         header: 'Configuration',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h4" tone="secondary">
-            {row.original.hasConfig ? 'Configured' : 'Not configured'}
-          </TruncateText>
+          <SecondaryText text={row.original.hasConfig ? 'Configured' : 'Not configured'} />
         ),
         // The tablet keeps Allowed Domains and folds Configuration first (design 1614-66094).
         meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
@@ -389,19 +416,7 @@ export function SsoConfigurationTab() {
               allowedDomains: row.original.allowedDomains,
             });
 
-          return (
-            // A square edit icon button on every breakpoint (designs 1614-66071/66116);
-            // it must not trigger the row's Configuration Details click.
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={`Edit ${row.original.displayName}`}
-                onClick={openEditModal}
-                leftIcon={<PenEditIcon />}
-              />
-            </div>
-          );
+          return <EditProviderButton displayName={row.original.displayName} onEdit={openEditModal} />;
         },
         enableSorting: false,
         meta: { width: 'w-11 shrink-0 content-md:w-16', align: 'right' },
@@ -416,8 +431,15 @@ export function SsoConfigurationTab() {
     return providers.filter(p => p.displayName.toLowerCase().includes(term) || p.provider.toLowerCase().includes(term));
   }, [providers, searchTerm]);
 
+  // The first read (no provider on screen yet): the table holds placeholder rows, drawn with their real cells
+  // (`loadingCells`), each cell its own loading form. A reload keeps the providers on screen.
+  const loadingRows = isLoading && filtered.length === 0;
+  const data = useMemo(
+    () => (loadingRows ? loadingPlaceholderRows<UiProviderRow>(SSO_SKELETON_ROWS) : filtered),
+    [loadingRows, filtered],
+  );
   const table = useDataTable<UiProviderRow>({
-    data: filtered,
+    data,
     columns,
     getRowId: (row: UiProviderRow) => row.id,
     enableSorting: false,
@@ -472,6 +494,7 @@ export function SsoConfigurationTab() {
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
         <DataTable.Body
           loading={isLoading}
+          loadingCells={loadingRows}
           skeletonRows={SSO_SKELETON_ROWS}
           emptyState={{
             icon: <PasscodeIcon />,

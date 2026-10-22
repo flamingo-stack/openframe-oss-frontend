@@ -1,5 +1,6 @@
 'use client';
 
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getAgentAccent,
   type QuickActionAccent,
@@ -20,6 +21,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { AiQuickAction } from '../types/ai-settings';
 
 /** Per-tab wording for the quick-actions blocks (Mingo vs the customer assistant). */
@@ -130,7 +132,38 @@ export function AiSettingsQuickActionsSection({
 }
 
 /**
- * Rows the loading list draws. The list is not paged (every action arrives at once), so there is no page size: this
+ * One action's row: its glyph tile (when it has one) beside the name and instructions. While the row is read the tile is
+ * a bar of the tile's size and the two lines bars of their type steps (`TruncateText` with no text, in the scope).
+ */
+function QuickActionCell({ action, accent }: { action: AiQuickAction; accent: QuickActionAccent | undefined }) {
+  const loading = useLoadingScope();
+  const icon = renderQuickActionIcon({
+    name: action.iconName ?? undefined,
+    url: action.iconUrl ?? undefined,
+    props: action.iconProps ?? undefined,
+    accent,
+    size: 16,
+  });
+  // Figma row (openframe---settings 534-16835): a 32px tile, 16px before the text.
+  return (
+    <div className="flex min-h-[60px] items-center gap-[var(--spacing-system-s)]">
+      {loading ? (
+        <MediaSkeleton.Icon size="lg" className="rounded-md" />
+      ) : (
+        icon && <IconTile className="size-8">{icon}</IconTile>
+      )}
+      <div className="flex min-w-0 flex-col justify-center">
+        <TruncateText>{action.name}</TruncateText>
+        <TruncateText variant="h6" tone="secondary">
+          {action.instructions}
+        </TruncateText>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Placeholder rows the loading list holds (and draws with its real cells). The list is not paged (every action arrives at once), so there is no page size: this
  * is a typical count.
  */
 const QUICK_ACTIONS_SKELETON_ROWS = 4;
@@ -168,34 +201,21 @@ export function AiSettingsQuickActions({
         // Whose list it is (OpenFrame's or the organization's) is read: the header draws its own bar while loading.
         header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
         meta: { headerLoading: isDefault == null },
-        cell: ({ row }: { row: Row<AiQuickAction> }) => {
-          const icon = renderQuickActionIcon({
-            name: row.original.iconName ?? undefined,
-            url: row.original.iconUrl ?? undefined,
-            props: row.original.iconProps ?? undefined,
-            accent: glyphAccent,
-            size: 16,
-          });
-          // Figma row (openframe---settings 534-16835): a 32px tile, 16px before the text.
-          return (
-            <div className="flex min-h-[60px] items-center gap-[var(--spacing-system-s)]">
-              {icon && <IconTile className="size-8">{icon}</IconTile>}
-              <div className="flex min-w-0 flex-col justify-center">
-                <TruncateText>{row.original.name}</TruncateText>
-                <TruncateText variant="h6" tone="secondary">
-                  {row.original.instructions}
-                </TruncateText>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<AiQuickAction> }) => <QuickActionCell action={row.original} accent={glyphAccent} />,
       },
     ],
     [isDefault, agentConfig.agentLabel, glyphAccent],
   );
 
+  // In the section's loading scope the table holds one typical list of placeholder rows, drawn with their real cells
+  // (`loadingCells`): each cell draws its own loading form.
+  const loading = useLoadingScope();
+  const data = useMemo(
+    () => (loading ? loadingPlaceholderRows<AiQuickAction>(QUICK_ACTIONS_SKELETON_ROWS) : actions),
+    [loading, actions],
+  );
   const table = useDataTable<AiQuickAction>({
-    data: actions,
+    data,
     columns,
     getRowId: (row: AiQuickAction) => row.id,
     enableSorting: false,
@@ -206,6 +226,7 @@ export function AiSettingsQuickActions({
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} />
         <DataTable.Body
+          loadingCells={loading}
           emptyState={{ title: 'No quick actions configured.' }}
           rowClassName="mb-1"
           skeletonRows={QUICK_ACTIONS_SKELETON_ROWS}

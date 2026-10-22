@@ -46,7 +46,7 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     columnFilters,
     setColumnFilters,
     statusOptions,
-  } = useInvoicesTable(invoices);
+  } = useInvoicesTable(invoices, loading);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Said under the section's own title, so what failed is named — a page that
@@ -96,6 +96,7 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
         <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
         <DataTable.Body
           loading={loading}
+          loadingCells={loading}
           skeletonRows={INVOICES_SKELETON_ROWS}
           emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
         />

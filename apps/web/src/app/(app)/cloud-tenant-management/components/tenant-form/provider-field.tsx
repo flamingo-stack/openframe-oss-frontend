@@ -90,18 +90,14 @@ export function ProviderField(props: ProviderFieldProps) {
   );
 }
 
-function ProviderFieldBody(props: ProviderFieldProps) {
-  if (useLoadingScope()) {
-    return <ProviderFieldSkeleton />;
-  }
-  return <ProviderOptions {...props} />;
-}
-
 // The radio as it will stand, locked and unselected, over every provider this build knows. Which of
 // them the deployment offers is the only thing that changes on arrival.
 const LOADING_OPTIONS = PROVIDER_ORDER.map(toProviderOption);
 
-/** `ProviderField` before its options are known: the real radio, disabled. */
-function ProviderFieldSkeleton() {
-  return <RadioGroupBlock options={LOADING_OPTIONS} variant="grouped" disabled aria-label="Provider" />;
+/** In a loading scope the field is the real radio, disabled, over every provider this build knows; else the read. */
+function ProviderFieldBody(props: ProviderFieldProps) {
+  if (useLoadingScope()) {
+    return <RadioGroupBlock options={LOADING_OPTIONS} variant="grouped" disabled aria-label="Provider" />;
+  }
+  return <ProviderOptions {...props} />;
 }

@@ -28,6 +28,7 @@ import {
   type NoDataProps,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
@@ -239,6 +240,27 @@ export interface ExecutionsTableProps {
   onEmptyChange?: (empty: boolean) => void;
 }
 
+/** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
+const NO_INITIATOR = toInitiator(null);
+
+/** Opens the execution's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+function OpenExecutionButton({ executionId }: { executionId: string }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(routes.scripts.execution(executionId))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open execution details in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
+
 /**
  * The table's columns: the loaded table and its loading state draw the same ones. With no `facetOptions` (loading)
  * the filterable columns' funnels are pending and the Execution header's calendar is inert.
@@ -292,12 +314,13 @@ function executionColumns({
       // The column's value is the initiator's id so the filter option values (user ids)
       // match the `initiatorIds` server filter; the cell still renders the name.
       id: 'initiatorId',
-      accessorFn: (execution: UiExecution) => execution.initiator.id,
+      // A placeholder row (the table's loading form) has no initiator.
+      accessorFn: (execution: UiExecution) => execution.initiator?.id,
       header: 'Executed by',
       // The avatar + name open that user's page in a new tab; only the NAME opts out of the row link (the rest of the
       // cell still navigates to the execution, like every other cell).
       cell: ({ row }: { row: Row<UiExecution> }) => {
-        const { initiator } = row.original;
+        const initiator = row.original.initiator ?? NO_INITIATOR;
         return (
           <ExecutionInitiatorCell
             avatar={<InitiatorAvatar initiator={initiator} size="md" />}
@@ -332,18 +355,7 @@ function executionColumns({
     },
     {
       id: 'open',
-      cell: ({ row }: { row: Row<UiExecution> }) => (
-        <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-          <Button
-            onClick={openInNewTab(routes.scripts.execution(row.original.id))}
-            variant="outline"
-            size="icon"
-            leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-            aria-label="Open execution details in new tab"
-            className="bg-ods-card"
-          />
-        </div>
-      ),
+      cell: ({ row }: { row: Row<UiExecution> }) => <OpenExecutionButton executionId={row.original.id} />,
       enableSorting: false,
       meta: liveColumnMeta(EXECUTION_COLUMNS.open),
     },

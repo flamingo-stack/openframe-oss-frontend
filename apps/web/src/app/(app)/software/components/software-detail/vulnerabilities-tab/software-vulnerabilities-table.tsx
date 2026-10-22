@@ -9,7 +9,7 @@ import {
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareVulnerabilitiesTable_query$data,
@@ -28,7 +28,7 @@ import {
   NO_NEXT_PAGE,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { OpenRowButton } from '../../shared/open-row-button';
@@ -133,9 +133,11 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
 
 /**
  * A row is a CVE on one affected version; the CVE id alone repeats. `\0` cannot
- * occur in either half, so the pair can't collide with another.
+ * occur in either half, so the pair can't collide with another. A loading
+ * placeholder (`loadingPlaceholderRows`) has no CVE yet and keys on its own id.
  */
-const getRowId = (row: SoftwareVulnerabilityRow) => `${row.cveId}\0${row.affectedVersion ?? ''}`;
+const getRowId = (row: SoftwareVulnerabilityRow) =>
+  row.cveId ? `${row.cveId}\0${row.affectedVersion ?? ''}` : String((row as { id?: string }).id);
 const rowHref = (row: SoftwareVulnerabilityRow) => routes.software.vulnerability(row.cveId);
 
 interface SoftwareVulnerabilitiesTableProps {
@@ -153,7 +155,7 @@ interface SoftwareVulnerabilitiesTableProps {
 
 /**
  * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
- * with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives
+ * over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it lives
  * under the tab's `<Suspense>`.
  */
 export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
@@ -213,10 +215,15 @@ function SoftwareVulnerabilitiesTableRows({
   stickyHeaderOffset,
 }: SoftwareVulnerabilitiesTableRowsProps) {
   const loading = useLoadingScope();
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareVulnerabilityRow>(SOFTWARE_VULNERABILITIES_PAGE_SIZE) : null),
+    [loading],
+  );
 
   const table = useDataTable<SoftwareVulnerabilityRow>({
     // The table only ever reads the page it is handed.
-    data: rows as SoftwareVulnerabilityRow[],
+    data: placeholderRows ?? (rows as SoftwareVulnerabilityRow[]),
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
@@ -244,6 +251,7 @@ function SoftwareVulnerabilitiesTableRows({
     <LiveTable
       table={table}
       pageSize={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      loadingCells={loading}
       stickyHeaderOffset={stickyHeaderOffset}
       itemName="result"
       totalCount={totalCount}

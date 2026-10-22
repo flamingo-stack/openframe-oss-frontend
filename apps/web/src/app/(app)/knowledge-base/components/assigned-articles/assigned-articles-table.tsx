@@ -10,7 +10,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ConnectionHandler, graphql, useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { SelectorStoreUpdater } from 'relay-runtime';
 import type {
@@ -29,7 +29,7 @@ import {
   noop,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
@@ -164,9 +164,9 @@ interface AssignedArticlesTableProps {
 }
 
 /**
- * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table with
- * no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it lives under
- * the tab's `<Suspense>`.
+ * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table over
+ * one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query,
+ * which suspends, so it lives under the tab's `<Suspense>`.
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
   const { target } = props;
@@ -279,9 +279,14 @@ function AssignedArticlesRows({
 }: AssignedArticlesRowsProps) {
   const loading = useLoadingScope();
   const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<ArticleRow>(KNOWLEDGE_BASE_PAGE_SIZE) : null),
+    [loading],
+  );
   const table = useDataTable<ArticleRow>({
     // The table only ever reads the page it is handed.
-    data: rows as ArticleRow[],
+    data: placeholderRows ?? (rows as ArticleRow[]),
     columns: buildColumns(onUnassign),
     getRowId,
     enableSorting: false,
@@ -310,6 +315,7 @@ function AssignedArticlesRows({
     <LiveTable
       table={table}
       pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
+      loadingCells={loading}
       totalCount={totalCount}
       itemName="article"
       emptyState={{

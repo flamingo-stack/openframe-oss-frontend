@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowRightUpIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { ArrowRightUpIcon, Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
@@ -14,7 +15,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo } from 'react';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { LiveTable } from '../live-table';
+import { LiveTable, loadingPlaceholderRows } from '../live-table';
 import type { InfiniteScroll } from '../no-next-page';
 import type { QueryTableRow } from './query-table-row';
 
@@ -87,24 +88,13 @@ export function QueriesTable({
       {
         accessorKey: 'name',
         header: 'Name',
-        cell: ({ row }: { row: Row<QueryTableRow> }) => (
-          <div className="flex min-h-[60px] min-w-0 flex-col justify-center gap-1 py-2">
-            <TruncateText>{row.original.name}</TruncateText>
-            {row.original.description && (
-              <TruncateText variant="h6" tone="secondary">
-                {row.original.description}
-              </TruncateText>
-            )}
-          </div>
-        ),
+        cell: ({ row }: { row: Row<QueryTableRow> }) => <QueryNameCell row={row.original} />,
         meta: { width: 'flex-1 min-w-0' },
       },
       {
         accessorKey: 'frequencyLabel',
         header: 'Frequency',
-        cell: ({ row }: { row: Row<QueryTableRow> }) => (
-          <span className="font-medium leading-[20px] text-ods-text-primary">{row.original.frequencyLabel}</span>
-        ),
+        cell: ({ row }: { row: Row<QueryTableRow> }) => <QueryFrequencyCell row={row.original} />,
         meta: { width: 'w-[120px]', hideAt: 'md' },
       },
     ];
@@ -113,12 +103,7 @@ export function QueriesTable({
       cols.push({
         id: 'actions',
         header: '',
-        cell: ({ row }: { row: Row<QueryTableRow> }) =>
-          row.original.actions && row.original.actions.length > 0 ? (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
-              <MoreActionsMenu items={row.original.actions} />
-            </div>
-          ) : null,
+        cell: ({ row }: { row: Row<QueryTableRow> }) => <QueryActionsCell row={row.original} />,
         enableSorting: false,
         meta: { width: 'w-12 content-md:w-auto content-md:min-w-[100px] shrink-0 flex-none', align: 'right' },
       });
@@ -127,19 +112,7 @@ export function QueriesTable({
     cols.push({
       id: 'open',
       header: '',
-      cell: ({ row }: { row: Row<QueryTableRow> }) =>
-        row.original.href ? (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(row.original.href)}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label={`Open ${row.original.name}`}
-              className="bg-ods-card"
-            />
-          </div>
-        ) : null,
+      cell: ({ row }: { row: Row<QueryTableRow> }) => <QueryOpenCell row={row.original} />,
       enableSorting: false,
       meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
     });
@@ -147,8 +120,15 @@ export function QueriesTable({
     return cols;
   }, [hasActions]);
 
+  // While loading the table holds one page of placeholder rows, drawn with the real cells.
+  const loadingCount = pageSize ?? skeletonRows;
+  const loadingRows = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<QueryTableRow>(loadingCount) : null),
+    [isLoading, loadingCount],
+  );
+
   const table = useDataTable<QueryTableRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: (row: QueryTableRow) => row.id,
     enableSorting: false,
@@ -171,7 +151,70 @@ export function QueriesTable({
         emptyState={emptyState}
         rowHref={rowHref}
         footer={infiniteScroll?.hasNextPage ? infiniteScroll : null}
+        loadingCells={isLoading}
       />
     </LoadingWhen>
+  );
+}
+
+/** The query's name over its description; both draw their bars while the row is read. */
+function QueryNameCell({ row }: { row: QueryTableRow }) {
+  const loading = useLoadingScope() && !row.name;
+  return (
+    <div className="flex min-h-[60px] min-w-0 flex-col justify-center gap-1 py-2">
+      <TruncateText>{row.name ?? ''}</TruncateText>
+      {(row.description || loading) && (
+        <TruncateText variant="h6" tone="secondary">
+          {row.description ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** How often the query runs; a bar while the row is read. */
+function QueryFrequencyCell({ row }: { row: QueryTableRow }) {
+  if (useLoadingScope() && !row.frequencyLabel) return <TextLineSkeleton type="h4" className="w-16" />;
+  return <span className="font-medium leading-[20px] text-ods-text-primary">{row.frequencyLabel}</span>;
+}
+
+/** The row's actions menu. While the row is read its trigger is drawn real, and inert. */
+function QueryActionsCell({ row }: { row: QueryTableRow }) {
+  const loading = useLoadingScope() && !row.name;
+  if (!loading && !(row.actions && row.actions.length > 0)) return null;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-2">
+      {loading ? (
+        <Button
+          variant="outline"
+          size="icon"
+          className="flex items-center justify-center border-ods-border bg-ods-card"
+          aria-label="More actions"
+          disabled
+          leftIcon={<Ellipsis01Icon size={24} className="text-ods-text-primary" />}
+        />
+      ) : (
+        <MoreActionsMenu items={row.actions ?? []} />
+      )}
+    </div>
+  );
+}
+
+/** Opens the query in a new tab. While the row is read the button is drawn real, and inert. */
+function QueryOpenCell({ row }: { row: QueryTableRow }) {
+  const loading = useLoadingScope() && !row.name;
+  if (!loading && !row.href) return null;
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading || !row.href ? undefined : openInNewTab(row.href)}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label={loading ? 'Open' : `Open ${row.name}`}
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
   );
 }

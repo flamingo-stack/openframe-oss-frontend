@@ -39,22 +39,6 @@ function MobilePreviewButton({ onClick }: { onClick?: () => void }) {
 }
 
 /**
- * The previews while the assistant's name and accent are on their way: the phone's button is fixed copy (drawn,
- * disabled), each thumbnail the frame `ScaledPreviewFrame` draws (the Fae window's aspect).
- */
-function AiSettingsPreviewsSkeleton() {
-  return (
-    <>
-      <MobilePreviewButton />
-      <div className={THUMBNAILS_CLASS}>
-        <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
-        <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
-      </div>
-    </>
-  );
-}
-
-/**
  * Welcome + chat previews of the Fae window, shown in Fae's default dark
  * theme (`PREVIEW_THEME_CLASS`): the theme is not a setting, each client picks
  * it in the Fae app.
@@ -97,7 +81,19 @@ export function AiSettingsPreviews({ assistantName, avatarUrl, accentColor }: Ai
   const faeAvatar = useAgentIdentityIcon('fae')?.url ?? undefined;
   const resolvedAvatarUrl = avatarUrl || faeAvatar;
 
-  if (useLoadingScope() || assistantName == null || accentColor == null) return <AiSettingsPreviewsSkeleton />;
+  // While the name and accent are on their way: the phone's button is fixed copy (drawn, disabled), each thumbnail
+  // the frame `ScaledPreviewFrame` draws (the Fae window's aspect).
+  if (useLoadingScope() || assistantName == null || accentColor == null) {
+    return (
+      <>
+        <MobilePreviewButton />
+        <div className={THUMBNAILS_CLASS}>
+          <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
+          <UnifiedSkeleton className={PREVIEW_FRAME_CLASS} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DocumentIcon,
   PlusCircleIcon,
@@ -20,9 +21,11 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
@@ -37,6 +40,38 @@ import { RegenerateApiKeyModal } from '../../components/regenerate-api-key-modal
 import { type ApiKeyRecord, useApiKeys } from '../../hooks/use-api-keys';
 
 const MENU_ICON = 'w-6 h-6 text-ods-text-secondary';
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const API_KEYS_SKELETON_ROWS = 10;
+
+/**
+ * A cell's text line; a bar of that line on a loading row (a loading scope, no key yet), where a formatter's empty
+ * mark ("—") or a placeholder's id would otherwise be drawn as text.
+ */
+function KeyText({ text, variant, tone, mono }: { text: string; variant?: 'h6'; tone?: 'secondary'; mono?: boolean }) {
+  if (useLoadingScope()) return <TextLineSkeleton type={variant ?? 'h4'} className="w-3/4" />;
+  return (
+    <TruncateText variant={variant} tone={tone} mono={mono}>
+      {text}
+    </TruncateText>
+  );
+}
+
+/** The key's status tag; the tag's own skeleton on a loading row (a placeholder is neither active nor inactive). */
+function KeyStatusTag({ enabled }: { enabled: boolean }) {
+  const loading = useLoadingScope();
+  return (
+    <Tag
+      className="self-start"
+      label={enabled ? 'ACTIVE' : 'INACTIVE'}
+      variant={enabled ? 'success' : 'grey'}
+      loading={loading}
+    />
+  );
+}
 
 export function ApiKeysTab() {
   const handleBack = useSafeBack(routes.settings.root());
@@ -142,9 +177,7 @@ export function ApiKeysTab() {
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
             <TruncateText>{row.original.name}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.description || EMPTY_VALUE}
-            </TruncateText>
+            <KeyText variant="h6" tone="secondary" text={row.original.description || EMPTY_VALUE} />
           </div>
         ),
         meta: { width: 'flex-1 min-w-0' },
@@ -152,27 +185,19 @@ export function ApiKeysTab() {
       {
         accessorKey: 'enabled',
         header: 'Status',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <Tag
-            className="self-start"
-            label={row.original.enabled ? 'ACTIVE' : 'INACTIVE'}
-            variant={row.original.enabled ? 'success' : 'grey'}
-          />
-        ),
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyStatusTag enabled={row.original.enabled} />,
         meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
       {
         accessorKey: 'id',
         header: 'Key ID',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <TruncateText mono>{row.original.id}</TruncateText>,
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText mono text={row.original.id} />,
         meta: { width: 'w-[240px] shrink-0', hideAt: 'xl' },
       },
       {
         accessorKey: 'totalRequests',
         header: 'Usage',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <TruncateText>{formatCount(row.original.totalRequests)}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText text={formatCount(row.original.totalRequests)} />,
         meta: { width: 'w-[100px] shrink-0', hideAt: 'lg' },
       },
       {
@@ -180,10 +205,8 @@ export function ApiKeysTab() {
         header: 'Created',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{formatDate(row.original.createdAt)}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {formatTime(row.original.createdAt)}
-            </TruncateText>
+            <KeyText text={formatDate(row.original.createdAt)} />
+            <KeyText variant="h6" tone="secondary" text={formatTime(row.original.createdAt)} />
           </div>
         ),
         meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
@@ -193,10 +216,8 @@ export function ApiKeysTab() {
         header: 'Expires',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{formatDate(row.original.expiresAt)}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {formatTime(row.original.expiresAt)}
-            </TruncateText>
+            <KeyText text={formatDate(row.original.expiresAt)} />
+            <KeyText variant="h6" tone="secondary" text={formatTime(row.original.expiresAt)} />
           </div>
         ),
         meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
@@ -215,8 +236,15 @@ export function ApiKeysTab() {
     [renderRowActions],
   );
 
+  // The first read (no key on screen yet): the table holds placeholder rows, drawn with their real cells
+  // (`loadingCells`), each cell its own loading form. A refetch keeps the keys on screen.
+  const loadingRows = isLoading && items.length === 0;
+  const data = useMemo(
+    () => (loadingRows ? loadingPlaceholderRows<ApiKeyRecord>(API_KEYS_SKELETON_ROWS) : items),
+    [loadingRows, items],
+  );
   const table = useDataTable<ApiKeyRecord>({
-    data: items,
+    data,
     columns,
     getRowId: (row: ApiKeyRecord) => row.id,
     enableSorting: false,
@@ -248,6 +276,8 @@ export function ApiKeysTab() {
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" />} />
         <DataTable.Body
           loading={isLoading}
+          loadingCells={loadingRows}
+          skeletonRows={API_KEYS_SKELETON_ROWS}
           emptyState={{ title: error || 'No API keys found.' }}
           onRowClick={openDetails}
         />
