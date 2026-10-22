@@ -1,9 +1,6 @@
 import {
   isMissingPendingApprovalError,
-  isMissingPendingApprovalFilterError,
-  notePendingApprovalFilterUnsupported,
   notePendingApprovalUnsupported,
-  pendingApprovalFilterSupported,
   pendingApprovalSupported,
 } from '@/app/(app)/mingo/utils/pending-approval-support';
 import { API_ENDPOINTS } from '@/app/(app)/tickets/constants';
@@ -13,10 +10,10 @@ import { apiClient } from '@/lib/api-client';
 /**
  * The Mingo chats that wait on an approval, for the Needs approval page: every admin's
  * (approval notifications go to all active admins, so any of them may decide), each with
- * its pending request and the tool calls it would run. The `pendingApproval` filter has the
- * ai-agent keep only the chats that wait, so every page is cards and the sidebar badge sees
- * them all on the first one. `ACTIVE` as well as `ACTION_REQUIRED`: a chat whose request
- * waits can stay `ACTIVE` (seen on the 4016 tenant).
+ * its pending request and the tool calls it would run. The `hasPendingApproval` filter has
+ * the ai-agent keep only the chats that wait, so a page is not spent on chats that do not.
+ * `ACTIVE` as well as `ACTION_REQUIRED`: a chat whose request waits can stay `ACTIVE` (seen
+ * on the 4016 tenant).
  *
  * `/chat/graphql`, the saas-ai-agent's schema — raw POST by the app's rule for that
  * service. `Dialog.pendingApproval` is the same `PendingApproval` type the tickets lane
@@ -98,14 +95,31 @@ interface ApprovalDialogsData {
 /** What a backend without `Dialog.pendingApproval` answers: no chat is known to wait. */
 const NO_APPROVAL_DIALOGS: ApprovalDialogsPage = { dialogs: [], pageInfo: { hasNextPage: false } };
 
+/**
+ * A backend from before the `hasPendingApproval` filter refuses the variable, naming the
+ * field. The first such refusal moves the session to the unfiltered list, from which the
+ * inbox keeps the chats with a pending approval itself.
+ */
+let filterUnsupported = false;
+
+function isMissingFilterError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('hasPendingApproval');
+}
+
+/** Tests only: a fresh session. */
+export function resetApprovalDialogsFilterSupport(): void {
+  filterUnsupported = false;
+}
+
 export async function fetchApprovalDialogs(after: string | undefined): Promise<ApprovalDialogsPage> {
   // Without the field the query cannot ask anything (`pending-approval-support.ts`).
   if (!pendingApprovalSupported()) return NO_APPROVAL_DIALOGS;
+  const filtered = !filterUnsupported;
   try {
-    return await fetchApprovalDialogsPage(after);
+    return await fetchApprovalDialogsPage(after, filtered);
   } catch (error) {
-    if (isMissingPendingApprovalFilterError(error)) {
-      notePendingApprovalFilterUnsupported();
+    if (filtered && isMissingFilterError(error)) {
+      filterUnsupported = true;
       return fetchApprovalDialogs(after);
     }
     if (!isMissingPendingApprovalError(error)) throw error;
@@ -114,14 +128,13 @@ export async function fetchApprovalDialogs(after: string | undefined): Promise<A
   }
 }
 
-async function fetchApprovalDialogsPage(after: string | undefined): Promise<ApprovalDialogsPage> {
-  // Undefined drops the key: a backend without the filter lists every chat, and the inbox
-  // keeps the ones with a pending approval.
-  const pendingApproval = pendingApprovalFilterSupported() ? true : undefined;
+async function fetchApprovalDialogsPage(after: string | undefined, filtered: boolean): Promise<ApprovalDialogsPage> {
+  // Undefined drops the key from the request body.
+  const hasPendingApproval = filtered ? true : undefined;
   const response = await apiClient.post<GraphQlResponse<ApprovalDialogsData>>(API_ENDPOINTS.GRAPHQL, {
     query: APPROVAL_DIALOGS_QUERY,
     variables: {
-      filter: { agentTypes: ['ADMIN'], statuses: ['ACTION_REQUIRED', 'ACTIVE'], scope: 'ALL', pendingApproval },
+      filter: { agentTypes: ['ADMIN'], statuses: ['ACTION_REQUIRED', 'ACTIVE'], scope: 'ALL', hasPendingApproval },
       first: APPROVAL_DIALOGS_PAGE_SIZE,
       after,
     },
