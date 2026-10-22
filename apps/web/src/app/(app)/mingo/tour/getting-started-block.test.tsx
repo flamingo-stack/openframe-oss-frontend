@@ -131,6 +131,9 @@ describe('GettingStartedBlock', () => {
     // jsdom has no layout: the classes are the contract.
     const grid = container.querySelector('[data-testid="getting-started-grid"]');
     expect(grid?.className).toMatch(/(?:^|\s)grid-cols-2(?:\s|$)/);
+    // In a short panel the block gives way and the grid scrolls.
+    expect(grid?.className).toMatch(/(?:^|\s)overflow-y-auto(?:\s|$)/);
+    expect(grid?.className).toMatch(/(?:^|\s)min-h-0(?:\s|$)/);
     const cells = [...(grid?.children ?? [])];
     expect(cells).toHaveLength(TOUR_STEPS.length);
     for (const cell of cells) expect(cell.className).toContain('last:odd:col-span-2');
