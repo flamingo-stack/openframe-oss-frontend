@@ -196,6 +196,21 @@ describe('MentionTag new-tab segment', () => {
     expect(container.querySelectorAll('a')).toHaveLength(1);
   });
 
+  it('is not offered in the app shells on a wide window, where the chip still opens the page in place', () => {
+    // The desktop app (and a tablet running the mobile one): a wide window
+    // with no tabs to open, so the shell alone decides.
+    sameWindow = true;
+    mobileViewport = false;
+    const anchor = renderChip(HREF);
+    expect(newTabSegment()).toBeNull();
+    expect(container.querySelectorAll('a')).toHaveLength(1);
+
+    primaryClick(anchor);
+
+    expect(push).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
+    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
+  });
+
   it('is not offered on a chip with no page to open', () => {
     sameWindow = false;
     mobileViewport = false;
