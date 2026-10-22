@@ -11,7 +11,7 @@ import {
   narrowingToFilter,
   type SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingScope, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
@@ -19,6 +19,7 @@ import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { NO_ITEMS, noop } from '@/app/components/shared';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
@@ -78,9 +79,9 @@ interface ScheduleDevicesViewProps {
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   return (
-    <LoadingSuspense label="Loading schedule" fallback={<ScheduleDevicesShell scheduleId={scheduleId} />}>
+    <LiveSuspense label="Loading schedule" view={<ScheduleDevicesShell scheduleId={scheduleId} />}>
       <ScheduleDevicesContent scheduleId={scheduleId} />
-    </LoadingSuspense>
+    </LiveSuspense>
   );
 }
 
@@ -159,7 +160,11 @@ function ScheduleDevicesFrame({
 function ScheduleDevicesShell({ scheduleId }: ScheduleDevicesViewProps) {
   return (
     <ScheduleDevicesFrame scheduleId={scheduleId} schedule={null} actions={LOADING_ACTIONS} selectionMode="" modeLocked>
-      <SchedulePickerLoading mode="specific" />
+      {/* Inert: the picker's search and tag filter take no `disabled`, and what they took would not reach the picker
+          mounted in its place. The frame around it (Back) stays live. */}
+      <LoadingScope className="contents">
+        <SchedulePickerLoading mode="specific" />
+      </LoadingScope>
     </ScheduleDevicesFrame>
   );
 }

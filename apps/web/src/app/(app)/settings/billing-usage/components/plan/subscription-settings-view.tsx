@@ -1,12 +1,12 @@
 'use client';
 
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingScope, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
@@ -74,10 +74,12 @@ export function SubscriptionSettingsView({ loading = false }: { loading?: boolea
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
-        {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
-        <GatedSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
+        {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. Live, so
+            the header's exits work through the wait (a `/me` that keeps failing holds the role gate shut); the body
+            locks itself (`PaywallBody`). */}
+        <LiveSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
           <SubscriptionSettingsContent copy={copy} />
-        </GatedSuspense>
+        </LiveSuspense>
       </ErrorBoundary>
     </PageLayout>
   );
@@ -139,30 +141,32 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
     <>
       <PaywallHeader copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
 
-      <PlanCheckoutCards query={data} form={form} />
+      {/* Everything that buys is inert until the catalog answers; the header's exits above it never are. */}
+      <LoadingScope active={form.loading} className="contents">
+        <PlanCheckoutCards query={data} form={form} />
 
-      {/* The mobile submit bar is fixed to the viewport, so the total it applies
+        {/* The mobile submit bar is fixed to the viewport, so the total it applies
           to rides in the page flow above it rather than inside it. */}
-      <PlanTotalSummary
-        total={form.selectionTotal}
-        topUpUsd={form.tokenAmountUsd}
-        showAiNote={form.showAiCard}
-        loading={form.loading}
-        className="md:hidden"
-      />
-
-      <div className="hidden flex-row items-center gap-6 md:flex">
         <PlanTotalSummary
           total={form.selectionTotal}
           topUpUsd={form.tokenAmountUsd}
           showAiNote={form.showAiCard}
           loading={form.loading}
-          className="max-w-[500px] flex-1"
+          className="md:hidden"
         />
-        <div className="flex flex-1 justify-end">{submitButton()}</div>
-      </div>
 
-      {/* Fixed (not sticky) so the bar always pins to the bottom of the viewport,
+        <div className="hidden flex-row items-center gap-6 md:flex">
+          <PlanTotalSummary
+            total={form.selectionTotal}
+            topUpUsd={form.tokenAmountUsd}
+            showAiNote={form.showAiCard}
+            loading={form.loading}
+            className="max-w-[500px] flex-1"
+          />
+          <div className="flex flex-1 justify-end">{submitButton()}</div>
+        </div>
+
+        {/* Fixed (not sticky) so the bar always pins to the bottom of the viewport,
           even when the page is shorter than the screen — sticky only engages while
           scrolling, leaving the bar stranded mid-page on short content. The room
           it needs is reserved by this page's own `pb-28` below `md` rather than by
@@ -170,9 +174,10 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
           gives `/settings` and `/tickets` `pb-0`), and as a lock screen this renders
           under whatever route the user was on. Its own reservation is the only one
           that holds on all of them. */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)] md:hidden">
-        <div className="flex">{submitButton('w-full')}</div>
-      </div>
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ods-border bg-ods-card p-[var(--spacing-system-l)] md:hidden">
+          <div className="flex">{submitButton('w-full')}</div>
+        </div>
+      </LoadingScope>
     </>
   );
 }

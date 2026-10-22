@@ -1,8 +1,7 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo } from 'react';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { SoftwareDetailContent } from './software-detail-content';
 import { SoftwareDetailTabs } from './software-detail-tabs';
 
@@ -36,11 +35,9 @@ export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({
     <div className="flex w-full flex-col">
       {/* While the record loads, and for the flag's own window: the title and the card in a loading scope, where
           each draws its own loading state and nothing fetches. */}
-      <LoadingWhen loading={loading}>
-        <LoadingSuspense label="Loading software">
-          <SoftwareDetailContent softwareId={softwareId} />
-        </LoadingSuspense>
-      </LoadingWhen>
+      <LiveSuspense label="Loading software" gated={loading} view={<SoftwareDetailContent softwareId={softwareId} />}>
+        <SoftwareDetailContent softwareId={softwareId} />
+      </LiveSuspense>
 
       {/* `TabNavigation` renders as a fragment, so its bar and its body are
           siblings — grouped into ONE flex item, spaced off the card above. Each

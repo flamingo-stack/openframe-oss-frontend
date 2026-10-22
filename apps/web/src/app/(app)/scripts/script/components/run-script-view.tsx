@@ -2,12 +2,12 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
   Label,
   type PageActionButton,
+  LoadingScope,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -20,6 +20,7 @@ import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { DeviceListPicker } from '@/app/components/shared/device-selector';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -229,90 +230,94 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        <ScriptSummaryCard
-          name={script?.name ?? ''}
-          description={script?.description}
-          shellId={shellToId(script?.shell)}
-          platforms={supportedPlatforms}
-          author={script?.author ? initiatorName(script.author) : null}
-          showTimeout={false}
-        />
+        {/* The body is inert until the script answers: its fields would take input the loaded form, mounted in its
+            place, never sees. Back and the header stay live (the boundary is a LiveSuspense). */}
+        <LoadingScope active={loading} className="contents">
+          <ScriptSummaryCard
+            name={script?.name ?? ''}
+            description={script?.description}
+            shellId={shellToId(script?.shell)}
+            platforms={supportedPlatforms}
+            author={script?.author ? initiatorName(script.author) : null}
+            showTimeout={false}
+          />
 
-        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-          <div>
-            <Label className="text-ods-text-primary text-h3">Timeout</Label>
+          <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+            <div>
+              <Label className="text-ods-text-primary text-h3">Timeout</Label>
+              <Controller
+                name="timeout"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    type="number"
+                    className="w-full"
+                    disabled={loading}
+                    value={field.value}
+                    onChange={e => field.onChange(Number(e.target.value) || 0)}
+                    endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+                  />
+                )}
+              />
+            </div>
+
             <Controller
-              name="timeout"
+              name="runAsUser"
               control={control}
               render={({ field }) => (
-                <Input
-                  type="number"
-                  className="w-full"
-                  disabled={loading}
-                  value={field.value}
-                  onChange={e => field.onChange(Number(e.target.value) || 0)}
-                  endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+                <CheckboxBlock
+                  checked={field.value}
+                  onCheckedChange={checked => field.onChange(checked === true)}
+                  label="Run as User"
                 />
               )}
             />
           </div>
 
-          <Controller
-            name="runAsUser"
-            control={control}
-            render={({ field }) => (
-              <CheckboxBlock
-                checked={field.value}
-                onCheckedChange={checked => field.onChange(checked === true)}
-                label="Run as User"
-              />
-            )}
-          />
-        </div>
+          <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+            <Controller
+              name="scriptArgs"
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value (empty=flag)"
+                  addButtonLabel="Add Script Argument"
+                  titleLabel="Script Arguments"
+                />
+              )}
+            />
+            <Controller
+              name="envVars"
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value"
+                  addButtonLabel="Add Variable"
+                  addSecretButtonLabel="Add Secret"
+                  titleLabel="Environment Vars"
+                />
+              )}
+            />
+          </div>
 
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-          <Controller
-            name="scriptArgs"
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value (empty=flag)"
-                addButtonLabel="Add Script Argument"
-                titleLabel="Script Arguments"
-              />
-            )}
-          />
-          <Controller
-            name="envVars"
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value"
-                addButtonLabel="Add Variable"
-                addSecretButtonLabel="Add Secret"
-                titleLabel="Environment Vars"
-              />
-            )}
-          />
-        </div>
-
-        <div className="space-y-[var(--spacing-system-xxs)]">
-          <DeviceListPicker
-            filter={deviceFilter}
-            selected={selection}
-            onSelectionChange={setSelection}
-            getDeviceKey={getDevicePrimaryId}
-            showSelectionModeRadio={false}
-            addAllBehavior="replace"
-            isDeviceDisabled={(d: Device) => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
-          />
-        </div>
+          <div className="space-y-[var(--spacing-system-xxs)]">
+            <DeviceListPicker
+              filter={deviceFilter}
+              selected={selection}
+              onSelectionChange={setSelection}
+              getDeviceKey={getDevicePrimaryId}
+              showSelectionModeRadio={false}
+              addAllBehavior="replace"
+              isDeviceDisabled={(d: Device) => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
+            />
+          </div>
+        </LoadingScope>
       </PageLayout>
 
       <ExecutionStartedModal
@@ -349,9 +354,9 @@ function RunScriptContent({ scriptId }: RunScriptViewProps) {
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   return (
-    <LoadingSuspense label="Loading script" fallback={<RunScriptForm scriptId={scriptId} />}>
+    <LiveSuspense label="Loading script" view={<RunScriptForm scriptId={scriptId} />}>
       <RunScriptContent scriptId={scriptId} />
-    </LoadingSuspense>
+    </LiveSuspense>
   );
 }
 

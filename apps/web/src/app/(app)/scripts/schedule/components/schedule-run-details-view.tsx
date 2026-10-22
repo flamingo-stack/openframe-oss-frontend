@@ -12,6 +12,7 @@ import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
 import { NO_ITEMS } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
@@ -285,9 +286,9 @@ function RunExecutionRows({
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LoadingSuspense label="Loading the run" fallback={<RunHeaderView />}>
+      <LiveSuspense label="Loading the run" view={<RunHeaderView />}>
         <RunHeader runId={runId} />
-      </LoadingSuspense>
+      </LiveSuspense>
 
       {/* No gap: the executions block carries its own top padding (the sticky
           toolbar's `pt-l`), the same contract the details pages give their tab
