@@ -64,7 +64,7 @@ function UserNameCell({ user }: { user: UserRow }) {
   const loading = useLoadingScope();
   return (
     <div className="flex min-w-0 flex-col justify-center">
-      <TruncateText>{user.username}</TruncateText>
+      <TruncateText loading={loading}>{user.username}</TruncateText>
       <TruncateText variant="h6" tone="secondary" loading={loading}>
         {roleLabel(user)}
       </TruncateText>

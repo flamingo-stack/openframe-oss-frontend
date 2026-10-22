@@ -137,9 +137,11 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
-        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original) ?? '')} />
-      ),
+      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => {
+        // A loading placeholder row (or a device with no address) has nothing to open: the button is inert.
+        const href = deviceHref(row.original);
+        return <OpenRowButton label="Open device in new tab" onClick={openInNewTab(href ?? '')} disabled={!href} />;
+      },
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
     },
