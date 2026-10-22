@@ -67,10 +67,18 @@ interface MingoLauncherStore {
    * header over the page, which a navigation still closes.
    */
   panelDocked: boolean;
+  /**
+   * Mingo v2: the docked panel was dragged over the whole content area, and this
+   * steps it back to the column it left so the page shows again. Null whenever
+   * the page is already on screen beside the chat. A link that opens a page in
+   * place calls it first, or the page would change under the chat unseen.
+   */
+  revealPage: (() => void) | null;
 
   setOpen: (open: boolean) => void;
   setPanelShown: (shown: boolean) => void;
   setPanelDocked: (docked: boolean) => void;
+  setRevealPage: (reveal: (() => void) | null) => void;
   setCanOpen: (canOpen: boolean) => void;
   toggle: () => void;
   close: () => void;
@@ -108,9 +116,11 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       closedForNavigation: false,
       panelShown: false,
       panelDocked: false,
+      revealPage: null,
 
       setPanelShown: panelShown => set({ panelShown }, false, 'setPanelShown'),
       setPanelDocked: panelDocked => set({ panelDocked }, false, 'setPanelDocked'),
+      setRevealPage: revealPage => set({ revealPage }, false, 'setRevealPage'),
       setOpen: open => set(open ? { isOpen: true, closedForNavigation: false } : { isOpen: false }, false, 'setOpen'),
       setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
       toggle: () =>

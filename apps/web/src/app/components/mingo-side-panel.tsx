@@ -35,6 +35,7 @@ interface MingoSidePanelProps extends AppLayoutSidePanelRenderState {
  * can be put away, and the header's button does that.
  */
 export function MingoSidePanel({
+  mode,
   canClose,
   close,
   collapse,
@@ -58,6 +59,14 @@ export function MingoSidePanel({
     setPanelDocked(docked);
     return () => setPanelDocked(false);
   }, [docked, setPanelDocked]);
+  // Over the whole content area, a link that opens a page in place first steps
+  // the panel back to its column, so the page it opened is the one on screen.
+  const setRevealPage = useMingoLauncherStore(state => state.setRevealPage);
+  const revealPage = mode === 'full' && collapsesTo === 'column' ? collapse : null;
+  useEffect(() => {
+    setRevealPage(revealPage);
+    return () => setRevealPage(null);
+  }, [revealPage, setRevealPage]);
 
   return (
     <ChatIdentityProvider enabled={identityEnabled}>
