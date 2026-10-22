@@ -33,7 +33,13 @@ export function IncidentsTab({ device }: IncidentsTabProps) {
 
   return (
     <ContentErrorBoundary label="IncidentsTab" message="Couldn't load this device's incidents.">
-      <DeviceIncidentsTable machineId={device?.machineId ?? ''} emptyState={NO_INCIDENTS} />
+      {/* Keyed by the machine: the table mounts afresh once the device answers, so its deferred filters start from
+          the real id instead of asking once more with the empty one the loading state held. */}
+      <DeviceIncidentsTable
+        key={device?.machineId ?? ''}
+        machineId={device?.machineId ?? ''}
+        emptyState={NO_INCIDENTS}
+      />
     </ContentErrorBoundary>
   );
 }
