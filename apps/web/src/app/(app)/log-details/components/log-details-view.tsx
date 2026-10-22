@@ -62,7 +62,7 @@ function EventTypeText({ eventType }: { eventType: string | undefined }) {
 
 export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestamp }: LogDetailsViewProps) {
   const router = useRouter();
-  const { logDetails, isLoading, error, fetchLogDetailsById } = useLogDetails();
+  const { logDetails, isLoading, hasAnswered, error, fetchLogDetailsById } = useLogDetails();
   const { copy, copied } = useCopyToClipboard({
     successDescription: 'Log details copied to clipboard',
     errorDescription: 'Unable to copy log details',
@@ -84,8 +84,9 @@ export function LogDetailsView({ logId, ingestDay, toolType, eventType, timestam
     }
   };
 
-  // Until the request answers (it starts after the first render) the page draws itself without the log.
-  const loading = isLoading || (!logDetails && !error);
+  // Until the request answers (it starts after the first render) the page draws itself without the log. An
+  // answer with no log is "Log Not Found", not more loading.
+  const loading = isLoading || !hasAnswered;
 
   // Error state
   if (!loading && (error || !logDetails)) {

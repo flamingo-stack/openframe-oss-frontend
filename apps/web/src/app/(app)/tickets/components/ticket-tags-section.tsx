@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag, TagSelectDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Tag, TagSelectDropdown, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo } from 'react';
 import { useCreateTagMutation } from '@/app/components/shared/tags';
 import { useSetTicketTags } from '../hooks/use-ticket-detail-mutations';
@@ -14,6 +14,9 @@ interface TicketTagsSectionProps {
 }
 
 export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
+  // While the ticket is read its tags are not known yet: every write sends the whole list, so a pick
+  // made now would replace the ticket's tags with that one.
+  const loading = useLoadingScope();
   const { data: allTags = [], refetch } = useTicketTags();
   const { createTag, isInFlight: isCreating } = useCreateTagMutation();
   const setTags = useSetTicketTags(ticketId);
@@ -25,9 +28,12 @@ export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
     if (selectedIds.includes(id)) setTags.mutate(selectedIds.filter(cid => cid !== id));
   });
 
-  const handleChange = (ids: string[]) => setTags.mutate(ids);
+  const handleChange = (ids: string[]) => {
+    if (!loading) setTags.mutate(ids);
+  };
   const removeTag = (id: string) => setTags.mutate(selectedIds.filter(cid => cid !== id));
   const handleCreate = (name: string) => {
+    if (loading) return;
     createTag({ key: name, entityType: 'TICKET' }, realId => {
       refetch().then(() => {
         if (realId) setTags.mutate([...selectedIds, realId]);
@@ -62,6 +68,7 @@ export function TicketTagsSection({ ticketId, tags }: TicketTagsSectionProps) {
         onDelete={requestDelete}
         isCreating={isCreating}
         isDeleting={isDeleting}
+        disabled={loading}
         searchPlaceholder="Search or create tags..."
       />
       {dialog}

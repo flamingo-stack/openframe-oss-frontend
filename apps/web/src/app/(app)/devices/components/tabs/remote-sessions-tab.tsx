@@ -82,9 +82,12 @@ const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COL
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
-  const { data, isLoading: isQueryLoading } = useSessionRecordings(deviceId);
+  // The device or the recordings gate has not answered (a loading scope): nothing is asked for until both have, so a
+  // tenant without recordings never calls the recordings API.
+  const scoped = useLoadingScope();
+  const { data, isLoading: isQueryLoading } = useSessionRecordings(scoped ? null : deviceId);
   // The device has not answered (the page's loading scope), or this device's sessions have not.
-  const isLoading = useLoadingScope() || isQueryLoading;
+  const isLoading = scoped || isQueryLoading;
   const deleteSession = useDeleteRemoteSession(deviceId ?? '');
   // The "Expires in N hours" countdown keeps moving while the tab is open.
   const now = useNow(60_000);

@@ -133,7 +133,8 @@ export function ServerDevicePickerLists({
       // While the halves are read the picker draws its own loading state: one picker page of rows.
       loading={loading}
       skeletonRows={DEVICE_PICKER_PAGE_SIZE}
-      disabled={busy}
+      // The selector still draws its Add All / Remove All while loading: no write before the lists are read.
+      disabled={busy || loading}
       showSelectionModeRadio={false}
       // Only meaningful on Available: every row on the Selected tab is assigned
       // by definition, and the Selected tab shows removals by dropping the row.
