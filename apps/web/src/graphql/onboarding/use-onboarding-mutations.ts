@@ -11,6 +11,7 @@ import type { completeUserOnboardingStepMutation as CompleteUserStepType } from 
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { setUserOnboardingTourDialogMutation as SetTourDialogType } from '@/__generated__/setUserOnboardingTourDialogMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
+import { clearGettingStartedView, resetGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { clearTourStarted } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
@@ -179,11 +180,15 @@ export function useOnboardingMutations() {
     commitMutation<CompleteUserType>(environment, {
       mutation: completeUserOnboardingMutation,
       variables: {},
-      onCompleted: res => setUser(toUser(res.completeUserOnboarding)),
+      onCompleted: res => {
+        setUser(toUser(res.completeUserOnboarding));
+        // The tour is over: the Getting Started block's remembered shape goes with it.
+        clearGettingStartedView(userId);
+      },
       onError: err =>
         toast({ title: 'Error', description: err.message || 'Failed to finish onboarding', variant: 'destructive' }),
     });
-  }, [environment, setUser, toast]);
+  }, [environment, setUser, toast, userId]);
 
   // The Mingo panel created the tour's conversation: remember it with the rest
   // of the user's progress, so another device finds the same conversation.
@@ -210,12 +215,13 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.skipUserOnboarding));
+          clearGettingStartedView(userId);
           onDone?.();
         },
         onError: onError('Failed to skip onboarding'),
       });
     },
-    [environment, begin, finish, setUser, onError],
+    [environment, begin, finish, setUser, onError, userId],
   );
 
   const resetUser = useCallback(
@@ -227,8 +233,10 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.resetUserOnboarding));
-          // The v2 tour's "started" marker is part of the user's progress too.
+          // The v2 tour's "started" marker is part of the user's progress too,
+          // and the tour starts over as the list.
           clearTourStarted(userId);
+          resetGettingStartedView(userId);
           toast({
             title: 'Onboarding reset',
             description: 'Your Get Started tour is available again.',
