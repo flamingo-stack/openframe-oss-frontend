@@ -57,8 +57,43 @@ describe('GettingStartedBlock', () => {
   it('starts as the list with every step closed and the count at zero', () => {
     render();
     expect(header()).toContain('0 of 7 steps');
-    expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
     expect(container.textContent).not.toContain('Try asking:');
+  });
+
+  it('opens as the grid when the tour is picked up with steps done', () => {
+    render(['devices']);
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).not.toBeNull();
+    expect(header()).toContain('1 of 7 steps');
+  });
+
+  it('folds once progress landing after it mounted shows a step done', () => {
+    render();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+    render(['devices']);
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).not.toBeNull();
+  });
+
+  it('stays unfolded once the user unfolds it, done steps or not', () => {
+    render(['devices']);
+    click(container.querySelector('button[aria-label="Show the steps"]') as Element);
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+    render(['devices', 'tickets']);
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+  });
+
+  it('folds the list back into the grid from the same chevron', () => {
+    render(['devices']);
+    const toggle = () => container.querySelector('header button') as Element;
+    expect(toggle().getAttribute('aria-label')).toBe('Show the steps');
+    click(toggle());
+    expect(toggle().getAttribute('aria-label')).toBe('Hide the steps');
+    click(button('TicketsTickets and time logs'));
+    click(toggle());
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).not.toBeNull();
+    // Unfolded again, no step is left open.
+    click(toggle());
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
   });
 
   it('opens one step at a time, with its description and chips', () => {
@@ -84,6 +119,19 @@ describe('GettingStartedBlock', () => {
     for (const step of TOUR_STEPS) expect(button(step.title)).toBeTruthy();
   });
 
+  it('folds into two columns whatever the width, an odd last step across both', () => {
+    render();
+    click(button('DevicesMachines running the agent'));
+    click(button('Check my device'));
+
+    // jsdom has no layout: the classes are the contract.
+    const grid = container.querySelector('[data-testid="getting-started-grid"]');
+    expect(grid?.className).toMatch(/(?:^|\s)grid-cols-2(?:\s|$)/);
+    const cells = [...(grid?.children ?? [])];
+    expect(cells).toHaveLength(TOUR_STEPS.length);
+    for (const cell of cells) expect(cell.className).toContain('last:odd:col-span-2');
+  });
+
   it('the grid unfolds from its chevron, or on the step whose chip was pressed', () => {
     render();
     click(button('DevicesMachines running the agent'));
@@ -91,7 +139,7 @@ describe('GettingStartedBlock', () => {
 
     click(container.querySelector('button[aria-label="Show the steps"]') as Element);
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
-    expect(container.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0);
+    expect(container.querySelectorAll('li [aria-expanded="true"]')).toHaveLength(0);
 
     click(button('LogsDevice and platform activity'));
     click(button('Errors since install'));
@@ -114,7 +162,8 @@ describe('GettingStartedBlock', () => {
     render(['devices', 'tickets', 'scripting']);
     expect(header()).toContain('3 of 7 steps');
 
-    click(button('Knowledge ManagementArticles for AI and team'));
+    // Done steps fold it into the grid; the step's chip opens it on that step.
+    click(button('Knowledge Management'));
     click(button('Finish tour'));
     expect(onFinish).toHaveBeenCalledTimes(1);
   });
