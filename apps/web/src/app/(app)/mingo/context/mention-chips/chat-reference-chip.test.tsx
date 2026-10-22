@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }) }));
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: spies.post }, REQUEST_TIMEOUT_MS: 30_000 }));
 // Desktop web: an entity chip would open a NEW TAB here. The chat chip must not.
 vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => false }));
+vi.mock('@/app/hooks/use-is-mobile-viewport', () => ({ useIsMobileViewport: () => false }));
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
 // `ResizeObserver`, and nothing here depends on the measurement.
