@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  CHAT_APPEARANCE,
+  ChatAppearanceContext,
   ChatInput,
   type Message as ChatMessage,
   ChatMessageList,
@@ -39,6 +41,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation } from 'react-relay';
 import { useShallow } from 'zustand/react/shallow';
 import type { startTimerMutation as StartTimerMutationType } from '@/__generated__/startTimerMutation.graphql';
+import { useClientView } from '@/app/(app)/settings/ai-settings/hooks/use-client-view';
 import { useOrganizationClientAiConfig } from '@/app/(app)/settings/ai-settings/hooks/use-organization-ai-config';
 import { getProviderModelLabel, useSupportedModels } from '@/app/(app)/settings/ai-settings/hooks/use-supported-models';
 import { NotesSection } from '@/app/components/shared';
@@ -363,6 +366,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const { config: orgAiConfig } = useOrganizationClientAiConfig(dialog?.organizationId ?? '', {
     enabled: !!dialog?.organizationId,
   });
+  // The assistant's name as the end user's Fae client shows it: the customer's
+  // own view, else the tenant-wide one, else Fae.
+  const { view: orgClientView } = useClientView(dialog?.organizationId ?? null, {
+    enabled: !!dialog?.organizationId,
+  });
+  const { view: defaultClientView } = useClientView(null);
+  const assistantName = (orgClientView ?? defaultClientView)?.assistantName.trim() || ASSISTANT_CONFIG.FAE.name;
   const orgClientModel = useMemo(
     () =>
       orgAiConfig?.llmProvider && orgAiConfig.providerModel
@@ -520,14 +530,17 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     [clientMessages, approvalStatuses],
   );
 
-  const remapClientUserName = useCallback(
-    (msg: ChatMessage): ChatMessage =>
-      msg.authorType === 'user' && clientDisplayName ? { ...msg, name: clientDisplayName } : msg,
-    [clientDisplayName],
+  const remapClientChatNames = useCallback(
+    (msg: ChatMessage): ChatMessage => {
+      if (msg.authorType === 'user' && clientDisplayName) return { ...msg, name: clientDisplayName };
+      if (msg.role === 'assistant') return { ...msg, name: assistantName };
+      return msg;
+    },
+    [clientDisplayName, assistantName],
   );
 
   const clientChatMessages = useMemo(() => {
-    const visible = stripPendingApprovals(clientMessages).map(remapClientUserName);
+    const visible = stripPendingApprovals(clientMessages).map(remapClientChatNames);
     if (dialog?.creationSource !== CREATION_SOURCE.FAE_FORM || clientChat.hasNextPage) {
       return visible;
     }
@@ -543,13 +556,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         dialog.description || '(No description provided)',
       ].join('\n'),
       role: 'assistant',
-      name: ASSISTANT_CONFIG.FAE.name,
+      name: assistantName,
       assistantType: ASSISTANT_CONFIG.FAE.type,
       authorType: 'fae',
       timestamp: new Date(dialog.createdAt),
     };
     return [faeMessage, ...visible];
-  }, [clientMessages, remapClientUserName, dialog, clientChat.hasNextPage]);
+  }, [clientMessages, remapClientChatNames, dialog, clientChat.hasNextPage, assistantName]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!dialog) return [];
@@ -779,8 +792,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     sidebarActions.push({ label: 'Actions', ariaLabel: 'Actions', submenu: sidebarMenuItems });
   }
 
+  // The Fae client's chat generation (openframe-chat ChatViewV2). The thread and
+  // the composer take it as a prop; the model badge reads it from context.
+  const clientChatAppearance = CHAT_APPEARANCE.V2;
   const clientChatBody = (
-    <>
+    <ChatAppearanceContext.Provider value={clientChatAppearance}>
       <div className="relative flex min-h-0 flex-1 flex-col rounded-md border border-ods-border bg-ods-bg">
         <ChatMessageList
           // The bordered card IS the visual frame here, so a native scrollbar
@@ -792,14 +808,21 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           messages={clientChatMessages}
           dialogId={ticketId}
           autoScroll={true}
-          showAvatars={false}
+          // Only the viewer's turns are bubbles, so every other turn opens on
+          // its speaker's face — without it a Fae reply reads as the tail of
+          // the end user's message above it.
+          showAvatars={true}
           isLoading={clientChat.isLoading}
           isTyping={isClientChatTyping}
           pendingApprovals={clientPendingApprovals}
           assistantType={ASSISTANT_CONFIG.FAE.type}
-          // The technician reads this thread: their turns (`admin`) are the
-          // right-hand bubbles, the end user's answer from the left, named.
+          appearance={clientChatAppearance}
+          // The technician reads this thread: the technicians' turns (`admin`)
+          // are the right-hand bubbles, the end user's answer and Fae's from
+          // the left. An end user, Fae and any number of technicians write
+          // here, so every turn names its speaker.
           selfAuthorType="admin"
+          nameEveryTurn={true}
           hasNextPage={clientChat.hasNextPage}
           isFetchingNextPage={clientChat.isFetchingNextPage}
           onLoadMore={clientChat.fetchNextPage}
@@ -825,6 +848,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       )}
       {!isClosed && isDirectMode && (
         <ChatInput
+          appearance={clientChatAppearance}
           placeholder="Enter your Message..."
           onSend={sendClientMessageWithReject}
           sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
@@ -842,7 +866,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           />
         </div>
       )}
-    </>
+    </ChatAppearanceContext.Provider>
   );
 
   const mainTabs: TabItem[] = [
