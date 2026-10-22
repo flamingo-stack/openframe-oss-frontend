@@ -1,14 +1,8 @@
 'use client';
 
-import { Suspense } from 'react';
 import { OnboardingContent } from './components/onboarding-content';
-import { OnboardingSkeleton } from './components/onboarding-skeleton';
 
-/** The Get Started tour. Unconditional — every tenant has this route. */
+/** The Get Started tour. Unconditional — every tenant has this route. The content draws its own loading state. */
 export default function OnboardingPage() {
-  return (
-    <Suspense fallback={<OnboardingSkeleton />}>
-      <OnboardingContent />
-    </Suspense>
-  );
+  return <OnboardingContent />;
 }

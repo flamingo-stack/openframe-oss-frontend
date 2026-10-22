@@ -116,7 +116,7 @@ export function SchedulePickerLists({
   //
   // DEFERRED, like the two lists: this hook suspends now, so feeding it the live
   // narrowing would drop the whole picker — search box, tab state and all — to
-  // `SchedulePickerSkeleton` on every funnel click. Facets that lag the rows by
+  // its loading form on every funnel click. Facets that lag the rows by
   // one transition are consistent with them; facets that blank the picker are not.
   const filterOptions = useScheduleDeviceFilters(
     scheduleId,

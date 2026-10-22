@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import dynamic from 'next/dynamic';
 import { useCallback, useState } from 'react';
@@ -68,21 +69,19 @@ function ScriptEditorPlaceholder({ visible }: { visible: boolean }) {
         visible ? 'opacity-100' : 'pointer-events-none opacity-0',
       )}
     >
-      {/* One pulse on the group rather than per line: rows blinking out of step
-          read as content, which is exactly what this is not. So every bar is a
-          still `UnifiedSkeleton` and the group pulses. Dropped once the editor
-          is up so a hidden layer costs no animation frames. */}
-      <div className={visible ? 'animate-pulse motion-reduce:animate-none' : undefined}>
+      {/* The bars pulse (the lib's one pulse) only while the layer shows, so a
+          hidden layer costs no animation frames. */}
+      <div>
         {PLACEHOLDER_ROWS.map((row, index) => (
           <div key={`${index}-${row.width}`} className={cn('flex items-center', LINE_HEIGHT)}>
             {/* The gutter: a digit's worth of bar, right-aligned exactly where
                 the line number goes. */}
             <div className={cn('flex shrink-0 justify-end', GUTTER_WIDTH, GUTTER_NUMBER_INSET)}>
-              <UnifiedSkeleton animate={false} className="h-3 w-2 rounded-sm opacity-50" />
+              <UnifiedSkeleton animate={visible} className="h-3 w-2 rounded-sm opacity-50" />
             </div>
             <div className={cn('min-w-0 flex-1 pr-4', CODE_COLUMN_INSET)}>
               <UnifiedSkeleton
-                animate={false}
+                animate={visible}
                 className={cn('h-3 rounded-sm', PLACEHOLDER_INDENTS[row.indent], row.width)}
               />
             </div>
@@ -157,7 +156,8 @@ interface ScriptEditorProps {
   /**
    * The `value` is still on its way. Keeps the placeholder up past the point the
    * editor is built, so it is revealed WITH its content instead of appearing
-   * empty and filling in a moment later.
+   * empty and filling in a moment later. In a loading scope the editor is
+   * loading too.
    */
   loading?: boolean;
   /**
@@ -175,9 +175,10 @@ export function ScriptEditor({
   readOnly = false,
   height = '400px',
   invalid = false,
-  loading = false,
+  loading: loadingProp = false,
   className,
 }: ScriptEditorProps) {
+  const loading = useLoadingScope() || loadingProp;
   const [isEditorBuilt, setIsEditorBuilt] = useState(false);
 
   // Fires once the view exists. Its geometry is measured a frame later (the

@@ -1,6 +1,7 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChatIdentityProvider,
   MINGO_V2_RAIL_WIDTH,
@@ -19,7 +20,7 @@ import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DashboardPageSkeleton } from '@/app/(app)/dashboard/components/dashboard-skeletons';
+import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
 import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
@@ -28,6 +29,7 @@ import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
@@ -61,6 +63,14 @@ import { SuperUserBanner } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
+
+/**
+ * The rail's loading rows: the counts the nav typically settles on, so the placeholder is the loaded rail's height.
+ * Typical, not a page: which items show depends on feature flags that are not known while the chrome loads.
+ * 7 primary (Dashboard, Customers, Devices, Scripts, Monitoring, Logs, Tickets), 2 secondary (Knowledge Base, Settings).
+ */
+const NAV_SKELETON_PRIMARY_ROWS = 7;
+const NAV_SKELETON_SECONDARY_ROWS = 2;
 
 /**
  * Layer the Mingo drawer OVER the floating walkthrough video card.
@@ -448,10 +458,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     () => ({
       items: navigationItems,
       loading: chromeLoading,
-      // The counts this app's nav settles on, so the placeholder is the same height
-      // as the loaded rail: 7 primary (Dashboard, Customers, Devices, Scripts,
-      // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
-      loadingRows: { primary: 7, secondary: 2 },
+      loadingRows: { primary: NAV_SKELETON_PRIMARY_ROWS, secondary: NAV_SKELETON_SECONDARY_ROWS },
       onNavigate: handleNavigate,
       // Desktop shell only: renders nothing until the shell reports an update
       // waiting. The slot is a render prop because the same node also draws in
@@ -640,10 +647,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const chatWatchers = chatEnabled && mingoV2 === 'on' ? <MingoCompactionWatchers /> : null;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its
-  // content slot. Its placement rules are on the core layout below.
+  // content slot. Its placement rules are on the core layout below. Every page
+  // draws its own loading state (its components in a loading scope, behind its
+  // own boundaries), so this one only keeps a read that escapes a page from
+  // suspending the chrome around it: it has no page of its own to draw.
   const pageContent = (
-    <Suspense fallback={null}>
-      {showLockContent ? <SubscriptionLockContent /> : dashboardHeld ? <DashboardPageSkeleton /> : children}
+    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
+      {showLockContent ? (
+        <SubscriptionLockContent />
+      ) : dashboardHeld ? (
+        <LoadingFallback label="Loading dashboard">
+          <DashboardOverviews />
+        </LoadingFallback>
+      ) : (
+        children
+      )}
     </Suspense>
   );
 
@@ -667,9 +685,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         // wait for a decorative badge count is served by Next's root and holds the whole
         // app. `null` because there is nothing to draw: the count simply appears.
         <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
+          <HydratorBoundary>
             <UnreadCountsHydrator onChange={setUnreadCounts} />
-          </Suspense>
+          </HydratorBoundary>
         </ErrorBoundary>
       )}
       {/* BOTH providers below are mounted UNCONDITIONALLY and told what to do
@@ -771,9 +789,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           its own boundary and renders nothing either way — a shell that waited
           on it would hold the whole app for a banner. */}
       {showBillingBars && (
-        <Suspense fallback={null}>
+        <HydratorBoundary>
           <BillingBarsHydrator onResolved={setBillingBars} />
-        </Suspense>
+        </HydratorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}
@@ -863,7 +881,11 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // prerender, and Next requires a Suspense boundary to bail out to. Without one
     // `next build` fails on every statically generated page under `(app)` — and
     // only in a production build, so a dev-mode build won't tell you.
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        null /* loading-standard-ok(SUSPENSE_FALLBACK): the prerender bail-out boundary, never shown on the client */
+      }
+    >
       {/* The admin look for every tab strip; the lib's `default` is the hub's. */}
       <TabNavigationVariantProvider variant="admin">
         <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>

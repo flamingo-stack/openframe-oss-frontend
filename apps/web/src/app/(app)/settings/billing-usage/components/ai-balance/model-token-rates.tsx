@@ -1,11 +1,11 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ErrorBoundary,
   ModelTokenRates,
   ModelTokenRatesPopover as RatesPopover,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
 
@@ -55,9 +55,9 @@ export function ModelTokenRatesPopover({ autoTopUpEnabled, className }: ModelTok
   return (
     <RatesPopover triggerClassName={className}>
       <ErrorBoundary fallback={<ModelTokenRates status="error" autoTopUpEnabled={autoTopUpEnabled} />}>
-        <Suspense fallback={<ModelTokenRates status="loading" autoTopUpEnabled={autoTopUpEnabled} />}>
+        <LoadingSuspense label="Loading model rates" fallback={<ModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />}>
           <LoadedModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />
-        </Suspense>
+        </LoadingSuspense>
       </ErrorBoundary>
     </RatesPopover>
   );

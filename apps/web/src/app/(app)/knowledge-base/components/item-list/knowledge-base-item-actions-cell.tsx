@@ -5,7 +5,11 @@ import {
   FolderEditIcon,
   PenEditIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ActionsMenuDropdown, type ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  type ActionsMenuGroup,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { knowledgeBaseItemActionsCell_item$key } from '@/__generated__/knowledgeBaseItemActionsCell_item.graphql';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
@@ -63,9 +67,14 @@ interface KnowledgeBaseItemActionsCellProps {
  * row's own link from firing underneath it.
  */
 export function KnowledgeBaseItemActionsCell({ item, onOpen }: KnowledgeBaseItemActionsCellProps) {
-  const data = useFragment(knowledgeBaseItemActionsCellFragment, item);
-  const groups =
-    data.type === KnowledgeBaseItemType.FOLDER ? folderMenuGroups(onOpen) : articleMenuGroups(data.id, onOpen);
+  // A row still being read (a loading scope) has no fragment to read: the trigger is drawn for real and inert (the
+  // menu's own loading form), with nothing in it.
+  const data = useFragment(knowledgeBaseItemActionsCellFragment, useLoadingScope() ? null : item);
+  const groups = !data
+    ? []
+    : data.type === KnowledgeBaseItemType.FOLDER
+      ? folderMenuGroups(onOpen)
+      : articleMenuGroups(data.id, onOpen);
 
   return (
     <div data-no-row-click className="pointer-events-auto flex justify-end">

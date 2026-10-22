@@ -5,6 +5,7 @@ import type {
   DeviceSelectorNarrowing,
   SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   bundlePickerLists_assigned$data as AssignedFragmentData,
@@ -19,10 +20,14 @@ import type { bundlePickerListsAssignedQuery as AssignedQueryType } from '@/__ge
 import type { bundlePickerListsAvailablePaginationQuery as AvailablePaginationQueryType } from '@/__generated__/bundlePickerListsAvailablePaginationQuery.graphql';
 import type { bundlePickerListsAvailableQuery as AvailableQueryType } from '@/__generated__/bundlePickerListsAvailableQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { useRetryKey } from '@/app/components/shared';
+import { noop, useRetryKey } from '@/app/components/shared';
 import type { AssignmentOwner } from '@/app/components/shared/device-selector/assignment-updaters';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
-import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
+import {
+  type PickerHalf,
+  ServerDevicePickerLists,
+} from '@/app/components/shared/device-selector/server-device-picker-lists';
+import { EMPTY_DEVICE_FILTERS } from '@/graphql/devices/device-facets-fields';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { useBundleDeviceFilters } from './use-bundle-device-filters';
 
@@ -165,12 +170,32 @@ interface BundlePickerListsProps {
   isDeviceDisabled?: (device: Device) => string | undefined;
 }
 
+const NO_HALF: PickerHalf = { connection: null, hasNext: false, isLoadingNext: false, loadNext: noop };
+
 /**
  * Both lists of the bundle's device picker, each its own server-narrowed
  * connection over the bundle. Suspends — the picker renders it under its own
- * boundary.
+ * boundary. In a loading scope (that boundary's fallback, or before the draft
+ * exists) it draws the shared picker in its own loading state and reads nothing.
  */
-export function BundlePickerLists({
+export function BundlePickerLists(props: BundlePickerListsProps) {
+  if (useLoadingScope()) {
+    const { bundleId: _bundleId, scope: _scope, deferredFilter: _filter, deferredSearch: _search, ...lists } = props;
+    return (
+      <ServerDevicePickerLists
+        {...lists}
+        loading
+        available={NO_HALF}
+        selected={NO_HALF}
+        selectedCount={0}
+        filterOptions={EMPTY_DEVICE_FILTERS}
+      />
+    );
+  }
+  return <BundlePickerListsQuery {...props} />;
+}
+
+function BundlePickerListsQuery({
   bundleId,
   scope,
   activeTab,

@@ -4,16 +4,16 @@
  * The walkthrough video as the right half of the "Book a call" promo: the lib's
  * `<InlineWalkthroughVideo>` plus the two things that are this page's job —
  * claiming the clip from the app-shell floating card so it isn't offered twice
- * at once, and holding the 16:9 slot while the data loads.
+ * at once, and the read: while it is in flight the lib card draws its own
+ * loading state (its 16:9 slot) in a loading scope.
  *
  * Renders nothing once the request settles with no video configured, letting
  * the copy span the card. Telling that apart from "not loaded yet" is what
  * `isLoading` is for.
  */
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InlineWalkthroughVideo } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useWalkthroughVideoData } from '@/app/hooks/use-walkthrough-video-data';
 import { useInlineWalkthroughClaim } from '@/lib/inline-walkthrough-signal';
 
@@ -24,18 +24,10 @@ export function BookCallWalkthroughVideo({ className }: { className?: string }) 
   // all.
   useInlineWalkthroughClaim(Boolean(video?.mainVideoUrl || video?.youtubeUrl));
 
-  if (isLoading) {
-    // Same box to the pixel as the video that replaces it: `aspect-video
-    // w-full` is the lib card's base geometry and the host `className` (which
-    // actually sizes this slot) lands on both — sizing only one would show up
-    // as a jump when the video arrives.
-    return (
-      <LoadingRegion label="Loading the walkthrough video" className={cn('aspect-video w-full rounded-md', className)}>
-        <UnifiedSkeleton className="size-full" />
-      </LoadingRegion>
-    );
-  }
-
   // The clip is the point of the page: it starts on its own, muted, with the unmute glyph up.
-  return <InlineWalkthroughVideo video={video} autoPlayCard className={className} />;
+  return (
+    <LoadingWhen loading={isLoading}>
+      <InlineWalkthroughVideo video={video} autoPlayCard className={className} />
+    </LoadingWhen>
+  );
 }

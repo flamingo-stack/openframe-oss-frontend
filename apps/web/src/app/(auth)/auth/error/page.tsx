@@ -1,14 +1,8 @@
 'use client';
 
-import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { routes } from '@/lib/routes';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useSearchParams } from 'next/navigation';
+import { AuthErrorScreen } from '../components/auth-error-screen';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
 
 /**
@@ -18,64 +12,18 @@ import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
  * `?error=<text>` as the message, which let anyone put their own words under our logo.
  */
 export default function AuthErrorPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
-  const { title, description, isLoading } = useAuthErrorMessage(searchParams.get('ref'));
-
   return (
-    <div className="flex min-h-screen flex-col items-center justify-between bg-ods-bg p-10">
-      {/* Logo */}
-      <div className="flex items-center gap-2">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
-
-      {/* Error Content */}
-      <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-ods-text-primary text-h2">{title}</h1>
-          {isLoading ? (
-            <LoadingRegion
-              label="Loading the error details"
-              className="flex w-[360px] max-w-full flex-col gap-[var(--spacing-system-xsf)]"
-            >
-              <TextSkeleton.Body />
-              <TextSkeleton.Body className="w-3/4" />
-            </LoadingRegion>
-          ) : (
-            <p className="text-ods-text-secondary text-h4">{description}</p>
-          )}
-        </div>
-
-        <div className="flex gap-4">
-          <Button
-            variant="outline"
-            onClick={() => window.open('https://www.flamingo.run/contact', '_blank', 'noopener,noreferrer')}
-          >
-            Contact Support
-          </Button>
-          <Button variant="accent" onClick={() => router.push(routes.auth.root)}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <a
-        href="https://flamingo.run"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 rounded-md bg-transparent p-4 text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-      >
-        <span className="text-h6">Powered by</span>
-        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-        <span className="font-semibold text-code">Flamingo</span>
-      </a>
-    </div>
+    // `useSearchParams` bails out to the client during the static prerender: the screen itself, in a loading scope,
+    // stands in until the URL is read.
+    <LoadingSuspense label="Loading the error details" fallback={<AuthErrorScreen />}>
+      <AuthErrorFromUrl />
+    </LoadingSuspense>
   );
+}
+
+function AuthErrorFromUrl() {
+  const searchParams = useSearchParams();
+  const { description, isLoading } = useAuthErrorMessage(searchParams.get('ref'));
+
+  return <AuthErrorScreen description={isLoading ? undefined : description} />;
 }

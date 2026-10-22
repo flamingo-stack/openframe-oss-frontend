@@ -1,23 +1,24 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type AuthSsoProvider,
-  BackToLoginLink,
   CompleteAccountForm,
   InviteLinkInvalidModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
+import { type ComponentProps, type ReactNode, useState } from 'react';
+import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
 import {
-  getPasswordError,
   isValidPersonName,
   normalizePersonName,
   PERSON_NAME_ERROR,
 } from '@/app/(auth)/auth/constants/registration-validation';
 import { useInviteProviders } from '@/app/(auth)/auth/hooks/use-invite-providers';
+import { usePasswordPair } from '@/app/(auth)/auth/hooks/use-password-pair';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { noop } from '@/app/components/shared/no-next-page';
 import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
@@ -32,7 +33,62 @@ function isInvalidInviteError(error: string | null): boolean {
   return !!error && (error.includes('Invitation not found') || error.includes('Invitation already used or revoked'));
 }
 
+type InviteFormProps = ComponentProps<typeof CompleteAccountForm>;
+
+/** The form's static copy and an empty, inert form: what every field reads before the invitation is read. */
+const EMPTY_INVITE_FORM = {
+  firstName: '',
+  lastName: '',
+  password: '',
+  confirmPassword: '',
+  onFirstNameChange: noop,
+  onLastNameChange: noop,
+  onPasswordChange: noop,
+  onConfirmPasswordChange: noop,
+  onSubmit: noop,
+  ssoProviders: [],
+  onSsoClick: noop,
+  title: 'Accept Invitation',
+  subtitle: 'Complete your registration to join the organization',
+  submitLabel: 'Create Account',
+  submitDisabled: true,
+} satisfies InviteFormProps;
+
+/**
+ * The invitation screen: the shell, its Back to login footer and the account form. One view for the loaded page and
+ * the Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ */
+function InviteView({
+  form,
+  onBack = noop,
+  children,
+}: {
+  form?: Partial<InviteFormProps>;
+  onBack?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <BackToLoginShell onBack={onBack}>
+      <CompleteAccountForm {...EMPTY_INVITE_FORM} {...form} />
+      {children}
+    </BackToLoginShell>
+  );
+}
+
 export default function InvitePage() {
+  return (
+    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
+    // stands in until the URL (the invitation id) is read.
+    <LoadingSuspense
+      label="Loading your invitation"
+      fallback={<InviteView form={{ loading: true, ssoProvidersLoading: true }} />}
+    >
+      <InviteContent />
+    </LoadingSuspense>
+  );
+}
+
+function InviteContent() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -41,8 +97,7 @@ export default function InvitePage() {
   const { providers, loading, error } = useInviteProviders(invitationId);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { isValid: passwordsValid, errors: passwordErrors, ...pair } = usePasswordPair();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTenantSwitch, setShowTenantSwitch] = useState(false);
 
@@ -51,10 +106,7 @@ export default function InvitePage() {
 
   const handleBack = () => router.push('/auth');
 
-  const passwordError = getPasswordError(password);
-  const isMismatch = !!confirmPassword && password !== confirmPassword;
-  const isValid =
-    isValidPersonName(firstName) && isValidPersonName(lastName) && !passwordError && password === confirmPassword;
+  const isValid = isValidPersonName(firstName) && isValidPersonName(lastName) && passwordsValid;
 
   const handleSubmit = async (switchTenant = false) => {
     if (!invitationId || !isValid) return;
@@ -65,7 +117,7 @@ export default function InvitePage() {
         invitationId,
         firstName: normalizePersonName(firstName),
         lastName: normalizePersonName(lastName),
-        password,
+        password: pair.password,
         switchTenant,
       });
 
@@ -136,32 +188,28 @@ export default function InvitePage() {
   );
 
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
-      <CompleteAccountForm
-        firstName={firstName}
-        lastName={lastName}
-        password={password}
-        confirmPassword={confirmPassword}
-        onFirstNameChange={setFirstName}
-        onLastNameChange={setLastName}
-        onPasswordChange={setPassword}
-        onConfirmPasswordChange={setConfirmPassword}
-        onSubmit={() => handleSubmit()}
-        ssoProviders={formProviders}
-        onSsoClick={handleSso}
-        title="Accept Invitation"
-        subtitle="Complete your registration to join the organization"
-        submitLabel="Create Account"
-        submitDisabled={!isValid}
-        loading={loading || isSubmitting}
-        errors={{
+    <InviteView
+      onBack={handleBack}
+      form={{
+        firstName,
+        lastName,
+        ...pair,
+        onFirstNameChange: setFirstName,
+        onLastNameChange: setLastName,
+        onSubmit: () => handleSubmit(),
+        ssoProviders: formProviders,
+        // While the invitation's providers are read the form draws their button boxes, not an empty row.
+        ssoProvidersLoading: loading,
+        onSsoClick: handleSso,
+        submitDisabled: !isValid,
+        loading: loading || isSubmitting,
+        errors: {
           firstName: firstName.trim() && !isValidPersonName(firstName) ? PERSON_NAME_ERROR : undefined,
           lastName: lastName.trim() && !isValidPersonName(lastName) ? PERSON_NAME_ERROR : undefined,
-          password: password ? passwordError : undefined,
-          confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
-        }}
-      />
-
+          ...passwordErrors,
+        },
+      }}
+    >
       <ConfirmDialog
         open={showTenantSwitch}
         onOpenChange={setShowTenantSwitch}
@@ -171,6 +219,6 @@ export default function InvitePage() {
         variant="default"
         onConfirm={() => handleSubmit(true)}
       />
-    </StandaloneAuthShell>
+    </InviteView>
   );
 }

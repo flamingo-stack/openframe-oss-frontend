@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   InboxArrowUpIcon,
@@ -9,14 +10,16 @@ import {
 import {
   type ActionsMenuGroup,
   type PageActionButton,
+  LoadingItems,
   TabNavigation,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -29,7 +32,6 @@ import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { initiatorName } from '../../shared/utils/execution-helpers';
 import { platformsToIds, shellToId } from '../../shared/utils/script-mappers';
 import { DETAIL_TABS, SCRIPT_DEFAULT_TAB, scriptTabBody } from './script-detail-tabs';
-import { ScriptHeaderSkeleton, ScriptSummarySkeleton } from './script-details-skeleton';
 import { ScriptSummaryCard } from './script-summary-card';
 
 interface ScriptDetailsViewProps {
@@ -46,17 +48,36 @@ interface ScriptDetailsViewProps {
  * to survive a bad id, and the summary below reports the miss once.
  */
 function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
-  const { toast } = useToast();
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const script = data.script;
+  return <ScriptHeaderView scriptId={scriptId} script={data.script} />;
+}
+
+type ScriptRecord = ScriptDetailQueryType['response']['script'];
+
+/**
+ * The header's action placeholders: the square "…" menu trigger an active
+ * script carries (its Edit Script entry; most scripts are active), then one
+ * label-width slot, which is what the header settles into either way: an
+ * active script offers "Run Script", an archived one a single "Unarchive".
+ * WHICH is the record's answer, so the slot is a neutral bar.
+ */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: '' }, { label: 'Script action' }];
+
+/**
+ * The header over the record (`null`: not found). Before it (`script` undefined, or in a loading scope) the same
+ * header draws itself: the static title real, Back working, the action slots placeholders.
+ */
+function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { script?: ScriptRecord }) {
+  const loading = useLoadingScope() || script === undefined;
+  const { toast } = useToast();
 
   const [commitUnarchive, isUnarchiving] = useMutation<UnarchiveScriptMutationType>(unarchiveScriptMutation);
-  const isArchived = script?.status === ScriptStatus.ARCHIVED;
+  const isArchived = !loading && script?.status === ScriptStatus.ARCHIVED;
 
   // Back follows the list the script actually belongs to.
   const handleBack = useSafeBack(isArchived ? routes.scripts.archived : routes.scripts.list);
@@ -66,7 +87,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
   // resolver expects. The mention chip re-encodes it to a global id for fetch.
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
-    script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    !loading && script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
   );
 
   const handleUnarchive = useCallback(() => {
@@ -97,6 +118,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
   // An archived script can't be run or meaningfully edited — the one thing worth
   // offering is putting it back (design node 1:24107).
   const actions = useMemo<PageActionButton[]>(() => {
+    if (loading) return LOADING_ACTIONS;
     if (!script) return [];
     return isArchived
       ? [
@@ -123,11 +145,11 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
             },
           },
         ];
-  }, [script, isArchived, handleUnarchive, isUnarchiving, runHref]);
+  }, [loading, script, isArchived, handleUnarchive, isUnarchiving, runHref]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(
     () =>
-      !script || isArchived
+      loading || !script || isArchived
         ? []
         : [
             {
@@ -141,7 +163,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
               ],
             },
           ],
-    [script, isArchived, scriptId],
+    [loading, script, isArchived, scriptId],
   );
 
   return (
@@ -150,6 +172,7 @@ function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
       titleAdornment={isArchived ? <Tag label="Archived" variant="grey" /> : undefined}
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
+      loadingActions={loading}
       menuActions={menuActions}
       actionsVariant="menu-primary"
     />
@@ -179,24 +202,50 @@ function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
     { id: scriptId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const script = data.script;
+  return <ScriptSummaryView script={data.script} />;
+}
 
+/** Tag chips drawn while the script loads: a typical script carries a couple of tags. */
+const SCRIPT_TAGS_SKELETON_COUNT = 2;
+
+/** The script's tag chips. In a loading scope they are tag-shaped bars; a script with none shows the empty mark. */
+function ScriptTags({ tags }: { tags: ReadonlyArray<{ id: string; key: string }> | null }) {
+  const loading = useLoadingScope() || tags === null;
+  return (
+    <div className="flex min-h-8 flex-wrap items-center gap-[var(--spacing-system-xs)]">
+      {loading ? (
+        <LoadingItems count={SCRIPT_TAGS_SKELETON_COUNT}>
+          {() => <Tag data-loading-item variant="outline" label="" loading />}
+        </LoadingItems>
+      ) : tags.length > 0 ? (
+        tags.map(tag => <Tag key={tag.id} data-loading-item variant="outline" label={tag.key} />)
+      ) : (
+        <ValueText value={null} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The tag chips and the summary card over the record (`null`: not found). With the record unread (or in a loading
+ * scope) both draw themselves.
+ */
+function ScriptSummaryView({ script }: { script?: ScriptRecord }) {
+  if (useLoadingScope() || script === undefined) {
+    return (
+      <>
+        <ScriptTags tags={null} />
+        <ScriptSummaryCard name="" shellId="" platforms={NO_ITEMS} author={null} />
+      </>
+    );
+  }
   if (!script) {
     return <NotFoundError message="Script not found" />;
   }
 
-  const tags = script.tags ?? [];
-
   return (
     <>
-      {tags.length > 0 && (
-        <div className="flex flex-wrap items-start gap-[var(--spacing-system-xs)]">
-          {tags.map(tag => (
-            <Tag key={tag.id} variant="outline" label={tag.key} />
-          ))}
-        </div>
-      )}
-
+      <ScriptTags tags={script.tags ?? []} />
       <ScriptSummaryCard
         name={script.name}
         description={script.description}
@@ -225,14 +274,14 @@ export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId 
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<ScriptHeaderSkeleton />}>
+      <LoadingSuspense label="Loading the script" fallback={<ScriptHeaderView scriptId={scriptId} />}>
         <ScriptHeader scriptId={scriptId} />
-      </Suspense>
+      </LoadingSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense fallback={<ScriptSummarySkeleton />}>
+        <LoadingSuspense label="Loading script details" fallback={<ScriptSummaryView />}>
           <ScriptSummary scriptId={scriptId} />
-        </Suspense>
+        </LoadingSuspense>
 
         {/* `TabNavigation` renders as a fragment, so its bar and its body are
             siblings — left as direct children of the column above they would be

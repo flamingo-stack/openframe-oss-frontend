@@ -1,21 +1,15 @@
 'use client';
 
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { PolicyValueCard } from '@/app/components/shared/policy-value-card';
 
 interface GuardrailsPresetCardProps {
-  label: string;
+  /** Unread while loading. */
+  label?: string;
   /** Muted value — the preset is inherited from the tenant defaults. */
   muted?: boolean;
 }
 
-/** Read-only "Guardrails Preset" summary card. */
+/** Read-only "Guardrails Preset" summary card; in a loading scope (or with no preset yet) its value is a bar. */
 export function GuardrailsPresetCard({ label, muted = false }: GuardrailsPresetCardProps) {
-  return (
-    <div className="flex min-h-20 items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-mf)]">
-      <InfoCell
-        value={muted ? <span className="text-ods-text-secondary">{label}</span> : label}
-        label="Guardrails Preset"
-      />
-    </div>
-  );
+  return <PolicyValueCard label="Guardrails Preset" value={label} muted={muted} />;
 }

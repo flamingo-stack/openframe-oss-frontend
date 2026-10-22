@@ -1,13 +1,14 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Component, type ReactNode, Suspense } from 'react';
+import { Component, type ReactNode } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { logDrawerDetails_log$key } from '@/__generated__/logDrawerDetails_log.graphql';
 import type { logDrawerDetailsQuery as LogDrawerDetailsQueryType } from '@/__generated__/logDrawerDetailsQuery.graphql';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
-import { formatLogDetailsRefForCopy } from '../utils/format-log-details';
+import { formatLogDetailsRefForCopy, LOG_DETAILS_COPY_LINE_COUNT } from '../utils/format-log-details';
 
 /** The composite key `logDetails` takes; the row carries it, the full log does not ride along. */
 const logDrawerDetailsFragment = graphql`
@@ -59,7 +60,15 @@ function LogDrawerDetailsContent({ variables, fallback }: LogDrawerDetailsConten
   const log = data.logDetails;
   if (!log) return <>{fallback}</>;
 
-  return <div className="whitespace-pre-wrap break-words">{formatLogDetailsRefForCopy(log)}</div>;
+  return <LogDrawerDetailsText text={formatLogDetailsRefForCopy(log)} />;
+}
+
+/** The details text; without it (still loading, or in a loading scope) one line per line the formatter writes. */
+function LogDrawerDetailsText({ text }: { text?: string }) {
+  if (useLoadingScope() || text === undefined) {
+    return <TextLineSkeleton type="inherit" lines={LOG_DETAILS_COPY_LINE_COUNT} />;
+  }
+  return <div className="whitespace-pre-wrap break-words">{text}</div>;
 }
 
 class LogDrawerDetailsErrorBoundary extends Component<
@@ -79,16 +88,6 @@ class LogDrawerDetailsErrorBoundary extends Component<
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
-}
-
-function LogDrawerDetailsSkeleton() {
-  return (
-    <LoadingRegion label="Loading log details" className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <UnifiedSkeleton className="h-5 w-full" />
-      <UnifiedSkeleton className="h-5 w-full" />
-      <UnifiedSkeleton className="h-5 w-3/4" />
-    </LoadingRegion>
-  );
 }
 
 /**
@@ -113,12 +112,12 @@ export function LogDrawerDetails({ log, fallback }: LogDrawerDetailsProps) {
         })
       }
     >
-      <Suspense fallback={<LogDrawerDetailsSkeleton />}>
+      <LoadingSuspense label="Loading log details" fallback={<LogDrawerDetailsText />}>
         <LogDrawerDetailsContent
           variables={{ toolEventId, ingestDay, toolType, eventType, timestamp }}
           fallback={fallback}
         />
-      </Suspense>
+      </LoadingSuspense>
     </LogDrawerDetailsErrorBoundary>
   );
 }

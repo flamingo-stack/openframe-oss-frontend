@@ -2,20 +2,15 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { Hierarchy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
 import type { Device } from '../../types/device.types';
+import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface NetworkTabProps {
   device: Device | null;
-}
-
-type InfoRow = { label: string; value?: string | null; copyable?: boolean };
-
-function toItems(rows: InfoRow[]): Array<{ label: string; value: string; copyable?: boolean }> {
-  return rows
-    .filter(row => row.value !== undefined && row.value !== null && String(row.value).trim() !== '')
-    .map(row => ({ label: row.label, value: String(row.value), copyable: row.copyable }));
 }
 
 /** Numeric-aware sort for dotted IPv4 / CIDR strings. */
@@ -39,8 +34,13 @@ function Labeled({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** IP rows a card draws while the device is read: a typical device's addresses (the list has no limit). */
+const TYPICAL_IP_ROWS = 2;
+
 export function NetworkTab({ device }: NetworkTabProps) {
-  if (!device) {
+  const loading = useLoadingScope();
+
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<Hierarchy02Icon />}
@@ -50,8 +50,8 @@ export function NetworkTab({ device }: NetworkTabProps) {
     );
   }
 
-  const allIps = device.local_ips || [];
-  const fleetPrimaryIp = device.primary_ip;
+  const allIps = device?.local_ips || [];
+  const fleetPrimaryIp = device?.primary_ip;
 
   const ipv4Addresses: string[] = [];
   const ipv6Addresses: string[] = [];
@@ -67,23 +67,31 @@ export function NetworkTab({ device }: NetworkTabProps) {
   const sortedIpv6 = [...ipv6Addresses].sort();
 
   // Interface identity — Public/Primary IP + MAC (MAC was previously not surfaced here).
-  const interfaceItems = toItems([
-    { label: 'Public IP', value: device.public_ip, copyable: true },
-    { label: 'Primary IPv4', value: device.primary_ip, copyable: true },
-    { label: 'MAC Address', value: device.primary_mac || device.macAddress, copyable: true },
-  ]);
+  const interfaceRows: DeviceInfoRow[] = [
+    { label: 'Public IP', value: device?.public_ip, copyable: true },
+    { label: 'Primary IPv4', value: device?.primary_ip, copyable: true },
+    { label: 'MAC Address', value: device?.primary_mac || device?.macAddress, copyable: true },
+  ];
+  const hasInterface = hasDeviceInfo(interfaceRows);
 
   // Location — Fleet built-in GeoIP on the public IP (city/country when available).
-  const locationItems = toItems([
-    { label: 'City', value: device.geolocation?.city },
-    { label: 'Country', value: device.geolocation?.country },
-  ]);
+  const locationRows: DeviceInfoRow[] = [
+    { label: 'City', value: device?.geolocation?.city },
+    { label: 'Country', value: device?.geolocation?.country },
+  ];
+  const hasLocation = hasDeviceInfo(locationRows);
 
   const hasIpv4 = sortedIpv4.length > 0;
   const hasIpv6 = sortedIpv6.length > 0;
 
-  if (interfaceItems.length === 0 && locationItems.length === 0 && !hasIpv4 && !hasIpv6) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  // While the device is read every section is drawn, each card its own skeleton.
+  const showInterface = loading || hasInterface;
+  const showLocation = loading || hasLocation;
+  const showIpv4 = loading || hasIpv4;
+  const showIpv6 = loading || hasIpv6;
+
+  if (!loading && !hasInterface && !hasLocation && !hasIpv4 && !hasIpv6) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<Hierarchy02Icon />} section="Network" />;
     }
     return (
@@ -97,28 +105,40 @@ export function NetworkTab({ device }: NetworkTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      {interfaceItems.length > 0 && (
+      {showInterface && (
         <Labeled title="Network">
-          <InfoCard data={{ items: interfaceItems }} />
+          <InfoCard
+            data={loading ? EMPTY_CARD : { items: deviceInfoItems(interfaceRows) }}
+            skeleton={{ rows: labelsOf(interfaceRows), title: false }}
+          />
         </Labeled>
       )}
 
-      {locationItems.length > 0 && (
+      {showLocation && (
         <Labeled title="Location">
-          <InfoCard data={{ items: locationItems }} />
+          <InfoCard
+            data={loading ? EMPTY_CARD : { items: deviceInfoItems(locationRows) }}
+            skeleton={{ rows: labelsOf(locationRows), title: false }}
+          />
         </Labeled>
       )}
 
-      {(hasIpv4 || hasIpv6) && (
+      {(showIpv4 || showIpv6) && (
         <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-2">
-          {hasIpv4 && (
+          {showIpv4 && (
             <Labeled title="IPv4 Addresses">
-              <InfoCard data={{ items: [{ value: sortedIpv4, copyable: true }] }} />
+              <InfoCard
+                data={loading ? EMPTY_CARD : { items: [{ value: sortedIpv4, copyable: true }] }}
+                skeleton={{ rows: TYPICAL_IP_ROWS, unlabelledRows: true, title: false }}
+              />
             </Labeled>
           )}
-          {hasIpv6 && (
+          {showIpv6 && (
             <Labeled title="IPv6 Addresses">
-              <InfoCard data={{ items: [{ value: sortedIpv6, copyable: true }] }} />
+              <InfoCard
+                data={loading ? EMPTY_CARD : { items: [{ value: sortedIpv6, copyable: true }] }}
+                skeleton={{ rows: TYPICAL_IP_ROWS, unlabelledRows: true, title: false }}
+              />
             </Labeled>
           )}
         </div>

@@ -19,7 +19,8 @@ export type ApiKeyRecord = {
 
 export function useApiKeys() {
   const [items, setItems] = useState<ApiKeyRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading from the first render: the one caller reads on mount, and an empty first frame reads as "no keys".
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchApiKeys = useCallback(async () => {

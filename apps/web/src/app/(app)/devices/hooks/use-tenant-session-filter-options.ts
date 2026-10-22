@@ -24,14 +24,16 @@ interface FilterOption {
  * The sessions API has no facets, so the options are the tenant's devices (the
  * same fleet the Devices list shows) and customers; the values are what the
  * session filter takes - the device's machine id and the organization id.
+ * `enabled: false` (the table drawn in a loading scope) asks for nothing.
  */
-export function useTenantSessionFilterOptions() {
+export function useTenantSessionFilterOptions({ enabled = true }: { enabled?: boolean } = {}) {
   const deviceFilter = useMemo(() => ({ statuses: [...DEFAULT_DEVICES_LIST_STATUSES] }), []);
   const devices = useQuery({
     queryKey: deviceQueryKeys.page(deviceFilter, '', DEVICE_OPTIONS_LIMIT),
     queryFn: () => fetchDevicesPage({ filter: deviceFilter, first: DEVICE_OPTIONS_LIMIT }),
+    enabled,
   });
-  const customers = useOrganizationOptions('');
+  const customers = useOrganizationOptions('', enabled);
 
   const deviceOptions = useMemo<FilterOption[]>(
     () =>

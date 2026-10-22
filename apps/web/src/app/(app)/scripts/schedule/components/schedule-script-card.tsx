@@ -1,12 +1,13 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { routes } from '@/lib/routes';
 import { prewarmScriptEditor, ScriptEditor } from '../../shared/components/script-editor';
 import {
@@ -20,7 +21,8 @@ import type { ScheduleScript } from '../types/schedule-detail.types';
 import { effectiveScriptParams, type StoredScriptCustomParams } from '../utils/schedule-script-params';
 
 interface ScheduleScriptCardProps {
-  script: ScheduleScript;
+  /** Absent while the schedule loads: the card draws itself with its values as bars. */
+  script?: ScheduleScript;
   /**
    * This schedule's override for the script, when it has one. Absent means the
    * card shows the script's own defaults — which is what the schedule runs.
@@ -30,9 +32,6 @@ interface ScheduleScriptCardProps {
 
 /** Design default when a script carries no timeout of its own. */
 const DEFAULT_TIMEOUT_SECONDS = 90;
-
-/** The card's two parameter panels, in order — titles are static, so they are real. */
-const SKELETON_PANELS = ['Script Arguments', 'Environment Vars'] as const;
 
 /** The source editor's height. */
 const SOURCE_HEIGHT = '400px';
@@ -51,10 +50,13 @@ function ScriptParamsPanel({
   emptyText,
   footer,
   className,
+  loading,
 }: {
   title: string;
   rows: ScriptParamRow[];
   emptyText: string;
+  /** The parameters are not read yet: the rows draw their own loading form. */
+  loading: boolean;
   /** Rendered below the rows, in the panel's own 12px rhythm. */
   footer?: ReactNode;
   className?: string;
@@ -70,7 +72,7 @@ function ScriptParamsPanel({
       )}
     >
       <TruncateText>{title}</TruncateText>
-      <ScriptParamRows rows={rows} emptyText={emptyText} />
+      <ScriptParamRows rows={rows} emptyText={emptyText} loading={loading} />
       {footer}
     </div>
   );
@@ -89,6 +91,10 @@ function ScriptParamsPanel({
  *   read than the script page it links to.
  */
 export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardProps) {
+  // While the schedule loads the card draws itself: the same frame and static copy, its read values as bars, its
+  // buttons inert, and (desktop) the two panels each holding one row — the line every panel has either way. A phone
+  // starts closed, so there the header alone is the collapsed card in both forms.
+  const loading = useLoadingScope() || !script;
   const router = useRouter();
   const isMdUp = useContentMdUp();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -111,20 +117,21 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
     setHasExpanded(true);
   }, []);
 
+  const scriptId = script?.id;
   const handleScriptDetails = useCallback(() => {
-    router.push(routes.scripts.details(script.id));
-  }, [router, script.id]);
+    if (scriptId) router.push(routes.scripts.details(scriptId));
+  }, [router, scriptId]);
 
   // What this SCHEDULE runs the script with, which is not always what the script
   // itself defaults to: a per-script override replaces either half wholesale.
   // The card is the page that has to show the difference — it is where a user
   // checks what a scheduled run will actually pass.
-  const effective = effectiveScriptParams(script, customParams);
-  const argRows = argsToParamRows(effective.args);
-  const envRows = envPairsToParamRows(envVarsToPairs(effective.envVars));
+  const effective = script ? effectiveScriptParams(script, customParams) : null;
+  const argRows = effective ? argsToParamRows(effective.args) : NO_ITEMS;
+  const envRows = effective ? envPairsToParamRows(envVarsToPairs(effective.envVars)) : NO_ITEMS;
 
   return (
-    <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
+    <div data-loading-item className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
       {/* Desktop splits the header down the middle — Name owns one half, and the
           actions ride the end of the Timeout half. Mobile drops "Script Details"
           (it moves down into the Environment Vars panel), so the row is a flat
@@ -141,23 +148,20 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
           isExpanded && 'bg-ods-bg',
         )}
       >
-        <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <TruncateText>{script.name}</TruncateText>
-          <span className="truncate text-ods-text-secondary text-h6">Script</span>
-        </div>
+        <InfoCell value={script?.name} label="Script" loading={loading} skeletonWidth="w-44" />
 
         {/* `contents` on mobile: the wrapper exists only to make the right half a
             single flex child on desktop. Dissolving it below `md` lets Timeout
             share the row's width with Name evenly, as the mobile mock has it. */}
         <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <span className="truncate text-ods-text-primary text-h4">
-              {script.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} Seconds
-            </span>
-            <span className="truncate text-ods-text-secondary text-h6">Timeout</span>
-          </div>
+          <InfoCell
+            value={`${script?.defaultTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS} Seconds`}
+            label="Timeout"
+            loading={loading}
+            skeletonWidth="w-24"
+          />
 
-          <Button variant="outline" onClick={handleScriptDetails} className="hidden content-md:flex">
+          <Button variant="outline" onClick={handleScriptDetails} disabled={loading} className="hidden content-md:flex">
             Script Details
           </Button>
 
@@ -165,6 +169,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
             variant="outline"
             size="icon"
             onClick={handleToggle}
+            disabled={loading}
             // Deliberately not "source": the same chevron opens the source on
             // desktop and the parameters on a phone.
             aria-label={isExpanded ? 'Collapse script details' : 'Expand script details'}
@@ -189,7 +194,7 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
         inert={!isExpanded}
       >
         <div className="min-h-0 overflow-hidden">
-          {isMdUp && hasExpanded && (
+          {isMdUp && hasExpanded && script && (
             // The tone lives HERE rather than on either child: it is what the
             // editor's own theme paints, so the placeholder and the editor read
             // as one surface — no flash of the card's lighter background through
@@ -230,74 +235,30 @@ export function ScheduleScriptCard({ script, customParams }: ScheduleScriptCardP
               title="Script Arguments"
               rows={argRows}
               emptyText="No script arguments"
+              loading={loading}
               className="border-b border-ods-border content-md:border-b-0 content-md:border-r"
             />
             <ScriptParamsPanel
               title="Environment Vars"
               rows={envRows}
               emptyText="No environment variables"
+              loading={loading}
               // Phone only (1:49002): the header has no room for "Script
               // Details", so the way into the script sits at the foot of the
               // last panel.
               footer={
-                <Button variant="outline" onClick={handleScriptDetails} className="w-full content-md:hidden">
+                <Button
+                  variant="outline"
+                  onClick={handleScriptDetails}
+                  disabled={loading}
+                  className="w-full content-md:hidden"
+                >
                   Show Script Details
                 </Button>
               }
             />
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/** A collapsed {@link ScheduleScriptCard} — which on a phone is the header alone. */
-export function ScheduleScriptCardSkeleton() {
-  return (
-    <div className="flex flex-col overflow-clip rounded-[8px] border border-ods-border bg-ods-card">
-      <div className="flex items-center gap-[var(--spacing-system-s)] p-[var(--spacing-system-m)] content-md:h-[80px] content-md:gap-[var(--spacing-system-m)] content-md:py-0">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <UnifiedSkeleton className="mb-1 h-6 w-44" />
-          <UnifiedSkeleton className="h-5 w-12" />
-        </div>
-        <div className="contents content-md:flex content-md:min-w-0 content-md:flex-1 content-md:items-center content-md:gap-[var(--spacing-system-m)]">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <UnifiedSkeleton className="mb-1 h-6 w-24" />
-            <UnifiedSkeleton className="h-5 w-16" />
-          </div>
-          <UnifiedSkeleton className="hidden h-12 w-[130px] rounded-[6px] content-md:block" />
-          <UnifiedSkeleton className="h-11 w-11 rounded-[6px] content-md:h-12 content-md:w-12" />
-        </div>
-      </div>
-
-      {/* Desktop keeps the panels open at all times, so the skeleton has to hold
-          their height or the list jumps when data lands. A phone starts closed
-          (1:49009) — there the header alone IS the collapsed card.
-
-          Both panels are drawn because both always render — an empty half still
-          holds its column. Their TITLES are static, so they are real text. What
-          is not certain is the contents: arguments and environment variables are
-          each optional, and an empty panel says so in one line ("No script
-          arguments"), so exactly ONE placeholder row is reserved — the line every
-          panel has either way. */}
-      <div className="hidden flex-col items-stretch border-t border-ods-border content-md:flex content-md:flex-row">
-        {SKELETON_PANELS.map((panel, panelIndex) => (
-          <div
-            key={panel}
-            className={cn(
-              'flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-sf)] bg-ods-bg p-[var(--spacing-system-m)] content-md:bg-ods-card',
-              panelIndex === 0 && 'border-b border-ods-border content-md:border-b-0 content-md:border-r',
-            )}
-          >
-            <span className="truncate text-ods-text-primary text-h4">{panel}</span>
-            <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-              <UnifiedSkeleton className="h-4 w-20" />
-              <span className="h-px min-w-4 flex-1 bg-ods-divider" />
-              <UnifiedSkeleton className="h-4 w-16" />
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

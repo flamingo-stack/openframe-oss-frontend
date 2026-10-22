@@ -26,6 +26,7 @@ import {
   Button,
   InfoSection,
   type InfoSectionRow,
+  LoadingWhen,
   NoData,
   type PageActionButton,
   PageLayout,
@@ -89,7 +90,6 @@ import { TICKET_STATUS_KIND } from '../utils/ticket-statistics';
 import { ReopenTicketModal, type ReopenTicketTarget } from './reopen-ticket-modal';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketAttachmentsSection } from './ticket-attachments-section';
-import { TicketDetailsSkeleton } from './ticket-details-skeleton';
 import { TicketDialogSubscription } from './ticket-dialog-subscription';
 import { TicketNotificationsAutoReader } from './ticket-notifications-auto-reader';
 import { TicketTagsSection } from './ticket-tags-section';
@@ -607,26 +607,26 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     return groups;
   }, [dialog, deviceDetails, isDeviceLoading, deviceMenuItems, router]);
 
-  if (isLoading) {
-    return <TicketDetailsSkeleton onBack={handleBackToTickets} />;
-  }
+  // While the ticket loads the page draws itself in a loading scope (`LoadingWhen` below): every part its own
+  // skeleton, nothing read from the ticket that is not there yet.
+  const loading = isLoading;
 
   // Before the not-found below, and not showing `dialogError` raw: offline the
   // query PAUSES with no data, and this route answered that by telling the user
   // their ticket does not exist.
-  if (dialogError || isOffline) {
+  if (!loading && (dialogError || isOffline)) {
     return <LoadError {...loadErrorProps(isOffline, "Couldn't load this ticket.", () => refetchTicket())} />;
   }
 
-  if (!dialog) {
+  if (!loading && !dialog) {
     return <NotFoundError message="Ticket not found" />;
   }
 
-  const isAdminOwner = dialog.owner?.type === 'ADMIN';
-  const isResolved = dialog.statusKind === TICKET_STATUS_KIND.RESOLVED;
-  const isArchived = dialog.statusKind === TICKET_STATUS_KIND.ARCHIVED;
+  const isAdminOwner = dialog?.owner?.type === 'ADMIN';
+  const isResolved = dialog?.statusKind === TICKET_STATUS_KIND.RESOLVED;
+  const isArchived = dialog?.statusKind === TICKET_STATUS_KIND.ARCHIVED;
   const isClosed = isResolved || isArchived;
-  const clientTokenUsage = dialog.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
+  const clientTokenUsage = dialog?.tokenUsage?.find(t => t.chatType === CHAT_TYPE.CLIENT);
   const showTokenMemory = !isClosed;
 
   // The status tag is an inline changer driven by the ticket's available
@@ -634,10 +634,10 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // unified design (AI_ASSISTANCE/RESOLVED → canonical styling like the board;
   // TECH_REQUIRED and custom → backend color), shared with the chat surfaces.
   const statusTag = resolveStatusTagProps({
-    status: dialog.statusId,
-    statusKind: dialog.statusKind,
-    statusName: dialog.statusName,
-    statusColor: dialog.statusColor,
+    status: dialog?.statusId,
+    statusKind: dialog?.statusKind,
+    statusName: dialog?.statusName,
+    statusColor: dialog?.statusColor,
   });
   // Tech Required + pending approval: the server rejects any transition, so
   // the inline changer renders as a locked tag with the reason in a tooltip.
@@ -646,7 +646,9 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const isStatusLocked = isStatusLockedByPendingApproval(dialog);
 
   const hasClientChat = !isAdminOwner;
-  const hasDescription = !!dialog.description?.trim();
+  // While the ticket loads the page draws the TYPICAL ticket, one with no description: the desktop column is the
+  // Client Chat heading and its chat, and the tab strip appears only once a description is read.
+  const hasDescription = !!dialog?.description?.trim();
   const hasAssignedItems = !!(
     assignedItems.customers?.length ||
     assignedItems.devices?.length ||
@@ -663,8 +665,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const clientChatOnScreen = hasClientChat && (mainTab === 'chat' || (isLgUp === true && !showDetailsTabs));
 
   const customerName =
-    dialog.organizationName ||
-    (isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
+    dialog?.organizationName ||
+    (dialog && isClientOwner(dialog.owner) ? dialog.owner.machine?.organizationId : undefined) ||
     undefined;
 
   const infoRows: InfoSectionRow[] = [
@@ -673,7 +675,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'ticket-number',
       label: 'Ticket Number',
-      value: { text: dialog.ticketNumber != null ? String(dialog.ticketNumber) : EMPTY_VALUE },
+      value: { text: dialog?.ticketNumber != null ? String(dialog?.ticketNumber) : EMPTY_VALUE },
     },
     {
       id: 'customer',
@@ -681,7 +683,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       value: customerName
         ? {
             text: customerName,
-            imageSrc: getFullImageUrl(dialog.organizationImageUrl, dialog.organizationImageHash),
+            imageSrc: getFullImageUrl(dialog?.organizationImageUrl, dialog?.organizationImageHash),
             imageFallback: customerName,
           }
         : { text: EMPTY_VALUE },
@@ -700,12 +702,12 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       value: {
         type: 'assignee',
         currentAssignee:
-          dialog.assignedName && dialog.assignedTo
+          dialog?.assignedName && dialog?.assignedTo
             ? {
-                id: dialog.assignedTo,
-                name: dialog.assignedName,
-                avatarSrc: getFullImageUrl(dialog.assigneeImageUrl, dialog.assigneeImageHash),
-                deleted: isUserDeleted(dialog.assignedTo),
+                id: dialog?.assignedTo,
+                name: dialog?.assignedName,
+                avatarSrc: getFullImageUrl(dialog?.assigneeImageUrl, dialog?.assigneeImageHash),
+                deleted: isUserDeleted(dialog?.assignedTo),
               }
             : undefined,
         options: assigneeOptions.options.map(o => ({ ...o, imageUrl: getFullImageUrl(o.imageUrl) })),
@@ -717,7 +719,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
     {
       id: 'created',
       label: 'Created',
-      value: { text: formatDateTime(dialog.createdAt) },
+      value: { text: dialog ? formatDateTime(dialog.createdAt) : EMPTY_VALUE },
     },
     {
       id: 'status',
@@ -727,7 +729,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         status: statusTag.status,
         label: statusTag.label,
         color: statusTag.color,
-        options: dialog.availableTransitions,
+        options: dialog?.availableTransitions,
         onSelect: handleTransition,
         isPending: transitionTicket.isPending,
         disabled: isStatusLocked,
@@ -741,7 +743,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // AI-assistance, resolved, and archived tickets. Once a timer is running the
   // button disables — only one timer can be active at a time.
   const canTrackTime =
-    dialog.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog.statusKind === TICKET_STATUS_KIND.CUSTOM;
+    dialog?.statusKind === TICKET_STATUS_KIND.TECH_REQUIRED || dialog?.statusKind === TICKET_STATUS_KIND.CUSTOM;
   const isTimerActive = (timeTracker?.status ?? 'ready') !== 'ready';
 
   const sidebarActions: PageActionButton[] = [];
@@ -751,7 +753,11 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       ariaLabel: 'Edit Ticket',
       variant: 'outline',
       icon: <PenEditIcon className="text-ods-text-secondary" />,
-      onClick: () => router.push(routes.tickets.new({ edit: dialog.id })),
+      onClick: () => {
+        if (dialog) router.push(routes.tickets.new({ edit: dialog.id }));
+      },
+      // Drawn while the ticket loads (its place in the header), usable once it is here.
+      disabled: loading,
       iconOnlyOnDesktop: true,
     });
   }
@@ -812,7 +818,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           // its speaker's face — without it a Fae reply reads as the tail of
           // the end user's message above it.
           showAvatars={true}
-          isLoading={clientChat.isLoading}
+          isLoading={loading || clientChat.isLoading}
           isTyping={isClientChatTyping}
           pendingApprovals={clientPendingApprovals}
           assistantType={ASSISTANT_CONFIG.FAE.type}
@@ -830,8 +836,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         />
       </div>
 
-      {!isClosed && !isDirectMode && (
-        <div className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]">
+      {/* The direct-chat offer an open AI-assisted ticket shows in the composer's place. Left out while the ticket
+        loads (the loading form draws the typical ticket's composer below), so it carries `data-loading-optional`. */}
+      {!loading && !isClosed && !isDirectMode && (
+        <div
+          data-loading-optional
+          className="mt-[var(--spacing-system-xsf)] flex items-start gap-[var(--spacing-system-m)]"
+        >
           <p className="min-w-0 flex-1 text-ods-text-secondary text-h6">
             The AI assistant will be stopped and you will be able to communicate with the user directly.
           </p>
@@ -846,19 +857,25 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
           </Button>
         </div>
       )}
-      {!isClosed && isDirectMode && (
+      {/* The composer: part of the typical ticket, so it is drawn (locked) while the ticket loads. */}
+      {(loading || (!isClosed && isDirectMode)) && (
         <ChatInput
           appearance={clientChatAppearance}
           placeholder="Enter your Message..."
+          disabled={loading}
+          disabledPlaceholder="Enter your Message..."
           onSend={sendClientMessageWithReject}
           sending={isSendingClientMessage || isClientChatTyping || isClientCompacting}
           autoFocus={false}
           className="mt-[var(--spacing-system-xsf)] !max-w-full rounded-lg bg-ods-card"
         />
       )}
-      {showTokenMemory && (displayClientModel || clientTokenUsage) && (
+      {/* The model row's place is kept while the ticket loads (an open ticket shows it); the row draws its own
+          skeleton in the loading scope. */}
+      {(loading || (showTokenMemory && (displayClientModel || clientTokenUsage))) && (
         <div className="mt-[var(--spacing-system-xsf)]">
           <ModelDisplay
+            loading={loading}
             provider={displayClientModel?.provider}
             modelName={displayClientModel?.displayName}
             usedTokens={clientTokenUsage?.totalTokensSize ?? undefined}
@@ -882,12 +899,13 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <p className="text-ods-text-secondary text-h5">Ticket Description</p>
           <div className="rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-mf)]">
-            <SimpleMarkdownRenderer content={dialog.description ?? ''} />
+            <SimpleMarkdownRenderer content={dialog?.description ?? ''} />
           </div>
         </section>
       ) : (
         // No description: show the empty state only when there's nothing else in
         // the pane (assigned items render on their own when present).
+        !loading &&
         !hasAssignedItems && (
           <NoData icon={<Menu02Icon />} title="No Description" description="This ticket has no description added yet" />
         )
@@ -895,7 +913,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
       {hasAssignedItems && (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <p className="text-ods-text-secondary text-h5">Assigned Items</p>
-          <AssignedItemsView showTitle={false} itemId={dialog.id} itemType="TICKET" />
+          <AssignedItemsView showTitle={false} itemId={dialog?.id ?? ticketId} itemType="TICKET" />
         </section>
       )}
     </>
@@ -906,8 +924,8 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const sidebarContent = (
     <>
       <InfoSection title="Ticket Details" rows={infoRows} />
-      <TicketAttachmentsSection ticketId={dialog.id} attachments={dialog.attachments ?? []} />
-      <TicketTagsSection ticketId={dialog.id} tags={dialog.tags ?? []} />
+      <TicketAttachmentsSection ticketId={dialog?.id ?? ticketId} attachments={dialog?.attachments ?? []} />
+      <TicketTagsSection ticketId={dialog?.id ?? ticketId} tags={dialog?.tags ?? []} />
       <NotesSection
         notes={uiNotes}
         isAddingNote={addNoteMutation.isPending}
@@ -927,77 +945,82 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         isInitialOptStartSeqReady={isInitialOptStartSeqReady}
         onCaughtUp={handleCaughtUp}
       />
-      <TicketNotificationsAutoReader
-        ticketId={dialog.id}
-        dialogId={messageDialogId}
-        clientChatOnScreen={clientChatOnScreen}
-        lastClientMessageId={newestClientMessageId}
-      />
-      <PageLayout
-        title={dialog.title || 'Untitled Dialog'}
-        backButton={{ label: 'Back', onClick: handleBackToTickets }}
-        className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        actions={sidebarActions}
-        actionsVariant="icon-buttons"
-        contentClassName="flex min-h-0 flex-col"
-      >
-        <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] content-lg:flex-row">
-          {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
-          <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:flex">
-            {showDetailsTabs ? (
-              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
-                {active =>
-                  active === 'chat' ? (
-                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
-                  ) : (
-                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
-                      {ticketDetailsBody}
-                    </div>
-                  )
-                }
-              </TabNavigation>
-            ) : hasClientChat ? (
-              <>
-                <h2 className="text-ods-text-secondary text-h5">Client Chat</h2>
-                {clientChatBody}
-              </>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
-                {ticketDetailsBody}
-              </div>
-            )}
-          </div>
+      {dialog && (
+        <TicketNotificationsAutoReader
+          ticketId={dialog.id}
+          dialogId={messageDialogId}
+          clientChatOnScreen={clientChatOnScreen}
+          lastClientMessageId={newestClientMessageId}
+        />
+      )}
+      <LoadingWhen loading={loading}>
+        <PageLayout
+          loading={loading}
+          title={dialog ? dialog.title || 'Untitled Dialog' : ''}
+          backButton={{ label: 'Back', onClick: handleBackToTickets }}
+          className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+          actions={sidebarActions}
+          actionsVariant="icon-buttons"
+          contentClassName="flex min-h-0 flex-col"
+        >
+          <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] content-lg:flex-row">
+            {/* Desktop (lg+): main pane (tabs / chat / details) beside a persistent details sidebar */}
+            <div className="hidden min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:flex">
+              {showDetailsTabs ? (
+                <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                  {active =>
+                    active === 'chat' ? (
+                      <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                    ) : (
+                      <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                        {ticketDetailsBody}
+                      </div>
+                    )
+                  }
+                </TabNavigation>
+              ) : hasClientChat ? (
+                <>
+                  <h2 className="text-ods-text-secondary text-h5">Client Chat</h2>
+                  {clientChatBody}
+                </>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                  {ticketDetailsBody}
+                </div>
+              )}
+            </div>
 
-          {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
+            {/* Tablet/mobile (<lg): single column — ticket info/attachments/tags fold into the
               Ticket Details tab; the client chat (when present) gets its own tab without them. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:hidden">
-            {hasClientChat ? (
-              <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
-                {active =>
-                  active === 'chat' ? (
-                    <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
-                  ) : (
-                    <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
-                      {ticketDetailsBody}
-                      {sidebarContent}
-                    </div>
-                  )
-                }
-              </TabNavigation>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
-                {ticketDetailsBody}
-                {sidebarContent}
-              </div>
-            )}
-          </div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)] content-lg:hidden">
+              {hasClientChat ? (
+                <TabNavigation tabs={mainTabs} activeTab={mainTab} onTabChange={handleMainTabChange}>
+                  {active =>
+                    active === 'chat' ? (
+                      <div className="flex min-h-0 flex-1 flex-col pt-[var(--spacing-system-mf)]">{clientChatBody}</div>
+                    ) : (
+                      <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto pt-[var(--spacing-system-mf)]">
+                        {ticketDetailsBody}
+                        {sidebarContent}
+                      </div>
+                    )
+                  }
+                </TabNavigation>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)] overflow-y-auto">
+                  {ticketDetailsBody}
+                  {sidebarContent}
+                </div>
+              )}
+            </div>
 
-          {/* Right sidebar — desktop only */}
-          <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] content-lg:flex content-lg:w-80 content-lg:overflow-auto">
-            {sidebarContent}
-          </aside>
-        </div>
-      </PageLayout>
+            {/* Right sidebar — desktop only */}
+            <aside className="hidden min-h-0 shrink-0 flex-col gap-[var(--spacing-system-l)] content-lg:flex content-lg:w-80 content-lg:overflow-auto">
+              {sidebarContent}
+            </aside>
+          </div>
+        </PageLayout>
+      </LoadingWhen>
 
       <ReopenTicketModal target={reopenTarget} onClose={() => setReopenTarget(null)} />
 

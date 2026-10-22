@@ -1,14 +1,14 @@
 'use client';
 
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   fetchQuery,
   graphql,
@@ -24,7 +24,15 @@ import type {
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
 import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -34,7 +42,7 @@ import {
   type KnowledgeBaseListing,
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
-import { OpenItemButton } from '../shared/open-item-button';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
@@ -130,7 +138,7 @@ function buildColumns(
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ItemRow> }) => <OpenItemButton href={rowHref(row.original)} />,
+      cell: ({ row }: { row: Row<ItemRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
     },
@@ -147,14 +155,28 @@ interface KnowledgeBaseItemsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The rows of a knowledge base level — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function KnowledgeBaseItemsTable({
-  listing,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: KnowledgeBaseItemsTableProps) {
-  const { toast } = useToast();
+/**
+ * The rows of a knowledge base level. In a loading scope (the view's Suspense fallback) it draws the table over one
+ * page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which
+ * suspends, so it lives under the view's `<Suspense>`.
+ */
+export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <KnowledgeBaseItemsRows
+        {...props}
+        rows={NO_ITEMS}
+        totalCount={0}
+        listingIds={NO_ITEMS}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <KnowledgeBaseItemsTableQuery {...props} />;
+}
+
+function KnowledgeBaseItemsTableQuery(props: KnowledgeBaseItemsTableProps) {
+  const { listing } = props;
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
   // Mingo can add a row from the chat; its create refetches the list.
@@ -185,22 +207,50 @@ export function KnowledgeBaseItemsTable({
 
   const rows = items.edges.map(edge => edge.node);
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more items', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more items');
 
+  return (
+    <KnowledgeBaseItemsRows
+      {...props}
+      rows={rows}
+      totalCount={items.filteredCount}
+      listingIds={[items.__id]}
+      infiniteScroll={infiniteScroll}
+    />
+  );
+}
+
+interface KnowledgeBaseItemsRowsProps extends KnowledgeBaseItemsTableProps {
+  rows: readonly ItemRow[];
+  totalCount: number;
+  /** The connections a row's dialog marks stale. */
+  listingIds: readonly string[];
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function KnowledgeBaseItemsRows({
+  rows,
+  totalCount,
+  listingIds,
+  infiniteScroll,
+  listing,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: KnowledgeBaseItemsRowsProps) {
+  const loading = useLoadingScope();
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ItemRow, ItemDialogKind>();
 
   const isSubtree = isSubtreeListing(listing);
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<ItemRow>(KNOWLEDGE_BASE_PAGE_SIZE) : null),
+    [loading],
+  );
   const table = useDataTable<ItemRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as ItemRow[]),
     columns: buildColumns(isSubtree, openDialog),
     getRowId,
     enableSorting: false,
@@ -208,7 +258,7 @@ export function KnowledgeBaseItemsTable({
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); a level with nothing on it gets the page's empty state instead.
-  const showEmptyState = !isSubtree && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !isSubtree && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -223,33 +273,22 @@ export function KnowledgeBaseItemsTable({
           description="Create your first article or folder to start building your knowledge base"
         />
       ) : (
-        // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-        <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-          <DataTable table={table}>
-            <DataTable.Header
-              stickyHeader
-              stickyHeaderOffset={stickyHeaderOffset}
-              rightSlot={<DataTable.RowCount itemName="item" totalCount={items.filteredCount} />}
-            />
-            <DataTable.Body
-              emptyState={{
-                title: listing.search
-                  ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
-                  : 'No articles match the selected tags. Try adjusting your filters.',
-              }}
-              rowClassName="mb-1"
-              rowHref={rowHref}
-            />
-            {rows.length > 0 && (
-              <DataTable.InfiniteFooter
-                hasNextPage={hasNext}
-                isFetchingNextPage={isLoadingNext}
-                onLoadMore={fetchNextPage}
-                skeletonRows={2}
-              />
-            )}
-          </DataTable>
-        </div>
+        <LiveTable
+          table={table}
+          pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
+          loadingCells={loading}
+          totalCount={totalCount}
+          itemName="item"
+          emptyState={{
+            title: listing.search
+              ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
+              : 'No articles match the selected tags. Try adjusting your filters.',
+          }}
+          rowHref={rowHref}
+          footer={rows.length > 0 ? infiniteScroll : null}
+          isPending={isPending}
+          stickyHeaderOffset={stickyHeaderOffset}
+        />
       )}
 
       {/* Outside both branches: deleting the last row swaps the table for the empty state mid-dialog. */}
@@ -259,7 +298,7 @@ export function KnowledgeBaseItemsTable({
           kind={dialog.kind}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingIds={[items.__id]}
+          listingIds={listingIds}
         />
       )}
     </>

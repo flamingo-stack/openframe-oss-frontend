@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { softwareDetailContentQuery as SoftwareDetailContentQueryType } from '@/__generated__/softwareDetailContentQuery.graphql';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -34,6 +35,20 @@ const softwareDetailContentQuery = graphql`
  * not-found report; the tabs below it answer for themselves, with empty lists.
  */
 export function SoftwareDetailContent({ softwareId }: { softwareId: string }) {
+  // In a loading scope (the view's Suspense fallback, or the module's flag window): the same header and card with
+  // no record, each its own loading state, and no fetch.
+  if (useLoadingScope()) {
+    return (
+      <>
+        <SoftwareDetailHeader software={null} />
+        <SoftwareDetailSummary software={null} />
+      </>
+    );
+  }
+  return <SoftwareDetailContentQuery softwareId={softwareId} />;
+}
+
+function SoftwareDetailContentQuery({ softwareId }: { softwareId: string }) {
   const retryKey = useRetryKey();
   const { software } = useLazyLoadQuery<SoftwareDetailContentQueryType>(
     softwareDetailContentQuery,

@@ -19,8 +19,9 @@ import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-co
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
@@ -28,8 +29,8 @@ import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
 /** Column layout per Figma 1755-93683: TICKET takes the rest, ASSIGNED 280, STATUS 200, two buttons. */
 const RECORDING_TICKET_COLUMNS = {
   ticket: { id: 'ticket', header: 'TICKET', width: 'flex-1 min-w-0', sortable: true },
-  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg', filterable: true },
-  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg', filterable: true },
+  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg' },
+  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
@@ -91,11 +92,7 @@ function recordingTicketColumns({
       cell: ({ row }: { row: Row<RecordingTicket> }) => {
         const name = row.original.assignedName;
         if (!name) {
-          return (
-            <span className="text-h4">
-              <EmptyValue />
-            </span>
-          );
+          return <ValueText value={null} />;
         }
         return (
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
@@ -210,7 +207,7 @@ export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicket
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={(ticket: RecordingTicket) => routes.tickets.dialog(ticket.id)}
           emptyState={{
             icon: <TicketIcon />,

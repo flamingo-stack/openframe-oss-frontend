@@ -171,6 +171,7 @@ export function Policies() {
             className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Policies"
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
@@ -191,13 +192,13 @@ export function Policies() {
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No policies found." under the strip
             // above. Same rule, one component down.
-            emptyMessage={
-              canClaimEmpty
+            emptyState={{
+              title: canClaimEmpty
                 ? debouncedSearch
                   ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No policies found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            }}
             hasMore={visibleCount < filteredPolicies.length}
             onLoadMore={handleLoadMore}
           />

@@ -1,22 +1,22 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
-  PageLayout,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
 import { SectionLoadError, useRetryKey } from '@/app/components/shared';
-import { safeBackOrReplace, useSafeBack } from '@/app/hooks/use-safe-back';
+import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
 import { MINT_FAILED, useStartConsent } from '../consent/use-start-consent';
+import { SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
-import { TenantFormSkeleton } from '../tenant-form/tenant-form-skeleton';
 
 const reconnectTenantViewQuery = graphql`
   query reconnectTenantViewQuery($id: ID!) {
@@ -29,9 +29,25 @@ const reconnectTenantViewQuery = graphql`
   }
 `;
 
+/**
+ * The page's record and everything that waits for it. In a loading scope (the view's Suspense fallback, or the
+ * module's flag window) the chrome is real, the identity card and the consent block draw their own loading states,
+ * and nothing is read or minted.
+ */
 function ReconnectTenantContent({ id }: { id: string }) {
+  if (useLoadingScope()) {
+    return (
+      <TenantFormFrame title="Reconnect Tenant Integration">
+        <TenantIdentityCard connection={null} />
+        <ConsentBlock mode="reconnect" provider={null} />
+      </TenantFormFrame>
+    );
+  }
+  return <ReconnectTenantContentQuery id={id} />;
+}
+
+function ReconnectTenantContentQuery({ id }: { id: string }) {
   const router = useRouter();
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const retryKey = useRetryKey();
   // `store-or-network`: the mint below fires on mount, and a background refetch of `consentUrl` that
   // landed after it would write the old, empty value back over the fresh link. The store holds what
@@ -53,8 +69,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
 
   const actions: PageActionButton[] = [
     {
-      label: 'Save Integration',
-      variant: 'accent',
+      ...SAVE_PLACEHOLDER,
       // Nothing of its own to write: back to the details page, which the probe has already updated.
       onClick: () => safeBackOrReplace(router, routes.cloudTenantManagement.details(id)),
       disabled: !connection || isMinting || isChecking,
@@ -62,12 +77,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
   ];
 
   return (
-    <PageLayout
-      title="Reconnect Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-    >
+    <TenantFormFrame title="Reconnect Tenant Integration" actions={actions}>
       {connection ? (
         <>
           <TenantIdentityCard connection={connection} />
@@ -87,15 +97,15 @@ function ReconnectTenantContent({ id }: { id: string }) {
       ) : (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       )}
-    </PageLayout>
+    </TenantFormFrame>
   );
 }
 
 /** `/cloud-tenant-management/reconnect` (Figma 2108-81037): the identity card over the re-approve consent card. */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
-    <Suspense fallback={<TenantFormSkeleton variant="reconnect" />}>
+    <LoadingSuspense label="Loading tenant">
       <ReconnectTenantContent id={id} />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

@@ -1,7 +1,8 @@
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { MediaSkeleton, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type React from 'react';
 import { isEmptyValue } from '@/lib/empty-value';
-import { EmptyValue } from './empty-value';
+import { ValueText } from './value-text';
 
 /**
  * InfoCell — reusable cell with primary value and secondary label, used in
@@ -12,39 +13,88 @@ import { EmptyValue } from './empty-value';
  * - `<InfoCell value={<>{date} <span className="...">{time}</span></>} label="Updated" />`
  * - `<InfoCell value="Laptop" label="Type" icon={<LaptopIcon />} />`
  * - `<InfoCell value="example.com" label="Website" href="https://example.com" />`
+ *
+ * Loading: in a loading scope (or with `loading`) the cell draws itself with its label real. A text value (a string
+ * or a number) is the shared `ValueText`, a bar of the value's own line (`skeletonWidth`). A non-text value (a status
+ * tag) is rendered as it is, inside the cell's own loading scope, where it switches itself: the caller passes it ONCE,
+ * with no data while it is read. `valueSkeleton` is only for a value that is ABSENT while loading (the caller has no
+ * element to give yet): it is drawn in that scope instead of the bar. A plain icon is replaced by an icon box while
+ * loading when the caller states its size (`iconSkeleton`), so a caller passes only the REAL icon; an icon that switches
+ * itself is drawn in the scope. Callers render the cell, never a copy of it.
  */
 export interface InfoCellProps {
   /** The value — missing, blank or a formatter's empty mark draws the muted empty mark, so callers pass the raw field. */
   value: React.ReactNode;
   label: string;
+  /** The REAL icon. When it does not switch itself, state `iconSkeleton` and the cell draws its box while loading. */
   icon?: React.ReactNode;
+  /** The icon's box while loading (the lib's `MediaSkeleton.Icon` size and classes), for a plain icon. */
+  iconSkeleton?: { size?: 'sm' | 'md' | 'lg'; className?: string };
   /** When set, the whole cell becomes an external link. */
   href?: string;
   className?: string;
+  /** Draw the value as a bar (the read value is not here yet). A loading scope does the same. */
+  loading?: boolean;
+  /** The value bar's width while loading (a Tailwind width class). */
+  skeletonWidth?: string;
+  /** Only for a value that is ABSENT while loading (`value` is missing): the REAL component with no data (a status tag
+   *  with no label), drawn in the cell's loading scope where it draws its own skeleton. A non-text `value` is never
+   *  passed here again: the cell draws it in the scope itself. */
+  valueSkeleton?: React.ReactNode;
+  /** The label is read too (a date under an identifier): while loading it is a text bar of this width. */
+  labelSkeletonWidth?: string;
 }
 
-export function InfoCell({ value, label, icon, href, className }: InfoCellProps) {
+export function InfoCell({
+  value,
+  label,
+  icon,
+  iconSkeleton,
+  href,
+  className,
+  loading,
+  skeletonWidth = 'w-32',
+  valueSkeleton,
+  labelSkeletonWidth,
+}: InfoCellProps) {
+  const isLoading = useLoadingScope() || !!loading;
+  const missing = isEmptyValue(value);
+  /** The value when it is text (or missing): drawn by `ValueText`, like every text value. */
+  const isText = missing || typeof value === 'string' || typeof value === 'number';
   const content = (
     <div className={`flex min-w-0 flex-1 flex-col justify-center ${className ?? ''}`}>
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        {icon && <span className="shrink-0">{icon}</span>}
-        {isEmptyValue(value) ? (
-          <div className="min-w-0 flex-1 text-h4">
-            <EmptyValue />
-          </div>
-        ) : typeof value === 'string' ? (
-          <div className="min-w-0 flex-1">
-            <TruncateText>{value}</TruncateText>
-          </div>
-        ) : (
-          <div className="truncate text-ods-text-primary text-h4">{value}</div>
-        )}
+        <LoadingWhen loading={isLoading}>
+          {isLoading && iconSkeleton ? (
+            <MediaSkeleton.Icon size={iconSkeleton.size} className={`shrink-0 ${iconSkeleton.className ?? ''}`} />
+          ) : (
+            icon && <span className="shrink-0">{icon}</span>
+          )}
+          {isLoading && missing && valueSkeleton ? (
+            <div className="min-w-0 flex-1">{valueSkeleton}</div>
+          ) : isText ? (
+            <div className="min-w-0 flex-1">
+              <ValueText
+                value={isLoading || missing ? null : (value as string | number)}
+                loading={isLoading}
+                skeletonWidth={skeletonWidth}
+              />
+            </div>
+          ) : (
+            // A non-text value switches itself in this scope while loading: the same box in both forms.
+            <div className="truncate text-ods-text-primary text-h4">{value}</div>
+          )}
+        </LoadingWhen>
       </div>
-      <p className="truncate text-ods-text-secondary text-h6">{label}</p>
+      {isLoading && labelSkeletonWidth ? (
+        <TextLineSkeleton type="h6" className={labelSkeletonWidth} />
+      ) : (
+        <p className="truncate text-ods-text-secondary text-h6">{label}</p>
+      )}
     </div>
   );
 
-  if (href) {
+  if (href && !isLoading) {
     return (
       <a
         href={href}

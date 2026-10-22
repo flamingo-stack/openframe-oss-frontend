@@ -138,7 +138,12 @@ export function TenantConsentIssues({ connection }: { connection: tenantConsentI
   const { occurredAt, issues } = lastConsentInfo;
 
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-xxs)]" aria-label="Consent issues">
+    // Only some tenants have any: it sits below the integration section and is left out while loading.
+    <section
+      data-loading-optional
+      className="flex flex-col gap-[var(--spacing-system-xxs)]"
+      aria-label="Consent issues"
+    >
       <p className="text-ods-text-secondary text-h5">Consent issues</p>
       <ul className="flex flex-col rounded-md border border-ods-border bg-ods-card">
         {issues.map(issue => {

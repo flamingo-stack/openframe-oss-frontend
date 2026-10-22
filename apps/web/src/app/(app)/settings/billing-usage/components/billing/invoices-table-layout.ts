@@ -1,16 +1,9 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 
 /**
- * Column layout of the Invoices History table — read by the live table and by
- * `BillingUsageSkeleton`, which stands in for it.
- *
- * Declared apart from `invoices-history.tsx` for the reason the shared
- * `table-column-layout` module exists: a skeleton must not import the real table
- * just to learn its widths (that table carries `useDataTable`, the cell
- * renderers and the status-tag mapping). The page skeleton used to hand-roll its
- * own flex rows instead, which is how it ended up laid out unlike every other
- * table's loading state; both sides now read this array and render the same
- * `DataTable`.
+ * Column layout of the Invoices History table, read by its column builder (`invoices-table-columns.tsx`). While the
+ * history is read the table holds `INVOICES_SKELETON_ROWS` placeholder rows and the body draws them with these same
+ * cells (`DataTable.Body loadingCells`), each cell its own loading form.
  *
  * ## Narrow widths are handled by `hideAt`, like every other table here
  *
@@ -68,7 +61,6 @@ const INVOICE_COLUMNS = {
     id: 'status',
     header: 'STATUS',
     width: 'flex-1 min-w-0',
-    filterable: true,
     hideAt: 'md',
   },
   // Never hidden: this is the link that pays the invoice, and it is the only
@@ -82,11 +74,8 @@ const INVOICE_COLUMNS = {
 
 export { INVOICE_COLUMNS };
 
-/** Render order, shared by the live table and its skeleton. */
-export const INVOICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  INVOICE_COLUMNS.invoiceNumber,
-  INVOICE_COLUMNS.dueDate,
-  INVOICE_COLUMNS.amountDue,
-  INVOICE_COLUMNS.status,
-  INVOICE_COLUMNS.actions,
-];
+/**
+ * Placeholder rows the invoices table holds (and draws with its real cells) while it loads. The history is not paged (Stripe's whole list arrives at once), so
+ * there is no page size to draw: this is the typical count, short because a workspace's invoice history is short.
+ */
+export const INVOICES_SKELETON_ROWS = 3;

@@ -6,10 +6,8 @@ import {
   Button,
   NoData,
   PageLayout,
-  TruncateText,
 } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { getDeviceName, RemoteDesktopChatPanel } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChatsIcon,
   Chevron02DownIcon,
@@ -22,20 +20,24 @@ import {
   Settings01Icon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { UnreadDot } from '@flamingo-stack/openframe-frontend-core/components/navigation';
+import { LIVE_PULSE_CLASS, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLocalStorage, useMediaQuery, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { RemoteAccessGate } from '@/app/(app)/devices/components/remote-access/remote-access-gate';
 import { useRemoteAccessSession } from '@/app/(app)/devices/components/remote-access/remote-access-session-context';
+import { RemoteDesktopDeviceInfo } from '@/app/(app)/devices/components/remote-desktop/remote-desktop-device-info';
 import { RecordingWarningAlert } from '@/app/(app)/devices/components/remote-sessions/recording-storage-banner';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useRemoteSessionActionReporter } from '@/app/(app)/devices/hooks/use-remote-session-action-reporter';
 import { useRemoteSessionChat, useRemoteSessionDialogId } from '@/app/(app)/devices/hooks/use-remote-session-chat';
 import { buildRemoteAccessRelayIdPrefix, type RemoteSessionEndReason } from '@/app/(app)/devices/types/remote-access';
+import { toDesktopChatMessage } from '@/app/(app)/devices/types/remote-session-chat';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
 import { useTrackOpenView } from '@/app/(app)/mingo/context/use-track-open-view';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { MeshControlClient } from '@/lib/meshcentral/meshcentral-control';
@@ -53,7 +55,6 @@ import {
   SHORTCUT_DESCRIPTIONS,
   shortcutAction,
 } from './remote-shortcuts';
-import { SessionChatPanel } from './session-chat-panel';
 import { SessionToolbar } from './session-toolbar';
 import { ShortcutsSettingsModal } from './shortcuts-settings-modal';
 import { REMOTE_TOOLBAR_AUTO_HIDE_STORAGE_KEY, useAutoHideToolbar } from './use-auto-hide-toolbar';
@@ -670,35 +671,11 @@ function RemoteDesktopSession() {
       : [];
   const currentDisplayLabel = currentDisplay === null ? 'Display' : displayLabel(currentDisplay);
 
-  if (!legacyDeviceData && isDeviceLoading) {
-    return (
-      <PageLayout
-        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-        backButton={{ label: 'Back', onClick: handleBack }}
-      >
-        <LoadingRegion className="contents" label="Loading device">
-          <div className="flex flex-shrink-0 flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:flex-row content-lg:items-center content-lg:justify-between">
-            <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-              <UnifiedSkeleton className="h-9 w-9 flex-shrink-0 rounded-md" />
-              <div className="flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]">
-                <UnifiedSkeleton className="h-5 w-48" />
-                <UnifiedSkeleton className="h-4 w-36" />
-              </div>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-[var(--spacing-system-m)]">
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-              <UnifiedSkeleton className="h-11 w-11 rounded-lg md:h-12 md:w-12" />
-            </div>
-          </div>
+  // The device is read: the page draws itself in a loading scope (one tree, so the canvas keeps its DOM node when
+  // the device answers): the device block its own loading state, the controls inert, the canvas's frame.
+  const deviceLoading = !legacyDeviceData && isDeviceLoading;
 
-          <div className="min-h-0 min-w-0 flex-1 rounded-lg bg-black" />
-        </LoadingRegion>
-      </PageLayout>
-    );
-  }
-
-  if (!legacyDeviceData && deviceError) {
+  if (!deviceLoading && !legacyDeviceData && deviceError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
         <div className="text-ods-error text-h4">Error: {deviceError}</div>
@@ -707,7 +684,7 @@ function RemoteDesktopSession() {
     );
   }
 
-  if (!meshcentralAgentId) {
+  if (!deviceLoading && !meshcentralAgentId) {
     const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote desktop');
     return (
       <div className="flex h-full flex-col items-center justify-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
@@ -719,18 +696,10 @@ function RemoteDesktopSession() {
   }
 
   const deviceInfoBlock = (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-      <div className="flex-shrink-0 rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-xsf)]">
-        <MonitorIcon className="h-4 w-4 text-ods-text-secondary" />
-      </div>
-      <div className="flex min-w-0 flex-col">
-        <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
-        <TruncateText
-          variant="h6"
-          tone="secondary"
-        >{`Desktop • ${organizationName || 'Unknown Customer'}`}</TruncateText>
-      </div>
-    </div>
+    <RemoteDesktopDeviceInfo
+      title={deviceName || `Device ${deviceId}`}
+      subtitle={`Desktop • ${organizationName || 'Unknown Customer'}`}
+    />
   );
 
   // Header per Figma 2155-109503 (desktop) / 2164-111246 (tablet): the device
@@ -757,12 +726,18 @@ function RemoteDesktopSession() {
               {chatUnread && <span className="sr-only"> (new message)</span>}
             </Button>
           )}
-          <ActionsMenuDropdown groups={actionsMenuGroups} triggerAriaLabel="Actions" />
+          {/* While the device is read the actions wait on it: the menu is empty and the buttons inert. */}
+          <ActionsMenuDropdown
+            groups={deviceLoading ? NO_ITEMS : actionsMenuGroups}
+            open={deviceLoading ? false : undefined}
+            triggerAriaLabel="Actions"
+          />
           <Button
             variant="outline"
             size="icon"
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             onClick={isFullscreen ? exitFullscreen : enterFullscreen}
+            disabled={deviceLoading}
             leftIcon={isFullscreen ? <Collapse02Icon /> : <Expand02Icon />}
           />
           <Button
@@ -770,6 +745,7 @@ function RemoteDesktopSession() {
             size="icon"
             aria-label="Settings"
             onClick={() => setSettingsOpen(true)}
+            disabled={deviceLoading}
             leftIcon={<Settings01Icon />}
           />
         </div>
@@ -796,8 +772,8 @@ function RemoteDesktopSession() {
 
   const chatPanel = (variant: 'side' | 'overlay') =>
     showChat && chatDialogId ? (
-      <SessionChatPanel
-        messages={chat.messages}
+      <RemoteDesktopChatPanel
+        messages={chat.messages.map(toDesktopChatMessage)}
         loading={chat.isLoading}
         technician={chat.technician}
         sending={chat.sending}
@@ -842,7 +818,7 @@ function RemoteDesktopSession() {
             {[0, 1, 2].map(i => (
               <span
                 key={i}
-                className="size-1 animate-pulse rounded-full bg-ods-text-secondary"
+                className={`size-1 rounded-full bg-ods-text-secondary ${LIVE_PULSE_CLASS}`}
                 style={{ animationDelay: `${i * 250}ms` }}
               />
             ))}
@@ -855,7 +831,8 @@ function RemoteDesktopSession() {
       )}
       {connectionStatus === 'reconnecting' && !sessionEnded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[var(--spacing-system-sf)] bg-ods-overlay">
-          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          {/* A busy mark while it reconnects: a live state, never a loading one. */}
+          <Loading01Icon className={`h-8 w-8 text-ods-text-secondary ${LIVE_PULSE_CLASS}`} />
           <span className="text-ods-text-primary text-h4">Connection lost</span>
           <span className="text-ods-text-secondary text-h6">Attempting to reconnect...</span>
         </div>
@@ -920,49 +897,51 @@ function RemoteDesktopSession() {
   );
 
   return (
-    <PageLayout
-      className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      showHeader={!isFullscreen}
-    >
-      <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
-        {!overlayToolbar && controlsBar}
-        {/* Figma 2328-20570: the session started while recording storage was full. Windowed only, as drawn. */}
-        {!isFullscreen && remoteSession?.recordingSuppressed === 'storage_full' && (
-          <RecordingWarningAlert className="flex-shrink-0">
-            This session isn&apos;t being recorded. Recording storage is full. New sessions aren&apos;t recorded until
-            space is freed.
-          </RecordingWarningAlert>
-        )}
-        {/* One wrapper in both modes: the canvas must keep its DOM node across
+    <LoadingWhen loading={deviceLoading}>
+      <PageLayout
+        className="h-full overflow-hidden px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        backButton={{ label: 'Back', onClick: handleBack }}
+        showHeader={!isFullscreen}
+      >
+        <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-black' : 'contents'}>
+          {!overlayToolbar && controlsBar}
+          {/* Figma 2328-20570: the session started while recording storage was full. Windowed only, as drawn. */}
+          {!isFullscreen && remoteSession?.recordingSuppressed === 'storage_full' && (
+            <RecordingWarningAlert className="flex-shrink-0">
+              This session isn&apos;t being recorded. Recording storage is full. New sessions aren&apos;t recorded until
+              space is freed.
+            </RecordingWarningAlert>
+          )}
+          {/* One wrapper in both modes: the canvas must keep its DOM node across
             the fullscreen toggle (MeshDesktop is attached to it once), so the
             tree shape never changes - only the side panel comes and goes. */}
-        <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
-          {canvasContainer}
-          {!isFullscreen && chatPanel('side')}
+          <div className={`flex min-h-0 min-w-0 flex-1 ${isFullscreen ? '' : 'gap-[var(--spacing-system-mf)]'}`}>
+            {canvasContainer}
+            {!isFullscreen && chatPanel('side')}
+          </div>
         </div>
-      </div>
 
-      <RemoteSettingsModal
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        currentSettings={remoteSettings}
-        desktopRef={desktopRef}
-        tunnelRef={tunnelRef}
-        connectionState={state}
-        onSettingsChange={setRemoteSettings}
-        autoHideToolbar={autoHideToolbar}
-        onAutoHideToolbarChange={setAutoHideToolbar}
-      />
-
-      {shortcutsOpen && (
-        <ShortcutsSettingsModal
-          open={shortcutsOpen}
-          onOpenChange={setShortcutsOpen}
-          shortcuts={shortcuts}
-          onSave={setShortcuts}
+        <RemoteSettingsModal
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          currentSettings={remoteSettings}
+          desktopRef={desktopRef}
+          tunnelRef={tunnelRef}
+          connectionState={state}
+          onSettingsChange={setRemoteSettings}
+          autoHideToolbar={autoHideToolbar}
+          onAutoHideToolbarChange={setAutoHideToolbar}
         />
-      )}
-    </PageLayout>
+
+        {shortcutsOpen && (
+          <ShortcutsSettingsModal
+            open={shortcutsOpen}
+            onOpenChange={setShortcutsOpen}
+            shortcuts={shortcuts}
+            onSave={setShortcuts}
+          />
+        )}
+      </PageLayout>
+    </LoadingWhen>
   );
 }

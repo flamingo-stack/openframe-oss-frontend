@@ -8,3 +8,8 @@ export const DEVICE_LOG_LEVEL_COLUMN = 'w-16';
 /** The day heading above each day's lines — the skeleton draws the same box. */
 export const DEVICE_LOG_DAY_HEADER =
   'flex items-center gap-[var(--spacing-system-xs)] pb-[var(--spacing-system-xxs)] pt-[var(--spacing-system-s)]';
+/** The column the list's days, and each day's lines, stack in: a one-column grid, not a column flex, because the list
+ *  grows with every page and live-tail update and WebKit re-measures every column-flex child on each layout. */
+export const DEVICE_LOG_LIST_CLASS = 'grid grid-cols-1 gap-[var(--spacing-system-xxs)]';
+/** The list's top and bottom sentinels (the live tail's "at top" probe, the infinite scroll's trigger). */
+export const DEVICE_LOG_SENTINEL_CLASS = 'h-px';

@@ -1,84 +1,42 @@
 'use client';
 
-import { DeviceCardSkeleton, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import {
-  getDeviceName,
-  getDeviceOperatingSystem,
-  getDeviceStatusConfig,
-} from '@flamingo-stack/openframe-frontend-core/components/features';
-import { DeviceCard } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { DEVICE_DETAILS_BUTTON_BOX, DeviceDetailsButton } from '@/app/(app)/devices/components/device-details-button';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import type { PartialNamedDevice } from '@/app/(app)/devices/types/device.types';
+import { DeviceSummaryCard } from './device-summary-card';
+import { EmptyValue } from './empty-value';
 
 interface DeviceInfoSectionProps {
   deviceId?: string;
   device?: PartialNamedDevice; // Accept device data from log or dialog
 }
 
+/**
+ * The device a log or ticket names, as its card. Reads the device itself when only an id is given; while it is read
+ * (or in a loading scope, where it reads nothing) the card draws its own loading state under the real title. Most
+ * records name a device, so the section is always drawn: a record with none (or a device no longer found) shows the
+ * empty mark under the title.
+ */
 export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {
-  const { deviceDetails, isLoading } = useDeviceDetails(deviceId && !deviceFromProps ? deviceId : null, {
+  const inScope = useLoadingScope();
+  const { deviceDetails, isLoading } = useDeviceDetails(!inScope && deviceId && !deviceFromProps ? deviceId : null, {
     polling: false,
   });
 
   // Use device from props if available, otherwise use fetched deviceDetails
   const device = deviceFromProps || deviceDetails;
-
-  // Show loading state only if we're fetching and don't have data from props
-  if (isLoading && !deviceFromProps) {
-    return (
-      <LoadingRegion label="Loading device info" className="flex w-full flex-col gap-1">
-        <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-        <DeviceCardSkeleton moreButton={false} detailsButtonClassName={DEVICE_DETAILS_BUTTON_BOX} />
-      </LoadingRegion>
-    );
-  }
-
-  // If no device details available, don't show anything
-  if (!device && !deviceId) {
-    return null;
-  }
+  // Loading only while we fetch and have no data from props.
+  const loading = inScope || (isLoading && !deviceFromProps);
 
   return (
     <div className="flex w-full flex-col gap-1">
-      {/* Section Title */}
       <div className="w-full text-ods-text-secondary text-h5">Device Info</div>
-
-      {/* Use DeviceCard component - matching devices-grid.tsx pattern */}
-      {device && (
-        <DeviceCard
-          device={{
-            id: device.id || deviceId || '',
-            machineId: device.machineId || deviceId || '',
-            name: getDeviceName(device) || deviceId || '',
-            organization: device.organization || device.machineId || deviceId || '',
-            lastSeen: device.lastSeen || device.last_seen,
-            operatingSystem: getDeviceOperatingSystem(device.osType),
-          }}
-          statusTag={
-            device.status
-              ? {
-                  label: getDeviceStatusConfig(device.status).label,
-                  variant: getDeviceStatusConfig(device.status).variant,
-                }
-              : undefined
-          }
-          actions={{
-            moreButton: {
-              visible: false,
-            },
-            detailsButton: {
-              visible: true,
-              component: (
-                <DeviceDetailsButton
-                  deviceId={device.id || deviceId || ''}
-                  machineId={device.machineId || deviceId || ''}
-                  className="shrink-0"
-                />
-              ),
-            },
-          }}
-        />
+      {loading || device ? (
+        <DeviceSummaryCard device={device} deviceId={deviceId} loading={loading} />
+      ) : (
+        <span className="text-h4">
+          <EmptyValue />
+        </span>
       )}
     </div>
   );

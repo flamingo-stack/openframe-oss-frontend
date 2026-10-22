@@ -2,7 +2,13 @@
 'use no memo';
 
 import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
-import { Button, CheckboxBlock, Input, Label } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  Button,
+  CheckboxBlock,
+  Input,
+  Label,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
@@ -10,7 +16,10 @@ import { Controller, useForm } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
-import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
+import type {
+  scriptDetailRelayQuery as ScriptDetailQueryType,
+  scriptDetailRelayQuery$data,
+} from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { ScriptSummaryCard } from '@/app/(app)/scripts/script/components/script-summary-card';
 import { scriptArgumentSchema } from '@/app/(app)/scripts/shared/types/edit-script.types';
 import { initiatorName } from '@/app/(app)/scripts/shared/utils/execution-helpers';
@@ -21,6 +30,7 @@ import {
   platformsToIds,
   shellToId,
 } from '@/app/(app)/scripts/shared/utils/script-mappers';
+import { NO_ITEMS } from '@/app/components/shared';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
 
@@ -32,6 +42,10 @@ const runFormSchema = z.object({
 });
 
 type RunFormData = z.infer<typeof runFormSchema>;
+
+/** The one empty row each list shows when the script has no saved values (empty rows are dropped on submit). */
+const EMPTY_ARG_ROW = { id: 'arg-0', key: '', value: '' };
+const EMPTY_ENV_ROW = { id: 'env-0', key: '', value: '' };
 
 interface RunScriptConfigStepProps {
   scriptId: string;
@@ -48,23 +62,38 @@ interface RunScriptConfigStepProps {
  * `batchRunScript` to this one machine. Suspends on the detail query; render
  * inside a `<Suspense>`.
  */
-export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunScriptConfigStepProps) {
-  const { toast } = useToast();
+export function RunScriptConfigStep(props: RunScriptConfigStepProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
-    { id: scriptId },
+    { id: props.scriptId },
     { fetchPolicy: 'store-and-network' },
   );
-  const script = data.script;
+  return <RunScriptConfigStepView {...props} script={data.script ?? null} />;
+}
+
+/**
+ * The step over the script it is handed. The modal's Suspense fallback draws it in a loading scope with no script
+ * (every part its own loading state), so loading and loaded are one layout.
+ */
+export function RunScriptConfigStepView({
+  scriptId,
+  machineId,
+  onBack,
+  onRan,
+  script,
+}: RunScriptConfigStepProps & { script: scriptDetailRelayQuery$data['script'] | null }) {
+  const { toast } = useToast();
+  const loading = useLoadingScope();
   const [commitBatchRun, isRunning] = useMutation<BatchRunScriptMutationType>(batchRunScriptMutation);
 
   const { control, handleSubmit, reset } = useForm<RunFormData>({
     resolver: zodResolver(runFormSchema),
-    defaultValues: { timeout: 90, runAsUser: false, scriptArgs: [], envVars: [] },
+    defaultValues: { timeout: 90, runAsUser: false, scriptArgs: [EMPTY_ARG_ROW], envVars: [EMPTY_ENV_ROW] },
   });
 
   // Seed the overridable fields from the script's saved defaults once it loads.
-  // Show one empty row when there are none so the inputs are visible; empty rows
+  // Show one empty row when there are none so the inputs are visible (the same row
+  // the form starts with, so nothing appears when the script arrives); empty rows
   // are dropped on submit.
   useEffect(() => {
     if (!script) return;
@@ -73,8 +102,8 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
     reset({
       timeout: script.defaultTimeoutSeconds ?? 90,
       runAsUser: script.privilegeLevel === 'USER',
-      scriptArgs: parsedArgs.length > 0 ? parsedArgs : [{ id: 'arg-0', key: '', value: '' }],
-      envVars: parsedEnv.length > 0 ? parsedEnv : [{ id: 'env-0', key: '', value: '' }],
+      scriptArgs: parsedArgs.length > 0 ? parsedArgs : [EMPTY_ARG_ROW],
+      envVars: parsedEnv.length > 0 ? parsedEnv : [EMPTY_ENV_ROW],
     });
   }, [script, reset]);
 
@@ -108,7 +137,7 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
     }
   };
 
-  if (!script) {
+  if (!loading && !script) {
     return <p className="text-ods-text-secondary text-h6">Script not found.</p>;
   }
 
@@ -116,11 +145,11 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
     <div className="flex min-h-0 flex-1 flex-col gap-[var(--spacing-system-l)]">
       <div className="min-h-0 flex-1 space-y-[var(--spacing-system-l)] overflow-y-auto">
         <ScriptSummaryCard
-          name={script.name}
-          description={script.description}
-          shellId={shellToId(script.shell)}
-          platforms={platformsToIds(script.supportedPlatforms)}
-          author={script.author ? initiatorName(script.author) : null}
+          name={script?.name ?? ''}
+          description={script?.description}
+          shellId={script ? shellToId(script.shell) : ''}
+          platforms={script ? platformsToIds(script.supportedPlatforms) : NO_ITEMS}
+          author={script?.author ? initiatorName(script.author) : null}
           showTimeout={false}
         />
 
@@ -131,10 +160,12 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
               name="timeout"
               control={control}
               render={({ field }) => (
+                // In the loading scope the field draws its saved timeout as a bar and takes no input yet.
                 <Input
                   type="number"
                   className="w-full"
                   value={field.value}
+                  disabled={loading}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
                 />
@@ -150,6 +181,7 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
                 checked={field.value}
                 onCheckedChange={checked => field.onChange(checked === true)}
                 label="Run as User"
+                disabled={loading}
               />
             )}
           />
@@ -189,13 +221,13 @@ export function RunScriptConfigStep({ scriptId, machineId, onBack, onRan }: RunS
       </div>
 
       <div className="flex shrink-0 gap-[var(--spacing-system-mf)] border-t border-ods-border pt-[var(--spacing-system-mf)]">
-        <Button variant="outline" onClick={onBack} disabled={isRunning} className="flex-1">
+        <Button variant="outline" onClick={onBack} disabled={loading || isRunning} className="flex-1">
           Back
         </Button>
         <Button
           variant="accent"
           onClick={handleSubmit(onValid, onInvalid)}
-          disabled={isRunning}
+          disabled={loading || isRunning}
           loading={isRunning}
           className="flex-1"
         >

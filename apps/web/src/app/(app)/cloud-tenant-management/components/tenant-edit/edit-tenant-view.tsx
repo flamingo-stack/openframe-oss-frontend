@@ -1,15 +1,15 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
-  PageLayout,
+  LoadingWhen,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { useSafeBack } from '@/app/hooks/use-safe-back';
+import { useState } from 'react';
 import { routes } from '@/lib/routes';
-import { TenantSummaryCardSkeleton } from '../tenant-detail/tenant-summary-card';
+import { SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import { TenantRecordLoader, type TenantRecordState } from './tenant-record-loader';
 import { useEditTenantForm } from './use-edit-tenant-form';
@@ -23,15 +23,13 @@ const RECORD_LOADING: TenantRecordState = { status: 'loading' };
  */
 export function EditTenantView({ id }: { id: string }) {
   const router = useRouter();
-  const handleBack = useSafeBack(routes.cloudTenantManagement.list);
   const [record, setRecord] = useState<TenantRecordState>(RECORD_LOADING);
   const ready = record.status === 'ready';
   const { form, isSubmitting, handleSave } = useEditTenantForm(id, ready ? record.values : null);
 
   const actions: PageActionButton[] = [
     {
-      label: 'Save Integration',
-      variant: 'accent',
+      ...SAVE_PLACEHOLDER,
       onClick: handleSave,
       disabled: !ready || isSubmitting,
       loading: isSubmitting,
@@ -39,31 +37,24 @@ export function EditTenantView({ id }: { id: string }) {
   ];
 
   return (
-    <PageLayout
-      title="Edit Tenant Integration"
-      backButton={{ label: 'Back', onClick: handleBack }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-    >
-      {/* The status below announces the wait, so the card's own region stays quiet. */}
-      <Suspense fallback={<TenantSummaryCardSkeleton identityOnly region={false} />}>
+    <TenantFormFrame title="Edit Tenant Integration" actions={actions}>
+      <LoadingSuspense label="Loading tenant">
         <TenantRecordLoader id={id} onResolved={setRecord} />
-      </Suspense>
-      {/* Locked fields announce nothing on their own; the text switches, the live region stays mounted. */}
-      <span role="status" className="sr-only">
-        {record.status === 'loading' ? 'Loading tenant…' : ''}
-      </span>
+      </LoadingSuspense>
       {record.status === 'missing' ? (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       ) : (
-        <TenantFormFields
-          control={form.control}
-          disabled={!ready || isSubmitting}
-          hideDomain
-          includeOrganization={ready ? record.organization : null}
-          customersEnabled={ready}
-        />
+        // Until the record has seeded them the fields are locked and the customer list draws its own loading state.
+        <LoadingWhen loading={record.status === 'loading'}>
+          <TenantFormFields
+            control={form.control}
+            disabled={!ready || isSubmitting}
+            hideDomain
+            includeOrganization={ready ? record.organization : null}
+            customersEnabled={ready}
+          />
+        </LoadingWhen>
       )}
-    </PageLayout>
+    </TenantFormFrame>
   );
 }

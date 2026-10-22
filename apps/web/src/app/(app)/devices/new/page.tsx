@@ -1,13 +1,13 @@
 'use client';
 
-import { Suspense } from 'react';
-import { NewDeviceContent } from './new-device-content';
-import { NewDeviceSkeleton } from './new-device-skeleton';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { NO_ITEMS } from '@/app/components/shared';
+import { NewDeviceContent, NewDeviceForm } from './new-device-content';
 
 export default function NewDevicePage() {
   return (
-    <Suspense fallback={<NewDeviceSkeleton />}>
+    <LoadingSuspense label="Loading device setup" fallback={<NewDeviceForm orgs={NO_ITEMS} preselectedOrgId={null} />}>
       <NewDeviceContent />
-    </Suspense>
+    </LoadingSuspense>
   );
 }

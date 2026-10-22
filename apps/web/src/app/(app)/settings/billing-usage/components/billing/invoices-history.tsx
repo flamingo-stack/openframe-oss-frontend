@@ -1,12 +1,13 @@
 'use client';
 
 import { Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, DataTable, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, DataTable, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { invoicesHistory_subscription$key } from '@/__generated__/invoicesHistory_subscription.graphql';
 import { toInvoiceRow } from '../shared/invoice-row';
 import { InvoicesFilterModal } from './invoices-filter-modal';
+import { INVOICES_SKELETON_ROWS } from './invoices-table-layout';
 import { useInvoicesTable } from './use-invoices-table';
 
 /**
@@ -25,9 +26,11 @@ const invoicesHistoryFragment = graphql`
 const INVOICES_UNAVAILABLE_MESSAGE =
   "Couldn't load the invoices. Try again in a moment, and contact support if this persists.";
 
-export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key }) {
+/** `subscription` is `null` only while the page loads: the section draws itself with the table's skeleton rows. */
+export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key | null }) {
   const data = useFragment(invoicesHistoryFragment, subscription);
-  const pendingInvoices = data.pendingInvoices ?? null;
+  const loading = useLoadingScope() || data == null;
+  const pendingInvoices = data?.pendingInvoices ?? null;
   // Memoized for the table instance, which keys its row model on the rows'
   // identity — the fragment's array is stable between store updates, the mapped
   // one would not be.
@@ -43,12 +46,12 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     columnFilters,
     setColumnFilters,
     statusOptions,
-  } = useInvoicesTable(invoices);
+  } = useInvoicesTable(invoices, loading);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Said under the section's own title, so what failed is named — a page that
   // silently drops its invoices reads as a tenant that has none.
-  if (pendingInvoices == null) {
+  if (!loading && pendingInvoices == null) {
     return (
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
@@ -57,7 +60,9 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     );
   }
 
-  if (invoices.length === 0) return null;
+  // Drawn while loading, left out once there is no invoice: a paying workspace (the typical one on this page) has a
+  // history, and the section is the page's last, so a trial's missing history moves nothing above it.
+  if (!loading && invoices.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -69,6 +74,7 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       <div className="flex items-center gap-[var(--spacing-system-m)]">
         <div className="flex-1">
           <Input
+            userValue
             startAdornment={<SearchIcon />}
             placeholder="Search for Invoice"
             value={search}
@@ -89,6 +95,9 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       <DataTable table={table}>
         <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
         <DataTable.Body
+          loading={loading}
+          loadingCells={loading}
+          skeletonRows={INVOICES_SKELETON_ROWS}
           emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
         />
       </DataTable>

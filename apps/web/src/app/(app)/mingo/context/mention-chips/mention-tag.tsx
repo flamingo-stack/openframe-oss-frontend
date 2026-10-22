@@ -15,12 +15,14 @@
  * the conversation stays where it is (beside the page, or over it on a wide
  * window), see `MentionTag`. Where this window can open a tab, a separate
  * trailing segment opens the page in a NEW TAB instead, with the conversation
- * along in `?mingoDialog=`. Also exports the loading skeleton and an error
- * boundary so a per-type chip is always: skeleton while fetching → resolved
- * chip → plain id chip if the fetch throws (never crashes the message).
+ * along in `?mingoDialog=`. In a loading scope the chip is the `Tag`'s own
+ * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
+ * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
+ * always: skeleton while fetching → resolved chip → plain id chip if the fetch
+ * throws (never crashes the message).
  */
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -164,15 +166,16 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
 }
 
 /**
- * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
- * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
- * and a "loading" read out mid-sentence for each would bury the message itself.
+ * The Suspense boundary of a per-type chip: while the chip's entity is fetched, the chip itself (no label yet) in a
+ * loading scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the
+ * chip lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
  */
-export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
+export function MentionSuspense({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   return (
-    <LoadingRegion as="span" status={false} className="contents">
-      <MentionTag icon={icon} label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />} />
-    </LoadingRegion>
+    <LoadingSuspense as="span" className="contents" status={false} fallback={<MentionTag icon={icon} label="" />}>
+      {children}
+    </LoadingSuspense>
   );
 }
 

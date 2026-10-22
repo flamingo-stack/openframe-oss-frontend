@@ -7,18 +7,19 @@ import {
   EntityImage,
   type Row,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { tenantRemoteSessionsRelay_query$data as TenantSessionsData } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayQuery$variables as TenantSessionsVariables } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { EmptyValue } from '@/app/components/shared/empty-value';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { RemoteSessionListState, RemoteSessionSortField, SortDirection } from '@/generated/schema-enums';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { fromWireSession, readSession } from '../../services/session-recordings-api-service';
 import type { RecordingSummary } from '../../types/session-recording';
-import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
+import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
 import { type ExpiresFilterValue, isRecordingGone } from './session-status';
 
@@ -57,19 +58,11 @@ export function toTenantSessionRow(node: TenantSessionNode): TenantSessionRow {
 /** Figma 2539-21701: SESSION / DEVICE / CUSTOMER / EXPIRES; tablet drops CUSTOMER, mobile keeps SESSION only. */
 export const TENANT_SESSION_COLUMNS = {
   session: REMOTE_SESSION_COLUMNS.session,
-  device: { id: 'device', header: 'DEVICE', width: 'flex-1 min-w-0', hideAt: 'md', filterable: true },
-  customer: { id: 'customer', header: 'CUSTOMER', width: 'flex-1 min-w-0', hideAt: 'lg', filterable: true },
+  device: { id: 'device', header: 'DEVICE', width: 'flex-1 min-w-0', hideAt: 'md' },
+  customer: { id: 'customer', header: 'CUSTOMER', width: 'flex-1 min-w-0', hideAt: 'lg' },
   expires: REMOTE_SESSION_COLUMNS.expires,
   actions: REMOTE_SESSION_COLUMNS.actions,
 } as const satisfies Record<string, TableSkeletonColumn>;
-
-export const TENANT_SESSION_COLUMN_ORDER: TableSkeletonColumn[] = [
-  TENANT_SESSION_COLUMNS.session,
-  TENANT_SESSION_COLUMNS.device,
-  TENANT_SESSION_COLUMNS.customer,
-  TENANT_SESSION_COLUMNS.expires,
-  TENANT_SESSION_COLUMNS.actions,
-];
 
 /** The page's URL state: the header funnels and the SESSION calendar. */
 export interface TenantSessionsParams {
@@ -145,23 +138,21 @@ export interface TenantSessionColumnsOptions {
   onDelete: (row: TenantSessionRow) => void;
 }
 
+/** The device's icon, name and hostname. On a loading row the icon is drawn real and both lines draw their bars. */
 function DeviceCell({ row }: { row: TenantSessionRow }) {
-  if (!row.device) {
-    return (
-      <span className="text-h4">
-        <EmptyValue />
-      </span>
-    );
+  const loading = useLoadingScope() && !row.device;
+  if (!loading && !row.device) {
+    return <ValueText value={null} />;
   }
-  const { name, hostname } = row.device;
+  const { name = '', hostname = null } = row.device ?? {};
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <MonitorIcon className="h-6 w-6 shrink-0 text-ods-text-secondary" />
       <div className="flex min-w-0 flex-col justify-center">
         <TruncateText tone={isRecordingGone(row) ? 'secondary' : 'primary'}>{name}</TruncateText>
-        {hostname && hostname !== name && (
+        {(loading || (hostname && hostname !== name)) && (
           <TruncateText variant="h6" tone="secondary">
-            {hostname}
+            {hostname ?? ''}
           </TruncateText>
         )}
       </div>
@@ -169,15 +160,13 @@ function DeviceCell({ row }: { row: TenantSessionRow }) {
   );
 }
 
+/** The customer's logo and name. On a loading row the image and the name draw their own loading forms. */
 function CustomerCell({ row }: { row: TenantSessionRow }) {
-  if (!row.customer?.name) {
-    return (
-      <span className="text-h4">
-        <EmptyValue />
-      </span>
-    );
+  const loading = useLoadingScope() && !row.customer;
+  if (!loading && !row.customer?.name) {
+    return <ValueText value={null} />;
   }
-  const { name, logoUrl } = row.customer;
+  const { name = '', logoUrl = null } = row.customer ?? {};
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-sf)]">
       <EntityImage

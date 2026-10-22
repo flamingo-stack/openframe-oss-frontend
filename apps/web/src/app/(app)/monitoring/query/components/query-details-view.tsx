@@ -15,16 +15,18 @@ import {
   PenEditIcon,
   TrashIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
+import { InfoCell } from '@/app/components/shared/info-cell';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
-import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
 import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
@@ -33,6 +35,12 @@ import { useQueryReport } from '../hooks/use-query-report';
 import { QueryDevicesTable } from './query-devices-table';
 
 const [RESULTS_TAB, DEVICES_TAB] = TAB_IDS.queryDetails;
+
+/**
+ * How many lines a query's description typically runs to while it is read: one sentence, which wraps to two lines on
+ * a phone and fits one line from `content-md` up.
+ */
+const QUERY_DESCRIPTION_SKELETON_LINES = { base: 2, md: 1 } as const;
 
 const QUERY_TABS: TabItem[] = [
   { id: RESULTS_TAB, label: 'Query Results', icon: CheckCircleIcon },
@@ -102,17 +110,15 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
     });
   };
 
-  if (isLoading) {
-    return <MonitoringDetailSkeleton kind="query" onBack={handleBack} queryTab={activeTab} />;
-  }
-
   if (error) {
     return <LoadError message={`Error loading query: ${error}`} />;
   }
 
-  if (!queryDetails) {
+  if (!isLoading && !queryDetails) {
     return <NotFoundError message="Query not found" />;
   }
+  // While the query loads the page draws itself without it: every read value is its own bar.
+  const details = isLoading ? null : queryDetails;
 
   const actions: PageActionButton[] = [
     {
@@ -120,6 +126,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditQuery,
+      disabled: !details,
     },
   ];
 
@@ -131,7 +138,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
           label: 'Delete Query',
           icon: <TrashIcon />,
           onClick: () => setIsDeleteModalOpen(true),
-          disabled: isDeleting,
+          disabled: isDeleting || !details,
           danger: true,
         },
       ],
@@ -139,80 +146,86 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
   ];
 
   return (
-    <PageLayout
-      title={queryDetails.name}
-      backButton={{
-        label: 'Back',
-        onClick: handleBack,
-      }}
-      actions={actions}
-      menuActions={menuActions}
-      actionsVariant="menu-primary"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {/* Query Info */}
-      <div className="rounded-lg border border-ods-border bg-ods-card p-6">
-        {queryDetails.description && (
-          <div className="mb-6">
-            <p className="text-ods-text-primary text-h4">{queryDetails.description}</p>
-            <p className="mt-1 text-ods-text-secondary text-h6">Description</p>
+    <LoadingWhen loading={!details}>
+      <PageLayout
+        title={details?.name ?? ''}
+        backButton={{
+          label: 'Back',
+          onClick: handleBack,
+        }}
+        actions={actions}
+        menuActions={menuActions}
+        actionsVariant="menu-primary"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        {/* Query Info */}
+        <div className="rounded-lg border border-ods-border bg-ods-card p-6">
+          {/* Always drawn (the first row on screen): a bar while loading, the empty mark for a query with none. The
+              description wraps rather than truncating. */}
+          <div className="mb-6 flex">
+            <InfoCell
+              label="Description"
+              value={details?.description ? <span className="whitespace-normal">{details.description}</span> : null}
+              valueSkeleton={<LoadingParagraph tone="primary" lines={QUERY_DESCRIPTION_SKELETON_LINES} />}
+              className={DETAIL_CELL_GAP_CLASS}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 border-t border-ods-border pt-4 content-md:grid-cols-4">
+            <InfoCell
+              label="Frequency"
+              value={details ? formatInterval(details.interval) : ''}
+              skeletonWidth="w-24"
+              className={DETAIL_CELL_GAP_CLASS}
+            />
+          </div>
+        </div>
+
+        {/* Query + inline test block */}
+        {(!details || details.query) && (
+          <div className="mt-6 space-y-[var(--spacing-system-xxs)]">
+            <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
+            <ScriptEditor value={details?.query ?? ''} shell="sql" readOnly height="300px" />
+            {/* 8px gap under the editor, matching the section's internal gap
+              (the parent's space-y would give 4px). */}
+            <TestQuerySection
+              getQuery={getQuery}
+              hasQuery={Boolean(queryText.trim())}
+              devices={queryDevices}
+              isLoadingDevices={isLoadingDevices}
+              className="!mt-[var(--spacing-system-xsf)]"
+            />
           </div>
         )}
 
-        <div
-          className={`grid grid-cols-2 gap-6 content-md:grid-cols-4 ${queryDetails.description ? 'border-t border-ods-border pt-4' : ''}`}
-        >
-          <div>
-            <p className="text-ods-text-primary text-h4">{formatInterval(queryDetails.interval)}</p>
-            <p className="mt-1 text-ods-text-secondary text-h6">Frequency</p>
-          </div>
+        {/* Tabs: Query Results / Assigned Devices */}
+        <div className="mt-6">
+          <TabNavigation tabs={QUERY_TABS} activeTab={activeTab} onTabChange={handleTabChange}>
+            {tabId => (
+              <div className="mt-6">
+                {tabId === 'devices' ? (
+                  <QueryDevicesTable queryId={numericId} query={queryText} />
+                ) : (
+                  <QueryReportTable
+                    data={rows}
+                    loading={!details || isReportLoading}
+                    emptyState={{ title: 'No report results available' }}
+                    columnOrder={['device', 'last_fetched']}
+                    showExport={false}
+                  />
+                )}
+              </div>
+            )}
+          </TabNavigation>
         </div>
-      </div>
-
-      {/* Query + inline test block */}
-      {queryDetails.query && (
-        <div className="mt-6 space-y-[var(--spacing-system-xxs)]">
-          <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
-          <ScriptEditor value={queryDetails.query} shell="sql" readOnly height="300px" />
-          {/* 8px gap under the editor, matching the section's internal gap
-              (the parent's space-y would give 4px). */}
-          <TestQuerySection
-            getQuery={getQuery}
-            hasQuery={Boolean(queryText.trim())}
-            devices={queryDevices}
-            isLoadingDevices={isLoadingDevices}
-            className="!mt-[var(--spacing-system-xsf)]"
-          />
-        </div>
-      )}
-
-      {/* Tabs: Query Results / Assigned Devices */}
-      <div className="mt-6">
-        <TabNavigation tabs={QUERY_TABS} activeTab={activeTab} onTabChange={handleTabChange}>
-          {tabId => (
-            <div className="mt-6">
-              {tabId === 'devices' ? (
-                <QueryDevicesTable queryId={numericId} query={queryText} />
-              ) : (
-                <QueryReportTable
-                  data={rows}
-                  loading={isReportLoading}
-                  emptyMessage="No report results available"
-                  columnOrder={['device', 'last_fetched']}
-                  showExport={false}
-                />
-              )}
-            </div>
-          )}
-        </TabNavigation>
-      </div>
-      <ConfirmDeleteMonitoringModal
-        open={isDeleteModalOpen}
-        onOpenChange={setIsDeleteModalOpen}
-        itemName={queryDetails.name}
-        itemType="query"
-        onConfirm={handleDeleteQuery}
-      />
-    </PageLayout>
+        <ConfirmDeleteMonitoringModal
+          open={isDeleteModalOpen}
+          onOpenChange={setIsDeleteModalOpen}
+          itemName={details?.name ?? ''}
+          itemType="query"
+          onConfirm={handleDeleteQuery}
+        />
+      </PageLayout>
+    </LoadingWhen>
   );
 }

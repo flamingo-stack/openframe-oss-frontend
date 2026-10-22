@@ -3,12 +3,12 @@
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type DataTableSortState,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareDevicesTable_query$data,
@@ -20,12 +20,19 @@ import type {
   softwareDevicesTableQuery as SoftwareDevicesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
-import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { OpenRowButton } from '../../shared/open-row-button';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
@@ -95,9 +102,13 @@ const softwareDevicesTableFragment = graphql`
 
 type SoftwareDeviceRow = NonNullable<softwareDevicesTable_query$data['softwareDevices']>['edges'][number]['node'];
 
-/** The device's page — by its agent machine id, or the global id for a device with no agent yet. */
-function deviceHref(row: SoftwareDeviceRow): string {
-  return routes.devices.details(row.device.machineId || row.device.id);
+/**
+ * The device's page — by its agent machine id, or the global id for a device with no agent yet. A loading placeholder
+ * (`loadingPlaceholderRows`) has no device yet, and no page.
+ */
+function deviceHref(row: SoftwareDeviceRow): string | null {
+  const { device } = row as Partial<SoftwareDeviceRow>;
+  return device ? routes.devices.details(device.machineId || device.id) : null;
 }
 
 /** The columns, with the Status funnel over the states the backend reports. */
@@ -127,7 +138,7 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,
       cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
-        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original))} />
+        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original) ?? '')} />
       ),
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
@@ -144,7 +155,9 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
  * `row.device.id`. Position is a safe tiebreaker here and nowhere else: the
  * list only ever appends pages, and a sort or funnel change rebuilds it whole.
  */
-const getRowId = (row: SoftwareDeviceRow, index: number) => `${row.device.id}\0${index}`;
+const getRowId = (row: SoftwareDeviceRow, index: number) =>
+  // A loading placeholder (`loadingPlaceholderRows`) has no device yet: it keys on its own id.
+  `${(row as Partial<SoftwareDeviceRow>).device?.id ?? (row as { id?: string }).id}\0${index}`;
 
 interface SoftwareDevicesTableProps {
   softwareId: string;
@@ -162,20 +175,20 @@ interface SoftwareDevicesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Devices tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function SoftwareDevicesTable({
-  softwareId,
-  backendFilters,
-  debouncedSearch,
-  sort,
-  sortState,
-  onSortChange,
-  statusFilter,
-  onStatusFilterChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareDevicesTableProps) {
+/**
+ * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
+ * over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it lives
+ * under the tab's `<Suspense>`.
+ */
+export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
+  if (useLoadingScope()) {
+    return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+  }
+  return <SoftwareDevicesTableQuery {...props} />;
+}
+
+function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
+  const { softwareId, backendFilters, debouncedSearch, sort } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareDevicesTableQueryType>(
     softwareDevicesTableQuery,
@@ -202,14 +215,54 @@ export function SoftwareDevicesTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
   };
 
+  return (
+    <SoftwareDevicesTableRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+    />
+  );
+}
+
+interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
+  rows: readonly SoftwareDeviceRow[];
+  totalCount: number;
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareDevicesTableRows({
+  rows,
+  totalCount,
+  infiniteScroll,
+  backendFilters,
+  debouncedSearch,
+  sortState,
+  onSortChange,
+  statusFilter,
+  onStatusFilterChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareDevicesTableRowsProps) {
+  const loading = useLoadingScope();
+
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     SOFTWARE_DEVICE_COLUMNS.softwareVersion.id,
     statusFilter,
     onStatusFilterChange,
   );
 
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareDeviceRow>(SOFTWARE_DEVICES_PAGE_SIZE) : null),
+    [loading],
+  );
+
   const table = useDataTable<SoftwareDeviceRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as SoftwareDeviceRow[]),
     columns: buildColumns(),
     getRowId,
     enableSorting: false,
@@ -219,7 +272,7 @@ export function SoftwareDevicesTable({
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
   // row); a title on no device at all gets the section's empty state instead.
-  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -236,35 +289,24 @@ export function SoftwareDevicesTable({
   }
 
   return (
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          sort={sortState}
-          onSortChange={onSortChange}
-        />
-        <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
-          emptyMessage={
-            debouncedSearch
-              ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No devices with the selected status. Try adjusting your filter.'
-          }
-          rowClassName="mb-1"
-          rowHref={deviceHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_DEVICES_PAGE_SIZE}
+      loadingCells={loading}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      sort={sortState}
+      onSortChange={onSortChange}
+      isPending={isPending}
+      emptyState={{
+        title: debouncedSearch
+          ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
+          : 'No devices with the selected status. Try adjusting your filter.',
+      }}
+      rowHref={deviceHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

@@ -1,44 +1,21 @@
 'use client';
 
 import { WebDesignIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
-import { SOFTWARE_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/software-list/software-list-columns';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason } from '../../utils/vulnerabilities-empty-state';
 import { DeviceSoftwareTable } from './device-software-table';
-import { DEVICE_TAB_SKELETON_ROWS, FLEET_SOFTWARE_TAB_COLUMNS } from './device-tab-columns';
 import { FleetSoftwareTab } from './fleet-software-tab';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
-import { TableTabSkeleton } from './table-tab-skeleton';
 
 interface SoftwareTabProps {
   device: Device | null;
 }
 
 const SEARCH_PLACEHOLDER = 'Search for Software';
-
-/**
- * The tab's loading state — drawn by the page skeleton while the device is in
- * flight, and by the tab itself until `software-management` answers. It reads
- * the gate so its columns are the ones the live tab will draw: the module's
- * once the flag is on, Fleet's otherwise. `'loading'` draws Fleet's the way
- * `useDeviceTabs` draws the base tab set until a flag says more: both layouts
- * are one search box over the same rows, so the answer can at most relabel the
- * header — it never adds or removes a control.
- */
-export function SoftwareTabSkeleton({ region = true }: { region?: boolean } = {}) {
-  const gate = useFeatureFlagGate('software-management');
-  return (
-    <TableTabSkeleton
-      columns={gate === 'on' ? SOFTWARE_LIST_TABLE_COLUMNS : FLEET_SOFTWARE_TAB_COLUMNS}
-      placeholder={SEARCH_PLACEHOLDER}
-      label="Loading software"
-      region={region}
-    />
-  );
-}
 
 const NO_SOFTWARE = (
   <TabEmptyState
@@ -95,9 +72,11 @@ function softwareEmptyState(device: Device) {
  * own: the boundary that keeps a failed list from taking the page down, and
  * the pipeline-stage copy for an empty one.
  */
-function ModuleSoftwareTab({ device }: SoftwareTabProps) {
+function ModuleSoftwareTab({ device, loading }: SoftwareTabProps & { loading: boolean }) {
+  // The device (or the module's flag) has not answered: the frame and its rows draw their loading state.
+  const scoped = useLoadingScope() || loading;
   // No agent id, no inventory to ask for.
-  if (!device?.machineId) {
+  if (!scoped && !device?.machineId) {
     return NO_SOFTWARE;
   }
 
@@ -105,13 +84,16 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
     <SoftwareListFrame
       paramPrefix="software"
       placeholder={SEARCH_PLACEHOLDER}
-      skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
-      skeletonRows={DEVICE_TAB_SKELETON_ROWS}
-      skeletonLabel="Loading software"
+      loadingLabel="Loading software"
+      loading={scoped}
     >
       {list => (
         <ContentErrorBoundary label="SoftwareTab" message="Couldn't load this device's software.">
-          <DeviceSoftwareTable {...list} machineId={device.machineId} emptyState={softwareEmptyState(device)} />
+          <DeviceSoftwareTable
+            {...list}
+            machineId={device?.machineId ?? ''}
+            emptyState={device ? softwareEmptyState(device) : NO_SOFTWARE}
+          />
         </ContentErrorBoundary>
       )}
     </SoftwareListFrame>
@@ -123,13 +105,12 @@ function ModuleSoftwareTab({ device }: SoftwareTabProps) {
  * payload the device query already carries (`FleetSoftwareTab`) — no module,
  * nothing to open, a list complete in hand. On: the module's own table over
  * `deviceSoftware`, so the tab reads like the module's page and its rows lead
- * there. Until the flag answers, the skeleton — not the Fleet list, which would
- * guess the module absent and swap the table out under the user
- * (`use-feature-flag.ts`).
+ * there. Until the flag answers, the module's frame in its loading state — not the
+ * Fleet list, which would guess the module absent and swap the table out under
+ * the user (`use-feature-flag.ts`).
  */
 export function SoftwareTab({ device }: SoftwareTabProps) {
   const gate = useFeatureFlagGate('software-management');
-  if (gate === 'loading') return <SoftwareTabSkeleton />;
   if (gate === 'off') return <FleetSoftwareTab device={device} />;
-  return <ModuleSoftwareTab device={device} />;
+  return <ModuleSoftwareTab device={device} loading={gate === 'loading'} />;
 }

@@ -33,7 +33,7 @@ import { routes } from '@/lib/routes';
 import { AdminPrivilegesWarning } from '../components/admin-privileges-warning';
 import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
-import { useDeviceOrganizations } from '../hooks/use-device-organizations';
+import { type DeviceOrganizationOption, useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
 import { useOrganizationRemoteAccessPolicy } from '../hooks/use-remote-access-policy';
@@ -61,7 +61,27 @@ const newDeviceSchema = z.object({
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 
+/**
+ * The page's data: the customers (suspends until they answer) and the customer passed by "Add Device" launched
+ * from a customer's section (`/devices/new?organizationId=<id>`), used to pre-select the dropdown.
+ */
 export function NewDeviceContent() {
+  const preselectedOrgId = useSearchParams().get('organizationId');
+  // Organizations for the customer dropdown (GraphQL via TanStack Query).
+  const orgs = useDeviceOrganizations(100);
+  return <NewDeviceForm orgs={orgs} preselectedOrgId={preselectedOrgId} />;
+}
+
+interface NewDeviceFormProps {
+  orgs: readonly DeviceOrganizationOption[];
+  preselectedOrgId: string | null;
+}
+
+/**
+ * The form over the customers it is handed. The page's Suspense fallback draws it in a loading scope with none
+ * (every field its own loading state), so loading and loaded are one layout.
+ */
+export function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
   // The remote access permission selector belongs to the next remote access
@@ -69,13 +89,6 @@ export function NewDeviceContent() {
   // hidden where only v1 is enabled.
   const remoteAccessV2 = useFeatureFlag('remote-access-v2');
   const showRemoteAccess = useRemoteAccessApprovalGate() === 'on' && remoteAccessV2;
-
-  // Customer context passed by "Add Device" launched from a customer's section
-  // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
-  const preselectedOrgId = useSearchParams().get('organizationId');
-
-  // Organizations for the customer dropdown (GraphQL via TanStack Query).
-  const orgs = useDeviceOrganizations(100);
 
   const [tags, setTags] = useState<TagEntryWithId[]>([]);
 

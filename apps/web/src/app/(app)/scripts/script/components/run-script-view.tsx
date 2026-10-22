@@ -2,11 +2,13 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
   Label,
   type PageActionButton,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -57,13 +59,16 @@ function getMachineId(device: Device): string | undefined {
 
 interface RunScriptFormProps {
   scriptId: string;
-  script: ScriptDetailData;
+  /** Absent while the script loads: the form draws itself in its loading scope. */
+  script?: ScriptDetailData;
 }
 
 function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
+  // Without the script the run config is not seeded yet: its fields are locked and show no value.
+  const loading = useLoadingScope() || !script;
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -225,11 +230,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         <ScriptSummaryCard
-          name={script.name}
-          description={script.description}
-          shellId={shellToId(script.shell)}
+          name={script?.name ?? ''}
+          description={script?.description}
+          shellId={shellToId(script?.shell)}
           platforms={supportedPlatforms}
-          author={script.author ? initiatorName(script.author) : null}
+          author={script?.author ? initiatorName(script.author) : null}
           showTimeout={false}
         />
 
@@ -243,6 +248,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
                 <Input
                   type="number"
                   className="w-full"
+                  disabled={loading}
                   value={field.value}
                   onChange={e => field.onChange(Number(e.target.value) || 0)}
                   endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
@@ -319,13 +325,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   );
 }
 
-/**
- * "Run Script" — the per-run config (timeout, privilege, args, env) over the
- * device picker. Suspends on the script query; the route renders
- * `RunScriptSkeleton` while that is in flight, so the form mounts once, already
- * seeded (no editor here, but the same contract as the edit page).
- */
-export function RunScriptView({ scriptId }: RunScriptViewProps) {
+function RunScriptContent({ scriptId }: RunScriptViewProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
@@ -339,6 +339,20 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
   // Keyed by id: the router reuses this route segment when only `?id=` changes,
   // so without the key a hop from script A to B would keep A's run config.
   return <RunScriptForm key={scriptId} scriptId={scriptId} script={data.script} />;
+}
+
+/**
+ * "Run Script": the per-run config (timeout, privilege, args, env) over the
+ * device picker. Suspends on the script query; while that is in flight the
+ * same form draws itself without the script, so the form mounts once, already
+ * seeded (no editor here, but the same contract as the edit page).
+ */
+export function RunScriptView({ scriptId }: RunScriptViewProps) {
+  return (
+    <LoadingSuspense label="Loading script" fallback={<RunScriptForm scriptId={scriptId} />}>
+      <RunScriptContent scriptId={scriptId} />
+    </LoadingSuspense>
+  );
 }
 
 export default RunScriptView;
