@@ -132,16 +132,14 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
             onValueChange={value => setChoice({ useDefault: false, mode: value as RemoteAccessMode })}
           >
             <SelectTrigger label="Default Remote Access Permission">
-              {/* Children override Radix's item mirror: label only when closed. */}
+              {/* Children override Radix's item mirror, so the closed trigger
+                  reads the label straight from the mode, not from a mounted item. */}
               <SelectValue>{REMOTE_ACCESS_MODE_META[selectedMode].label}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {REMOTE_ACCESS_MODES.map(mode => (
-                <SelectItem key={mode} value={mode}>
-                  <span className="flex flex-col text-left">
-                    <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
-                    <span className="text-ods-text-secondary text-h6">{REMOTE_ACCESS_MODE_META[mode].description}</span>
-                  </span>
+                <SelectItem key={mode} value={mode} description={REMOTE_ACCESS_MODE_META[mode].description}>
+                  {REMOTE_ACCESS_MODE_META[mode].label}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_VALUE } from './empty-value';
 import {
+  formatDate,
   formatDateTime,
   formatDateTimeInZone,
   formatDateTimeOnDevice,
+  formatTime,
   formatTimeZone,
   toDateTimeLocalValue,
+  viewerLocale,
   viewerTimeZone,
 } from './format-date';
 
@@ -56,6 +59,31 @@ describe('formatDateTimeInZone', () => {
     expect(formatDateTimeInZone(null, 'Asia/Tokyo')).toBe(EMPTY_VALUE);
     expect(formatDateTimeInZone(SUMMER, null)).toBe(EMPTY_VALUE);
     expect(formatDateTimeInZone(SUMMER, 'Mars/Olympus_Mons')).toBe(EMPTY_VALUE);
+  });
+});
+
+describe('viewerLocale', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the browser's first language, which is not always Intl's default", () => {
+    vi.stubGlobal('navigator', { language: 'en-AU' });
+    expect(viewerLocale()).toBe('en-AU');
+    expect(formatDateTimeInZone(SUMMER, 'Australia/Sydney')).toBe(
+      `${new Intl.DateTimeFormat('en-AU', { dateStyle: 'short', timeZone: 'Australia/Sydney' }).format(new Date(SUMMER))} ${new Intl.DateTimeFormat('en-AU', { timeStyle: 'short', timeZone: 'Australia/Sydney' }).format(new Date(SUMMER))}`,
+    );
+  });
+
+  it('is undefined with no navigator and with an empty language', () => {
+    vi.stubGlobal('navigator', undefined);
+    expect(viewerLocale()).toBeUndefined();
+    vi.stubGlobal('navigator', { language: '' });
+    expect(viewerLocale()).toBeUndefined();
+  });
+
+  it('the module-level formatters were built with it', () => {
+    const locale = viewerLocale();
+    expect(formatDate(SUMMER)).toBe(new Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(new Date(SUMMER)));
+    expect(formatTime(SUMMER)).toBe(new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(new Date(SUMMER)));
   });
 });
 

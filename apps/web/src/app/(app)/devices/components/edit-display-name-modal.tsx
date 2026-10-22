@@ -203,19 +203,16 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
             disabled={isSaving || modeLoading}
           >
             <SelectTrigger>
-              {/* Children override Radix's default item mirror: the closed
-                  trigger shows only the label, without the description line. */}
+              {/* Children override Radix's item mirror: the closed trigger shows
+                  the choice as resolved now, not the text of the item once picked. */}
               <SelectValue placeholder="Select a permission">
                 {selectedChoice ? choiceLabel(selectedChoice) : ''}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {REMOTE_ACCESS_CHOICES.map(choice => (
-                <SelectItem key={choice} value={choice}>
-                  <span className="flex flex-col text-left">
-                    <span>{choiceLabel(choice)}</span>
-                    <span className="text-ods-text-secondary text-h6">{remoteAccessChoiceDescription(choice)}</span>
-                  </span>
+                <SelectItem key={choice} value={choice} description={remoteAccessChoiceDescription(choice)}>
+                  {choiceLabel(choice)}
                 </SelectItem>
               ))}
             </SelectContent>

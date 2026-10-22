@@ -57,6 +57,7 @@ import type {
 } from '@/__generated__/scriptSchedulesTableRelayQuery.graphql';
 import type { unarchiveScriptScheduleMutation as UnarchiveScheduleMutationType } from '@/__generated__/unarchiveScriptScheduleMutation.graphql';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
   DateColumnHeader,
@@ -186,6 +187,8 @@ function SchedulesTableContent({
   // One round-trip per interaction: the filter facets (`scriptScheduleFilters`)
   // ride the list operation — see the query docstring.
   const retryKey = useRetryKey();
+  // Mingo can add a row from the chat; its create refetches the list.
+  const mingoCreated = useMingoCreatedEpoch('scriptSchedule');
   const queryData = useLazyLoadQuery<SchedulesTableQueryType>(
     scriptSchedulesTableRelayQuery,
     {
@@ -195,7 +198,7 @@ function SchedulesTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${mingoCreated}` },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
