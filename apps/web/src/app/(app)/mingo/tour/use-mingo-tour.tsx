@@ -13,6 +13,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
+import { clearGettingStartedView } from './getting-started-view';
 import { doneTourStepIds } from './tour-progress';
 import { TOUR_DIALOG_TITLE, type TourAction, type TourStep, tourGreeting, tourPrompt, tourSteps } from './tour-steps';
 
@@ -55,6 +56,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const { toast } = useToast();
   const handoff = useTourState();
   const firstName = useAuthStore(s => s.user?.firstName);
+  const userId = useAuthStore(s => s.user?.id);
   const user = useOnboardingStore(s => s.user);
   const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground } =
     useOnboardingMutations();
@@ -65,6 +67,13 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   // Mingo" was just pressed on this device and the conversation is still to
   // be created.
   const inProgress = user !== null && !user.completed && !user.skipped;
+  const ended = user !== null && (user.completed || user.skipped);
+
+  // An onboarding finished or skipped elsewhere (another device, another tab):
+  // the Getting Started block's remembered shape goes with it here too.
+  useEffect(() => {
+    if (ended) clearGettingStartedView(userId);
+  }, [ended, userId]);
   const recordedDialogId = inProgress ? user.tourDialogId : null;
   const active = inProgress && (recordedDialogId !== null || handoff !== null);
   const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages, isLoading } = state;
