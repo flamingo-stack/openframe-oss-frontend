@@ -7,7 +7,9 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { GettingStartedBlock } from './getting-started-block';
+import { clearGettingStartedView } from './getting-started-view';
 import { TOUR_STEPS, type TourStepId } from './tour-steps';
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
@@ -23,6 +25,8 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  // No signed-in user here: the remembered view lives in memory, and starts empty.
+  clearGettingStartedView(undefined);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -166,5 +170,62 @@ describe('GettingStartedBlock', () => {
     click(button('Knowledge Management'));
     click(button('Finish tour'));
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GettingStartedBlock across pages and tabs', () => {
+  const USER = 'u-1';
+  const KEY = `openframe:getting-started-view:${USER}`;
+  const grid = () => container.querySelector('[data-testid="getting-started-grid"]');
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    } as Storage;
+    vi.stubGlobal('localStorage', storage);
+    Object.defineProperty(window, 'localStorage', { value: storage, configurable: true });
+    useAuthStore.setState({ user: { id: USER, email: 'ann@example.com' } } as never);
+  });
+
+  afterEach(() => {
+    useAuthStore.setState({ user: null } as never);
+    vi.unstubAllGlobals();
+  });
+
+  it('opens folded when the user folded it before, with no step done', () => {
+    store.set(KEY, 'collapsed');
+    render();
+    expect(grid()).not.toBeNull();
+  });
+
+  it('opens as the list when the user unfolded it before, steps done or not', () => {
+    store.set(KEY, 'default');
+    render(['devices', 'tickets']);
+    expect(grid()).toBeNull();
+  });
+
+  it('remembers the chevron and a used chip', () => {
+    render();
+    click(button('DevicesMachines running the agent'));
+    click(button('Check my device'));
+    expect(store.get(KEY)).toBe('collapsed');
+
+    click(container.querySelector('header button') as Element);
+    expect(store.get(KEY)).toBe('default');
+  });
+
+  it('a block mounted later (another page, a new tab) opens as it was left', () => {
+    render();
+    click(container.querySelector('header button') as Element);
+    expect(store.get(KEY)).toBe('collapsed');
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    render();
+    expect(grid()).not.toBeNull();
   });
 });

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { ensureGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { useTenantOnboardingAutoDetect } from '@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
@@ -89,6 +90,7 @@ export function SetupWizard() {
   const handleStart = useCallback(() => {
     setStarting(true);
     markTourStarted(userId);
+    ensureGettingStartedView(userId);
     if (tenant?.completed) {
       leave();
       return;

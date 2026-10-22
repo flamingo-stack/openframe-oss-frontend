@@ -8,6 +8,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
+import { useGettingStartedView } from './getting-started-view';
 import type { TourAction, TourStep, TourStepId } from './tour-steps';
 
 export interface GettingStartedBlockProps {
@@ -33,22 +34,24 @@ export interface GettingStartedBlockProps {
  *   the room. The chevron in the title row unfolds it and folds it back; a step
  *   chip unfolds it on that step.
  *
- * It opens as the grid once any step is done (a tour picked up again — a reload,
- * another device), as the list before the first one; after that the user's own
- * folding and unfolding decide. A step is done once any of its chips has been
- * used; the title row counts them. Which steps are done is the host's (it merges
- * the server's record with this device's); the shape and the open step are the
- * block's own.
+ * The shape is the user's, remembered across pages and tabs
+ * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
+ * write it there. With nothing remembered (a tour started on another device) it
+ * opens as the grid once any step is done, as the list before the first one. A
+ * step is done once any of its chips has been used; the title row counts them.
+ * Which steps are done is the host's (it merges the server's record with this
+ * device's); the open step is the block's own.
  */
 export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: GettingStartedBlockProps) {
   // null until the user folds or unfolds it: the progress decides, and it may land
   // after the block has mounted.
-  const [foldedByUser, setFolded] = useState<boolean | null>(null);
+  const [view, setView] = useGettingStartedView();
   const [openId, setOpenId] = useState<TourStepId | null>(null);
 
   const total = steps.length;
   const done = steps.filter(step => doneStepIds.has(step.id)).length;
-  const folded = foldedByUser ?? done > 0;
+  const folded = view ? view === 'collapsed' : done > 0;
+  const setFolded = (next: boolean) => setView(next ? 'collapsed' : 'default');
 
   const openStep = (id: TourStepId) => {
     setFolded(false);
