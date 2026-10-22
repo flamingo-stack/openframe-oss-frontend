@@ -28,7 +28,7 @@ import {
   NO_NEXT_PAGE,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { OpenRowButton } from '../../shared/open-row-button';
@@ -258,7 +258,7 @@ function SoftwareVulnerabilitiesTableRows({
       sort={sortState}
       onSortChange={onSortChange}
       isPending={isPending}
-      emptyState={{ title: `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.` }}
+      emptyState={emptyMessage(`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`)}
       rowHref={rowHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}

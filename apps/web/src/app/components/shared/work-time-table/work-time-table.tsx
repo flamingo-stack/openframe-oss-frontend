@@ -58,7 +58,7 @@ import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
-import { LiveTable, loadingPlaceholderRows } from '../live-table';
+import { LiveTable, loadingPlaceholderRows, emptyMessage } from '../live-table';
 import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, noop } from '../no-next-page';
 
 const PAGE_SIZE = 20;
@@ -485,7 +485,7 @@ function WorkTimeTableView({
           stickyHeader={false}
           itemName="result"
           totalCount={totalCount}
-          emptyState={{ title: 'No work time entries for this period.' }}
+          emptyState={emptyMessage('No work time entries for this period.')}
           footer={infiniteScroll}
           loadingCells={loading}
         />

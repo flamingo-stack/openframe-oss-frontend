@@ -60,7 +60,7 @@ import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { EmptyState, liveColumnMeta, onboardingGuideButton, useRetryKey } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, emptyMessage } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -637,11 +637,11 @@ function ScriptsTableContent({
         table={table}
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
-        emptyState={{
-          title: debouncedSearch
+        emptyState={emptyMessage(
+          debouncedSearch
             ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
             : 'No scripts found. Try adjusting your filters or add a new script.',
-        }}
+        )}
         rowHref={scriptRowHref}
         footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
       />

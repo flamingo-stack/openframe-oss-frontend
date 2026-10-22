@@ -21,7 +21,7 @@ import {
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -237,12 +237,12 @@ export function LoggingStep({
       <p className="text-ods-text-primary text-h4">Here's what activity looks like once things start happening:</p>
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />
         <DataTable.Body
           loading={isLoading}
           loadingCells={isLoading}
           skeletonRows={LOG_PREVIEW_LIMIT}
-          emptyState={{ title: 'No activity yet. Actions across your workspace will show up here.' }}
+          emptyState={emptyMessage('No activity yet. Actions across your workspace will show up here.')}
           rowClassName="mb-1"
         />
       </DataTable>

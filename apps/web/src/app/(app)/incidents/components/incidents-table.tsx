@@ -40,7 +40,7 @@ import type {
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
 import { EmptyState, GatedSuspense, liveColumnMeta, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { LiveTable } from '@/app/components/shared/live-table';
+import { LiveTable, emptyMessage } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -583,11 +583,11 @@ function IncidentsTableContent({
         pageSize={PAGE_SIZE}
         stickyHeaderOffset={stickyHeaderOffset}
         totalCount={filteredCount}
-        emptyState={{
-          title: debouncedSearch
+        emptyState={emptyMessage(
+          debouncedSearch
             ? `No incidents found matching "${debouncedSearch}". Try adjusting your search.`
             : 'No incidents found. Try adjusting your filters.',
-        }}
+        )}
         rowHref={(row: IncidentTableRow) => routes.incidents.details(row.id)}
         footer={{ hasNextPage: hasNext && !pageFailed, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
       />

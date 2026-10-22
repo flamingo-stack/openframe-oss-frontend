@@ -18,7 +18,7 @@ import { type ComponentProps, useMemo } from 'react';
 import type { InfiniteScroll } from '@/app/components/shared';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
 import { EmptyValue } from '@/app/components/shared/empty-value';
-import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { formatDateTime } from '@/lib/format-date';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -173,7 +173,7 @@ export function CustomersSearchInput({ value, onChange }: CustomersSearchInputPr
   );
 }
 
-const NO_CUSTOMERS = { title: 'No customers found.' };
+const NO_CUSTOMERS = emptyMessage('No customers found.');
 
 type CustomersTableBodyProps = {
   customers: Customer[];

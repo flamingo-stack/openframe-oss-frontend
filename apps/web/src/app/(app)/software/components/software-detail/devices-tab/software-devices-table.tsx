@@ -28,7 +28,7 @@ import {
   NO_NEXT_PAGE,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -299,11 +299,11 @@ function SoftwareDevicesTableRows({
       sort={sortState}
       onSortChange={onSortChange}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={emptyMessage(
+        debouncedSearch
           ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No devices with the selected status. Try adjusting your filter.',
-      }}
+      )}
       rowHref={deviceHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}

@@ -20,6 +20,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
+import { emptyMessage } from '@/app/components/shared/live-table';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { type QueryDetailTab, routes, TAB_IDS } from '@/lib/routes';
@@ -209,7 +210,7 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
                   <QueryReportTable
                     data={rows}
                     loading={!details || isReportLoading}
-                    emptyState={{ title: 'No report results available' }}
+                    emptyState={emptyMessage('No report results available')}
                     columnOrder={['device', 'last_fetched']}
                     showExport={false}
                   />

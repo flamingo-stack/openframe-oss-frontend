@@ -23,7 +23,7 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -359,18 +359,21 @@ export function CompanyAndUsersTab() {
           />
         </div>
         <DataTable table={table}>
-          <DataTable.Header rightSlot={<DataTable.RowCount />} stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
+          <DataTable.Header
+            rightSlot={<DataTable.RowCount loading={loadingRows} />}
+            stickyHeader
+            stickyHeaderOffset={stickyHeaderOffset}
+          />
           <DataTable.Body
             loading={isLoading || isMutating}
             loadingCells={loadingRows}
             skeletonRows={USERS_SKELETON_ROWS}
-            emptyState={{
-              title:
-                error ||
+            emptyState={emptyMessage(
+              error ||
                 (debouncedSearch
                   ? `No users found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No users or invitations found.'),
-            }}
+            )}
             rowHref={employeeRowHref}
           />
         </DataTable>

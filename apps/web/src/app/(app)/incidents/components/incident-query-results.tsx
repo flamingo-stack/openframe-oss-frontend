@@ -2,6 +2,7 @@
 
 import { QueryReportTable, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
+import { emptyMessage } from '@/app/components/shared/live-table';
 import type { Incident } from '../utils/incident-transform';
 
 /**
@@ -29,11 +30,11 @@ export function IncidentQueryResults({ incident }: { incident?: Incident }) {
         skeletonRows={INCIDENT_EVIDENCE_SKELETON_ROWS}
         skeletonColumns={INCIDENT_EVIDENCE_SKELETON_COLUMNS}
         showExport={false}
-        emptyState={{
-          title: incident?.queryResult
+        emptyState={emptyMessage(
+          incident?.queryResult
             ? 'The latest run of the detecting query returned no rows.'
             : 'Evidence was not kept for this incident.',
-        }}
+        )}
       />
     </QueryResultsFrame>
   );

@@ -25,7 +25,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
@@ -273,12 +273,12 @@ export function ApiKeysTab() {
       backButton={{ label: 'Back', onClick: handleBack }}
     >
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />} />
         <DataTable.Body
           loading={isLoading}
           loadingCells={loadingRows}
           skeletonRows={API_KEYS_SKELETON_ROWS}
-          emptyState={{ title: error || 'No API keys found.' }}
+          emptyState={emptyMessage(error || 'No API keys found.')}
           onRowClick={openDetails}
         />
       </DataTable>

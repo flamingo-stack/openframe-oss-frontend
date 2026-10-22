@@ -12,7 +12,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
@@ -115,7 +115,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
           stickyHeaderOffset={stickyHeaderOffset}
           itemName="ticket"
           totalCount={filteredCount}
-          emptyState={{ title: 'No tickets found for this customer.' }}
+          emptyState={emptyMessage('No tickets found for this customer.')}
           rowHref={ticketRowHref}
           footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
           loadingCells={loading}
