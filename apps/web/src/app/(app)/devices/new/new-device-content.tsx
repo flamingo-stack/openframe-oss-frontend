@@ -281,13 +281,8 @@ export function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
                   </SelectTrigger>
                   <SelectContent>
                     {REMOTE_ACCESS_CHOICES.map(choice => (
-                      <SelectItem key={choice} value={choice}>
-                        <span className="flex flex-col text-left">
-                          <span>{remoteAccessChoiceLabel(choice, customerMode)}</span>
-                          <span className="text-ods-text-secondary text-h6">
-                            {remoteAccessChoiceDescription(choice)}
-                          </span>
-                        </span>
+                      <SelectItem key={choice} value={choice} description={remoteAccessChoiceDescription(choice)}>
+                        {remoteAccessChoiceLabel(choice, customerMode)}
                       </SelectItem>
                     ))}
                   </SelectContent>
