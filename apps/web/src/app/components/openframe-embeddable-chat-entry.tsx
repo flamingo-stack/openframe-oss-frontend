@@ -105,7 +105,7 @@ export function OpenframeEmbeddableChatEntry({
   // The Getting Started tour (flag `onboarding-v2`): Mingo's greeting at the
   // head of the tour's conversation and the step block above its composer.
   // Elsewhere, and once the tour is over, this is `chatState` unchanged.
-  const { state, aboveComposer, onWhatToAsk } = useMingoTour({ state: chatState, createNamedDialog, dialogError });
+  const { state, aboveComposer } = useMingoTour({ state: chatState, createNamedDialog, dialogError });
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
@@ -359,8 +359,9 @@ export function OpenframeEmbeddableChatEntry({
         collapseTo={v2?.collapseTo}
         onExpand={v2?.onExpand}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
-        // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
-        // one) with prompts that go into the composer, naming online devices.
+        // v2: "What to ask Mingo?" opens a new chat with prompts that go out on
+        // a click, naming online devices - never the open conversation, the
+        // tour's included.
         whatToAsk={v2 ? loadWhatToAsk : undefined}
         chatMenuExtraItems={chatMenuExtraItems}
         open={open}
@@ -436,9 +437,8 @@ export function OpenframeEmbeddableChatEntry({
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
         // The Getting Started tour: its block above the composer while its
-        // conversation is open, and "What to ask Mingo?" leading back to it.
+        // conversation is open.
         aboveComposer={aboveComposer}
-        onWhatToAsk={onWhatToAsk}
       />
 
       <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />

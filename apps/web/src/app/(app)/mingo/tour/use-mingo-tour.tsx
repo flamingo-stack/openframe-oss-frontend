@@ -33,8 +33,6 @@ export interface MingoTour {
   state: UnifiedChatState;
   /** The Getting Started block while the tour's conversation is open, else null. */
   aboveComposer: ReactNode;
-  /** The list's "What to ask Mingo?": the tour's conversation while the tour is on. */
-  onWhatToAsk: (() => void) | undefined;
 }
 
 /**
@@ -76,7 +74,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   }, [ended, userId]);
   const recordedDialogId = inProgress ? user.tourDialogId : null;
   const active = inProgress && (recordedDialogId !== null || handoff !== null);
-  const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages, isLoading } = state;
+  const { activeDialogId, sendMessage, hasMoreMessages, messages, isLoading } = state;
 
   // The conversation this panel created, known before the server has recorded
   // it: creating it moves the chat state, which re-runs the effect below while
@@ -177,13 +175,10 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
     [state, greeting, messages],
   );
 
-  const onWhatToAsk = useMemo(() => (dialogId ? () => selectDialog(dialogId) : undefined), [dialogId, selectDialog]);
-
   return {
     state: decoratedState,
     aboveComposer: showing ? (
       <GettingStartedBlock steps={steps} doneStepIds={doneStepIds} onAction={handleAction} onFinish={handleFinish} />
     ) : null,
-    onWhatToAsk,
   };
 }
