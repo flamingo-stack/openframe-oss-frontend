@@ -1,5 +1,6 @@
 'use client';
 
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -42,7 +43,6 @@ import {
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
@@ -138,7 +138,7 @@ function buildColumns(
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ItemRow> }) => <OpenItemButton href={rowHref(row.original)} />,
+      cell: ({ row }: { row: Row<ItemRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
     },

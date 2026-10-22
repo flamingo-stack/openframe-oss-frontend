@@ -65,7 +65,7 @@ export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: bool
   // which the panel draws as bars of their own type steps in the scope.
   const loading = useLoadingScope() || isDefault == null;
   return (
-    <LoadingWhen loading={isDefault == null}>
+    <LoadingWhen loading={loading}>
       <StackedRowsPanel
         rows={[
           {

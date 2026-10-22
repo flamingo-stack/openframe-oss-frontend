@@ -1,5 +1,6 @@
 'use client';
 
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -17,7 +18,6 @@ import {
   KnowledgeBaseItemName,
   type KnowledgeBaseItemNameProps,
 } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-name';
-import { OpenItemButton } from '@/app/(app)/knowledge-base/components/shared/open-item-button';
 import { liveColumnMeta } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
@@ -60,7 +60,7 @@ const COLUMNS: ColumnDef<AssignedArticle>[] = [
   },
   {
     id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<AssignedArticle> }) => <OpenItemButton href={rowHref(row.original)} />,
+    cell: ({ row }: { row: Row<AssignedArticle> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
     enableSorting: false,
     meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
   },

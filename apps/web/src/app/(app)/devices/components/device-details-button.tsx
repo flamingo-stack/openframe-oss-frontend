@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigatesCurrentWindow } from '@/lib/link-click';
 import { routes } from '@/lib/routes';
 
@@ -31,9 +32,12 @@ export function DeviceDetailsButton({
   onNavigate,
 }: DeviceDetailsButtonProps) {
   const id = machineId || deviceId;
+  const loading = useLoadingScope();
 
-  // No device to open yet (its id is read, or the record has none): the same button, inert, so nothing moves when the
-  // id arrives.
+  // A record with no device id has nothing to open: no button. While the id is read (a loading scope) the same button
+  // is drawn inert, so nothing moves when the id arrives.
+  if (!id && !loading) return null;
+
   return (
     <Button
       variant={variant}

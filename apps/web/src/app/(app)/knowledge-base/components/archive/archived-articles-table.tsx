@@ -1,5 +1,6 @@
 'use client';
 
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
   type Row,
@@ -21,7 +22,6 @@ import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { OpenItemButton } from '../shared/open-item-button';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
 import { ArchivedArticleDateCell } from './archived-article-date-cell';
@@ -95,7 +95,7 @@ function buildColumns(onUnarchive: (row: ArchivedRow) => void): ColumnDef<Archiv
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ArchivedRow> }) => <OpenItemButton href={rowHref(row.original)} />,
+      cell: ({ row }: { row: Row<ArchivedRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
     },

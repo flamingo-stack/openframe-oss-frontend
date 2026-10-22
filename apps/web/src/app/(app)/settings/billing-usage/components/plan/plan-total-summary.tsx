@@ -57,19 +57,17 @@ export function PlanTotalSummary({ total, topUpUsd, showAiNote, loading = false,
           </p>
         )
       )}
-      {/* A metered month with a top-up chosen: the typical paywall (pay-as-you-go, a top-up preset), so its line is
-          drawn while loading too, below the total. */}
-      {isLoading ? (
-        <LoadingLine type="h3" className="w-48" />
-      ) : (
-        total &&
-        !total.prepaid &&
-        topUp > 0 && (
-          <p>
-            AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
-          </p>
-        )
-      )}
+      {/* A metered month with a top-up chosen gets a line of its own. While loading it is drawn only when a top-up is
+          chosen (the selection is known before the catalog answers), so no bar appears that the loaded summary drops. */}
+      {isLoading
+        ? topUp > 0 && <LoadingLine type="h3" className="w-48" />
+        : total &&
+          !total.prepaid &&
+          topUp > 0 && (
+            <p>
+              AI balance due today: <span className="text-ods-text-primary text-h3">{formatCurrency(topUp)}</span>
+            </p>
+          )}
     </div>
   );
 }

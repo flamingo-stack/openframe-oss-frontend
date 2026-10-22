@@ -37,7 +37,7 @@ export function NewTenantView() {
       <TenantFormFields
         control={form.control}
         disabled={isCreating || loading}
-        providerField={<ProviderField control={form.control} disabled={isCreating} onOffered={setOffered} />}
+        providerField={<ProviderField control={form.control} disabled={isCreating || loading} onOffered={setOffered} />}
       />
       <div>
         <Button

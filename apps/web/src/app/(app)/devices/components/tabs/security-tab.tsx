@@ -90,9 +90,10 @@ const STATUS_ICON: Record<SecurityStatus, ReactNode> = {
   neutral: null,
 };
 
+// One-column grids, not column flexes: they only stack, and nested column flexes cost WebKit a re-measure per level.
 const STATUS_CARD_CLASS =
-  'flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
-const STATUS_CARD_ROWS_CLASS = 'flex w-full flex-col gap-[var(--spacing-system-xs)]';
+  'grid w-full grid-cols-1 gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
+const STATUS_CARD_ROWS_CLASS = 'grid w-full grid-cols-1 gap-[var(--spacing-system-xs)]';
 const SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
 const SECTION_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
 

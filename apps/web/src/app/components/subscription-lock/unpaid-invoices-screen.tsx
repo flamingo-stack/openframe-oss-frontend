@@ -291,7 +291,7 @@ function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow | null }) {
         variant="outline"
         size="icon"
         {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
-        aria-label={loading || payUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
+        aria-label={loading ? 'Invoice link' : payUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
       >
         <ExternalLinkIcon />
       </Button>

@@ -85,7 +85,7 @@ function ModuleSoftwareTab({ device, loading }: SoftwareTabProps & { loading: bo
       paramPrefix="software"
       placeholder={SEARCH_PLACEHOLDER}
       loadingLabel="Loading software"
-      loading={loading}
+      loading={scoped}
     >
       {list => (
         <ContentErrorBoundary label="SoftwareTab" message="Couldn't load this device's software.">

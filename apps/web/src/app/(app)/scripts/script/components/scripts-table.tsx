@@ -183,7 +183,14 @@ function ScriptAuthorCell({ script }: { script: UiScriptEntry }) {
   }
   return (
     <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
-      <button type="button" onClick={openInNewTab(href)} className="flex w-full min-w-0 items-center gap-2 text-left">
+      <Button
+        variant="link"
+        size="compact"
+        noPaddingX
+        fullWidth
+        onClick={openInNewTab(href)}
+        className="h-auto min-w-0 justify-start gap-2 text-left"
+      >
         {avatar}
         {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
         <div className="min-w-0 flex-1">
@@ -191,7 +198,7 @@ function ScriptAuthorCell({ script }: { script: UiScriptEntry }) {
             {script.authorName}
           </TruncateText>
         </div>
-      </button>
+      </Button>
     </div>
   );
 }

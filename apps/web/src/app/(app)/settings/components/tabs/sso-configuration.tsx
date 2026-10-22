@@ -379,7 +379,13 @@ export function SsoConfigurationTab() {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <Tag className="self-start" label={row.original.status?.label} variant={row.original.status?.variant} />
+          <Tag
+            className="self-start"
+            label={row.original.status?.label}
+            variant={row.original.status?.variant}
+            // A loading placeholder row has no status: the tag draws its own loading form.
+            loading={!row.original.status}
+          />
         ),
         meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },

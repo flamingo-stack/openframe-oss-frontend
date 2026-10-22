@@ -95,8 +95,10 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
 
   const form = useForm<DeviceGuardrailsFormValues>({
     resolver: zodResolver(deviceGuardrailsSchema),
-    // `values`, not `defaultValues`: the form is mounted before the policy answers and takes it when it does.
+    // `values`, not `defaultValues`: the form is mounted before the policy answers and takes it when it does. A later
+    // refetch keeps what the user has already changed (`keepDirtyValues`).
     values: policy ? { mode: policy.mode } : undefined,
+    resetOptions: { keepDirtyValues: true },
   });
 
   const handleSubmit = form.handleSubmit(async values => {

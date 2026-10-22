@@ -138,7 +138,7 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
  */
 const getRowId = (row: SoftwareVulnerabilityRow) =>
   row.cveId ? `${row.cveId}\0${row.affectedVersion ?? ''}` : String((row as { id?: string }).id);
-const rowHref = (row: SoftwareVulnerabilityRow) => routes.software.vulnerability(row.cveId);
+const rowHref = (row: SoftwareVulnerabilityRow) => (row.cveId ? routes.software.vulnerability(row.cveId) : null);
 
 interface SoftwareVulnerabilitiesTableProps {
   softwareId: string;

@@ -38,7 +38,7 @@ export function SessionChat({ messages, employee, className }: SessionChatProps)
       <div
         ref={scrollRef}
         className={cn(
-          'flex flex-col gap-[var(--spacing-system-xsf)] overflow-y-auto rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)]',
+          'grid grid-cols-1 content-start gap-[var(--spacing-system-xsf)] overflow-y-auto rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)]',
           SESSION_CHAT_MAX_HEIGHT,
         )}
       >

@@ -335,6 +335,7 @@ function DeviceLastOnline({ lastSeen }: { lastSeen: QueryDeviceRow['lastSeen'] |
 /** The device's own state as its tag; the tag's own loading form while the row is read. */
 function DeviceStatusCell({ status }: { status: string | undefined }) {
   const loading = useLoadingScope() && !status;
-  const config = getDeviceStatusConfig(status);
-  return <Tag label={config.label} variant={config.variant} loading={loading} />;
+  // A loading placeholder row has no status: nothing to look up, the tag draws its loading form.
+  const config = status === undefined ? null : getDeviceStatusConfig(status);
+  return <Tag label={config?.label} variant={config?.variant} loading={loading || !config} />;
 }
