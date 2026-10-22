@@ -2,9 +2,10 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useState } from 'react';
+import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
@@ -21,6 +22,8 @@ export function ProfileTab() {
   const user = useAuthStore(state => state.user);
   const updateUser = useAuthStore(state => state.updateUser);
   const fetchFullProfile = useAuthStore(state => state.fetchFullProfile);
+  // `/me`'s own answer, from the session query rather than the store (see `ProfileCard`).
+  const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -95,8 +98,14 @@ export function ProfileTab() {
   }, [fetchFullProfile]);
 
   // The page is only reached in a signed-in session, so a missing user is one the session has not read yet: loading
-  // until it answers (never an error card that a moment later becomes the profile).
-  const loading = useLoadingScope() || !user;
+  // until it answers (never an error card that a moment later becomes the profile). The one terminal shape is a
+  // settled `/me` reporting a signed-in session with no user in it: that is an error, not a load that never ends.
+  // Read from the query, not the store, for the reason `ProfileCard` gives.
+  const inScope = useLoadingScope();
+  const loading = inScope || !user;
+  if (!inScope && !user && sessionResolved && isAuthenticated && !sessionUser) {
+    return <PageError message="No user data available" />;
+  }
 
   return (
     <div className="pt-6">
