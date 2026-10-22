@@ -11,7 +11,7 @@ import { ArticleDetailContent } from './article-detail-content';
 export function ArticleDetailView({ articleId }: { articleId: string }) {
   return (
     <div className="flex w-full flex-col">
-      <LiveSuspense label="Loading article" view={<ArticleDetailContent articleId={articleId} />}>
+      <LiveSuspense label="Loading article">
         <ArticleDetailContent articleId={articleId} />
       </LiveSuspense>
     </div>

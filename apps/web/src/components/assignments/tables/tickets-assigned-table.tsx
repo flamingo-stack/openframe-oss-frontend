@@ -6,7 +6,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { TicketTableBody } from '@/app/(app)/tickets/components/ticket-table-columns';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
-import { emptyMessage } from '@/app/components/shared/live-table';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
 interface TicketsAssignedTableProps {
@@ -40,7 +40,7 @@ export function TicketsAssignedTable({ tickets, isLoading }: TicketsAssignedTabl
       <TicketTableBody
         tickets={filtered}
         isLoading={isLoading}
-        emptyState={emptyMessage('No tickets assigned.')}
+        emptyState={oneLineEmptyState('No tickets assigned.')}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

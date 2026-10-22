@@ -3,8 +3,7 @@
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
 import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
-import { GatedSuspense, QueryIsland } from '@/app/components/shared';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
+import { GatedSuspense, LiveSuspense, QueryIsland } from '@/app/components/shared';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';

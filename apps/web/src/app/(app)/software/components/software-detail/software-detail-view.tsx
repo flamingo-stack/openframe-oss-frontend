@@ -35,7 +35,7 @@ export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({
     <div className="flex w-full flex-col">
       {/* While the record loads, and for the flag's own window: the title and the card in a loading scope, where
           each draws its own loading state and nothing fetches. */}
-      <LiveSuspense label="Loading software" gated={loading} view={<SoftwareDetailContent softwareId={softwareId} />}>
+      <LiveSuspense label="Loading software" gated={loading}>
         <SoftwareDetailContent softwareId={softwareId} />
       </LiveSuspense>
 

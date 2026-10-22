@@ -23,7 +23,8 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -368,7 +369,7 @@ export function CompanyAndUsersTab() {
             loading={isLoading || isMutating}
             loadingCells={loadingRows}
             skeletonRows={USERS_SKELETON_ROWS}
-            emptyState={emptyMessage(
+            emptyState={oneLineEmptyState(
               error ||
                 (debouncedSearch
                   ? `No users found matching "${debouncedSearch}". Try adjusting your search.`

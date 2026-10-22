@@ -37,12 +37,8 @@ export function TenantDetailView({ id, loading = false }: TenantDetailViewProps)
   return (
     <div className="flex w-full flex-col">
       {/* While the record loads, and for the flag's own window: the content in a loading scope, where each part
-          draws its own loading state and nothing fetches. Live: Back works, the body below the title is inert. */}
-      <LiveSuspense
-        label="Loading tenant"
-        gated={loading}
-        view={<TenantDetailContent id={id} actions={manageActions(id)} />}
-      >
+          draws its own loading state and nothing fetches. */}
+      <LiveSuspense label="Loading tenant" gated={loading}>
         <TenantDetailContent id={id} actions={manageActions(id)} />
       </LiveSuspense>
     </div>

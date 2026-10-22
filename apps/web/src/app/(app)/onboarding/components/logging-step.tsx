@@ -21,7 +21,8 @@ import {
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import { loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -242,7 +243,7 @@ export function LoggingStep({
           loading={isLoading}
           loadingCells={isLoading}
           skeletonRows={LOG_PREVIEW_LIMIT}
-          emptyState={emptyMessage('No activity yet. Actions across your workspace will show up here.')}
+          emptyState={oneLineEmptyState('No activity yet. Actions across your workspace will show up here.')}
           rowClassName="mb-1"
         />
       </DataTable>

@@ -7,7 +7,6 @@ import {
   type DataTableInfiniteFooterProps,
   type DataTableInstance,
   type DataTableSortState,
-  type NoDataProps,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -26,15 +25,6 @@ export const LIVE_ROW_GAP_CLASS = 'mb-1';
  */
 export function PendingDim({ isPending, children }: { isPending: boolean; children: ReactNode }) {
   return <div className={cn('transition-opacity duration-200', isPending && 'opacity-60')}>{children}</div>;
-}
-
-/**
- * A list's empty state that is one line of copy, what the body's deprecated `emptyMessage` drew. The `description`
- * is stated on purpose: left out, the body's empty state adds its default "Try adjusting your search or filters"
- * under a list nobody searched.
- */
-export function emptyMessage(title: ReactNode): NoDataProps {
-  return { title, description: undefined };
 }
 
 /**

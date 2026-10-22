@@ -6,8 +6,8 @@ import {
   CheckboxBlock,
   Input,
   Label,
-  type PageActionButton,
   LoadingScope,
+  type PageActionButton,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -231,7 +231,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
         {/* The body is inert until the script answers: its fields would take input the loaded form, mounted in its
-            place, never sees. Back and the header stay live (the boundary is a LiveSuspense). */}
+            place, never sees. */}
         <LoadingScope active={loading} className="contents">
           <ScriptSummaryCard
             name={script?.name ?? ''}

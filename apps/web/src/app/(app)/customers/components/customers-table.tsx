@@ -19,8 +19,14 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, noop, onboardingGuideButton, SectionLoadError, NO_ITEMS } from '@/app/components/shared';
-import { emptyMessage } from '@/app/components/shared/live-table';
+import {
+  EmptyState,
+  NO_ITEMS,
+  noop,
+  onboardingGuideButton,
+  oneLineEmptyState,
+  SectionLoadError,
+} from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
@@ -186,7 +192,7 @@ export function CustomersTable({ status }: CustomersTableProps) {
             isLoading={isLoading}
             // Same rule as `showEmptyState`, one component down: zero rows after a
             // failed or offline load must not read as "you have no customers".
-            emptyState={emptyMessage(
+            emptyState={oneLineEmptyState(
               canClaimEmpty
                 ? 'No customers found. Try adjusting your search or filters.'
                 : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,

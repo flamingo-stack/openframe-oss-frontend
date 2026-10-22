@@ -6,7 +6,7 @@ import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { emptyMessage } from '@/app/components/shared/live-table';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
 interface DevicesAssignedTableProps {
@@ -39,7 +39,7 @@ export function DevicesAssignedTable({ devices, isLoading }: DevicesAssignedTabl
       <DevicesTableBody
         devices={filtered}
         isLoading={isLoading}
-        emptyState={emptyMessage('No devices assigned.')}
+        emptyState={oneLineEmptyState('No devices assigned.')}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

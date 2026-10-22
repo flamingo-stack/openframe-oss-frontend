@@ -67,10 +67,11 @@ import {
   EmptyState,
   liveColumnMeta,
   onboardingGuideButton,
+  oneLineEmptyState,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable, emptyMessage } from '@/app/components/shared/live-table';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -577,7 +578,7 @@ function SchedulesTableContent({
         stickyHeaderOffset={stickyHeaderOffset}
         sort={sortState}
         onSortChange={onSortChange}
-        emptyState={emptyMessage(
+        emptyState={oneLineEmptyState(
           debouncedSearch
             ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
             : 'No schedules found. Try adjusting your filters or add a new schedule.',

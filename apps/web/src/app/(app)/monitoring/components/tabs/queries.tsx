@@ -15,11 +15,11 @@ import {
   EmptyState,
   formatQueryInterval,
   onboardingGuideButton,
+  oneLineEmptyState,
   QueriesTable,
   type QueryTableRow,
   SectionLoadError,
 } from '@/app/components/shared';
-import { emptyMessage } from '@/app/components/shared/live-table';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { loadErrorProps } from '@/lib/query-state';
@@ -173,7 +173,7 @@ export function Queries() {
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No queries found." under the strip
             // above. Same rule, one component down.
-            emptyState={emptyMessage(
+            emptyState={oneLineEmptyState(
               canClaimEmpty
                 ? debouncedSearch
                   ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`

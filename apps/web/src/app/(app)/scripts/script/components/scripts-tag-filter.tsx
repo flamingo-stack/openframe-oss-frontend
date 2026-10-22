@@ -3,8 +3,7 @@
 import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import { NO_ITEMS, noop, TagFilterBar, useRetryKey } from '@/app/components/shared';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
+import { LiveSuspense, NO_ITEMS, type SelectableTag, TagFilterBar, useRetryKey } from '@/app/components/shared';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 
 const SEARCH_PLACEHOLDER = 'Search for Scripts';
@@ -28,38 +27,20 @@ interface ScriptsTagFilterProps {
  * archived scripts (the Archived page), null → tags on active scripts.
  * Owns its Suspense boundary: while the tag list loads the same bar, with no
  * tags, is drawn in the boundary's loading scope, where it draws its own
- * skeleton (the search keeps its typed value).
+ * skeleton. The search takes input meanwhile (its node is replaced, the value
+ * kept, when the tags land), and the URL's selected tags stay on it (their chips
+ * are bars until the keys land), so Clear all clears both.
  */
 export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
-  const { search, onSearchChange, filterButton } = props;
   return (
-    <LiveSuspense
-      label="Loading script tags"
-      view={
-        <TagFilterBar
-          tags={NO_ITEMS}
-          search={search}
-          onSearchChange={onSearchChange}
-          selectedIds={NO_ITEMS}
-          onSelectedIdsChange={noop}
-          placeholder={SEARCH_PLACEHOLDER}
-          filterButton={filterButton}
-        />
-      }
-    >
+    <LiveSuspense label="Loading script tags" view={<ScriptsTagFilterBar {...props} tags={NO_ITEMS} />}>
       <ScriptsTagFilterContent {...props} />
     </LiveSuspense>
   );
 }
 
-function ScriptsTagFilterContent({
-  search,
-  onSearchChange,
-  tagIds,
-  onTagIdsChange,
-  filterButton,
-  archived = false,
-}: ScriptsTagFilterProps) {
+function ScriptsTagFilterContent(props: ScriptsTagFilterProps) {
+  const { archived = false } = props;
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptTagsFilterQueryType>(
     scriptTagsRelayFilterQuery,
@@ -68,6 +49,18 @@ function ScriptsTagFilterContent({
   );
   const tags = useMemo(() => data.scriptsTags.map(t => ({ id: t.id, key: t.key })), [data.scriptsTags]);
 
+  return <ScriptsTagFilterBar {...props} tags={tags} />;
+}
+
+/** The one bar both states draw, so the two cannot drift: only the tag list differs. */
+function ScriptsTagFilterBar({
+  tags,
+  search,
+  onSearchChange,
+  tagIds,
+  onTagIdsChange,
+  filterButton,
+}: ScriptsTagFilterProps & { tags: ReadonlyArray<SelectableTag> }) {
   return (
     <TagFilterBar
       tags={tags}

@@ -10,9 +10,8 @@ import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
-import { NO_ITEMS } from '@/app/components/shared';
+import { LiveSuspense, NO_ITEMS } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,

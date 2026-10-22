@@ -26,9 +26,10 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
-import { LiveTable, loadingPlaceholderRows, emptyMessage } from '@/app/components/shared/live-table';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -299,7 +300,7 @@ function SoftwareDevicesTableRows({
       sort={sortState}
       onSortChange={onSortChange}
       isPending={isPending}
-      emptyState={emptyMessage(
+      emptyState={oneLineEmptyState(
         debouncedSearch
           ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No devices with the selected status. Try adjusting your filter.',
