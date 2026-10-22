@@ -49,7 +49,10 @@ import type {
 } from '@/__generated__/scriptsTableRelayQuery.graphql';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
   EmptyState,
   liveColumnMeta,
@@ -156,6 +159,8 @@ function ScriptsTableContent({
   // One round-trip per interaction: the filter facets (`scriptFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
   const retryKey = useRetryKey();
+  // Mingo can add a row from the chat; its create refetches the list.
+  const mingoCreated = useMingoCreatedEpoch('script');
   const queryData = useLazyLoadQuery<ScriptsTableQueryType>(
     scriptsTableRelayQuery,
     {
@@ -164,7 +169,7 @@ function ScriptsTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${mingoCreated}` },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -742,6 +747,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
 
   // Archived list has no header actions (back button only); the active list shows
   // Archive (→ archived page) + Add Script. "Edit Categories" is intentionally omitted.
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_SCRIPT);
   const actions = useMemo(
     () =>
       archived
@@ -760,9 +766,10 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
                 <PlusCircleIcon size={24} className={isEmpty ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'} />
               ),
               onClick: handleNewScript,
+              iconAction: generateWithAi,
             },
           ],
-    [archived, handleNewScript, handleOpenArchive, isEmpty],
+    [archived, handleNewScript, handleOpenArchive, isEmpty, generateWithAi],
   );
 
   const mobileFilterButton = (

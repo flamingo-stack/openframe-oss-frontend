@@ -21,7 +21,7 @@ interface GraphQlEnvelope<T> {
   errors?: Array<{ message: string }>;
 }
 
-/** The counts the main schema does not carry — see `DataLossBox` for the ones it does. */
+/** The counts the main schema does not carry — see `DataLossCoreRows` for the ones it does. */
 export interface ExternalCancellationImpact {
   /** Total tickets across every status (active, on-hold, resolved, …). */
   tickets: number;

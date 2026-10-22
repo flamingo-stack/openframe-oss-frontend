@@ -1,8 +1,10 @@
 'use client';
 
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense, useState } from 'react';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -22,7 +24,12 @@ const ICON_CLASS = 'size-[var(--icon-size-icon-size)]';
  * The header buttons. They depend on the route alone, so they are real from the
  * first paint — while a folder's name is still loading too.
  */
-function pageActions(folderId: string | null, onNewFolder: () => void, emphasizeAddArticle: boolean) {
+function pageActions(
+  folderId: string | null,
+  onNewFolder: () => void,
+  emphasizeAddArticle: boolean,
+  generateWithAi: SplitButtonIconAction,
+) {
   const actions: PageActionButton[] = [
     {
       label: 'New Folder',
@@ -40,6 +47,7 @@ function pageActions(folderId: string | null, onNewFolder: () => void, emphasize
         />
       ),
       variant: emphasizeAddArticle ? 'accent' : 'outline',
+      iconAction: generateWithAi,
     },
   ];
   // The archive is one list for the whole knowledge base, so only the root links to it.
@@ -81,7 +89,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
   } = useDeferredQuery(filters.tagIds, filters.debouncedSearch);
 
   // An empty level accents Add Article: it is the one thing there is to do.
-  const actions = pageActions(folderId, () => setIsNewFolderOpen(true), isEmpty);
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_KB_ARTICLE);
+  const actions = pageActions(folderId, () => setIsNewFolderOpen(true), isEmpty, generateWithAi);
 
   return (
     <div className="flex w-full flex-col">

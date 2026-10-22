@@ -69,6 +69,7 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: false,
       skippedAt: null,
+      tourDialogId: null,
     });
     useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
     renderCard();
@@ -83,6 +84,7 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: false,
       skippedAt: null,
+      tourDialogId: null,
     });
     useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: true }]);
     renderCard();
@@ -99,6 +101,7 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: true,
       skippedAt: null,
+      tourDialogId: null,
     });
     renderCard();
 

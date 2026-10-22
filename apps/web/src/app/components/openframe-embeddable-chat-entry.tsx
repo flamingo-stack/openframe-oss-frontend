@@ -60,6 +60,7 @@ import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified
 import { useMingoWhatToAsk } from '../(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
+import { useMingoTour } from '../(app)/mingo/tour/use-mingo-tour';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
 import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
@@ -88,17 +89,23 @@ export function OpenframeEmbeddableChatEntry({
   v2,
 }: OpenframeEmbeddableChatEntryProps) {
   const {
-    state,
+    state: chatState,
     subscription,
     pendingApprovals,
     dialogStatusOf,
     sendInNewDialog,
+    createNamedDialog,
+    createIntentDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
     dialogError,
   } = useMingoUnifiedChatState();
+  // The Getting Started tour (flag `onboarding-v2`): Mingo's greeting at the
+  // head of the tour's conversation and the step block above its composer.
+  // Elsewhere, and once the tour is over, this is `chatState` unchanged.
+  const { state, aboveComposer, onWhatToAsk } = useMingoTour({ state: chatState, createNamedDialog, dialogError });
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
@@ -240,6 +247,19 @@ export function OpenframeEmbeddableChatEntry({
     if (!consumePendingNewChat()) return;
     chatHandle.current?.startNewChat();
   }, [pendingNewChat, consumePendingNewChat]);
+
+  // Queued "Generate with AI" (`startIntentChat` — a create button's Mingo
+  // segment): a new dialog created with the intent and opened. The server has
+  // already written Mingo's greeting into it, so the history load renders it.
+  const pendingIntent = useMingoLauncherStore(s => s.pendingIntent);
+  const consumePendingIntent = useMingoLauncherStore(s => s.consumePendingIntent);
+
+  useEffect(() => {
+    if (!pendingIntent) return;
+    const intent = consumePendingIntent();
+    if (!intent) return;
+    void createIntentDialog(intent);
+  }, [pendingIntent, consumePendingIntent, createIntentDialog]);
 
   // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
   // a fresh chat with the composer prefilled and nothing sent. Same one-shot
@@ -415,6 +435,10 @@ export function OpenframeEmbeddableChatEntry({
         // to review and forget individual entries. Replaces the old under-the-
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
+        // The Getting Started tour: its block above the composer while its
+        // conversation is open, and "What to ask Mingo?" leading back to it.
+        aboveComposer={aboveComposer}
+        onWhatToAsk={onWhatToAsk}
       />
 
       <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />

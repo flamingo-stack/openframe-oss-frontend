@@ -5,15 +5,20 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { Suspense } from 'react';
 import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { CustomersOverviewSection } from './customers-overview';
 import { DevicesOverviewSection } from './devices-overview';
+import { MingoIntroBanner } from './mingo-intro-banner';
 import { TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
  *  renders `null` (dismissed walkthrough / completed setup). */
 const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing-system-l)] empty:hidden';
+/** The v2 banner's wrapper: below it the same gap the PageLayout keeps between its
+ *  sections, so the banner reads as one of them. */
+const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-system-l)]`;
 
 /**
  * Dashboard content component - extracted for dynamic import with loading skeleton
@@ -26,10 +31,23 @@ export default function DashboardContent() {
   // active — the exact same predicate that shows the setup card and the top bar, so the
   // dimming can never appear without the card (see {@link useInitialSetupActive}). Fully
   // lit once setup is complete, before progress loads, or when there's no tenant record.
-  const dimDashboard = useInitialSetupActive();
+  //
+  // Under onboarding v2 the Initial Setup lives on `/setup` and the dashboard is
+  // never dimmed. Gated, and the card rendered only once the flag answers `off`:
+  // a v2 workspace must not see the old card for a frame.
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  const legacySetup = onboardingV2 === 'off';
+  const dimDashboard = useInitialSetupActive() && legacySetup;
 
   return (
     <>
+      {/* Onboarding v2: the welcome banner in the setup card's place, until the
+          user closes it. Same wrapper, so a dismissed banner collapses the gap. */}
+      {onboardingV2 === 'on' && (
+        <div className={BANNER_WRAPPER_CLASS}>
+          <MingoIntroBanner />
+        </div>
+      )}
       {/* Onboarding — deliberately OUTSIDE the PageLayout below.
           Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
           `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
@@ -38,17 +56,19 @@ export default function DashboardContent() {
           flash an empty gap between the card's own count-loading skeleton and its
           content — the same skeleton carries through while onboarding progress
           (the tenant step-detection round-trips) loads. */}
-      <Suspense
-        fallback={
+      {legacySetup && (
+        <Suspense
+          fallback={
+            <div className={ONBOARDING_WRAPPER_CLASS}>
+              <InitialSetupSkeleton />
+            </div>
+          }
+        >
           <div className={ONBOARDING_WRAPPER_CLASS}>
-            <InitialSetupSkeleton />
+            <InitialSetupCard />
           </div>
-        }
-      >
-        <div className={ONBOARDING_WRAPPER_CLASS}>
-          <InitialSetupCard />
-        </div>
-      </Suspense>
+        </Suspense>
+      )}
       <div
         className={cn('transition-opacity duration-300', dimDashboard && 'pointer-events-none select-none opacity-40')}
         aria-hidden={dimDashboard || undefined}

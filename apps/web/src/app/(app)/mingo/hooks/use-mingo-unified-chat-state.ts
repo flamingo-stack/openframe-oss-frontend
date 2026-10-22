@@ -50,6 +50,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
+import type { DialogIntent } from '../../tickets/constants';
 import {
   CONTEXT_ENTITY_KIND,
   CONTEXT_ENTITY_MARKER,
@@ -114,6 +115,20 @@ export interface MingoUnifiedChat {
    * about X" EmptyState buttons) that always want a fresh conversation.
    */
   sendInNewDialog: (text: string) => Promise<void>;
+  /**
+   * Create an EMPTY dialog titled `title` and open it - nothing is sent. For a
+   * conversation the app starts on the user's behalf (the Getting Started
+   * tour) and names up front, so the chat list never shows it as "New Chat".
+   * Resolves to the dialog id, or null when it could not be created.
+   */
+  createNamedDialog: (title: string) => Promise<string | null>;
+  /**
+   * Create a dialog opened to create one entity ("Generate with AI") and open
+   * it - nothing is sent. The server writes Mingo's greeting as the first
+   * message before answering, so the history load shows it; no client-side
+   * welcome is added.
+   */
+  createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
   /** Current server-side dialog-search term. */
   searchQuery: string;
   /** Set the dialog-search term (already debounced by the chat's search bar). */
@@ -481,7 +496,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       const insightId =
         context?.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
         INSIGHT_MENTION.exec(trimmed)?.[1];
-      const newId = await createDialog(insightId);
+      const newId = await createDialog({ insightId });
       if (!newId) return;
       addMessage(newId, {
         id: `welcome-${newId}`,
@@ -503,6 +518,35 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
     },
     [createDialog, addMessage, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut, sendMingoMessage],
+  );
+
+  const createNamedDialog = useCallback(
+    async (title: string): Promise<string | null> => {
+      const newId = await createDialog();
+      if (!newId) return null;
+      // The title is the app's, not the user's: no "Chat renamed" toast. A
+      // rename that fails leaves the dialog on its generated title and toasts.
+      await renameDialog(newId, title, { silent: true });
+      setActiveDialogId(newId);
+      resetUnread(newId);
+      subscribeToDialog(newId);
+      selectDialogMut(newId);
+      return newId;
+    },
+    [createDialog, renameDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
+  );
+
+  const createIntentDialog = useCallback(
+    async (intent: DialogIntent): Promise<string | null> => {
+      const newId = await createDialog({ intent });
+      if (!newId) return null;
+      setActiveDialogId(newId);
+      resetUnread(newId);
+      subscribeToDialog(newId);
+      selectDialogMut(newId);
+      return newId;
+    },
+    [createDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 
   // Snapshot the live navigation context (open view + recent views) from the
@@ -527,10 +571,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // ─── Send: create-on-first-send when no dialog is active (draft) ──────────
   // `options.contextItems` carries the composer's picker selection; the open
   // view + recent views come from the navigation store via `buildSendContext`.
+  // Resolves to whether the message went out, for programmatic senders (the
+  // onboarding tour's chips): false when the chat refused it (busy) or the
+  // send failed. The composer ignores the result.
   const sendMessage = useCallback(
-    async (text: string, options?: UnifiedSendMessageOptions) => {
+    async (text: string, options?: UnifiedSendMessageOptions): Promise<boolean> => {
       const trimmed = text.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
 
       const context = buildSendContext(options);
 
@@ -538,13 +585,14 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
         // The draft branch delegates to `sendInNewDialog`, which already fires
         // SEND_MINGO_MESSAGE on success — don't double-track here.
         await sendInNewDialog(trimmed, context);
-        return;
+        return true;
       }
 
       // Existing-dialog send: track on success, same as the /mingo page's
       // active-dialog branch.
       const sent = await sendMingoMessage(trimmed, undefined, context);
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
+      return sent;
     },
     [activeDialogId, sendInNewDialog, sendMingoMessage, buildSendContext],
   );
@@ -764,6 +812,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     pendingApprovals,
     dialogStatusOf,
     sendInNewDialog,
+    createNamedDialog,
+    createIntentDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,

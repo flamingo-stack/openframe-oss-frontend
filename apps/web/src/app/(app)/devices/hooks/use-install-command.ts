@@ -4,10 +4,12 @@ import type { TagEntry } from '@/app/components/shared/tags';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { selectUser, useAuthStore } from '@/stores';
+import type { RemoteAccessMode } from '../types/remote-access';
 import {
   assetsDownloadBase,
   buildInstallCommand,
   buildRegisterCommand,
+  buildRemoteAccessModeArgs,
   newDownloadMachineId,
 } from '../utils/device-command-utils';
 import { useRegistrationSecret } from './use-registration-secret';
@@ -16,6 +18,8 @@ interface UseInstallCommandOptions {
   organizationId: string;
   platform: OSPlatformId;
   tags?: TagEntry[];
+  /** The device's own remote access mode; null/absent = follows its customer (no flag). */
+  remoteAccessMode?: RemoteAccessMode | null;
 }
 
 function buildTagArgs(tags: TagEntry[], platform: OSPlatformId): string[] {
@@ -99,7 +103,12 @@ function getServerHydratedSnapshot(): boolean {
   return false;
 }
 
-export function useInstallCommand({ organizationId, platform, tags = [] }: UseInstallCommandOptions) {
+export function useInstallCommand({
+  organizationId,
+  platform,
+  tags = [],
+  remoteAccessMode = null,
+}: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
   // Installing user, so registration can associate the device with whoever ran
   // the command. Populated from /api/me by useAuthSession; optional in the
@@ -123,6 +132,11 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
   const [machineId, setMachineId] = useState(newDownloadMachineId);
   const rotateMachineId = useCallback(() => setMachineId(newDownloadMachineId()), []);
 
+  const additionalArgs = useMemo(
+    () => [...buildTagArgs(tags, platform), ...buildRemoteAccessModeArgs(remoteAccessMode)],
+    [tags, platform, remoteAccessMode],
+  );
+
   const command = useMemo(
     () =>
       buildInstallCommand({
@@ -133,9 +147,9 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
         downloadBaseUrl,
         machineId: hydrated ? machineId : '',
         userId,
-        additionalArgs: buildTagArgs(tags, platform),
+        additionalArgs,
       }),
-    [initialKey, tags, platform, organizationId, serverUrl, downloadBaseUrl, hydrated, machineId, userId],
+    [initialKey, additionalArgs, platform, organizationId, serverUrl, downloadBaseUrl, hydrated, machineId, userId],
   );
 
   // Step 2 of the package-manager install flow (step 1 installs the binary, so
@@ -148,9 +162,9 @@ export function useInstallCommand({ organizationId, platform, tags = [] }: UseIn
         initialKey,
         orgId: organizationId,
         userId,
-        additionalArgs: buildTagArgs(tags, platform),
+        additionalArgs,
       }),
-    [initialKey, tags, platform, organizationId, serverUrl, userId],
+    [initialKey, additionalArgs, platform, organizationId, serverUrl, userId],
   );
 
   return { command, registerCommand, initialKey, rotateMachineId };

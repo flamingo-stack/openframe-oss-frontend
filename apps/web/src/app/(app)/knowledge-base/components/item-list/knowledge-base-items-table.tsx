@@ -23,6 +23,7 @@ import type {
 } from '@/__generated__/knowledgeBaseItemsTable_query.graphql';
 import type { knowledgeBaseItemsTablePaginationQuery as KnowledgeBaseItemsTablePaginationQueryType } from '@/__generated__/knowledgeBaseItemsTablePaginationQuery.graphql';
 import type { knowledgeBaseItemsTableQuery as KnowledgeBaseItemsTableQueryType } from '@/__generated__/knowledgeBaseItemsTableQuery.graphql';
+import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
@@ -156,6 +157,8 @@ export function KnowledgeBaseItemsTable({
   const { toast } = useToast();
   const environment = useRelayEnvironment();
   const retryKey = useRetryKey();
+  // Mingo can add a row from the chat; its create refetches the list.
+  const mingoCreated = useMingoCreatedEpoch('knowledgeBase');
 
   const variables: KnowledgeBaseItemsTableQueryType['variables'] = {
     ...knowledgeBaseListingArgs(listing),
@@ -164,7 +167,7 @@ export function KnowledgeBaseItemsTable({
   };
   const queryData = useLazyLoadQuery<KnowledgeBaseItemsTableQueryType>(knowledgeBaseItemsTableQuery, variables, {
     fetchPolicy: 'store-and-network',
-    fetchKey: retryKey,
+    fetchKey: `${retryKey}:${mingoCreated}`,
   });
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<

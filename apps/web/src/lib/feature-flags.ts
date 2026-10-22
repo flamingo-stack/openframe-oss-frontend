@@ -14,6 +14,13 @@ export const FEATURE_FLAG_NAMES = [
   'cancel-subscription',
   // Starting a paid subscription: the Activate Subscription button and the paywall checkout.
   'billing-activation',
+  // Billing runs on the live Stripe account: hides the "Test mode" banner on
+  // Settings → Billing & Usage. Absent = the sandbox, banner shown.
+  'billing-live-mode',
+  // More actions → Customer Portal on Settings → Billing & Usage: the
+  // Stripe-hosted portal (billing address, tax IDs, payment methods, invoice
+  // history). On for dev / qa, absent elsewhere, which reads as off.
+  'customer-portal',
   'test-clock',
   // MeshCentral attended remote access: the approval-gated connect flow and
   // the remote access policy UI, both on the real API. Off = the legacy
@@ -54,6 +61,11 @@ export const FEATURE_FLAG_NAMES = [
   // instead of the overlay drawer, the page laying out by the room it leaves
   // (`content-md:` / `content-lg:`). Off = the overlay drawer.
   'mingo-v2',
+  // AI-first onboarding: the full-screen `/setup` wizard in place of the
+  // dashboard's Initial Setup card, and the Getting Started tour inside the
+  // docked Mingo panel in place of `/onboarding`. Off = the card, the page, the
+  // sidebar entry and the coach marks. The tour needs `mingo-v2` on as well.
+  'onboarding-v2',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

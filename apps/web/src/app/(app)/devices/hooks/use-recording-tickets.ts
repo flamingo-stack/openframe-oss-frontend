@@ -11,11 +11,17 @@ import {
 } from '../services/recording-tickets-api-service';
 import { deviceQueryKeys } from '../utils/query-keys';
 
-/** The tickets linked to the session the recording page shows. */
+/**
+ * The tickets linked to the session the recording page shows. Re-read on
+ * every visit: a ticket's assignee and status change on the Tickets pages,
+ * which never touch this cache, so the app-wide minute of freshness showed
+ * the old assignee after coming back.
+ */
 export function useRecordingTickets(recordingId: string | null) {
   return useQuery({
     queryKey: deviceQueryKeys.recordingTickets(recordingId ?? ''),
     queryFn: recordingId ? () => fetchRecordingTickets(recordingId) : skipToken,
+    staleTime: 0,
   });
 }
 

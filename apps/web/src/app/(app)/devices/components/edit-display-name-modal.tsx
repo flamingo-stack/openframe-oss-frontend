@@ -23,12 +23,14 @@ import {
   useTenantRemoteAccessPolicy,
 } from '../hooks/use-remote-access-policy';
 import type { Device } from '../types/device.types';
-import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
-
-/** The select's entry for "no device override": the device follows its customer. */
-const CUSTOMER_DEFAULT = 'CUSTOMER_DEFAULT';
-type PermissionChoice = RemoteAccessMode | typeof CUSTOMER_DEFAULT;
-const PERMISSION_CHOICES: readonly PermissionChoice[] = [CUSTOMER_DEFAULT, ...REMOTE_ACCESS_MODES];
+import {
+  CUSTOMER_DEFAULT,
+  REMOTE_ACCESS_CHOICES,
+  type RemoteAccessChoice,
+  type RemoteAccessMode,
+  remoteAccessChoiceDescription,
+  remoteAccessChoiceLabel,
+} from '../types/remote-access';
 
 interface EditDisplayNameModalProps {
   isOpen: boolean;
@@ -64,7 +66,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
 
   // The select shows the loaded choice until the user picks something, so a
   // background refetch can't overwrite an in-progress choice.
-  const [pickedChoice, setPickedChoice] = useState<PermissionChoice | null>(null);
+  const [pickedChoice, setPickedChoice] = useState<RemoteAccessChoice | null>(null);
 
   // Seeded when the modal opens, during render rather than in an effect: an effect
   // paints the field with the previous value once before correcting it. Keyed off
@@ -80,7 +82,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
   }
 
   // No override reads as "Customer Default"; an override is the device's own choice.
-  const savedChoice: PermissionChoice | undefined = devicePolicy.data
+  const savedChoice: RemoteAccessChoice | undefined = devicePolicy.data
     ? (devicePolicy.data.mode ?? CUSTOMER_DEFAULT)
     : undefined;
   const selectedChoice = pickedChoice ?? savedChoice;
@@ -111,12 +113,7 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
         ? organizationPolicy.data?.effectiveMode
         : tenantPolicy.data?.mode;
 
-  const choiceLabel = (choice: PermissionChoice) => {
-    if (choice !== CUSTOMER_DEFAULT) return REMOTE_ACCESS_MODE_META[choice].label;
-    return customerMode ? `Customer Default (${REMOTE_ACCESS_MODE_META[customerMode].label})` : 'Customer Default';
-  };
-  const choiceDescription = (choice: PermissionChoice) =>
-    choice === CUSTOMER_DEFAULT ? "Follows the customer's setting" : REMOTE_ACCESS_MODE_META[choice].description;
+  const choiceLabel = (choice: RemoteAccessChoice) => remoteAccessChoiceLabel(choice, customerMode);
 
   const isSaving = isSavingNickname || isSavingMode;
   const trimmed = name.trim();
@@ -202,23 +199,20 @@ export function EditDisplayNameModal({ isOpen, onClose, device, onSaved }: EditD
           <Label className="text-ods-text-primary text-h4">Remote Access Permission</Label>
           <Select
             value={selectedChoice ?? ''}
-            onValueChange={value => setPickedChoice(value as PermissionChoice)}
+            onValueChange={value => setPickedChoice(value as RemoteAccessChoice)}
             disabled={isSaving || modeLoading}
           >
             <SelectTrigger>
-              {/* Children override Radix's default item mirror: the closed
-                  trigger shows only the label, without the description line. */}
+              {/* Children override Radix's item mirror: the closed trigger shows
+                  the choice as resolved now, not the text of the item once picked. */}
               <SelectValue placeholder="Select a permission">
                 {selectedChoice ? choiceLabel(selectedChoice) : ''}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {PERMISSION_CHOICES.map(choice => (
-                <SelectItem key={choice} value={choice}>
-                  <span className="flex flex-col text-left">
-                    <span>{choiceLabel(choice)}</span>
-                    <span className="text-ods-text-secondary text-h6">{choiceDescription(choice)}</span>
-                  </span>
+              {REMOTE_ACCESS_CHOICES.map(choice => (
+                <SelectItem key={choice} value={choice} description={remoteAccessChoiceDescription(choice)}>
+                  {choiceLabel(choice)}
                 </SelectItem>
               ))}
             </SelectContent>
