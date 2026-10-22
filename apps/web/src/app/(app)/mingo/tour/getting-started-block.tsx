@@ -92,7 +92,8 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
       {folded ? (
         <ul
           data-testid="getting-started-grid"
-          className="grid grid-cols-2 gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]"
+          // Scrolls in a short panel, where the block gives the thread its room.
+          className="grid min-h-0 grid-cols-2 gap-[var(--spacing-system-xsf)] overflow-y-auto p-[var(--spacing-system-sf)]"
         >
           {steps.map(step => {
             const isDone = doneStepIds.has(step.id);
