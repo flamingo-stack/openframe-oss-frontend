@@ -72,7 +72,7 @@ export default function AuthPage() {
     <CreateOrganizationSection
       onRegister={handleRegister}
       ssoProviders={ssoProviders}
-      ssoLoading={providersLoading}
+      ssoProvidersLoading={providersLoading}
       onSsoLogin={handleSsoLogin}
       isLoading={isLoading}
     />
