@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const reads = vi.hoisted(() => ({
   organizations: null as Promise<void> | null,
   device: null as unknown,
+  local: { supported: false, status: 'idle' as string },
 }));
 
 vi.mock('@/app/(app)/devices/hooks/use-device-organizations', () => ({
@@ -25,7 +26,7 @@ vi.mock('@/app/(app)/devices/hooks/use-install-command', () => ({
 }));
 vi.mock('../hooks/use-first-device-enrollment', () => ({ useFirstDeviceEnrollment: () => reads.device }));
 vi.mock('../hooks/use-local-agent-install', () => ({
-  useLocalAgentInstall: () => ({ supported: false, status: 'idle', lines: [], error: null, start: vi.fn() }),
+  useLocalAgentInstall: () => ({ ...reads.local, lines: [], error: null, start: vi.fn() }),
 }));
 vi.mock('@/app/hooks/use-copy-to-clipboard', () => ({ useCopyToClipboard: () => ({ copy: vi.fn() }) }));
 vi.mock('@/lib/analytics', () => ({ EVENT_SUBTYPE: { ADD_DEVICE: 'add-device' }, trackDashboardActivity: vi.fn() }));
@@ -50,6 +51,7 @@ afterEach(() => {
   container.remove();
   reads.organizations = null;
   reads.device = null;
+  reads.local = { supported: false, status: 'idle' };
 });
 
 /** The first device at its enrollment stages. */
@@ -97,5 +99,20 @@ describe('DeployDeviceStep', () => {
     act(() => root.render(<DeployDeviceStep organizationId={null} onEnrolled={vi.fn()} />));
     expect(container.textContent).toContain('mingo unlocked');
     expect(container.textContent).not.toContain('Waiting for the next stage');
+  });
+
+  it('locks Deploy on this Device while it runs and after it installs, and frees it after a failure', () => {
+    const deployButton = () =>
+      [...container.querySelectorAll('button')].find(button => button.textContent?.includes('Deploy on this Device'));
+    const renderAt = (status: string) => {
+      reads.local = { supported: true, status };
+      act(() => root.render(<DeployDeviceStep organizationId={null} onEnrolled={vi.fn()} />));
+      return deployButton()?.disabled;
+    };
+
+    expect(renderAt('idle')).toBe(false);
+    expect(renderAt('running')).toBe(true);
+    expect(renderAt('succeeded')).toBe(true);
+    expect(renderAt('failed')).toBe(false);
   });
 });

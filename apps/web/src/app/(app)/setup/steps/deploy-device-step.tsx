@@ -118,12 +118,16 @@ function DeployActions({
   localSupported,
   canDeployHere,
   deploying,
+  deployed,
   onCopy,
   onDeploy,
 }: {
   localSupported: boolean;
   canDeployHere: boolean;
+  /** The local install is running: the button waits on it. */
   deploying: boolean;
+  /** The local install went through: there is nothing left to run here. Off again only after a failed run. */
+  deployed: boolean;
   onCopy: () => void;
   onDeploy: () => void;
 }) {
@@ -137,9 +141,11 @@ function DeployActions({
           <Button
             variant="accent"
             onClick={onDeploy}
-            disabled={!canDeployHere || deploying}
+            disabled={!canDeployHere || deploying || deployed}
             loading={deploying}
-            title={canDeployHere ? undefined : 'Pick the platform this device runs on'}
+            title={
+              deployed ? 'Deployed on this device' : canDeployHere ? undefined : 'Pick the platform this device runs on'
+            }
           >
             Deploy on this Device
           </Button>
@@ -177,6 +183,7 @@ function DeployDeviceLoading() {
         localSupported={localSupported}
         canDeployHere={false}
         deploying={false}
+        deployed={false}
         onCopy={noop}
         onDeploy={noop}
       />
@@ -249,9 +256,12 @@ function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps)
   // The shell runs the command for the OS it is on; the selector may be
   // showing another platform's command for copying elsewhere.
   const canDeployHere = local.supported && platform === hostPlatform;
+  // Locked from the click until the run says how it went: for good once it
+  // installed, released again by a failure or a declined prompt.
   const deploying = local.status === 'running';
+  const deployed = local.status === 'succeeded';
   const handleDeploy = () => {
-    if (!canDeployHere || deploying || !commandReady()) return;
+    if (!canDeployHere || deploying || deployed || !commandReady()) return;
     trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
     setHandedOver(true);
     void local.start(command);
@@ -284,6 +294,7 @@ function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps)
           localSupported={local.supported}
           canDeployHere={canDeployHere}
           deploying={deploying}
+          deployed={deployed}
           onCopy={handleCopy}
           onDeploy={handleDeploy}
         />
