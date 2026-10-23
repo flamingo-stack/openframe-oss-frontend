@@ -163,7 +163,9 @@ export function SetupWizard() {
           persisting={persisting}
         />
       )}
-      {step === 'device' && <DeployDeviceStep organizationId={customerId} onEnrolled={handleEnrolled} />}
+      {step === 'device' && (
+        <DeployDeviceStep organizationId={customerId} onContinue={handleEnrolled} persisting={persisting} />
+      )}
       {step === 'ready' && <ReadyStep device={device} onStart={handleStart} starting={starting} />}
       {step === 'all-set' && <AllSetStep onStart={handleStart} starting={starting} />}
     </SetupFrame>
