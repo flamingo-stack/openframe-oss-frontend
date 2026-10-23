@@ -64,6 +64,7 @@ import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
 import { useMingoTour } from '../(app)/mingo/tour/use-mingo-tour';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
+import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from './dev-onboarding-shortcuts';
 import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
 interface OpenframeEmbeddableChatEntryProps {
@@ -112,13 +113,16 @@ export function OpenframeEmbeddableChatEntry({
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
-  // offers it), after the chat's own actions.
+  // offers it), after the chat's own actions; the dev/QA onboarding shortcuts
+  // follow it.
   const loadWhatToAsk = useMingoWhatToAsk();
   const canResetOnboarding = useCanResetOnboarding();
   const router = useRouter();
   const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
-  const chatMenuExtraItems =
-    v2 && canResetOnboarding
+  const [isResetInitialSetupOpen, setIsResetInitialSetupOpen] = useState(false);
+  const devOnboardingItems = useDevOnboardingMenuItems(() => setIsResetInitialSetupOpen(true));
+  const onboardingItems = [
+    ...(canResetOnboarding
       ? [
           {
             id: 'reset-onboarding',
@@ -127,7 +131,10 @@ export function OpenframeEmbeddableChatEntry({
             onClick: () => setIsResetOnboardingOpen(true),
           },
         ]
-      : undefined;
+      : []),
+    ...devOnboardingItems,
+  ];
+  const chatMenuExtraItems = v2 && onboardingItems.length > 0 ? onboardingItems : undefined;
   const startCompaction = useMingoCompactionStore(s => s.startCompaction);
 
   // A dialog that won't load is otherwise indistinguishable from an empty one — the
@@ -452,6 +459,12 @@ export function OpenframeEmbeddableChatEntry({
         onOpenChange={setIsResetOnboardingOpen}
         // The tour starts over from the wizard's "Start with Mingo": this menu is
         // on every page, and only the dashboard sends the user there by itself.
+        onReset={() => router.push(routes.setup)}
+      />
+
+      <ResetInitialSetupDialog
+        open={isResetInitialSetupOpen}
+        onOpenChange={setIsResetInitialSetupOpen}
         onReset={() => router.push(routes.setup)}
       />
     </>
