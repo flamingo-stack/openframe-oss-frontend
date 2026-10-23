@@ -80,6 +80,20 @@ describe('buildInstallCommand', () => {
     );
   });
 
+  it('passes the log key right after the install key, and no flag without one', () => {
+    const keyed =
+      'install --serverUrl tenant.example.com --initialKey secret-1 --logKey log-1 --orgId org-1 --userId user-1';
+    expect(buildInstallCommand({ ...common, platform: 'windows', logKey: 'log-1' })).toBe(
+      `${WINDOWS_DOWNLOAD}; & '.\\openframe-client.exe' ${keyed}`,
+    );
+    expect(buildInstallCommand({ ...common, platform: 'darwin', logKey: 'log-1' })).toBe(
+      `${MAC_DOWNLOAD} && sudo ./openframe-client ${keyed}`,
+    );
+    expect(buildInstallCommand({ ...common, platform: 'darwin', logKey: '' })).toBe(
+      `${MAC_DOWNLOAD} && sudo ./openframe-client ${tail}`,
+    );
+  });
+
   it('stamps whatever id it is given, so two commands never share one by construction', () => {
     const a = buildInstallCommand({ ...common, platform: 'darwin', machineId: newDownloadMachineId() });
     const b = buildInstallCommand({ ...common, platform: 'darwin', machineId: newDownloadMachineId() });
@@ -117,6 +131,14 @@ describe('package manager install methods', () => {
   it('registers through the installed openframe-client binary', () => {
     const options = { serverUrl: 'tenant.example.com', initialKey: 'key', orgId: 'org', userId: 'user' };
     const args = 'openframe-client auth --serverUrl tenant.example.com --initialKey key --orgId org --userId user';
+    expect(buildRegisterCommand({ platform: 'windows', ...options })).toBe(args);
+    expect(buildRegisterCommand({ platform: 'darwin', ...options })).toBe(`sudo ${args}`);
+  });
+
+  it('registers with the log key right after the install key when the tenant has one', () => {
+    const options = { serverUrl: 'tenant.example.com', initialKey: 'key', logKey: 'log', orgId: 'org', userId: 'user' };
+    const args =
+      'openframe-client auth --serverUrl tenant.example.com --initialKey key --logKey log --orgId org --userId user';
     expect(buildRegisterCommand({ platform: 'windows', ...options })).toBe(args);
     expect(buildRegisterCommand({ platform: 'darwin', ...options })).toBe(`sudo ${args}`);
   });
