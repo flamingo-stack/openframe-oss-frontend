@@ -117,7 +117,9 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const handleAction = useCallback(
     (step: TourStep, action: TourAction): boolean => {
       // While Mingo is answering, the chat refuses a send; the step is not
-      // done then, and the block stays where it is.
+      // done then, and the block stays where it is. The block disables its
+      // chips meanwhile (`busy`), so this only catches a click that lands
+      // before that render.
       if (isLoading) {
         toast({
           title: 'Mingo is busy',
@@ -178,7 +180,13 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   return {
     state: decoratedState,
     aboveComposer: showing ? (
-      <GettingStartedBlock steps={steps} doneStepIds={doneStepIds} onAction={handleAction} onFinish={handleFinish} />
+      <GettingStartedBlock
+        steps={steps}
+        doneStepIds={doneStepIds}
+        onAction={handleAction}
+        onFinish={handleFinish}
+        busy={isLoading}
+      />
     ) : null,
   };
 }

@@ -40,10 +40,16 @@ afterEach(() => {
 const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
 
-function render(done: TourStepId[] = []) {
+function render(done: TourStepId[] = [], busy = false) {
   act(() => {
     root.render(
-      <GettingStartedBlock steps={TOUR_STEPS} doneStepIds={new Set(done)} onAction={onAction} onFinish={onFinish} />,
+      <GettingStartedBlock
+        steps={TOUR_STEPS}
+        doneStepIds={new Set(done)}
+        onAction={onAction}
+        onFinish={onFinish}
+        busy={busy}
+      />,
     );
   });
 }
@@ -163,6 +169,32 @@ describe('GettingStartedBlock', () => {
 
     expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
     expect(container.textContent).toContain('Try asking:');
+  });
+
+  it('disables the chips while Mingo is answering, and says so', () => {
+    onAction.mockClear();
+    render([], true);
+    click(button('DevicesMachines running the agent'));
+
+    const chip = button('Check my device');
+    expect(chip.matches(':disabled')).toBe(true);
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Mingo is answering…');
+    click(chip);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+  });
+
+  it('enables the chips again once Mingo is done', () => {
+    onAction.mockClear();
+    render([], true);
+    click(button('DevicesMachines running the agent'));
+    render([], false);
+
+    const chip = button('Check my device');
+    expect(chip.matches(':disabled')).toBe(false);
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    click(chip);
+    expect(onAction).toHaveBeenCalledTimes(1);
   });
 
   it('counts the done steps and offers to finish on the last one', () => {

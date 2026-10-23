@@ -11,6 +11,13 @@ import { useState } from 'react';
 import { useGettingStartedView } from './getting-started-view';
 import type { TourAction, TourStep, TourStepId } from './tour-steps';
 
+/**
+ * A chip under a disabled fieldset: the lib's disabled `Tag` look. The chip
+ * button takes no `disabled` of its own, so it is drawn from the fieldset.
+ */
+const DISABLED_CHIP =
+  'group-disabled:cursor-not-allowed group-disabled:[&>*]:border-transparent group-disabled:[&>*]:bg-ods-bg-surface group-disabled:[&>*]:text-ods-text-secondary group-disabled:[&_svg]:text-ods-text-secondary';
+
 export interface GettingStartedBlockProps {
   steps: readonly TourStep[];
   doneStepIds: ReadonlySet<TourStepId>;
@@ -21,6 +28,11 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /**
+   * Mingo is answering in this conversation: the "try asking" chips are
+   * disabled until it is done, since the chat takes one prompt at a time.
+   */
+  busy?: boolean;
 }
 
 /**
@@ -42,7 +54,13 @@ export interface GettingStartedBlockProps {
  * Which steps are done is the host's (it merges the server's record with this
  * device's); the open step is the block's own.
  */
-export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: GettingStartedBlockProps) {
+export function GettingStartedBlock({
+  steps,
+  doneStepIds,
+  onAction,
+  onFinish,
+  busy = false,
+}: GettingStartedBlockProps) {
   // null until the user folds or unfolds it: the progress decides, and it may land
   // after the block has mounted.
   const [view, setView] = useGettingStartedView();
@@ -59,7 +77,7 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
   };
 
   const handleAction = (step: TourStep, action: TourAction) => {
-    if (!onAction(step, action)) return;
+    if (busy || !onAction(step, action)) return;
     setOpenId(null);
     setFolded(true);
   };
@@ -147,8 +165,17 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
                     className="flex flex-col gap-[var(--spacing-system-m)] px-[var(--spacing-system-sf)] pb-[var(--spacing-system-sf)]"
                   >
                     <p className="text-ods-text-primary text-h4">{step.description}</p>
-                    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+                    {/* A disabled fieldset disables every chip button inside it. */}
+                    <fieldset
+                      disabled={busy}
+                      className="group m-0 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] border-0 p-0"
+                    >
                       <p className="text-ods-text-secondary text-h5">Try asking:</p>
+                      {busy && (
+                        <p role="status" className="text-ods-text-secondary text-h6">
+                          Mingo is answering…
+                        </p>
+                      )}
                       <ul className="flex flex-col items-start gap-[var(--spacing-system-xxs)]">
                         {step.actions.map(action => (
                           <li key={action.id} className="max-w-full">
@@ -156,11 +183,12 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
                               label={action.label}
                               icon={<action.Icon size={16} className="text-ods-flamingo-cyan" />}
                               onSelect={() => handleAction(step, action)}
+                              className={DISABLED_CHIP}
                             />
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </fieldset>
                     {isLast && (
                       <div className="flex">
                         <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />
