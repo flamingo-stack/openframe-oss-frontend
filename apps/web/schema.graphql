@@ -679,9 +679,16 @@ enum DirectoryCapability {
 }
 
 """
-Narrowing for directoryConnections. Free-text search is all the Tenants list needs today; further
-dimensions become optional fields here, so adding one never changes the query's signature.
+Narrowing for directoryConnections beside the free-text search. Every field is optional and an empty list
+narrows nothing; further dimensions become optional fields here, so adding one never changes the query's signature.
 """
+input DirectoryConnectionFilterInput {
+  """
+  Only connections whose last sync ended in one of these statuses, e.g. [ERROR] for the failed-sync row.
+  """
+  lastSyncStatuses: [DirectorySyncStatus!]
+}
+
 type DirectoryConnection {
   """
   Config document id — passed as connectionId to every per-connection query/mutation.
@@ -1294,6 +1301,11 @@ input InsightFilter {
   organizationIds: [String!]
   machineIds: [String!]
   types: [InsightType!]
+
+  """
+  Explicit kinds, e.g. DISK_SPACE_LOW. Combined with types, only the kinds of those types remain.
+  """
+  kinds: [InsightKind!]
   severities: [InsightSeverity!]
   statuses: [InsightStatus!]
 
@@ -3480,6 +3492,7 @@ type Query {
     and is never widened by this.
     """
     search: String
+    filter: DirectoryConnectionFilterInput
     first: Int
     after: String
   ): DirectoryConnectionConnection!

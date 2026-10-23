@@ -16,6 +16,7 @@ import {
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
   GET_TICKETS_QUERY,
   GET_BOARD_COLUMN_TICKETS_QUERY,
+  GET_ESCALATED_TICKETS_QUERY,
   GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY,
   GET_PENDING_APPROVAL_TICKETS_QUERY,
   MARK_DIALOG_MESSAGES_READ_MUTATION,
@@ -30,6 +31,7 @@ import type {
   CreateDialogParams,
   FetchBoardColumnByStatusIdParams,
   FetchMessagesParams,
+  FetchEscalatedTicketsParams,
   FetchPendingApprovalTicketsParams,
   FetchTicketsParams,
   MessagePage,
@@ -341,6 +343,14 @@ export class TicketService implements TicketServiceInterface {
       { query: GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY, variables: { statusId } },
     );
     return extractGraphQlData(response).tickets?.filteredCount ?? 0;
+  }
+
+  async fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]> {
+    const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
+      query: GET_ESCALATED_TICKETS_QUERY,
+      variables: { statusIds: params.statusIds, limit: params.limit },
+    });
+    return (extractGraphQlData(response).tickets?.edges || []).map(edge => normalizeTicketToDialog(edge.node));
   }
 
   async fetchDialog(id: string): Promise<Dialog | null> {

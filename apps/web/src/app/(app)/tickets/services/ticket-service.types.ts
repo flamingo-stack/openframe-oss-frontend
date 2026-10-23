@@ -67,6 +67,11 @@ export interface FetchPendingApprovalTicketsParams {
   limit: number;
 }
 
+export interface FetchEscalatedTicketsParams {
+  statusIds: readonly string[];
+  limit: number;
+}
+
 export interface ReorderTicketParams {
   id: string;
   afterTicketId: string | null;
@@ -123,6 +128,8 @@ export interface TicketService {
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
   fetchPendingApprovalTickets(params: FetchPendingApprovalTicketsParams): Promise<TicketsPage>;
   countPendingApprovalTickets(statusId: string): Promise<number>;
+  /** The first `limit` tickets of the given lanes that the end user escalated. */
+  fetchEscalatedTickets(params: FetchEscalatedTicketsParams): Promise<Dialog[]>;
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;

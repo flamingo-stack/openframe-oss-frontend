@@ -5,20 +5,16 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { needsYouInsightsSourceQuery as NeedsYouInsightsSourceQueryType } from '@/__generated__/needsYouInsightsSourceQuery.graphql';
 import { toIncidentRow } from '@/app/(app)/incidents/utils/incident-transform';
 import { useRetryKey } from '@/app/components/shared/content-error-boundary';
-import { InsightKind } from '@/generated/schema-enums';
 import { criticalIncidentRow, diskWarningRow, NEEDS_YOU_CAPS, type ReportSource } from './needs-you-rows';
 
-/** How many unresolved IT findings are read to find a disk warning — see the query. */
-const DISK_CANDIDATES = 20;
+/** How many disk warnings are read: the card's cap, plus room for rows it drops as duplicates. */
+const DISK_CANDIDATES = 5;
 
 /**
  * Three reads of saas-api's insights, one round-trip (one backend, so they fail together):
  *
  * - `critical`: NEW incidents of CRITICAL severity, newest first.
- * - `disk`: devices with a disk warning. `InsightFilter` has no `kinds`, so this narrows
- *   to unresolved IT findings sorted by kind — by its stored name, so DISK_SPACE_LOW
- *   follows only the few IT kinds that sort before it (BATTERY_WORN) — and keeps the
- *   DISK_SPACE_LOW ones of the first page.
+ * - `disk`: unresolved disk warnings (the `DISK_SPACE_LOW` detector).
  * - `newIncidents`: how many incidents are NEW, for the card's footer.
  */
 const needsYouInsightsSourceQuery = graphql`
@@ -30,14 +26,9 @@ const needsYouInsightsSourceQuery = graphql`
         }
       }
     }
-    disk: insights(
-      filter: { types: [IT], statuses: [NEW, ACKNOWLEDGED] }
-      sort: { field: KIND, direction: ASC }
-      first: $diskFirst
-    ) {
+    disk: insights(filter: { kinds: [DISK_SPACE_LOW], statuses: [NEW, ACKNOWLEDGED] }, first: $diskFirst) {
       edges {
         node {
-          kind
           ...insightRowFields_insight
         }
       }
@@ -63,10 +54,7 @@ export function NeedsYouInsightsSource({ onReport }: { onReport: ReportSource })
     [data.critical.edges],
   );
   const diskRows = useMemo(
-    () =>
-      data.disk.edges
-        .filter(edge => edge.node.kind === InsightKind.DISK_SPACE_LOW)
-        .map(edge => diskWarningRow(toIncidentRow(edge.node))),
+    () => data.disk.edges.map(edge => diskWarningRow(toIncidentRow(edge.node))),
     [data.disk.edges],
   );
   const newIncidents = data.newIncidents.filteredCount;
