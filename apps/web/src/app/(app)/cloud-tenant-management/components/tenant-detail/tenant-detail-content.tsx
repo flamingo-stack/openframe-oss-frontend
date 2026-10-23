@@ -15,6 +15,7 @@ import { routes } from '@/lib/routes';
 import { isReadable } from '../../utils/tenant-presentation';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
+import { TenantAttributionRules } from './tenant-attribution-rules';
 import { TenantConsentAlert } from './tenant-consent-alert';
 import { TenantConsentIssues } from './tenant-consent-issues';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
@@ -66,8 +67,9 @@ export function TenantDetailContent(props: TenantDetailContentProps) {
         <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
         <LoadingScope className={BODY_CLASS}>
           <TenantSummaryCard connection={null} />
-          {/* The connected tenant's section: most records on this page are connected. */}
+          {/* The connected tenant's sections: most records on this page are connected. */}
           <TenantIntegrationSection id={props.id} provider={null} />
+          <TenantAttributionRules id={props.id} />
         </LoadingScope>
       </>
     );
@@ -102,14 +104,23 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
       <div className={BODY_CLASS}>
         <TenantSummaryCard connection={connection} />
         {isReadable(connection.access.state) ? (
-          // Its own boundary: a failed live read from the provider loses this section, not the page.
-          <ContentErrorBoundary
-            fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
-          >
-            <LoadingSuspense label="Loading integration">
-              <TenantIntegrationSection id={connection.id} provider={connection.provider} />
-            </LoadingSuspense>
-          </ContentErrorBoundary>
+          <>
+            {/* Each its own boundary: a failed read loses that section, not the page. */}
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
+            >
+              <LoadingSuspense label="Loading integration">
+                <TenantIntegrationSection id={connection.id} provider={connection.provider} />
+              </LoadingSuspense>
+            </ContentErrorBoundary>
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the attribution rules." onRetry={retry} />}
+            >
+              <LoadingSuspense label="Loading attribution rules">
+                <TenantAttributionRules id={connection.id} />
+              </LoadingSuspense>
+            </ContentErrorBoundary>
+          </>
         ) : (
           <ConsentBlock
             mode="details"

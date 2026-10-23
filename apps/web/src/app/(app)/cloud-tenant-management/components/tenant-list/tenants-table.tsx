@@ -49,11 +49,13 @@ const tenantsTableFragment = graphql`
           access {
             state
           }
-          organization {
-            name
-            image {
-              imageUrl
-              hash
+          customers {
+            organization {
+              name
+              image {
+                imageUrl
+                hash
+              }
             }
           }
         }
@@ -122,10 +124,17 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
           name: node.name,
           provider: node.provider,
           domain: node.domain,
-          customer: {
-            name: node.organization.name,
-            imageUrl: getFullImageUrl(node.organization.image?.imageUrl, node.organization.image?.hash),
-          },
+          // A customer whose organization document is gone (broken data) has nothing to show.
+          customers: node.customers.flatMap(({ organization }) =>
+            organization
+              ? [
+                  {
+                    name: organization.name,
+                    imageUrl: getFullImageUrl(organization.image?.imageUrl, organization.image?.hash),
+                  },
+                ]
+              : [],
+          ),
           userCount: node.userCount,
           accessState: node.access.state,
           lastReadAt: lastReadAt({ lastSyncAt }),

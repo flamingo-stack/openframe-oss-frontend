@@ -12,9 +12,9 @@ import { useNewTenantForm } from './use-new-tenant-form';
 
 /**
  * `/cloud-tenant-management/new` before a record exists (Figma 2097-122192): the provider picker,
- * the three fields and "Generate Connection Link". Success moves to `?id=` — `ConnectTenantView`. In a
- * loading scope (the module's flag window) the fields are locked and the picker and the customer list draw their
- * own loading states without fetching.
+ * the domain and name fields and "Generate Connection Link". Success moves to `?id=` — `ConnectTenantView`. In a
+ * loading scope (the module's flag window) the fields are locked and the picker draws its own loading state without
+ * fetching.
  */
 export function NewTenantView() {
   const loading = useLoadingScope();

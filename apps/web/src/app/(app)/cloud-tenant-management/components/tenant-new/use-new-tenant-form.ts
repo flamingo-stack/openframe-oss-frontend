@@ -33,7 +33,7 @@ const createMutation = graphql`
 const CREATE_FAILED = 'Could not generate the link';
 
 /**
- * The New page's form (Figma 2097-122192): provider, domain, name and customer, submitted by
+ * The New page's form (Figma 2097-122192): provider, domain and name, submitted by
  * "Generate Connection Link". The API persists the connection and mints its link in that one call,
  * so success is a hand-off to the connect step on the new id — there is nothing to hold here.
  */
