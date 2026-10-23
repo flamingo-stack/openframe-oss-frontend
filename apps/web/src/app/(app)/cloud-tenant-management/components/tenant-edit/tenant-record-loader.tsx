@@ -6,9 +6,7 @@ import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantRecordLoaderQuery as TenantRecordLoaderQueryType } from '@/__generated__/tenantRecordLoaderQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
-import type { CustomerOption } from '../tenant-form/customer-option';
-import { readTenantFormRecord } from '../tenant-form/tenant-form-helpers';
-import type { TenantFormData } from '../tenant-form/tenant-form.types';
+import { readTenantFormRecord, type TenantFormRecord } from '../tenant-form/tenant-form-helpers';
 
 const tenantRecordLoaderQuery = graphql`
   query tenantRecordLoaderQuery($id: ID!) {
@@ -21,9 +19,7 @@ const tenantRecordLoaderQuery = graphql`
 
 /** What the Edit page knows about the record it edits. */
 export type TenantRecordState =
-  | { status: 'loading' }
-  | { status: 'missing' }
-  | { status: 'ready'; values: TenantFormData; organization: CustomerOption };
+  { status: 'loading' } | { status: 'missing' } | ({ status: 'ready' } & TenantFormRecord);
 
 interface TenantRecordLoaderProps {
   id: string;
@@ -54,8 +50,7 @@ function TenantRecordQuery({ id, onResolved }: TenantRecordLoaderProps) {
   // Identity matters: `useSeedForm` seeds once per values object, so it changes only with the record.
   const state = useMemo<TenantRecordState>(() => {
     if (!connection) return { status: 'missing' };
-    const { values, organization } = readTenantFormRecord(connection);
-    return { status: 'ready', values, organization };
+    return { status: 'ready', ...readTenantFormRecord(connection) };
   }, [connection]);
 
   // Layout effect: the page seeds and unlocks the fields before the paint when the record is cached.

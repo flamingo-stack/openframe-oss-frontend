@@ -9,13 +9,16 @@ import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
 import { LiveSuspense, SectionLoadError, useRetryKey } from '@/app/components/shared';
-import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
+import { isReadable } from '../../utils/tenant-presentation';
 import { ConsentBlock } from '../consent/consent-block';
 import { useCheckConnection } from '../consent/use-check-connection';
 import { MINT_FAILED, useStartConsent } from '../consent/use-start-consent';
 import { SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
 import { TenantIdentityCard } from '../tenant-detail/tenant-summary-card';
+import { AttributionFields, PendingAttributionFields } from '../tenant-form/attribution-fields';
+import { readTenantFormRecord } from '../tenant-form/tenant-form-helpers';
+import { useReconnectTenantForm } from './use-reconnect-tenant-form';
 
 const reconnectTenantViewQuery = graphql`
   query reconnectTenantViewQuery($id: ID!) {
@@ -24,14 +27,15 @@ const reconnectTenantViewQuery = graphql`
       provider
       consentUrl
       ...tenantSummaryCard_identity
+      ...tenantFormHelpers_connection
     }
   }
 `;
 
 /**
  * The page's record and everything that waits for it. In a loading scope (the view's Suspense fallback, or the
- * module's flag window) the chrome is real, the identity card and the consent block draw their own loading states,
- * and nothing is read or minted.
+ * module's flag window) the chrome is real, the identity card, the consent block and the customers draw their own
+ * loading states, and nothing is read or minted.
  */
 function ReconnectTenantContent({ id }: { id: string }) {
   if (useLoadingScope()) {
@@ -39,6 +43,7 @@ function ReconnectTenantContent({ id }: { id: string }) {
       <TenantFormFrame title="Reconnect Tenant Integration">
         <TenantIdentityCard connection={null} />
         <ConsentBlock mode="reconnect" provider={null} />
+        <PendingAttributionFields />
       </TenantFormFrame>
     );
   }
@@ -65,19 +70,23 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
     autoMintWhen: connectionId !== null && !outstandingUrl,
   });
   const { check, isChecking, verdict } = useCheckConnection(connectionId);
+  // The customers wait for this page's own check (Figma 3287-10542): a revoked grant lists no rule values.
+  const readable = verdict?.kind === 'answered' && isReadable(verdict.access.state);
+  const record = connection ? readTenantFormRecord(connection) : null;
+  const { attributionForm, handleSave, isSaving } = useReconnectTenantForm(id, record, readable);
 
   const actions: PageActionButton[] = [
     {
       ...SAVE_PLACEHOLDER,
-      // Nothing of its own to write: back to the details page, which the probe has already updated.
-      onClick: () => safeBackOrReplace(router, routes.cloudTenantManagement.details(id)),
-      disabled: !connection || isMinting || isChecking,
+      onClick: handleSave,
+      disabled: !connection || isMinting || isChecking || isSaving,
+      loading: isSaving,
     },
   ];
 
   return (
     <TenantFormFrame title="Reconnect Tenant Integration" actions={actions}>
-      {connection ? (
+      {connection && record ? (
         <>
           <TenantIdentityCard connection={connection} />
           {mintFailed && !isMinting && !outstandingUrl && (
@@ -92,6 +101,15 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
             onCheck={check}
             disabled={isMinting}
           />
+          <AttributionFields
+            form={attributionForm}
+            connectionId={connection.id}
+            provider={connection.provider}
+            readable={readable}
+            locked={!readable}
+            busy={isSaving}
+            stored={record.attribution}
+          />
         </>
       ) : (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
@@ -100,7 +118,10 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
   );
 }
 
-/** `/cloud-tenant-management/reconnect` (Figma 2108-81037): the identity card over the re-approve consent card. */
+/**
+ * `/cloud-tenant-management/reconnect` (Figma 3287-10542): the identity card over the re-approve consent card, then
+ * the customers.
+ */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
     <LiveSuspense label="Loading tenant">

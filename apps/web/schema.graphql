@@ -346,11 +346,7 @@ input CreateDirectoryConnectionInput {
 
   """User-facing connection label, unique per tenant+provider."""
   name: String!
-
-  """
-  The customer this connection belongs to. Required — a connection always has exactly one.
-  """
-  organizationId: ID!
+  organizationId: ID @deprecated(reason: "Bind customers with updateDirectoryConnection(customers).")
 }
 
 input CreateKnowledgeBaseAttachmentInput {
@@ -722,13 +718,19 @@ type DirectoryConnection {
   lastSyncAt: Instant
   lastSyncError: String
 
-  """
-  The customer this connection belongs to. Exactly one; a customer may have several connections.
-  """
-  organizationId: ID!
+  """First customer (earliest attached); null while the connection serves none."""
+  organizationId: ID @deprecated(reason: "Use customers.")
+  organization: Organization @deprecated(reason: "Use customers.")
 
-  """Resolved through the shared organizationDataLoader — batched, no N+1."""
-  organization: Organization!
+  """
+  Customers this directory serves, earliest attached first. [] = not assigned to any customer yet.
+  """
+  customers: [DirectoryConnectionCustomer!]!
+
+  """
+  Synced users that no active customer's rules claim; a customer whose organization is not ACTIVE claims nobody. 0 when any active customer holds ALL. Null until the first sync.
+  """
+  unattributedUserCount: Int
 
   """
   Users synced under this connection (spine rows — no live provider call)
@@ -749,8 +751,6 @@ type DirectoryConnection {
   startDirectoryConsent is what mints a replacement, and that does invalidate the previous link.
   """
   consentUrl: String
-
-  " No `rules` field: nothing in the Tenant Management designs renders a connection's visibility\n rules, and the retrieval path needs review before it is exposed. Mingo still sets them through\n DirectoryConnectionRuleWriter, and the lib-side reader is untouched."
   access: DirectoryConnectionAccess!
   domains: [DirectoryDomain!]!
 
@@ -798,6 +798,29 @@ type DirectoryConnectionConnection {
   totalCount: Int!
 }
 
+type DirectoryConnectionCustomer {
+  organizationId: ID!
+
+  """
+  Null only when the organization document is missing (broken data); deletion is a status flip.
+  """
+  organization: Organization
+  attachedAt: Instant
+
+  """OR of every rule: a user is visible to this customer when any rule claims them."""
+  rules: [DirectoryConnectionRule!]!
+
+  """Users this customer sees through its rules. Null until the connection's first sync."""
+  userCount: Int
+}
+
+input DirectoryConnectionCustomerInput {
+  organizationId: ID!
+
+  """At least one rule."""
+  rules: [DirectoryRuleInput!]!
+}
+
 type DirectoryConnectionEdge {
   cursor: String!
   node: DirectoryConnection!
@@ -828,6 +851,16 @@ type DirectoryConnectionPayload {
   userErrors: [UserError!]!
 }
 
+type DirectoryConnectionRule {
+  kind: DirectoryRuleKind!
+
+  """Empty for ALL."""
+  values: [DirectoryRuleValue!]!
+
+  """Users this rule alone claims. Null until the connection's first sync."""
+  userCount: Int
+}
+
 """
 Verified domains, read live from the provider (Graph /organization | Admin SDK domains.list).
 """
@@ -849,6 +882,35 @@ When adding a provider: add its key here — must equal the DirectoryIntegration
 enum DirectoryProvider {
   GOOGLE_WORKSPACE
   MICROSOFT_365
+}
+
+input DirectoryRuleInput {
+  kind: DirectoryRuleKind!
+
+  """
+  Required non-empty unless kind = ALL; must be empty for ALL. Stable ids from directoryRuleOptions.
+  """
+  values: [String!]
+}
+
+"""
+DOMAIN matches the primary login domain, GROUP direct members, ORG_UNIT (Google Workspace only) the unit and everything under it.
+"""
+enum DirectoryRuleKind {
+  ALL
+  DOMAIN
+  GROUP
+  ORG_UNIT
+}
+
+type DirectoryRuleValue {
+  """What is stored: the domain, the Graph / Google group id, the Google orgUnitId."""
+  id: String!
+
+  """
+  Live display: the domain, the group name, the org-unit path. Null when no longer found in the directory.
+  """
+  name: String
 }
 
 """
@@ -3450,7 +3512,7 @@ type Query {
   directoryConnectionOptions, so the form can scroll and re-fetch it without re-reading the
   provider list.
   """
-  directoryConnectionOrganizations(first: Int, after: String): OrganizationConnection!
+  directoryConnectionOrganizations(first: Int, after: String): OrganizationConnection! @deprecated(reason: "Pick customers from organizations; a customer may serve several connections.")
 
   """
   One page of the tenant's directory connections, ordered by name, ties broken by id. Omit search
@@ -3476,6 +3538,15 @@ type Query {
   the same "not found" every other single-connection operation raises.
   """
   directoryConnection(connectionId: ID!): DirectoryConnection
+
+  """
+  Values for the rule editor's Values dropdown. Synced mirror first; a live provider read until the
+  connection's first sync has finished, or while the mirror holds nothing for it. Sorted by name; search is a
+  case-insensitive substring; first defaults to 50 and is capped at 200. ALL returns []. ORG_UNIT on
+  a Microsoft 365 connection is an error; a failed live read is an error with code
+  DIRECTORY_PROVIDER_READ_FAILED (HTTP 502) and a fixed message.
+  """
+  directoryRuleOptions(connectionId: ID!, kind: DirectoryRuleKind!, search: String, first: Int): [DirectoryRuleValue!]!
 
   """
   The tenant-wide re-consent banner for the connection list: OpenFrame now requests permissions that
@@ -5779,9 +5850,14 @@ input UpdateDirectoryConnectionInput {
   name: String
 
   """
-  Moves the connection to another customer; omit to leave it where it is.
+  Moves a connection that serves at most one customer; that customer's rules move with it.
   """
-  organizationId: ID
+  organizationId: ID @deprecated(reason: "Use customers.")
+
+  """
+  The complete desired set of customers and their rules. Omit to leave them untouched; [] removes every customer.
+  """
+  customers: [DirectoryConnectionCustomerInput!]
 
   """
   The 'Edit Domain' action, accepted only while the connection has never connected — a userError

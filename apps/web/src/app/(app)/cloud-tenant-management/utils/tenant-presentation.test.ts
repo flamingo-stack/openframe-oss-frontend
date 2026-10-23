@@ -15,11 +15,13 @@ import {
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
   DirectoryProvider,
+  DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate } from '@/lib/format-date';
 import {
   accessStateHint,
+  attributionSummary,
   capabilityLabels,
   checkResultTag,
   consentAlert,
@@ -31,6 +33,10 @@ import {
   PROVIDER_ORDER,
   providerErrorLookupUrl,
   providerPresentation,
+  ruleKindLabel,
+  ruleKindPlural,
+  ruleKindsFor,
+  ruleValueLabel,
 } from './tenant-presentation';
 
 const access = (state: DirectoryAccessState) => ({ state });
@@ -133,6 +139,44 @@ describe('capabilityLabels', () => {
       'Admin roles',
     ]);
     expect(capabilityLabels(['MAILBOXES'])).toEqual(['MAILBOXES']);
+  });
+});
+
+describe('attribution rules', () => {
+  it('labels every rule kind and keeps unknown ones verbatim', () => {
+    expect(Object.values(DirectoryRuleKind).map(ruleKindLabel)).toEqual([
+      'All accounts',
+      'Domain',
+      'Group',
+      'Org unit',
+    ]);
+    expect(ruleKindLabel('TITLE')).toBe('TITLE');
+    expect(ruleKindsFor(DirectoryProvider.GOOGLE_WORKSPACE).map(ruleKindPlural)).toEqual([
+      'domains',
+      'groups',
+      'org units',
+    ]);
+  });
+
+  it('offers org units on Google Workspace only, and never ALL', () => {
+    expect(ruleKindsFor(DirectoryProvider.GOOGLE_WORKSPACE)).toEqual([
+      DirectoryRuleKind.DOMAIN,
+      DirectoryRuleKind.GROUP,
+      DirectoryRuleKind.ORG_UNIT,
+    ]);
+    expect(ruleKindsFor(DirectoryProvider.MICROSOFT_365)).toEqual([DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP]);
+  });
+
+  it('names a value the directory no longer has by its id', () => {
+    expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians' })).toBe('Clinicians');
+    expect(ruleValueLabel({ id: 'g-gone', name: null })).toBe('g-gone (not found in directory)');
+  });
+
+  it('summarises attribution as the details card draws it', () => {
+    expect(attributionSummary(8, 96)).toEqual({ text: '8 of 96 unattributed', warning: true });
+    expect(attributionSummary(0, 257)).toEqual({ text: 'Fully attributed', warning: false });
+    expect(attributionSummary(null, 96)).toBeNull();
+    expect(attributionSummary(3, null)).toEqual({ text: '3 unattributed', warning: true });
   });
 });
 

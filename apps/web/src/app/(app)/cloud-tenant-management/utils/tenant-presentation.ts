@@ -20,6 +20,7 @@ import {
   DirectoryConsentIssueKind,
   DirectoryConsentOutcome,
   DirectoryProvider,
+  DirectoryRuleKind,
 } from '@/generated/schema-enums';
 import { presentationFor } from '@/lib/exhaustive-map';
 import { formatDate, formatTimeWithSeconds, toValidDate } from '@/lib/format-date';
@@ -291,7 +292,58 @@ export function capabilityLabels(capabilities: readonly string[]): string[] {
   return capabilities.map(capability => presentationFor(CAPABILITY_LABELS, capability) ?? capability);
 }
 
-/** The two-tone "11/12/24 09:43:00" of the details card; `null` = never connected. */
+const RULE_KIND_LABELS = {
+  [DirectoryRuleKind.ALL]: 'All accounts',
+  [DirectoryRuleKind.DOMAIN]: 'Domain',
+  [DirectoryRuleKind.GROUP]: 'Group',
+  [DirectoryRuleKind.ORG_UNIT]: 'Org unit',
+} satisfies Record<DirectoryRuleKind, string>;
+
+/** "Match by" — a rule kind's label; an unknown kind keeps its raw name. */
+export function ruleKindLabel(kind: string): string {
+  return presentationFor(RULE_KIND_LABELS, kind) ?? kind;
+}
+
+/**
+ * The kinds the rule editor offers, in Figma order: org units exist on Google Workspace only. `ALL` is not one of
+ * them: a whole-directory claim is the "One customer owns this tenant" mode, never a rule beside other customers'.
+ */
+export function ruleKindsFor(provider: string | null | undefined): DirectoryRuleKind[] {
+  return provider === DirectoryProvider.GOOGLE_WORKSPACE
+    ? [DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP, DirectoryRuleKind.ORG_UNIT]
+    : [DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP];
+}
+
+/** A rule kind in a sentence: "domains", "org units". */
+export function ruleKindPlural(kind: string): string {
+  return `${ruleKindLabel(kind).toLowerCase()}s`;
+}
+
+/** A rule value by its directory name; one the directory no longer has keeps its id, so the reader can tell which. */
+export function ruleValueLabel(value: { readonly id: string; readonly name: string | null | undefined }): string {
+  return value.name ?? `${value.id} (not found in directory)`;
+}
+
+export interface AttributionSummary {
+  text: string;
+  /** Some synced users belong to no customer (Figma draws the cell in the warning colour). */
+  warning: boolean;
+}
+
+/** The details card's Attribution cell (Figma 3065-17490, 3051-7925); `null` until the first sync counts anyone. */
+export function attributionSummary(
+  unattributed: number | null | undefined,
+  users: number | null | undefined,
+): AttributionSummary | null {
+  if (unattributed == null) return null;
+  if (unattributed === 0) return { text: 'Fully attributed', warning: false };
+  return {
+    text: users == null ? `${unattributed} unattributed` : `${unattributed} of ${users} unattributed`,
+    warning: true,
+  };
+}
+
+/** The two-tone "11/12/24 09:43:00" of a consent issue's time; `null` = no time. */
 export function formatConnectedAt(iso: string | null | undefined): { date: string; time: string } | null {
   const date = toValidDate(iso);
   return date ? { date: formatDate(date), time: formatTimeWithSeconds(date) } : null;

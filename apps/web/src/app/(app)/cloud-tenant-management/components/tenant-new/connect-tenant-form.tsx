@@ -8,6 +8,7 @@ import { SectionLoadError } from '@/app/components/shared';
 import { ConsentBlock } from '../consent/consent-block';
 import { MINT_FAILED } from '../consent/use-start-consent';
 import { GENERATE_LINK_LABEL, SAVE_PLACEHOLDER, TenantFormFrame } from '../shared/tenant-form-frame';
+import { AttributionFields, PendingAttributionFields } from '../tenant-form/attribution-fields';
 import { ProviderField } from '../tenant-form/provider-field';
 import { TenantFormFields } from '../tenant-form/tenant-form-fields';
 import type { TenantFormRecord } from '../tenant-form/tenant-form-helpers';
@@ -15,10 +16,11 @@ import { TENANT_FORM_DEFAULT_VALUES, type TenantFormData } from '../tenant-form/
 import { useConnectTenantForm } from './use-connect-tenant-form';
 
 /**
- * The connect step (Figma 2097-122222 → 122274): the same form as the create step with provider
- * and domain locked, the consent card in place of the Generate button, Save live in the title bar.
- * Edit Domain brings the Generate button back until a fresh link stands. With no record yet (a loading scope) it
- * draws its own loading state.
+ * The connect step (Figma 3562-27595 → 27507): the same form as the create step with provider and domain locked,
+ * the consent card in place of the Generate button, then the customers — locked until the directory answers
+ * readable, because their rules are built from what it holds. Save is live in the title bar. Edit Domain brings the
+ * Generate button back until a fresh link stands. With no record yet (a loading scope) it draws its own loading
+ * state.
  */
 export function ConnectTenantForm({ record }: { record: TenantFormRecord | null }) {
   if (useLoadingScope() || !record) {
@@ -30,6 +32,8 @@ export function ConnectTenantForm({ record }: { record: TenantFormRecord | null 
 function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
   const {
     form,
+    attributionForm,
+    connected,
     editingDomain,
     editDomain,
     generateLink,
@@ -59,7 +63,17 @@ function LoadedConnectTenantForm({ record }: { record: TenantFormRecord }) {
       actions={actions}
       busy={busy}
       editingDomain={editingDomain}
-      includeOrganization={record.organization}
+      attribution={
+        <AttributionFields
+          form={attributionForm}
+          connectionId={record.id}
+          provider={record.provider}
+          readable={connected}
+          locked={!connected}
+          busy={busy}
+          stored={record.attribution}
+        />
+      }
     >
       {editingDomain ? (
         <div>
@@ -100,16 +114,15 @@ function ConnectTenantFormView({
   actions,
   busy,
   editingDomain,
-  includeOrganization,
-  customersEnabled,
+  attribution,
   children,
 }: {
   control: Control<TenantFormData>;
   actions: PageActionButton[];
   busy: boolean;
   editingDomain: boolean;
-  includeOrganization?: TenantFormRecord['organization'];
-  customersEnabled?: boolean;
+  /** "Customers and attribution", under the consent card. */
+  attribution: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -119,16 +132,15 @@ function ConnectTenantFormView({
         disabled={busy}
         domainLocked={!editingDomain}
         providerField={<ProviderField control={control} disabled={busy} locked />}
-        includeOrganization={includeOrganization}
-        customersEnabled={customersEnabled}
       />
       {children}
+      {attribution}
     </TenantFormFrame>
   );
 }
 
 /**
- * The connect step before the record is known: the same view, locked, over a throwaway form. Only what names the
+ * The connect step before the record is known: the same view, locked, over throwaway forms. Only what names the
  * record (the consent instruction) is a bar, drawn by the consent block and the provider picker themselves.
  */
 function PendingConnectTenantForm() {
@@ -139,7 +151,7 @@ function PendingConnectTenantForm() {
       actions={[{ ...SAVE_PLACEHOLDER, disabled: true }]}
       busy
       editingDomain={false}
-      customersEnabled={false}
+      attribution={<PendingAttributionFields />}
     >
       {/* Before the record the block draws its own loading state; it reads only the mode. */}
       <ConsentBlock mode="new" provider={null} />
