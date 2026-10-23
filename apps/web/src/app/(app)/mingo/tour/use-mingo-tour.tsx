@@ -56,7 +56,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const firstName = useAuthStore(s => s.user?.firstName);
   const userId = useAuthStore(s => s.user?.id);
   const user = useOnboardingStore(s => s.user);
-  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground } =
+  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground, skipUserInBackground } =
     useOnboardingMutations();
 
   // The tour is on while the user's onboarding is neither finished nor skipped
@@ -172,10 +172,21 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
     };
   }, [showing, hasMoreMessages, startedAt, dialogId, firstName]);
 
-  const decoratedState = useMemo<UnifiedChatState>(
-    () => (greeting ? { ...state, messages: [greeting, ...messages] } : state),
-    [state, greeting, messages],
-  );
+  // Archiving the tour's conversation while the tour is on sets the tour
+  // aside: it is skipped once the archive lands, so "Reset Onboarding" can
+  // bring it back instead of leaving it out of sight and unfinished.
+  const { archiveDialog } = state;
+  const decoratedState = useMemo<UnifiedChatState>(() => {
+    const withGreeting = greeting ? { ...state, messages: [greeting, ...messages] } : state;
+    if (!dialogId) return withGreeting;
+    return {
+      ...withGreeting,
+      archiveDialog: async (id: string) => {
+        await archiveDialog(id);
+        if (id === dialogId) skipUserInBackground();
+      },
+    };
+  }, [state, greeting, messages, dialogId, archiveDialog, skipUserInBackground]);
 
   return {
     state: decoratedState,
