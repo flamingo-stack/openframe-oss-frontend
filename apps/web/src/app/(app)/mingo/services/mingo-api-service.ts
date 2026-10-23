@@ -45,7 +45,13 @@ export function useApproveRequestMutation() {
 
   return useMutation({
     mutationFn: (requestId: string) => ticketService.resolveApprovalRequest(requestId, true),
-    onSuccess: () => {},
+    onSuccess: () => {
+      toast({
+        title: 'Request Approved',
+        description: 'The request has been approved successfully.',
+        duration: 5000,
+      });
+    },
     onError: error => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve request';
       toast({
@@ -75,7 +81,13 @@ export function useRejectRequestMutation() {
 
   return useMutation({
     mutationFn: (requestId: string) => ticketService.resolveApprovalRequest(requestId, false),
-    onSuccess: () => {},
+    onSuccess: () => {
+      toast({
+        title: 'Request Rejected',
+        description: 'The request has been rejected successfully.',
+        duration: 5000,
+      });
+    },
     onError: error => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reject request';
       toast({
