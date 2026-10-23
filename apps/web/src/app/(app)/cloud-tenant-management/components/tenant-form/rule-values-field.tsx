@@ -42,6 +42,8 @@ interface RuleValuesFieldProps {
   /** Only the first rule of a customer carries the column labels (Figma 3562-27507). */
   label?: string;
   error?: string;
+  /** The values the connection's other rules of this kind hold: a value belongs to one rule per connection. */
+  exclude?: ReadonlySet<string>;
   /** The block waits for its directory: there is nothing to read yet. */
   locked?: boolean;
   /** A write is in flight: the field stays mounted, inert, so its search and a retried read survive the save. */
@@ -77,7 +79,16 @@ function LockedValues({
   );
 }
 
-function RuleValuesOptions({ connectionId, kind, value, onChange, label, error, disabled }: RuleValuesOptionsProps) {
+function RuleValuesOptions({
+  connectionId,
+  kind,
+  value,
+  onChange,
+  label,
+  error,
+  exclude,
+  disabled,
+}: RuleValuesOptionsProps) {
   const retryKey = useRetryKey();
   const [input, setInput] = useState('');
   const debounced = useDebounce(input.trim(), 300);
@@ -92,13 +103,16 @@ function RuleValuesOptions({ connectionId, kind, value, onChange, label, error, 
   // The picked values stay named after the search moves on; a fresh answer renames them.
   const byId = new Map<string, RuleValue>(value.map(item => [item.id, item]));
   for (const option of directoryRuleOptions) byId.set(option.id, { id: option.id, name: option.name ?? null });
+  // Another rule's values are not offered; one this rule already holds stays, so the form can say where it clashes.
+  const picked = new Set(value.map(item => item.id));
+  const offered = [...byId.values()].filter(item => picked.has(item.id) || !exclude?.has(item.id));
 
   return (
     <Autocomplete
       multiple
       label={label}
       labelVariant="large"
-      options={[...byId.values()].map(toOption)}
+      options={offered.map(toOption)}
       value={value.map(item => item.id)}
       onChange={ids => onChange(ids.map(id => byId.get(id) ?? { id, name: null }))}
       onInputChange={setInput}

@@ -18,6 +18,9 @@ const customerOptionFragment = graphql`
 
 export type CustomerOption = Omit<customerOption_organization$data, ' $fragmentType'>;
 
+/** A picker's customer. A stored one that is no longer active carries why (`inactiveCustomerBadge`). */
+export type PickerCustomer = CustomerOption & { readonly badge?: string };
+
 export function toCustomerOption(ref: customerOption_organization$key): CustomerOption {
   const { organizationId, name, image } = readInlineData(customerOptionFragment, ref);
   return { organizationId, name, image: image ? { imageUrl: image.imageUrl, hash: image.hash } : null };

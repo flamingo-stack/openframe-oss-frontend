@@ -29,6 +29,7 @@ import {
   consentIssueReport,
   consentIssueTag,
   formatConnectedAt,
+  inactiveCustomerBadge,
   isReadable,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
@@ -165,6 +166,13 @@ describe('attribution rules', () => {
       DirectoryRuleKind.ORG_UNIT,
     ]);
     expect(ruleKindsFor(DirectoryProvider.MICROSOFT_365)).toEqual([DirectoryRuleKind.DOMAIN, DirectoryRuleKind.GROUP]);
+  });
+
+  it('badges a bound customer that is no longer active; a legacy one with no status is active', () => {
+    expect(inactiveCustomerBadge({ status: 'ACTIVE' })).toBeNull();
+    expect(inactiveCustomerBadge({ status: null })).toBeNull();
+    expect(inactiveCustomerBadge({ status: 'ARCHIVED' })).toBe('Archived');
+    expect(inactiveCustomerBadge(null)).toBe('Deleted');
   });
 
   it('names a value the directory no longer has by its id', () => {

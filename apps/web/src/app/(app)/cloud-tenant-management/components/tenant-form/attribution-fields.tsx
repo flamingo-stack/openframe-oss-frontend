@@ -4,7 +4,6 @@
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Alert, Button, RadioGroupBlock } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Controller, type UseFormReturn, useFieldArray, useForm, useWatch } from 'react-hook-form';
-import { NO_ITEMS } from '@/app/components/shared';
 import { knownValue } from '@/lib/exhaustive-map';
 import { ruleKindLabel, ruleKindPlural, ruleKindsFor } from '../../utils/tenant-presentation';
 import { AttributionCustomerCard } from './attribution-customer-card';
@@ -16,7 +15,7 @@ import {
   type AttributionMode,
   newRule,
 } from './attribution.types';
-import type { CustomerOption } from './customer-option';
+import type { PickerCustomer } from './customer-option';
 import { CustomerSelect } from './customer-select';
 
 // "Customers and attribution" (Figma 3126-14295, 3562-27470 → 27507): one customer that owns the
@@ -65,19 +64,19 @@ function modeOptions(provider: string | null, readable: boolean) {
   ];
 }
 
-/** The API refuses an archived customer (`CUSTOMER_NOT_FOUND`), so a save of the set drops its binding. */
-function archivedMessage(archived: StoredAttribution['archived']): string {
-  const names = archived.map(customer => customer.name ?? 'A deleted customer').join(', ');
-  return archived.length === 1
-    ? `${names} is no longer an active customer, so it can't be edited here. Saving a change to this tenant's customers removes it.`
-    : `${names} are no longer active customers, so they can't be edited here. Saving a change to this tenant's customers removes them.`;
+/** An archived or deleted customer stays bound and editable; nobody it claims is attributed to it any more. */
+function inactiveMessage(inactive: readonly PickerCustomer[]): string {
+  const names = inactive.map(customer => customer.name).join(', ');
+  return inactive.length === 1
+    ? `${names} is no longer an active customer: its users count as unattributed until an active customer takes its place.`
+    : `${names} are no longer active customers: their users count as unattributed until active customers take their place.`;
 }
 
 interface SharedCustomersProps {
   form: UseFormReturn<AttributionFormData>;
   connectionId: string;
   provider: string | null;
-  options: ReadonlyMap<string, CustomerOption>;
+  options: ReadonlyMap<string, PickerCustomer>;
   locked: boolean;
   /** Locked or writing: every control inert. */
   disabled: boolean;
@@ -131,10 +130,10 @@ interface AttributionFieldsProps {
   locked?: boolean;
   /** A write is in flight: every control inert. */
   busy?: boolean;
-  stored?: Pick<StoredAttribution, 'archived' | 'options'>;
+  stored?: Pick<StoredAttribution, 'options'>;
 }
 
-const NO_OPTIONS: ReadonlyMap<string, CustomerOption> = new Map();
+const NO_OPTIONS: ReadonlyMap<string, PickerCustomer> = new Map();
 
 export function AttributionFields({
   form,
@@ -146,9 +145,17 @@ export function AttributionFields({
   stored,
 }: AttributionFieldsProps) {
   const mode = useWatch({ control: form.control, name: 'mode' });
+  const soleCustomerId = useWatch({ control: form.control, name: 'soleCustomerId' });
+  const customers = useWatch({ control: form.control, name: 'customers' });
   const options = stored?.options ?? NO_OPTIONS;
-  const archived = stored?.archived ?? NO_ITEMS;
   const inert = locked || busy;
+  // The customers on screen, not the stored ones: removing or replacing an inactive one clears its note.
+  const picked =
+    mode === ATTRIBUTION_MODE.SHARED ? customers.map(customer => customer.organizationId) : [soleCustomerId];
+  const inactive = picked.flatMap(organizationId => {
+    const option = options.get(organizationId);
+    return option?.badge ? [option] : [];
+  });
 
   // The other mode keeps what was typed there; switching only carries the customer across when the target is empty.
   const switchMode = (next: string, onChange: (value: AttributionMode) => void) => {
@@ -211,9 +218,9 @@ export function AttributionFields({
           )}
         />
       )}
-      {archived.length > 0 && (
+      {inactive.length > 0 && (
         <Alert variant="warning" className="p-[var(--spacing-system-s)]" role="status">
-          <p className="text-h4">{archivedMessage(archived)}</p>
+          <p className="text-h4">{inactiveMessage(inactive)}</p>
         </Alert>
       )}
     </section>

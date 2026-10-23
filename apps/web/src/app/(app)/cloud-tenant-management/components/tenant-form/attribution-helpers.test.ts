@@ -1,7 +1,7 @@
 // Pins how a connection's customers become the attribution form and back: one customer holding
-// a single ALL rule is "One customer owns this tenant", a customer the API would refuse is set
-// apart instead of sent, only a real change sends `customers`, and every refusal the form draws
-// lands on its own field.
+// a single ALL rule is "One customer owns this tenant", an archived or deleted customer stays in
+// the form with its badge, a value belongs to one rule, only a real change sends `customers`, and
+// every refusal the form draws lands on its own field.
 
 import { describe, expect, it } from 'vitest';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
@@ -13,6 +13,7 @@ import {
   readAttribution,
   type StoredCustomer,
   userErrorsDescription,
+  valuesClaimedElsewhere,
 } from './attribution-helpers';
 import { ATTRIBUTION_MODE, type AttributionFormData } from './attribution.types';
 
@@ -90,22 +91,30 @@ describe('readAttribution', () => {
     expect(values.customers[0]?.rules).toEqual([ALL_RULE]);
   });
 
-  it('sets archived and missing organizations apart; a legacy one with no status is active', () => {
-    const { values, archived } = readAttribution([
-      customer('acme', [ALL_RULE], null),
-      customer('old', [DOMAIN_RULE], 'ARCHIVED'),
-      { organizationId: 'gone', organization: null, rules: [GROUP_RULE] },
+  it('keeps archived and deleted customers in the form with a badge; a legacy one with no status is active', () => {
+    const { values, options } = readAttribution([
+      customer('acme', [DOMAIN_RULE], null),
+      customer('old', [GROUP_RULE], 'ARCHIVED'),
+      { organizationId: 'gone', organization: null, rules: [LAB_GROUP] },
     ]);
-    expect(values).toEqual({ mode: ATTRIBUTION_MODE.SOLE, soleCustomerId: 'acme', customers: [] });
-    expect(archived).toEqual([
-      { organizationId: 'old', name: 'Org old' },
-      { organizationId: 'gone', name: null },
-    ]);
+    expect(values.customers.map(stored => stored.organizationId)).toEqual(['acme', 'old', 'gone']);
+    expect(options.get('acme')).toEqual({ organizationId: 'acme', name: 'Org acme', image: null });
+    expect(options.get('old')).toEqual({ organizationId: 'old', name: 'Org old', image: null, badge: 'Archived' });
+    expect(options.get('gone')).toEqual({
+      organizationId: 'gone',
+      name: 'Unknown customer',
+      image: null,
+      badge: 'Deleted',
+    });
   });
 
-  it("hands each active customer's option to its picker, without the status", () => {
-    const { options } = readAttribution([customer('acme', [ALL_RULE])]);
-    expect(options.get('acme')).toEqual({ organizationId: 'acme', name: 'Org acme', image: null });
+  it('reads an archived customer holding a single ALL rule as the one that owns the tenant', () => {
+    expect(readAttribution([customer('old', [ALL_RULE], 'ARCHIVED')]).values.soleCustomerId).toBe('old');
+  });
+
+  it('sends an archived customer back with the rest: it stays bound', () => {
+    const { values } = readAttribution([customer('acme', [DOMAIN_RULE]), customer('old', [GROUP_RULE], 'ARCHIVED')]);
+    expect(attributionToInput(values).map(sent => sent.organizationId)).toEqual(['acme', 'old']);
   });
 
   it('reads a rule kind this build does not know as not picked', () => {
@@ -113,6 +122,20 @@ describe('readAttribution', () => {
     expect(
       readAttribution([customer('acme', [future]), customer('lab', [GROUP_RULE])]).values.customers[0]?.rules,
     ).toEqual([{ kind: '', values: [] }]);
+  });
+});
+
+describe('valuesClaimedElsewhere', () => {
+  const NURSES = { kind: DirectoryRuleKind.GROUP, values: [{ id: 'g-2', name: 'Nurses' }] };
+  const customers = [
+    { organizationId: 'acme', rules: [DOMAIN_RULE, LAB_GROUP] },
+    { organizationId: 'lab', rules: [NURSES] },
+  ];
+
+  it("lists the other rules' values of the same kind, never the rule's own", () => {
+    expect([...valuesClaimedElsewhere(customers, 0, 1, DirectoryRuleKind.GROUP)]).toEqual(['g-2']);
+    expect([...valuesClaimedElsewhere(customers, 1, 0, DirectoryRuleKind.GROUP)]).toEqual(['g-1']);
+    expect([...valuesClaimedElsewhere(customers, 1, 0, DirectoryRuleKind.DOMAIN)]).toEqual(['acme.com']);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
   SquareAvatar,
+  Tag,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -18,7 +19,7 @@ import type { customerSelectPaginationQuery } from '@/__generated__/customerSele
 import type { customerSelectQuery as CustomerSelectQueryType } from '@/__generated__/customerSelectQuery.graphql';
 import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
-import { type CustomerOption, toCustomerOption } from './customer-option';
+import { type PickerCustomer, toCustomerOption } from './customer-option';
 import { withBoundOrganization } from './tenant-form-helpers';
 
 // A customer field of "Customers and attribution": a core `Select` without a search box (Figma
@@ -61,8 +62,11 @@ interface CustomerSelectProps {
   error?: string;
   invalid?: boolean;
   disabled?: boolean;
-  /** The stored customer: the field names it before its list has paged to it. */
-  includeOrganization?: CustomerOption | null;
+  /**
+   * The stored customer: the field names it before its list has paged to it. An archived or deleted one, which the
+   * list never offers, is named with its badge.
+   */
+  includeOrganization?: PickerCustomer | null;
   /** The customers picked in the form's other rows: a customer is bound once per directory. */
   exclude?: readonly string[];
   /** Edit: hold the list until the stored customer is known. */
@@ -70,13 +74,13 @@ interface CustomerSelectProps {
 }
 
 interface CustomerSelectShellProps extends Omit<CustomerSelectProps, 'includeOrganization' | 'enabled'> {
-  options: readonly CustomerOption[];
+  options: readonly PickerCustomer[];
   placeholder: string;
   /** Rendered last inside the menu — the load-more sentinel. */
   footer?: ReactNode;
 }
 
-function CustomerOptionLabel({ organization }: { organization: CustomerOption }) {
+function CustomerOptionLabel({ organization }: { organization: PickerCustomer }) {
   return (
     <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
       <SquareAvatar
@@ -89,6 +93,7 @@ function CustomerOptionLabel({ organization }: { organization: CustomerOption })
       <TruncateText as="span" className="text-inherit">
         {organization.name}
       </TruncateText>
+      {organization.badge && <Tag as="span" variant="warning" label={organization.badge} className="shrink-0" />}
     </span>
   );
 }
@@ -144,7 +149,7 @@ function CustomerSelectOptions({
   >(customerSelectFragment, queryData);
 
   const loaded = data.organizations.edges.map(edge => toCustomerOption(edge.node));
-  const options = withBoundOrganization(loaded, includeOrganization).filter(
+  const options = withBoundOrganization<PickerCustomer>(loaded, includeOrganization).filter(
     organization => !exclude?.includes(organization.organizationId),
   );
   // Nothing to pick is a disabled field with the reason as its placeholder: Radix forbids an empty-valued item.

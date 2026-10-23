@@ -12,13 +12,15 @@ import type {
 } from '@/__generated__/useSaveIntegrationMutation.graphql';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
 import { knownValue } from '@/lib/exhaustive-map';
+import { inactiveCustomerBadge, UNKNOWN_CUSTOMER } from '../../utils/tenant-presentation';
 import {
   ATTRIBUTION_MODE,
+  type AttributionCustomer,
   type AttributionFormData,
   type AttributionMode,
   type AttributionRule,
 } from './attribution.types';
-import type { CustomerOption } from './customer-option';
+import type { CustomerOption, PickerCustomer } from './customer-option';
 
 type RecordCustomer = tenantFormHelpers_connection$data['customers'][number];
 
@@ -27,24 +29,23 @@ export type StoredCustomer = Omit<RecordCustomer, 'organization'> & {
   organization: (CustomerOption & { readonly status: string | null | undefined }) | null;
 };
 
-/** A customer the form shows but cannot send back: the API refuses an organization that is archived or gone. */
-export interface ArchivedCustomer {
-  organizationId: string;
-  /** `null` when the organization document is gone. */
-  name: string | null;
-}
-
 export interface StoredAttribution {
   values: AttributionFormData;
-  archived: readonly ArchivedCustomer[];
-  /** The stored customers' options: a picker shows its customer before its list has paged to it. */
-  options: ReadonlyMap<string, CustomerOption>;
+  /**
+   * Every stored customer's option, so a picker names its customer before its list has paged to it — and names the
+   * archived or deleted ones, which the list never offers, with their badge.
+   */
+  options: ReadonlyMap<string, PickerCustomer>;
 }
 
-/** The backend's own test (`DirectoryActiveOrganizations`): a legacy organization with no status is active. */
-function isActive(customer: StoredCustomer): boolean {
-  const { organization } = customer;
-  return organization != null && (organization.status == null || organization.status === 'ACTIVE');
+function storedOption({ organizationId, organization }: StoredCustomer): PickerCustomer {
+  const badge = inactiveCustomerBadge(organization);
+  return {
+    organizationId,
+    name: organization?.name ?? UNKNOWN_CUSTOMER,
+    image: organization?.image ?? null,
+    ...(badge ? { badge } : {}),
+  };
 }
 
 function isWholeDirectory(rules: RecordCustomer['rules']): boolean {
@@ -59,24 +60,18 @@ function toFormRule(rule: RecordCustomer['rules'][number]): AttributionRule {
   };
 }
 
-/** The stored customers as the form holds them, the ones it cannot send back set apart. */
+/**
+ * The stored customers as the form holds them. An archived or deleted one stays: it is kept, edited and removed like
+ * any other, only never bound anew.
+ */
 export function readAttribution(customers: readonly StoredCustomer[]): StoredAttribution {
-  const active = customers.filter(isActive);
-  const archived = customers
-    .filter(customer => !isActive(customer))
-    .map(customer => ({ organizationId: customer.organizationId, name: customer.organization?.name ?? null }));
-  const options = new Map<string, CustomerOption>(
-    active.flatMap(({ organizationId, organization }) =>
-      organization ? [[organizationId, { organizationId, name: organization.name, image: organization.image }]] : [],
-    ),
-  );
+  const options = new Map(customers.map(customer => [customer.organizationId, storedOption(customer)]));
 
-  const [first] = active;
+  const [first] = customers;
   // No customer yet is the first radio with nothing picked: what a new connection starts from.
-  if (!first || (active.length === 1 && isWholeDirectory(first.rules))) {
+  if (!first || (customers.length === 1 && isWholeDirectory(first.rules))) {
     return {
       values: { mode: ATTRIBUTION_MODE.SOLE, soleCustomerId: first?.organizationId ?? '', customers: [] },
-      archived,
       options,
     };
   }
@@ -84,14 +79,32 @@ export function readAttribution(customers: readonly StoredCustomer[]): StoredAtt
     values: {
       mode: ATTRIBUTION_MODE.SHARED,
       soleCustomerId: '',
-      customers: active.map(customer => ({
+      customers: customers.map(customer => ({
         organizationId: customer.organizationId,
         rules: customer.rules.map(toFormRule),
       })),
     },
-    archived,
     options,
   };
+}
+
+/**
+ * The values of `kind` every other rule of the form holds. A domain, group or org unit belongs to one rule per
+ * connection; a user reached through two different values still counts for both.
+ */
+export function valuesClaimedElsewhere(
+  customers: readonly AttributionCustomer[],
+  customerIndex: number,
+  ruleIndex: number,
+  kind: string,
+): ReadonlySet<string> {
+  return new Set(
+    customers.flatMap((customer, c) =>
+      customer.rules.flatMap((rule, r) =>
+        (c === customerIndex && r === ruleIndex) || rule.kind !== kind ? [] : rule.values.map(value => value.id),
+      ),
+    ),
+  );
 }
 
 /** The complete set of customers `updateDirectoryConnection` replaces the stored one with. */

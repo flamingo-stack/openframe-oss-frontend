@@ -13,8 +13,9 @@ import {
 import { Controller, type UseFormReturn, useFieldArray, useWatch } from 'react-hook-form';
 import { DirectoryRuleKind } from '@/generated/schema-enums';
 import { ruleKindLabel, ruleKindsFor } from '../../utils/tenant-presentation';
+import { valuesClaimedElsewhere } from './attribution-helpers';
 import { type AttributionFormData, newRule } from './attribution.types';
-import type { CustomerOption } from './customer-option';
+import type { PickerCustomer } from './customer-option';
 import { CustomerSelect } from './customer-select';
 import { RuleValuesField } from './rule-values-field';
 
@@ -65,7 +66,8 @@ function RuleRow({
 }: RuleRowProps) {
   const base = `customers.${customerIndex}.rules.${ruleIndex}` as const;
   const kind = useWatch({ control: form.control, name: `${base}.kind` });
-  // `ALL` is not offered, but a stored one (Mingo can write it beside other customers) must stay drawable.
+  const customers = useWatch({ control: form.control, name: 'customers' });
+  // `ALL` is not offered, but a stored one (a single customer can hold it beside other rules) must stay drawable.
   const kinds = ruleKindsFor(provider);
   const offered = kind === DirectoryRuleKind.ALL ? [...kinds, DirectoryRuleKind.ALL] : kinds;
 
@@ -117,6 +119,7 @@ function RuleRow({
                 onChange={field.onChange}
                 label={first ? 'Values' : undefined}
                 error={fieldState.error?.message}
+                exclude={valuesClaimedElsewhere(customers, customerIndex, ruleIndex, kind)}
                 locked={locked}
                 disabled={disabled}
               />
@@ -135,7 +138,7 @@ interface AttributionCustomerCardProps {
   connectionId: string;
   provider: string | null;
   /** The stored customers' options, so a picker names its customer before its list reaches it. */
-  options: ReadonlyMap<string, CustomerOption>;
+  options: ReadonlyMap<string, PickerCustomer>;
   /** The customers the other cards picked. */
   exclude: readonly string[];
   /** Absent for the only card: a shared directory serves at least one customer. */

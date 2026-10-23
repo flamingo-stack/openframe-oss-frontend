@@ -7,6 +7,7 @@ import {
   type DataTableFilterOption,
   type Row,
   type SortingState,
+  Tag,
   useDataTable,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -22,7 +23,12 @@ import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { ruleKindLabel, ruleValueLabel } from '../../utils/tenant-presentation';
+import {
+  inactiveCustomerBadge,
+  ruleKindLabel,
+  ruleValueLabel,
+  UNKNOWN_CUSTOMER,
+} from '../../utils/tenant-presentation';
 
 // A fragment, so Save re-selects it (`useSaveIntegrationMutation`) and a saved set lands here with its counts.
 const tenantAttributionRulesFragment = graphql`
@@ -31,6 +37,7 @@ const tenantAttributionRulesFragment = graphql`
       organizationId
       organization {
         name
+        status
       }
       rules {
         kind
@@ -60,6 +67,8 @@ type Customers = tenantAttributionRules_connection$data['customers'];
 interface AttributionRuleRow {
   id: string;
   customer: string;
+  /** "Archived" / "Deleted": the customer stays bound, and its users count as unattributed. */
+  badge: string | null;
   matchBy: string;
   /** `null` for a rule with no values (`ALL`): the empty mark. */
   values: string | null;
@@ -77,14 +86,12 @@ const ATTRIBUTION_RULE_COLUMNS = {
 /** A typical tenant: one customer, one or two rules. */
 const ATTRIBUTION_RULES_SKELETON_ROWS = 2;
 
-/** A customer whose organization document is gone. */
-const DELETED_CUSTOMER = 'Deleted customer';
-
 function toRows(customers: Customers): AttributionRuleRow[] {
   return customers.flatMap(customer =>
     customer.rules.map((rule, index) => ({
       id: `${customer.organizationId}:${index}`,
-      customer: customer.organization?.name ?? DELETED_CUSTOMER,
+      customer: customer.organization?.name ?? UNKNOWN_CUSTOMER,
+      badge: inactiveCustomerBadge(customer.organization && { status: customer.organization.status }),
       matchBy: ruleKindLabel(rule.kind),
       values: rule.values.length > 0 ? rule.values.map(ruleValueLabel).join(', ') : null,
       users: rule.userCount ?? undefined,
@@ -107,7 +114,12 @@ function attributionRuleColumns(
     {
       accessorKey: 'customer',
       header: ATTRIBUTION_RULE_COLUMNS.customer.header,
-      cell: ({ row }: { row: Row<AttributionRuleRow> }) => <ValueText value={row.original.customer} />,
+      cell: ({ row }: { row: Row<AttributionRuleRow> }) => (
+        <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
+          <ValueText value={row.original.customer} />
+          {row.original.badge && <Tag as="span" variant="warning" label={row.original.badge} className="shrink-0" />}
+        </span>
+      ),
       filterFn: multiSelectFilterFn,
       enableSorting: false,
       meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.customer, { filter: { options: customerOptions } }),

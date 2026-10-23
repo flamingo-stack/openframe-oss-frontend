@@ -324,6 +324,21 @@ export function ruleValueLabel(value: { readonly id: string; readonly name: stri
   return value.name ?? `${value.id} (not found in directory)`;
 }
 
+/** A bound customer whose organization document is gone: there is no name left to show. */
+export const UNKNOWN_CUSTOMER = 'Unknown customer';
+
+/**
+ * Why a customer bound to a directory is no longer an active one ("Archived", "Deleted"), or `null` while it is. Such a
+ * customer stays bound and editable, its users count as unattributed, and it cannot be bound anew. Active is the
+ * backend's own test (`DirectoryActiveOrganizations`): a legacy organization with no status is active.
+ */
+export function inactiveCustomerBadge(
+  organization: { readonly status: string | null | undefined } | null | undefined,
+): string | null {
+  if (!organization) return 'Deleted';
+  return organization.status == null || organization.status === 'ACTIVE' ? null : 'Archived';
+}
+
 export interface AttributionSummary {
   text: string;
   /** Some synced users belong to no customer (Figma draws the cell in the warning colour). */

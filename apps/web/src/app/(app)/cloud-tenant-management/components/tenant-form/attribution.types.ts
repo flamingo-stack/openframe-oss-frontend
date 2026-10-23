@@ -45,6 +45,8 @@ export const attributionFormSchema = z
       }
       return;
     }
+    // A domain, group or org unit belongs to one rule per connection: the later rule holding it is the one asked.
+    const claimed = new Set<string>();
     form.customers.forEach((customer, index) => {
       if (!customer.organizationId) {
         ctx.addIssue({ code: 'custom', path: ['customers', index, 'organizationId'], message: 'Select a customer' });
@@ -53,8 +55,35 @@ export const attributionFormSchema = z
         const path = ['customers', index, 'rules', ruleIndex];
         if (!rule.kind) {
           ctx.addIssue({ code: 'custom', path: [...path, 'kind'], message: 'Select what to match by' });
-        } else if (rule.kind !== DirectoryRuleKind.ALL && rule.values.length === 0) {
+          return;
+        }
+        if (rule.kind === DirectoryRuleKind.ALL) {
+          if (form.customers.length > 1) {
+            ctx.addIssue({
+              code: 'custom',
+              path: [...path, 'kind'],
+              message: 'All accounts needs this to be the only customer',
+            });
+          }
+          return;
+        }
+        if (rule.values.length === 0) {
           ctx.addIssue({ code: 'custom', path: [...path, 'values'], message: 'Select at least one value' });
+          return;
+        }
+        const taken = rule.values.filter(value => {
+          const key = `${rule.kind}:${value.id}`;
+          if (claimed.has(key)) return true;
+          claimed.add(key);
+          return false;
+        });
+        if (taken.length > 0) {
+          const names = taken.map(value => value.name ?? value.id).join(', ');
+          ctx.addIssue({
+            code: 'custom',
+            path: [...path, 'values'],
+            message: `${names} ${taken.length === 1 ? 'is' : 'are'} already in another rule`,
+          });
         }
       });
     });
