@@ -17,23 +17,24 @@ const LABEL = 'Skip onboarding (dev)';
  * not open the Mingo panel - there is no tour to show.
  *
  * Absent until the flag and the progress have answered, and in the loading
- * scope the wizard draws while it reads. Labelled "(dev)" and drawn as an
+ * scope the wizard draws while it reads (`data-loading-optional`: where the
+ * flag is off a skeleton would only flash). Labelled "(dev)" and drawn as an
  * outline button so nobody takes it for a product action; on a phone it is
  * the glyph alone, like "Need Help?" opposite it.
  */
 export function DevSkipOnboardingButton() {
   const router = useRouter();
-  const inScope = useLoadingScope();
   const gate = useFeatureFlagGate('onboarding-skip');
   const hasProgress = useOnboardingStore(state => state.tenant !== null);
   const { skipOnboarding, isMutating } = useOnboardingMutations();
 
-  if (inScope || gate !== 'on' || !hasProgress) return null;
+  if (useLoadingScope()) return null;
+  if (gate !== 'on' || !hasProgress) return null;
 
   const skip = () => skipOnboarding(() => router.replace(routes.dashboard));
 
   return (
-    <>
+    <div data-loading-optional className="contents">
       <div className="sm:hidden">
         <Button variant="glyph" size="icon" aria-label={LABEL} disabled={isMutating} onClick={skip}>
           <FastForwardIcon className="size-6" />
@@ -50,6 +51,6 @@ export function DevSkipOnboardingButton() {
           {LABEL}
         </Button>
       </div>
-    </>
+    </div>
   );
 }
