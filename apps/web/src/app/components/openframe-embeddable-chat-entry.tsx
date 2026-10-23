@@ -42,10 +42,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
-import { mingoDialogLink } from '@/lib/routes';
+import { mingoDialogLink, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
@@ -104,8 +105,9 @@ export function OpenframeEmbeddableChatEntry({
     dialogError,
   } = useMingoUnifiedChatState();
   // The Getting Started tour (flag `onboarding-v2`): Mingo's greeting at the
-  // head of the tour's conversation and the step block above its composer.
-  // Elsewhere, and once the tour is over, this is `chatState` unchanged.
+  // head of the tour's conversation and the step block above its composer;
+  // archiving that conversation skips the tour. Once the tour is over, this is
+  // `chatState` unchanged.
   const { state, aboveComposer } = useMingoTour({ state: chatState, createNamedDialog, dialogError });
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
 
@@ -113,6 +115,7 @@ export function OpenframeEmbeddableChatEntry({
   // offers it), after the chat's own actions.
   const loadWhatToAsk = useMingoWhatToAsk();
   const canResetOnboarding = useCanResetOnboarding();
+  const router = useRouter();
   const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
   const chatMenuExtraItems =
     v2 && canResetOnboarding
@@ -444,7 +447,13 @@ export function OpenframeEmbeddableChatEntry({
         aboveComposer={aboveComposer}
       />
 
-      <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />
+      <ResetOnboardingDialog
+        open={isResetOnboardingOpen}
+        onOpenChange={setIsResetOnboardingOpen}
+        // The tour starts over from the wizard's "Start with Mingo": this menu is
+        // on every page, and only the dashboard sends the user there by itself.
+        onReset={() => router.push(routes.setup)}
+      />
     </>
   );
 }

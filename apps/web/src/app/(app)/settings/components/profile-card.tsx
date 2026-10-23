@@ -35,7 +35,7 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
-  // one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
+  // or started one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
   // here only once the flag has answered "off".
   const mingoV2 = useFeatureFlagGate('mingo-v2');
   const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
