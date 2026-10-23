@@ -134,7 +134,7 @@ describe('GettingStartedBlock', () => {
     click(button('DevicesMachines running the agent'));
     click(button('Check my device'));
 
-    // jsdom has no layout: the classes are the contract.
+    // jsdom has no layout: the classes are the contract (a wide composer would fit four).
     const grid = container.querySelector('[data-testid="getting-started-grid"]');
     expect(grid?.className).toMatch(/(?:^|\s)grid-cols-2(?:\s|$)/);
     // In a short panel the block gives way and the grid scrolls.

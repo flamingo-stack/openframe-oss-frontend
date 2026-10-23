@@ -3,7 +3,6 @@
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { ensureGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { useTenantOnboardingAutoDetect } from '@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -92,12 +91,11 @@ export function SetupWizard() {
   );
 
   const leave = useCallback(() => {
-    router.replace(routes.dashboard);
-    // The tour lives in the Mingo panel, a SaaS-tenant surface; elsewhere the
-    // dashboard is the destination on its own. Opening the panel is enough:
-    // it creates the tour's conversation itself once it sees the tour started
-    // (`useMingoTour`), and a docked panel is on screen regardless.
-    if (isSaasTenantMode()) useMingoLauncherStore.getState().setOpen(true);
+    // The tour lives in Mingo, a SaaS-tenant surface: Mingo's home, whose docked
+    // composer creates the tour's conversation once it sees the tour started
+    // (`useMingoTour`) and follows it to the chat page. Elsewhere the dashboard is
+    // the destination on its own.
+    router.replace(isSaasTenantMode() ? routes.mingo.home : routes.dashboard);
   }, [router]);
 
   const handleStart = useCallback(() => {

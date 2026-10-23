@@ -26,6 +26,8 @@ export interface MingoTourInput {
   createNamedDialog: (title: string) => Promise<string | null>;
   /** Why the open conversation could not be fetched, or null. */
   dialogError: string | null;
+  /** A chip opened its section (`href`) and its prompt is on its way: where the host shows the answer. */
+  onStepOpened?: (href: string) => void;
 }
 
 export interface MingoTour {
@@ -36,19 +38,21 @@ export interface MingoTour {
 }
 
 /**
- * The Getting Started tour in the Mingo panel (flag `onboarding-v2`).
+ * The Getting Started tour in Mingo (flag `onboarding-v2`), run by the
+ * Mingo-first shell's composer dock.
  *
  * "Start with Mingo" on the setup wizard starts the tour; the first time the
- * panel then shows, it creates the "Welcome to OpenFrame" conversation, opens
+ * dock then mounts, it creates the "Welcome to OpenFrame" conversation, opens
  * it and records it on the server (`userOnboardingProgress.tourDialogId`), so
  * every device of this user finds the same conversation. In it Mingo's
  * greeting heads the thread (a local message, re-added on every load) and the
- * Getting Started block sits above the composer. A chip sends its prompt
- * there, opens its section beside the chat and marks its step done on the
+ * Getting Started block sits above the composer — on every page while that
+ * conversation is the open one. A chip sends its prompt there through the
+ * state it was given, opens its section and marks its step done on the
  * server. "Finish tour" completes the user's onboarding, which takes the block
  * away.
  */
-export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
+export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpened }: MingoTourInput): MingoTour {
   const router = useRouter();
   const environment = useRelayEnvironment();
   const { toast } = useToast();
@@ -138,7 +142,9 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
       void fetchFirstDevice(environment)
         .catch(() => null)
         .then(device => {
-          router.push(deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href);
+          const href = deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href;
+          router.push(href);
+          onStepOpened?.(href);
           return sendMessage(tourPrompt(action, device));
         })
         .then(sent => {
@@ -147,7 +153,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
         });
       return true;
     },
-    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground, environment],
+    [isLoading, toast, sendMessage, router, serverSteps, completeUserStepInBackground, environment, onStepOpened],
   );
 
   const handleFinish = useCallback(() => completeUserInBackground(), [completeUserInBackground]);

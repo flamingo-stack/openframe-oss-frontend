@@ -1,16 +1,21 @@
-// Pins where "Reset Onboarding" lives: the profile menu offers it only while
-// Mingo v2 is off (v2 moves it into the Mingo chat's ⋯ menu), never while the
-// flag has not answered yet, and only when there is a finished or started tour
-// to replay.
+// Pins where "Reset Onboarding" lives: the profile menu offers it on an OSS tenant
+// (a SaaS tenant's tour resets from the Mingo chat), and only when there is a
+// finished or started tour to replay.
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ProfileCard } from './profile-card';
 
-const { USER } = vi.hoisted(() => ({ USER: { id: 'u-1', email: 'a@b.c', firstName: 'Ann', lastName: 'Lee' } }));
+const { USER, mode } = vi.hoisted(() => ({
+  USER: { id: 'u-1', email: 'a@b.c', firstName: 'Ann', lastName: 'Lee' },
+  mode: { saas: false },
+}));
+vi.mock('@/lib/app-mode', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  isSaasTenantMode: () => mode.saas,
+}));
 vi.mock('@/app/(auth)/auth/stores', () => ({
   useAuthStore: (selector: (state: { user: typeof USER }) => unknown) => selector({ user: USER }),
 }));
@@ -48,9 +53,18 @@ function renderCard() {
   });
 }
 
+const FINISHED_TOUR = {
+  completedSteps: [],
+  completed: true,
+  completedAt: null,
+  skipped: false,
+  skippedAt: null,
+  tourDialogId: null,
+};
+
 describe('ProfileCard - Reset Onboarding', () => {
   beforeEach(() => {
-    useFeatureFlagsStore.getState().reset();
+    mode.saas = false;
     useOnboardingStore.getState().reset();
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -63,61 +77,23 @@ describe('ProfileCard - Reset Onboarding', () => {
     document.body.innerHTML = '';
   });
 
-  it('is offered for a finished tour while Mingo v2 is off', () => {
-    useOnboardingStore.getState().setUser({
-      completedSteps: [],
-      completed: true,
-      completedAt: null,
-      skipped: false,
-      skippedAt: null,
-      tourDialogId: null,
-    });
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
+  it('is offered for a finished tour on an OSS tenant', () => {
+    useOnboardingStore.getState().setUser(FINISHED_TOUR);
     renderCard();
 
     expect(menuLabels()).toContain('Reset Onboarding');
   });
 
   it('is offered for a tour in progress, so an archived tour can start over', () => {
-    useOnboardingStore.getState().setUser({
-      completedSteps: [],
-      completed: false,
-      completedAt: null,
-      skipped: false,
-      skippedAt: null,
-      tourDialogId: 'd-tour',
-    });
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
+    useOnboardingStore.getState().setUser({ ...FINISHED_TOUR, completed: false, tourDialogId: 'd-tour' });
     renderCard();
 
     expect(menuLabels()).toContain('Reset Onboarding');
   });
 
-  it('is not offered before the tour has started', () => {
-    useOnboardingStore.getState().setUser({
-      completedSteps: [],
-      completed: false,
-      completedAt: null,
-      skipped: false,
-      skippedAt: null,
-      tourDialogId: null,
-    });
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
-    renderCard();
-
-    expect(menuLabels()).not.toContain('Reset Onboarding');
-  });
-
-  it('moves out with Mingo v2 on', () => {
-    useOnboardingStore.getState().setUser({
-      completedSteps: [],
-      completed: true,
-      completedAt: null,
-      skipped: false,
-      skippedAt: null,
-      tourDialogId: null,
-    });
-    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: true }]);
+  it('is not offered on a SaaS tenant, whose tour resets from the Mingo chat', () => {
+    mode.saas = true;
+    useOnboardingStore.getState().setUser(FINISHED_TOUR);
     renderCard();
 
     const labels = menuLabels();
@@ -125,15 +101,8 @@ describe('ProfileCard - Reset Onboarding', () => {
     expect(labels).not.toContain('Reset Onboarding');
   });
 
-  it('waits for the flags to answer', () => {
-    useOnboardingStore.getState().setUser({
-      completedSteps: [],
-      completed: false,
-      completedAt: null,
-      skipped: true,
-      skippedAt: null,
-      tourDialogId: null,
-    });
+  it('is not offered before the tour has started', () => {
+    useOnboardingStore.getState().setUser({ ...FINISHED_TOUR, completed: false });
     renderCard();
 
     expect(menuLabels()).not.toContain('Reset Onboarding');

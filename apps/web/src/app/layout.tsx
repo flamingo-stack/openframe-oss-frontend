@@ -11,10 +11,10 @@ import { runtimeEnv } from '@/lib/runtime-config';
 import { getAppUrl } from '@/lib/utils';
 import { FeatureFlagsLoader } from '../components/feature-flags-loader';
 import { RouteGuard } from '../components/route-guard';
-import { isAuthEnabled } from '../lib/app-mode';
+import { isAuthEnabled, isSaasTenantMode } from '../lib/app-mode';
 import { QueryClientProvider } from '../lib/query-client-provider';
 import { RelayProvider } from '../lib/relay';
-import { AgentIdentities } from './components/agent-identities';
+import { AppAgentIdentityProvider } from './components/agent-identity-root';
 import { AppUpdateGate, HiddenWhileUpdateRequired } from './components/app-update-gate';
 import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
@@ -121,7 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             preference reaches the first frame — and the only thing that keeps the
             width out of the markup, where it was a hydration mismatch. */}
         {/* React's dangerouslySetInnerHTML requires the __html key */}
-        <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
+        <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript(isSaasTenantMode()) }} />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
         <GoogleTagManager />
@@ -155,22 +155,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NatsAppProvider>
                 <BiometricLockBoundary>
                   <FeatureFlagsLoader>
-                    <NotificationsDataProvider>
-                      <AgentIdentities>
+                    {/* Above the notifications provider: its popups draw the agents' marks. */}
+                    <AppAgentIdentityProvider>
+                      <NotificationsDataProvider>
                         <RouteGuard>
                           {/* No app-wide Suspense boundary around `children` — the one
-                            that used to be here drew `AppShellSkeleton`, and with the
-                            skeleton retired an empty one would only widen the blast
-                            radius: anything suspending below would blank the chrome
-                            along with the page. The boundary inside `<main>` catches
-                            that in the content area instead, and each root-layout
-                            component that reads search params carries its own. */}
+                              that used to be here drew `AppShellSkeleton`, and with the
+                              skeleton retired an empty one would only widen the blast
+                              radius: anything suspending below would blank the chrome
+                              along with the page. The boundary inside `<main>` catches
+                              that in the content area instead, and each root-layout
+                              component that reads search params carries its own. */}
                           <DevicesViewConfig>
                             <div className="relative flex min-h-screen flex-col">{children}</div>
                           </DevicesViewConfig>
                         </RouteGuard>
-                      </AgentIdentities>
-                    </NotificationsDataProvider>
+                      </NotificationsDataProvider>
+                    </AppAgentIdentityProvider>
                   </FeatureFlagsLoader>
                 </BiometricLockBoundary>
               </NatsAppProvider>

@@ -3,214 +3,78 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { DialogIntent } from '../../tickets/constants';
 
-/** What `draftToMingo` puts in the composer — relayed verbatim to the panel's `prefillDraft`. */
+/** What `draftToMingo` puts in the composer — relayed verbatim to the chat's `prefillDraft`. */
 export type MingoDraft = ChatPrefillDraft;
 
+/** A launcher request for the composer dock. */
+export type MingoDockRequest =
+  | { kind: 'prompt'; prompt: string }
+  | { kind: 'draft'; draft: MingoDraft }
+  | { kind: 'newChat' }
+  | { kind: 'intent'; intent: DialogIntent }
+  | { kind: 'open'; dialogId: string }
+  | { kind: 'whatToAsk' };
+
 /**
- * Owns the Mingo drawer's open state (lifted out of `AppShell` so any page can
- * open it) plus two one-shot requests, both drained by the embedder
- * (`OpenframeEmbeddableChatEntry`) on the next render after the drawer opens:
- *   - `sendToMingo(prompt)` — queue a prompt, sent via `sendInNewDialog`.
- *   - `draftToMingo(draft)` — queue a DRAFT: a fresh chat with the composer
- *     prefilled (text + attached context chips) and nothing sent — the user
- *     decides. Relayed to the panel's `prefillDraft` handle.
- *   - `startNewChat()` — land on a fresh chat with nothing sent; relayed to the
- *     panel's imperative handle, since which view it shows is its own state.
- *   - `startIntentChat(intent)` — open a dialog created to make one entity
- *     ("Generate with AI"); the server greets in it, nothing is sent.
+ * Lets any page hand Mingo something to do, through the composer dock under every page:
+ *   - `sendToMingo(prompt)` — send a prompt in a new chat (Meet Mingo, Help Center "Ask Mingo");
+ *   - `draftToMingo(draft)` — a new chat with the composer prefilled (text + context chips)
+ *     and nothing sent: the user decides ("Fix with Mingo" on an incident);
+ *   - `startNewChat()` — land on Mingo's home with a new, empty chat;
+ *   - `startIntentChat(intent)` — a new chat created to make one entity ("Generate with
+ *     AI" on a create button): the server greets in it, nothing is sent;
+ *   - `openDialog(id)` — an existing chat, over the page it was asked from (a notification,
+ *     "Open Mingo Session"), as the classic shell's drawer opened it;
+ *   - `showWhatToAsk()` — "What to ask Mingo?" (home's quick actions, the chat history's ⋯):
+ *     the suggestions in the open chat, or a new one, over the page.
  *
- * Each action clears the others' pending values, so a queued prompt can't fire
- * into a chat the user opened for something else.
+ * Each queues ONE `dockRequest`, replacing a pending one, and the dock drains it
+ * (`useComposerLauncherDrain`). A request raised before the dock mounts waits for it.
  */
 interface MingoLauncherStore {
-  isOpen: boolean;
   /**
-   * Whether a drawer is actually mounted to receive an open request — `AppShell`'s
-   * `chatEnabled` (an unlocked workspace), published here so non-React callers can ask.
-   *
-   * Without it `setOpen(true)` from a notification click on a locked workspace sets
-   * state nothing renders, while the caller goes on to mark the notification read —
-   * consuming it with nothing to show. The subscription lock is not the only way to
-   * lose the drawer either: the shell being unmounted entirely republishes `false` too.
+   * The dock is mounted: Mingo can take a request (an unlocked workspace on a SaaS tenant).
+   * What a launcher asks before it offers itself, so it never offers a chat that cannot open.
    */
-  canOpen: boolean;
-  /** One-shot prompt to auto-send on the next drawer open; null once consumed. */
-  pendingPrompt: string | null;
-  /** One-shot composer prefill for the next drawer open; null once consumed. */
-  pendingDraft: MingoDraft | null;
-  /** One-shot "open on a fresh chat" request; false once consumed. */
-  pendingNewChat: boolean;
-  /** One-shot "open a dialog to create this entity" request; null once consumed. */
-  pendingIntent: DialogIntent | null;
-  /**
-   * The drawer was closed BY a navigation the same handler had just issued, so it
-   * does not own the URL on this pass — the destination is already param-free.
-   * Read by `useMingoDialogUrlSync`.
-   *
-   * Cleared by OPENS ONLY. A close must never clear it: the card-click path closes
-   * the drawer twice in one handler (`navigate` → `closeForNavigation`, then the
-   * lib panel's own `closeChat` → `setOpen(false)`), so a close that reset this
-   * would erase the flag before the effect ever read it.
-   */
-  closedForNavigation: boolean;
-  /**
-   * Mingo v2: the chat is on screen as part of the layout (docked beside the page,
-   * or opened over it). Docked, it shows a conversation while `isOpen` — which
-   * there means "opened from the header" — is false, so the URL sync asks this
-   * too. Always false with the overlay drawer.
-   */
-  panelShown: boolean;
-  /**
-   * Mingo v2: the panel is a column of the layout that cannot be put away (docked,
-   * or dragged over the whole content area), so it stays on screen across
-   * navigations, and its conversation with it. False while it was opened from the
-   * header over the page, which a navigation still closes.
-   */
-  panelDocked: boolean;
-  /**
-   * Mingo v2: the docked panel was dragged over the whole content area, and this
-   * steps it back to the column it left so the page shows again. Null whenever
-   * the page is already on screen beside the chat. A link that opens a page in
-   * place calls it first, or the page would change under the chat unseen.
-   */
-  revealPage: (() => void) | null;
+  dockMounted: boolean;
+  /** One-shot launcher request for the dock; null once consumed. */
+  dockRequest: MingoDockRequest | null;
 
-  setOpen: (open: boolean) => void;
-  setPanelShown: (shown: boolean) => void;
-  setPanelDocked: (docked: boolean) => void;
-  setRevealPage: (reveal: (() => void) | null) => void;
-  setCanOpen: (canOpen: boolean) => void;
-  toggle: () => void;
-  close: () => void;
-  /** {@link close} for a navigation this handler issued. See `closedForNavigation`. */
-  closeForNavigation: () => void;
-  /** Open the drawer and queue a prompt for Mingo auto-send — the chat entry
-   *  drains it straight into a fresh Mingo dialog via `sendInNewDialog`. */
+  /**
+   * Published by the dock. Unmounting keeps an undrained request for the next dock:
+   * StrictMode unmounts and remounts it once in development.
+   */
+  setDockMounted: (mounted: boolean) => void;
+  /** Read and clear the pending dock request (safe against double-consume). */
+  consumeDockRequest: () => MingoDockRequest | null;
   sendToMingo: (prompt: string) => void;
-  /** Read and clear the pending prompt in one step (safe against double-consume). */
-  consumePendingPrompt: () => string | null;
-  /** Open the drawer on a fresh chat with the composer prefilled — nothing is sent. */
   draftToMingo: (draft: MingoDraft) => void;
-  /** Read and clear the pending draft in one step (safe against double-consume). */
-  consumePendingDraft: () => MingoDraft | null;
-  /** Open the drawer ON a new chat — clears the open conversation and, in the
-   *  narrow panel, lands on the composer instead of the "Current Chats" list. */
   startNewChat: () => void;
-  /** Read and clear the pending new-chat request (safe against double-consume). */
-  consumePendingNewChat: () => boolean;
-  /** Open the drawer on a new dialog created with `intent` — Mingo speaks first. */
   startIntentChat: (intent: DialogIntent) => void;
-  /** Read and clear the pending intent (safe against double-consume). */
-  consumePendingIntent: () => DialogIntent | null;
+  openDialog: (dialogId: string) => void;
+  showWhatToAsk: () => void;
 }
 
 export const useMingoLauncherStore = create<MingoLauncherStore>()(
   devtools(
     (set, get) => ({
-      isOpen: false,
-      canOpen: false,
-      pendingPrompt: null,
-      pendingDraft: null,
-      pendingNewChat: false,
-      pendingIntent: null,
-      closedForNavigation: false,
-      panelShown: false,
-      panelDocked: false,
-      revealPage: null,
+      dockMounted: false,
+      dockRequest: null,
 
-      setPanelShown: panelShown => set({ panelShown }, false, 'setPanelShown'),
-      setPanelDocked: panelDocked => set({ panelDocked }, false, 'setPanelDocked'),
-      setRevealPage: revealPage => set({ revealPage }, false, 'setRevealPage'),
-      setOpen: open => set(open ? { isOpen: true, closedForNavigation: false } : { isOpen: false }, false, 'setOpen'),
-      setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
-      toggle: () =>
-        set(
-          state => (state.isOpen ? { isOpen: false } : { isOpen: true, closedForNavigation: false }),
-          false,
-          'toggle',
-        ),
-      close: () => set({ isOpen: false }, false, 'close'),
-      closeForNavigation: () => set({ isOpen: false, closedForNavigation: true }, false, 'closeForNavigation'),
+      setDockMounted: dockMounted => set({ dockMounted }, false, 'setDockMounted'),
 
-      sendToMingo: prompt =>
-        set(
-          {
-            isOpen: true,
-            pendingPrompt: prompt,
-            pendingDraft: null,
-            pendingNewChat: false,
-            pendingIntent: null,
-            closedForNavigation: false,
-          },
-          false,
-          'sendToMingo',
-        ),
-
-      draftToMingo: draft =>
-        set(
-          {
-            isOpen: true,
-            pendingDraft: draft,
-            pendingPrompt: null,
-            pendingNewChat: false,
-            pendingIntent: null,
-            closedForNavigation: false,
-          },
-          false,
-          'draftToMingo',
-        ),
-
-      consumePendingDraft: () => {
-        const { pendingDraft } = get();
-        if (pendingDraft !== null) set({ pendingDraft: null }, false, 'consumePendingDraft');
-        return pendingDraft;
+      consumeDockRequest: () => {
+        const { dockRequest } = get();
+        if (dockRequest !== null) set({ dockRequest: null }, false, 'consumeDockRequest');
+        return dockRequest;
       },
 
-      consumePendingPrompt: () => {
-        const { pendingPrompt } = get();
-        if (pendingPrompt !== null) set({ pendingPrompt: null }, false, 'consumePendingPrompt');
-        return pendingPrompt;
-      },
-
-      startNewChat: () =>
-        set(
-          {
-            isOpen: true,
-            pendingNewChat: true,
-            pendingPrompt: null,
-            pendingDraft: null,
-            pendingIntent: null,
-            closedForNavigation: false,
-          },
-          false,
-          'startNewChat',
-        ),
-
-      consumePendingNewChat: () => {
-        const { pendingNewChat } = get();
-        if (pendingNewChat) set({ pendingNewChat: false }, false, 'consumePendingNewChat');
-        return pendingNewChat;
-      },
-
-      startIntentChat: intent =>
-        set(
-          {
-            isOpen: true,
-            pendingIntent: intent,
-            pendingPrompt: null,
-            pendingDraft: null,
-            pendingNewChat: false,
-            closedForNavigation: false,
-          },
-          false,
-          'startIntentChat',
-        ),
-
-      consumePendingIntent: () => {
-        const { pendingIntent } = get();
-        if (pendingIntent !== null) set({ pendingIntent: null }, false, 'consumePendingIntent');
-        return pendingIntent;
-      },
+      sendToMingo: prompt => set({ dockRequest: { kind: 'prompt', prompt } }, false, 'sendToMingo'),
+      draftToMingo: draft => set({ dockRequest: { kind: 'draft', draft } }, false, 'draftToMingo'),
+      startNewChat: () => set({ dockRequest: { kind: 'newChat' } }, false, 'startNewChat'),
+      startIntentChat: intent => set({ dockRequest: { kind: 'intent', intent } }, false, 'startIntentChat'),
+      openDialog: dialogId => set({ dockRequest: { kind: 'open', dialogId } }, false, 'openDialog'),
+      showWhatToAsk: () => set({ dockRequest: { kind: 'whatToAsk' } }, false, 'showWhatToAsk'),
     }),
     { name: 'mingo-launcher-store' },
   ),

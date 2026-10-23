@@ -12,7 +12,7 @@ import { useMingoLauncherStore } from '../stores/mingo-launcher-store';
  * (a locked workspace), like every other Mingo launcher.
  */
 export function useGenerateWithAiAction(intent: DialogIntent): SplitButtonIconAction {
-  const canOpenMingo = useMingoLauncherStore(state => state.canOpen);
+  const canOpenMingo = useMingoLauncherStore(state => state.dockMounted);
   const startIntentChat = useMingoLauncherStore(state => state.startIntentChat);
 
   return {

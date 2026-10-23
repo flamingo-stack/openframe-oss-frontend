@@ -16,6 +16,7 @@ import {
   type TakeOverTicketSelection,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
@@ -39,6 +40,7 @@ import {
 import type { Dialog, TicketActivityFilter } from '../types/dialog.types';
 import { hasActiveAiDialog } from '../utils/ai-dialog';
 import { resolveBoardActivity } from '../utils/board-activity';
+import { resolveBoardStatusFilter } from '../utils/board-status-filter';
 import { dialogsQueryKeys, ticketsQueryKeys } from '../utils/query-keys';
 import { isStatusLockedByPendingApproval, STATUS_LOCKED_BY_APPROVAL_REASON } from '../utils/status-lock';
 import { getTicketDeviceName } from '../utils/ticket-device-name';
@@ -49,6 +51,7 @@ import { BoardColumnSubscriber, type BoardColumnUpdate } from './board-column-su
 import { type CachedBoardColumn, usePlaceholderBoardColumns, writeCachedBoardColumns } from './board-columns-cache';
 import { OrganizationFilter } from './organization-filter';
 import { ReopenTicketModal, type ReopenTicketSelection, type ReopenTicketTarget } from './reopen-ticket-modal';
+import { type StatusOption, StatusFilter } from './status-autocomplete';
 import { TakeOverTicketModal, type TakeOverTicketTarget } from './take-over-ticket-modal';
 import { TicketTagFilter } from './ticket-tag-filter';
 import { TicketsEmptyState } from './tickets-empty-state';
@@ -138,12 +141,23 @@ interface TicketsBoardProps {
   /** Server-side activity filter (active / stale / awaiting client); OR within the list. */
   activity?: TicketActivityFilter[];
   onActivityChange?: (values: TicketActivityFilter[]) => void;
-  /** Applies organization+assignee+new-messages+activity filters atomically (mobile filter modal). */
+  /**
+   * `?status=` (status ids, shared with the table): the lanes the board shows. Its control
+   * appears only while it is applied — the lanes themselves are the statuses — so a link
+   * that narrows the board (Mingo's home cards) shows what it applied and can be cleared.
+   */
+  statusIds?: string[];
+  onStatusIdsChange?: (ids: string[]) => void;
+  /**
+   * Applies organization+assignee+new-messages+activity filters atomically (mobile filter
+   * modal), plus `status` while a status filter is applied (the modal's Status section).
+   */
   onFiltersChange?: (filters: {
     organizationIds: string[];
     assigneeIds: string[];
     unreadOnly: boolean;
     activity: TicketActivityFilter[];
+    status?: string[];
   }) => void;
   search: string;
   onSearchChange: (value: string) => void;
@@ -273,6 +287,8 @@ export function TicketsBoard({
   onUnreadOnlyChange,
   activity,
   onActivityChange,
+  statusIds,
+  onStatusIdsChange,
   onFiltersChange,
   search,
   onSearchChange,
@@ -347,6 +363,18 @@ export function TicketsBoard({
   const [reopenTarget, setReopenTarget] = useState<ReopenTicketTarget | null>(null);
 
   const statuses = useMemo(() => (statusesData?.snapshot ?? []).filter(s => s.kind !== 'ARCHIVED'), [statusesData]);
+  // The lanes on screen: every status, or the ones `?status=` names. Only these subscribe,
+  // load and count towards the board's loading/error state; `statuses` stays the full set
+  // for what is about the tenant's statuses as a whole (kinds, the lane cache).
+  const { activeIds: activeStatusIds, lanes: laneStatuses } = useMemo(
+    () => resolveBoardStatusFilter(statuses, statusIds),
+    [statuses, statusIds],
+  );
+  const statusFilterOptions = useMemo<StatusOption[]>(
+    () => statuses.map(s => ({ value: s.id, label: s.name, color: s.color })),
+    [statuses],
+  );
+  const statusFilterActive = activeStatusIds.length > 0;
 
   // Every filter the lanes are fetched under, so "Archive Resolved" archives
   // exactly the tickets the Resolved lane shows (its count is the lane total).
@@ -396,8 +424,8 @@ export function TicketsBoard({
     return map;
   }, [transitionRules]);
 
-  const isLoading = statusesLoading || statuses.some(s => columnUpdates[s.id]?.isLoading ?? true);
-  const columnError = statuses.map(s => columnUpdates[s.id]?.error).find(Boolean) ?? null;
+  const isLoading = statusesLoading || laneStatuses.some(s => columnUpdates[s.id]?.isLoading ?? true);
+  const columnError = laneStatuses.map(s => columnUpdates[s.id]?.error).find(Boolean) ?? null;
 
   // Lanes to show until the statuses query resolves. Read once per mount so the
   // set can't shift underneath the board mid-load — and past hydration, since the
@@ -410,12 +438,13 @@ export function TicketsBoard({
     // board. Stand in with the same placeholders the skeleton renders, so the
     // handoff (and a plain client-side navigation into /tickets, where no shell
     // skeleton is involved at all) has nothing to redraw.
-    if (statusesLoading && statuses.length === 0) return placeholderColumns;
+    // Narrowed like the live lanes, so a filtered board doesn't load as the full one.
+    if (statusesLoading && statuses.length === 0) return resolveBoardStatusFilter(placeholderColumns, statusIds).lanes;
 
     // Referenced so a nonce bump rebuilds the array identity (see boardResetNonce).
     void boardResetNonce;
 
-    return statuses.map(status => {
+    return laneStatuses.map(status => {
       const state = columnUpdates[status.id]?.state;
       return {
         ...toLaneDefinition(status),
@@ -437,6 +466,8 @@ export function TicketsBoard({
     });
   }, [
     statuses,
+    laneStatuses,
+    statusIds,
     statusesLoading,
     placeholderColumns,
     columnUpdates,
@@ -669,6 +700,7 @@ export function TicketsBoard({
     (tagIds?.length ?? 0) === 0 &&
     !unreadOnly &&
     (activity?.length ?? 0) === 0 &&
+    !statusFilterActive &&
     boardColumns.length > 0 &&
     boardColumns.every(column => column.tickets.length === 0);
 
@@ -683,7 +715,7 @@ export function TicketsBoard({
 
   return (
     <>
-      {statuses.map(status => (
+      {laneStatuses.map(status => (
         <BoardColumnSubscriber
           key={status.id}
           statusId={status.id}
@@ -725,8 +757,22 @@ export function TicketsBoard({
               />
             </div>
             {/* Mobile keeps these filters in the modal next to the search input.
-                Tablet lays them out two per row, desktop four (the mock's grid). */}
-            <div className="hidden gap-[var(--spacing-system-l)] content-md:grid content-md:grid-cols-2 content-lg:grid-cols-4">
+                Tablet lays them out two per row, desktop four (the mock's grid) —
+                five while an applied status filter leads the row. */}
+            <div
+              className={cn(
+                'hidden gap-[var(--spacing-system-l)] content-md:grid content-md:grid-cols-2',
+                statusFilterActive ? 'content-lg:grid-cols-5' : 'content-lg:grid-cols-4',
+              )}
+            >
+              {statusFilterActive && (
+                <StatusFilter
+                  options={statusFilterOptions}
+                  value={activeStatusIds}
+                  onChange={ids => onStatusIdsChange?.(ids)}
+                  className="col-span-1"
+                />
+              )}
               <OrganizationFilter
                 value={organizationIds ?? []}
                 onChange={ids => onOrganizationIdsChange?.(ids)}
@@ -759,6 +805,7 @@ export function TicketsBoard({
           assigneeIds={assigneeIds ?? []}
           unreadOnly={unreadOnly ?? false}
           activity={activity ?? []}
+          status={statusFilterActive ? { value: activeStatusIds, options: statusFilterOptions } : undefined}
           onApply={filters => onFiltersChange?.({ ...filters, activity: filters.activity ?? [] })}
         />
 

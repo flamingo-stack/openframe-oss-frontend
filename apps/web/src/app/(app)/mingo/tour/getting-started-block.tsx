@@ -41,9 +41,9 @@ export interface GettingStartedBlockProps {
  *
  * - the list: one row per step, opening into its description and "try asking"
  *   chips (one open at a time). This is where the tour starts.
- * - the grid: two columns of step chips, whatever the width the composer has,
- *   what the block folds into once a chip has been used so the conversation gets
- *   the room. The chevron in the title row unfolds it and folds it back; a step
+ * - the grid: two columns of step chips, whatever the width the composer has (a
+ *   docked page composer is wide enough for four), what the block folds into once
+ *   a chip has been used so the conversation gets the room. The chevron in the title row unfolds it and folds it back; a step
  *   chip unfolds it on that step.
  *
  * The shape is the user's, remembered across pages and tabs
