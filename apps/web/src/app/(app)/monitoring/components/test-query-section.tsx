@@ -146,7 +146,7 @@ export function TestQuerySection({ getQuery, hasQuery, devices, isLoadingDevices
                 value={selectedHostId || null}
                 onValueChange={setSelectedHostId}
                 options={deviceOptions}
-                placeholder={isLoadingDevices ? 'Loading devices...' : 'Select Device'}
+                placeholder="Select Device"
                 searchPlaceholder="Search for Device"
                 emptyText="No devices found"
                 isLoading={isLoadingDevices}

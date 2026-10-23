@@ -6,6 +6,7 @@ import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/componen
 import {
   Button,
   DEFAULT_CUSTOM_STATUS_COLOR,
+  LoadingWhen,
   type PageActionButton,
   PageLayout,
   TicketStatusConfigRow,
@@ -15,10 +16,33 @@ import { Controller } from 'react-hook-form';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useTicketStatusesForm } from '../hooks/use-ticket-statuses-form';
-import type { CustomTicketStatus, SystemTicketStatus } from '../types/ticket-statuses.types';
+import {
+  type CustomTicketStatus,
+  kindToCanonicalStatus,
+  SYSTEM_KIND_META,
+  type SystemTicketStatus,
+} from '../types/ticket-statuses.types';
 import { DeleteStatusDialog } from './delete-status-dialog';
 
 const DELETE_DISABLED_REASON = 'At least one custom status is required';
+
+/**
+ * The system statuses before the query answers: one row per system kind (a fixed set, `SYSTEM_KIND_META`), with
+ * their names still to be read, so each row draws its own skeleton in the page's loading scope and the sections
+ * keep their height when the statuses land.
+ */
+const LOADING_SYSTEM_STATUSES: SystemTicketStatus[] = (
+  Object.keys(SYSTEM_KIND_META) as Array<keyof typeof SYSTEM_KIND_META>
+).map(kind => ({
+  id: kind,
+  statusKey: kindToCanonicalStatus(kind) ?? 'ACTIVE',
+  name: '',
+  color: '',
+  position: '',
+  kind,
+  tooltip: SYSTEM_KIND_META[kind].tooltip,
+  tagVariant: SYSTEM_KIND_META[kind].tagVariant,
+}));
 const TOP_KINDS = new Set(['AI_ASSISTANCE', 'TECH_REQUIRED']);
 
 function createCustomStatus(): CustomTicketStatus {
@@ -57,12 +81,14 @@ export function TicketStatusesView() {
     systemStatuses,
     persistedCustomIds,
     replacementOptionsFor,
+    isLoading,
   } = useTicketStatusesForm();
 
   const [pendingDelete, setPendingDelete] = useState<{ index: number; custom: CustomTicketStatus } | null>(null);
 
-  const systemTop = systemStatuses.filter(s => TOP_KINDS.has(s.kind));
-  const systemBottom = systemStatuses.filter(s => !TOP_KINDS.has(s.kind));
+  const systemRows = isLoading && systemStatuses.length === 0 ? LOADING_SYSTEM_STATUSES : systemStatuses;
+  const systemTop = systemRows.filter(s => TOP_KINDS.has(s.kind));
+  const systemBottom = systemRows.filter(s => !TOP_KINDS.has(s.kind));
 
   const handleAdd = () => {
     fieldArray.append(createCustomStatus(), { shouldFocus: false });
@@ -96,7 +122,7 @@ export function TicketStatusesView() {
       label: 'Save Statuses',
       onClick: submit,
       variant: 'accent',
-      disabled: !form.formState.isDirty || saveMutation.isPending,
+      disabled: isLoading || !form.formState.isDirty || saveMutation.isPending,
       loading: saveMutation.isPending,
     },
   ];
@@ -110,58 +136,62 @@ export function TicketStatusesView() {
       className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
     >
-      <form onSubmit={submit} className="flex w-full flex-col gap-[var(--spacing-system-l)]">
-        <section aria-label="System statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          {systemTop.map(renderSystemRow)}
-        </section>
+      {/* While the statuses load the form draws itself in a loading scope: each part its own skeleton. */}
+      <LoadingWhen loading={isLoading}>
+        <form onSubmit={submit} className="flex w-full flex-col gap-[var(--spacing-system-l)]">
+          <section aria-label="System statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            {systemTop.map(renderSystemRow)}
+          </section>
 
-        <section aria-label="Custom statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          <TicketStatusConfigList
-            items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
-            onReorder={fieldArray.move}
-            getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
-            renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
-              <Controller
-                key={row.rhfKey}
-                control={form.control}
-                name={`customStatuses.${row.index}`}
-                render={({ field }) => (
-                  <TicketStatusConfigRow
-                    variant="custom"
-                    statusKey={field.value.id}
-                    name={field.value.name}
-                    onNameChange={value => field.onChange({ ...field.value, name: value })}
-                    color={field.value.color}
-                    presetKey={field.value.preset}
-                    onColorChange={next => field.onChange({ ...field.value, color: next.color, preset: next.preset })}
-                    onDelete={() => handleDelete(row.index, field.value)}
-                    deleteDisabled={!canDelete}
-                    deleteDisabledReason={!canDelete ? DELETE_DISABLED_REASON : undefined}
-                    dragHandleProps={dragHandleProps}
-                    isDragging={isDragging}
-                    moveButtons={moveButtons}
-                  />
-                )}
-              />
-            )}
-          />
+          <section aria-label="Custom statuses" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            <TicketStatusConfigList
+              items={fieldArray.fields.map((f, index) => ({ id: f.id, rhfKey: f._key, index }))}
+              onReorder={fieldArray.move}
+              loading={isLoading}
+              getItemLabel={index => form.getValues(`customStatuses.${index}`)?.name || undefined}
+              renderRow={(row, { dragHandleProps, isDragging, moveButtons }) => (
+                <Controller
+                  key={row.rhfKey}
+                  control={form.control}
+                  name={`customStatuses.${row.index}`}
+                  render={({ field }) => (
+                    <TicketStatusConfigRow
+                      variant="custom"
+                      statusKey={field.value.id}
+                      name={field.value.name}
+                      onNameChange={value => field.onChange({ ...field.value, name: value })}
+                      color={field.value.color}
+                      presetKey={field.value.preset}
+                      onColorChange={next => field.onChange({ ...field.value, color: next.color, preset: next.preset })}
+                      onDelete={() => handleDelete(row.index, field.value)}
+                      deleteDisabled={!canDelete}
+                      deleteDisabledReason={!canDelete ? DELETE_DISABLED_REASON : undefined}
+                      dragHandleProps={dragHandleProps}
+                      isDragging={isDragging}
+                      moveButtons={moveButtons}
+                    />
+                  )}
+                />
+              )}
+            />
 
-          <Button
-            type="button"
-            variant="outline"
-            size="small"
-            onClick={handleAdd}
-            className="self-start"
-            leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
-          >
-            Add Status
-          </Button>
-        </section>
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={handleAdd}
+              className="self-start"
+              leftIcon={<PlusCircleIcon className="text-ods-text-secondary" />}
+            >
+              Add Status
+            </Button>
+          </section>
 
-        <section aria-label="Resolved status" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
-          {systemBottom.map(renderSystemRow)}
-        </section>
-      </form>
+          <section aria-label="Resolved status" className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+            {systemBottom.map(renderSystemRow)}
+          </section>
+        </form>
+      </LoadingWhen>
 
       <DeleteStatusDialog
         isOpen={pendingDelete !== null}

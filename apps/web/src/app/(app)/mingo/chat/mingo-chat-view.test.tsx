@@ -23,7 +23,7 @@ vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlag: () => false }))
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
   useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }),
 }));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({ ChatMessageListSkeleton: () => null }));
+vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({ ChatMessageList: () => null }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
   UnifiedSkeleton: () => null,

@@ -13,15 +13,21 @@
  *
  * When `href` is set the chip is a link to the entity's page, opened in THIS window:
  * the chat stays in the sidebar and the composer under every page, so Back returns to
- * the conversation. Also exports the loading skeleton and an error boundary so a
+ * the conversation. Where this window can open a tab (see `useSameWindowLinks`), a
+ * separate trailing segment opens the page in a NEW TAB instead. In a loading scope the
+ * chip is the `Tag`'s own skeleton, in the chip's box; `MentionSuspense` is the Suspense
+ * boundary that puts it in one, and `MentionErrorBoundary` the error boundary, so a
  * per-type chip is always: skeleton while fetching → resolved chip → plain id chip if
  * the fetch throws (never crashes the message).
  */
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
+import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { navigatesCurrentWindow } from '@/lib/link-click';
 
 // Tweaks on top of Tag's `badge` skin so the mention matches the canonical
@@ -38,6 +44,17 @@ import { navigatesCurrentWindow } from '@/lib/link-click';
 // a chip WITHOUT an href (e.g. user — no detail page) doesn't look clickable.
 const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-text-secondary hover:border-ods-border';
 
+// The two segments of a chip that can also open a tab: one chip outline, the
+// main segment's right border is the seam between them, and each segment
+// lights up on its own hover so the two targets read as two.
+const SEGMENT_HOVER_CLASS = 'hover:bg-ods-bg-hover';
+const MAIN_SEGMENT_CLASS = cn(CHIP_CLASS, SEGMENT_HOVER_CLASS, 'rounded-r-none');
+const NEW_TAB_SEGMENT_CLASS = cn(
+  CHIP_CLASS,
+  SEGMENT_HOVER_CLASS,
+  'rounded-l-none border-l-0 hover:[&_svg]:text-ods-text-primary',
+);
+
 interface MentionTagProps {
   icon?: ReactNode;
   label: ReactNode;
@@ -46,12 +63,23 @@ interface MentionTagProps {
 }
 
 export function MentionTag({ icon, label, href }: MentionTagProps) {
+  const sameWindow = useSameWindowLinks();
   const router = useRouter();
+  // A tab only where this window can open one and should (see `useSameWindowLinks`).
+  const offersNewTab = !sameWindow;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
   // trigger that stays valid inside the markdown `<p>`.
-  const chip = <Tag as="span" variant="badge" icon={icon} label={label} className={CHIP_CLASS} />;
+  const chip = (
+    <Tag
+      as="span"
+      variant="badge"
+      icon={icon}
+      label={label}
+      className={href && offersNewTab ? MAIN_SEGMENT_CLASS : CHIP_CLASS}
+    />
+  );
   if (!href) return chip;
 
   // Soft-nav rather than let the anchor do a full document load — every chip href is
@@ -63,23 +91,37 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
     router.push(href);
   };
 
-  return (
+  const main = (
     <a href={href} onClick={handleClick} className="no-underline">
       {chip}
     </a>
   );
+  if (!offersNewTab) return main;
+
+  // The new-tab segment is a plain link the browser opens itself.
+  return (
+    <span className="inline-flex align-middle">
+      {main}
+      <FloatingTooltip content="Open in new tab" side="top" as="span">
+        <a href={href} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" className="no-underline">
+          <Tag as="span" variant="badge" label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
+        </a>
+      </FloatingTooltip>
+    </span>
+  );
 }
 
 /**
- * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
- * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
- * and a "loading" read out mid-sentence for each would bury the message itself.
+ * The Suspense boundary of a per-type chip: while the chip's entity is fetched, the chip itself (no label yet) in a
+ * loading scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the
+ * chip lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
  */
-export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
+export function MentionSuspense({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
   return (
-    <LoadingRegion as="span" status={false} className="contents">
-      <MentionTag icon={icon} label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />} />
-    </LoadingRegion>
+    <LoadingSuspense as="span" className="contents" status={false} fallback={<MentionTag icon={icon} label="" />}>
+      {children}
+    </LoadingSuspense>
   );
 }
 

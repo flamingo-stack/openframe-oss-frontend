@@ -13,11 +13,13 @@ import {
   type SortDirection,
   type SortingState,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
+import { LIVE_ROW_GAP_CLASS, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
@@ -27,9 +29,9 @@ import { useDeleteRemoteSession, useSessionRecordings } from '../../hooks/use-se
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
 import { DeleteSessionDialog } from '../remote-sessions/delete-session-dialog';
+import { REMOTE_SESSION_COLUMNS } from '../remote-sessions/remote-session-column-layout';
 import { remoteSessionColumns } from '../remote-sessions/remote-session-columns';
 import { canOpenSession, EXPIRES_FILTER_OPTIONS } from '../remote-sessions/session-status';
-import { REMOTE_SESSION_COLUMNS } from './device-tab-columns';
 import { TabEmptyState } from './tab-empty-state';
 
 interface RemoteSessionsTabProps {
@@ -38,6 +40,12 @@ interface RemoteSessionsTabProps {
 
 const EMPTY_RECORDINGS: RecordingSummary[] = [];
 const EMPTY_COLUMN_FILTERS: ColumnFiltersState = [];
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const REMOTE_SESSIONS_SKELETON_ROWS = 10;
 
 /** Newest session first, like every history list on the device page. */
 const DEFAULT_SORTING: SortingState = [{ id: REMOTE_SESSION_COLUMNS.session.id, desc: true }];
@@ -74,7 +82,12 @@ const MODAL_FILTER_IDS = [REMOTE_SESSION_COLUMNS.employee.id, REMOTE_SESSION_COL
 export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   const router = useRouter();
   const deviceId = device?.machineId ?? null;
-  const { data, isLoading } = useSessionRecordings(deviceId);
+  // The device or the recordings gate has not answered (a loading scope): nothing is asked for until both have, so a
+  // tenant without recordings never calls the recordings API.
+  const scoped = useLoadingScope();
+  const { data, isLoading: isQueryLoading } = useSessionRecordings(scoped ? null : deviceId);
+  // The device has not answered (the page's loading scope), or this device's sessions have not.
+  const isLoading = scoped || isQueryLoading;
   const deleteSession = useDeleteRemoteSession(deviceId ?? '');
   // The "Expires in N hours" countdown keeps moving while the tab is open.
   const now = useNow(60_000);
@@ -188,8 +201,14 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     [dateFilter, employeeOptions, now, router],
   );
 
+  // While the sessions are read the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
+  // cell draws its own loading form.
+  const tableData = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<RecordingSummary>(REMOTE_SESSIONS_SKELETON_ROWS) : recordings),
+    [isLoading, recordings],
+  );
   const table = useDataTable<RecordingSummary>({
-    data: recordings,
+    data: tableData,
     columns,
     getRowId: (row: RecordingSummary) => row.id,
     clientSideSorting: true,
@@ -212,7 +231,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
     });
   }, []);
 
-  if (!deviceId) {
+  if (!isLoading && !deviceId) {
     return (
       <TabEmptyState
         icon={<ComputerMouseIcon />}
@@ -286,8 +305,9 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         )}
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={4}
-          rowClassName="mb-1"
+          loadingCells={isLoading}
+          skeletonRows={REMOTE_SESSIONS_SKELETON_ROWS}
+          rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={recordingHref}
           emptyState={{
             icon: <ComputerMouseIcon />,

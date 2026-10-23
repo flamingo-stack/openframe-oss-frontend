@@ -1,39 +1,34 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DeviceTypeTile,
   formatLastOnline,
   getDeviceStatusConfig,
   OSTypeBadge,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import {
-  ArrowRightUpIcon,
-  BracketCurlyEllipsisVrIcon,
-  Filter02Icon,
-  MonitorIcon,
-  SearchIcon,
-  XmarkCircleIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Filter02Icon, MonitorIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
   type ColumnDef,
   DataTable,
-  EntityImage,
   FilterModal,
   Input,
   type Row,
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
+import { NO_ITEMS, noop } from '@/app/components/shared';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
-import { getFullImageUrl } from '@/lib/image-url';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
+import { MONITORING_DEVICES_SKELETON_ROWS, QUERY_DEVICE_COLUMNS } from '../../components/monitoring-table-columns';
+import { DeviceCustomerCell, DeviceOpenCell, QuickQueryToggle } from '../../policy/components/policy-devices-table';
 import { QuickQueryPanel } from '../../policy/components/quick-query-panel';
 import { useQueryDevicesTable } from '../hooks/use-query-devices-table';
 import type { QueryDeviceRow } from '../types/query-device-row';
@@ -44,8 +39,27 @@ interface QueryDevicesTableProps {
   query?: string;
 }
 
-export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
+/**
+ * The query's devices. In a loading scope (the query itself still loading) it reads nothing and draws the table's
+ * own loading rows; otherwise it reads the devices and draws them.
+ */
+export function QueryDevicesTable(props: QueryDevicesTableProps) {
+  if (useLoadingScope()) return <QueryDevicesTableView rows={NO_ITEMS} isLoading query={props.query} />;
+  return <QueryDevicesTableContent {...props} />;
+}
+
+function QueryDevicesTableContent({ queryId, query }: QueryDevicesTableProps) {
   const { rows, isLoading } = useQueryDevicesTable(queryId);
+  return <QueryDevicesTableView rows={rows} isLoading={isLoading} query={query} />;
+}
+
+interface QueryDevicesTableViewProps {
+  rows: QueryDeviceRow[];
+  isLoading: boolean;
+  query?: string;
+}
+
+function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableViewProps) {
   const isMdUp = useContentMdUp();
   const [search, setSearch] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -143,9 +157,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
               <DeviceTypeTile type={r.deviceType} />
               <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <TruncateText>{r.name}</TruncateText>
-                <TruncateText variant="h6" tone="secondary">
-                  {formatLastOnline(r.lastSeen)}
-                </TruncateText>
+                <DeviceLastOnline lastSeen={r.lastSeen} />
               </div>
             </div>
           );
@@ -156,22 +168,13 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
         id: QUERY_DEVICE_COLUMNS.organization.id,
         accessorKey: 'organization',
         header: QUERY_DEVICE_COLUMNS.organization.header,
-        cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
-          const r = row.original;
-          const fullImageUrl = getFullImageUrl(r.organizationImageUrl, r.organizationImageHash);
-          return (
-            <div className="flex items-center gap-3">
-              <EntityImage
-                src={fullImageUrl}
-                alt={r.organization || 'Customer'}
-                className="size-12 content-md:size-12"
-              />
-              <div className="flex min-w-0 flex-1 flex-col justify-center">
-                <span className="break-words text-ods-text-primary text-h4">{r.organization || ''}</span>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+          <DeviceCustomerCell
+            organization={row.original.organization}
+            imageUrl={row.original.organizationImageUrl}
+            imageHash={row.original.organizationImageHash}
+          />
+        ),
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.organization, { filter: { options: customerOptions } }),
       },
@@ -191,54 +194,25 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
         id: QUERY_DEVICE_COLUMNS.status.id,
         accessorKey: 'status',
         header: QUERY_DEVICE_COLUMNS.status.header,
-        cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
-          const config = getDeviceStatusConfig(row.original.status);
-          return <Tag label={config.label} variant={config.variant} />;
-        },
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => <DeviceStatusCell status={row.original.status} />,
         filterFn: multiSelectFilterFn,
         meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.status, { filter: { options: statusOptions } }),
       },
       {
         id: QUERY_DEVICE_COLUMNS.open.id,
-        cell: ({ row }: { row: Row<QueryDeviceRow> }) =>
-          row.original.machineId ? (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={openInNewTab(routes.devices.details(row.original.machineId))}
-                variant="outline"
-                size="icon"
-                leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-                aria-label="Open in new tab"
-                className="bg-ods-card"
-              />
-            </div>
-          ) : null,
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => <DeviceOpenCell machineId={row.original.machineId} />,
         enableSorting: false,
         meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.open),
       },
       {
         id: QUERY_DEVICE_COLUMNS.quickQuery.id,
-        cell: ({ row }: { row: Row<QueryDeviceRow> }) => {
-          const isOpen = quickQueryIds.has(String(row.original.id));
-          return (
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                onClick={() => toggleQuickQuery(String(row.original.id))}
-                variant="outline"
-                disabled={!isOpen && !hasQuery}
-                leftIcon={
-                  isOpen ? <XmarkCircleIcon className="h-5 w-5" /> : <BracketCurlyEllipsisVrIcon className="h-5 w-5" />
-                }
-                aria-label={isOpen ? 'Close quick query' : 'Open quick query'}
-                aria-expanded={isOpen}
-                className="w-full bg-ods-card"
-              >
-                {/* Icon-only on mobile, per design. */}
-                <span className="hidden content-md:inline">{isOpen ? 'Close' : 'Quick Query'}</span>
-              </Button>
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<QueryDeviceRow> }) => (
+          <QuickQueryToggle
+            isOpen={quickQueryIds.has(String(row.original.id))}
+            hasQuery={hasQuery}
+            onToggle={() => toggleQuickQuery(String(row.original.id))}
+          />
+        ),
         enableSorting: false,
         meta: liveColumnMeta(QUERY_DEVICE_COLUMNS.quickQuery),
       },
@@ -246,8 +220,15 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
     [statusOptions, osOptions, customerOptions, quickQueryIds, toggleQuickQuery, hasQuery],
   );
 
+  // While loading the table holds one typical list of placeholder rows, drawn with the real cells (`loadingCells`):
+  // every part of a row draws its own loading form, so a loading row is the loaded row's own layout.
+  const loadingRows = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<QueryDeviceRow>(MONITORING_DEVICES_SKELETON_ROWS) : null),
+    [isLoading],
+  );
+
   const table = useDataTable<QueryDeviceRow>({
-    data: filteredRows,
+    data: loadingRows ?? filteredRows,
     columns,
     getRowId: (row: QueryDeviceRow) => String(row.id),
     enableSorting: false,
@@ -286,6 +267,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
       <div className="flex items-start gap-[var(--spacing-system-m)]">
         <div className="min-w-0 flex-1">
           <Input
+            userValue
             placeholder="Search for Devices"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -318,7 +300,8 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
         {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={5}
+          loadingCells={isLoading}
+          skeletonRows={MONITORING_DEVICES_SKELETON_ROWS}
           emptyState={emptyState}
           rowHref={rowHref}
           renderSubRow={renderSubRow}
@@ -329,7 +312,7 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         filterGroups={[]}
-        onFilterChange={() => {}}
+        onFilterChange={noop}
         tagFilterKeys={tagFilterKeys}
         selectedTags={selectedTags}
         onTagsChange={setSelectedTags}
@@ -337,4 +320,22 @@ export function QueryDevicesTable({ queryId, query }: QueryDevicesTableProps) {
       />
     </div>
   );
+}
+
+/** When the device was last online, under its name; a bar on its line while the row is read. */
+function DeviceLastOnline({ lastSeen }: { lastSeen: QueryDeviceRow['lastSeen'] | undefined }) {
+  if (useLoadingScope() && !lastSeen) return <TextLineSkeleton type="h6" className="w-1/2" />;
+  return (
+    <TruncateText variant="h6" tone="secondary">
+      {formatLastOnline(lastSeen)}
+    </TruncateText>
+  );
+}
+
+/** The device's own state as its tag; the tag's own loading form while the row is read. */
+function DeviceStatusCell({ status }: { status: string | undefined }) {
+  const loading = useLoadingScope() && !status;
+  // A loading placeholder row has no status: nothing to look up, the tag draws its loading form.
+  const config = status === undefined ? null : getDeviceStatusConfig(status);
+  return <Tag label={config?.label} variant={config?.variant} loading={loading || !config} />;
 }

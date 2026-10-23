@@ -1,16 +1,17 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense } from 'react';
-import { InitialSetupCard, InitialSetupSkeleton } from '@/app/(app)/onboarding/components/initial-setup-card';
+import type { ReactNode } from 'react';
+import { InitialSetupCard } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { CustomersOverviewSection } from './customers-overview';
-import { DevicesOverviewSection } from './devices-overview';
+import { CustomersOverview, CustomersOverviewSection } from './customers-overview';
+import { DevicesOverview, DevicesOverviewSection } from './devices-overview';
 import { MingoIntroBanner } from './mingo-intro-banner';
-import { TicketsOverviewSection } from './tickets-overview';
+import { TicketsOverview, TicketsOverviewSection } from './tickets-overview';
 
 /** Padded wrapper for the onboarding blocks that live OUTSIDE the PageLayout chrome.
  *  `empty:hidden` collapses the wrapper (padding included) when the inner component
@@ -19,32 +20,29 @@ const ONBOARDING_WRAPPER_CLASS = 'px-[var(--spacing-system-l)] pt-[var(--spacing
 /** The v2 banner's wrapper: below it the same gap the PageLayout keeps between its
  *  sections, so the banner reads as one of them. */
 const BANNER_WRAPPER_CLASS = `${ONBOARDING_WRAPPER_CLASS} pb-[var(--spacing-system-l)]`;
+/** The overview sections' page chrome: PageLayout supplies the gap between sections. */
+const OVERVIEWS_PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
 
 /**
  * The tenant Initial Setup card, as the classic dashboard shows it while onboarding v2
- * is off. Deliberately OUTSIDE the sections' PageLayout.
+ * is off. Deliberately OUTSIDE the sections' PageLayout. The card owns the boundary for
+ * its suspending queries (e.g. DeviceSetupStep's `useDeviceOrganizations`) and draws its
+ * own loading state while they load.
  *
- * Local Suspense so the setup card's suspending queries (e.g. DeviceSetupStep's
- * `useDeviceOrganizations`, a `useSuspenseQuery`) are caught here instead of
- * bubbling to the route-level `loading.tsx` and re-flashing the whole page skeleton.
- * Fallback is the card skeleton (not `null`) so the suspend doesn't flash an empty
- * gap between the card's own count-loading skeleton and its content — the same
- * skeleton carries through while onboarding progress (the tenant step-detection
- * round-trips) loads.
+ * While the flag is read, its likely answer's slot is kept: the flag reads as off wherever
+ * it is not registered, so the legacy card's slot. The card draws nothing until the
+ * onboarding store says setup is ACTIVE, and while the flag is read it draws only its
+ * loading form (it never mounts its content, so a v2 workspace never sees the old card).
  */
 function InitialSetupSection() {
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  if (onboardingV2 === 'on') return null;
   return (
-    <Suspense
-      fallback={
-        <div className={ONBOARDING_WRAPPER_CLASS}>
-          <InitialSetupSkeleton />
-        </div>
-      }
-    >
-      <div className={ONBOARDING_WRAPPER_CLASS}>
+    <div className={ONBOARDING_WRAPPER_CLASS}>
+      <LoadingWhen loading={onboardingV2 === 'loading'}>
         <InitialSetupCard />
-      </div>
-    </Suspense>
+      </LoadingWhen>
+    </div>
   );
 }
 
@@ -65,6 +63,13 @@ export function IntroBannerSection() {
 }
 
 interface OverviewSectionsProps {
+  /**
+   * Read the sections' data (default). Off: the sections have no data and draw their own
+   * loading state, which is what the app shell holds in the page slot (in a loading scope)
+   * while it waits on the onboarding answer (`holdsDashboard`), so the hand-over to the
+   * real page moves nothing.
+   */
+  live?: boolean;
   /**
    * The Tickets cards open the list narrowed to their status (Mingo's home). Off: the
    * bare list, which is what the dashboard has always linked.
@@ -87,6 +92,7 @@ interface OverviewSectionsProps {
  * dashboard and Mingo's home.
  */
 export function OverviewSections({
+  live = true,
   filterTicketLinks = false,
   incidents,
   dimDuringInitialSetup = true,
@@ -99,7 +105,7 @@ export function OverviewSections({
   // lit once setup is complete, before progress loads, or when there's no tenant record.
   //
   // Under onboarding v2 the Initial Setup lives on `/setup` and nothing is dimmed.
-  // Gated: the card renders only once the flag answers `off`.
+  // Gated: dimmed only once the flag answers `off`.
   const legacySetup = useFeatureFlagGate('onboarding-v2') === 'off';
   const setupActive = useInitialSetupActive();
   const dimSections = dimDuringInitialSetup && legacySetup && setupActive;
@@ -111,11 +117,11 @@ export function OverviewSections({
     >
       {/* Standard page chrome: PageLayout supplies the gap between sections; each
           section renders its own TitleBlock header (with the TitleBlock's own pt/mb). */}
-      <PageLayout className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-        <DevicesOverviewSection />
-        {showTickets && <TicketsOverviewSection filterLinks={filterTicketLinks} />}
+      <PageLayout className={OVERVIEWS_PAGE_CLASS}>
+        {live ? <DevicesOverviewSection /> : <DevicesOverview />}
+        {showTickets && (live ? <TicketsOverviewSection filterLinks={filterTicketLinks} /> : <TicketsOverview />)}
         {incidents}
-        <CustomersOverviewSection />
+        {live ? <CustomersOverviewSection /> : <CustomersOverview />}
       </PageLayout>
     </div>
   );
@@ -123,16 +129,20 @@ export function OverviewSections({
 
 /**
  * The classic shell's dashboard: the v2 welcome banner or, with onboarding v2 off, the
- * Initial Setup card, then the overview sections. A v2 workspace never sees the old card
- * for a frame: it waits for the flag's answer.
+ * Initial Setup card, then the overview sections. `live` reads the sections' data;
+ * without it they draw their own loading state (see {@link OverviewSectionsProps.live}).
  */
-export default function DashboardContent() {
-  const legacySetup = useFeatureFlagGate('onboarding-v2') === 'off';
+export function DashboardOverviews({ live = false }: { live?: boolean }) {
   return (
     <>
       <IntroBannerSection />
-      {legacySetup && <InitialSetupSection />}
-      <OverviewSections />
+      <InitialSetupSection />
+      <OverviewSections live={live} />
     </>
   );
+}
+
+/** The dashboard page's content: the overviews over their data. */
+export default function DashboardContent() {
+  return <DashboardOverviews live />;
 }

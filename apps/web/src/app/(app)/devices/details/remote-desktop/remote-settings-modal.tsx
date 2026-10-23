@@ -33,6 +33,14 @@ interface RemoteSettingsModalProps {
   tunnelRef: React.MutableRefObject<MeshTunnel | null>;
   connectionState: number;
   onSettingsChange?: (settings: RemoteSettingsConfig) => void;
+  /**
+   * "Auto-hide toolbar": the session toolbar floats over the stream and slides
+   * away when idle (windowed and fullscreen alike). A viewer preference, not a
+   * stream setting - it applies as soon as it is toggled, needs no connection
+   * and is not part of Save / Close.
+   */
+  autoHideToolbar: boolean;
+  onAutoHideToolbarChange: (enabled: boolean) => void;
 }
 
 export function RemoteSettingsModal({
@@ -43,6 +51,8 @@ export function RemoteSettingsModal({
   tunnelRef,
   connectionState,
   onSettingsChange,
+  autoHideToolbar,
+  onAutoHideToolbarChange,
 }: RemoteSettingsModalProps) {
   const { toast } = useToast();
   const [settings, setSettings] = useState<RemoteSettingsConfig>(currentSettings);
@@ -228,6 +238,23 @@ export function RemoteSettingsModal({
                 Use Remote Keyboard Map
               </Label>
               <p className="text-ods-text-secondary text-h6">Use the remote device's keyboard layout</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3 rounded-lg border border-ods-border bg-ods-card p-4">
+            <Checkbox
+              id="auto-hide-toolbar"
+              checked={autoHideToolbar}
+              onCheckedChange={checked => onAutoHideToolbarChange(!!checked)}
+            />
+            <div className="flex-1">
+              <Label htmlFor="auto-hide-toolbar" className="cursor-pointer">
+                Auto-hide Toolbar
+              </Label>
+              <p className="text-ods-text-secondary text-h6">
+                Float the toolbar over the remote screen and hide it when idle. Move the mouse to the top edge to bring
+                it back. Applies immediately.
+              </p>
             </div>
           </div>
         </div>

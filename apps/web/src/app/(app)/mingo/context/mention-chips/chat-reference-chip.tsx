@@ -21,10 +21,10 @@
  */
 
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
+import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
 
 /** The marker the ai-agent writes in front of a recalled dialog's id
  *  (`ConversationMemoryReferenceService.CHAT_TAG_PREFIX`, without the `@`). */
@@ -98,9 +98,9 @@ function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
 export function ChatReferenceChip({ id, icon }: ChatReferenceChipProps) {
   return (
     <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} icon={icon} />}>
-      <Suspense fallback={<MentionTagSkeleton icon={icon} />}>
+      <MentionSuspense icon={icon}>
         <ChatReferenceInner id={id} icon={icon} />
-      </Suspense>
+      </MentionSuspense>
     </MentionErrorBoundary>
   );
 }

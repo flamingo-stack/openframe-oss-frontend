@@ -23,6 +23,7 @@ export default function AppGroupLayout({ children }: { children: React.ReactNode
       <ShellNavigatorRegistrar />
       {/* `?mingoDialog=` from an old link, on any route → the chat page. Its own
           boundary: it reads `useSearchParams()`, which must not suspend the shell. */}
+      {/* loading-standard-ok(SUSPENSE_FALLBACK): the bridge draws nothing; it only forwards an old link */}
       <Suspense fallback={null}>
         <MingoDialogParamBridge />
       </Suspense>

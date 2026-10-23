@@ -40,6 +40,8 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOri
   ...(await importOriginal<object>()),
   PageLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
+// The shared barrel re-exports the devices panel, whose Relay query the test transform does not compile.
+vi.mock('@/app/components/shared', () => ({ NO_ITEMS: [] }));
 vi.mock('../statuses/hooks/use-ticket-statuses-query', () => ({
   useTicketStatusesQuery: () => ({ data: { snapshot: STATUSES }, isLoading: false, error: null }),
 }));

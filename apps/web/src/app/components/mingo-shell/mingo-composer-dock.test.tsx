@@ -81,7 +81,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
     panel.loading = props;
     return <p>locked composer</p>;
   },
-  ModelDisplaySkeleton: () => null,
+  ModelDisplay: () => null,
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/components', () => ({
   LoadingRegion: ({ children }: { children: ReactNode }) => <div aria-busy="true">{children}</div>,
@@ -126,7 +126,7 @@ vi.mock('./mingo-dock-quick-actions', () => ({
 // The tour has tests of its own (and its Relay reads need the compiler): no tour here,
 // the state passes through.
 vi.mock('@/app/(app)/mingo/tour/use-mingo-tour', () => ({
-  useMingoTour: ({ state }: { state: unknown }) => ({ state, aboveComposer: null, onWhatToAsk: undefined }),
+  useMingoTour: ({ state }: { state: unknown }) => ({ state, aboveComposer: null }),
 }));
 vi.mock('../reset-onboarding-dialog', () => ({
   ResetOnboardingDialog: () => null,

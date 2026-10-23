@@ -19,6 +19,7 @@ import { useDebounce, useToast } from '@flamingo-stack/openframe-frontend-core/h
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type InfiniteData, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useNow } from '@/app/hooks/use-now';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -61,12 +62,6 @@ import { TicketsFilterModal } from './tickets-filter-modal';
  *  (active filters, a server-side re-route) can't stay painted forever — the
  *  hold has no time limit while the modal is still open. */
 const HELD_MOVE_SETTLE_TIMEOUT_MS = 5000;
-
-/** Stable identity for lanes no transition rule targets: the boardColumns memo
- *  now also rebuilds on the staleness minute tick, and a fresh `[]` per rebuild
- *  would fail the cards' shallow compare and re-register the lane's drop target
- *  every minute for nothing. */
-const NO_ALLOWED_FROM_COLUMNS: string[] = [];
 
 /**
  * Re-seats a dropped ticket at its drop position on top of the raw columns.
@@ -465,7 +460,7 @@ export function TicketsBoard({
         hasMore: state?.hasMore,
         isLoading,
         isLoadingMore: state?.isLoadingMore,
-        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? NO_ALLOWED_FROM_COLUMNS) : undefined,
+        allowedFromColumns: transitionRules ? (allowedFromByStatusId[status.id] ?? NO_ITEMS) : undefined,
         archivable: status.kind === 'RESOLVED' && canArchiveResolved,
       };
     });

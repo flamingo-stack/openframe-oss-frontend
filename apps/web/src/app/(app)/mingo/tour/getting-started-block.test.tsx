@@ -7,7 +7,9 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { GettingStartedBlock } from './getting-started-block';
+import { clearGettingStartedView } from './getting-started-view';
 import { TOUR_STEPS, type TourStepId } from './tour-steps';
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
@@ -23,6 +25,8 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  // No signed-in user here: the remembered view lives in memory, and starts empty.
+  clearGettingStartedView(undefined);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -36,10 +40,16 @@ afterEach(() => {
 const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
 
-function render(done: TourStepId[] = []) {
+function render(done: TourStepId[] = [], busy = false) {
   act(() => {
     root.render(
-      <GettingStartedBlock steps={TOUR_STEPS} doneStepIds={new Set(done)} onAction={onAction} onFinish={onFinish} />,
+      <GettingStartedBlock
+        steps={TOUR_STEPS}
+        doneStepIds={new Set(done)}
+        onAction={onAction}
+        onFinish={onFinish}
+        busy={busy}
+      />,
     );
   });
 }
@@ -127,6 +137,9 @@ describe('GettingStartedBlock', () => {
     // jsdom has no layout: the classes are the contract (a wide composer would fit four).
     const grid = container.querySelector('[data-testid="getting-started-grid"]');
     expect(grid?.className).toMatch(/(?:^|\s)grid-cols-2(?:\s|$)/);
+    // In a short panel the block gives way and the grid scrolls.
+    expect(grid?.className).toMatch(/(?:^|\s)overflow-y-auto(?:\s|$)/);
+    expect(grid?.className).toMatch(/(?:^|\s)min-h-0(?:\s|$)/);
     const cells = [...(grid?.children ?? [])];
     expect(cells).toHaveLength(TOUR_STEPS.length);
     for (const cell of cells) expect(cell.className).toContain('last:odd:col-span-2');
@@ -158,6 +171,32 @@ describe('GettingStartedBlock', () => {
     expect(container.textContent).toContain('Try asking:');
   });
 
+  it('disables the chips while Mingo is answering, and says so', () => {
+    onAction.mockClear();
+    render([], true);
+    click(button('DevicesMachines running the agent'));
+
+    const chip = button('Check my device');
+    expect(chip.matches(':disabled')).toBe(true);
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Mingo is answering…');
+    click(chip);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+  });
+
+  it('enables the chips again once Mingo is done', () => {
+    onAction.mockClear();
+    render([], true);
+    click(button('DevicesMachines running the agent'));
+    render([], false);
+
+    const chip = button('Check my device');
+    expect(chip.matches(':disabled')).toBe(false);
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    click(chip);
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
   it('counts the done steps and offers to finish on the last one', () => {
     render(['devices', 'tickets', 'scripting']);
     expect(header()).toContain('3 of 7 steps');
@@ -166,5 +205,62 @@ describe('GettingStartedBlock', () => {
     click(button('Knowledge Management'));
     click(button('Finish tour'));
     expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GettingStartedBlock across pages and tabs', () => {
+  const USER = 'u-1';
+  const KEY = `openframe:getting-started-view:${USER}`;
+  const grid = () => container.querySelector('[data-testid="getting-started-grid"]');
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    } as Storage;
+    vi.stubGlobal('localStorage', storage);
+    Object.defineProperty(window, 'localStorage', { value: storage, configurable: true });
+    useAuthStore.setState({ user: { id: USER, email: 'ann@example.com' } } as never);
+  });
+
+  afterEach(() => {
+    useAuthStore.setState({ user: null } as never);
+    vi.unstubAllGlobals();
+  });
+
+  it('opens folded when the user folded it before, with no step done', () => {
+    store.set(KEY, 'collapsed');
+    render();
+    expect(grid()).not.toBeNull();
+  });
+
+  it('opens as the list when the user unfolded it before, steps done or not', () => {
+    store.set(KEY, 'default');
+    render(['devices', 'tickets']);
+    expect(grid()).toBeNull();
+  });
+
+  it('remembers the chevron and a used chip', () => {
+    render();
+    click(button('DevicesMachines running the agent'));
+    click(button('Check my device'));
+    expect(store.get(KEY)).toBe('collapsed');
+
+    click(container.querySelector('header button') as Element);
+    expect(store.get(KEY)).toBe('default');
+  });
+
+  it('a block mounted later (another page, a new tab) opens as it was left', () => {
+    render();
+    click(container.querySelector('header button') as Element);
+    expect(store.get(KEY)).toBe('collapsed');
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    render();
+    expect(grid()).not.toBeNull();
   });
 });

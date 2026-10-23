@@ -1,41 +1,22 @@
 'use client';
 
 import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SoftwareListFrame } from '@/app/(app)/software/components/shared/software-list-frame';
-import { VULNERABILITY_LIST_TABLE_COLUMNS } from '@/app/(app)/software/components/vulnerability-list/vulnerability-list-columns';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import type { Device } from '../../types/device.types';
 import { getVulnerabilitiesEmptyReason, isVulnerabilityScanPending } from '../../utils/vulnerabilities-empty-state';
 import { DataSyncBanner } from '../data-sync-banner';
-import { DEVICE_TAB_SKELETON_ROWS, FLEET_VULNERABILITIES_TAB_COLUMNS } from './device-tab-columns';
 import { DeviceVulnerabilitiesTable } from './device-vulnerabilities-table';
 import { FleetVulnerabilitiesTab } from './fleet-vulnerabilities-tab';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
-import { TableTabSkeleton } from './table-tab-skeleton';
 
 interface VulnerabilitiesTabProps {
   device: Device | null;
 }
 
 const SEARCH_PLACEHOLDER = 'Search for Vulnerability';
-
-/**
- * The tab's loading state — the page skeleton's and the tab's own until
- * `software-management` answers. See `SoftwareTabSkeleton` for why it reads
- * the gate and what `'loading'` draws.
- */
-export function VulnerabilitiesTabSkeleton({ region = true }: { region?: boolean } = {}) {
-  const gate = useFeatureFlagGate('software-management');
-  return (
-    <TableTabSkeleton
-      columns={gate === 'on' ? VULNERABILITY_LIST_TABLE_COLUMNS : FLEET_VULNERABILITIES_TAB_COLUMNS}
-      placeholder={SEARCH_PLACEHOLDER}
-      label="Loading vulnerabilities"
-      region={region}
-    />
-  );
-}
 
 const NO_VULNERABILITIES = (
   <TabEmptyState
@@ -101,37 +82,39 @@ function vulnerabilitiesEmptyState(device: Device) {
  * keeps a failed list from taking the page down, the pipeline-stage copy for an
  * empty one and the sync banner.
  */
-function ModuleVulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
+function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps & { loading: boolean }) {
+  // The device (or the module's flag) has not answered: the frame and its rows draw their loading state.
+  const scoped = useLoadingScope() || loading;
   // No agent id, no inventory to match against.
-  if (!device?.machineId) {
+  if (!scoped && !device?.machineId) {
     return NO_VULNERABILITIES;
   }
 
   return (
-    <SoftwareListFrame
-      paramPrefix="cve"
-      placeholder={SEARCH_PLACEHOLDER}
-      skeletonColumns={VULNERABILITY_LIST_TABLE_COLUMNS}
-      skeletonRows={DEVICE_TAB_SKELETON_ROWS}
-      skeletonLabel="Loading vulnerabilities"
-      // Results are on screen but the last matching run predates the current
-      // software inventory — e.g. a patched CVE may still show as active until
-      // the hourly run catches up.
-      banner={isVulnerabilityScanPending(device) && <DataSyncBanner className="mb-[var(--spacing-system-l)]" />}
-    >
-      {list => (
-        <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
-          <DeviceVulnerabilitiesTable
-            debouncedSearch={list.debouncedSearch}
-            isPending={list.isPending}
-            onEmptyChange={list.onEmptyChange}
-            stickyHeaderOffset={list.stickyHeaderOffset}
-            machineId={device.machineId}
-            emptyState={vulnerabilitiesEmptyState(device)}
-          />
-        </ContentErrorBoundary>
-      )}
-    </SoftwareListFrame>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <SoftwareListFrame
+        paramPrefix="cve"
+        placeholder={SEARCH_PLACEHOLDER}
+        loadingLabel="Loading vulnerabilities"
+        loading={loading}
+      >
+        {list => (
+          <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
+            <DeviceVulnerabilitiesTable
+              debouncedSearch={list.debouncedSearch}
+              isPending={list.isPending}
+              onEmptyChange={list.onEmptyChange}
+              stickyHeaderOffset={list.stickyHeaderOffset}
+              machineId={device?.machineId ?? ''}
+              emptyState={device ? vulnerabilitiesEmptyState(device) : NO_VULNERABILITIES}
+            />
+          </ContentErrorBoundary>
+        )}
+      </SoftwareListFrame>
+      {/* The last matching run predates the current software inventory — e.g. a patched CVE may still show as
+          active until the hourly run catches up. Below the list: drawn above it, its arrival would move the rows. */}
+      {!scoped && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
+    </div>
   );
 }
 
@@ -141,11 +124,10 @@ function ModuleVulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
  * (`FleetVulnerabilitiesTab`), each opening its NVD record. On: the module's
  * own table over `deviceVulnerabilities`, so the tab reads like the module's
  * page and its rows lead to the CVE's page there. Until the flag answers, the
- * skeleton — see `SoftwareTab`.
+ * module's frame in its loading state — see `SoftwareTab`.
  */
 export function VulnerabilitiesTab({ device }: VulnerabilitiesTabProps) {
   const gate = useFeatureFlagGate('software-management');
-  if (gate === 'loading') return <VulnerabilitiesTabSkeleton />;
   if (gate === 'off') return <FleetVulnerabilitiesTab device={device} />;
-  return <ModuleVulnerabilitiesTab device={device} />;
+  return <ModuleVulnerabilitiesTab device={device} loading={gate === 'loading'} />;
 }

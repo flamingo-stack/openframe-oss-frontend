@@ -1,10 +1,7 @@
 'use client';
 
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
+import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
 import { routes } from '@/lib/routes';
 
 /**
@@ -30,14 +27,7 @@ import { routes } from '@/lib/routes';
 export default function AccountDeletionPage() {
   return (
     <div className="of-standalone-shell flex min-h-screen flex-col items-center gap-[var(--spacing-system-xlf)] bg-ods-bg p-[var(--spacing-system-xlf)]">
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
+      <OpenframeLockup />
 
       <main className="flex w-full max-w-[640px] flex-col gap-[var(--spacing-system-lf)]">
         <header className="flex flex-col gap-[var(--spacing-system-xsf)]">
@@ -115,16 +105,7 @@ export default function AccountDeletionPage() {
         </section>
       </main>
 
-      <a
-        href="https://flamingo.run"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-auto flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-      >
-        <span className="text-h6">Powered by</span>
-        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-        <span className="font-semibold text-code">Flamingo</span>
-      </a>
+      <PoweredByFlamingo className="mt-auto" />
     </div>
   );
 }

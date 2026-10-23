@@ -11,6 +11,7 @@ import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
+import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-dialogs';
 import { useMingoWhatToAsk } from '@/app/(app)/mingo/hooks/use-mingo-what-to-ask';
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
@@ -28,6 +29,7 @@ export type OpenframeChatProps = Pick<
   | 'contextMemory'
   | 'contextPicker'
   | 'dialogStatusOf'
+  | 'historyPageSize'
   | 'mingoDialogCapabilities'
   | 'mingoState'
   | 'mingoWelcome'
@@ -108,6 +110,8 @@ export function useOpenframeChatProps({
 
   return {
     dialogStatusOf,
+    // One page of the dialog list: the conversation lists' loading state draws this many rows.
+    historyPageSize: MINGO_DIALOGS_PAGE_SIZE,
     // "What to ask Mingo?" answers in the chat (the open one, else a new one) with
     // prompts that go into the composer, naming online devices.
     whatToAsk: loadWhatToAsk,

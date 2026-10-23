@@ -35,7 +35,7 @@ import {
   ChatIdentityProvider,
   EmbeddableChat,
   type EmbeddableChatHandle,
-  ModelDisplaySkeleton,
+  ModelDisplay,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   Chevron02UpIcon,
@@ -148,7 +148,7 @@ function DockComposerLoading({ route, compact }: { route: ComposerRoute; compact
         }
       >
         <div className="min-w-0 flex-1">
-          <ModelDisplaySkeleton />
+          <ModelDisplay loading />
         </div>
         {compact === true && (
           <div className="flex shrink-0 items-center">
@@ -409,9 +409,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         {...chatProps}
         mingoState={target.mingoState}
         // The Getting Started tour: its block above the composer while its
-        // conversation is open, and "What to ask Mingo?" leading back to it.
+        // conversation is open.
         aboveComposer={tour.aboveComposer}
-        onWhatToAsk={tour.onWhatToAsk}
         chatMenuExtraItems={chatMenuExtraItems}
         contextMemory={view.showContextMemory ? chatProps.contextMemory : undefined}
         // An element on the chat page, `null` everywhere else — never `undefined`,

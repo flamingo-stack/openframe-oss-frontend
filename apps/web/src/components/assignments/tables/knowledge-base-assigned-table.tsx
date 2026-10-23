@@ -1,5 +1,6 @@
 'use client';
 
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -17,9 +18,9 @@ import {
   KnowledgeBaseItemName,
   type KnowledgeBaseItemNameProps,
 } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-name';
-import { OpenItemButton } from '@/app/(app)/knowledge-base/components/shared/open-item-button';
 import { liveColumnMeta } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
+import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
 /**
  * An assigned article as this table draws it. The assignments are read by raw
@@ -59,7 +60,7 @@ const COLUMNS: ColumnDef<AssignedArticle>[] = [
   },
   {
     id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<AssignedArticle> }) => <OpenItemButton href={rowHref(row.original)} />,
+    cell: ({ row }: { row: Row<AssignedArticle> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
     enableSorting: false,
     meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
   },
@@ -93,6 +94,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
   return (
     <div className="flex flex-col gap-[var(--spacing-system-mf)]">
       <Input
+        userValue
         placeholder="Search for Knowledge Article"
         value={search}
         onChange={event => setSearch(event.target.value)}
@@ -102,7 +104,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         <DataTable.Header rightSlot={<DataTable.RowCount itemName="item" />} />
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={3}
+          skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
           emptyState={{ title: 'No articles assigned.' }}
           rowHref={rowHref}
         />

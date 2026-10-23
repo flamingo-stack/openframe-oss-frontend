@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense } from 'react';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+
 import { ArticleDetailContent } from './article-detail-content';
-import { ArticleDetailSkeleton } from './article-detail-skeleton';
 
 /**
  * `/knowledge-base/details`: one article. Not `PageLayout`: the title is the
@@ -11,9 +11,9 @@ import { ArticleDetailSkeleton } from './article-detail-skeleton';
 export function ArticleDetailView({ articleId }: { articleId: string }) {
   return (
     <div className="flex w-full flex-col">
-      <Suspense fallback={<ArticleDetailSkeleton />}>
+      <LoadingSuspense label="Loading article">
         <ArticleDetailContent articleId={articleId} />
-      </Suspense>
+      </LoadingSuspense>
     </div>
   );
 }

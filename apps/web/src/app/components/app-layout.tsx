@@ -1,6 +1,7 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { AppLayout as CoreAppLayout } from '@flamingo-stack/openframe-frontend-core/components/navigation';
@@ -10,7 +11,7 @@ import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DashboardPageSkeleton } from '@/app/(app)/dashboard/components/dashboard-skeletons';
+import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
@@ -18,6 +19,7 @@ import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
@@ -645,10 +647,21 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const composerSheet = mingoShell && chatEnabled && !dashboardHeld ? <MingoComposerSheet /> : undefined;
 
   // The page segment's boundary - what the chrome, bare or not, puts in its content
-  // slot. Its placement rules are on the core layout below.
+  // slot. Its placement rules are on the core layout below. Every page draws its own
+  // loading state (its components in a loading scope, behind its own boundaries), so
+  // this one only keeps a read that escapes a page from suspending the chrome around
+  // it: it has no page of its own to draw.
   const pageContent = (
-    <Suspense fallback={null}>
-      {showLockContent ? <SubscriptionLockContent /> : dashboardHeld ? <DashboardPageSkeleton /> : children}
+    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
+      {showLockContent ? (
+        <SubscriptionLockContent />
+      ) : dashboardHeld ? (
+        <LoadingFallback label="Loading dashboard">
+          <DashboardOverviews />
+        </LoadingFallback>
+      ) : (
+        children
+      )}
     </Suspense>
   );
 
@@ -672,9 +685,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         // wait for a decorative badge count is served by Next's root and holds the whole
         // app. `null` because there is nothing to draw: the count simply appears.
         <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
+          <HydratorBoundary>
             <UnreadCountsHydrator onChange={setUnreadCounts} />
-          </Suspense>
+          </HydratorBoundary>
         </ErrorBoundary>
       )}
       {/* BOTH providers below are mounted UNCONDITIONALLY and told what to do
@@ -796,9 +809,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           its own boundary and renders nothing either way — a shell that waited
           on it would hold the whole app for a banner. */}
       {showBillingBars && (
-        <Suspense fallback={null}>
+        <HydratorBoundary>
           <BillingBarsHydrator onResolved={setBillingBars} />
-        </Suspense>
+        </HydratorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}
@@ -888,7 +901,11 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // prerender, and Next requires a Suspense boundary to bail out to. Without one
     // `next build` fails on every statically generated page under `(app)` — and
     // only in a production build, so a dev-mode build won't tell you.
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        null /* loading-standard-ok(SUSPENSE_FALLBACK): the prerender bail-out boundary, never shown on the client */
+      }
+    >
       {/* The admin look for every tab strip; the lib's `default` is the hub's. */}
       <TabNavigationVariantProvider variant="admin">
         <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>

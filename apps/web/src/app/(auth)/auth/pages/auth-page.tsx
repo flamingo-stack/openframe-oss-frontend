@@ -10,7 +10,7 @@ import { useIsApplePlatform } from '@/app/hooks/use-apple-platform';
 
 export default function AuthPage() {
   const { isLoading, loginWithSso, registerOrganization } = useAuth();
-  const { providers } = useRegistrationProviders();
+  const { providers, loading: providersLoading } = useRegistrationProviders();
 
   const signup = useSsoSignupTakeover();
 
@@ -36,11 +36,15 @@ export default function AuthPage() {
     });
   };
 
-  // External providers offered by the backend for registration; Apple only on Apple devices.
+  // External providers offered by the backend for registration; Apple only on Apple devices. While the backend's
+  // answer is read, the form holds a box for every provider it may offer.
   const isApple = useIsApplePlatform();
-  const ssoProviders: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
-    provider => (provider !== 'apple' || isApple) && providers.some(sp => sp.provider === provider),
+  const offerable: AuthSsoProvider[] = (['google', 'microsoft', 'apple'] as const).filter(
+    provider => provider !== 'apple' || isApple,
   );
+  const ssoProviders = providersLoading
+    ? offerable
+    : offerable.filter(provider => providers.some(sp => sp.provider === provider));
 
   // Signing up with Apple is the expected case on this tab, so the no-account answer must land
   // here too — not just on Login. Without the catch the rethrow from loginWithSso becomes an
@@ -68,6 +72,7 @@ export default function AuthPage() {
     <CreateOrganizationSection
       onRegister={handleRegister}
       ssoProviders={ssoProviders}
+      ssoProvidersLoading={providersLoading}
       onSsoLogin={handleSsoLogin}
       isLoading={isLoading}
     />

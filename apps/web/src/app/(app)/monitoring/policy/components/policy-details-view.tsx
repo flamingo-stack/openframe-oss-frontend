@@ -12,15 +12,16 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { getPolicyStatus, POLICY_STATUS_CONFIG } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND } from '../../../mingo/context/context-types';
 import { useTrackOpenView } from '../../../mingo/context/use-track-open-view';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
 import { ConfirmDeleteMonitoringModal } from '../../components/confirm-delete-monitoring-modal';
-import { MonitoringDetailSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import type { Policy } from '../../types/policies.types';
@@ -28,7 +29,9 @@ import { usePolicyDetails } from '../hooks/use-policy-details';
 import { usePolicyDevices } from '../hooks/use-policy-devices';
 import { PolicyDevicesTable } from './policy-devices-table';
 
-function PolicyStatusTag({ policy }: { policy: Policy }) {
+/** The policy's status. Before the policy is read (or in a loading scope) the tag draws its own skeleton. */
+function PolicyStatusTag({ policy }: { policy: Policy | null }) {
+  if (!policy) return <Tag label="" loading />;
   const config = POLICY_STATUS_CONFIG[getPolicyStatus(policy)];
   return <Tag label={config.label} variant={config.variant} />;
 }
@@ -69,17 +72,15 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
     });
   };
 
-  if (isLoading) {
-    return <MonitoringDetailSkeleton kind="policy" onBack={handleBack} />;
-  }
-
   if (error) {
     return <LoadError message={`Error loading policy: ${error}`} />;
   }
 
-  if (!policyDetails) {
+  if (!isLoading && !policyDetails) {
     return <NotFoundError message="Policy not found" />;
   }
+  // While the policy loads the page draws itself without it: every read value is its own bar.
+  const policy = isLoading ? null : policyDetails;
 
   const actions: PageActionButton[] = [
     {
@@ -87,6 +88,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
       icon: <PenEditIcon size={24} className="text-ods-text-secondary" />,
       variant: 'outline',
       onClick: handleEditPolicy,
+      disabled: !policy,
     },
   ];
 
@@ -98,29 +100,44 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
           label: 'Delete Policy',
           icon: <TrashIcon />,
           onClick: () => setIsDeleteModalOpen(true),
-          disabled: isDeleting,
+          disabled: isDeleting || !policy,
           danger: true,
         },
       ],
     },
   ];
 
-  const severityColumn = { key: 'severity', value: policyDetails.critical ? 'Critical' : 'Low', label: 'Severity' };
-  const statusColumn = { key: 'status', value: <PolicyStatusTag policy={policyDetails} />, label: 'Status' };
-  const authorColumn = { key: 'author', value: policyDetails.author_name, label: 'Author' };
+  // Every value is the shared InfoCell: in the page's loading scope it draws its own bar (or, for the status, the
+  // real tag drawing its own skeleton).
+  const severityColumn = {
+    key: 'severity',
+    content: (
+      <InfoCell value={policy ? (policy.critical ? 'Critical' : 'Low') : null} label="Severity" skeletonWidth="w-16" />
+    ),
+  };
+  const statusColumn = {
+    key: 'status',
+    content: <InfoCell value={<PolicyStatusTag policy={policy} />} label="Status" />,
+  };
+  const authorColumn = {
+    key: 'author',
+    content: <InfoCell value={policy?.author_name} label="Author" />,
+  };
 
   // The meta fields render as one row on desktop and as two separate rows on
   // tablet/mobile. Each is a distinct PanelRow toggled by breakpoint so every
   // line keeps its own divider and padding (matching the Figma responsive specs).
   const policyInfoRows: PanelRow[] = [
-    ...(policyDetails.description
-      ? [
-          {
-            id: 'description',
-            columns: [{ key: 'description', value: policyDetails.description, label: 'Description' }],
-          },
-        ]
-      : []),
+    // Always drawn (it is the first row on screen): a bar while loading, the empty mark for a policy with none.
+    {
+      id: 'description',
+      columns: [
+        {
+          key: 'description',
+          content: <InfoCell value={policy?.description} label="Description" skeletonWidth="w-2/3" />,
+        },
+      ],
+    },
     // Desktop (lg+): Severity + Status + Author on a single row → 2 rows total.
     {
       id: 'meta-desktop',
@@ -142,55 +159,57 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   ];
 
   return (
-    <PageLayout
-      title={policyDetails.name}
-      backButton={{
-        label: 'Back',
-        onClick: handleBack,
-      }}
-      actions={actions}
-      menuActions={menuActions}
-      actionsVariant="menu-primary"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      {/* Policy Info */}
-      <StackedRowsPanel rows={policyInfoRows} />
+    <LoadingWhen loading={!policy}>
+      <PageLayout
+        title={policy?.name ?? ''}
+        backButton={{
+          label: 'Back',
+          onClick: handleBack,
+        }}
+        actions={actions}
+        menuActions={menuActions}
+        actionsVariant="menu-primary"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        {/* Policy Info */}
+        <StackedRowsPanel rows={policyInfoRows} />
 
-      {/* Query + inline test block */}
-      {policyDetails.query && (
-        <div className="mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]">
-          <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
-          <ScriptEditor value={policyDetails.query} shell="sql" readOnly height="300px" />
-          {/* 8px gap under the editor, matching the section's internal gap
+        {/* Query + inline test block */}
+        {(!policy || policy.query) && (
+          <div className="mt-[var(--spacing-system-l)] space-y-[var(--spacing-system-xxs)]">
+            <h3 className="text-ods-text-secondary text-h5">QUERY</h3>
+            <ScriptEditor value={policy?.query ?? ''} shell="sql" readOnly height="300px" />
+            {/* 8px gap under the editor, matching the section's internal gap
               (the parent's space-y-1 would give 4px). */}
-          <TestQuerySection
-            getQuery={getQuery}
-            hasQuery={Boolean(policyQuery.trim())}
-            devices={policyDevices}
-            isLoadingDevices={isLoadingDevices}
-            className="!mt-[var(--spacing-system-xsf)]"
-          />
-        </div>
-      )}
+            <TestQuerySection
+              getQuery={getQuery}
+              hasQuery={Boolean(policyQuery.trim())}
+              devices={policyDevices}
+              isLoadingDevices={isLoadingDevices}
+              className="!mt-[var(--spacing-system-xsf)]"
+            />
+          </div>
+        )}
 
-      {/* Policy Devices */}
-      <div className="mt-6">
-        <h1 className="pt-6 text-ods-text-primary text-h2">Devices</h1>
-        <div className="pt-4">
-          <PolicyDevicesTable
-            policyId={numericId}
-            assignedHostIds={policyDetails.hosts_include_any}
-            policyQuery={policyDetails.query}
-          />
+        {/* Policy Devices */}
+        <div className="mt-6">
+          <h1 className="pt-6 text-ods-text-primary text-h2">Devices</h1>
+          <div className="pt-4">
+            <PolicyDevicesTable
+              policyId={numericId}
+              assignedHostIds={policy?.hosts_include_any}
+              policyQuery={policy?.query}
+            />
+          </div>
         </div>
-      </div>
-      <ConfirmDeleteMonitoringModal
-        open={isDeleteModalOpen}
-        onOpenChange={setIsDeleteModalOpen}
-        itemName={policyDetails.name}
-        itemType="policy"
-        onConfirm={handleDeletePolicy}
-      />
-    </PageLayout>
+        <ConfirmDeleteMonitoringModal
+          open={isDeleteModalOpen}
+          onOpenChange={setIsDeleteModalOpen}
+          itemName={policy?.name ?? ''}
+          itemType="policy"
+          onConfirm={handleDeletePolicy}
+        />
+      </PageLayout>
+    </LoadingWhen>
   );
 }

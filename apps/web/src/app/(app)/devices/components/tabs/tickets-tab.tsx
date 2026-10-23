@@ -3,13 +3,15 @@
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
+  LoadingWhen,
   PageError,
   SearchInput,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useMemo, useState } from 'react';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import {
@@ -18,7 +20,7 @@ import {
   ticketRowHref,
 } from '../../../tickets/components/ticket-table-columns';
 import { DEVICE_TICKET_COLUMNS } from '../../../tickets/components/ticket-table-layout';
-import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import type { Device } from '../../types/device.types';
 import { TabEmptyState } from './tab-empty-state';
@@ -28,6 +30,8 @@ interface TicketsTabProps {
 }
 
 export function TicketsTab({ device }: TicketsTabProps) {
+  // The device has not answered (the page's loading scope), or the first page has not.
+  const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -40,6 +44,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
     dialogs: tickets,
     filteredCount,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -54,9 +59,8 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // Reuse the shared ticket columns, but drop the device/source column — it's redundant on a
   // device-scoped list — and keep the trailing open-in-new-tab action.
   // With SOURCE dropped the shared flex widths drift, so ASSIGNEE/STATUS are pinned to fixed
-  // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, which `DeviceDetailsSkeleton` reads
-  // too — the page-level skeleton, the tab's own loading skeleton and the loaded table then
-  // share one declaration (no header jump between loading phases).
+  // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, the one declaration of this table's
+  // layout.
   const { isUserDeleted } = useUserStatusMap();
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
@@ -83,8 +87,13 @@ export function TicketsTab({ device }: TicketsTabProps) {
     return [...base, getTicketOpenColumn()];
   }, [isUserDeleted]);
 
+  const loading = scoped || isLoading;
+  // While the device or the first page is read the table holds one page of placeholder rows, drawn with the real
+  // cells (each cell draws its own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<Dialog>(TICKETS_PAGE_SIZE) : null), [loading]);
+
   const table = useDataTable<Dialog>({
-    data: tickets,
+    data: loadingRows ?? tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
@@ -92,7 +101,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
 
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
-  if (error) {
+  if (!loading && error) {
     return <PageError message={error} />;
   }
 
@@ -100,7 +109,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // hide the search too (unless a search is active or still loading).
   const hasSearch = debouncedSearch.trim().length > 0;
   const isEmpty = tickets.length === 0;
-  const showChrome = isLoading || !isEmpty || hasSearch;
+  const showChrome = loading || !isEmpty || hasSearch;
 
   // Genuinely no tickets (no data before any search manipulation) → the plain
   // design empty state: icon + title + description only — the rich
@@ -108,7 +117,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // keeps the table chrome and its compact empty state below. Only once the
   // server has nothing further to page in — an empty first page with a next
   // page is still "loading", not "empty".
-  if (!isLoading && isEmpty && !hasNextPage && !hasSearch) {
+  if (!loading && isEmpty && !hasNextPage && !hasSearch) {
     return (
       <TabEmptyState
         icon={<TagIcon />}
@@ -129,17 +138,16 @@ export function TicketsTab({ device }: TicketsTabProps) {
         </div>
       )}
 
-      <DataTable table={table}>
-        {(isLoading || !isEmpty) && (
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
-          />
-        )}
-        <DataTable.Body
-          loading={isLoading}
-          skeletonRows={8}
+      {/* The first page is a client read: the table draws its own loading state in this scope. */}
+      <LoadingWhen loading={loading}>
+        <LiveTable
+          table={table}
+          pageSize={TICKETS_PAGE_SIZE}
+          isPending={isPending}
+          stickyHeaderOffset={stickyHeaderOffset}
+          showHeader={loading || !isEmpty}
+          itemName="ticket"
+          totalCount={filteredCount}
           emptyState={{
             icon: <TagIcon />,
             title: 'No tickets found',
@@ -148,15 +156,10 @@ export function TicketsTab({ device }: TicketsTabProps) {
               : 'Tickets linked to this device will appear here.',
           }}
           rowHref={ticketRowHref}
-          rowClassName="mb-1"
+          footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
+          loadingCells={loading}
         />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={handleLoadMore}
-          skeletonRows={2}
-        />
-      </DataTable>
+      </LoadingWhen>
     </div>
   );
 }

@@ -53,3 +53,14 @@ export function facetToMappedOptions(
 
   return Array.from(byId.values());
 }
+
+/** No facets yet: a pending filter keeps the funnel drawn (inert) instead of appearing with the data. */
+const PENDING_FILTER = { options: [] as never[], pending: true as const };
+
+/**
+ * A filterable column's `meta.filter`: its facet options once they answer, else PENDING (`null` / `undefined` while
+ * loading), so the loading table draws the same funnels as the loaded one.
+ */
+export function facetFilter<T>(options: T[] | null | undefined): { options: T[]; pending?: true } {
+  return options ? { options } : PENDING_FILTER;
+}

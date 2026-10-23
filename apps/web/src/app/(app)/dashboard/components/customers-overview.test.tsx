@@ -25,7 +25,11 @@ const row = (organizationId: string, active: number, inactive: number) => ({
 });
 
 vi.mock('@/app/components/shared', () => ({ EmptyState: () => null }));
+// The device cards' definitions live with the devices overview, whose counts read is not
+// this test's (and pulls in a Relay query the test transform does not compile).
+vi.mock('../hooks/use-dashboard-stats', () => ({ useDevicesOverview: () => undefined }));
 vi.mock('../hooks/use-customers-overview', () => ({
+  CUSTOMERS_OVERVIEW_LIMIT: 10,
   useCustomersOverview: () => ({
     rows: [row('org-1', 3, 1), row('org-2', 0, 0)],
     loading: false,

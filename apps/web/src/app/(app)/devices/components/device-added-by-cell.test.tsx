@@ -84,10 +84,8 @@ describe('DeviceAddedByCell', () => {
     render('user-1');
 
     expect(useUser).toHaveBeenCalledWith('user-1');
-    // The one thing read out while it loads is the region's status; besides it, only the label.
-    const status = container.querySelector('[role="status"]')?.textContent ?? '';
-    expect(status).toBe('Loading who added the device');
-    expect(container.textContent?.replace(status, '').trim()).toBe('Added by');
+    // While it loads the name is a bar: the only text is the label.
+    expect(container.textContent?.trim()).toBe('Added by');
     expect(deletedAvatar()).toBeNull();
   });
 

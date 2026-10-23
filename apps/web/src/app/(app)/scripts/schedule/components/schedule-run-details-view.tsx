@@ -1,22 +1,17 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import {
-  type PageActionButton,
-  SquareAvatar,
-  TruncateText,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { Suspense, useCallback, useMemo } from 'react';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey } from '@/__generated__/scheduleExecutionsRelay_query.graphql';
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
-import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { NO_ITEMS } from '@/app/components/shared';
+import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
   scheduleExecutionsRelayFragment,
@@ -24,8 +19,6 @@ import {
 } from '@/graphql/scripts/schedule-executions-relay';
 import { scheduleRunDetailRelayQuery } from '@/graphql/scripts/schedule-run-detail-relay';
 import { formatDateTime } from '@/lib/format-date';
-import { getFullImageUrl } from '@/lib/image-url';
-import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import {
   EXECUTIONS_PAGE_SIZE,
@@ -37,12 +30,9 @@ import {
   type UiExecution,
   useExecutionFacetOptions,
 } from '../../shared/components/executions-table';
-import {
-  executionStatusLabel,
-  executionStatusVariant,
-  initiatorInitials,
-  initiatorName,
-} from '../../shared/utils/execution-helpers';
+import { InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
+import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
+import { DIVIDED_CELL_CLASS, INFO_BAR_FRAME_CLASS, infoBarCell } from './schedule-info-bar';
 
 interface ScheduleRunDetailsViewProps {
   /** `ScheduleRun` global id — see `routes.scripts.schedules.run`. */
@@ -50,8 +40,6 @@ interface ScheduleRunDetailsViewProps {
 }
 
 const PAGE_TITLE = 'Script Schedule Execution Details';
-
-const NO_ACTIONS: PageActionButton[] = [];
 
 /** The schedule tab's placeholder (design 1:48878), named for one fire. */
 const EXECUTIONS_EMPTY_STATE = {
@@ -64,135 +52,54 @@ const EXECUTIONS_EMPTY_STATE = {
 // Info bar
 // ----------------------------------------------------------------
 
-/** A value-over-label cell, matching the schedule's own info bar (80px on md+). */
-function RunInfoCell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div
-      className={`flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0 ${className ?? ''}`}
-    >
-      {children}
-      <span className="text-ods-text-secondary text-h6">{label}</span>
-    </div>
-  );
-}
-
 type RunNode = NonNullable<ScheduleRunDetailQueryType['response']['node']>;
 
-function RunInfoBar({ run }: { run: RunNode }) {
-  const initiator = 'initiator' in run ? run.initiator : null;
-  const status = 'status' in run ? run.status : null;
-  const dispatchedAt = 'dispatchedAt' in run ? run.dispatchedAt : null;
-  const finishedAt = 'finishedAt' in run ? run.finishedAt : null;
-  const responded = 'respondedMachineCount' in run ? run.respondedMachineCount : 0;
-  const total = 'totalMachineCount' in run ? run.totalMachineCount : 0;
+/** A cell of the run's bar: the schedule's own info bar cell (80px on md+), so the two bars match. */
+const runCell = infoBarCell;
 
-  // The initiator id is a User global id; the REST-backed employee page wants the
-  // raw one (same decode the execution-details page does).
-  const rawInitiatorId = initiator?.id ? (decodeGlobalId(initiator.id)?.rawId ?? initiator.id) : '';
-  const initiatorHref = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = isDeletedUserStatus(initiator?.status);
+/**
+ * The run's info bar. Without the run (or in a loading scope) it draws itself: the same cells and labels, every
+ * value a bar on its `text-h4` line, the avatar its own skeleton and the status a tag-shaped bar.
+ */
+function RunInfoBar({ run }: { run?: RunNode }) {
+  const loading = useLoadingScope() || !run;
+  const initiator = toInitiator(run && 'initiator' in run ? run.initiator : null);
+  const status = run && 'status' in run ? run.status : null;
+  const dispatchedAt = run && 'dispatchedAt' in run ? run.dispatchedAt : null;
+  const finishedAt = run && 'finishedAt' in run ? run.finishedAt : null;
+  const responded = run && 'respondedMachineCount' in run ? run.respondedMachineCount : 0;
+  const total = run && 'totalMachineCount' in run ? run.totalMachineCount : 0;
+  const executedBy = <InitiatorIdentity initiator={initiator} size="sm" loading={loading} />;
 
   return (
-    <div className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card">
+    <div className={INFO_BAR_FRAME_CLASS}>
       <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
         {/* Design 310:33508 labels this cell "Script Name". A ScheduleRun has no
             script reference — a fire dispatches whatever scripts the schedule
             held — so the honest equivalent is how many devices answered it. */}
-        <RunInfoCell label="Devices Responded" className="border-b border-ods-border content-md:border-b-0">
-          <span className="truncate text-ods-text-primary text-h4">
-            {responded} / {total}
-          </span>
-        </RunInfoCell>
-        <RunInfoCell label="Executed by" className="border-b border-ods-border content-md:border-b-0">
-          <div className="flex min-w-0 items-center gap-2">
-            {isDeleted ? (
-              <DeletedUserAvatar size="sm" />
-            ) : (
-              <SquareAvatar
-                variant="round"
-                size="sm"
-                src={getFullImageUrl(initiator?.image?.imageUrl, initiator?.image?.hash)}
-                fallback={initiatorInitials(initiator)}
-                alt={initiatorName(initiator)}
-                initialsClassName="text-ods-text-secondary"
-              />
-            )}
-            {initiatorHref ? (
-              <a href={initiatorHref} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1">
-                <TruncateText
-                  className={cn(
-                    'underline',
-                    isDeleted ? 'text-ods-error' : 'text-ods-accent hover:text-ods-accent-hover',
-                  )}
-                >
-                  {initiatorName(initiator)}
-                </TruncateText>
-              </a>
-            ) : (
-              <div className="min-w-0 flex-1">
-                <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                  {initiatorName(initiator)}
-                </TruncateText>
-              </div>
-            )}
-          </div>
-        </RunInfoCell>
-        <RunInfoCell label="Status">
-          <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} />
-        </RunInfoCell>
+        <InfoCell
+          label="Devices Responded"
+          value={`${responded} / ${total}`}
+          loading={loading}
+          skeletonWidth="w-20"
+          className={runCell(DIVIDED_CELL_CLASS)}
+        />
+        <InfoCell label="Executed by" value={executedBy} loading={loading} className={runCell(DIVIDED_CELL_CLASS)} />
+        <InfoCell
+          label="Status"
+          // No label while the run is read: the tag draws its own skeleton in the cell's loading scope.
+          value={<Tag label={loading ? '' : executionStatusLabel(status)} variant={executionStatusVariant(status)} />}
+          loading={loading}
+          className={runCell()}
+        />
         {/* The design's fourth slot is an empty spacer, not a cell. */}
         <div className="hidden content-md:block" />
       </div>
       <div className="grid grid-cols-2">
-        <RunInfoCell label="Start Time">
-          <TruncateText>{formatDateTime(dispatchedAt)}</TruncateText>
-        </RunInfoCell>
-        <RunInfoCell label="Finish Time">
-          <TruncateText>{formatDateTime(finishedAt)}</TruncateText>
-        </RunInfoCell>
+        <InfoCell label="Start Time" value={formatDateTime(dispatchedAt)} loading={loading} className={runCell()} />
+        <InfoCell label="Finish Time" value={formatDateTime(finishedAt)} loading={loading} className={runCell()} />
       </div>
     </div>
-  );
-}
-
-/** Mirrors `RunInfoBar`'s two rows so the header keeps its height while loading. */
-function RunInfoBarSkeleton() {
-  return (
-    <LoadingRegion
-      label="Loading run details"
-      className="flex w-full flex-col gap-0 overflow-clip rounded-[6px] border border-ods-border bg-ods-card"
-    >
-      <div className="grid grid-cols-2 border-b border-ods-border content-md:grid-cols-4">
-        {['responded', 'by', 'status', 'spacer'].map(cell => (
-          <div
-            key={cell}
-            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
-          >
-            <div className="text-h4">
-              <UnifiedSkeleton className="inline-block h-3 w-20 max-w-full content-md:h-4" />
-            </div>
-            <div className="text-h6">
-              <UnifiedSkeleton className="inline-block h-2.5 w-14 max-w-full content-md:h-3" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-2">
-        {['start', 'finish'].map(cell => (
-          <div
-            key={cell}
-            className="flex min-w-0 flex-col items-start justify-center px-4 py-3 content-md:h-[80px] content-md:py-0"
-          >
-            <div className="text-h4">
-              <UnifiedSkeleton className="inline-block h-3 w-32 max-w-full content-md:h-4" />
-            </div>
-            <div className="text-h6">
-              <UnifiedSkeleton className="inline-block h-2.5 w-16 max-w-full content-md:h-3" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </LoadingRegion>
   );
 }
 
@@ -236,7 +143,15 @@ function useScheduleRun(runId: string, fetchPolicy: 'store-and-network' | 'store
  */
 function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
   const { executionId, scheduleId } = useScheduleRun(runId, 'store-and-network');
+  return <RunHeaderView executionId={executionId ?? null} scheduleId={scheduleId} />;
+}
 
+/**
+ * The header over the run. Without it (`executionId` undefined, a loading scope)
+ * the subtitle reads as `''`, which `TitleBlock` draws as a bar in its scope; the
+ * title is a constant and stays real.
+ */
+function RunHeaderView({ executionId, scheduleId = '' }: { executionId?: string | null; scheduleId?: string }) {
   // Back to the fires of the schedule this run belongs to; a bad id has no
   // schedule to return to, so it falls back to the list.
   const handleBack = useSafeBack(
@@ -246,35 +161,13 @@ function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <TitleBlock
       title={PAGE_TITLE}
-      subtitle={executionId}
+      subtitle={executionId === undefined ? '' : (executionId ?? undefined)}
       // A run always has an executionId, so the row never collapses once loaded —
       // and the fallback below holds the same line with a bar in it.
       subtitleRow="always"
       backButton={{ label: 'Back', onClick: handleBack }}
-      actions={NO_ACTIONS}
+      actions={NO_ITEMS}
     />
-  );
-}
-
-/**
- * `loading` + `while-loading` is what draws the bar where the executionId will
- * land. It costs the title: `loading` is a single flag on the frozen
- * `TitleBlock` and swaps title AND subtitle for bars, even though this page's
- * title is a constant. Splitting them needs a new prop there.
- */
-function RunHeaderSkeleton() {
-  const handleBack = useSafeBack(routes.scripts.schedules.list);
-
-  return (
-    <LoadingRegion className="contents" label="Loading the run">
-      <TitleBlock
-        title={PAGE_TITLE}
-        loading
-        subtitleRow="while-loading"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={NO_ACTIONS}
-      />
-    </LoadingRegion>
   );
 }
 
@@ -392,17 +285,17 @@ function RunExecutionRows({
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<RunHeaderSkeleton />}>
+      <LoadingSuspense label="Loading the run" fallback={<RunHeaderView />}>
         <RunHeader runId={runId} />
-      </Suspense>
+      </LoadingSuspense>
 
       {/* No gap: the executions block carries its own top padding (the sticky
           toolbar's `pt-l`), the same contract the details pages give their tab
           bodies. */}
       <div className="flex flex-1 flex-col">
-        <Suspense fallback={<RunInfoBarSkeleton />}>
+        <LoadingSuspense label="Loading run details" fallback={<RunInfoBar />}>
           <RunSummary runId={runId} />
-        </Suspense>
+        </LoadingSuspense>
 
         {/* The whole shell, exactly as the two Execution History tabs render it —
             same search box, same funnels, same sticky toolbar and boundary. It

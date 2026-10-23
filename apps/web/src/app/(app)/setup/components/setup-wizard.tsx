@@ -1,9 +1,12 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { ensureGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { useTenantOnboardingAutoDetect } from '@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -19,7 +22,6 @@ import { OrganizationStep } from '../steps/organization-step';
 import { ReadyStep } from '../steps/ready-step';
 import { WelcomeStep } from '../steps/welcome-step';
 import { SetupFrame } from './setup-frame';
-import { SetupSkeleton } from './setup-skeleton';
 
 /**
  * How long "Start with Mingo" waits for the backend to mark the setup complete
@@ -27,6 +29,18 @@ import { SetupSkeleton } from './setup-skeleton';
  * or failed completion costs a return to this screen, not a trapped user.
  */
 const START_FAIL_OPEN_MS = 8_000;
+
+/**
+ * The wizard's first screen while its progress is read: static copy, its Continue inert. Rendered in a loading
+ * scope by both the page's Suspense fallback and the wizard itself, so the two waits are one screen.
+ */
+export function SetupWelcomeFrame() {
+  return (
+    <SetupFrame step="welcome">
+      <WelcomeStep onContinue={noop} />
+    </SetupFrame>
+  );
+}
 
 /**
  * The wizard's state machine. Which screen shows comes from the tenant's
@@ -87,6 +101,7 @@ export function SetupWizard() {
   const handleStart = useCallback(() => {
     setStarting(true);
     markTourStarted(userId);
+    ensureGettingStartedView(userId);
     if (tenant?.completed) {
       leave();
       return;
@@ -116,8 +131,15 @@ export function SetupWizard() {
     [persistAndAdvance],
   );
 
-  // No progress record means the redirect is already sending this session away.
-  if (!tenant) return <SetupSkeleton />;
+  // No progress record yet (or the redirect is already sending this session away): the
+  // first screen, static copy, in a loading scope.
+  if (!tenant) {
+    return (
+      <LoadingWhen loading>
+        <SetupWelcomeFrame />
+      </LoadingWhen>
+    );
+  }
 
   return (
     <SetupFrame step={step}>

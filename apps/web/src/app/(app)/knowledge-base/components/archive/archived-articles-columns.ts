@@ -7,11 +7,3 @@ export const ARCHIVED_COLUMN = {
   id: 'archived',
   header: 'Archived',
 } satisfies TableSkeletonColumn;
-
-/** `/knowledge-base/archive` — render order for the live table and its skeleton. */
-export const ARCHIVED_ARTICLE_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  KNOWLEDGE_BASE_ITEM_COLUMNS.name,
-  ARCHIVED_COLUMN,
-  KNOWLEDGE_BASE_ITEM_COLUMNS.actions,
-  KNOWLEDGE_BASE_ITEM_COLUMNS.open,
-];

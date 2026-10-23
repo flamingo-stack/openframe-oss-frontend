@@ -1,4 +1,7 @@
-/** A mention chip opens its entity in this window, through the router; a modifier click is the browser's. */
+/**
+ * A mention chip opens its entity in this window, through the router; a modifier click is the browser's. Where this
+ * window can open a tab (see `useSameWindowLinks`), a separate segment opens the page in one.
+ */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -7,6 +10,9 @@ import { MentionTag } from './mention-tag';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
+let sameWindow = true;
+vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => sameWindow }));
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
 // `ResizeObserver`, and nothing here depends on the measurement.
@@ -22,6 +28,7 @@ let root: Root;
 
 beforeEach(() => {
   push.mockReset();
+  sameWindow = true;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -66,5 +73,24 @@ describe('MentionTag click', () => {
 
     expect(event.defaultPrevented).toBe(false);
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('offers no new-tab segment where links stay in this window', () => {
+    renderChip('/devices/details?id=m-1');
+
+    expect(container.querySelector('a[target="_blank"]')).toBeNull();
+  });
+
+  it('opens the page in a new tab from its own segment where a tab is available', () => {
+    sameWindow = false;
+    const href = '/devices/details?id=m-1';
+    const anchor = renderChip(href);
+    const newTab = container.querySelector<HTMLAnchorElement>('a[target="_blank"]');
+
+    expect(newTab?.getAttribute('href')).toBe(href);
+    expect(newTab?.getAttribute('rel')).toBe('noopener noreferrer');
+
+    click(anchor);
+    expect(push).toHaveBeenCalledWith(href);
   });
 });

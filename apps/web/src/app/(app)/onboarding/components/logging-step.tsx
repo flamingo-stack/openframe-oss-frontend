@@ -1,6 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LOG_COLUMN_WIDTHS,
@@ -15,10 +16,12 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -61,6 +64,52 @@ const logDetailsUrl = (log: LogEntry): string =>
     timestamp: log.timestamp,
   });
 
+/** Where a log came from: the device over its customer; a bar on each line while the row is read. */
+function LogSourceCell({ device }: { device: LogRow['device'] | undefined }) {
+  const loading = useLoadingScope();
+  const { deviceName, organization } = device ? logSourceLabels(device) : { deviceName: '', organization: '' };
+  return (
+    <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
+      {loading && !device ? (
+        <>
+          <TextLineSkeleton type="h4" className="w-3/4" />
+          <TextLineSkeleton type="h6" className="w-1/2" />
+        </>
+      ) : (
+        <>
+          {deviceName && <TruncateText>{deviceName}</TruncateText>}
+          {organization && (
+            <TruncateText variant="h6" tone="secondary">
+              {organization}
+            </TruncateText>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Opens the log's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+function OpenLogButton({ log }: { log: LogEntry | undefined }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading || !log ? undefined : openInNewTab(logDetailsUrl(log))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open log in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
+    </div>
+  );
+}
+
+/** How many logs the preview shows: the list's limit, which its loading table draws in full. */
+const LOG_PREVIEW_LIMIT = 3;
+
 /**
  * Inner body of the "Logging" onboarding step — an activity-trail preview. It pulls
  * the first three real logs ({@link ../../logs-page/hooks/use-logs}) into a compact
@@ -84,7 +133,7 @@ export function LoggingStep({
 
   const rows: LogRow[] = useMemo(
     () =>
-      logs.slice(0, 3).map(log => ({
+      logs.slice(0, LOG_PREVIEW_LIMIT).map(log => ({
         id: log.toolEventId,
         logId: log.toolEventId,
         timestamp: formatDateTime(log.timestamp),
@@ -123,7 +172,12 @@ export function LoggingStep({
         meta: { width: 'w-[96px]' },
         cell: ({ row }: { row: Row<LogRow> }) => (
           <div className="shrink-0">
-            <Tag label={row.original.status.label} variant={row.original.status.variant} />
+            {/* A placeholder row (the table's loading form) has no status: the tag draws its loading form. */}
+            <Tag
+              label={row.original.status?.label}
+              variant={row.original.status?.variant}
+              loading={!row.original.status}
+            />
           </div>
         ),
       },
@@ -141,19 +195,7 @@ export function LoggingStep({
         header: 'Source',
         enableSorting: false,
         meta: { width: 'w-[240px]', hideAt: 'md' },
-        cell: ({ row }: { row: Row<LogRow> }) => {
-          const { deviceName, organization } = logSourceLabels(row.original.device);
-          return (
-            <div className="flex min-h-[60px] flex-col justify-center gap-1 py-2">
-              {deviceName && <TruncateText>{deviceName}</TruncateText>}
-              {organization && (
-                <TruncateText variant="h6" tone="secondary">
-                  {organization}
-                </TruncateText>
-              )}
-            </div>
-          );
-        },
+        cell: ({ row }: { row: Row<LogRow> }) => <LogSourceCell device={row.original.device} />,
       },
       {
         accessorKey: 'description',
@@ -161,7 +203,7 @@ export function LoggingStep({
         enableSorting: false,
         meta: { width: 'flex-1', hideAt: 'lg' },
         cell: ({ row }: { row: Row<LogRow> }) => (
-          <TruncateText lines={2} className="text-ods-text-secondary text-h6">
+          <TruncateText lines={2} variant="h6" tone="secondary">
             {row.original.summary}
           </TruncateText>
         ),
@@ -170,25 +212,21 @@ export function LoggingStep({
         id: 'open',
         enableSorting: false,
         meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-        cell: ({ row }: { row: Row<LogRow> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(logDetailsUrl(row.original.original))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open log in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
+        cell: ({ row }: { row: Row<LogRow> }) => <OpenLogButton log={row.original.original} />,
       },
     ],
     [],
   );
 
+  // While loading the table holds the preview's rows as placeholders, drawn with the real cells (`loadingCells`):
+  // every part of a row draws its own loading form, so a loading row is the loaded row's own layout.
+  const loadingRows = useMemo(
+    () => (isLoading ? loadingPlaceholderRows<LogRow>(LOG_PREVIEW_LIMIT) : null),
+    [isLoading],
+  );
+
   const table = useDataTable<LogRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: (row: LogRow) => row.id,
     enableSorting: false,
@@ -206,8 +244,9 @@ export function LoggingStep({
         <DataTable.Header rightSlot={<DataTable.RowCount />} />
         <DataTable.Body
           loading={isLoading}
-          skeletonRows={3}
-          emptyMessage="No activity yet. Actions across your workspace will show up here."
+          loadingCells={isLoading}
+          skeletonRows={LOG_PREVIEW_LIMIT}
+          emptyState={{ title: 'No activity yet. Actions across your workspace will show up here.' }}
           rowClassName="mb-1"
         />
       </DataTable>

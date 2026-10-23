@@ -3,6 +3,7 @@
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { NO_ITEMS } from '@/app/components/shared';
 import { apiClient } from '@/lib/api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 
@@ -42,8 +43,6 @@ export type PagedUsersResponse = {
   hasNext: boolean;
   hasPrevious: boolean;
 };
-
-const EMPTY_USERS: UserRecord[] = [];
 
 // ============ Query Keys ============
 
@@ -140,7 +139,7 @@ export function useUsers(page: number = 0, size: number = 20) {
 
   return {
     // Data
-    users: usersQuery.data?.items ?? EMPTY_USERS,
+    users: usersQuery.data?.items ?? NO_ITEMS,
 
     // Loading & error states
     isLoading: usersQuery.isLoading,

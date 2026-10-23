@@ -9,7 +9,12 @@ import {
   ShieldCheckIcon,
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PanelRow, StackedRowsPanel, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type PanelRow,
+  StackedRowsPanel,
+  Tag,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import Link from 'next/link';
 import { type ComponentType, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
@@ -70,6 +75,8 @@ export function NeedsYouCard() {
   const incidentsReport = reports.incidents;
 
   const view = resolveNeedsYou(gates, { ...reports, tickets }, ticketsOn && ticketStats.isLoading);
+  // The page's loading state draws the card's own, as its unanswered sources do.
+  const loading = useLoadingScope() || view.status === 'loading';
   const footer = needsYouFooter({
     aiHandled: ticketsOn ? ticketStats.aiAssistance : null,
     needTechnician: ticketsOn ? ticketStats.techRequired : null,
@@ -100,8 +107,11 @@ export function NeedsYouCard() {
         </NeedsYouSourceBoundary>
       )}
 
-      {view.status === 'loading' && <NeedsYouSkeleton />}
-      {view.status === 'ready' && <NeedsYouPanel rows={view.rows} failures={view.failures} footer={footer} />}
+      {loading ? (
+        <NeedsYouSkeleton />
+      ) : view.status === 'ready' ? (
+        <NeedsYouPanel rows={view.rows} failures={view.failures} footer={footer} />
+      ) : null}
     </>
   );
 }

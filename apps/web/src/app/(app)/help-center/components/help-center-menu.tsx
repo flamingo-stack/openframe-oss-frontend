@@ -12,8 +12,9 @@ import {
   ShieldLockIcon,
   WrenchScrewdiverIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { TRUST_CENTER_TITLE } from '@flamingo-stack/openframe-frontend-core/types';
-import { isLegalDocumentType } from '@flamingo-stack/openframe-frontend-core/utils';
+import { isLegalDocumentType, LEGAL_DOCUMENT_TYPES } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ComponentType } from 'react';
 import { routes } from '@/lib/routes';
 import { SettingMenuItem } from '../../settings/components/setting-menu-item';
@@ -78,15 +79,19 @@ const ITEMS: Item[] = [
 ];
 
 /**
- * The Help Center index grid. Its own items are static, app-owned copy, which
- * is why the route's loading state renders this very component rather than a
- * placeholder. The legal documents are the one read: one card per document on
- * the hub's list (`EP.legalDocuments`), each opening that document's own
- * page. They come last, so the static cards never move when they arrive, and a
- * document the hub publishes later appears with no change here.
+ * The Help Center index grid. Its own items are static, app-owned copy, drawn
+ * real in every form. The legal documents are the one read: one card per
+ * document on the hub's list (`EP.legalDocuments`), each opening that
+ * document's own page. They come last, so the static cards never move when they
+ * arrive, and a document the hub publishes later appears with no change here.
+ * It switches itself: while the list is read, or in a loading scope (the route
+ * drawing itself), the grid draws one card per document type this app has a
+ * page for (`LEGAL_DOCUMENT_TYPES`), each its own skeleton, so the grid does
+ * not grow when the documents land.
  */
 export function HelpCenterMenu() {
-  const { documents } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
+  const { documents, isLoading } = useLegalDocuments({ apiEndpoint: EP.legalDocuments });
+  const loading = useLoadingScope() || isLoading;
   // A card for every document on the hub's list that this app has a page for
   // (the route prerenders the lib's `LEGAL_DOCUMENT_TYPES`).
   const legal = documents.flatMap(doc => (isLegalDocumentType(doc.docType) ? [{ ...doc, docType: doc.docType }] : []));
@@ -101,15 +106,18 @@ export function HelpCenterMenu() {
           icon={<Icon className="size-6" />}
         />
       ))}
-      {legal.map(doc => (
-        <SettingMenuItem
-          key={doc.docType}
-          href={routes.helpCenter.legal(doc.docType)}
-          title={doc.title}
-          description={doc.summary}
-          icon={<FileContentIcon className="size-6" />}
-        />
-      ))}
+      <LoadingWhen loading={loading}>
+        {(loading ? LEGAL_DOCUMENT_TYPES.map(docType => ({ docType, title: '', summary: '' })) : legal).map(doc => (
+          <SettingMenuItem
+            key={doc.docType}
+            href={routes.helpCenter.legal(doc.docType)}
+            title={doc.title}
+            description={doc.summary}
+            icon={<FileContentIcon className="size-6" />}
+            listItem
+          />
+        ))}
+      </LoadingWhen>
     </div>
   );
 }

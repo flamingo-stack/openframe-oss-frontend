@@ -1,6 +1,7 @@
 'use client';
 
 import { ClapperboardIcon, Loading01Icon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LIVE_PULSE_CLASS } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { UseRecordingPlayerResult } from './use-recording-player';
 
@@ -38,7 +39,8 @@ export function RecordingPlayer({ player, unavailableNote, className }: Recordin
       />
       {state === 'seeking' && (
         <div className="absolute inset-0 flex items-center justify-center bg-ods-overlay">
-          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          {/* A busy mark while the player seeks: a live state, never a loading one. */}
+          <Loading01Icon className={cn('h-8 w-8 text-ods-text-secondary', LIVE_PULSE_CLASS)} />
         </div>
       )}
       {/* `ready` holds only between the load and the first play. */}

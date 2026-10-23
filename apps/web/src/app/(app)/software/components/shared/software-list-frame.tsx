@@ -1,10 +1,11 @@
 'use client';
 
-import type { DataTableSortState } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useMemo, useState } from 'react';
-import { TableSkeleton, type TableSkeletonColumn } from '@/app/components/shared';
+import { type ReactNode, useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
@@ -50,19 +51,16 @@ interface SoftwareListFrameProps {
   sortableIds?: readonly string[];
   /** Column ids that carry a funnel — each keeps its selection in the URL under its own name. */
   filterKeys?: readonly string[];
-  skeletonColumns: readonly TableSkeletonColumn[];
-  skeletonRows: number;
   /** What the screen reader hears while the rows load. */
-  skeletonLabel: string;
-  /** The module's flag has not answered yet: the toolbar draws locked, the rows do not fetch. */
+  loadingLabel: string;
+  /**
+   * The module's flag has not answered yet: the toolbar draws locked, and the rows draw in a loading scope, where
+   * the list component draws its own loading state and does not fetch.
+   */
   loading?: boolean;
-  /** Above the toolbar while the list has rows — a device tab's sync banner. */
-  banner?: ReactNode;
   className?: string;
   children: (list: SoftwareListFrameRenderProps) => ReactNode;
 }
-
-const NO_IDS: readonly string[] = [];
 
 function paramName(prefix: string, name: string): string {
   return prefix ? `${prefix}${name[0].toUpperCase()}${name.slice(1)}` : name;
@@ -87,7 +85,7 @@ function readArray(params: Readonly<Record<string, unknown>>, key: string): stri
  * Vulnerabilities pages, and the device tabs that show the same nodes. It owns
  * what is the same on all of them: the URL state (search, server sort and the
  * funnels' selections), the sticky search bar, the deferred query variables,
- * the skeleton before the rows answer and the toolbar's retreat when there is
+ * the rows' loading state before they answer and the toolbar's retreat when there is
  * nothing to search. The child renders the rows and owns the connection they
  * come from — and how the selections become that connection's filter input.
  *
@@ -98,13 +96,10 @@ function readArray(params: Readonly<Record<string, unknown>>, key: string): stri
 export function SoftwareListFrame({
   paramPrefix = '',
   placeholder,
-  sortableIds = NO_IDS,
-  filterKeys = NO_IDS,
-  skeletonColumns,
-  skeletonRows,
-  skeletonLabel,
+  sortableIds = NO_ITEMS,
+  filterKeys = NO_ITEMS,
+  loadingLabel,
   loading = false,
-  banner,
   className,
   children,
 }: SoftwareListFrameProps) {
@@ -162,21 +157,21 @@ export function SoftwareListFrame({
     isPending,
   } = useDeferredQuery(narrowing, debouncedSearch);
 
-  // The rows before they answer — the same for a query in flight and for the flag's own window.
-  const tableSkeleton = (
-    <TableSkeleton
-      label={skeletonLabel}
-      columns={skeletonColumns}
-      rows={skeletonRows}
-      stickyHeaderOffset={stickyHeaderOffset}
-    />
-  );
+  const list: SoftwareListFrameRenderProps = {
+    debouncedSearch: deferredSearch,
+    sort: deferredNarrowing.sort,
+    deferredSelections: deferredNarrowing.selections,
+    sortState,
+    onSortChange,
+    selections,
+    onSelectionsChange,
+    isPending,
+    onEmptyChange: setIsEmpty,
+    stickyHeaderOffset,
+  };
 
   return (
     <div className={cn('flex flex-col', className)} style={containerStyle}>
-      {/* The banner keeps its own bottom margin: the pinned toolbar's negative top
-          margin eats exactly that, instead of the banner's last rows. */}
-      {!isEmpty && banner}
       {!isEmpty && (
         <SoftwareSearchToolbar
           toolbarRef={toolbarRef}
@@ -187,24 +182,11 @@ export function SoftwareListFrame({
         />
       )}
 
-      {loading ? (
-        tableSkeleton
-      ) : (
-        <Suspense fallback={tableSkeleton}>
-          {children({
-            debouncedSearch: deferredSearch,
-            sort: deferredNarrowing.sort,
-            deferredSelections: deferredNarrowing.selections,
-            sortState,
-            onSortChange,
-            selections,
-            onSelectionsChange,
-            isPending,
-            onEmptyChange: setIsEmpty,
-            stickyHeaderOffset,
-          })}
-        </Suspense>
-      )}
+      {/* The rows before they answer, the same for a query in flight and for the flag's own window: the list
+          itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>
+        <LoadingSuspense label={loadingLabel}>{children(list)}</LoadingSuspense>
+      </LoadingWhen>
     </div>
   );
 }

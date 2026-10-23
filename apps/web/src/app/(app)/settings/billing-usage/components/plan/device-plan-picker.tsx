@@ -1,12 +1,12 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagPercentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TabSelector, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { TabSelector, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { devicePlanPickerProductFragment$key } from '@/__generated__/devicePlanPickerProductFragment.graphql';
 import type { devicePlanPickerSubscriptionFragment$key } from '@/__generated__/devicePlanPickerSubscriptionFragment.graphql';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatCount } from '@/lib/format-number';
 import { BillingRow } from '../shared/billing-section';
@@ -94,10 +94,13 @@ export function DevicePlanPicker({
     commitQuantity,
   } = useDevicePlanSelection({ productRef: product, subscriptionProductRef: subscriptionProduct, onUpdatesChange });
 
-  const loading = product == null;
+  const loading = useLoadingScope() || product == null;
   // While loading, the toggle is shown (and inert): every catalog this ships with
   // prices both periods, so hiding it would make the frame jump a row on arrival.
   const showTabs = loading || (catalog.paygOption != null && catalog.annualOption != null);
+  // While loading, the pay-as-you-go panel: a deep-linked or remembered Annual choice is applied once the catalog
+  // answers, never drawn as an empty annual panel.
+  const shownMode: DevicePlanMode = loading ? 'PAYG' : mode;
   const minimumMonthlyPrice = catalog.paygUnitPrice != null ? catalog.minDevices * catalog.paygUnitPrice : null;
 
   const quantityError = quantityTooSmall
@@ -110,7 +113,7 @@ export function DevicePlanPicker({
     <>
       {showTabs && (
         <TabSelector
-          value={mode}
+          value={shownMode}
           onValueChange={value => setMode(value as DevicePlanMode)}
           variant="primary"
           disabled={loading}
@@ -119,23 +122,27 @@ export function DevicePlanPicker({
             {
               id: 'ANNUAL',
               label: 'Annual',
-              badge:
-                catalog.discountPercent > 0 ? (
-                  <Tag
-                    variant="warning"
-                    icon={<TagPercentIcon className="size-4" />}
-                    label={`-${catalog.discountPercent}%`}
-                  />
-                ) : undefined,
+              // The discount is a catalog figure: while it loads the tag draws its own skeleton in its box.
+              badge: loading ? (
+                <Tag variant="warning" icon={<TagPercentIcon className="size-4" />} label={null} loading />
+              ) : catalog.discountPercent > 0 ? (
+                <Tag
+                  variant="warning"
+                  icon={<TagPercentIcon className="size-4" />}
+                  label={`-${catalog.discountPercent}%`}
+                />
+              ) : undefined,
             },
           ]}
         />
       )}
 
       <div className="flex w-full flex-col gap-2">
-        <p className="text-ods-text-secondary text-h5">{mode === 'PAYG' ? 'Pay as you go' : 'Number of devices'}</p>
+        <p className="text-ods-text-secondary text-h5">
+          {shownMode === 'PAYG' ? 'Pay as you go' : 'Number of devices'}
+        </p>
 
-        {mode === 'PAYG' ? (
+        {shownMode === 'PAYG' ? (
           <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card">
             <div className="flex flex-col gap-1 border-b border-ods-border p-[var(--spacing-system-mf)]">
               <p className="text-ods-text-primary text-h4">
@@ -144,9 +151,7 @@ export function DevicePlanPicker({
               {/* The floor is a catalog figure, so it holds a line while it loads —
                   otherwise the block grows a sentence under the user's cursor. */}
               {loading ? (
-                <LoadingRegion status={false}>
-                  <UnifiedSkeleton className="h-4 w-52" />
-                </LoadingRegion>
+                <LoadingLine type="h6" className="w-52" />
               ) : (
                 catalog.minDevices > 1 &&
                 minimumMonthlyPrice != null && (
@@ -159,28 +164,33 @@ export function DevicePlanPicker({
             {/* The count and the total come from billing's own `usage.activeDevices`
                 — NOT from the `devices()` query these rows were dropped with, which
                 a locked workspace has refused (see the paywall's query). Each row
-                appears only once its own figure exists, or while one is on its way:
-                the modal passes no count, and there it stays at the rate. */}
+                appears once its own figure exists, and while one is on its way (most
+                subscriptions report a count), each row drawing its own bar. */}
             {(catalog.paygUnitPrice != null || loading) && (
               <div className="flex flex-col gap-3 p-[var(--spacing-system-mf)]">
-                {deviceCount != null && <BillingRow label="Active Devices Detected" value={formatCount(deviceCount)} />}
+                {(deviceCount != null || loading) && (
+                  <BillingRow
+                    label="Active Devices Detected"
+                    loading={loading}
+                    value={deviceCount != null && formatCount(deviceCount)}
+                  />
+                )}
+                {/* The row draws its own bar while the rate is on its way. */}
                 <BillingRow
                   label="Rate per Device"
-                  value={
-                    catalog.paygUnitPrice != null ? (
-                      <PriceValue amount={catalog.paygUnitPrice} period="month" />
-                    ) : (
-                      // Stand-in for a figure the server has not sent yet, sized to the value it replaces.
-                      <LoadingRegion as="span" status={false} className="contents">
-                        <UnifiedSkeleton as="span" className="h-5 w-20" />
-                      </LoadingRegion>
-                    )
-                  }
+                  loading={loading || catalog.paygUnitPrice == null}
+                  value={catalog.paygUnitPrice != null && <PriceValue amount={catalog.paygUnitPrice} period="month" />}
                 />
-                {deviceCount != null && catalog.paygUnitPrice != null && (
+                {((deviceCount != null && catalog.paygUnitPrice != null) || loading) && (
                   <BillingRow
                     label="Total"
-                    value={<PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />}
+                    loading={loading}
+                    value={
+                      deviceCount != null &&
+                      catalog.paygUnitPrice != null && (
+                        <PriceValue amount={deviceCount * catalog.paygUnitPrice} period="month" />
+                      )
+                    }
                   />
                 )}
               </div>

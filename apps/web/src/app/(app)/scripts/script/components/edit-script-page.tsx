@@ -2,15 +2,17 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SCRIPT_SHELL_TYPES } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { runCommandMutation as RunCommandMutationType } from '@/__generated__/runCommandMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
-import { EntityTagPicker, EntityTagPickerFallback } from '@/app/components/shared/tags';
+import { NO_ITEMS } from '@/app/components/shared';
+import { EntityTagPicker } from '@/app/components/shared/tags';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { TagEntityType } from '@/generated/schema-enums';
@@ -30,9 +32,6 @@ interface ScriptTag {
   id: string;
   key: string;
 }
-
-const NO_TAGS: ReadonlyArray<ScriptTag> = [];
-const NO_PLATFORMS: string[] = [];
 
 interface ScriptFieldsProps {
   form: UseFormReturn<EditScriptFormData>;
@@ -55,7 +54,7 @@ interface ScriptFieldsProps {
  * The tag picker keeps its OWN boundary: the tag list is a second query, and it
  * has no reason to hold up the field it sits between.
  */
-function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAGS }: ScriptFieldsProps) {
+function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_ITEMS }: ScriptFieldsProps) {
   return (
     <ScriptFormFields
       form={form}
@@ -68,7 +67,7 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAG
           name="tag_ids"
           control={form.control}
           render={({ field }) => (
-            <Suspense fallback={<EntityTagPickerFallback />}>
+            <LoadingSuspense label="Loading tags">
               <EntityTagPicker
                 entityType={TagEntityType.SCRIPT}
                 selectedIds={field.value}
@@ -78,7 +77,7 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_TAG
                 disabled={disabled}
                 entityLabel="script"
               />
-            </Suspense>
+            </LoadingSuspense>
           )}
         />
       }
@@ -94,7 +93,7 @@ type ScriptRecordState =
 
 const RECORD_LOADING: ScriptRecordState = { status: 'loading' };
 /** The create page owns no record: nothing to seed, and the form is live at once. */
-const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_TAGS };
+const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_ITEMS };
 
 interface ScriptRecordLoaderProps {
   scriptId: string;
@@ -104,9 +103,8 @@ interface ScriptRecordLoaderProps {
 /**
  * The page's data island — and it renders NOTHING.
  *
- * Everything it feeds is already on screen: the form is mounted from the first
- * render and simply locked, so the island has no placeholder to stand in for
- * (`fallback={null}`) and no fields to remount when the answer lands. It reads
+ * While it suspends, the page's form draws itself in a loading scope (the
+ * boundary's fallback); once the answer lands the same fields unlock. It reads
  * the script and hands it up; the page writes it into the form (see
  * `useSeedForm` for why the WRITE cannot happen here).
  *
@@ -123,7 +121,7 @@ function ScriptRecordLoader({ scriptId, onResolved }: ScriptRecordLoaderProps) {
   const script: ScriptDetailData | null = data.script;
 
   const values = useMemo(() => (script ? relayScriptToForm(script) : null), [script]);
-  const tags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? NO_TAGS, [script]);
+  const tags = useMemo(() => script?.tags?.map(t => ({ id: t.id, key: t.key })) ?? NO_ITEMS, [script]);
 
   // Layout effect: the page seeds and unlocks the fields before the paint, so a
   // script Relay already had in its store is simply there.
@@ -294,46 +292,29 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {scriptId && (
-          // Suspends with nothing in its place: what it is loading is already
-          // drawn below, locked.
-          <Suspense fallback={null}>
-            <ScriptRecordLoader scriptId={scriptId} onResolved={setRecord} />
-          </Suspense>
-        )}
-
-        {/* Locked fields are announced by nothing on their own — `disabled`
-            reads as "unavailable", not "busy" — so the wait gets a line of its
-            own. `sr-only` is out of flow, so it costs no layout.
-
-            Mounted unconditionally, with only its TEXT switching: a live region
-            that appears with its content already inside it is not reliably
-            announced, and the emptied region is what retracts the message once
-            the record lands. Gated on `loading` rather than `!isRecordReady`,
-            which is also true for `missing` — that branch renders
-            `NotFoundError` below, and announcing a load that never resolves
-            next to it is the opposite of what the reader needs. */}
-        <span role="status" className="sr-only">
-          {record.status === 'loading' ? 'Loading script…' : ''}
-        </span>
-
-        {record.status === 'missing' ? (
-          <NotFoundError message="Script not found" />
-        ) : (
-          <ScriptFields
-            form={form}
-            showErrors={showErrors}
-            disabled={!isRecordReady}
-            initialTags={record.status === 'ready' ? record.tags : NO_TAGS}
-          />
-        )}
+        {/* The loader suspends on the record; until it lands the form draws
+            itself in a loading scope (each field its own skeleton), and once
+            the record is seeded the same fields unlock. */}
+        <LoadingSuspense label="Loading script" fallback={<ScriptFields form={form} showErrors={false} disabled />}>
+          {scriptId && <ScriptRecordLoader scriptId={scriptId} onResolved={setRecord} />}
+          {record.status === 'missing' ? (
+            <NotFoundError message="Script not found" />
+          ) : (
+            <ScriptFields
+              form={form}
+              showErrors={showErrors}
+              disabled={!isRecordReady}
+              initialTags={record.status === 'ready' ? record.tags : NO_ITEMS}
+            />
+          )}
+        </LoadingSuspense>
       </PageLayout>
 
       <TestScriptModal
         isOpen={testPlatforms !== null}
         onClose={closeTestModal}
         onDeviceSelected={handleDeviceSelected}
-        supportedPlatforms={testPlatforms ?? NO_PLATFORMS}
+        supportedPlatforms={testPlatforms ?? NO_ITEMS}
       />
 
       <ExecutionStartedModal

@@ -23,6 +23,8 @@ const spies = vi.hoisted(() => ({
   post: vi.fn<(url: string, body?: { query?: string; variables?: unknown }) => Promise<ApiResponse>>(),
 }));
 
+// Where links stay in this window (no new-tab segment): the chip's own target is what is under test.
+vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => true }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }) }));
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: spies.post }, REQUEST_TIMEOUT_MS: 30_000 }));
 

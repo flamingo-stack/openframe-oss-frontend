@@ -1,7 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { NotificationTileSkeleton } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { NotificationTile } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ShieldCheckIcon, TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
@@ -99,9 +99,9 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
       )}
       {(searching || status.isLoadingMore) && (
         <div className="flex flex-col gap-[var(--spacing-system-sf)]" aria-busy aria-label={`Loading ${LIST_LABEL}`}>
-          <NotificationTileSkeleton variant="approval" />
-          <NotificationTileSkeleton variant="approval" />
-          {cards.length === 0 && <NotificationTileSkeleton variant="approval" />}
+          <NotificationTile loading variant="approval" />
+          <NotificationTile loading variant="approval" />
+          {cards.length === 0 && <NotificationTile loading variant="approval" />}
         </div>
       )}
       {cards.length === 0 && status.canClaimEmpty && !status.hasMore && (

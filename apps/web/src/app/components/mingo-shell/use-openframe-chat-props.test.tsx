@@ -19,6 +19,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   renderQuickActionIcon: () => null,
 }));
 vi.mock('@/app/(app)/help-center/endpoints', () => ({ KNOWLEDGE_BASE_ROUTE: '/help-center/knowledge-base' }));
+vi.mock('@/app/(app)/mingo/hooks/use-mingo-dialogs', () => ({ MINGO_DIALOGS_PAGE_SIZE: 20 }));
 vi.mock('@/app/(app)/mingo/context/context-sources', () => ({ useMingoContextEntityTypes: () => [] }));
 vi.mock('@/app/(app)/mingo/context/mention-chips/render-mention', () => ({
   renderMingoContextItem: () => null,

@@ -13,6 +13,7 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
+import { clearGettingStartedView } from './getting-started-view';
 import { doneTourStepIds } from './tour-progress';
 import { TOUR_DIALOG_TITLE, type TourAction, type TourStep, tourGreeting, tourPrompt, tourSteps } from './tour-steps';
 
@@ -34,8 +35,6 @@ export interface MingoTour {
   state: UnifiedChatState;
   /** The Getting Started block while the tour's conversation is open, else null. */
   aboveComposer: ReactNode;
-  /** The list's "What to ask Mingo?": the tour's conversation while the tour is on. */
-  onWhatToAsk: (() => void) | undefined;
 }
 
 /**
@@ -59,6 +58,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   const { toast } = useToast();
   const handoff = useTourState();
   const firstName = useAuthStore(s => s.user?.firstName);
+  const userId = useAuthStore(s => s.user?.id);
   const user = useOnboardingStore(s => s.user);
   const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground } =
     useOnboardingMutations();
@@ -69,9 +69,16 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   // Mingo" was just pressed on this device and the conversation is still to
   // be created.
   const inProgress = user !== null && !user.completed && !user.skipped;
+  const ended = user !== null && (user.completed || user.skipped);
+
+  // An onboarding finished or skipped elsewhere (another device, another tab):
+  // the Getting Started block's remembered shape goes with it here too.
+  useEffect(() => {
+    if (ended) clearGettingStartedView(userId);
+  }, [ended, userId]);
   const recordedDialogId = inProgress ? user.tourDialogId : null;
   const active = inProgress && (recordedDialogId !== null || handoff !== null);
-  const { activeDialogId, sendMessage, selectDialog, hasMoreMessages, messages, isLoading } = state;
+  const { activeDialogId, sendMessage, hasMoreMessages, messages, isLoading } = state;
 
   // The conversation this panel created, known before the server has recorded
   // it: creating it moves the chat state, which re-runs the effect below while
@@ -114,7 +121,9 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   const handleAction = useCallback(
     (step: TourStep, action: TourAction): boolean => {
       // While Mingo is answering, the chat refuses a send; the step is not
-      // done then, and the block stays where it is.
+      // done then, and the block stays where it is. The block disables its
+      // chips meanwhile (`busy`), so this only catches a click that lands
+      // before that render.
       if (isLoading) {
         toast({
           title: 'Mingo is busy',
@@ -174,13 +183,16 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
     [state, greeting, messages],
   );
 
-  const onWhatToAsk = useMemo(() => (dialogId ? () => selectDialog(dialogId) : undefined), [dialogId, selectDialog]);
-
   return {
     state: decoratedState,
     aboveComposer: showing ? (
-      <GettingStartedBlock steps={steps} doneStepIds={doneStepIds} onAction={handleAction} onFinish={handleFinish} />
+      <GettingStartedBlock
+        steps={steps}
+        doneStepIds={doneStepIds}
+        onAction={handleAction}
+        onFinish={handleFinish}
+        busy={isLoading}
+      />
     ) : null,
-    onWhatToAsk,
   };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { ChatMessageListSkeleton } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ChatMessageList, type ChatMessageListProps } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import {
   ChatExclamationIcon,
   ChatXmarkIcon,
@@ -119,31 +119,38 @@ function ChatThreadSlot({ loaded }: { loaded: boolean }) {
   }, [shown, setThreadReady]);
   return (
     <div ref={setNode} data-testid="mingo-chat-thread-slot" className="flex h-full min-h-0 flex-1 flex-col">
+      {/* loading-standard-ok(PAGE_CODE): the lib's MingoChatHeader has no loading form; this holds its geometry */}
       {(!chatMounted || !shown) && <ChatThreadSkeleton />}
     </div>
   );
 }
 
+const NO_MESSAGES: ChatMessageListProps['messages'] = [];
+
 /**
  * The portalled chat's header and thread, loading: the 56px header row (title, then the
- * ⋯ cell) and the lib's message skeleton in the thread's padding and column (the
- * composer's width, which the dock gives the thread here) — the chat's own geometry,
- * so nothing moves when it lands.
+ * ⋯ cell) and the lib's message list in its loading form, in the thread's padding and
+ * column (the composer's width, which the dock gives the thread here) — the chat's own
+ * geometry, so nothing moves when it lands.
  */
+// loading-standard-ok(PAGE_CODE): the header row's bars until the lib's MingoChatHeader draws its own loading form
 function ChatThreadSkeleton() {
   return (
     <LoadingRegion label="Loading the conversation" className="flex h-full min-h-0 w-full min-w-0 flex-col">
       <div className="flex h-14 w-full shrink-0 border-b border-ods-border">
         <div className="flex min-w-0 flex-1 items-center px-[var(--spacing-system-m)]">
+          {/* loading-standard-ok(PAGE_CODE): the chat title's bar (MingoChatHeader has no loading form) */}
           <UnifiedSkeleton className="h-5 w-48 max-w-full" />
         </div>
         <div className="flex size-14 shrink-0 items-center justify-center border-l border-ods-border">
+          {/* loading-standard-ok(PAGE_CODE): the ⋯ cell's glyph (MingoChatHeader has no loading form) */}
           <UnifiedSkeleton className="size-6" />
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-[var(--spacing-system-m)]">
-        <ChatMessageListSkeleton
-          region={false}
+        <ChatMessageList
+          messages={NO_MESSAGES}
+          isLoading
           fullWidth
           className={cn('mx-auto w-full flex-1', dockViewOf('chat').widthClassName)}
         />

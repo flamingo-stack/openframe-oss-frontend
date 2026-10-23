@@ -3,7 +3,7 @@
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { mingoHomeIncidentsQuery as MingoHomeIncidentsQueryType } from '@/__generated__/mingoHomeIncidentsQuery.graphql';
@@ -71,9 +71,11 @@ const CARD_GRID = 'grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:gr
  */
 export function MingoHomeIncidents() {
   const gate = useIncidentsGate();
+  // The page's loading state draws the section's own, as the unanswered gate does.
+  const loading = useLoadingScope() || gate === 'loading';
 
   if (gate === 'off') return null;
-  if (gate === 'loading') return <IncidentsSkeleton />;
+  if (loading) return <IncidentsSkeleton />;
 
   return (
     <ContentErrorBoundary

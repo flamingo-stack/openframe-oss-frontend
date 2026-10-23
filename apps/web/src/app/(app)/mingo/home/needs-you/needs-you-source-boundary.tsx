@@ -30,6 +30,7 @@ export function NeedsYouSourceBoundary({ sources, onReport, children }: NeedsYou
         <ReportFailure sources={sources} onReport={onReport} isOffline={isOffline} retry={retry} />
       )}
     >
+      {/* loading-standard-ok(SUSPENSE_FALLBACK): the sources draw nothing; the card draws their loading state */}
       <Suspense fallback={null}>{children}</Suspense>
     </ContentErrorBoundary>
   );

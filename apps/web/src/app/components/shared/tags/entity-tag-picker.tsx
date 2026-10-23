@@ -2,11 +2,12 @@
 
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Autocomplete } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Autocomplete, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { entityTagPickerQuery as EntityTagPickerQueryType } from '@/__generated__/entityTagPickerQuery.graphql';
 import type { TagEntityType } from '@/generated/schema-enums';
+import { noop } from '../no-next-page';
 import { OPTIMISTIC_TAG_ID_PREFIX } from './optimistic-tag-id';
 import { TagDeleteConfirmDialog } from './tag-delete-confirm-dialog';
 import { useCreateTagMutation, useDeleteTagMutation } from './use-tag-mutations';
@@ -30,43 +31,41 @@ interface EntityTag {
   key: string;
 }
 
-const FALLBACK_NO_OPTIONS: Array<{ label: string; value: string }> = [];
-const FALLBACK_NO_VALUE: string[] = [];
-const fallbackNoop = () => {};
-
-// Shared defaults — the fallback must render the EXACT same label/placeholder as
-// the picker (its whole purpose is a zero-layout-shift swap), so both default
-// from these constants instead of keeping parallel literals in sync by hand.
 const DEFAULT_LABEL = 'Search and add Tags';
 const DEFAULT_EMPTY_PLACEHOLDER = 'Search to Add Tags';
+const ADD_MORE_PLACEHOLDER = 'Add more...';
+
+interface PickerFieldProps {
+  label: string;
+  emptyPlaceholder: string;
+  options: Array<{ label: string; value: string }>;
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+  /** The live picker's create / delete extras (absent while the vocabulary loads). */
+  creatable?: boolean;
+  loading?: boolean;
+  maxCreateLength?: number;
+  onDeleteOption?: (value: string) => void;
+  isDeletingOption?: boolean;
+}
 
 /**
- * Suspense fallback for {@link EntityTagPicker}: the real `Autocomplete`,
- * disabled and empty, with the same label / placeholder / search adornment —
- * pixel-identical to the loaded picker, so the swap causes zero layout shift.
- * Pass the same `label` / `emptyPlaceholder` overrides as the picker call site.
+ * The picker's field: one `Autocomplete` for the loaded picker and its loading form, so the label, placeholder and
+ * search adornment are declared once.
  */
-export function EntityTagPickerFallback({
-  label = DEFAULT_LABEL,
-  emptyPlaceholder = DEFAULT_EMPTY_PLACEHOLDER,
-}: {
-  label?: string;
-  emptyPlaceholder?: string;
-}) {
+function PickerField({ selectedIds, emptyPlaceholder, creatable, ...props }: PickerFieldProps) {
   return (
-    <LoadingRegion className="contents" label="Loading tags">
-      <Autocomplete
-        multiple
-        disabled
-        label={label}
-        placeholder={emptyPlaceholder}
-        options={FALLBACK_NO_OPTIONS}
-        value={FALLBACK_NO_VALUE}
-        onChange={fallbackNoop}
-        startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
-        showChevron={false}
-      />
-    </LoadingRegion>
+    <Autocomplete
+      {...props}
+      multiple
+      creatable={creatable}
+      freeSolo={creatable}
+      placeholder={selectedIds.length > 0 ? ADD_MORE_PLACEHOLDER : emptyPlaceholder}
+      value={selectedIds}
+      startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
+      showChevron={false}
+    />
   );
 }
 
@@ -102,9 +101,32 @@ interface EntityTagPickerProps {
  * new name and confirming creates the tag immediately and swaps the optimistic
  * entry for the persisted id. Shared by the script and article editors.
  *
- * Suspends on the vocabulary query — render inside a `<Suspense>` boundary.
+ * Suspends on the vocabulary query — render it inside the lib's `LoadingSuspense`, whose
+ * fallback is the same picker in a loading scope, where it draws its field disabled and
+ * runs no query.
  */
-export function EntityTagPicker({
+export function EntityTagPicker(props: EntityTagPickerProps) {
+  if (useLoadingScope()) {
+    // The vocabulary is not read yet: the same field, disabled, with the chips of the tags already selected (an
+    // edit form shows them from the entity it read).
+    const { initialTags = [], selectedIds } = props;
+    return (
+      <LoadingRegion className="contents" label="Loading tags">
+        <PickerField
+          disabled
+          label={props.label ?? DEFAULT_LABEL}
+          emptyPlaceholder={props.emptyPlaceholder ?? DEFAULT_EMPTY_PLACEHOLDER}
+          options={initialTags.map(tag => ({ label: tag.key, value: tag.id }))}
+          selectedIds={selectedIds.filter(id => initialTags.some(tag => tag.id === id))}
+          onChange={noop}
+        />
+      </LoadingRegion>
+    );
+  }
+  return <LiveEntityTagPicker {...props} />;
+}
+
+function LiveEntityTagPicker({
   entityType,
   selectedIds,
   onChange,
@@ -228,19 +250,15 @@ export function EntityTagPicker({
 
   return (
     <>
-      <Autocomplete
-        multiple
+      <PickerField
         creatable
-        freeSolo
         label={label}
-        placeholder={selectedIds.length > 0 ? 'Add more...' : emptyPlaceholder}
+        emptyPlaceholder={emptyPlaceholder}
         options={options}
-        value={selectedIds}
+        selectedIds={selectedIds}
         onChange={handleChange}
-        startAdornment={<SearchIcon className="size-6 text-ods-text-secondary" />}
         loading={isCreating}
         disabled={disabled}
-        showChevron={false}
         maxCreateLength={maxCreateLength}
         onDeleteOption={deletable ? requestDelete : undefined}
         isDeletingOption={deletable ? isDeleting : undefined}

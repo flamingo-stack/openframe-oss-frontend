@@ -3,10 +3,10 @@
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
+import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
@@ -59,7 +59,7 @@ const PAGE_CLASS_NAME = 'px-[var(--spacing-system-l)] pb-28 md:pb-[var(--spacing
  * shared with the billing page's Activate Subscription modal. This file is the
  * page around it, and the query that feeds it.
  */
-export function SubscriptionSettingsView() {
+export function SubscriptionSettingsView({ loading = false }: { loading?: boolean }) {
   const { status } = useSubscriptionLock();
   // Resolved here rather than carried on the context, so the plan-lock wording
   // lives only in the modules that render plans (see subscription-lock-copy.ts).
@@ -74,21 +74,11 @@ export function SubscriptionSettingsView() {
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
-        <Suspense fallback={<PaywallBody copy={copy} query={null} />}>
+        {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
+        <GatedSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
           <SubscriptionSettingsContent copy={copy} />
-        </Suspense>
+        </GatedSuspense>
       </ErrorBoundary>
-    </PageLayout>
-  );
-}
-
-/** The page while its gates (feature flag, role) are still resolving. */
-export function SubscriptionSettingsLoading() {
-  const { status } = useSubscriptionLock();
-
-  return (
-    <PageLayout className={PAGE_CLASS_NAME} showHeader={false}>
-      <PaywallBody copy={getPaywallCopy(status)} query={null} />
     </PageLayout>
   );
 }
@@ -147,7 +137,7 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
 
   return (
     <>
-      <PaywallHeader copy={copy} deviceCount={form.deviceCount} />
+      <PaywallHeader copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
 
       <PlanCheckoutCards query={data} form={form} />
 

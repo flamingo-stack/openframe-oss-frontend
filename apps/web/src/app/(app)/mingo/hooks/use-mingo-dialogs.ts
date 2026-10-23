@@ -29,6 +29,12 @@ export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', '
 export const DIALOGS_BY_LAST_ACTIVITY = { field: 'lastActivityAt', direction: 'DESC' } as const;
 
 /**
+ * Dialogs one page of the Mingo list holds (`first:` of the dialogs query). The chat's conversation lists draw
+ * exactly this many rows while the first page loads (`EmbeddableChat`'s `historyPageSize`).
+ */
+export const MINGO_DIALOGS_PAGE_SIZE = 20;
+
+/**
  * A dialog as the lib's list rows and header read it. Also the open conversation's
  * own record (`UnifiedChatState.activeDialog`), which is where the lib learns that a
  * conversation reached by link, notification or reload is archived.
@@ -64,7 +70,7 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
 }
 
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
-  const { enabled = true, search, limit = 20, scope = 'all' } = options;
+  const { enabled = true, search, limit = MINGO_DIALOGS_PAGE_SIZE, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
   // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
   // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),

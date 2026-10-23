@@ -208,6 +208,7 @@ export function MingoChatProvider({ enabled, identityEnabled, children }: MingoC
         <MingoChatRunnerBoundary key={runKey} store={store}>
           {/* Nothing in the state suspends today. If something ever does, it must
               not reach the shell's own boundary, which would blank the whole app. */}
+          {/* loading-standard-ok(SUSPENSE_FALLBACK): the runner draws nothing; it only runs the chat state */}
           <Suspense fallback={null}>
             <MingoChatRunner store={store} onScreen={onScreen} />
           </Suspense>

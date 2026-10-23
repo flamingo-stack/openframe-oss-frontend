@@ -1,7 +1,7 @@
 'use client';
 
 import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { WorkTimeTable } from '@/app/components/shared/work-time-table';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -9,7 +9,8 @@ import type { CustomerDetails } from '../../hooks/use-customer-details';
 import { CustomerTabHeader } from './customer-tab-header';
 
 interface CustomerWorktimeTabProps {
-  organization: CustomerDetails;
+  /** `null` while the customer loads: the table draws itself in a loading scope until its global id is here. */
+  organization: CustomerDetails | null;
 }
 
 /** Worktime logged for this customer — Employee + Time + Ticket & Notes (Customer column omitted). */
@@ -18,12 +19,15 @@ export function CustomerWorktimeTab({ organization }: CustomerWorktimeTabProps) 
 
   // "Add Work Time" here is scoped to this customer: prefill + lock the customer field.
   const addDefaultCustomer = useMemo(
-    () => ({
-      id: organization.organizationId,
-      label: organization.name,
-      imageUrl: getFullImageUrl(organization.imageUrl, organization.imageHash),
-    }),
-    [organization.organizationId, organization.name, organization.imageUrl, organization.imageHash],
+    () =>
+      organization
+        ? {
+            id: organization.organizationId,
+            label: organization.name,
+            imageUrl: getFullImageUrl(organization.imageUrl, organization.imageHash),
+          }
+        : undefined,
+    [organization],
   );
 
   return (
@@ -34,19 +38,23 @@ export function CustomerWorktimeTab({ organization }: CustomerWorktimeTabProps) 
           <Button
             variant="outline"
             onClick={() => setAddOpen(true)}
+            disabled={!organization}
             leftIcon={<PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />}
           >
             Add Work Time
           </Button>
         }
       />
-      <WorkTimeTable
-        organizationGlobalId={organization.id}
-        showEmployee
-        addWorkTimeOpen={addOpen}
-        onAddWorkTimeOpenChange={setAddOpen}
-        addDefaultCustomer={addDefaultCustomer}
-      />
+      {/* Scoped by the customer's global id: until it is here the table draws its loading state and reads nothing. */}
+      <LoadingWhen loading={!organization}>
+        <WorkTimeTable
+          organizationGlobalId={organization?.id}
+          showEmployee
+          addWorkTimeOpen={addOpen}
+          onAddWorkTimeOpenChange={setAddOpen}
+          addDefaultCustomer={addDefaultCustomer}
+        />
+      </LoadingWhen>
     </div>
   );
 }

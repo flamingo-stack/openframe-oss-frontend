@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Select,
   SelectContent,
@@ -8,13 +9,14 @@ import {
   SelectValue,
   SquareAvatar,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { customerSelect_query$key } from '@/__generated__/customerSelect_query.graphql';
 import type { customerSelectPaginationQuery } from '@/__generated__/customerSelectPaginationQuery.graphql';
 import type { customerSelectQuery as CustomerSelectQueryType } from '@/__generated__/customerSelectQuery.graphql';
-import { ContentErrorBoundary, useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { type CustomerOption, toCustomerOption } from './customer-option';
 import { withBoundOrganization } from './tenant-form-helpers';
@@ -48,8 +50,6 @@ const customerSelectFragment = graphql`
     }
   }
 `;
-
-const NO_OPTIONS: readonly CustomerOption[] = [];
 
 interface CustomerSelectProps {
   value: string;
@@ -166,25 +166,43 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
   );
 }
 
-export function CustomerSelect({ enabled = true, includeOrganization, ...props }: CustomerSelectProps) {
-  const loading = <CustomerSelectShell {...props} options={NO_OPTIONS} placeholder="Loading customers…" disabled />;
-  if (!enabled) return loading;
+/**
+ * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own Suspense
+ * fallback, or the page's) it is the real field, locked, with no options, and reads nothing.
+ */
+export function CustomerSelect(props: CustomerSelectProps) {
+  const { enabled = true, includeOrganization, ...shellProps } = props;
+  if (!enabled) {
+    return <CustomerSelectLocked {...shellProps} />;
+  }
 
   return (
     <ContentErrorBoundary
       fallback={() => (
         <CustomerSelectShell
-          {...props}
-          options={NO_OPTIONS}
+          {...shellProps}
+          options={NO_ITEMS}
           placeholder="Couldn't load customers"
-          error={props.error ?? 'Reload the page to try again.'}
+          error={shellProps.error ?? 'Reload the page to try again.'}
           disabled
         />
       )}
     >
-      <Suspense fallback={loading}>
-        <CustomerSelectOptions {...props} includeOrganization={includeOrganization} />
-      </Suspense>
+      <LoadingSuspense label="Loading customers">
+        <CustomerSelectBody {...shellProps} includeOrganization={includeOrganization} />
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
+}
+
+function CustomerSelectBody({ includeOrganization, ...shellProps }: Omit<CustomerSelectProps, 'enabled'>) {
+  if (useLoadingScope()) {
+    return <CustomerSelectLocked {...shellProps} />;
+  }
+  return <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />;
+}
+
+/** The real field, locked, with no options: what it is before its list is read. */
+function CustomerSelectLocked(shellProps: Omit<CustomerSelectProps, 'enabled' | 'includeOrganization'>) {
+  return <CustomerSelectShell {...shellProps} options={NO_ITEMS} placeholder="Select Customer" disabled />;
 }

@@ -20,7 +20,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -43,6 +42,7 @@ import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentK
 import type { notificationsDrawerRelayPaginationQuery as NotificationsDrawerPaginationQueryType } from '@/__generated__/notificationsDrawerRelayPaginationQuery.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { NotificationReadStatus, type NotificationSeverity } from '@/generated/schema-enums';
 import { cancelPendingPushMutation } from '@/graphql/notifications/cancel-pending-push-mutation';
 import { getLiveConnectionPairs, requestReadStatusRefresh } from '@/graphql/notifications/live-connection-pairs';
@@ -425,9 +425,9 @@ function NotificationsDataInner({
       {enabled && (
         <>
           <ErrorBoundary fallback={null}>
-            <Suspense fallback={null}>
+            <HydratorBoundary>
               <NotificationsDrawerHydrator onPaginationChange={setPagination} />
-            </Suspense>
+            </HydratorBoundary>
           </ErrorBoundary>
           <NotificationsLiveBridge userId={userId} />
           <EntityViewAutoReader />

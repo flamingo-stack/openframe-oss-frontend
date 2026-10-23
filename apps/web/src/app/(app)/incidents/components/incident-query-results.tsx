@@ -1,60 +1,50 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { QueryReportTable } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { QueryReportTable, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { Incident } from '../utils/incident-transform';
+
+/**
+ * The evidence table's loading rows. The rows are the detecting query's and unbounded, and its columns are unknown
+ * until the record lands: three columns is the common shape, one row the common count.
+ */
+const INCIDENT_EVIDENCE_SKELETON_ROWS = 1;
+const INCIDENT_EVIDENCE_SKELETON_COLUMNS = 3;
 
 /**
  * "Query Details": the osquery rows the finding was made from, in the same
  * report table the Monitoring query page uses. Columns are the detecting
  * query's own column names (they vary by kind). No device column: an incident
  * belongs to exactly one machine, which the summary card already names.
+ * Without a record (or in a loading scope) it draws the report table's own loading rows.
  */
-export function IncidentQueryResults({ incident }: { incident: Incident }) {
+export function IncidentQueryResults({ incident }: { incident?: Incident }) {
+  const loading = useLoadingScope() || !incident;
   return (
     <QueryResultsFrame>
       <QueryReportTable
-        data={incident.queryResult ?? []}
+        data={incident?.queryResult ?? []}
+        loading={loading}
+        loadingRegion={false}
+        skeletonRows={INCIDENT_EVIDENCE_SKELETON_ROWS}
+        skeletonColumns={INCIDENT_EVIDENCE_SKELETON_COLUMNS}
         showExport={false}
-        emptyMessage={
-          incident.queryResult
+        emptyState={{
+          title: incident?.queryResult
             ? 'The latest run of the detecting query returned no rows.'
-            : 'Evidence was not kept for this incident.'
-        }
+            : 'Evidence was not kept for this incident.',
+        }}
       />
     </QueryResultsFrame>
   );
 }
 
-/** The section's shell — the heading over the table — shared by the loaded state and its skeleton. */
+/** The section's shell: the heading over the table, loaded or loading. */
 function QueryResultsFrame({ children }: { children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-m)]">
       <h2 className="text-ods-text-primary text-h2">Query Details</h2>
       {children}
     </section>
-  );
-}
-
-/**
- * The same heading over the report table's own loading rows. The column count
- * is the detecting query's and unknown until the record lands; three is the
- * common shape, one row the common count.
- */
-export function IncidentQueryResultsSkeleton({ region = true }: { region?: boolean } = {}) {
-  return (
-    <LoadingRegion className="contents" label="Loading query results" announce={region}>
-      <QueryResultsFrame>
-        <QueryReportTable
-          data={[]}
-          loading
-          loadingRegion={false}
-          skeletonRows={1}
-          skeletonColumns={3}
-          showExport={false}
-        />
-      </QueryResultsFrame>
-    </LoadingRegion>
   );
 }
