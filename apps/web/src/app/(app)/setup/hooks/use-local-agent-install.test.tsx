@@ -76,11 +76,12 @@ describe('useLocalAgentInstall', () => {
 
     act(() => bridge.output?.(['[+] Admin privileges', 'Starting installation...']));
     act(() => bridge.output?.(['OpenFrame agent installed successfully.']));
-    expect(probe.latest()?.lines).toEqual([
+    expect(probe.latest()?.lines.map(line => line.text)).toEqual([
       '[+] Admin privileges',
       'Starting installation...',
       'OpenFrame agent installed successfully.',
     ]);
+    expect(probe.latest()?.lines.every(line => line.receivedAt instanceof Date)).toBe(true);
 
     act(() => bridge.done?.({ success: true, exitCode: 0 }));
     expect(probe.latest()?.status).toBe('succeeded');

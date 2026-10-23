@@ -447,6 +447,20 @@ export async function nativeShellVersion(): Promise<string | null> {
   return null;
 }
 
+/**
+ * Desktop only: maximize the main window (the OS's own maximize, not a
+ * fullscreen space). Granted by `core:window:allow-maximize`; a shell binary
+ * that predates the grant refuses it, and the window keeps its size.
+ */
+export async function maximizeDesktopWindow(): Promise<void> {
+  if (!isDesktopShell()) return;
+  try {
+    await tauriInvoke()?.('plugin:window|maximize', { label: 'main' });
+  } catch (error) {
+    console.warn('[Native Shell] window maximize unavailable:', error);
+  }
+}
+
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
 
 /**
