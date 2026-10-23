@@ -16,13 +16,11 @@ import type { ApprovalDecision } from './approval-decisions';
 import type { ApprovalDialogNode } from './approval-dialogs-query';
 
 /**
- * What needs a person's approval, composed on the client from the contracts that exist
- * (there is no server-side "approvals" list): the Needs approval page lists it, and its
- * count is the sidebar's "Needs approval" badge. One list, whatever raised the request:
- * every pending `TICKET_APPROVAL_REQUEST` / `MINGO_APPROVAL_REQUEST` among the
- * notifications the drawer has loaded, plus every Mingo chat in `ACTION_REQUIRED` and
- * every Tech Required ticket with a pending technician approval — so a request whose
- * notification was read, or sits beyond the drawer's first page, still waits here.
+ * What needs a person's approval, for the Needs approval page: one list, whatever raised
+ * the request, composed from three server-filtered sources — the viewer's unread
+ * `TICKET_APPROVAL_REQUEST` / `MINGO_APPROVAL_REQUEST` notifications, the Mingo chats
+ * waiting on an approval and the Tech Required tickets waiting on one — so a request whose
+ * notification was read still waits here. One card per request (`composeApprovalInbox`).
  *
  * Each card is the lib's approval tile, so each is a `Notification`: the drawer's own for a
  * notification, one built here (same type, same meta) for a chat or a ticket.
@@ -46,11 +44,11 @@ export interface ApprovalCard {
 }
 
 export interface ApprovalSources {
-  /** The notification drawer's loaded list (the lib provider's state). */
+  /** The viewer's unread approval request notifications. */
   notifications: readonly Notification[];
-  /** Mingo chats in `ACTION_REQUIRED`, every admin's. */
+  /** Mingo chats waiting on an approval, every admin's. */
   dialogs: readonly ApprovalDialogNode[];
-  /** The Tech Required lane, as the board caches it; `null` where tickets do not exist (OSS). */
+  /** Tech Required tickets waiting on an approval; `null` where tickets do not exist (OSS). */
   tickets: readonly Dialog[] | null;
   /** Requests this tab has settled, from any surface (`approval-decisions.ts`). */
   decisions: Readonly<Record<string, ApprovalDecision>>;
@@ -61,7 +59,7 @@ export interface ApprovalSources {
 export interface ApprovalInbox {
   /** Newest first. */
   cards: ApprovalCard[];
-  /** Every pending card: the sidebar badge. */
+  /** Every pending card. */
   pendingCount: number;
 }
 

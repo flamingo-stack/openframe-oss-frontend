@@ -67,9 +67,10 @@ interface ApprovalListProps {
 }
 
 /**
- * The approvals. The next page loads as the end of the list scrolls into view; the
- * sources are filtered here (a lane's tickets with a pending approval), so a page may add
- * nothing and the next one loads on its own until something shows or the source ends.
+ * The approvals. The next page of each source loads as the end of the list scrolls into
+ * view. The sources are filtered on the server, but a card is one request, so a page whose
+ * requests are already on screen (a chat's and its notification's) adds nothing, and the
+ * next one loads on its own until something shows or the sources end.
  */
 function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps) {
   const sentinelRef = useGridInfiniteScroll({

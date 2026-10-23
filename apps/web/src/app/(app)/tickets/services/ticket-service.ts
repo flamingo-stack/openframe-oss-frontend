@@ -16,6 +16,8 @@ import {
   GET_TICKET_STATUS_TRANSITION_RULES_QUERY,
   GET_TICKETS_QUERY,
   GET_BOARD_COLUMN_TICKETS_QUERY,
+  GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY,
+  GET_PENDING_APPROVAL_TICKETS_QUERY,
   MARK_DIALOG_MESSAGES_READ_MUTATION,
   REORDER_TICKET_MUTATION,
   TICKETS_DEFAULT_SORT,
@@ -28,6 +30,7 @@ import type {
   CreateDialogParams,
   FetchBoardColumnByStatusIdParams,
   FetchMessagesParams,
+  FetchPendingApprovalTicketsParams,
   FetchTicketsParams,
   MessagePage,
   ReorderTicketParams,
@@ -312,6 +315,32 @@ export class TicketService implements TicketServiceInterface {
       },
       filteredCount: connection?.filteredCount ?? 0,
     };
+  }
+
+  async fetchPendingApprovalTickets(params: FetchPendingApprovalTicketsParams): Promise<TicketsPage> {
+    const response = await apiClient.post<GraphQlResponse<TicketsResponse>>(API_ENDPOINTS.GRAPHQL, {
+      query: GET_PENDING_APPROVAL_TICKETS_QUERY,
+      variables: { statusId: params.statusId, limit: params.limit, cursor: params.cursor },
+    });
+    const connection = extractGraphQlData(response).tickets;
+    return {
+      dialogs: (connection?.edges || []).map(edge => normalizeTicketToDialog(edge.node)),
+      pageInfo: connection?.pageInfo || {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+      filteredCount: connection?.filteredCount ?? 0,
+    };
+  }
+
+  async countPendingApprovalTickets(statusId: string): Promise<number> {
+    const response = await apiClient.post<GraphQlResponse<{ tickets: { filteredCount: number } | null }>>(
+      API_ENDPOINTS.GRAPHQL,
+      { query: GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY, variables: { statusId } },
+    );
+    return extractGraphQlData(response).tickets?.filteredCount ?? 0;
   }
 
   async fetchDialog(id: string): Promise<Dialog | null> {

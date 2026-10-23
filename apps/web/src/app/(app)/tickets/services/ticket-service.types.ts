@@ -61,6 +61,12 @@ export interface FetchBoardColumnByStatusIdParams {
   limit: number;
 }
 
+export interface FetchPendingApprovalTicketsParams {
+  statusId: string;
+  cursor?: string;
+  limit: number;
+}
+
 export interface ReorderTicketParams {
   id: string;
   afterTicketId: string | null;
@@ -115,6 +121,8 @@ export interface SendMessageContext {
 export interface TicketService {
   fetchDialogs(params: FetchTicketsParams): Promise<TicketsPage>;
   fetchBoardColumnByStatusId(params: FetchBoardColumnByStatusIdParams): Promise<TicketsPage>;
+  fetchPendingApprovalTickets(params: FetchPendingApprovalTicketsParams): Promise<TicketsPage>;
+  countPendingApprovalTickets(statusId: string): Promise<number>;
   fetchDialog(id: string): Promise<Dialog | null>;
   fetchMessages(params: FetchMessagesParams): Promise<MessagePage>;
   transitionTicket(ticketId: string, toStatusId: string): Promise<void>;

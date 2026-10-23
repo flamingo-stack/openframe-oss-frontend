@@ -1,12 +1,12 @@
 /**
- * The sidebar's "Needs approval" badge counts what the Needs approval page lists as
- * pending, from shared caches: nothing is fetched behind the subscription lock, a chat
- * that starts waiting on an approval refreshes the count at once instead of at the next
- * poll, and a decision on any surface takes its request off immediately.
+ * The sidebar's "Needs approval" badge is the server's count of the requests waiting for a
+ * decision: the Mingo chats waiting on one plus the Tech Required tickets waiting on one.
+ * Nothing is fetched behind the subscription lock, and a chat that starts waiting or a
+ * decision on any surface refreshes the count at once instead of at the next poll.
  */
 
 import type { DialogItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { type Notification, NotificationsProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { NotificationsProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -15,7 +15,7 @@ import { clearApprovalDecisions, noteApprovalDecision } from '@/app/components/a
 import { usePendingApprovalCount } from './use-pending-approval-count';
 
 const { server, gate, session } = vi.hoisted(() => ({
-  server: { dialogs: [] as unknown[], requests: [] as string[] },
+  server: { waitingChats: 0, waitingTickets: 0, techRequired: true, requests: [] as string[] },
   gate: { open: true },
   session: {
     rows: [] as Array<{ id: string; title: string }>,
@@ -28,24 +28,28 @@ vi.mock('@/lib/api-client', () => {
   return {
     apiClient: {
       post: vi.fn(async (_url: string, body: { query: string }) => {
-        if (body.query.includes('GetApprovalDialogs')) {
-          server.requests.push('dialogs');
-          return ok({
-            dialogs: {
-              edges: server.dialogs.map(node => ({ node })),
-              pageInfo: { hasNextPage: false, endCursor: null },
-            },
-          });
+        if (body.query.includes('GetApprovalDialogsCount')) {
+          server.requests.push('chats');
+          return ok({ dialogs: { filteredCount: server.waitingChats } });
+        }
+        if (body.query.includes('GetPendingApprovalTicketsCount')) {
+          server.requests.push('tickets');
+          return ok({ tickets: { filteredCount: server.waitingTickets } });
         }
         if (body.query.includes('ticketStatuses')) {
           server.requests.push('statuses');
-          return ok({ ticketStatuses: [] });
+          return ok({
+            ticketStatuses: server.techRequired
+              ? [{ id: 's-tech', name: 'Tech', color: '#000000', position: 'b', kind: 'TECH_REQUIRED', isSystem: true }]
+              : [],
+          });
         }
         throw new Error(`unexpected request: ${body.query}`);
       }),
     },
   };
 });
+vi.mock('@/graphql/notifications/approval-notifications-relay', () => ({ fetchApprovalNotifications: vi.fn() }));
 vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
   isSaasTenantMode: () => true,
@@ -62,29 +66,6 @@ vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   }),
 }));
 
-const waitingChat = (dialogId: string, approvalId: string) => ({
-  id: `g-${dialogId}`,
-  dialogId,
-  title: `Chat ${dialogId}`,
-  createdAt: '2026-10-16T10:00:00Z',
-  pendingApproval: { id: approvalId, approvalType: 'ADMIN', createdAt: '2026-10-16T10:00:00Z', toolCalls: [] },
-});
-
-const approvalNotification: Notification = {
-  id: 'n-1',
-  title: 'Approval required',
-  createdAt: Date.parse('2026-10-16T11:00:00Z'),
-  read: false,
-  category: 'MINGO',
-  meta: {
-    notificationType: 'MINGO_APPROVAL_REQUEST',
-    approvalRequestId: 'ar-9',
-    dialogId: 'd-9',
-    resolution: 'PENDING',
-    toolCalls: [],
-  },
-};
-
 /** The badge's count, drawn where the test can read it. */
 function Badge() {
   return <output data-badge>{usePendingApprovalCount()}</output>;
@@ -93,10 +74,13 @@ function Badge() {
 let container: HTMLDivElement;
 let root: Root;
 const badge = () => Number(container.querySelector('[data-badge]')?.textContent);
+const requestsOf = (kind: string) => server.requests.filter(request => request === kind).length;
 let queryClient: QueryClient;
 
 beforeEach(() => {
-  server.dialogs = [];
+  server.waitingChats = 0;
+  server.waitingTickets = 0;
+  server.techRequired = true;
   server.requests = [];
   gate.open = true;
   session.rows = [];
@@ -121,11 +105,11 @@ async function settle() {
   }
 }
 
-async function render(notifications: Notification[] = []) {
+async function render() {
   act(() =>
     root.render(
       <QueryClientProvider client={queryClient}>
-        <NotificationsProvider initialNotifications={notifications}>
+        <NotificationsProvider initialNotifications={[]}>
           <Badge />
         </NotificationsProvider>
       </QueryClientProvider>,
@@ -135,43 +119,57 @@ async function render(notifications: Notification[] = []) {
 }
 
 describe('usePendingApprovalCount', () => {
-  it('asks for nothing behind the subscription lock and counts the drawer’s requests', async () => {
+  it('asks for nothing behind the subscription lock', async () => {
     gate.open = false;
-    server.dialogs = [waitingChat('d-1', 'ar-1')];
-    await render([approvalNotification]);
+    server.waitingChats = 2;
+    await render();
 
     expect(server.requests).toEqual([]);
-    expect(badge()).toBe(1);
+    expect(badge()).toBe(0);
   });
 
-  it('counts each request once across the drawer and the waiting chats', async () => {
-    server.dialogs = [waitingChat('d-9', 'ar-9'), waitingChat('d-1', 'ar-1')];
-    await render([approvalNotification]);
+  it('adds the waiting chats and the waiting Tech Required tickets the server counts', async () => {
+    server.waitingChats = 2;
+    server.waitingTickets = 3;
+    await render();
+
+    expect(badge()).toBe(5);
+  });
+
+  it('counts only the chats on a tenant without a Tech Required lane', async () => {
+    server.techRequired = false;
+    server.waitingChats = 2;
+    server.waitingTickets = 3;
+    await render();
 
     expect(badge()).toBe(2);
+    expect(requestsOf('tickets')).toBe(0);
   });
 
   it('refreshes at once when the open chat starts waiting on an approval', async () => {
     await render();
     expect(badge()).toBe(0);
-    expect(server.requests.filter(request => request === 'dialogs')).toHaveLength(1);
+    expect(requestsOf('chats')).toBe(1);
 
     // The chat on screen asked for approval: its stream says so, and no notification comes.
-    server.dialogs = [waitingChat('d-1', 'ar-1')];
+    server.waitingChats = 1;
     session.rows = [{ id: 'd-1', title: 'Chat d-1' }];
     session.waiting = new Set(['d-1']);
     await render();
 
-    expect(server.requests.filter(request => request === 'dialogs')).toHaveLength(2);
+    expect(requestsOf('chats')).toBe(2);
     expect(badge()).toBe(1);
   });
 
-  it('drops a request the moment any surface decides it', async () => {
-    server.dialogs = [waitingChat('d-1', 'ar-1')];
-    await render([approvalNotification]);
+  it('refreshes at once when any surface decides a request', async () => {
+    server.waitingChats = 2;
+    await render();
     expect(badge()).toBe(2);
 
+    server.waitingChats = 1;
     act(() => noteApprovalDecision('ar-9', true));
+    await settle();
+
     expect(badge()).toBe(1);
   });
 });

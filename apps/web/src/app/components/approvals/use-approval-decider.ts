@@ -8,6 +8,7 @@ import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useApproveRequest } from '@/app/components/notifications/use-approve-request';
 import { type ApprovalDecision, settleApprovalCaches } from './approval-decisions';
 import { type ApprovalCard, decidedCard } from './approval-inbox';
+import { APPROVAL_NOTIFICATIONS_QUERY_KEY } from './use-approval-sources';
 
 export interface ApprovalDecider {
   /** Cards decided here, kept on screen with their decision until the page is left. */
@@ -53,11 +54,15 @@ export function useApprovalDecider(): ApprovalDecider {
 
   const complete = (card: ApprovalCard) => {
     if (!notifications) return;
+    // The card's own notification may sit beyond the drawer's first page.
+    const ids = new Set(card.notificationId ? [card.notificationId] : []);
     for (const notification of notifications.notifications) {
       if (!notification.read && notification.meta?.approvalRequestId === card.approvalRequestId) {
-        notifications.markRead(notification.id);
+        ids.add(notification.id);
       }
     }
+    for (const id of ids) notifications.markRead(id);
+    void queryClient.invalidateQueries({ queryKey: APPROVAL_NOTIFICATIONS_QUERY_KEY });
   };
 
   return { kept, decide, complete };

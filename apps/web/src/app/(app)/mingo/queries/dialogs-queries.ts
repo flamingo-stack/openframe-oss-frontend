@@ -50,8 +50,8 @@ export function normalizeAskMessageData<T>(messageData: T): T {
 }
 
 const dialogsQuery = (extraNodeFields: string) => `
-  query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String) {
-  dialogs(filter: $filter, first: $first, after: $after, search: $search) {
+  query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String, $sort: SortInput) {
+  dialogs(filter: $filter, first: $first, after: $after, search: $search, sort: $sort) {
    edges {
     cursor
     node {
@@ -62,6 +62,7 @@ const dialogsQuery = (extraNodeFields: string) => `
      streamState${extraNodeFields}
      createdAt
      statusUpdatedAt
+     lastActivityAt
      owner {
       type
       ... on AdminDialogOwner {

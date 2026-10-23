@@ -1,9 +1,9 @@
 /**
- * The Needs approval page over its real sources (the drawer's notification state, the
- * chat service's waiting chats, the Tech Required lane) with only the network faked:
- * one list of every request (tickets on SaaS only), each once, a title that opens what
- * the request belongs to, the next page loaded as the list scrolls, and a decision that
- * lands on the page, the sidebar badge and the drawer at once.
+ * The Needs approval page over its real sources (the viewer's approval notifications, the
+ * chat service's waiting chats, the Tech Required tickets waiting on one) with only the
+ * network faked: one list of every request (tickets on SaaS only), each once, a title that
+ * opens what the request belongs to, the next page loaded as the list scrolls, and a
+ * decision that lands on the page, the sidebar badge and the drawer.
  */
 
 import { type Notification, NotificationsProvider } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -20,6 +20,7 @@ import { ApprovalsView } from './approvals-view';
 const { server, push, openMingoDialog, toast } = vi.hoisted(() => ({
   server: {
     saas: true,
+    notifications: [] as Notification[],
     dialogs: [] as unknown[],
     tickets: [] as unknown[],
     /** The lane's second page; while non-empty the first one says there is more. */
@@ -36,6 +37,12 @@ vi.mock('@/lib/api-client', () => {
   return {
     apiClient: {
       post: vi.fn(async (_url: string, body: { query: string; variables?: { input?: never; cursor?: string } }) => {
+        if (body.query.includes('GetApprovalDialogsCount')) {
+          return ok({ dialogs: { filteredCount: server.dialogs.length } });
+        }
+        if (body.query.includes('GetPendingApprovalTicketsCount')) {
+          return ok({ tickets: { filteredCount: server.tickets.length + server.olderTickets.length } });
+        }
         if (body.query.includes('GetApprovalDialogs')) {
           return ok({
             dialogs: {
@@ -52,7 +59,7 @@ vi.mock('@/lib/api-client', () => {
             ],
           });
         }
-        if (body.query.includes('GetBoardColumnTickets')) {
+        if (body.query.includes('GetPendingApprovalTickets')) {
           const older = body.variables?.cursor === 'page-2';
           const page = older ? server.olderTickets : server.tickets;
           const hasNextPage = !older && server.olderTickets.length > 0;
@@ -70,7 +77,12 @@ vi.mock('@/lib/api-client', () => {
           });
         }
         if (body.query.includes('resolveApprovalRequest')) {
-          server.resolved.push(body.variables?.input as unknown as { id: string; approve: boolean });
+          const input = body.variables?.input as unknown as { id: string; approve: boolean };
+          server.resolved.push(input);
+          // Decided: the server no longer counts its chat as waiting.
+          server.dialogs = server.dialogs.filter(
+            dialog => (dialog as { pendingApproval: { id: string } }).pendingApproval.id !== input.id,
+          );
           return ok({ resolveApprovalRequest: { userErrors: [] } });
         }
         throw new Error(`unexpected request: ${body.query}`);
@@ -78,6 +90,12 @@ vi.mock('@/lib/api-client', () => {
     },
   };
 });
+vi.mock('@/graphql/notifications/approval-notifications-relay', () => ({
+  fetchApprovalNotifications: vi.fn(async () => ({
+    notifications: server.notifications,
+    pageInfo: { hasNextPage: false, endCursor: null },
+  })),
+}));
 vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
   isSaasTenantMode: () => server.saas,
@@ -191,6 +209,7 @@ const badge = () => Number(container.querySelector('[data-badge]')?.textContent)
 
 beforeEach(() => {
   server.saas = true;
+  server.notifications = [];
   server.dialogs = [];
   server.tickets = [];
   server.olderTickets = [];
@@ -218,7 +237,9 @@ async function settle() {
   }
 }
 
+/** The viewer's approval notifications: in the drawer, and what the page's own query answers. */
 async function renderPage(notifications: Notification[] = []) {
+  server.notifications = notifications;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   act(() =>
     root.render(
@@ -254,7 +275,8 @@ describe('ApprovalsView', () => {
     expect(cardTitled('Chat d-1')).not.toBeNull();
     expect(cards()).toHaveLength(3);
     expect(cardTitled('LAPTOP-7 · Acme')?.textContent).toContain('1152: Customer Service Request');
-    expect(badge()).toBe(3);
+    // The badge is the server's count of waiting chats and waiting tickets.
+    expect(badge()).toBe(4);
 
     const boardLink = [...container.querySelectorAll('a')].find(link => link.textContent === 'Open board');
     expect(boardLink?.getAttribute('href')).toBe(routes.tickets.filtered({ status: ['s-tech'], viewMode: 'board' }));
@@ -271,7 +293,7 @@ describe('ApprovalsView', () => {
     expect(cards()).toHaveLength(1);
     expect([...container.querySelectorAll('a')].some(link => link.textContent === 'Open board')).toBe(false);
     expect(apiClient.post).not.toHaveBeenCalled();
-    expect(badge()).toBe(1);
+    expect(badge()).toBe(0);
   });
 
   it('opens the ticket, or the chat through the dialog-open seam, from the card title', async () => {
@@ -316,13 +338,15 @@ describe('ApprovalsView', () => {
     expect(markRead).toHaveBeenCalledWith('n-1');
 
     // Rejected in the chat (any surface records it through the same mutation).
+    server.dialogs = server.dialogs.filter(dialog => (dialog as { dialogId: string }).dialogId !== 'd-2');
     act(() => noteApprovalDecision('ar-2', false));
     expect(cardTitled('Chat d-2')).toBeNull();
+    await settle();
     expect(badge()).toBe(1);
   });
 
   it('loads the next page on its own as the end of the list shows — no paging buttons', async () => {
-    // The lane's first page holds a ticket with no approval; the next one holds one.
+    // The first page adds no card (here a ticket whose request is gone); the next one does.
     server.tickets = [{ ...techTicket('t-4', 'unused'), pendingApproval: null }];
     server.olderTickets = [techTicket('t-5', 'ar-t5')];
     await renderPage();

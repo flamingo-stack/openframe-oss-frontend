@@ -6,15 +6,10 @@ import { useMemo } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
-import type { DialogConnection, DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
+import { GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
+import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { keepCreatedDialogs } from '../utils/insert-new-dialog';
-import {
-  isMissingPendingApprovalError,
-  notePendingApprovalUnsupported,
-  pendingApprovalSupported,
-} from '../utils/pending-approval-support';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 
@@ -29,6 +24,9 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
  * its own page.
  */
 export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
+
+/** The chat lists' order: the chat with the latest message first. The cursor follows it. */
+export const DIALOGS_BY_LAST_ACTIVITY = { field: 'lastActivityAt', direction: 'DESC' } as const;
 
 /**
  * A dialog as the lib's list rows and header read it. Also the open conversation's
@@ -51,7 +49,7 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
     // until it lands the dialog has no title — show a provisional name, not an
     // error-looking "Untitled Dialog".
     title: dialog.title || 'New Chat',
-    timestamp: new Date(dialog.createdAt),
+    timestamp: new Date(dialog.lastActivityAt ?? dialog.createdAt),
     unreadMessagesCount: unreadCount,
     owner: dialog.owner?.userId
       ? {
@@ -99,23 +97,16 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         first: limit,
         after: pageParam,
         search,
+        sort: DIALOGS_BY_LAST_ACTIVITY,
       };
 
-      const fetchDialogs = async (queryText: string) =>
-        extractGraphQlData(await apiClient.post<DialogsResponse>('/chat/graphql', { query: queryText, variables }))
-          .dialogs;
-      // Each row's pending approval rides along, unless this backend does not serve the
-      // field: then the list loads without it (`pending-approval-support.ts`).
-      let dialogs: DialogConnection | null = null;
-      if (pendingApprovalSupported()) {
-        try {
-          dialogs = await fetchDialogs(GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY);
-        } catch (error) {
-          if (!isMissingPendingApprovalError(error)) throw error;
-          notePendingApprovalUnsupported();
-        }
-      }
-      const { edges, pageInfo } = dialogs ?? (await fetchDialogs(GET_MINGO_DIALOGS_QUERY));
+      // Each row's pending approval rides along, for the row status.
+      const { edges, pageInfo } = extractGraphQlData(
+        await apiClient.post<DialogsResponse>('/chat/graphql', {
+          query: GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
+          variables,
+        }),
+      ).dialogs;
       const page = { dialogs: edges.map(edge => edge.node), pageInfo };
       // A dialog created moments ago may not be in the server's answer yet; the
       // first page of an unsearched list keeps it on top until it is.

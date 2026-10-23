@@ -49,6 +49,7 @@ export function insertNewDialog(
     streamState: 'IDLE',
     pendingApproval: null,
     createdAt: new Date(now).toISOString(),
+    lastActivityAt: new Date(now).toISOString(),
     owner: owner
       ? {
           type: 'ADMIN',
@@ -68,6 +69,28 @@ export function insertNewDialog(
       ...data,
       pages: [{ ...first, dialogs: [node, ...first.dialogs] }, ...rest],
     });
+  }
+}
+
+/**
+ * Moves a dialog the user just wrote in to the top of every cached chat list that holds
+ * it, with its last activity now: the lists are ordered by last activity, and without
+ * this the chat stayed where it was until the next list read (up to a minute). The next
+ * read brings the server's order, which agrees. A list that does not hold the dialog is
+ * left alone.
+ */
+export function raiseDialog(queryClient: QueryClient, dialogId: string, now = Date.now()): void {
+  for (const [queryKey, data] of queryClient.getQueriesData<DialogsData>({ queryKey: mingoDialogQueryKeys.lists })) {
+    if (!data?.pages.length) continue;
+    const node = data.pages.flatMap(page => page.dialogs).find(dialog => dialog.dialogId === dialogId);
+    if (!node || data.pages[0].dialogs[0]?.dialogId === dialogId) continue;
+    const raised = { ...node, lastActivityAt: new Date(now).toISOString() };
+    const pages = data.pages.map(page => ({
+      ...page,
+      dialogs: page.dialogs.filter(dialog => dialog.dialogId !== dialogId),
+    }));
+    pages[0] = { ...pages[0], dialogs: [raised, ...pages[0].dialogs] };
+    queryClient.setQueryData<DialogsData>(queryKey, { ...data, pages });
   }
 }
 

@@ -33,8 +33,8 @@ const onServer = () => false;
  * keeps it running, so the list, its 60 s refresh and the live row status are the
  * session's, not a second copy. What it shows is the drawer's list as it is today —
  * active chats only, server search, My / All Chats (flipping to All when the open chat
- * is someone else's), paging with no cap, the working / approval glyphs — grouped by
- * the day each chat was created (the dialogs carry no last-activity time).
+ * is someone else's), paging with no cap, the working / approval glyphs — the chat
+ * with the latest message first, grouped by the day of that message.
  *
  * A row opens its chat page, which selects it; the selected chat stays highlighted on
  * every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —

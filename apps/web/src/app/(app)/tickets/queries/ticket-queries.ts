@@ -415,6 +415,46 @@ export const GET_BOARD_COLUMN_TICKETS_QUERY = `
   ${BOARD_CARD_TICKET_FRAGMENT}
 `;
 
+/**
+ * The tickets of one lane whose chat waits on an approval request, in the board's order:
+ * the Needs approval page reads the Tech Required lane through it. Its own document, so
+ * the board's query does not ask for `hasPendingApproval` on its behalf.
+ */
+export const GET_PENDING_APPROVAL_TICKETS_QUERY = `
+  query GetPendingApprovalTickets($statusId: ID!, $limit: Int!, $cursor: String) {
+    tickets(
+      filter: { statusIds: [$statusId], hasPendingApproval: true }
+      first: $limit
+      after: $cursor
+      sort: { field: "order", direction: ASC }
+    ) {
+      edges {
+        cursor
+        node {
+          ...BoardCardTicket
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      filteredCount
+    }
+  }
+  ${BOARD_CARD_TICKET_FRAGMENT}
+`;
+
+/** How many tickets of one lane wait on an approval request: the sidebar badge's share. */
+export const GET_PENDING_APPROVAL_TICKETS_COUNT_QUERY = `
+  query GetPendingApprovalTicketsCount($statusId: ID!) {
+    tickets(filter: { statusIds: [$statusId], hasPendingApproval: true }, first: 1) {
+      filteredCount
+    }
+  }
+`;
+
 export const GET_TICKET_STATUS_TRANSITION_RULES_QUERY = `
   query TicketStatusTransitionRules {
     ticketStatusTransitionRules {
