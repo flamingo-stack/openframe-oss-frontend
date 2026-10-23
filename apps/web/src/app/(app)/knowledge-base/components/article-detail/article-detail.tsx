@@ -1,6 +1,10 @@
 'use client';
 
-import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LoadingScope,
+  type PageActionButton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { articleDetail_article$key } from '@/__generated__/articleDetail_article.graphql';
 import { AssignedItemsView } from '@/components/assignments';
@@ -39,13 +43,13 @@ export function ArticleDetail({ article }: { article: articleDetail_article$key 
     return (
       <>
         <ArticleDetailTitle title="Article" loading actions={LOADING_ACTIONS} loadingActions />
-        <div className={BODY_CLASS}>
+        <LoadingScope className={BODY_CLASS}>
           <ArticleDetailTags article={null} />
           <ArticleDetailSummary article={null} />
           <ArticleDetailBody article={null} />
           {/* In the scope the view reads nothing: no item id yet. */}
           <AssignedItemsView itemId="" itemType="KNOWLEDGE_ARTICLE" />
-        </div>
+        </LoadingScope>
       </>
     );
   }

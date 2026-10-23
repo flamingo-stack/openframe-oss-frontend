@@ -169,7 +169,9 @@ function LiveTableShell<T>({
           <DataTable.Header
             stickyHeader={stickyHeader}
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={showRowCount && <DataTable.RowCount itemName={itemName} totalCount={totalCount} />}
+            rightSlot={
+              showRowCount && <DataTable.RowCount itemName={itemName} totalCount={totalCount} loading={loadingCells} />
+            }
             sort={sort}
             onSortChange={onSortChange}
           />

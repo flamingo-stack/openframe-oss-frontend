@@ -26,6 +26,7 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -301,11 +302,11 @@ function SoftwareDevicesTableRows({
       sort={sortState}
       onSortChange={onSortChange}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={oneLineEmptyState(
+        debouncedSearch
           ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No devices with the selected status. Try adjusting your filter.',
-      }}
+      )}
       rowHref={deviceHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}
