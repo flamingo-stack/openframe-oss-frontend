@@ -20,7 +20,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
-import { NO_ITEMS } from '@/app/components/shared';
+import { NO_ITEMS, oneLineEmptyState } from '@/app/components/shared';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { AiQuickAction } from '../types/ai-settings';
 
@@ -224,10 +224,10 @@ export function AiSettingsQuickActions({
   return (
     <div className={cn(className)}>
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={loading} />} />
         <DataTable.Body
           loadingCells={loading}
-          emptyState={{ title: 'No quick actions configured.' }}
+          emptyState={oneLineEmptyState('No quick actions configured.')}
           rowClassName="mb-1"
           skeletonRows={QUICK_ACTIONS_SKELETON_ROWS}
         />

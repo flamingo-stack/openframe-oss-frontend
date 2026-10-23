@@ -19,7 +19,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
+import { LiveSuspense, NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -274,9 +274,9 @@ export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId 
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LoadingSuspense label="Loading the script" fallback={<ScriptHeaderView scriptId={scriptId} />}>
+      <LiveSuspense label="Loading the script" view={<ScriptHeaderView scriptId={scriptId} />}>
         <ScriptHeader scriptId={scriptId} />
-      </LoadingSuspense>
+      </LiveSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <LoadingSuspense label="Loading script details" fallback={<ScriptSummaryView />}>

@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import { SectionLoadError } from '@/app/components/shared';
+import { oneLineEmptyState, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { loadErrorProps } from '@/lib/query-state';
@@ -187,18 +187,18 @@ export function Policies() {
             rowAsLink
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount />}
+            rightSlot={<DataTable.RowCount loading={isLoading} />}
             skeletonRows={PAGE_SIZE}
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No policies found." under the strip
             // above. Same rule, one component down.
-            emptyState={{
-              title: canClaimEmpty
+            emptyState={oneLineEmptyState(
+              canClaimEmpty
                 ? debouncedSearch
                   ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No policies found.'
                 : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
-            }}
+            )}
             hasMore={visibleCount < filteredPolicies.length}
             onLoadMore={handleLoadMore}
           />

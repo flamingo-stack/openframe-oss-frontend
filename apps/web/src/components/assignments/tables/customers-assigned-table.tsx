@@ -4,6 +4,7 @@ import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import { CustomersSearchInput, CustomersTableBody } from '@/app/(app)/customers/components/customers-table-columns';
 import type { Customer } from '@/app/(app)/customers/hooks/use-customers';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
 interface CustomersAssignedTableProps {
@@ -29,7 +30,7 @@ export function CustomersAssignedTable({ customers, isLoading }: CustomersAssign
       <CustomersTableBody
         customers={filtered}
         isLoading={isLoading}
-        emptyState={{ title: 'No customers assigned.' }}
+        emptyState={oneLineEmptyState('No customers assigned.')}
         skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
       />
     </div>

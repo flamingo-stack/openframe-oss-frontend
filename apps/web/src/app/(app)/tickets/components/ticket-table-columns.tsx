@@ -20,6 +20,7 @@ import {
 import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
 import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { LiveTable, type LiveTableRows, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { InfiniteScroll } from '@/app/components/shared/no-next-page';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
@@ -263,7 +264,7 @@ function TicketOpenCell({
   );
 }
 
-const DEFAULT_EMPTY_STATE: NoDataProps = { title: 'No tickets found.' };
+const DEFAULT_EMPTY_STATE = oneLineEmptyState('No tickets found.');
 
 type TicketTableBodyProps = TicketTableBodyOptions & LiveTableRows;
 

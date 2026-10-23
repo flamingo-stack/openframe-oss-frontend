@@ -3,7 +3,7 @@
 import { graphql } from 'react-relay';
 import type { softwareActionDetailViewQuery as SoftwareActionDetailViewQueryType } from '@/__generated__/softwareActionDetailViewQuery.graphql';
 import { ExecutionsTabShell } from '@/app/(app)/scripts/shared/components/executions-table';
-import { GatedSuspense, QueryIsland } from '@/app/components/shared';
+import { GatedSuspense, LiveSuspense, QueryIsland } from '@/app/components/shared';
 import { ActionDetailHeader } from './action-detail-header';
 import { ActionDetailLogs } from './action-detail-logs';
 import { ActionDetailSummary } from './action-detail-summary';
@@ -48,11 +48,11 @@ export function SoftwareActionDetailView({ actionId, loading = false }: Software
     // `ContentErrorBoundary`, so a thrown query keeps the fallback indented.
     <div className="flex w-full flex-col">
       {/* The bar stands for the title: whether this is an update or an install is the record's answer. */}
-      <GatedSuspense label="Loading action" gated={loading} view={<ActionDetailHeader action={null} />}>
+      <LiveSuspense label="Loading action" gated={loading} view={<ActionDetailHeader action={null} />}>
         <QueryIsland<SoftwareActionDetailViewQueryType> query={softwareActionDetailViewQuery} variables={variables}>
           {({ softwareAction }) => <ActionDetailHeader action={softwareAction} />}
         </QueryIsland>
-      </GatedSuspense>
+      </LiveSuspense>
 
       <div className="flex flex-1 flex-col">
         <GatedSuspense label="Loading action" gated={loading} view={<ActionDetailSummary action={null} />}>

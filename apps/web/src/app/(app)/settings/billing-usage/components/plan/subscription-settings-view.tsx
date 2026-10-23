@@ -7,7 +7,7 @@ import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
 import { GatedSuspense } from '@/app/components/shared/gated-suspense';
-import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
+import { PaywallSubtitle, PaywallTitle } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
   getPaywallCopy,
@@ -74,6 +74,8 @@ export function SubscriptionSettingsView({ loading = false }: { loading?: boolea
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
+        {/* Above the boundary: its exits keep working, and their dialogs stay open, through every wait below. */}
+        <PaywallTitle copy={copy} />
         {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
         <GatedSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
           <SubscriptionSettingsContent copy={copy} />
@@ -137,7 +139,7 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
 
   return (
     <>
-      <PaywallHeader copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
+      <PaywallSubtitle copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
 
       <PlanCheckoutCards query={data} form={form} />
 

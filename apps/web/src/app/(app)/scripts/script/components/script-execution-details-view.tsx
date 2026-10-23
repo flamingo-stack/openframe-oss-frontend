@@ -1,7 +1,6 @@
 'use client';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ExecutionSourceBadge,
   ExecutionStatusCell,
@@ -15,7 +14,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useEffect, useMemo } from 'react';
 import { fetchQuery, useLazyLoadQuery, useRelayEnvironment } from 'react-relay';
 import type { scriptExecutionDetailRelayQuery as ScriptExecutionDetailQueryType } from '@/__generated__/scriptExecutionDetailRelayQuery.graphql';
-import { noop, useRetryKey } from '@/app/components/shared';
+import { LiveSuspense, noop, useRetryKey } from '@/app/components/shared';
 import { DETAIL_CELL_CLASS, DETAIL_CELL_GAP_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -308,10 +307,10 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
   const handleBack = useSafeBack(routes.scripts.list);
 
   return (
-    <LoadingSuspense
+    <LiveSuspense
       label="Loading execution details"
       // The page before its execution: the same page, drawing itself in the loading scope.
-      fallback={
+      view={
         <ExecutionDetailsPage
           execution={null}
           isInFlight={false}
@@ -321,6 +320,6 @@ export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetai
       }
     >
       <ScriptExecutionDetailsContent executionId={executionId} />
-    </LoadingSuspense>
+    </LiveSuspense>
   );
 }
