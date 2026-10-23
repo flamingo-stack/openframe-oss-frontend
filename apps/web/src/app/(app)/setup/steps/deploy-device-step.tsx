@@ -1,20 +1,23 @@
 'use client';
 
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Chevron01DownIcon,
   Copy01Icon,
+  DotsLoaderIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useDeviceOrganizations } from '@/app/(app)/devices/hooks/use-device-organizations';
 import { useInstallCommand } from '@/app/(app)/devices/hooks/use-install-command';
+import { noop } from '@/app/components/shared/no-next-page';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
-import type { AgentInstallError } from '@/lib/native-shell';
+import { type AgentInstallError, canInstallAgentLocally } from '@/lib/native-shell';
 import { AVAILABLE_PLATFORMS, DISABLED_PLATFORMS } from '@/lib/platforms';
 import { InstallLog } from '../components/install-log';
 import { SetupHeading } from '../components/setup-heading';
@@ -23,6 +26,13 @@ import { useLocalAgentInstall } from '../hooks/use-local-agent-install';
 
 /** How long the finished checklist stays up before the wizard moves on. */
 const ADVANCE_DELAY_MS = 1_200;
+
+/** The column the step's controls stack in, at the design's 600px. */
+const BODY_CLASS = 'flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]';
+/** The box the install command sits in; the loading form draws the same box. */
+const COMMAND_BOX_CLASS =
+  'flex w-full items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)]';
+const PLATFORM_OPTIONS = AVAILABLE_PLATFORMS.map(option => ({ platformId: option.id }));
 
 /** The platform the admin is most likely enrolling first: the one they are on. */
 function detectPlatform(): OSPlatformId {
@@ -61,6 +71,13 @@ function installFailureCopy(error: AgentInstallError | null): { title: string; d
   }
 }
 
+interface DeployDeviceStepProps {
+  /** The customer created on the previous screen; null = use the default organization. */
+  organizationId: string | null;
+  /** The first device is fully enrolled; persist the step and move on. */
+  onEnrolled: (device: FirstDevice) => void;
+}
+
 /**
  * "Deploy First Device": the install command for the customer created a step
  * earlier (else the default organization), and under it the enrollment
@@ -70,16 +87,104 @@ function installFailureCopy(error: AgentInstallError | null): { title: string; d
  * In the desktop shell "Deploy on this Device" runs that same command on this
  * machine behind the OS's administrator prompt and shows what the installer
  * prints; the web has nothing to run it with and offers the copy alone.
+ *
+ * The step waits for its own reads: the organizations and the enrollment both
+ * suspend on first read, and without a boundary here the wait reached the
+ * page's, whose fallback is the welcome screen.
  */
-export function DeployDeviceStep({
-  organizationId,
-  onEnrolled,
+export function DeployDeviceStep(props: DeployDeviceStepProps) {
+  return (
+    <>
+      <SetupHeading
+        title="Deploy First Device"
+        subtitle="Run one command on a machine to connect it to OpenFrame and start monitoring."
+      />
+      {/* `contents`: the loading region must not become a box of its own in the frame's column. */}
+      <LoadingSuspense label="Loading the install command" className="contents">
+        <DeployDeviceBody {...props} />
+      </LoadingSuspense>
+    </>
+  );
+}
+
+/** In a loading scope (the boundary's fallback) the body draws its loading form and reads nothing. */
+function DeployDeviceBody(props: DeployDeviceStepProps) {
+  if (useLoadingScope()) return <DeployDeviceLoading />;
+  return <DeployDeviceForm {...props} />;
+}
+
+/** The controls under the command, and the line under them; the loading form draws them inert. */
+function DeployActions({
+  localSupported,
+  canDeployHere,
+  deploying,
+  onCopy,
+  onDeploy,
 }: {
-  /** The customer created on the previous screen; null = use the default organization. */
-  organizationId: string | null;
-  /** The first device is fully enrolled; persist the step and move on. */
-  onEnrolled: (device: FirstDevice) => void;
+  localSupported: boolean;
+  canDeployHere: boolean;
+  deploying: boolean;
+  onCopy: () => void;
+  onDeploy: () => void;
 }) {
+  return (
+    <div className="flex flex-col items-center gap-[var(--spacing-system-xs)]">
+      {localSupported ? (
+        <div className="grid w-full grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
+          <Button variant="outline" leftIcon={<Copy01Icon />} onClick={onCopy}>
+            Copy Command
+          </Button>
+          <Button
+            variant="accent"
+            onClick={onDeploy}
+            disabled={!canDeployHere || deploying}
+            loading={deploying}
+            title={canDeployHere ? undefined : 'Pick the platform this device runs on'}
+          >
+            Deploy on this Device
+          </Button>
+        </div>
+      ) : (
+        <Button variant="accent" leftIcon={<Copy01Icon />} onClick={onCopy} className="w-full">
+          Copy Command
+        </Button>
+      )}
+      <p className="text-ods-text-secondary text-h6">Deployment may take 2-3 minutes to install all agents</p>
+    </div>
+  );
+}
+
+function CommandBox({ children }: { children: ReactNode }) {
+  return <div className={COMMAND_BOX_CLASS}>{children}</div>;
+}
+
+/** The step while its reads are out: the platform it will open on, a bar for the command, the actions inert. */
+function DeployDeviceLoading() {
+  const [platform] = useState<OSPlatformId>(detectPlatform);
+  const [localSupported] = useState(canInstallAgentLocally);
+  return (
+    <div className={BODY_CLASS}>
+      <OsPlatformSelector
+        value={platform}
+        onValueChange={noop}
+        disabledPlatforms={DISABLED_PLATFORMS}
+        options={PLATFORM_OPTIONS}
+      />
+      <CommandBox>
+        <TextLineSkeleton type="code" className="min-w-0 flex-1" />
+      </CommandBox>
+      <DeployActions
+        localSupported={localSupported}
+        canDeployHere={false}
+        deploying={false}
+        onCopy={noop}
+        onDeploy={noop}
+      />
+    </div>
+  );
+}
+
+function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps) {
   const { toast } = useToast();
   const organizations = useDeviceOrganizations(100);
   const effectiveOrganizationId =
@@ -154,18 +259,14 @@ export function DeployDeviceStep({
 
   return (
     <>
-      <SetupHeading
-        title="Deploy First Device"
-        subtitle="Run one command on a machine to connect it to OpenFrame and start monitoring."
-      />
-      <div className="flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]">
+      <div className={BODY_CLASS}>
         <OsPlatformSelector
           value={platform}
           onValueChange={setPlatform}
           disabledPlatforms={DISABLED_PLATFORMS}
-          options={AVAILABLE_PLATFORMS.map(option => ({ platformId: option.id }))}
+          options={PLATFORM_OPTIONS}
         />
-        <div className="flex w-full items-start gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] py-[var(--spacing-system-sf)]">
+        <CommandBox>
           <p className={cn('min-w-0 flex-1 text-ods-text-primary text-code', expanded ? 'break-all' : 'truncate')}>
             {command}
           </p>
@@ -178,35 +279,26 @@ export function DeployDeviceStep({
           >
             <Chevron01DownIcon className={cn('size-5 transition-transform', expanded && 'rotate-180')} />
           </button>
-        </div>
-        <div className="flex flex-col items-center gap-[var(--spacing-system-xs)]">
-          {local.supported ? (
-            <div className="grid w-full grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
-              <Button variant="outline" leftIcon={<Copy01Icon />} onClick={handleCopy}>
-                Copy Command
-              </Button>
-              <Button
-                variant="accent"
-                onClick={handleDeploy}
-                disabled={!canDeployHere || deploying}
-                loading={deploying}
-                title={canDeployHere ? undefined : 'Pick the platform this device runs on'}
-              >
-                Deploy on this Device
-              </Button>
-            </div>
-          ) : (
-            <Button variant="accent" leftIcon={<Copy01Icon />} onClick={handleCopy} className="w-full">
-              Copy Command
-            </Button>
-          )}
-          <p className="text-ods-text-secondary text-h6">Deployment may take 2-3 minutes to install all agents</p>
-        </div>
-        {local.status !== 'idle' && <InstallLog lines={local.lines} running={deploying} />}
+        </CommandBox>
+        <DeployActions
+          localSupported={local.supported}
+          canDeployHere={canDeployHere}
+          deploying={deploying}
+          onCopy={handleCopy}
+          onDeploy={handleDeploy}
+        />
+        {local.status !== 'idle' && <InstallLog lines={local.lines} />}
       </div>
       {lines.length > 0 && (
         <ol className="flex flex-col items-center gap-[var(--spacing-system-xxs)]" aria-label="Deployment progress">
-          {/* Newest on top: the list grows upwards as the agent reports in. */}
+          {/* Newest on top: the list grows upwards as the agent reports in, so the
+              stage still to come shows where it will land, until the last one has. */}
+          {!enrolled && (
+            <li className="flex h-5 items-center">
+              <DotsLoaderIcon aria-hidden className="size-6 text-ods-text-secondary" />
+              <span className="sr-only">Waiting for the next stage</span>
+            </li>
+          )}
           {[...lines].reverse().map(line => (
             <li
               key={line}
