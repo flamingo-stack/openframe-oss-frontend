@@ -224,6 +224,22 @@ export function useOnboardingMutations() {
     [environment, begin, finish, setUser, onError, userId],
   );
 
+  // Fire-and-forget skip, for the tour's conversation archived while the tour
+  // is on: the user set the tour aside, and "Reset Onboarding" brings it back.
+  // No spinner and no success toast - the archive has its own. Errors toast.
+  const skipUserInBackground = useCallback(() => {
+    commitMutation<SkipUserType>(environment, {
+      mutation: skipUserOnboardingMutation,
+      variables: {},
+      onCompleted: res => {
+        setUser(toUser(res.skipUserOnboarding));
+        clearGettingStartedView(userId);
+      },
+      onError: err =>
+        toast({ title: 'Error', description: err.message || 'Failed to skip onboarding', variant: 'destructive' }),
+    });
+  }, [environment, setUser, toast, userId]);
+
   const resetUser = useCallback(
     (onDone?: () => void) => {
       begin();
@@ -259,6 +275,7 @@ export function useOnboardingMutations() {
     completeUserInBackground,
     setTourDialogInBackground,
     skipUser,
+    skipUserInBackground,
     resetUser,
     isMutating: pending > 0,
   };

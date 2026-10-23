@@ -1,5 +1,6 @@
 // Pins where "Reset Onboarding" lives: the profile menu offers it on an OSS tenant
-// (a SaaS tenant has no tour), and only when there is a finished tour to replay.
+// (a SaaS tenant's tour resets from the Mingo chat), and only when there is a
+// finished or started tour to replay.
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -83,6 +84,13 @@ describe('ProfileCard - Reset Onboarding', () => {
     expect(menuLabels()).toContain('Reset Onboarding');
   });
 
+  it('is offered for a tour in progress, so an archived tour can start over', () => {
+    useOnboardingStore.getState().setUser({ ...FINISHED_TOUR, completed: false, tourDialogId: 'd-tour' });
+    renderCard();
+
+    expect(menuLabels()).toContain('Reset Onboarding');
+  });
+
   it('is not offered on a SaaS tenant, whose tour resets from the Mingo chat', () => {
     mode.saas = true;
     useOnboardingStore.getState().setUser(FINISHED_TOUR);
@@ -93,7 +101,7 @@ describe('ProfileCard - Reset Onboarding', () => {
     expect(labels).not.toContain('Reset Onboarding');
   });
 
-  it('is not offered while the tour is still in progress', () => {
+  it('is not offered before the tour has started', () => {
     useOnboardingStore.getState().setUser({ ...FINISHED_TOUR, completed: false });
     renderCard();
 

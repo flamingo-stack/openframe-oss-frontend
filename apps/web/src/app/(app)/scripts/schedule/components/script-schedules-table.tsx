@@ -67,6 +67,7 @@ import {
   EmptyState,
   liveColumnMeta,
   onboardingGuideButton,
+  oneLineEmptyState,
   type TableDateFilter,
   useRetryKey,
 } from '@/app/components/shared';
@@ -577,11 +578,11 @@ function SchedulesTableContent({
         stickyHeaderOffset={stickyHeaderOffset}
         sort={sortState}
         onSortChange={onSortChange}
-        emptyState={{
-          title: debouncedSearch
+        emptyState={oneLineEmptyState(
+          debouncedSearch
             ? `No schedules found matching "${debouncedSearch}". Try adjusting your search.`
             : 'No schedules found. Try adjusting your filters or add a new schedule.',
-        }}
+        )}
         rowHref={scheduleRowHref}
         footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
       />

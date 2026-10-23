@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
@@ -9,7 +8,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
-import { SectionLoadError, useRetryKey } from '@/app/components/shared';
+import { LiveSuspense, SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { ConsentBlock } from '../consent/consent-block';
@@ -104,8 +103,8 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
 /** `/cloud-tenant-management/reconnect` (Figma 2108-81037): the identity card over the re-approve consent card. */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
-    <LoadingSuspense label="Loading tenant">
+    <LiveSuspense label="Loading tenant">
       <ReconnectTenantContent id={id} />
-    </LoadingSuspense>
+    </LiveSuspense>
   );
 }

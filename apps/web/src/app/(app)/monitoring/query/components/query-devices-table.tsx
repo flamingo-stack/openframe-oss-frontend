@@ -297,7 +297,7 @@ function QueryDevicesTableView({ rows, isLoading, query }: QueryDevicesTableView
       </div>
 
       <DataTable table={table}>
-        {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount />} />}
+        {showHeader && <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />}
         <DataTable.Body
           loading={isLoading}
           loadingCells={isLoading}

@@ -35,8 +35,8 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
-  // one to replay. A SaaS tenant's tour is Mingo's (onboarding v2), replayed from the
-  // chat's ⋯ menu instead.
+  // or started one to replay. A SaaS tenant's tour is Mingo's (onboarding v2), replayed
+  // from the chat's ⋯ menu instead.
   const canResetOnboarding = useCanResetOnboarding() && !isSaasTenantMode();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 

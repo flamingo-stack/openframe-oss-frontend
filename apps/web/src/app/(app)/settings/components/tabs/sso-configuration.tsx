@@ -497,7 +497,7 @@ export function SsoConfigurationTab() {
       />
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" loading={loadingRows} />} />
         <DataTable.Body
           loading={isLoading}
           loadingCells={loadingRows}

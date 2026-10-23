@@ -456,7 +456,13 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
         composerEdgeLight
       />
-      <ResetOnboardingDialog open={resetOnboardingOpen} onOpenChange={setResetOnboardingOpen} />
+      <ResetOnboardingDialog
+        open={resetOnboardingOpen}
+        onOpenChange={setResetOnboardingOpen}
+        // The tour starts over from the wizard's "Start with Mingo": this menu is
+        // on every page, so the reset takes the user there.
+        onReset={() => router.push(routes.setup)}
+      />
     </>
   );
 }

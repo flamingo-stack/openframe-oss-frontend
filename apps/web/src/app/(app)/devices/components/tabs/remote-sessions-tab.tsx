@@ -300,7 +300,7 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
             // The results count at the right edge of the header row, per the
             // mockup - counts the table's row model, so search and the
             // employee funnel both narrow it.
-            rightSlot={<DataTable.RowCount itemName="result" />}
+            rightSlot={<DataTable.RowCount itemName="result" loading={isLoading} />}
           />
         )}
         <DataTable.Body
