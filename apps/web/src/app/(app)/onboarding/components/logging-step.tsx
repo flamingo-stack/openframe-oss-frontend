@@ -174,7 +174,11 @@ export function LoggingStep({
         cell: ({ row }: { row: Row<LogRow> }) => (
           <div className="shrink-0">
             {/* A placeholder row (the table's loading form) has no status: the tag draws its loading form. */}
-            <Tag label={row.original.status?.label} variant={row.original.status?.variant} />
+            <Tag
+              label={row.original.status?.label}
+              variant={row.original.status?.variant}
+              loading={!row.original.status}
+            />
           </div>
         ),
       },
