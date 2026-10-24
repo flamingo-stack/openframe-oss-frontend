@@ -112,7 +112,9 @@ export function handleApiError(
   toast: (options: { title: string; description: string; variant: 'destructive' }) => void,
   defaultMessage: string = 'Operation failed',
 ): void {
-  const message = getErrorMessage(error);
+  const hasRelaySourceErrors =
+    Array.isArray((error as { source?: { errors?: unknown } } | null)?.source?.errors) ?? false;
+  const message = hasRelaySourceErrors ? getRelayErrorMessage(error, getErrorMessage(error)) : getErrorMessage(error);
 
   toast({
     title: defaultMessage,

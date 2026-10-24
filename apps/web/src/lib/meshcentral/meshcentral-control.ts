@@ -22,6 +22,13 @@ export class MeshControlClient {
    * callable and told the reader nothing.
    */
   private pendingRequests: Map<string, PendingRequest> = new Map();
+  /**
+   * Tracks whether a setclip/getclip request of each type is currently in
+   * flight, so a second concurrent call of the same type can be rejected
+   * outright instead of risking its response being matched to the wrong
+   * pending request when the server fails to echo a responseid.
+   */
+  private pendingClipboardTypes: Set<'setclip' | 'getclip'> = new Set();
   private activeTunnels: Array<{
     nodeId: string;
     relayId: string;
@@ -152,21 +159,29 @@ export class MeshControlClient {
         let request = msg.responseid ? this.pendingRequests.get(msg.responseid) : undefined;
 
         if (!request) {
+          // No responseid was echoed back. Only safe to fall back to a
+          // same-type match when there is exactly one pending request of
+          // this type in flight — otherwise we cannot tell which call the
+          // response belongs to, so the response is dropped rather than
+          // risking misattribution.
+          const matches: Array<[string, PendingRequest]> = [];
           for (const [key, val] of this.pendingRequests) {
             if (key.startsWith(`${msg.type}_`)) {
-              request = val;
-              if (request) {
-                clearTimeout(request.timeout);
-                this.pendingRequests.delete(key);
-              }
-              break;
+              matches.push([key, val]);
             }
+          }
+          if (matches.length === 1) {
+            const [key, val] = matches[0];
+            request = val;
+            clearTimeout(request.timeout);
+            this.pendingRequests.delete(key);
           }
         } else {
           clearTimeout(request.timeout);
           this.pendingRequests.delete(msg.responseid);
         }
         if (request) {
+          this.pendingClipboardTypes.delete(msg.type);
           if (msg.type === 'getclip') {
             request.resolve(msg.data ?? null);
           } else {
@@ -185,6 +200,7 @@ export class MeshControlClient {
       request.reject(new Error(reason));
     }
     this.pendingRequests.clear();
+    this.pendingClipboardTypes.clear();
   }
 
   private async requestAuthCookies() {
@@ -335,11 +351,21 @@ export class MeshControlClient {
   async setClipboard(nodeId: string, data: string, timeoutMs = 3000): Promise<boolean> {
     if (!this.wsManager?.isConnected()) return false;
 
+    if (this.pendingClipboardTypes.has('setclip')) {
+      // A setClipboard call is already in flight. The server does not
+      // reliably echo responseid for clipboard messages, so running two of
+      // these concurrently risks the response being attributed to the wrong
+      // call. Reject this call instead of racing it.
+      return false;
+    }
+
     const responseid = `setclip_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    this.pendingClipboardTypes.add('setclip');
 
     return new Promise<boolean>(resolve => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(responseid);
+        this.pendingClipboardTypes.delete('setclip');
         resolve(false);
       }, timeoutMs);
 
@@ -354,6 +380,7 @@ export class MeshControlClient {
       } catch {
         clearTimeout(timeout);
         this.pendingRequests.delete(responseid);
+        this.pendingClipboardTypes.delete('setclip');
         resolve(false);
       }
     });
@@ -362,11 +389,19 @@ export class MeshControlClient {
   async getClipboard(nodeId: string, timeoutMs = 3000): Promise<string | null> {
     if (!this.wsManager?.isConnected()) return null;
 
+    if (this.pendingClipboardTypes.has('getclip')) {
+      // See setClipboard: avoid racing two getclip requests whose responses
+      // cannot be reliably distinguished without a responseid.
+      return null;
+    }
+
     const responseid = `getclip_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    this.pendingClipboardTypes.add('getclip');
 
     return new Promise<string | null>(resolve => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(responseid);
+        this.pendingClipboardTypes.delete('getclip');
         resolve(null);
       }, timeoutMs);
 
@@ -381,6 +416,7 @@ export class MeshControlClient {
       } catch {
         clearTimeout(timeout);
         this.pendingRequests.delete(responseid);
+        this.pendingClipboardTypes.delete('getclip');
         resolve(null);
       }
     });

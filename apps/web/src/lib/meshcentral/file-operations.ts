@@ -14,6 +14,9 @@ export class FileDeleteError extends Error {}
 /** The agent did not answer in time. The tunnel can still report itself as open. */
 export class FileOperationTimeoutError extends Error {}
 
+/** A caller-supplied path/segment contained a traversal component (e.g. '..'). */
+export class PathTraversalError extends Error {}
+
 export class FileOperations {
   private requestIdCounter = 0;
 
@@ -28,7 +31,14 @@ export class FileOperations {
     return '/';
   }
 
+  private assertNoTraversal(segment: string): void {
+    if (!this.validatePath(segment)) {
+      throw new PathTraversalError(`Path segment "${segment}" is not allowed`);
+    }
+  }
+
   joinPath(base: string, segment: string): string {
+    this.assertNoTraversal(segment);
     const sanitizedSegment = segment.replace(/^[\\/]+/, '');
 
     if (!base || base === '') {
@@ -68,6 +78,8 @@ export class FileOperations {
   }
 
   createRenameRequest(path: string, oldName: string, newName: string): FileOperationRequest {
+    this.assertNoTraversal(oldName);
+    this.assertNoTraversal(newName);
     return {
       action: 'rename',
       reqid: this.generateRequestId(),
@@ -109,6 +121,9 @@ export class FileOperations {
   }
 
   createCopyRequest(sourcePath: string, destinationPath: string, fileNames: string[]): FileOperationRequest {
+    for (const name of fileNames) {
+      this.assertNoTraversal(name);
+    }
     return {
       action: 'copy',
       reqid: this.generateRequestId(),
@@ -119,6 +134,9 @@ export class FileOperations {
   }
 
   createMoveRequest(sourcePath: string, destinationPath: string, fileNames: string[]): FileOperationRequest {
+    for (const name of fileNames) {
+      this.assertNoTraversal(name);
+    }
     return {
       action: 'move',
       reqid: this.generateRequestId(),
@@ -166,6 +184,7 @@ export class FileOperations {
   }
 
   createGetFileRequest(path: string, fileName: string): FileOperationRequest {
+    this.assertNoTraversal(fileName);
     return {
       action: 'get',
       reqid: this.generateRequestId(),
@@ -175,6 +194,7 @@ export class FileOperations {
   }
 
   createSetFileRequest(path: string, fileName: string, content: string): FileOperationRequest {
+    this.assertNoTraversal(fileName);
     const base64Content = btoa(content);
     return {
       action: 'set',
@@ -235,7 +255,7 @@ export class FileOperations {
   }
 
   validatePath(path: string): boolean {
-    const segments = path.split('/');
+    const segments = path.split(/[\\/]/);
     for (const segment of segments) {
       if (segment === '..' || segment === '.') {
         return false;

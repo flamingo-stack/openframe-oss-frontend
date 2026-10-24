@@ -10,7 +10,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchQuery, graphql, useMutation, useRelayEnvironment } from 'react-relay';
 import type { useSoftwareActionSubmitActionQuery as ActionQueryType } from '@/__generated__/useSoftwareActionSubmitActionQuery.graphql';
 import type { useSoftwareActionSubmitMutation as SubmitMutationType } from '@/__generated__/useSoftwareActionSubmitMutation.graphql';
@@ -90,6 +90,15 @@ export function useSoftwareActionSubmit(
   // The submit has answered but the page has not left yet: the button stays
   // busy through the lookup that decides where to, rather than re-arming.
   const [isLeaving, setLeaving] = useState(false);
+  // Guards the in-flight lookup's callbacks against firing after the form unmounts.
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fail = (title: string, description: string) => {
     toast({ title, description, variant: 'destructive' });
@@ -115,18 +124,23 @@ export function useSoftwareActionSubmit(
   /** One run of one package: its page if the row exists by now, the list otherwise. */
   const leaveForRun = (executionId: string) => {
     setLeaving(true);
-    fetchQuery<ActionQueryType>(
+    const subscription = fetchQuery<ActionQueryType>(
       environment,
       actionQuery,
       { id: executionId },
       { fetchPolicy: 'network-only' },
     ).subscribe({
       next: data => {
+        if (!isMountedRef.current) return;
         router.push(data.softwareAction ? routes.software.action(data.softwareAction.id) : routes.software.actions);
       },
       // The run started either way; the list is where it will show up.
-      error: () => router.push(routes.software.actions),
+      error: () => {
+        if (!isMountedRef.current) return;
+        router.push(routes.software.actions);
+      },
     });
+    return subscription;
   };
 
   const submit = (form: SoftwareActionForm) => {

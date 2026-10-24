@@ -258,12 +258,14 @@ class ApiClient {
       // Parse response
       let data: T | undefined;
       const contentType = response.headers.get('content-type');
+      let jsonParseFailed = false;
 
       if (contentType?.includes('application/json')) {
         try {
           data = await response.json();
         } catch (error) {
           console.error('[API Client] Failed to parse JSON response:', error);
+          jsonParseFailed = true;
         }
       }
 
@@ -272,13 +274,18 @@ class ApiClient {
       if (!response.ok) {
         const errorData = data as { message?: string; error?: string } | undefined;
         errorMessage = errorData?.message || errorData?.error || `Request failed with status ${response.status}`;
+      } else if (jsonParseFailed) {
+        // The response declared JSON and reported success, but the body could not
+        // be parsed — treat this as a failed request rather than handing callers
+        // `ok: true` with `data: undefined`.
+        errorMessage = 'Failed to parse response body';
       }
 
       return {
         data,
         error: errorMessage,
         status: response.status,
-        ok: response.ok,
+        ok: response.ok && !jsonParseFailed,
       };
     } catch (error) {
       // Aborted requests should never trigger auth refresh or logout
@@ -357,3 +364,4 @@ const apiClient = new ApiClient();
 // Export instance and class
 export { apiClient, ApiClient };
 export type { ApiResponse, ApiRequestOptions };
+
