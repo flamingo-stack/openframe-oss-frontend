@@ -177,10 +177,8 @@ const NOT_FOUND_CODES: ReadonlySet<string> = new Set([
   'REMOTE_SESSION_NOT_FOUND',
 ]);
 
-/** The server's page ceiling; the tab filters and sorts on the client, so it reads the device's whole history. */
+/** A single server page; the tab reads this one page at a time instead of walking the device's whole history. */
 const PAGE_SIZE = 100;
-/** A device with more sessions than this shows the newest ones. */
-const MAX_PAGES = 10;
 
 const RECORDING_STATES: Record<RemoteSessionRecordingState, RecordingState> = {
   [RemoteSessionRecordingState.NONE]: 'none',
@@ -334,23 +332,22 @@ function forgetSession(sessionId: string): void {
 export class SessionRecordingsApiService implements ISessionRecordingsService {
   readonly canDelete = true;
 
-  async list(deviceId: string): Promise<RecordingSummary[]> {
-    const rows: RecordingSummary[] = [];
-    let after: string | null = null;
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const data: ListQuery['response'] | undefined = await fetchQuery<ListQuery>(
-        getRelayEnvironment(),
-        listQuery,
-        { deviceId, first: PAGE_SIZE, after },
-        { fetchPolicy: 'network-only' },
-      ).toPromise();
-      const connection: ListQuery['response']['remoteSessions'] | undefined = data?.remoteSessions;
-      if (!connection) break;
-      for (const edge of connection.edges) rows.push(fromWireSession(readSession(edge.node)));
-      if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) break;
-      after = connection.pageInfo.endCursor;
-    }
-    return rows;
+  /**
+   * One page of the device's most recent remote sessions. The Remote
+   * Sessions tab paginates (or asks for another page) rather than this
+   * service walking every page up front, so a device's history of any size
+   * is never silently truncated.
+   */
+  async list(deviceId: string, after: string | null = null): Promise<RecordingSummary[]> {
+    const data: ListQuery['response'] | undefined = await fetchQuery<ListQuery>(
+      getRelayEnvironment(),
+      listQuery,
+      { deviceId, first: PAGE_SIZE, after },
+      { fetchPolicy: 'network-only' },
+    ).toPromise();
+    const connection: ListQuery['response']['remoteSessions'] | undefined = data?.remoteSessions;
+    if (!connection) return [];
+    return connection.edges.map(edge => fromWireSession(readSession(edge.node)));
   }
 
   async get(recordingId: string): Promise<RecordingDetail> {
