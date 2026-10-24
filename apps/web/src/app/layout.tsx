@@ -24,6 +24,7 @@ import { GoogleTagManager } from './components/google-tag-manager';
 import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
+import { ParentDomainSessionCleanup } from './components/parent-domain-session-cleanup';
 import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
 import { HydratorBoundary } from './components/shared/hydrator-boundary';
 import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
@@ -124,6 +125,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
+        <ParentDomainSessionCleanup />
         <GoogleTagManager />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />
