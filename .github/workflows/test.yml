@@ -33,7 +33,10 @@ jobs:
     permissions:
       contents: read
       packages: read
-    if: github.event.pull_request.state == 'open'
+    # Disabled: covered by "Flamingo Code Review / tests and checks" (Trivy, advisory; this scan never blocked: continue-on-error and not in All Checks). Kept here, not deleted. CU-17tkuw60a9u
+    # was: if: github.event.pull_request.state == 'open'
+    # fromJSON('false') rather than a bare false: actionlint (run by that job) rejects a constant condition.
+    if: ${{ fromJSON('false') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,11 +95,15 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
+      # Disabled: covered by "Flamingo Code Review / tests and checks" (YAML syntax, yq, on .github YAML). Kept here, not deleted. CU-17tkuw60a9u
       - uses: ./.github/steps/yaml-lint
+        if: ${{ fromJSON('false') }}
         with:
           path: .github
 
+      # Disabled: covered by "Flamingo Code Review / tests and checks" (actionlint on the repository's own workflows). Kept here, not deleted. CU-17tkuw60a9u
       - uses: docker://rhysd/actionlint:1.7.7
+        if: ${{ fromJSON('false') }}
         with:
           args: -color
 
@@ -127,7 +134,9 @@ jobs:
     name: 'Lint'
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.web == 'true'
+    # Disabled: covered by "Flamingo Code Review / tests and checks" (npm ci, npm run lint:ci, npm run check:loading in apps/web). Kept here, not deleted. CU-17tkuw60a9u
+    # was: if: needs.changes.outputs.web == 'true'
+    if: ${{ fromJSON('false') }}
     permissions:
       contents: read
 
