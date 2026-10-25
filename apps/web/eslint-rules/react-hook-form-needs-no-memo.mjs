@@ -99,3 +99,4 @@ export const reactHookFormNeedsNoMemo = {
 const openframePlugin = { rules: { 'react-hook-form-needs-no-memo': reactHookFormNeedsNoMemo } };
 
 export default openframePlugin;
+// probe: CU-17tkuw60a9u tests and checks job (do not merge)
