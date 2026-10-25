@@ -1,8 +1,8 @@
 /**
  * The log key is optional in the install command, so the hook answers with
- * the key or with nothing: a tenant without one (404) or any other failure
- * leaves the flag out on the first answer, without a toast and without
- * retrying.
+ * the key or with nothing, never with a toast. A 4xx (the 404 of a tenant
+ * without a key) is the answer, asked once; no answer or a 5xx is retried, so
+ * a blip at mount does not drop the key for the whole visit.
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({
 }));
 
 const QUERY_KEY = ['agent', 'log-key'];
+const SERVED = { ok: true, status: 200, data: { key: 'log-1', createdAt: '2026-10-22T15:43:49Z' } };
 
 function Probe() {
   return <span>{useAgentLogKey() ?? 'none'}</span>;
@@ -55,8 +56,9 @@ beforeEach(() => {
   spies.get.mockReset();
   spies.toast.mockReset();
   container = document.createElement('div');
-  // The library's defaults (three retries), so the hook's own retry setting is what's under test.
-  queryClient = new QueryClient();
+  // The library's default of three retries, so the hook's own retry setting is what's under test;
+  // no delay between them, so the test does not wait the real backoff out.
+  queryClient = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
 });
 
 afterEach(() => {
@@ -66,11 +68,7 @@ afterEach(() => {
 
 describe('useAgentLogKey', () => {
   it('answers with the key the endpoint serves', async () => {
-    spies.get.mockResolvedValue({
-      ok: true,
-      status: 200,
-      data: { key: 'log-1', createdAt: '2026-10-22T15:43:49Z' },
-    });
+    spies.get.mockResolvedValue(SERVED);
     mount();
 
     await until(() => expect(container.textContent).toBe('log-1'));
@@ -80,16 +78,34 @@ describe('useAgentLogKey', () => {
   it.each([
     ['the tenant has no log key yet', { ok: false, status: 404, error: 'Agent log key not found' }],
     ['the request is refused', { ok: false, status: 403, error: 'Forbidden' }],
-    ['the server fails', { ok: false, status: 500, error: 'Internal Server Error' }],
-    ['the network is down', { ok: false, status: 0, error: 'Network error' }],
-  ])('answers with nothing, at once and without a toast, when %s', async (_, response) => {
+  ])('answers with nothing, asked once and without a toast, when %s', async (_, response) => {
     spies.get.mockResolvedValue(response);
     mount();
 
-    // Settles on the first failure: with retries it would still be pending here.
-    await until(() => expect(queryClient.getQueryState(QUERY_KEY)?.status).toBe('error'));
+    await until(() => expect(queryClient.getQueryState(QUERY_KEY)?.status).toBe('success'));
     expect(spies.get).toHaveBeenCalledTimes(1);
     expect(container.textContent).toBe('none');
     expect(spies.toast).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the server fails', { ok: false, status: 500, error: 'Internal Server Error' }],
+    ['the network is down', { ok: false, status: 0, error: 'Network error' }],
+  ])('tries twice more, then answers with nothing and without a toast, when %s', async (_, response) => {
+    spies.get.mockResolvedValue(response);
+    mount();
+
+    await until(() => expect(queryClient.getQueryState(QUERY_KEY)?.status).toBe('error'));
+    expect(spies.get).toHaveBeenCalledTimes(3);
+    expect(container.textContent).toBe('none');
+    expect(spies.toast).not.toHaveBeenCalled();
+  });
+
+  it('still answers with the key when a retry after a blip gets it', async () => {
+    spies.get.mockResolvedValueOnce({ ok: false, status: 503, error: 'Service Unavailable' }).mockResolvedValue(SERVED);
+    mount();
+
+    await until(() => expect(container.textContent).toBe('log-1'));
+    expect(spies.get).toHaveBeenCalledTimes(2);
   });
 });
