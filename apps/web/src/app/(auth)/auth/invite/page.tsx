@@ -79,6 +79,7 @@ export default function InvitePage() {
   return (
     // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
     // stands in until the URL (the invitation id) is read.
+    // loading-standard-ok(PAGE_BOUNDARY): the read decides the whole screen (an invalid invitation is a modal, no shell)
     <LoadingSuspense
       label="Loading your invitation"
       fallback={<InviteView form={{ loading: true, ssoProvidersLoading: true }} />}

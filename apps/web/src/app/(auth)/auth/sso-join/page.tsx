@@ -42,11 +42,12 @@ import { routes } from '@/lib/routes';
  */
 export default function SsoJoinPage() {
   return (
-    // `useSearchParams` bails out to the client during the static prerender: the card, in a loading scope, stands in.
-    <LoadingSuspense
-      label="Loading your account"
-      fallback={
-        <SsoJoinCardLayout>
+    // The layout renders at once. `useSearchParams` bails out to the client during the static prerender: only the
+    // card waits, standing in empty, in a loading scope.
+    <SsoJoinCardLayout>
+      <LoadingSuspense
+        label="Loading your account"
+        fallback={
           <SsoJoinCard
             pending={null}
             agreedToTerms={false}
@@ -56,11 +57,11 @@ export default function SsoJoinPage() {
             termsUrl={TERMS_URL}
             privacyPolicyUrl={PRIVACY_POLICY_URL}
           />
-        </SsoJoinCardLayout>
-      }
-    >
-      <SsoJoinContent />
-    </LoadingSuspense>
+        }
+      >
+        <SsoJoinContent />
+      </LoadingSuspense>
+    </SsoJoinCardLayout>
   );
 }
 
@@ -138,22 +139,20 @@ function SsoJoinContent() {
   const mobileLoginOnly = mobileReturn !== null && isMobileAuthLoginOnly();
 
   return (
-    <SsoJoinCardLayout>
-      <SsoJoinCard
-        pending={pending}
-        // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
-        // person is joining an organization that already exists. The label leaves the name out: the
-        // identity row above shows it, and a long one pushed the button past the card.
-        submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
-        termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
-        agreedToTerms={agreedToTerms}
-        onAgreedToTermsChange={setAgreedToTerms}
-        onSubmit={handleSubmit}
-        onBack={handleBack}
-        loading={isNavigating}
-        termsUrl={TERMS_URL}
-        privacyPolicyUrl={PRIVACY_POLICY_URL}
-      />
-    </SsoJoinCardLayout>
+    <SsoJoinCard
+      pending={pending}
+      // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
+      // person is joining an organization that already exists. The label leaves the name out: the
+      // identity row above shows it, and a long one pushed the button past the card.
+      submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
+      termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
+      agreedToTerms={agreedToTerms}
+      onAgreedToTermsChange={setAgreedToTerms}
+      onSubmit={handleSubmit}
+      onBack={handleBack}
+      loading={isNavigating}
+      termsUrl={TERMS_URL}
+      privacyPolicyUrl={PRIVACY_POLICY_URL}
+    />
   );
 }

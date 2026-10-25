@@ -1,11 +1,11 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
+import { NO_ITEMS } from '@/app/components/shared';
 import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -106,9 +106,9 @@ export function InitialSetupCard() {
   }
 
   return (
-    <GatedSuspense bare gated={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
+    <LoadingSuspense bare gated={inScope} label="Loading setup steps" fallback={<InitialSetupCardView />}>
       <InitialSetupCardContent />
-    </GatedSuspense>
+    </LoadingSuspense>
   );
 }
 

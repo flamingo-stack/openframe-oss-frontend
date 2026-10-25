@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -9,7 +10,6 @@ import type {
   billingUsageContentQuery as BillingUsageContentQueryType,
   billingUsageContentQuery$data,
 } from '@/__generated__/billingUsageContentQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { noop } from '@/app/components/shared/no-next-page';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
@@ -66,13 +66,13 @@ const billingUsageContentQuery = graphql`
  */
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
   return (
-    <GatedSuspense
+    <LoadingSuspense
       gated={loading}
       label="Loading billing and usage"
-      view={<BillingUsageScreen data={null} onRefetch={noop} />}
+      fallback={<BillingUsageScreen data={null} onRefetch={noop} />}
     >
       <BillingUsageQuery />
-    </GatedSuspense>
+    </LoadingSuspense>
   );
 }
 

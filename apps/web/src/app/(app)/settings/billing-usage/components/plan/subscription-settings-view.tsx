@@ -1,12 +1,12 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { PaywallSubtitle, PaywallTitle } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
@@ -77,9 +77,9 @@ export function SubscriptionSettingsView({ loading = false }: { loading?: boolea
         {/* Above the boundary: its exits keep working, and their dialogs stay open, through every wait below. */}
         <PaywallTitle copy={copy} />
         {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
-        <GatedSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
+        <LoadingSuspense gated={loading} label="Loading plans" fallback={<PaywallBody copy={copy} query={null} />}>
           <SubscriptionSettingsContent copy={copy} />
-        </GatedSuspense>
+        </LoadingSuspense>
       </ErrorBoundary>
     </PageLayout>
   );

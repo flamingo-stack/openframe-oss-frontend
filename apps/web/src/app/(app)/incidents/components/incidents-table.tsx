@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, UnifiedSkeleton, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -38,14 +38,7 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
-import {
-  EmptyState,
-  GatedSuspense,
-  liveColumnMeta,
-  NO_ITEMS,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -760,7 +753,7 @@ function IncidentsList({
         </div>
       )}
 
-      <GatedSuspense bare gated={scoped} label="Loading incidents" view={loadingTable}>
+      <LoadingSuspense bare gated={scoped} label="Loading incidents" fallback={loadingTable}>
         <IncidentsTableContent
           backendFilters={deferredFilters}
           debouncedSearch={deferredSearch}
@@ -777,7 +770,7 @@ function IncidentsList({
           refreshKey={refreshKey}
           emptyState={emptyState}
         />
-      </GatedSuspense>
+      </LoadingSuspense>
     </div>
   );
 }

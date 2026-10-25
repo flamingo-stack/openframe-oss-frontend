@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   buildDevicePanelActions,
   type DeviceFilterInput,
@@ -34,7 +35,6 @@ import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
-import { GatedSuspense } from '../gated-suspense';
 import { NO_ITEMS } from '../no-next-page';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
@@ -405,9 +405,9 @@ export function DevicesPanel(props: DevicesPanelProps) {
         </PageLayout>
       )}
     >
-      <GatedSuspense bare gated={inScope} label="Loading devices" view={pending}>
+      <LoadingSuspense bare gated={inScope} label="Loading devices" fallback={pending}>
         <DevicesPanelContent {...props} />
-      </GatedSuspense>
+      </LoadingSuspense>
     </ContentErrorBoundary>
   );
 }

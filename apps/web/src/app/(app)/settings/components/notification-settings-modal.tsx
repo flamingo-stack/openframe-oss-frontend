@@ -1,10 +1,10 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   LoadingItems,
-  LoadingWhen,
   ModalV2,
   ModalV2Content,
   ModalV2Footer,
@@ -14,7 +14,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { graphql, useLazyLoadQuery, useMutation } from 'react-relay';
 import type { notificationSettingsModalMutation as SettingsMutation } from '@/__generated__/notificationSettingsModalMutation.graphql';
 import type {
@@ -106,17 +106,15 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
       <ModalV2Header>
         <ModalV2Title>Notifications</ModalV2Title>
       </ModalV2Header>
-      {/* A bare scope (no element), so Cancel stays live while the settings load and the content and footer stay the
-          panel's own flex children. `LoadingFallback` would wrap both in its region's `div` and break that layout. */}
-      <Suspense
-        fallback={
-          <LoadingWhen loading>
-            <NotificationSettingsFormView settings={null} onClose={onClose} />
-          </LoadingWhen>
-        }
+      {/* A live wait (a bare scope, no element), so Cancel stays live while the settings load and the content and
+          footer stay the panel's own flex children. */}
+      <LoadingSuspense
+        live
+        label="Loading notification settings"
+        fallback={<NotificationSettingsFormView settings={null} onClose={onClose} />}
       >
         <NotificationSettingsForm onClose={onClose} />
-      </Suspense>
+      </LoadingSuspense>
     </ModalV2>
   );
 }

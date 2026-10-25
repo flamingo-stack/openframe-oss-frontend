@@ -1,9 +1,10 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
-import { LiveSuspense, NO_ITEMS, type SelectableTag, TagFilterBar, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, type SelectableTag, TagFilterBar, useRetryKey } from '@/app/components/shared';
 import { scriptTagsRelayFilterQuery } from '@/graphql/scripts/script-tags-relay';
 
 const SEARCH_PLACEHOLDER = 'Search for Scripts';
@@ -33,9 +34,9 @@ interface ScriptsTagFilterProps {
  */
 export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
   return (
-    <LiveSuspense label="Loading script tags" view={<ScriptsTagFilterBar {...props} tags={NO_ITEMS} />}>
+    <LoadingSuspense live label="Loading script tags" fallback={<ScriptsTagFilterBar {...props} tags={NO_ITEMS} />}>
       <ScriptsTagFilterContent {...props} />
-    </LiveSuspense>
+    </LoadingSuspense>
   );
 }
 

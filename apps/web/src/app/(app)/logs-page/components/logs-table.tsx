@@ -1,6 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -40,7 +41,6 @@ import {
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   type EmptyStateProps,
-  GatedSuspense,
   NO_ITEMS,
   onboardingGuideButton,
   type TableDateFilter,
@@ -560,7 +560,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       hideSearch={isEmpty}
       onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      <GatedSuspense bare gated={scoped} label="Loading logs" view={loadingTable}>
+      <LoadingSuspense bare gated={scoped} label="Loading logs" fallback={loadingTable}>
         <LogsTableContent
           deviceScoped={deviceScoped}
           organizationLocked={Boolean(organizationId)}
@@ -575,7 +575,7 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
           mobileFilterOpen={mobileFilterOpen}
           onMobileFilterClose={() => setMobileFilterOpen(false)}
         />
-      </GatedSuspense>
+      </LoadingSuspense>
     </LogsPageView>
   );
 });

@@ -2,7 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useSearchParams } from 'next/navigation';
-import { AuthErrorScreen } from '../components/auth-error-screen';
+import { AuthErrorDescription, AuthErrorScreen } from '../components/auth-error-screen';
 import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
 
 /**
@@ -13,11 +13,15 @@ import { useAuthErrorMessage } from '../hooks/use-auth-error-message';
  */
 export default function AuthErrorPage() {
   return (
-    // `useSearchParams` bails out to the client during the static prerender: the screen itself, in a loading scope,
-    // stands in until the URL is read.
-    <LoadingSuspense label="Loading the error details" fallback={<AuthErrorScreen />}>
-      <AuthErrorFromUrl />
-    </LoadingSuspense>
+    <AuthErrorScreen
+      description={
+        // `useSearchParams` bails out to the client during the static prerender: only the description waits for the
+        // URL (the screen's title and its ways out render at once), and announces itself.
+        <LoadingSuspense status={false} fallback={<AuthErrorDescription />}>
+          <AuthErrorFromUrl />
+        </LoadingSuspense>
+      }
+    />
   );
 }
 
@@ -25,5 +29,5 @@ function AuthErrorFromUrl() {
   const searchParams = useSearchParams();
   const { description, isLoading } = useAuthErrorMessage(searchParams.get('ref'));
 
-  return <AuthErrorScreen description={isLoading ? undefined : description} />;
+  return <AuthErrorDescription text={isLoading ? undefined : description} />;
 }

@@ -25,28 +25,23 @@ const EMPTY_RESET_FORM = {
 } satisfies ResetFormProps;
 
 /**
- * The password reset screen: the shell, its Back to login footer and the form. One view for the loaded page and the
- * Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ * The password reset screen: the shell and its Back to login footer render at once; only the form waits for the URL
+ * (the reset token). `useSearchParams` bails out to the client during the static prerender, so the form stands in
+ * empty and inert, in a loading scope, until the token is read.
  */
-function PasswordResetView({ form, onBack = noop }: { form?: Partial<ResetFormProps>; onBack?: () => void }) {
+export default function PasswordResetPage() {
+  const router = useRouter();
+  const handleBack = () => router.push('/auth');
   return (
-    <BackToLoginShell onBack={onBack}>
-      <PasswordResetForm {...EMPTY_RESET_FORM} {...form} />
+    <BackToLoginShell onBack={handleBack}>
+      <LoadingSuspense label="Loading password reset" fallback={<PasswordResetForm {...EMPTY_RESET_FORM} />}>
+        <PasswordResetContent onBack={handleBack} />
+      </LoadingSuspense>
     </BackToLoginShell>
   );
 }
 
-export default function PasswordResetPage() {
-  return (
-    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
-    // stands in until the URL (the reset token) is read.
-    <LoadingSuspense label="Loading password reset" fallback={<PasswordResetView />}>
-      <PasswordResetContent />
-    </LoadingSuspense>
-  );
-}
-
-function PasswordResetContent() {
+function PasswordResetContent({ onBack: handleBack }: { onBack: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -66,8 +61,6 @@ function PasswordResetContent() {
       router.push('/auth');
     }
   }, [token, router, toast]);
-
-  const handleBack = () => router.push('/auth');
 
   const handleSubmit = async () => {
     if (!token || !isValid) return;
@@ -109,17 +102,15 @@ function PasswordResetContent() {
   };
 
   return (
-    <PasswordResetView
-      onBack={handleBack}
-      form={{
-        ...pair,
-        onSubmit: handleSubmit,
-        onCancel: handleBack,
-        onBackToLogin: handleBack,
-        submitDisabled: !isValid,
-        loading: isLoading,
-        errors,
-      }}
+    <PasswordResetForm
+      {...EMPTY_RESET_FORM}
+      {...pair}
+      onSubmit={handleSubmit}
+      onCancel={handleBack}
+      onBackToLogin={handleBack}
+      submitDisabled={!isValid}
+      loading={isLoading}
+      errors={errors}
     />
   );
 }

@@ -19,7 +19,7 @@ import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import { LiveSuspense, NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -301,9 +301,9 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LiveSuspense label="Loading the schedule" view={<ScheduleHeaderView scheduleId={scheduleId} />}>
+      <LoadingSuspense live label="Loading the schedule" fallback={<ScheduleHeaderView scheduleId={scheduleId} />}>
         <ScheduleHeader scheduleId={scheduleId} />
-      </LiveSuspense>
+      </LoadingSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <LoadingSuspense
@@ -321,6 +321,7 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
             included, so a link into the Runs tab keeps its tab through the wait),
             a working tab bar instead of a placeholder, and the bodies below go on
             loading under it. */}
+        {/* loading-standard-ok(RAW_SUSPENSE): the fallback is the live strip; a loading scope would stop its bodies */}
         <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_DETAIL_TABS} />}>
           <ScheduleTabsIsland scheduleId={scheduleId} />
         </Suspense>

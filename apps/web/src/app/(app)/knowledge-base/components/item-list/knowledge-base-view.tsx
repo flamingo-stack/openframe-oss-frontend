@@ -6,7 +6,6 @@ import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/op
 import { useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
@@ -107,12 +106,13 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
         <KnowledgeBaseListTitle title={ROOT_FOLDER.name} actions={actions} />
       ) : (
         // The folder's name is read: in the scope the title draws it as its bar ('' is a read title there).
-        <LiveSuspense
+        <LoadingSuspense
+          live
           label="Loading the folder"
-          view={<KnowledgeBaseListTitle title="" backTo={routes.knowledgeBase.list} actions={actions} />}
+          fallback={<KnowledgeBaseListTitle title="" backTo={routes.knowledgeBase.list} actions={actions} />}
         >
           <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
-        </LiveSuspense>
+        </LoadingSuspense>
       )}
 
       <div className="flex flex-col" style={containerStyle}>
