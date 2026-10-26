@@ -67,6 +67,7 @@ function RemoteShellSession() {
   // (the parent detail page unmounted on navigation, clearing its own openView).
   useTrackOpenView(
     deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
+    { loading: isDeviceLoading },
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
