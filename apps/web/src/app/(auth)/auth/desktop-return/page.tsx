@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, TextSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import {
   type DesktopAuthReturn,
@@ -130,7 +130,12 @@ export default function DesktopReturnPage() {
   }
 
   const reasonLoading = serverError.isLoading;
-  const reasonText = !outcome.reason ? null : 'text' in outcome.reason ? outcome.reason.text : serverError.description;
+  const reasonText =
+    !outcome.reason || reasonLoading
+      ? undefined
+      : 'text' in outcome.reason
+        ? outcome.reason.text
+        : serverError.description;
   const { failureCode } = outcome;
 
   const copyDetails = () =>
@@ -150,16 +155,11 @@ export default function DesktopReturnPage() {
           <h1 className="text-ods-text-primary text-h2">{outcome.title}</h1>
           <p className="text-ods-text-secondary text-h4">{outcome.body}</p>
         </div>
-        {outcome.reason &&
-          (reasonLoading ? (
-            <LoadingRegion label="Loading the error details" className="flex flex-col gap-[var(--spacing-system-xsf)]">
-              <TextSkeleton.Body />
-            </LoadingRegion>
-          ) : (
-            <p className="rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-m)] text-ods-text-secondary text-h6">
-              {reasonText}
-            </p>
-          ))}
+        {outcome.reason && (
+          <div className="rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-m)]">
+            <LoadingParagraph text={reasonText} label="Loading the error details" type="h6" />
+          </div>
+        )}
         {handoff.kind !== 'none' && (
           <div className="flex flex-col gap-[var(--spacing-system-xsf)]">
             <Button type="button" variant="outline" fullWidth onClick={() => launchDesktopApp(handoff.appUrl)}>
