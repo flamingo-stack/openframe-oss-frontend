@@ -68,8 +68,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
+  // The script is being read (the form's loading scope): Mingo's context strip draws its loading row meanwhile. A
+  // script that is never found never reaches this form (the page draws "Script not found" in its place).
+  const readingScript = useLoadingScope();
   // Without the script the run config is not seeded yet: its fields are locked and show no value.
-  const loading = useLoadingScope() || !script;
+  const loading = readingScript || !script;
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -77,7 +80,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
     script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
-    { loading: loading },
+    { loading: readingScript },
   );
 
   const supportedPlatforms = useMemo(() => platformsToIds(script?.supportedPlatforms), [script?.supportedPlatforms]);
