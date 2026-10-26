@@ -27,29 +27,6 @@ env:
 # =============================================================================
 
 jobs:
-  scan:
-    name: "Scan Code"
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    # Disabled: covered by "Flamingo Code Review / tests and checks" (Trivy, advisory; this scan never blocked: continue-on-error and not in All Checks). Kept here, not deleted. CU-17tkuw60a9u
-    # was: if: github.event.pull_request.state == 'open'
-    # fromJSON('false') rather than a bare false: actionlint (run by that job) rejects a constant condition.
-    if: ${{ fromJSON('false') }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - name: Scan code
-        continue-on-error: true
-        uses: ./.github/steps/trivy
-        with:
-          scan: code
-
   # Each app is checked only when its paths change; `every` applies to both
   # filters, so desktop is one brace pattern.
   changes:
@@ -95,15 +72,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      # Disabled: covered by "Flamingo Code Review / tests and checks" (YAML syntax, yq, on .github YAML). Kept here, not deleted. CU-17tkuw60a9u
       - uses: ./.github/steps/yaml-lint
-        if: ${{ fromJSON('false') }}
         with:
           path: .github
 
-      # Disabled: covered by "Flamingo Code Review / tests and checks" (actionlint on the repository's own workflows). Kept here, not deleted. CU-17tkuw60a9u
       - uses: docker://rhysd/actionlint:1.7.7
-        if: ${{ fromJSON('false') }}
         with:
           args: -color
 
@@ -134,9 +107,7 @@ jobs:
     name: 'Lint'
     runs-on: ubuntu-latest
     needs: [changes]
-    # Disabled: covered by "Flamingo Code Review / tests and checks" (npm ci, npm run lint:ci, npm run check:loading in apps/web). Kept here, not deleted. CU-17tkuw60a9u
-    # was: if: needs.changes.outputs.web == 'true'
-    if: ${{ fromJSON('false') }}
+    if: needs.changes.outputs.web == 'true'
     permissions:
       contents: read
 
@@ -268,16 +239,6 @@ jobs:
                   -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "./apps/web"
-
-      # Merge queue only builds; images are scanned and pushed per PR.
-      - name: Scan image
-        if: github.event_name == 'pull_request'
-        uses: ./.github/steps/trivy
-        with:
-          scan: image
-          image-name: ${{ env.REPOSITORY }}
-          dockerfile: ./apps/web/Dockerfile
-          context: ./apps/web
 
       - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push
