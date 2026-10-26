@@ -1,14 +1,15 @@
 'use client';
 'use no memo';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   LoadError,
+  LoadingWhen,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,7 +24,7 @@ import {
   REMOTE_ACCESS_MODES,
   type TenantRemoteAccessPolicy,
 } from '@/app/(app)/devices/types/remote-access';
-import { InfoCell } from '@/app/components/shared/info-cell';
+import { PolicyValueCard } from '@/app/components/shared/policy-value-card';
 
 export const DEVICE_GUARDRAILS_FORM_ID = 'ai-settings-device-guardrails-form';
 
@@ -52,18 +53,13 @@ interface DeviceGuardrailsTabProps {
  * The mode card follows the access-level designs.
  */
 export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTabProps) {
-  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too.
+  // isPending, not isLoading: the query waits for the feature flags to answer, and that wait is loading too. A page's
+  // loading scope is loading as well.
   const { data: policy, isPending, error, refetch } = useTenantRemoteAccessPolicy();
+  const loading = useLoadingScope() || isPending;
 
-  if (isPending) {
-    return (
-      <LoadingRegion label="Loading remote access settings">
-        <UnifiedSkeleton className="h-20 w-full rounded-md" />
-      </LoadingRegion>
-    );
-  }
-
-  if (error || !policy) {
+  // An error is said only once the read has answered.
+  if (!loading && (error || !policy)) {
     return (
       <LoadError
         message="Couldn't load remote access settings. The service may be temporarily unavailable."
@@ -72,30 +68,37 @@ export function DeviceGuardrailsTab({ isEditMode, onSaved }: DeviceGuardrailsTab
     );
   }
 
-  return isEditMode ? (
-    <DeviceGuardrailsForm policy={policy} onSaved={onSaved} />
-  ) : (
-    <DeviceGuardrailsView policy={policy} />
-  );
-}
-
-function DeviceGuardrailsView({ policy }: { policy: TenantRemoteAccessPolicy }) {
+  // Always mounted, so nothing remounts when the read answers: the card (or, in edit mode, the form's Select) draws its
+  // own bar while loading.
   return (
-    /* Same "table-cell" card as the customer tab: 60px/12px padding on
-       mobile, 80px/16px from md (`--spacing-system-m` is that 12->16 step). */
-    <div className="flex min-h-[60px] items-center rounded-md border border-ods-border bg-ods-card px-[var(--spacing-system-m)] content-md:min-h-20">
-      <InfoCell value={REMOTE_ACCESS_MODE_META[policy.mode].label} label="Default Remote Access Permission" />
-    </div>
+    <LoadingWhen loading={loading} label="Loading remote access settings">
+      {isEditMode ? (
+        <DeviceGuardrailsForm policy={loading ? null : (policy ?? null)} onSaved={onSaved} />
+      ) : (
+        <DeviceGuardrailsPolicyCard policy={loading ? null : (policy ?? null)} />
+      )}
+    </LoadingWhen>
   );
 }
 
-function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessPolicy; onSaved: () => void }) {
+const MODE_LABEL = 'Default Remote Access Permission';
+
+/** The policy's mode as a read-only card; with no policy yet, its value is a bar. */
+function DeviceGuardrailsPolicyCard({ policy }: { policy: TenantRemoteAccessPolicy | null }) {
+  return <PolicyValueCard label={MODE_LABEL} value={policy ? REMOTE_ACCESS_MODE_META[policy.mode].label : null} />;
+}
+
+/** The mode selector; with no policy yet (in the tab's loading scope) the Select's value is a bar. */
+function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessPolicy | null; onSaved: () => void }) {
   const { toast } = useToast();
   const { mutateAsync: updatePolicy } = useUpdateTenantRemoteAccessPolicy();
 
   const form = useForm<DeviceGuardrailsFormValues>({
     resolver: zodResolver(deviceGuardrailsSchema),
-    defaultValues: { mode: policy.mode },
+    // `values`, not `defaultValues`: the form is mounted before the policy answers and takes it when it does. A later
+    // refetch keeps what the user has already changed (`keepDirtyValues`).
+    values: policy ? { mode: policy.mode } : undefined,
+    resetOptions: { keepDirtyValues: true },
   });
 
   const handleSubmit = form.handleSubmit(async values => {
@@ -119,19 +122,17 @@ function DeviceGuardrailsForm({ policy, onSaved }: { policy: TenantRemoteAccessP
         control={form.control}
         render={({ field, fieldState }) => (
           <Select value={field.value} onValueChange={field.onChange}>
-            <SelectTrigger label="Default Remote Access Permission" error={fieldState.error?.message}>
-              {/* Children override Radix's default item mirror: the closed
-                  trigger shows only the label (per the design), while the open
-                  list keeps the two-line label + description items. */}
-              <SelectValue placeholder="Select a permission">{REMOTE_ACCESS_MODE_META[field.value].label}</SelectValue>
+            <SelectTrigger label={MODE_LABEL} error={fieldState.error?.message}>
+              {/* Children override Radix's item mirror, so the closed trigger
+                  reads the label straight from the mode, not from a mounted item. */}
+              <SelectValue placeholder="Select a permission">
+                {field.value ? REMOTE_ACCESS_MODE_META[field.value].label : null}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {REMOTE_ACCESS_MODES.map(mode => (
-                <SelectItem key={mode} value={mode}>
-                  <span className="flex flex-col text-left">
-                    <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
-                    <span className="text-ods-text-secondary text-h6">{REMOTE_ACCESS_MODE_META[mode].description}</span>
-                  </span>
+                <SelectItem key={mode} value={mode} description={REMOTE_ACCESS_MODE_META[mode].description}>
+                  {REMOTE_ACCESS_MODE_META[mode].label}
                 </SelectItem>
               ))}
             </SelectContent>

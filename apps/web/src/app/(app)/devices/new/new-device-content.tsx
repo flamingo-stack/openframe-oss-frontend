@@ -2,6 +2,7 @@
 'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -22,7 +24,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { OrgAvatar } from '@/app/components/shared';
+import { NO_ITEMS, OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
@@ -33,10 +35,17 @@ import { routes } from '@/lib/routes';
 import { AdminPrivilegesWarning } from '../components/admin-privileges-warning';
 import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
-import { useDeviceOrganizations } from '../hooks/use-device-organizations';
+import { type DeviceOrganizationOption, useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
-import { REMOTE_ACCESS_MODE_META, REMOTE_ACCESS_MODES, type RemoteAccessMode } from '../types/remote-access';
+import { useOrganizationRemoteAccessPolicy } from '../hooks/use-remote-access-policy';
+import {
+  CUSTOMER_DEFAULT,
+  REMOTE_ACCESS_CHOICES,
+  type RemoteAccessChoice,
+  remoteAccessChoiceDescription,
+  remoteAccessChoiceLabel,
+} from '../types/remote-access';
 import {
   type InstallMethod,
   installMethodLabel,
@@ -49,12 +58,51 @@ const newDeviceSchema = z.object({
   organizationId: z.string().min(1, 'Customer is required'),
   platform: z.custom<OSPlatformId>(),
   installMethod: z.custom<InstallMethod>(),
-  remoteAccessMode: z.enum(REMOTE_ACCESS_MODES),
+  remoteAccessMode: z.custom<RemoteAccessChoice>(),
 });
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 
+/**
+ * The page's one form, with its own boundary: it waits whole (its organization field seeds its state), and in its
+ * scope the reader draws the form with no customers.
+ */
 export function NewDeviceContent() {
+  return (
+    <LoadingSuspense label="Loading device setup">
+      <NewDeviceContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function NewDeviceContentReader() {
+  // In a loading scope (its boundary's fallback) it reads nothing: the form over no customers, every field its own
+  // loading state.
+  if (useLoadingScope()) return <NewDeviceForm orgs={NO_ITEMS} preselectedOrgId={null} />;
+  return <NewDeviceContentLive />;
+}
+
+/**
+ * The page's data: the customers (suspends until they answer) and the customer passed by "Add Device" launched
+ * from a customer's section (`/devices/new?organizationId=<id>`), used to pre-select the dropdown.
+ */
+function NewDeviceContentLive() {
+  const preselectedOrgId = useSearchParams().get('organizationId');
+  // Organizations for the customer dropdown (GraphQL via TanStack Query).
+  const orgs = useDeviceOrganizations(100);
+  return <NewDeviceForm orgs={orgs} preselectedOrgId={preselectedOrgId} />;
+}
+
+interface NewDeviceFormProps {
+  orgs: readonly DeviceOrganizationOption[];
+  preselectedOrgId: string | null;
+}
+
+/**
+ * The form over the customers it is handed. In a loading scope it is drawn with none (every field its own loading
+ * state), so loading and loaded are one layout.
+ */
+function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
   // The remote access permission selector belongs to the next remote access
@@ -62,13 +110,6 @@ export function NewDeviceContent() {
   // hidden where only v1 is enabled.
   const remoteAccessV2 = useFeatureFlag('remote-access-v2');
   const showRemoteAccess = useRemoteAccessApprovalGate() === 'on' && remoteAccessV2;
-
-  // Customer context passed by "Add Device" launched from a customer's section
-  // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
-  const preselectedOrgId = useSearchParams().get('organizationId');
-
-  // Organizations for the customer dropdown (GraphQL via TanStack Query).
-  const orgs = useDeviceOrganizations(100);
 
   const [tags, setTags] = useState<TagEntryWithId[]>([]);
 
@@ -78,13 +119,19 @@ export function NewDeviceContent() {
       organizationId: '',
       platform: DEFAULT_OS_PLATFORM,
       installMethod: 'script',
-      remoteAccessMode: 'APPROVAL_REQUIRED',
+      remoteAccessMode: CUSTOMER_DEFAULT,
     },
   });
 
   const organizationId = useWatch({ control: form.control, name: 'organizationId' });
   const platform = useWatch({ control: form.control, name: 'platform' });
   const installMethod = useWatch({ control: form.control, name: 'installMethod' });
+  const remoteAccessChoice = useWatch({ control: form.control, name: 'remoteAccessMode' });
+
+  // What "Customer Default" resolves to for the selected customer: its own
+  // mode, else the tenant default (the server folds that into effectiveMode).
+  const organizationPolicy = useOrganizationRemoteAccessPolicy(organizationId, { enabled: showRemoteAccess });
+  const customerMode = organizationPolicy.data?.effectiveMode;
 
   const validTags = useMemo(() => {
     const seen = new Set<string>();
@@ -102,6 +149,9 @@ export function NewDeviceContent() {
     organizationId,
     platform,
     tags: validTags,
+    // Only an explicit mode goes into the command; Customer Default, and every
+    // command while the selector is hidden, stays without the flag.
+    remoteAccessMode: showRemoteAccess && remoteAccessChoice !== CUSTOMER_DEFAULT ? remoteAccessChoice : null,
   });
 
   const orgOptions: AutocompleteOption[] = useMemo(
@@ -202,8 +252,11 @@ export function NewDeviceContent() {
     >
       <div className="flex flex-col gap-6">
         {/* Mockups 504-46017/46069/46131: one column on mobile, two on tablet,
-            all four selectors in a single row on desktop. */}
-        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2 content-lg:grid-cols-4">
+            all four selectors in a single row on desktop. Desktop columns are
+            plain `1fr` (min = content), not `grid-cols-4`'s `minmax(0,1fr)`: the
+            platform tabs don't shrink, and just past the content-lg step a
+            quarter of the row is narrower than Windows + macOS. */}
+        <div className="grid grid-cols-1 gap-6 content-md:grid-cols-2 content-lg:grid-cols-[repeat(4,1fr)]">
           <Controller
             name="organizationId"
             control={form.control}
@@ -243,22 +296,14 @@ export function NewDeviceContent() {
               name="remoteAccessMode"
               control={form.control}
               render={({ field }) => (
-                // UI only for now (mockup 378-8628): wiring the choice into the
-                // install/register command is deferred with the --unattended
-                // registration-flag tasks.
                 <Select value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger label="Remote Access Permission" labelVariant="large">
-                    <SelectValue>{REMOTE_ACCESS_MODE_META[field.value as RemoteAccessMode].label}</SelectValue>
+                    <SelectValue>{remoteAccessChoiceLabel(field.value, customerMode)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {REMOTE_ACCESS_MODES.map(mode => (
-                      <SelectItem key={mode} value={mode}>
-                        <span className="flex flex-col text-left">
-                          <span>{REMOTE_ACCESS_MODE_META[mode].label}</span>
-                          <span className="text-ods-text-secondary text-h6">
-                            {REMOTE_ACCESS_MODE_META[mode].description}
-                          </span>
-                        </span>
+                    {REMOTE_ACCESS_CHOICES.map(choice => (
+                      <SelectItem key={choice} value={choice} description={remoteAccessChoiceDescription(choice)}>
+                        {remoteAccessChoiceLabel(choice, customerMode)}
                       </SelectItem>
                     ))}
                   </SelectContent>

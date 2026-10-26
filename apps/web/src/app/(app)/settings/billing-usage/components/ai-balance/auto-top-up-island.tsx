@@ -44,8 +44,15 @@ export function AutoTopUpIsland({ label, fallback, children }: AutoTopUpIslandPr
     // `null` would hand the default error card to a part whose failure is
     // nothing to show.
     <ContentErrorBoundary label={label} fallback={() => <>{fallback}</>}>
+      {/* loading-standard-ok(RAW_SUSPENSE): the fallback is the part without the arrangement, also its failure form */}
       <Suspense fallback={fallback}>
-        <QueryIsland<AutoTopUpIslandQueryType> query={autoTopUpIslandQuery} variables={{}}>
+        {/* Billing & Usage stays open on PAST_DUE while the subscription gate
+            stays shut — see `subscription-gate.ts`. */}
+        <QueryIsland<AutoTopUpIslandQueryType>
+          query={autoTopUpIslandQuery}
+          variables={{}}
+          networkCacheConfig={{ metadata: { skipSubscriptionGate: true } }}
+        >
           {data => children(toAutoTopUpStatus(data.autoTopUpSettings))}
         </QueryIsland>
       </Suspense>

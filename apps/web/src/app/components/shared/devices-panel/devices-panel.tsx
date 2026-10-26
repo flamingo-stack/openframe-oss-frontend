@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   buildDevicePanelActions,
   type DeviceFilterInput,
@@ -15,16 +16,18 @@ import {
   type PageActionButton,
   PageError,
   PageLayout,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
 import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
+import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -32,7 +35,12 @@ import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
-import { DevicesPanelSkeleton } from './devices-panel-boundaries';
+import { NO_ITEMS } from '../no-next-page';
+
+/** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
+const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
+/** The grid's filter row while the facets are out: every column with its static label, holding the row's height. */
+const PENDING_FILTER_COLUMNS = getDeviceFilterColumns(null);
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
 function renderDeviceRowActions(device: Device): ReactNode {
@@ -263,6 +271,7 @@ function DevicesPanelContent({
 
   return (
     <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
       title={title}
       backButton={backButton}
       className={cn(embedded && EMBEDDED_PAGE_OFFSET, className)}
@@ -327,8 +336,7 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // error boundary without the panel having to reach inside the content that threw.
   const searchParams = useSearchParams();
   const resetKey = searchParams.toString();
-
-  const chrome = {
+  const chrome: DevicesPanelChrome = {
     title: props.title ?? 'Devices',
     backButton: props.backButton,
     className: props.className,
@@ -366,22 +374,68 @@ export function DevicesPanel(props: DevicesPanelProps) {
         </PageLayout>
       )}
     >
-      <Suspense
-        fallback={
-          <DevicesPanelSkeleton
-            {...chrome}
-            viewMode={viewMode}
-            hideColumns={props.hideColumns}
-            hideFilters={props.hideFilters}
-            archiveHref={props.archiveHref}
-            showAddDevice={props.showAddDevice}
-            noOrganizations={props.noOrganizations}
-            isCheckingOrganizations={props.isCheckingOrganizations}
-          />
-        }
-      >
-        <DevicesPanelContent {...props} />
-      </Suspense>
+      <DevicesPanelBody panel={props} chrome={chrome} viewMode={viewMode} />
     </ContentErrorBoundary>
+  );
+}
+
+interface DevicesPanelChrome {
+  title: string;
+  backButton: DevicesPanelProps['backButton'];
+  className: DevicesPanelProps['className'];
+  offsetClassName: string | undefined;
+}
+
+interface DevicesPanelBodyProps {
+  panel: DevicesPanelProps;
+  chrome: DevicesPanelChrome;
+  viewMode: 'table' | 'grid';
+}
+
+/** The panel's content, with its own boundary: in its scope the reader draws the panel's loading state. */
+function DevicesPanelBody(props: DevicesPanelBodyProps) {
+  return (
+    <LoadingSuspense bare label="Loading devices">
+      <DevicesPanelBodyReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function DevicesPanelBodyReader(props: DevicesPanelBodyProps) {
+  if (useLoadingScope()) return <DevicesPanelPending {...props} />;
+  return <DevicesPanelContent {...props.panel} />;
+}
+
+/**
+ * The panel's loading state, drawn by the panel: in a loading scope (an outer one, or its boundary's) it is its own
+ * view in `loading`, with no query mounted. Everything here is a prop or a URL value, none of it the device
+ * query: the header buttons come from the one declaration the loaded panel reads (`buildDevicePanelActions`), the
+ * view switch reflects `?viewMode` (table and grid are different shapes), and the filter toolbar is the real one
+ * with empty tags. Only what the request answers draws its loading form: the rows.
+ */
+function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBodyProps) {
+  return (
+    <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
+      loading
+      title={chrome.title}
+      backButton={chrome.backButton}
+      className={cn(chrome.offsetClassName, chrome.className)}
+      viewMode={viewMode}
+      actions={buildDevicePanelActions({
+        archiveHref: props.archiveHref,
+        showAddDevice: props.showAddDevice,
+        noOrganizations: props.noOrganizations,
+        isCheckingOrganizations: props.isCheckingOrganizations,
+        addCustomerHref: routes.customers.new,
+        disabled: true,
+      })}
+      devices={NO_ITEMS}
+      filterColumns={PENDING_FILTER_COLUMNS}
+      // The loaded table always carries a row-actions column, and it takes real width from the others.
+      actionsColumn={PENDING_ACTIONS_COLUMN}
+      hideColumns={props.hideColumns}
+      hideFilters={props.hideFilters}
+    />
   );
 }

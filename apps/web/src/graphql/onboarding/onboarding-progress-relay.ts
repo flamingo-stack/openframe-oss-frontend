@@ -21,6 +21,7 @@ export const onboardingProgressRelayQuery = graphql`
       completedAt
       skipped
       skippedAt
+      tourDialogId
     }
   }
 `;
@@ -49,6 +50,7 @@ function parseProgress(data: {
       completedAt: data.userOnboardingProgress.completedAt ?? null,
       skipped: data.userOnboardingProgress.skipped,
       skippedAt: data.userOnboardingProgress.skippedAt ?? null,
+      tourDialogId: data.userOnboardingProgress.tourDialogId ?? null,
     },
   };
 }

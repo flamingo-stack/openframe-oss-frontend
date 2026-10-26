@@ -1,10 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { RunScriptConfigStep } from './run-script-config-step';
 import { RunScriptSelectStep } from './run-script-select-step';
-import { RunScriptConfigStepSkeleton } from './run-script-skeletons';
 import { ScriptRunningModal } from './script-running-modal';
 
 interface RunScriptModalProps {
@@ -67,14 +66,12 @@ export function RunScriptModal({ isOpen, onClose, machineId, onViewDeviceLogs }:
         {step === 'select' || !scriptId ? (
           <RunScriptSelectStep onSelect={handleSelect} />
         ) : (
-          <Suspense fallback={<RunScriptConfigStepSkeleton />}>
-            <RunScriptConfigStep
-              scriptId={scriptId}
-              machineId={machineId}
-              onBack={handleBack}
-              onRan={() => setRan(true)}
-            />
-          </Suspense>
+          <RunScriptConfigStep
+            scriptId={scriptId}
+            machineId={machineId}
+            onBack={handleBack}
+            onRan={() => setRan(true)}
+          />
         )}
       </SimpleModal>
 

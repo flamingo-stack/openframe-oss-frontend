@@ -1,15 +1,16 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BracketSquareCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type DataTableSortState,
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareVulnerabilitiesTable_query$data,
@@ -20,11 +21,19 @@ import type {
   softwareVulnerabilitiesTableQuery as SoftwareVulnerabilitiesTableQueryType,
   SortInput,
 } from '@/__generated__/softwareVulnerabilitiesTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  oneLineEmptyState,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { FLEET_LIST_SKELETON_ROWS } from '../../shared/fleet-list-paging';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
 import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-version-cell';
@@ -126,10 +135,12 @@ const COLUMNS: ColumnDef<SoftwareVulnerabilityRow>[] = [
 
 /**
  * A row is a CVE on one affected version; the CVE id alone repeats. `\0` cannot
- * occur in either half, so the pair can't collide with another.
+ * occur in either half, so the pair can't collide with another. A loading
+ * placeholder (`loadingPlaceholderRows`) has no CVE yet and keys on its own id.
  */
-const getRowId = (row: SoftwareVulnerabilityRow) => `${row.cveId}\0${row.affectedVersion ?? ''}`;
-const rowHref = (row: SoftwareVulnerabilityRow) => routes.software.vulnerability(row.cveId);
+const getRowId = (row: SoftwareVulnerabilityRow) =>
+  row.cveId ? `${row.cveId}\0${row.affectedVersion ?? ''}` : String((row as { id?: string }).id);
+const rowHref = (row: SoftwareVulnerabilityRow) => (row.cveId ? routes.software.vulnerability(row.cveId) : null);
 
 interface SoftwareVulnerabilitiesTableProps {
   softwareId: string;
@@ -144,17 +155,28 @@ interface SoftwareVulnerabilitiesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Vulnerabilities tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function SoftwareVulnerabilitiesTable({
-  softwareId,
-  debouncedSearch,
-  sort,
-  sortState,
-  onSortChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareVulnerabilitiesTableProps) {
+/**
+ * The tab's rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's flag window)
+ * the reader draws the table over one page of placeholder rows with their real cells, each in its own loading form;
+ * otherwise it runs the query, which suspends under that boundary.
+ */
+export function SoftwareVulnerabilitiesTable(props: SoftwareVulnerabilitiesTableProps) {
+  return (
+    <LoadingSuspense label="Loading vulnerabilities">
+      <SoftwareVulnerabilitiesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareVulnerabilitiesTableReader(props: SoftwareVulnerabilitiesTableProps) {
+  if (useLoadingScope()) {
+    return <SoftwareVulnerabilitiesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+  }
+  return <SoftwareVulnerabilitiesTableQuery {...props} />;
+}
+
+function SoftwareVulnerabilitiesTableQuery(props: SoftwareVulnerabilitiesTableProps) {
+  const { softwareId, debouncedSearch, sort } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareVulnerabilitiesTableQueryType>(
     softwareVulnerabilitiesTableQuery,
@@ -174,8 +196,44 @@ export function SoftwareVulnerabilitiesTable({
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_VULNERABILITIES_PAGE_SIZE);
   };
 
+  return (
+    <SoftwareVulnerabilitiesTableRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+    />
+  );
+}
+
+interface SoftwareVulnerabilitiesTableRowsProps extends SoftwareVulnerabilitiesTableProps {
+  rows: readonly SoftwareVulnerabilityRow[];
+  totalCount: number;
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareVulnerabilitiesTableRows({
+  rows,
+  totalCount,
+  infiniteScroll,
+  debouncedSearch,
+  sortState,
+  onSortChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareVulnerabilitiesTableRowsProps) {
+  const loading = useLoadingScope();
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareVulnerabilityRow>(SOFTWARE_VULNERABILITIES_PAGE_SIZE) : null),
+    [loading],
+  );
+
   const table = useDataTable<SoftwareVulnerabilityRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as SoftwareVulnerabilityRow[]),
     columns: COLUMNS,
     getRowId,
     enableSorting: false,
@@ -183,7 +241,7 @@ export function SoftwareVulnerabilitiesTable({
 
   // A search that finds nothing keeps the table (its own "no match" row); a
   // title with no CVEs at all gets the section's empty state instead.
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -200,31 +258,22 @@ export function SoftwareVulnerabilitiesTable({
   }
 
   return (
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          sort={sortState}
-          onSortChange={onSortChange}
-        />
-        <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
-          emptyMessage={`No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`}
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_VULNERABILITIES_PAGE_SIZE}
+      loadingCells={loading}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      sort={sortState}
+      onSortChange={onSortChange}
+      isPending={isPending}
+      emptyState={oneLineEmptyState(
+        `No vulnerabilities found matching "${debouncedSearch}". Try adjusting your search.`,
+      )}
+      rowHref={rowHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

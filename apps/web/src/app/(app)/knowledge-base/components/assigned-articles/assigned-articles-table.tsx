@@ -1,15 +1,18 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
+  LoadingWhen,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ConnectionHandler, graphql, useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { SelectorStoreUpdater } from 'relay-runtime';
 import type {
@@ -19,13 +22,22 @@ import type {
 import type { assignedArticlesTablePaginationQuery as AssignedArticlesTablePaginationQueryType } from '@/__generated__/assignedArticlesTablePaginationQuery.graphql';
 import type { assignedArticlesTableQuery as AssignedArticlesTableQueryType } from '@/__generated__/assignedArticlesTableQuery.graphql';
 import type { assignedArticlesTableUnassignMutation as AssignedArticlesTableUnassignMutationType } from '@/__generated__/assignedArticlesTableUnassignMutation.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  noop,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
 import { KnowledgeBaseItemCreatedCell } from '../item-list/knowledge-base-item-created-cell';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { OpenItemButton } from '../shared/open-item-button';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { type AssignedArticlesTarget, targetNoun } from './assigned-articles-target';
 
 /**
@@ -124,7 +136,7 @@ function buildColumns(onUnassign: (row: ArticleRow) => void): ColumnDef<ArticleR
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ArticleRow> }) => <OpenItemButton href={rowHref(row.original)} />,
+      cell: ({ row }: { row: Row<ArticleRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
     },
@@ -137,7 +149,8 @@ export interface AssignedArticlesListing {
 }
 
 interface AssignedArticlesTableProps {
-  target: AssignedArticlesTarget;
+  /** Null while the page has not read whose articles these are: the table draws its loading state and asks nothing. */
+  target: AssignedArticlesTarget | null;
   /** Deferred — feeds the query (lags the search box and the tag chips during a refetch). */
   listing: AssignedArticlesListing;
   /** A refetch is in flight and the rows on screen are the previous result. */
@@ -151,20 +164,43 @@ interface AssignedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The rows of the Assigned Articles tab — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function AssignedArticlesTable({
-  target,
-  listing,
-  isPending,
-  refreshKey,
-  onChanged,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: AssignedArticlesTableProps) {
+/**
+ * The rows of the Assigned Articles tab. In a loading scope (the tab's Suspense fallback) it draws the table over
+ * one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query,
+ * which suspends, so it lives under the tab's `<Suspense>`.
+ */
+export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
+  return (
+    <LoadingSuspense label="Loading articles">
+      <AssignedArticlesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function AssignedArticlesTableReader(props: AssignedArticlesTableProps) {
+  const { target } = props;
+  if (useLoadingScope() || target == null) {
+    return (
+      <LoadingWhen loading>
+        <AssignedArticlesRows
+          {...props}
+          rows={NO_ITEMS}
+          totalCount={0}
+          onUnassign={noop}
+          infiniteScroll={NO_NEXT_PAGE}
+        />
+      </LoadingWhen>
+    );
+  }
+  return <AssignedArticlesTableQuery {...props} target={target} />;
+}
+
+function AssignedArticlesTableQuery(props: AssignedArticlesTableProps & { target: AssignedArticlesTarget }) {
+  const { target, listing, refreshKey, onChanged } = props;
   const { toast } = useToast();
   const retryKey = useRetryKey();
 
-  const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
   const variables: AssignedArticlesTableQueryType['variables'] = {
     filter: {
       assignedTo: { targetType: target.targetType, targetId: target.targetId },
@@ -219,33 +255,63 @@ export function AssignedArticlesTable({
     });
   };
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more articles', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
 
+  return (
+    <AssignedArticlesRows
+      {...props}
+      rows={rows}
+      totalCount={items.filteredCount}
+      onUnassign={handleUnassign}
+      infiniteScroll={infiniteScroll}
+    />
+  );
+}
+
+interface AssignedArticlesRowsProps extends AssignedArticlesTableProps {
+  rows: readonly ArticleRow[];
+  totalCount: number;
+  onUnassign: (row: ArticleRow) => void;
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function AssignedArticlesRows({
+  rows,
+  totalCount,
+  onUnassign,
+  infiniteScroll,
+  target,
+  listing,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: AssignedArticlesRowsProps) {
+  const loading = useLoadingScope();
+  const hasFilters = listing.search !== '' || listing.tagIds.length > 0;
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<ArticleRow>(KNOWLEDGE_BASE_PAGE_SIZE) : null),
+    [loading],
+  );
   const table = useDataTable<ArticleRow>({
-    data: rows,
-    columns: buildColumns(handleUnassign),
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as ArticleRow[]),
+    columns: buildColumns(onUnassign),
     getRowId,
     enableSorting: false,
   });
 
   // A search or a tag filter that finds nothing keeps the table (its own "no
   // match" row); nothing assigned at all gets the tab's empty state instead.
-  const showEmptyState = !hasFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !hasFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
   }, [showEmptyState, onEmptyChange]);
 
-  if (showEmptyState) {
+  // `showEmptyState` holds only once loaded, and a table with no target is always loading.
+  if (showEmptyState && target) {
     return (
       <EmptyState
         icon={<BookBookmarkIcon />}
@@ -256,32 +322,21 @@ export function AssignedArticlesTable({
   }
 
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="article" totalCount={items.filteredCount} />}
-        />
-        <DataTable.Body
-          emptyState={{
-            title: listing.search
-              ? `No articles found matching "${listing.search}". Try adjusting your search.`
-              : 'No articles match the selected tags. Try adjusting your filters.',
-          }}
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
+      loadingCells={loading}
+      totalCount={totalCount}
+      itemName="article"
+      emptyState={{
+        title: listing.search
+          ? `No articles found matching "${listing.search}". Try adjusting your search.`
+          : 'No articles match the selected tags. Try adjusting your filters.',
+      }}
+      rowHref={rowHref}
+      footer={rows.length > 0 ? infiniteScroll : null}
+      isPending={isPending}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
   );
 }

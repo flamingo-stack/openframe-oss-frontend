@@ -26,6 +26,9 @@ export interface EmployeeFilterOptions {
   status: DataTableFilterOption[];
 }
 
+/** The funnels before their facets are read (the loading state's): no option known yet. */
+export const NO_EMPLOYEE_FILTER_OPTIONS: EmployeeFilterOptions = { roles: [], status: [] };
+
 // The funnels' server facets. Each value is counted under the search and the
 // other funnel, not its own, so the numbers hold while ticking within one.
 const userFiltersFragment = graphql`

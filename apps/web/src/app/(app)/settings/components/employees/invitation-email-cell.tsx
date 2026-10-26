@@ -1,6 +1,6 @@
 'use client';
 
-import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SquareAvatar, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { invitationEmailCell_invitation$key } from '@/__generated__/invitationEmailCell_invitation.graphql';
 
@@ -12,7 +12,9 @@ const invitationEmailCellFragment = graphql`
 
 /** USER column of the invitations block: nobody has a name yet, only the invited email. */
 export function InvitationEmailCell({ invitation }: { invitation: invitationEmailCell_invitation$key }) {
-  const { email } = useFragment(invitationEmailCellFragment, invitation);
+  // A row still being read (a loading scope) has no fragment to read: the cell draws its loading form.
+  const data = useFragment(invitationEmailCellFragment, useLoadingScope() ? null : invitation);
+  const email = data?.email ?? '';
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
       <SquareAvatar fallback={email} size="sm" variant="round" />

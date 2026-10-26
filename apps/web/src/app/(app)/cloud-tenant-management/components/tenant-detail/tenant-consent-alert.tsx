@@ -35,7 +35,9 @@ export function TenantConsentAlert({ connection }: { connection: tenantConsentAl
   if (!alert) return null;
 
   return (
+    // Only some tenants have one: it sits below the integration section and is left out while loading.
     <Alert
+      data-loading-optional
       variant={alert.variant}
       className="flex items-start gap-[var(--spacing-system-m)] p-[var(--spacing-system-s)]"
       role="status"

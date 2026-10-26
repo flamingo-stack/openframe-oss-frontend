@@ -10,8 +10,9 @@ import { graphql, useFragment } from 'react-relay';
 import type { useBillingPageActions_subscription$key } from '@/__generated__/useBillingPageActions_subscription.graphql';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
-import { openBillingInBrowser } from '@/lib/billing-visibility';
 import { openExternalTab } from '../shared/stripe-window';
+import { READ_ONLY_BILLING_ACTIONS } from './billing-page-frame';
+import { useBillingPortalSession } from './use-billing-portal-session';
 import { useResumeSubscription } from './use-resume-subscription';
 
 /** What the header decides on: the state the workspace is in, and the invoice "Pay Overage" opens. */
@@ -75,20 +76,12 @@ export function useBillingPageActions({
 }: BillingPageActionsArgs): BillingPageActions {
   const data = useFragment(useBillingPageActionsFragment, subscription);
   const resumeSubscription = useResumeSubscription();
+  const billingPortal = useBillingPortalSession();
   const cancelSubscriptionEnabled = useFeatureFlag('cancel-subscription');
+  const customerPortalEnabled = useFeatureFlag('customer-portal');
 
   if (readOnly) {
-    return {
-      actions: [
-        {
-          label: 'Manage Billing',
-          icon: <ExternalLinkIcon className="h-6 w-6" />,
-          onClick: openBillingInBrowser,
-          variant: 'accent',
-        },
-      ],
-      menuActions: [],
-    };
+    return { actions: READ_ONLY_BILLING_ACTIONS, menuActions: [] };
   }
 
   if (data == null) return { actions: [], menuActions: [] };
@@ -138,6 +131,19 @@ export function useBillingPageActions({
                 label: 'Change Plan',
                 icon: <TagPercentIcon className="h-6 w-6 text-ods-text-secondary" />,
                 onClick: onChangePlan,
+              },
+            ]
+          : []),
+        ...(customerPortalEnabled
+          ? [
+              {
+                id: 'customer-portal',
+                // Stripe mints the portal session per click, so this runs a mutation
+                // and then navigates — there is no stable URL to hang a link on.
+                label: 'Customer Portal',
+                icon: <ExternalLinkIcon className="h-6 w-6 text-ods-text-secondary" />,
+                onClick: () => billingPortal.mutate(),
+                disabled: billingPortal.isPending,
               },
             ]
           : []),

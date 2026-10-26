@@ -8,11 +8,10 @@ import {
 import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { defineParamSchema } from '@flamingo-stack/openframe-frontend-core/utils';
-import { type ReactNode, Suspense, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { DeviceLogDrawer } from '@/app/(app)/devices/components/tabs/device-logs/device-log-drawer';
 import type { DeviceLogEntry } from '@/app/(app)/devices/components/tabs/device-logs/device-log-row';
 import { DeviceLogsList } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-list';
-import { DeviceLogsListSkeleton } from '@/app/(app)/devices/components/tabs/device-logs/device-logs-skeleton';
 import { useDeferredLogList } from '@/app/(app)/devices/hooks/use-deferred-log-list';
 import {
   deviceLogParamReset,
@@ -136,6 +135,23 @@ export function TroubleshootingView() {
     },
   ];
 
+  // The list, which owns its boundary and draws its own skeleton in that boundary's scope.
+  const logsList = (
+    <DeviceLogsList
+      listKey={deferredList.key}
+      machineIds={deferredList.machineIds}
+      organizationIds={deferredList.organizationIds}
+      filter={deferredList.filter}
+      isPending={isPending}
+      autoUpdate={autoUpdate && !filters.rangeClosed}
+      hasFilters={hasFilters}
+      onResetFilters={resetFilters}
+      emptyDescription={deferredList.organizationIds ? CUSTOMER_EMPTY_DESCRIPTION : undefined}
+      selectedKey={selected?.key ?? null}
+      onSelect={(key, entry) => setSelected({ key, entry })}
+    />
+  );
+
   return (
     <PageLayout
       title="Troubleshooting"
@@ -160,21 +176,7 @@ export function TroubleshootingView() {
         resetKey={deferredList.key}
         fallback={unknownPickFallback}
       >
-        <Suspense fallback={<DeviceLogsListSkeleton />}>
-          <DeviceLogsList
-            key={deferredList.key}
-            machineIds={deferredList.machineIds}
-            organizationIds={deferredList.organizationIds}
-            filter={deferredList.filter}
-            isPending={isPending}
-            autoUpdate={autoUpdate && !filters.rangeClosed}
-            hasFilters={hasFilters}
-            onResetFilters={resetFilters}
-            emptyDescription={deferredList.organizationIds ? CUSTOMER_EMPTY_DESCRIPTION : undefined}
-            selectedKey={selected?.key ?? null}
-            onSelect={(key, entry) => setSelected({ key, entry })}
-          />
-        </Suspense>
+        {logsList}
       </ContentErrorBoundary>
       <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} />
     </PageLayout>

@@ -13,8 +13,10 @@ import type {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { routes } from '@/lib/routes';
+import { DIALOG_INTENT } from '../constants';
 import { type ArchiveResolvedFilter, useArchiveResolvedMutation } from './use-archive-resolved-mutation';
 import { useTicketStatistics } from './use-ticket-statistics';
 
@@ -67,6 +69,7 @@ export function useTicketsActions({
   const openArchiveResolvedConfirm = useCallback(() => setIsArchiveConfirmOpen(true), []);
   const canArchiveResolved = resolvedCount > 0 && !archiveResolvedMutation.isPending && !isLoading;
 
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_TICKET);
   const actions = useMemo<PageActionButton[]>(() => {
     if (!enabled) return [];
     return [
@@ -75,9 +78,10 @@ export function useTicketsActions({
         onClick: handleNewTicket,
         variant: 'outline',
         icon: <PlusCircleIcon className="h-5 w-5 text-ods-text-secondary" />,
+        iconAction: generateWithAi,
       },
     ];
-  }, [enabled, handleNewTicket]);
+  }, [enabled, handleNewTicket, generateWithAi]);
 
   const menuActions = useMemo<ActionsMenuGroup[]>(() => {
     if (!enabled) return [];

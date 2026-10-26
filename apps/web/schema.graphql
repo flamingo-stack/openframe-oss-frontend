@@ -1751,7 +1751,25 @@ input LogSortInput {
 """"""
 scalar Long
 
+"""First-device enrollment progress: each stamp is set once its stage is reached and never cleared."""
+type DeviceEnrollment {
+  """Machine record created (initial key accepted)."""
+  registeredAt: Instant!
+
+  """First NATS connection; Mingo can run commands from here."""
+  connectedAt: Instant
+
+  """Fleet confirmed the host; inventory and vulnerabilities are queryable."""
+  inventoryConnectedAt: Instant
+
+  """connectedAt and inventoryConnectedAt both set."""
+  ready: Boolean!
+}
+
 type Machine implements Node & AssignableTarget {
+  """How far this machine's enrollment has come; null only on a transient read error."""
+  enrollment: DeviceEnrollment
+
   id: ID!
   machineId: String!
   ip: String
@@ -2018,6 +2036,19 @@ type Mutation {
   Reset personal onboarding to a clean state (no steps, not skipped, not completed).
   """
   resetUserOnboarding: UserOnboardingProgress!
+
+  """Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it."""
+  setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
+
+  """
+  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
+  """
+  skipOnboarding: OnboardingSkipResult!
+
+  """
+  Dev/QA only. Clears the tenant Initial Setup back to a clean state so the wizard can be replayed. Idempotent. Not part of the schema on stage/prod.
+  """
+  resetTenantOnboarding: TenantOnboardingProgress!
 
   """
   Create a new schedule. Returns the created schedule with its server-assigned id.
@@ -2557,6 +2588,15 @@ input NotificationTypeSettingInput {
 
 """A Mongo ObjectId; malformed input is rejected at the schema boundary."""
 scalar ObjectId
+
+"""Dev/QA only: both progress records after a tester skipped onboarding."""
+type OnboardingSkipResult {
+  """Tenant Initial Setup, now completed with every step done."""
+  tenant: TenantOnboardingProgress!
+
+  """Current user's Get Started, now skipped."""
+  user: UserOnboardingProgress!
+}
 
 """OpenframeProduct enum represents available product features."""
 enum OpenframeProduct {
@@ -3797,9 +3837,13 @@ type RemoteSessionTicketLink {
   statusColor: String
   assignedTo: String
   assignedName: String
+  """The assignee's photo, as RemoteAccessTechnician.avatarUrl; null without a photo or an assignee."""
+  assignedAvatarUrl: String
+  """When the ticket was created, which is not the link time; null when the ticket is gone."""
+  createdAt: Instant
   source: RemoteSessionTicketSource!
   linkedAt: Instant!
-  """Who linked the ticket; null when the system linked the session's own ticket."""
+  """Who linked the ticket, by profile name and photo; null when the system linked the session's own ticket."""
   linkedBy: RemoteAccessTechnician
 }
 
@@ -6206,14 +6250,19 @@ type UserOnboardingProgress {
 
   """When skipped was set; null while not skipped."""
   skippedAt: Instant
+
+  """The Mingo conversation the Get Started tour lives in; null until "Start with Mingo"."""
+  tourDialogId: String
 }
 
 enum UserOnboardingStep {
   MEET_MINGO
+  DEVICES
   TICKETS
   SCRIPTING
   MONITORING
   LOGGING
+  INCIDENTS
   KNOWLEDGE_MANAGEMENT
 }
 

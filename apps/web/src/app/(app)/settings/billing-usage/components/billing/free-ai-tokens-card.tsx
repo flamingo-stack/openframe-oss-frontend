@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { freeAiTokensCard_subscription$key } from '@/__generated__/freeAiTokensCard_subscription.graphql';
 import { formatCompactCount } from '@/lib/format-number';
@@ -13,20 +14,25 @@ const freeAiTokensCardFragment = graphql`
 `;
 
 /** The period's free grant, and how much of it is gone. */
-export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key }) {
-  const ai = aiBalanceState(useFragment(freeAiTokensCardFragment, subscription));
+export function FreeAiTokensCard({ subscription }: { subscription: freeAiTokensCard_subscription$key | null }) {
+  const data = useFragment(freeAiTokensCardFragment, subscription);
+  // One card, both forms: while the subscription is on its way the card draws its figure and caption as bars.
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
 
   return (
     <UsageStatCard
       title="Free AI Tokens"
-      tone={ai.freeTone}
+      loading={ai == null}
+      tone={ai?.freeTone}
       value={
-        <>
-          {formatCompactCount(ai.freeUsed)}
-          <StatSuffix>/{formatCompactCount(ai.free)}</StatSuffix>
-        </>
+        ai && (
+          <>
+            {formatCompactCount(ai.freeUsed)}
+            <StatSuffix>/{formatCompactCount(ai.free)}</StatSuffix>
+          </>
+        )
       }
-      caption={ai.isTrial ? 'Included with trial' : 'Updated monthly'}
+      caption={ai && (ai.isTrial ? 'Included with trial' : 'Updated monthly')}
     />
   );
 }

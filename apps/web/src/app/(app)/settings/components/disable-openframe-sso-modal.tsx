@@ -1,12 +1,9 @@
 'use client';
 
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Suspense } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { ActiveUsersSsoNotice } from './active-users-sso-notice';
-
-const GENERIC_DESCRIPTION = 'Users will switch to signing in through SSO providers.';
+import { ActiveUsersSsoNotice, GENERIC_SSO_NOTICE } from './active-users-sso-notice';
 
 interface DisableOpenframeSsoModalProps {
   open: boolean;
@@ -27,10 +24,8 @@ export function DisableOpenframeSsoModal({ open, onOpenChange, isPending, onConf
       onOpenChange={onOpenChange}
       title="Disable OpenFrame SSO"
       description={
-        <ContentErrorBoundary label="Disable OpenFrame SSO" fallback={() => GENERIC_DESCRIPTION}>
-          <Suspense fallback={GENERIC_DESCRIPTION}>
-            <ActiveUsersSsoNotice />
-          </Suspense>
+        <ContentErrorBoundary label="Disable OpenFrame SSO" fallback={() => GENERIC_SSO_NOTICE}>
+          <ActiveUsersSsoNotice />
         </ContentErrorBoundary>
       }
       confirmLabel="Disable Configuration"

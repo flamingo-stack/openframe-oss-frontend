@@ -4,6 +4,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { toGlobalId } from '@/lib/relay-id';
 import {
   mingoDrawerDialogId,
+  notificationTargetsLocation,
   resolveNatsNotificationRoute,
   resolveNotificationAction,
   resolvePushNotificationRoute,
@@ -276,5 +277,71 @@ describe('re-consent notice', () => {
       meta: { notificationType: 'NEW_PERMISSIONS_REQUIRED', providers: 'MICROSOFT_365' },
     } as unknown as Notification);
     expect(action).toEqual({ label: 'Cloud Tenants', route: '/cloud-tenant-management' });
+  });
+});
+
+/**
+ * The Remote Sessions recording cards: one about a recording opens it, a session that left no
+ * recording opens its device's sessions, and the tenant's storage opens every device's sessions.
+ */
+describe('remote session recording cards', () => {
+  const RECORDING = '/devices/details/remote-session?id=rec-1';
+  const DEVICE_SESSIONS = '/devices/details?id=machine-1&tab=remote-sessions';
+  const ids = { sessionId: 's-1', recordingId: 'rec-1', deviceId: 'machine-1', deviceName: 'DESKTOP-4F2K' };
+  const card = (meta: Record<string, unknown>) =>
+    ({ id: 'n-1', title: 'x', createdAt: 0, read: false, category: 'DEVICES', meta }) as Notification;
+
+  it('opens the recording from every transport', () => {
+    for (const type of [
+      'RECORDING_EXPIRES_IN_7_DAYS',
+      'RECORDING_ABOUT_TO_BE_DELETED',
+      'KEEP_RELEASED_BY_SOMEONE_ELSE',
+    ]) {
+      expect(resolveNotificationAction(card({ notificationType: type, ...ids }))).toEqual({
+        label: 'Open Recording',
+        route: RECORDING,
+      });
+      expect(resolveNatsNotificationRoute({ type, attributes: ids, category: 'DEVICES' })).toBe(RECORDING);
+      expect(resolvePushNotificationRoute({ type, ...ids })).toBe(RECORDING);
+    }
+  });
+
+  it("falls back to the device's sessions without a recording id, and to nothing without either", () => {
+    expect(
+      resolvePushNotificationRoute({ type: 'RECORDING_EXPIRES_IN_7_DAYS', sessionId: 's-1', deviceId: 'machine-1' }),
+    ).toBe(DEVICE_SESSIONS);
+    expect(resolvePushNotificationRoute({ type: 'RECORDING_EXPIRES_IN_7_DAYS', sessionId: 's-1' })).toBeNull();
+  });
+
+  it("opens the device's sessions for a session that left no recording", () => {
+    const failed = { type: 'RECORDING_FAILED', sessionId: 's-1', deviceId: 'machine-1' };
+    expect(resolvePushNotificationRoute(failed)).toBe(DEVICE_SESSIONS);
+    expect(resolveNotificationAction(card({ notificationType: 'RECORDING_FAILED', deviceId: 'machine-1' }))).toEqual({
+      label: 'Remote Sessions',
+      route: DEVICE_SESSIONS,
+    });
+    expect(resolvePushNotificationRoute({ type: 'RECORDING_FAILED', sessionId: 's-1' })).toBeNull();
+  });
+
+  it("opens every device's sessions for the tenant's storage", () => {
+    for (const type of ['RECORDING_STORAGE_NEARLY_FULL', 'RECORDING_STORAGE_FULL']) {
+      expect(
+        resolveNatsNotificationRoute({ type, attributes: { usedBytes: '1', limitBytes: '2' }, category: 'DEVICES' }),
+      ).toBe('/devices/remote-sessions');
+    }
+  });
+
+  it('routes an unrecognised type by its recording id', () => {
+    expect(resolvePushNotificationRoute({ type: 'RECORDING_SOMETHING_NEW', recordingId: 'rec-1' })).toBe(RECORDING);
+  });
+
+  it('reads as opened once the recording it points at is on screen', () => {
+    const notification = card({ notificationType: 'KEEP_RELEASED_BY_SOMEONE_ELSE', ...ids });
+    expect(
+      notificationTargetsLocation(notification, '/devices/details/remote-session', new URLSearchParams('id=rec-1')),
+    ).toBe(true);
+    expect(
+      notificationTargetsLocation(notification, '/devices/details/remote-session', new URLSearchParams('id=rec-2')),
+    ).toBe(false);
   });
 });

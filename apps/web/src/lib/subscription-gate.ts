@@ -39,6 +39,9 @@
  *   would deadlock the app on the first paint.
  * - Everything the lock screen renders — the plan picker and its prices. A user
  *   who cannot load the paywall cannot leave the lock.
+ * - Billing & Usage, for the same reason: `PAST_DUE` locks the dashboard but
+ *   leaves that page open (`isRouteOpenWhileLocked`), because the overdue
+ *   invoice is paid there.
  * - Every mutation. They are deliberate user actions (checkout, resume, cancel,
  *   open the billing portal), and the ones that matter here are exactly the ones
  *   a locked workspace needs. A mutation refused server-side surfaces its own
@@ -61,9 +64,9 @@ type GateState =
   /** Resolved and not locking. Requests go out immediately. */
   | 'open'
   /**
-   * Resolved as TRIAL_EXPIRED / CANCELED. App requests are held until the
-   * workspace is paid for: they are known to come back empty, and "empty" for a
-   * non-null field is a thrown error, not a loading state.
+   * Resolved as a locking status (`isLockingStatus`). App requests are held until
+   * the workspace is paid for: they are known to come back empty, and "empty" for
+   * a non-null field is a thrown error, not a loading state.
    */
   | 'locked';
 

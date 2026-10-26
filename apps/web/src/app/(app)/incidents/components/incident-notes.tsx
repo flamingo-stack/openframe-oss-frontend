@@ -1,8 +1,8 @@
 'use client';
 
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { addInsightNoteMutation as AddInsightNoteMutationType } from '@/__generated__/addInsightNoteMutation.graphql';
 import type { deleteInsightNoteMutation as DeleteInsightNoteMutationType } from '@/__generated__/deleteInsightNoteMutation.graphql';
@@ -12,9 +12,10 @@ import type { incidentNotesRelayQuery as NotesQueryType } from '@/__generated__/
 import type { updateInsightNoteMutation as UpdateInsightNoteMutationType } from '@/__generated__/updateInsightNoteMutation.graphql';
 import {
   ContentErrorBoundary,
+  NO_ITEMS,
+  noop,
   type NoteItem,
   NotesSection,
-  NotesSectionSkeleton,
   useRetryKey,
 } from '@/app/components/shared';
 import { addInsightNoteMutation } from '@/graphql/insights/add-insight-note-mutation';
@@ -133,12 +134,26 @@ function IncidentNotesContent({ incidentId }: IncidentNotesProps) {
  * boundary too, so a notes failure degrades this section rather than
  * replacing an already-loaded incident with the page's error.
  */
-export function IncidentNotes({ incidentId }: IncidentNotesProps) {
+export function IncidentNotes(props: IncidentNotesProps) {
   return (
     <ContentErrorBoundary title="Notes" message="Couldn't load notes.">
-      <Suspense fallback={<NotesSectionSkeleton />}>
-        <IncidentNotesContent incidentId={incidentId} />
-      </Suspense>
+      <IncidentNotesSection {...props} />
     </ContentErrorBoundary>
   );
+}
+
+/** The notes section, with its own boundary: in its scope the reader draws its own loading form. */
+function IncidentNotesSection(props: IncidentNotesProps) {
+  return (
+    <LoadingSuspense label="Loading notes">
+      <IncidentNotesReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentNotesReader(props: IncidentNotesProps) {
+  // The section without its notes: in a loading scope (its boundary's or an outer one) it draws its own skeleton.
+  if (useLoadingScope())
+    return <NotesSection notes={NO_ITEMS} onAddNote={noop} onEditNote={noop} onDeleteNote={noop} />;
+  return <IncidentNotesContent {...props} />;
 }

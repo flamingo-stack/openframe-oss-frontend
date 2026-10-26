@@ -15,11 +15,13 @@ import {
   TruncateText,
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { formatTicketFullTimestamp } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatTicketRowMeta } from '@/app/(app)/tickets/utils/ticket-row-meta';
-import { EmptyValue } from '@/app/components/shared/empty-value';
+import { LIVE_ROW_GAP_CLASS } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
+import { ValueText } from '@/app/components/shared/value-text';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
@@ -27,8 +29,8 @@ import { matchesTicketSearch, type RecordingTicket } from './recording-tickets';
 /** Column layout per Figma 1755-93683: TICKET takes the rest, ASSIGNED 280, STATUS 200, two buttons. */
 const RECORDING_TICKET_COLUMNS = {
   ticket: { id: 'ticket', header: 'TICKET', width: 'flex-1 min-w-0', sortable: true },
-  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg', filterable: true },
-  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg', filterable: true },
+  assigned: { id: 'assigned', header: 'ASSIGNED', width: 'w-[280px] shrink-0', hideAt: 'lg' },
+  status: { id: 'status', header: 'STATUS', width: 'w-[200px] shrink-0', hideAt: 'lg' },
   actions: { id: 'actions', width: 'w-[112px] shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
@@ -63,16 +65,23 @@ function recordingTicketColumns({
       id: RECORDING_TICKET_COLUMNS.ticket.id,
       header: RECORDING_TICKET_COLUMNS.ticket.header,
       accessorFn: ticket => ticket.ticketNumber ?? -1,
-      cell: ({ row }: { row: Row<RecordingTicket> }) => (
-        <div className="flex min-w-0 flex-col justify-center">
-          <TruncateText>{row.original.title}</TruncateText>
-          {row.original.ticketNumber != null && (
-            <TruncateText variant="h6" tone="secondary">
-              {formatTicketRowMeta(row.original)}
-            </TruncateText>
-          )}
-        </div>
-      ),
+      cell: ({ row }: { row: Row<RecordingTicket> }) => {
+        const { title, createdAt } = row.original;
+        const meta = formatTicketRowMeta(row.original);
+        return (
+          <div className="flex min-w-0 flex-col justify-center">
+            <TruncateText>{title}</TruncateText>
+            {/* "3891 • 5 min ago" as in the tickets table, the full creation time on hover. */}
+            {meta && (
+              <div className="min-w-0" title={createdAt ? formatTicketFullTimestamp(createdAt) : undefined}>
+                <TruncateText variant="h6" tone="secondary">
+                  {meta}
+                </TruncateText>
+              </div>
+            )}
+          </div>
+        );
+      },
       enableSorting: true,
       meta: liveColumnMeta(RECORDING_TICKET_COLUMNS.ticket),
     },
@@ -83,17 +92,14 @@ function recordingTicketColumns({
       cell: ({ row }: { row: Row<RecordingTicket> }) => {
         const name = row.original.assignedName;
         if (!name) {
-          return (
-            <span className="text-h4">
-              <EmptyValue />
-            </span>
-          );
+          return <ValueText value={null} />;
         }
         return (
           <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
             <SquareAvatar
               variant="round"
               size="sm"
+              src={row.original.assignedAvatarUrl ?? undefined}
               fallback={initials(name)}
               alt={name}
               className="shrink-0"
@@ -201,7 +207,7 @@ export function RecordingTicketsSection({ tickets, onUnassign }: RecordingTicket
           rightSlot={<DataTable.RowCount itemName="result" />}
         />
         <DataTable.Body
-          rowClassName="mb-1"
+          rowClassName={LIVE_ROW_GAP_CLASS}
           rowHref={(ticket: RecordingTicket) => routes.tickets.dialog(ticket.id)}
           emptyState={{
             icon: <TicketIcon />,

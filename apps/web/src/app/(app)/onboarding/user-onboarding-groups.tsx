@@ -16,9 +16,8 @@ import type { UserOnboardingStepId } from './onboarding-steps';
  * icon, title and description. Only a step's completion status comes from the
  * request.
  *
- * Single source of truth shared by {@link ./components/onboarding-content} (the
- * live page) and {@link ./components/onboarding-skeleton} (the loading state), so
- * the two never drift and the skeleton can show every static label.
+ * Single source of truth for {@link ./components/onboarding-content}: the page draws
+ * every static label from it in both its loaded state and its loading state.
  */
 export interface UserStepMeta {
   /** Narrowed to the tour's own steps, so a group can't list one the canonical

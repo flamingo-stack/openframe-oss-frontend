@@ -4,8 +4,8 @@ import { type TabItem, TabNavigation } from '@flamingo-stack/openframe-frontend-
 import { PlusCircleIcon, UserPlusIcon, UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useMemo, useState } from 'react';
-import { ContentErrorBoundary, TableSkeleton } from '@/app/components/shared';
+import { useMemo, useState } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -14,19 +14,13 @@ import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { type EmployeesTab, routes, TAB_IDS } from '@/lib/routes';
 import { AddUsersModal } from '../add-users-modal';
 import { type EmployeeSelections, NO_EMPLOYEE_SELECTIONS } from '../employees/employee-filters';
-import { INVITATIONS_TABLE_COLUMNS, USERS_TABLE_COLUMNS } from '../employees/employees-columns';
 import { InvitationsListTable } from '../employees/invitations-list-table';
 import { affectedInvitationsListings, invitationsListingId } from '../employees/invitations-listing';
 import { UsersListTable } from '../employees/users-list-table';
 
 const EMPLOYEES_TAB_VIEWS = {
-  users: { label: 'Users', icon: UsersIcon, search: 'Search for Users', columns: USERS_TABLE_COLUMNS },
-  invitations: {
-    label: 'Invitations',
-    icon: UserPlusIcon,
-    search: 'Search for Invitations',
-    columns: INVITATIONS_TABLE_COLUMNS,
-  },
+  users: { label: 'Users', icon: UsersIcon, search: 'Search for Users' },
+  invitations: { label: 'Invitations', icon: UserPlusIcon, search: 'Search for Invitations' },
 } satisfies Record<EmployeesTab, object>;
 
 const EMPLOYEES_TABS: TabItem[] = TAB_IDS.employees.map(id => ({
@@ -113,34 +107,25 @@ export function CompanyAndUsersTab() {
           message={`Couldn't load ${EMPLOYEES_TAB_VIEWS[shownView.tab].label.toLowerCase()}.`}
           resetKey={`${shownView.tab}:${deferredSearch}`}
         >
-          <Suspense
-            fallback={
-              <TableSkeleton
-                columns={EMPLOYEES_TAB_VIEWS[shownView.tab].columns}
-                stickyHeaderOffset={stickyHeaderOffset}
-              />
-            }
-          >
-            {shownView.tab === 'users' ? (
-              <UsersListTable
-                search={deferredSearch}
-                backendSelections={shownView.selections}
-                selections={selections}
-                onSelectionsChange={setSelections}
-                isPending={isPending}
-                stickyHeaderOffset={stickyHeaderOffset}
-              />
-            ) : (
-              <InvitationsListTable
-                search={deferredSearch}
-                backendSelections={shownView.selections}
-                selections={selections}
-                onSelectionsChange={setSelections}
-                isPending={isPending}
-                stickyHeaderOffset={stickyHeaderOffset}
-              />
-            )}
-          </Suspense>
+          {shownView.tab === 'users' ? (
+            <UsersListTable
+              search={deferredSearch}
+              backendSelections={shownView.selections}
+              selections={selections}
+              onSelectionsChange={setSelections}
+              isPending={isPending}
+              stickyHeaderOffset={stickyHeaderOffset}
+            />
+          ) : (
+            <InvitationsListTable
+              search={deferredSearch}
+              backendSelections={shownView.selections}
+              selections={selections}
+              onSelectionsChange={setSelections}
+              isPending={isPending}
+              stickyHeaderOffset={stickyHeaderOffset}
+            />
+          )}
         </ContentErrorBoundary>
       </div>
       <AddUsersModal

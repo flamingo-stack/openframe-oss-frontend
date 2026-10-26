@@ -1,14 +1,10 @@
 'use client';
 
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-  Refresh01RightIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useCallback } from 'react';
-import { LockScreenActions } from './lock-screen-actions';
+import type { ReactNode } from 'react';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
+import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
+import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 
 interface WorkspaceInactiveScreenProps {
   /** Overrides the default heading. See `SubscriptionLockContent`. */
@@ -17,7 +13,15 @@ interface WorkspaceInactiveScreenProps {
   description?: string;
   /** The remedy, when this viewer has one from here — leads the action row. */
   action?: ReactNode;
+  /**
+   * The copy depends on something still being read (the viewer's role): the body copy draws its own skeleton.
+   * Inside a loading scope it does so by itself.
+   */
+  loading?: boolean;
 }
+
+const DEFAULT_DESCRIPTION =
+  "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team.";
 
 /**
  * Lock screen shown in place of the app when the workspace is inactive and the
@@ -51,32 +55,15 @@ interface WorkspaceInactiveScreenProps {
  * and "contact the owner or an admin about the subscription" is the actionable
  * message.
  */
-export function WorkspaceInactiveScreen({ title, description, action }: WorkspaceInactiveScreenProps = {}) {
-  // The lock state comes from the subscription query resolved in the app shell;
-  // a full reload is the simplest way to re-resolve it once an admin has
-  // restored access elsewhere.
-  const handleRecheck = useCallback(() => {
-    window.location.reload();
-  }, []);
-
+export function WorkspaceInactiveScreen({ title, description, action, loading }: WorkspaceInactiveScreenProps = {}) {
   return (
     <div className="flex min-h-full flex-col items-center justify-between p-[var(--spacing-system-xl)]">
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
+      <OpenframeLockup />
 
       <div className="flex w-full max-w-[600px] flex-col items-center gap-[var(--spacing-system-xl)]">
         <div className="flex flex-col gap-[var(--spacing-system-xs)] text-center">
           <h1 className="text-ods-text-primary text-h2">{title ?? 'Workspace access is inactive'}</h1>
-          <p className="text-ods-text-secondary text-h4">
-            {description ??
-              "This OpenFrame workspace is not active at the moment, so its data isn't available here. Your workspace administrator can restore access for your team."}
-          </p>
+          <LoadingParagraph text={description ?? DEFAULT_DESCRIPTION} loading={loading} label="Checking your access" />
         </div>
 
         {/* Sign out, self-deletion and a support ticket, shared with the
@@ -89,26 +76,13 @@ export function WorkspaceInactiveScreen({ title, description, action }: Workspac
           leading={
             <>
               {action}
-              <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={handleRecheck}>
-                Check Again
-              </Button>
+              <CheckAgainButton />
             </>
           }
         />
       </div>
 
-      <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)]">
-        <a
-          href="https://flamingo.run"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-[var(--spacing-system-xs)] rounded-md bg-transparent p-[var(--spacing-system-m)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-        >
-          <span className="text-h6">Powered by</span>
-          <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-          <span className="font-semibold text-code">Flamingo</span>
-        </a>
-      </div>
+      <PoweredByFlamingo />
     </div>
   );
 }

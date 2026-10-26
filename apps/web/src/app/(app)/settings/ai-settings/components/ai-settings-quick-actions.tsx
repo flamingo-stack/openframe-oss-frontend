@@ -1,5 +1,6 @@
 'use client';
 
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getAgentAccent,
   type QuickActionAccent,
@@ -12,11 +13,15 @@ import {
   IconTile,
   type Row,
   StackedRowsPanel,
+  LoadingWhen,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
+import { NO_ITEMS, oneLineEmptyState } from '@/app/components/shared';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { AiQuickAction } from '../types/ai-settings';
 
 /** Per-tab wording for the quick-actions blocks (Mingo vs the customer assistant). */
@@ -55,32 +60,40 @@ export interface QuickActionsBannerCopy {
  * `copy` overrides the default OpenFrame-vs-org wording — the per-customer view
  * uses it because there "default" means "inherited from the global config".
  */
-export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault: boolean; copy?: QuickActionsBannerCopy }) {
+export function QuickActionsSourceBanner({ isDefault, copy }: { isDefault?: boolean; copy?: QuickActionsBannerCopy }) {
+  // Whose actions are in effect is read: while loading, the same row (its padding and its icon), its two cells null,
+  // which the panel draws as bars of their own type steps in the scope.
+  const loading = useLoadingScope() || isDefault == null;
   return (
-    <StackedRowsPanel
-      rows={[
-        {
-          id: 'source',
-          className: 'p-[var(--spacing-system-s)]',
-          columns: [
-            {
-              key: 'source',
-              leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
-              value: copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions'),
-              label:
-                copy?.label ??
-                (isDefault
-                  ? 'These quick actions are curated and approved by OpenFrame.'
-                  : 'These quick actions were configured by your organization.'),
-            },
-          ],
-        },
-      ]}
-    />
+    <LoadingWhen loading={loading}>
+      <StackedRowsPanel
+        rows={[
+          {
+            id: 'source',
+            className: 'p-[var(--spacing-system-s)]',
+            columns: [
+              {
+                key: 'source',
+                leadingIcon: <InfoCircleIcon className="size-6 text-ods-text-secondary" />,
+                value: loading
+                  ? null
+                  : (copy?.value ?? (isDefault ? 'Using OpenFrame default actions' : 'Using your custom actions')),
+                label: loading
+                  ? null
+                  : (copy?.label ??
+                    (isDefault
+                      ? 'These quick actions are curated and approved by OpenFrame.'
+                      : 'These quick actions were configured by your organization.')),
+              },
+            ],
+          },
+        ]}
+      />
+    </LoadingWhen>
   );
 }
 
-/** View-mode section: heading + source banner + read-only list. */
+/** View-mode section: heading + source banner + read-only list. In a loading scope, every part its own skeleton. */
 export function AiSettingsQuickActionsSection({
   title,
   actions,
@@ -90,27 +103,75 @@ export function AiSettingsQuickActionsSection({
   bannerCopy,
 }: {
   title: string;
-  actions: AiQuickAction[];
-  isDefault: boolean;
+  /** Unread while loading. */
+  actions?: AiQuickAction[];
+  /** Unread while loading. */
+  isDefault?: boolean;
   agentConfig: QuickActionsAgentConfig;
   /** Glyph tint override - see `resolveQuickActionAccent`. */
   accent?: QuickActionAccent;
   /** Overrides the source banner copy (leaves the list header on `isDefault`). */
   bannerCopy?: QuickActionsBannerCopy;
 }) {
+  // Loading: the banner (`StackedRowsPanel`) and the table (`DataTable`) draw their own skeletons in the scope.
+  const loading = useLoadingScope() || actions == null;
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <span className="text-ods-text-primary text-h2">{title}</span>
-      <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
-      <AiSettingsQuickActions actions={actions} isDefault={isDefault} agentConfig={agentConfig} accent={accent} />
+    <LoadingWhen loading={loading}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <span className="text-ods-text-primary text-h2">{title}</span>
+        <QuickActionsSourceBanner isDefault={isDefault} copy={bannerCopy} />
+        <AiSettingsQuickActions
+          actions={actions ?? NO_ITEMS}
+          isDefault={isDefault}
+          agentConfig={agentConfig}
+          accent={accent}
+        />
+      </div>
+    </LoadingWhen>
+  );
+}
+
+/**
+ * One action's row: its glyph tile (when it has one) beside the name and instructions. While the row is read the tile is
+ * a bar of the tile's size and the two lines bars of their type steps (`TruncateText` with no text, in the scope).
+ */
+function QuickActionCell({ action, accent }: { action: AiQuickAction; accent: QuickActionAccent | undefined }) {
+  const loading = useLoadingScope();
+  const icon = renderQuickActionIcon({
+    name: action.iconName ?? undefined,
+    url: action.iconUrl ?? undefined,
+    props: action.iconProps ?? undefined,
+    accent,
+    size: 16,
+  });
+  // Figma row (openframe---settings 534-16835): a 32px tile, 16px before the text.
+  return (
+    <div className="flex min-h-[60px] items-center gap-[var(--spacing-system-s)]">
+      {loading ? (
+        <MediaSkeleton.Icon size="lg" className="rounded-md" />
+      ) : (
+        icon && <IconTile className="size-8">{icon}</IconTile>
+      )}
+      <div className="flex min-w-0 flex-col justify-center">
+        <TruncateText>{action.name}</TruncateText>
+        <TruncateText variant="h6" tone="secondary">
+          {action.instructions}
+        </TruncateText>
+      </div>
     </div>
   );
 }
 
+/**
+ * Placeholder rows the loading list holds (and draws with its real cells). The list is not paged (every action arrives at once), so there is no page size: this
+ * is a typical count.
+ */
+const QUICK_ACTIONS_SKELETON_ROWS = 4;
+
 interface AiSettingsQuickActionsProps {
   actions: AiQuickAction[];
-  /** True → OpenFrame (Product Hub) defaults; false → the organization's customs. */
-  isDefault: boolean;
+  /** True → OpenFrame (Product Hub) defaults; false → the organization's customs. Unknown while loading. */
+  isDefault?: boolean;
   agentConfig: QuickActionsAgentConfig;
   /** Glyph tint override - see `resolveQuickActionAccent`. */
   accent?: QuickActionAccent;
@@ -137,35 +198,24 @@ export function AiSettingsQuickActions({
     () => [
       {
         accessorKey: 'name',
+        // Whose list it is (OpenFrame's or the organization's) is read: the header draws its own bar while loading.
         header: `${isDefault ? 'OpenFrame' : 'Organization'} ${agentConfig.agentLabel} Quick Actions`,
-        cell: ({ row }: { row: Row<AiQuickAction> }) => {
-          const icon = renderQuickActionIcon({
-            name: row.original.iconName ?? undefined,
-            url: row.original.iconUrl ?? undefined,
-            props: row.original.iconProps ?? undefined,
-            accent: glyphAccent,
-            size: 16,
-          });
-          // Figma row (openframe---settings 534-16835): a 32px tile, 16px before the text.
-          return (
-            <div className="flex min-h-[60px] items-center gap-[var(--spacing-system-s)]">
-              {icon && <IconTile className="size-8">{icon}</IconTile>}
-              <div className="flex min-w-0 flex-col justify-center">
-                <TruncateText>{row.original.name}</TruncateText>
-                <TruncateText variant="h6" tone="secondary">
-                  {row.original.instructions}
-                </TruncateText>
-              </div>
-            </div>
-          );
-        },
+        meta: { headerLoading: isDefault == null },
+        cell: ({ row }: { row: Row<AiQuickAction> }) => <QuickActionCell action={row.original} accent={glyphAccent} />,
       },
     ],
     [isDefault, agentConfig.agentLabel, glyphAccent],
   );
 
+  // In the section's loading scope the table holds one typical list of placeholder rows, drawn with their real cells
+  // (`loadingCells`): each cell draws its own loading form.
+  const loading = useLoadingScope();
+  const data = useMemo(
+    () => (loading ? loadingPlaceholderRows<AiQuickAction>(QUICK_ACTIONS_SKELETON_ROWS) : actions),
+    [loading, actions],
+  );
   const table = useDataTable<AiQuickAction>({
-    data: actions,
+    data,
     columns,
     getRowId: (row: AiQuickAction) => row.id,
     enableSorting: false,
@@ -174,8 +224,13 @@ export function AiSettingsQuickActions({
   return (
     <div className={cn(className)}>
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
-        <DataTable.Body emptyMessage="No quick actions configured." rowClassName="mb-1" />
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={loading} />} />
+        <DataTable.Body
+          loadingCells={loading}
+          emptyState={oneLineEmptyState('No quick actions configured.')}
+          rowClassName="mb-1"
+          skeletonRows={QUICK_ACTIONS_SKELETON_ROWS}
+        />
       </DataTable>
     </div>
   );

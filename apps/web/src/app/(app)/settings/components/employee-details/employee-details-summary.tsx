@@ -10,6 +10,9 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { EmployeeStatusTag } from '../employees/employee-status-tag';
 import { CARD_CONTAINER, CARD_ROW } from './employee-details-card';
 
+/** The card's values before the record is read. */
+const NO_SUMMARY = { name: '', email: null, avatarUrl: undefined, deleted: false };
+
 const employeeDetailsSummaryFragment = graphql`
   fragment employeeDetailsSummary_user on User {
     roles
@@ -23,12 +26,13 @@ const employeeDetailsSummaryFragment = graphql`
  * placeholder avatar, the name and the status — with the role row dropped. An
  * admin-DELETED user keeps the real name AND email (the data is kept for a
  * revival); a SELF_DELETED one is anonymized server-side and its placeholder
- * email is hidden.
+ * email is hidden. Null while the record is read (a loading scope): the live
+ * card with no values, each part drawing its own loading form.
  */
-export function EmployeeDetailsSummary({ user }: { user: employeeDetailsSummary_user$key }) {
+export function EmployeeDetailsSummary({ user }: { user: employeeDetailsSummary_user$key | null }) {
   const data = useFragment(employeeDetailsSummaryFragment, user);
-  const { name, email, avatarUrl, deleted } = toUserSummary(data);
-  const status = <EmployeeStatusTag status={data.status} />;
+  const { name, email, avatarUrl, deleted } = data ? toUserSummary(data) : NO_SUMMARY;
+  const status = <EmployeeStatusTag status={data?.status ?? null} />;
 
   if (deleted) {
     return (
@@ -71,7 +75,7 @@ export function EmployeeDetailsSummary({ user }: { user: employeeDetailsSummary_
         <InfoCell value={email} label="Email" />
       </div>
       <div className={`${CARD_ROW} border-t border-ods-border`}>
-        <InfoCell value={data.roles.join(', ') || EMPTY_VALUE} label="Role" />
+        <InfoCell value={data ? data.roles.join(', ') || EMPTY_VALUE : null} label="Role" />
         <InfoCell value={status} label="Status" />
       </div>
     </div>

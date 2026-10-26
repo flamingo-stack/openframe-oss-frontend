@@ -2,9 +2,9 @@
 
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useEffect } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -12,12 +12,12 @@ import type {
   softwareTable_software$data,
   softwareTable_software$key,
 } from '@/__generated__/softwareTable_software.graphql';
-import { liveColumnMeta } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
-import { SOFTWARE_LIST_COLUMNS } from './software-list-columns';
+import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
 import { SoftwareVulnerabilitiesCell } from './software-vulnerabilities-cell';
@@ -88,14 +88,10 @@ export interface SoftwareTableProps {
   /** Nothing in the list at all — the caller drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
-  infiniteScroll: {
-    hasNextPage: boolean;
-    isFetchingNextPage: boolean;
-    onLoadMore: () => void;
-  };
+  infiniteScroll: InfiniteScroll;
 }
 
-export function SoftwareTable({
+function LoadedSoftwareTable({
   rows: rowRefs,
   totalCount,
   debouncedSearch,
@@ -105,6 +101,8 @@ export function SoftwareTable({
   stickyHeaderOffset,
   infiniteScroll,
 }: SoftwareTableProps) {
+  // The rows have not answered yet: the table draws its own loading state, never the empty one.
+  const loading = useLoadingScope();
   const rows = useFragment(softwareTableFragment, rowRefs);
 
   const table = useDataTable<SoftwareRow>({
@@ -117,7 +115,7 @@ export function SoftwareTable({
 
   // A search that finds nothing keeps the table (its own "no match" row); a list
   // with nothing in it at all gets the surface's empty state instead.
-  const showEmptyState = !debouncedSearch && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -128,36 +126,42 @@ export function SoftwareTable({
   }
 
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight —
-    // the subtle fade is the pending feedback. Swapping to skeletons is exactly
-    // the flash the deferral avoids.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-        />
-        <DataTable.Body
-          skeletonRows={FLEET_LIST_SKELETON_ROWS}
-          emptyState={{
-            title: debouncedSearch
-              ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software found.',
-          }}
-          rowClassName="mb-1"
-          rowHref={rowHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={infiniteScroll.hasNextPage}
-            isFetchingNextPage={infiniteScroll.isFetchingNextPage}
-            onLoadMore={infiniteScroll.onLoadMore}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_LIST_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      isPending={isPending}
+      emptyState={{
+        title: debouncedSearch
+          ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
+          : 'No software found.',
+      }}
+      rowHref={rowHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
+}
+
+function SoftwareTableLoading({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
+  return (
+    <LiveTable
+      columns={COLUMNS}
+      pageSize={SOFTWARE_LIST_PAGE_SIZE}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+    />
+  );
+}
+
+/**
+ * The software table. Without `rows` (its first page not read yet, the caller's loading scope) it draws its
+ * own loading form: the same table over one page of placeholder rows with their real cells, each in its own loading
+ * form, and the count its own. Every surface that lists these renders this one component in both states.
+ */
+export function SoftwareTable(props: SoftwareTableProps | { stickyHeaderOffset: string }) {
+  if (!('rows' in props)) return <SoftwareTableLoading {...props} />;
+  return <LoadedSoftwareTable {...props} />;
 }

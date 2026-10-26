@@ -2,20 +2,22 @@
 
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMemo } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
   invitationsTable_invitation$data,
   invitationsTable_invitation$key,
 } from '@/__generated__/invitationsTable_invitation.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { liveColumnMeta } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import type { EmployeeFilterOptions, EmployeeSelections } from './employee-filters';
-import { EMPLOYEES_COLUMNS } from './employees-columns';
+import { EMPLOYEES_COLUMNS, INVITATIONS_PAGE_SIZE } from './employees-columns';
 import { type InvitationAction, InvitationActionsCell } from './invitation-actions-cell';
 import { InvitationDialog } from './invitation-dialog';
 import { InvitationEmailCell } from './invitation-email-cell';
@@ -101,13 +103,10 @@ interface InvitationsTableProps {
   /** A refetch is in flight: dims the stale rows. */
   isPending: boolean;
   stickyHeaderOffset: string;
-  infiniteScroll: {
-    hasNextPage: boolean;
-    isFetchingNextPage: boolean;
-    onLoadMore: () => void;
-  };
+  infiniteScroll: InfiniteScroll;
 }
 
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
 export function InvitationsTable({
   rows: rowRefs,
   totalCount,
@@ -121,14 +120,20 @@ export function InvitationsTable({
   stickyHeaderOffset,
   infiniteScroll,
 }: InvitationsTableProps) {
+  const loading = useLoadingScope();
   const rows = useFragment(invitationsTableFragment, rowRefs);
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<InvitationRow, InvitationAction>();
   // The funnels filter on the server: the table only keeps their state.
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<InvitationRow>(INVITATIONS_PAGE_SIZE) : null),
+    [loading],
+  );
 
   const table = useDataTable<InvitationRow>({
     // The fragment reads back a readonly page; the table only ever reads it too.
-    data: rows as InvitationRow[],
+    data: placeholderRows ?? (rows as InvitationRow[]),
     columns: buildColumns(filterOptions, openDialog),
     getRowId,
     enableSorting: false,
@@ -138,23 +143,17 @@ export function InvitationsTable({
 
   return (
     <>
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-          />
-          <DataTable.Body emptyState={emptyState(search, isFiltered)} />
-          {rows.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={infiniteScroll.hasNextPage}
-              isFetchingNextPage={infiniteScroll.isFetchingNextPage}
-              onLoadMore={infiniteScroll.onLoadMore}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        table={table}
+        pageSize={INVITATIONS_PAGE_SIZE}
+        loadingCells={loading}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={emptyState(search, isFiltered)}
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
       {/* Outside the table: revoking the last row still animates the dialog out. */}
       {dialog && (
         <InvitationDialog

@@ -12,7 +12,9 @@ import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
-import { SectionLoadError } from '@/app/components/shared';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
+import { oneLineEmptyState, SectionLoadError } from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { loadErrorProps } from '@/lib/query-state';
@@ -127,6 +129,7 @@ export function Policies() {
     router.push(routes.monitoring.policyNew);
   }, [router]);
 
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_POLICY);
   const actions = useMemo(
     () => [
       {
@@ -139,9 +142,10 @@ export function Policies() {
           />
         ),
         onClick: handleAddPolicy,
+        iconAction: generateWithAi,
       },
     ],
-    [handleAddPolicy, showEmptyState],
+    [handleAddPolicy, showEmptyState, generateWithAi],
   );
 
   return (
@@ -167,6 +171,7 @@ export function Policies() {
             className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Policies"
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
@@ -182,18 +187,18 @@ export function Policies() {
             rowAsLink
             stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount />}
+            rightSlot={<DataTable.RowCount loading={isLoading} />}
             skeletonRows={PAGE_SIZE}
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No policies found." under the strip
             // above. Same rule, one component down.
-            emptyMessage={
+            emptyState={oneLineEmptyState(
               canClaimEmpty
                 ? debouncedSearch
                   ? `No policies found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No policies found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            )}
             hasMore={visibleCount < filteredPolicies.length}
             onLoadMore={handleLoadMore}
           />

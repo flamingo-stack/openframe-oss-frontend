@@ -1,6 +1,8 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { employeeDetailsContentQuery } from '@/__generated__/employeeDetailsContentQuery.graphql';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -32,8 +34,31 @@ const employeeDetailsContentQueryNode = graphql`
   }
 `;
 
-/** Everything on the page that waits for the record. `userId` is the raw id the route carries. */
+/**
+ * Everything on the page that waits for the record, with its own boundary. `userId` is the raw id the route carries.
+ */
 export function EmployeeDetailsContent({ userId }: { userId: string }) {
+  return (
+    <LoadingSuspense label="Loading employee">
+      <EmployeeDetailsReader userId={userId} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (the boundary's fallback) it reads nothing: the header and the card draw their loading form. */
+function EmployeeDetailsReader({ userId }: { userId: string }) {
+  if (useLoadingScope()) {
+    return (
+      <>
+        <EmployeeDetailsHeader user={null} />
+        <EmployeeDetailsSummary user={null} />
+      </>
+    );
+  }
+  return <EmployeeDetailsQuery userId={userId} />;
+}
+
+function EmployeeDetailsQuery({ userId }: { userId: string }) {
   const retryKey = useRetryKey();
   const { node } = useLazyLoadQuery<employeeDetailsContentQuery>(
     employeeDetailsContentQueryNode,

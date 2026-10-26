@@ -1,16 +1,16 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ModalV2Content, ModalV2Footer } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
+import { ModalV2Content, ModalV2Footer, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
 import type { activateSubscriptionModalQuery as ActivateSubscriptionModalQueryType } from '@/__generated__/activateSubscriptionModalQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { PaywallDescription } from '@/app/components/subscription-lock/paywall-header';
 import {
   getPaywallCopy,
   type PaywallCopy,
-  paywallDescription,
   PLANS_UNAVAILABLE_COPY,
 } from '@/app/components/subscription-lock/subscription-lock-copy';
 import type { SubscriptionStatus } from '@/generated/schema-enums';
@@ -72,15 +72,28 @@ export function ActivateSubscriptionModal({ isOpen, status, onClose }: ActivateS
           </ModalV2Content>
         }
       >
-        <Suspense fallback={<ActivateSubscriptionBody copy={copy} query={null} />}>
-          <ActivateSubscriptionContent copy={copy} />
-        </Suspense>
+        <ActivateSubscriptionContent copy={copy} />
       </ErrorBoundary>
     </SimpleModal>
   );
 }
 
+/** The modal's body over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
 function ActivateSubscriptionContent({ copy }: { copy: PaywallCopy }) {
+  return (
+    <LoadingSuspense label="Loading plans">
+      <ActivateSubscriptionReader copy={copy} />
+    </LoadingSuspense>
+  );
+}
+
+function ActivateSubscriptionReader({ copy }: { copy: PaywallCopy }) {
+  // In a loading scope (its boundary's fallback) it draws the body with no catalog and runs no read.
+  if (useLoadingScope()) return <ActivateSubscriptionBody copy={copy} query={null} />;
+  return <ActivateSubscriptionLive copy={copy} />;
+}
+
+function ActivateSubscriptionLive({ copy }: { copy: PaywallCopy }) {
   const data = useLazyLoadQuery<ActivateSubscriptionModalQueryType>(
     activateSubscriptionModalQuery,
     {},
@@ -107,7 +120,7 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
   return (
     <>
       <ModalV2Content className="flex flex-col gap-[var(--spacing-system-l)]">
-        <p className="text-ods-text-secondary text-h6">{paywallDescription(copy, form.deviceCount)}</p>
+        <PaywallDescription copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
         <PlanCheckoutCards query={data} form={form} />
       </ModalV2Content>
       <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">

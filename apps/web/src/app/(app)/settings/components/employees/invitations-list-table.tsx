@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import {
   fetchQuery,
   graphql,
@@ -11,10 +13,15 @@ import {
 import type { invitationsListTable_query$key } from '@/__generated__/invitationsListTable_query.graphql';
 import type { invitationsListTablePaginationQuery } from '@/__generated__/invitationsListTablePaginationQuery.graphql';
 import type { invitationsListTableQuery } from '@/__generated__/invitationsListTableQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
-import { type EmployeeSelections, invitationFilterOptions, toInvitationFilter } from './employee-filters';
+import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  type EmployeeSelections,
+  invitationFilterOptions,
+  NO_EMPLOYEE_FILTER_OPTIONS,
+  toInvitationFilter,
+} from './employee-filters';
 import { INVITATIONS_PAGE_SIZE } from './employees-columns';
-import { affectedInvitationsListings } from './invitations-listing';
+import { affectedInvitationsListings, invitationsListingId } from './invitations-listing';
 import { InvitationsTable } from './invitations-table';
 
 const invitationsListTableQueryNode = graphql`
@@ -63,11 +70,41 @@ interface InvitationsListTableProps {
 }
 
 /**
- * Open invitations, newest first, searched, narrowed and paged on the server.
- * Owns the `invitations` connection and the infinite scroll; the rows and their
- * dialogs are `InvitationsTable`. Suspends on the first page.
+ * Open invitations, newest first, searched, narrowed and paged on the server, with their own boundary. In a loading
+ * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
+ * otherwise it runs the query, which suspends under that boundary.
  */
-export function InvitationsListTable({
+export function InvitationsListTable(props: InvitationsListTableProps) {
+  return (
+    <LoadingSuspense label="Loading invitations">
+      <InvitationsListReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function InvitationsListReader(props: InvitationsListTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <InvitationsTable
+        rows={NO_ITEMS}
+        totalCount={0}
+        search={props.search}
+        isFiltered={false}
+        filterOptions={NO_EMPLOYEE_FILTER_OPTIONS}
+        selections={props.selections}
+        onSelectionsChange={props.onSelectionsChange}
+        listingIds={affectedInvitationsListings(invitationsListingId(props.search))}
+        isPending={false}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <InvitationsListQuery {...props} />;
+}
+
+/** The first page, the infinite scroll and the refetch a change marks stale. */
+function InvitationsListQuery({
   search,
   backendSelections,
   selections,

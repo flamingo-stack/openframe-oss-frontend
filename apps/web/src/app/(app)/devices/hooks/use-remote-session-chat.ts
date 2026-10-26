@@ -42,9 +42,18 @@ interface ChatStore {
   historyLoaded: boolean;
   /** The page's highest stamped sequence; the feed opens right after it, older chunks are dropped. */
   lastSeq: number;
+  /** An end-user message came in while the panel was closed and nobody has opened it since. */
+  unread: boolean;
 }
 
-const EMPTY_STORE: ChatStore = { dialogId: null, history: [], live: [], historyLoaded: false, lastSeq: 0 };
+const EMPTY_STORE: ChatStore = {
+  dialogId: null,
+  history: [],
+  live: [],
+  historyLoaded: false,
+  lastSeq: 0,
+  unread: false,
+};
 
 function storeFor(prev: ChatStore, dialogId: string): ChatStore {
   return prev.dialogId === dialogId ? prev : { ...EMPTY_STORE, dialogId };
@@ -57,6 +66,10 @@ export interface RemoteSessionChatState {
   technician: RemoteSessionChatTechnician;
   /** Resolves `false` when nothing was sent (blank text, no dialog, failure). */
   send: (body: string) => Promise<boolean>;
+  /** The end user wrote while the panel was closed - the Open Chat marker. */
+  hasUnread: boolean;
+  /** The technician has seen the chat (the panel opened or closed). */
+  markRead: () => void;
 }
 
 /**
@@ -64,8 +77,12 @@ export interface RemoteSessionChatState {
  * and tailed on its JetStream subject from the page's last sequence. Own
  * messages come back through the same feed as the end user's, so the list is
  * one ordered stream, deduplicated by id and by sequence against the page.
+ *
+ * The feed runs whether the panel is open or not, so an end-user message that
+ * arrives while `panelOpen` is false raises `hasUnread`; the history the page
+ * opens with is old news and never does, nor do the technician's own lines.
  */
-export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChatState {
+export function useRemoteSessionChat(dialogId: string | null, panelOpen = false): RemoteSessionChatState {
   // One record per dialog: a dialog change is a derived reset (no setState in
   // the effect body), live rows arriving before the page stay ordered after it.
   const [store, setStore] = useState<ChatStore>(EMPTY_STORE);
@@ -75,13 +92,19 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
   useEffect(() => {
     technicianRef.current = technician;
   }, [technician]);
+  // Read when a message lands, not when the hook renders: the feed calls back between renders.
+  const panelOpenRef = useRef(panelOpen);
+  useEffect(() => {
+    panelOpenRef.current = panelOpen;
+  }, [panelOpen]);
 
   const deliver = useCallback((dialog: string, message: RemoteSessionChatMessage) => {
     setStore(prev => {
       const base = storeFor(prev, dialog);
       if (message.seq !== undefined && message.seq <= base.lastSeq) return base;
       if (base.history.some(m => m.id === message.id) || base.live.some(m => m.id === message.id)) return base;
-      return { ...base, live: [...base.live, message] };
+      const unread = base.unread || (message.author === 'user' && !panelOpenRef.current);
+      return { ...base, live: [...base.live, message], unread };
     });
   }, []);
 
@@ -100,12 +123,16 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
           const base = storeFor(prev, dialogId);
           const known = new Set(page.messages.map(m => m.id));
           const lastSeq = Math.max(base.lastSeq, page.lastSeq);
+          // A re-read after a gap can bring end-user lines the feed missed; the first page is history.
+          const held = new Set([...base.history, ...base.live].map(m => m.id));
+          const missed = base.historyLoaded && page.messages.some(m => m.author === 'user' && !held.has(m.id));
           return {
             ...base,
             history: page.messages,
             live: base.live.filter(m => !known.has(m.id) && (m.seq === undefined || m.seq > lastSeq)),
             historyLoaded: true,
             lastSeq,
+            unread: base.unread || (missed && !panelOpenRef.current),
           };
         });
       })
@@ -164,6 +191,10 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     [dialogId],
   );
 
+  const markRead = useCallback(() => {
+    setStore(prev => (prev.unread ? { ...prev, unread: false } : prev));
+  }, []);
+
   const messages = useMemo(() => [...current.history, ...current.live], [current.history, current.live]);
   return {
     messages,
@@ -171,5 +202,7 @@ export function useRemoteSessionChat(dialogId: string | null): RemoteSessionChat
     sending,
     technician,
     send,
+    hasUnread: current.unread,
+    markRead,
   };
 }

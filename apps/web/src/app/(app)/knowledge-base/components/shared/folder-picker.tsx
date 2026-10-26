@@ -1,10 +1,12 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   type ActionsMenuItem,
   InputTrigger,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { folderPickerQuery as FolderPickerQueryType } from '@/__generated__/folderPickerQuery.graphql';
@@ -41,13 +43,49 @@ interface FolderPickerProps {
 
 /**
  * The one folder picker of the knowledge base: the root, then the folder tree as
- * nested menus. Suspends on the tree — wrap it in `<Suspense>` with
- * `FolderPickerFallback`.
+ * nested menus. It holds its own boundary on the tree: while the tree loads (or
+ * in any loading scope) it draws its own loading state, the same control locked.
  */
-export function FolderPicker({
+export function FolderPicker(props: FolderPickerProps) {
+  return (
+    <LoadingSuspense label="Loading folders">
+      <FolderPickerBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function FolderPickerBody(props: FolderPickerProps) {
+  // Before the tree is in: the same trigger, locked; in the loading scope it draws its value as a bar.
+  if (useLoadingScope()) {
+    return <FolderPickerTrigger selectedLabel={props.label} placeholder={props.placeholder} disabled />;
+  }
+  return <FolderPickerMenu {...props} />;
+}
+
+/** The picker's field, the same while the tree loads and once it is in. */
+function FolderPickerTrigger({
+  selectedLabel,
+  placeholder = 'Select Folder',
+  disabled,
+}: {
+  selectedLabel: string | undefined;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <InputTrigger
+      selectedLabel={selectedLabel}
+      placeholder={placeholder}
+      endIcon={<Chevron02DownIcon className="size-6" />}
+      disabled={disabled}
+    />
+  );
+}
+
+function FolderPickerMenu({
   value,
   onSelect,
-  placeholder = 'Select Folder',
+  placeholder,
   label,
   leadingItems = [],
   excludeFolderId,
@@ -79,12 +117,7 @@ export function FolderPicker({
       side="bottom"
       sideOffset={4}
       customTrigger={
-        <InputTrigger
-          selectedLabel={label ?? pickedName}
-          placeholder={placeholder}
-          endIcon={<Chevron02DownIcon className="size-6" />}
-          disabled={disabled}
-        />
+        <FolderPickerTrigger selectedLabel={label ?? pickedName} placeholder={placeholder} disabled={disabled} />
       }
     />
   );

@@ -1,14 +1,15 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   softwareActionsTable_query$data,
@@ -19,7 +20,15 @@ import type {
   SoftwareActionFilterInput,
   softwareActionsTableQuery as SoftwareActionsTableQueryType,
 } from '@/__generated__/softwareActionsTableQuery.graphql';
-import { EmptyState, liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import {
+  EmptyState,
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  useRetryKey,
+} from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
@@ -173,16 +182,39 @@ interface SoftwareActionsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Software Actions rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function SoftwareActionsTable({
-  backendFilters,
-  debouncedSearch,
-  selections,
-  onSelectionsChange,
-  isPending,
-  onEmptyChange,
-  stickyHeaderOffset,
-}: SoftwareActionsTableProps) {
+/** The filter options before the query has read them (the loading state's): none known yet. */
+const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
+
+/**
+ * The Software Actions rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's flag
+ * window) the reader draws the table over one page of placeholder rows with their real cells, each in its own loading
+ * form; otherwise it runs the query, which suspends under that boundary.
+ */
+export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
+  return (
+    <LoadingSuspense label="Loading software actions">
+      <SoftwareActionsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareActionsTableReader(props: SoftwareActionsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <SoftwareActionsRows
+        {...props}
+        rows={NO_ITEMS}
+        totalCount={0}
+        filterOptions={UNREAD_FILTER_OPTIONS}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <SoftwareActionsTableQuery {...props} />;
+}
+
+function SoftwareActionsTableQuery(props: SoftwareActionsTableProps) {
+  const { backendFilters, debouncedSearch } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<SoftwareActionsTableQueryType>(
     softwareActionsTableQuery,
@@ -206,10 +238,49 @@ export function SoftwareActionsTable({
   // the server, so a value no run has is never offered.
   const filterOptions = useSoftwareActionFilters();
 
+  return (
+    <SoftwareActionsRows
+      {...props}
+      rows={rows}
+      totalCount={totalCount}
+      filterOptions={filterOptions}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+    />
+  );
+}
+
+interface SoftwareActionsRowsProps extends SoftwareActionsTableProps {
+  rows: readonly SoftwareActionRow[];
+  totalCount: number;
+  filterOptions: SoftwareActionFilterOptions;
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function SoftwareActionsRows({
+  rows,
+  totalCount,
+  filterOptions,
+  infiniteScroll,
+  backendFilters,
+  debouncedSearch,
+  selections,
+  onSelectionsChange,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: SoftwareActionsRowsProps) {
+  const loading = useLoadingScope();
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<SoftwareActionRow>(SOFTWARE_ACTIONS_PAGE_SIZE) : null),
+    [loading],
+  );
 
   const table = useDataTable<SoftwareActionRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as SoftwareActionRow[]),
     columns: buildColumns(filterOptions),
     getRowId,
     enableSorting: false,
@@ -219,7 +290,7 @@ export function SoftwareActionsTable({
 
   // A search or a funnel that finds nothing keeps the table (its own "no match"
   // row); a tenant with no run at all gets the page's empty state instead.
-  const showEmptyState = !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
+  const showEmptyState = !loading && !debouncedSearch && !backendFilters && !isPending && rows.length === 0;
 
   useEffect(() => {
     onEmptyChange(showEmptyState);
@@ -236,34 +307,22 @@ export function SoftwareActionsTable({
   }
 
   return (
-    // Dim (don't unmount) the stale rows while a deferred refetch is in flight.
-    <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
-          stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-        />
-        <DataTable.Body
-          skeletonRows={SOFTWARE_ACTIONS_PAGE_SIZE}
-          emptyState={{
-            title: debouncedSearch
-              ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
-              : 'No software actions match the selected filters. Try adjusting your filters.',
-          }}
-          rowClassName="mb-1"
-          rowHref={detailsHref}
-        />
-        {/* Zero rows plus a next page: see vulnerability-list-table.tsx. */}
-        {rows.length > 0 && (
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        )}
-      </DataTable>
-    </div>
+    <LiveTable
+      table={table}
+      pageSize={SOFTWARE_ACTIONS_PAGE_SIZE}
+      loadingCells={loading}
+      stickyHeaderOffset={stickyHeaderOffset}
+      itemName="result"
+      totalCount={totalCount}
+      isPending={isPending}
+      emptyState={{
+        title: debouncedSearch
+          ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
+          : 'No software actions match the selected filters. Try adjusting your filters.',
+      }}
+      rowHref={detailsHref}
+      // Zero rows plus a next page: see vulnerability-table.tsx.
+      footer={rows.length > 0 ? infiniteScroll : null}
+    />
   );
 }

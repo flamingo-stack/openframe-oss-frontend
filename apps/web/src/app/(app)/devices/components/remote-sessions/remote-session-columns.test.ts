@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { RecordingSummary } from '../../types/session-recording';
-import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
+import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
 import { EXPIRES_FILTER_OPTIONS } from './session-status';
 

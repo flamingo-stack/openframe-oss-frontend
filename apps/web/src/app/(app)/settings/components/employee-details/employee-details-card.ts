@@ -1,4 +1,4 @@
-/** The employee card's frame, shared by the loaded card and its skeleton. */
+/** The employee card's frame. */
 export const CARD_CONTAINER =
   'flex flex-col rounded-md border border-ods-border bg-ods-card content-md:flex-row content-md:items-center content-md:gap-[var(--spacing-system-m)] content-md:p-[var(--spacing-system-m)]';
 

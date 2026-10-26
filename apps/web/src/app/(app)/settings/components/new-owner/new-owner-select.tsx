@@ -2,7 +2,7 @@
 
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useDeferredValue, useState } from 'react';
+import { useDeferredValue, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { NewOwnerCandidates } from './new-owner-candidates';
 import { NewOwnerField } from './new-owner-field';
@@ -42,26 +42,20 @@ export function NewOwnerSelect({ currentUserId, organizationName, value, onChang
         />
       )}
     >
-      <Suspense
-        fallback={
-          <NewOwnerField options={NO_OPTIONS} value={null} onChange={() => {}} onSearch={setInput} loading disabled />
-        }
-      >
-        <NewOwnerCandidates
-          currentUserId={currentUserId}
-          organizationName={organizationName}
-          search={search}
-          isSearching={search !== input}
-          onSearch={setInput}
-          value={value}
-          picked={picked}
-          onChange={option => {
-            setPicked(option);
-            onChange(option?.value ?? '');
-          }}
-          disabled={disabled}
-        />
-      </Suspense>
+      <NewOwnerCandidates
+        currentUserId={currentUserId}
+        organizationName={organizationName}
+        search={search}
+        isSearching={search !== input}
+        onSearch={setInput}
+        value={value}
+        picked={picked}
+        onChange={option => {
+          setPicked(option);
+          onChange(option?.value ?? '');
+        }}
+        disabled={disabled}
+      />
     </ContentErrorBoundary>
   );
 }

@@ -5,6 +5,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { toDateTimeLocalValue } from '@/lib/format-date';
 import type { ApiKeyRecord } from '../hooks/use-api-keys';
 
 interface CreateApiKeyModalProps {
@@ -60,7 +61,7 @@ export function CreateApiKeyModal({
     } else if (initial && mode === 'edit') {
       setName(initial.name || '');
       setDescription(initial.description || '');
-      setExpiresAt(initial.expiresAt ? new Date(initial.expiresAt).toISOString().slice(0, 16) : '');
+      setExpiresAt(toDateTimeLocalValue(initial.expiresAt));
     }
   }
 

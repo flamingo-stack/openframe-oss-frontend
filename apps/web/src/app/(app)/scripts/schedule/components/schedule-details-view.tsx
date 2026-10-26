@@ -1,6 +1,7 @@
 'use client';
 
 import { NotFoundError, Tag, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { isEventTrigger } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -12,12 +13,13 @@ import {
   type PageActionButton,
   type TabItem,
   TabNavigation,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -32,36 +34,68 @@ import { formatScheduleStartAt, offlineBehaviorToLabel, repeatToLabel } from '..
 import { ArchiveScheduleModal } from './archive-schedule-modal';
 import {
   SCHEDULE_DEFAULT_TAB,
-  SCHEDULE_TABS_WITHOUT_RUNS,
+  SCHEDULE_DETAIL_TABS,
   scheduleDetailTabs,
   scheduleTabBody,
 } from './schedule-detail-tabs';
-import { ScheduleHeaderSkeleton } from './schedule-details-skeleton';
 import { ScheduleInfoBarFromData } from './schedule-info-bar';
-import { ScheduleInfoBarSkeleton } from './schedule-info-bar-skeleton';
 
 interface ScheduleDetailsViewProps {
   scheduleId: string;
 }
 
 /**
- * The header island: the title, the "Archived" tag and the ACTION SET are all
- * the record's own answer, so this is what waits for it.
+ * The header island, with its own boundary: the title, the "Archived" tag and
+ * the ACTION SET are all the record's own answer, so this is what waits for it.
+ * In its scope the reader draws the header with no record.
  *
  * A missing schedule keeps the Back button and drops everything else — the way
  * out has to survive a bad id, and the timing bar below reports the miss once.
  */
 function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
+  return (
+    <LoadingSuspense live label="Loading the schedule">
+      <ScheduleHeaderReader scheduleId={scheduleId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleHeaderReader({ scheduleId }: ScheduleDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleHeaderView scheduleId={scheduleId} />;
+  return <ScheduleHeaderLive scheduleId={scheduleId} />;
+}
+
+function ScheduleHeaderLive({ scheduleId }: ScheduleDetailsViewProps) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
     { id: scheduleId },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
-  const schedule = data.scriptSchedule;
+  return <ScheduleHeaderView scheduleId={scheduleId} schedule={data.scriptSchedule} />;
+}
 
+type ScheduleRecord = ScheduleDetailQueryType['response']['scriptSchedule'];
+
+/**
+ * The actions while the record loads: `loadingActions` turns each entry into a placeholder sized like the button it
+ * will become. Three, as an active schedule has (Archive, Edit Devices, Edit Schedule): most schedules are active.
+ */
+const LOADING_ACTIONS: PageActionButton[] = [
+  { label: 'Archive', variant: 'outline' },
+  { label: 'Edit Devices', variant: 'outline' },
+  { label: 'Edit Schedule', variant: 'outline' },
+];
+
+/**
+ * The header over the record (`null`: not found). Before it (`schedule` undefined, or in a loading scope) the same
+ * header draws itself: the title a bar, the actions placeholders, Back working.
+ */
+function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps & { schedule?: ScheduleRecord }) {
+  const loading = useLoadingScope() || schedule === undefined;
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
-  const { isArchived, isArchiving, isPending, toggleArchive } = useScheduleArchive(schedule);
+  const { isArchived, isArchiving, isPending, toggleArchive } = useScheduleArchive(loading ? null : schedule);
 
   // Back follows the list the schedule actually belongs to, so Back from an
   // archived schedule doesn't land the user on a list without it.
@@ -72,7 +106,7 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
   // backend resolver expects. The mention chip re-encodes it for its fetch.
   const scheduleDbId = useMemo(() => decodeGlobalId(scheduleId)?.rawId ?? scheduleId, [scheduleId]);
   useTrackOpenView(
-    schedule
+    !loading && schedule
       ? { type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
       : null,
   );
@@ -83,6 +117,7 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
   // An archived schedule runs on nothing, so editing it is meaningless — the one
   // thing worth offering is putting it back (design node 1:24107).
   const actions = useMemo<PageActionButton[]>(() => {
+    if (loading) return LOADING_ACTIONS;
     if (!schedule) return [];
     return isArchived
       ? [
@@ -119,7 +154,7 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
             icon: <PenEditIcon className="text-ods-text-secondary" />,
           },
         ];
-  }, [schedule, scheduleId, isArchived, handleArchiveToggle, isPending]);
+  }, [loading, schedule, scheduleId, isArchived, handleArchiveToggle, isPending]);
 
   return (
     <>
@@ -128,7 +163,9 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
         // rather than `always`: the description line is drawn while the header is
         // loading, but a schedule that has none settles one line shorter instead
         // of keeping an empty row forever.
-        title={schedule?.name}
+        title={schedule?.name ?? ''}
+        loading={loading}
+        loadingActions={loading}
         subtitle={schedule?.description ?? undefined}
         subtitleRow="while-loading"
         titleAdornment={isArchived ? <Tag label="Archived" variant="grey" /> : undefined}
@@ -148,7 +185,8 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
 }
 
 /**
- * The timing bar island. Reads the SAME query as the header with the same
+ * The timing bar island, with its own boundary (the reader draws the bar's
+ * skeleton in its scope). Reads the SAME query as the header with the same
  * variables, so Relay dedupes them into one request and both render from the
  * store afterwards.
  *
@@ -157,6 +195,22 @@ function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
  * page says it once.
  */
 function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading schedule details">
+      <ScheduleInfoBarReader scheduleId={scheduleId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleInfoBarReader({ scheduleId }: ScheduleDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) {
+    return <ScheduleInfoBarFromData date="" time="" repeat="" platforms={NO_ITEMS} addedBy="" ifDeviceOffline="" />;
+  }
+  return <ScheduleInfoBarLive scheduleId={scheduleId} />;
+}
+
+function ScheduleInfoBarLive({ scheduleId }: ScheduleDetailsViewProps) {
   // Shares the header's key deliberately. NOT for network dedupe — that is keyed
   // on `operation.request.identifier` (`loadQuery.js`), which does not contain
   // `fetchKey`, so mismatched keys still share one in-flight request. The reason
@@ -236,7 +290,7 @@ function ScheduleTabs({ scheduleId, tabs }: ScheduleDetailsViewProps & { tabs: T
  * `schedule-trigger-relay.ts`. Coming from the schedules list (which selects
  * `trigger`) it answers from the Relay store and this never suspends, so the
  * strip still paints with the rest of the page chrome; a cold load — a link
- * straight into the page — falls back to the certain tabs for one round trip.
+ * straight into the page — falls back to a timed schedule's tabs for one round trip.
  *
  * A stale `?tab=runs` needs no handling: `TabNavigation` resolves a tab id that
  * is not in `tabs` to `defaultTab`, so a link into the Runs tab of a schedule
@@ -279,21 +333,19 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <Suspense fallback={<ScheduleHeaderSkeleton />}>
-        <ScheduleHeader scheduleId={scheduleId} />
-      </Suspense>
+      <ScheduleHeader scheduleId={scheduleId} />
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <Suspense fallback={<ScheduleInfoBarSkeleton />}>
-          <ScheduleInfoBar scheduleId={scheduleId} />
-        </Suspense>
+        <ScheduleInfoBar scheduleId={scheduleId} />
 
         {/* The strip's own island — WHICH tabs exist is the schedule's answer
             (no Schedule Runs on an event-driven one). Its fallback is the same
-            strip on the certain tabs, so the page keeps a working tab bar
-            through the wait instead of a placeholder, and the bodies below go on
+            strip on the typical schedule's tabs (a timed one, Schedule Runs
+            included, so a link into the Runs tab keeps its tab through the wait),
+            a working tab bar instead of a placeholder, and the bodies below go on
             loading under it. */}
-        <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_TABS_WITHOUT_RUNS} />}>
+        {/* loading-standard-ok(RAW_SUSPENSE): the fallback is the live strip; a loading scope would stop its bodies */}
+        <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_DETAIL_TABS} />}>
           <ScheduleTabsIsland scheduleId={scheduleId} />
         </Suspense>
       </div>

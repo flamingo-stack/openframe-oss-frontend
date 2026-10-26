@@ -3,6 +3,7 @@
 import {
   HeadphoneIcon,
   Logout01Icon,
+  Refresh01RightIcon,
   UserXmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ActionsMenuGroup } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -13,9 +14,23 @@ import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-s
 import { ContactSupportModal } from '@/app/components/shared/contact-support-modal';
 
 interface LockScreenActionsProps {
-  /** Rendered before the standard three — e.g. the inactive screen's "Check Again". */
+  /** Rendered before the standard three — e.g. `CheckAgainButton`. */
   leading?: ReactNode;
   className?: string;
+}
+
+/**
+ * Re-reads the lock. The status comes from the subscription query resolved once
+ * in the app shell, so a full reload is the simplest way to re-resolve it once
+ * access is restored — an invoice paid in the Stripe tab, or an admin fixing
+ * things elsewhere.
+ */
+export function CheckAgainButton() {
+  return (
+    <Button variant="outline" leftIcon={<Refresh01RightIcon />} onClick={() => window.location.reload()}>
+      Check Again
+    </Button>
+  );
 }
 
 /**

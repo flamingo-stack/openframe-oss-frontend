@@ -1,10 +1,10 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, Suspense, useMemo } from 'react';
+import { Button, LoadingItems, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type ReactNode, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { unpaidInvoicesScreenQuery as UnpaidInvoicesScreenQueryType } from '@/__generated__/unpaidInvoicesScreenQuery.graphql';
 import {
@@ -12,10 +12,12 @@ import {
   isOutstandingInvoice,
   toInvoiceRow,
 } from '@/app/(app)/settings/billing-usage/components/shared/invoice-row';
-import { EMPTY_VALUE } from '@/lib/empty-value';
+import { SubscriptionStatus } from '@/generated/schema-enums';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
-import { LockScreenActions } from './lock-screen-actions';
+import { routes } from '@/lib/routes';
+import { InfoCell } from '../shared/info-cell';
+import { CheckAgainButton, LockScreenActions } from './lock-screen-actions';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**
@@ -37,28 +39,61 @@ const unpaidInvoicesScreenQuery = graphql`
   }
 `;
 
-const TITLE = 'Your Organization Has Been Suspended';
+/** The two steps of one unpaid invoice this screen is for — see `subscription-status.ts`. */
+type DebtStatus = typeof SubscriptionStatus.PAST_DUE | typeof SubscriptionStatus.SUSPENDED;
 
-/** Shown when the invoices themselves cannot be loaded — the one thing this screen is for. */
-const INVOICES_UNAVAILABLE_COPY = {
-  title: TITLE,
-  description:
-    "We couldn't load the outstanding invoices for this workspace. Try again in a moment, or contact support to have access restored.",
+interface DebtCopy {
+  title: string;
+  description: string;
+  /** The backend says money is owed, but there is no open invoice to pay. */
+  nothingOutstanding: string;
+}
+
+const DEBT_COPY: Record<DebtStatus, DebtCopy> = {
+  [SubscriptionStatus.PAST_DUE]: {
+    title: 'Your Invoice Is Overdue',
+    description:
+      "An invoice is past its due date, so the dashboard is locked until it's paid. Your agents keep working in the meantime. Pay the outstanding balance to restore access instantly.",
+    nothingOutstanding:
+      "The dashboard is locked over an overdue invoice, and we can't find an open one to settle. Contact support and we'll sort it out.",
+  },
+  [SubscriptionStatus.SUSPENDED]: {
+    title: 'Your Organization Has Been Suspended',
+    description:
+      "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly.",
+    nothingOutstanding:
+      "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out.",
+  },
 };
 
 /**
- * The lock screen for a workspace suspended over unpaid invoices.
+ * How many invoice rows the list draws while it is read (the outstanding invoices are not paged): one, because at
+ * least one is why the workspace is locked.
+ */
+const UNPAID_INVOICES_SKELETON_ROWS = 1;
+
+/** Shown when the invoices themselves cannot be loaded — the one thing this screen is for. */
+const INVOICES_UNAVAILABLE_DESCRIPTION =
+  "We couldn't load the outstanding invoices for this workspace. Try again in a moment, or contact support to have access restored.";
+
+interface UnpaidInvoicesScreenProps {
+  status: DebtStatus;
+}
+
+/**
+ * The lock screen for a workspace that owes an invoice: `PAST_DUE` (the
+ * dashboard is locked, the agents still run) or `SUSPENDED` (everything is
+ * paused).
  *
- * SUSPENDED is a locking status (see `subscription-status.ts`), and unlike the
- * other two it has a remedy that is neither a plan nor a checkout: an invoice
- * that already exists and is waiting to be paid. So this screen replaces the
- * plan picker rather than decorating it — picking a plan is not what gets this
- * workspace back.
+ * Unlike the other locks this one has a remedy that is neither a plan nor a
+ * checkout: an invoice that already exists and is waiting to be paid. So this
+ * screen replaces the plan picker rather than decorating it — picking a plan is
+ * not what gets this workspace back.
  *
  * Every outstanding invoice is listed, each openable on its own, because a
  * workspace can fall behind by more than one and only the customer knows which
  * one their finance team is asking about. The primary CTA opens the OLDEST —
- * the one the suspension is actually counting from.
+ * the one the lock is actually counting from.
  *
  * Reached only on builds where payments may be shown: `SubscriptionLockContent`
  * routes the native builds to `WorkspaceInactiveScreen` before this module is
@@ -66,33 +101,21 @@ const INVOICES_UNAVAILABLE_COPY = {
  * precisely what App Store Guideline 3.1.1 forbids there (see
  * `billing-visibility.ts`).
  */
-export function UnpaidInvoicesScreen() {
+export function UnpaidInvoicesScreen({ status, loading = false }: UnpaidInvoicesScreenProps & { loading?: boolean }) {
   return (
     // Same reasoning as the paywall's: this screen IS what a locked workspace
     // gets instead of the app, so a throw here would land on the root error page
     // and leave the user with no way out at all. The degraded screen still
     // carries the sign-out, the self-deletion and the support form.
-    <ErrorBoundary fallback={<WorkspaceInactiveScreen {...INVOICES_UNAVAILABLE_COPY} />}>
-      <SuspendedWorkspaceShell>
-        <Suspense fallback={<SuspendedWorkspaceMain invoices={null} />}>
-          <UnpaidInvoicesContent />
-        </Suspense>
-      </SuspendedWorkspaceShell>
+    <ErrorBoundary
+      fallback={
+        <WorkspaceInactiveScreen title={DEBT_COPY[status].title} description={INVOICES_UNAVAILABLE_DESCRIPTION} />
+      }
+    >
+      <UnpaidInvoicesShell>
+        <UnpaidInvoicesContent status={status} loading={loading} />
+      </UnpaidInvoicesShell>
     </ErrorBoundary>
-  );
-}
-
-/**
- * The same screen while a gate ABOVE it is still resolving (today: the role
- * check). Its own query has not been issued yet, so there is nothing to suspend
- * on — this is the body in its unfilled shape, which is also what the `Suspense`
- * fallback above shows, so the two waits read as one.
- */
-export function UnpaidInvoicesLoading() {
-  return (
-    <SuspendedWorkspaceShell>
-      <SuspendedWorkspaceMain invoices={null} />
-    </SuspendedWorkspaceShell>
   );
 }
 
@@ -104,16 +127,35 @@ export function UnpaidInvoicesLoading() {
  * dialog unmounts the fallback — closing whatever the user had started typing
  * into it.
  */
-function SuspendedWorkspaceShell({ children }: { children: ReactNode }) {
+function UnpaidInvoicesShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col gap-[var(--spacing-system-xl)] p-[var(--spacing-system-l)]">
       {children}
-      <LockScreenActions />
+      {/* "Check Again" leads: paying happens in the Stripe tab, and the lock
+          lifts here only once the status is read again. */}
+      <LockScreenActions leading={<CheckAgainButton />} />
     </div>
   );
 }
 
-function UnpaidInvoicesContent() {
+/**
+ * The invoices, with their own boundary. One body for every wait: a gate above it (the role check: `loading`, its
+ * query not sent yet) and the invoice query; in its scope the reader draws the body with no invoices.
+ */
+function UnpaidInvoicesContent({ loading = false, ...props }: UnpaidInvoicesScreenProps & { loading?: boolean }) {
+  return (
+    <LoadingSuspense gated={loading} label="Loading invoices">
+      <UnpaidInvoicesContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function UnpaidInvoicesContentReader(props: UnpaidInvoicesScreenProps) {
+  if (useLoadingScope()) return <UnpaidInvoicesMain status={props.status} invoices={null} />;
+  return <UnpaidInvoicesContentLive {...props} />;
+}
+
+function UnpaidInvoicesContentLive({ status }: UnpaidInvoicesScreenProps) {
   const data = useLazyLoadQuery<UnpaidInvoicesScreenQueryType>(
     unpaidInvoicesScreenQuery,
     {},
@@ -126,7 +168,7 @@ function UnpaidInvoicesContent() {
   );
 
   // `null` when the subscription answered without its invoices (Stripe could
-  // not be reached): the workspace is still suspended, but there is nothing to
+  // not be reached): the workspace is still locked, but there is nothing to
   // list and nothing to open — which is a different screen from "none owed".
   const pendingInvoices = data.subscription?.pendingInvoices ?? null;
   const invoices = useMemo(
@@ -134,25 +176,25 @@ function UnpaidInvoicesContent() {
     [pendingInvoices],
   );
 
-  if (invoices == null) return <SuspendedWorkspaceMain invoices={null} unavailable />;
-  return <SuspendedWorkspaceMain invoices={invoices} />;
+  if (invoices == null) return <UnpaidInvoicesMain status={status} invoices={null} unavailable />;
+  return <UnpaidInvoicesMain status={status} invoices={invoices} />;
 }
 
-interface SuspendedWorkspaceMainProps {
+interface UnpaidInvoicesMainProps extends UnpaidInvoicesScreenProps {
   /**
-   * `null` while the invoices are on their way — the copy is already true then,
-   * and the CTA renders as itself, disabled. Reusing the real controls rather
-   * than grey bars is the app-wide loading convention.
+   * `null` while the invoices are on their way (rendered in a loading scope) — the copy is already true then,
+   * the rows draw their own loading state and the CTA renders as itself, disabled.
    */
   invoices: readonly InvoiceRow[] | null;
   /** The invoices could not be loaded at all: say so, and offer the support form the shell carries. */
   unavailable?: boolean;
 }
 
-function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWorkspaceMainProps) {
-  const loading = invoices == null && !unavailable;
-  // The oldest outstanding invoice with a payment link — the suspension counts
-  // from the oldest, and an invoice Stripe has not finalized has no link yet,
+function UnpaidInvoicesMain({ status, invoices, unavailable = false }: UnpaidInvoicesMainProps) {
+  const copy = DEBT_COPY[status];
+  const loading = useLoadingScope() || (invoices == null && !unavailable);
+  // The oldest outstanding invoice with a payment link — the lock counts from
+  // the oldest, and an invoice Stripe has not finalized has no link yet,
   // so the single big CTA opens the oldest one that can actually be paid. Every
   // other one is still reachable from its own row.
   const payUrl = invoices?.find(invoice => invoice.hostedInvoiceUrl)?.hostedInvoiceUrl ?? null;
@@ -162,13 +204,13 @@ function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWork
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[var(--spacing-system-xl)]">
       <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)] text-center">
-        <h1 className="text-ods-text-primary text-h2">{TITLE}</h1>
+        <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
         <p className="text-ods-text-secondary text-h4">
           {unavailable
-            ? INVOICES_UNAVAILABLE_COPY.description
+            ? INVOICES_UNAVAILABLE_DESCRIPTION
             : nothingOutstanding
-              ? "This workspace's access is paused and we can't find an open invoice to settle. Contact support and we'll sort it out."
-              : "The invoice wasn't paid within 30 days, so access to OpenFrame has been paused. Pay the outstanding balance to restore access instantly."}
+              ? copy.nothingOutstanding
+              : copy.description}
         </p>
       </div>
 
@@ -176,75 +218,92 @@ function SuspendedWorkspaceMain({ invoices, unavailable = false }: SuspendedWork
         <>
           <div className="flex w-full max-w-[960px] flex-col gap-[var(--spacing-system-xs)]">
             {loading || invoices == null ? (
-              <OutstandingInvoiceRowPlaceholder />
+              <LoadingItems count={UNPAID_INVOICES_SKELETON_ROWS}>
+                {() => <OutstandingInvoiceRow invoice={null} />}
+              </LoadingItems>
             ) : (
               invoices.map(invoice => <OutstandingInvoiceRow key={invoice.id} invoice={invoice} />)
             )}
           </div>
 
-          {nothingPayable && (
-            <p className="text-ods-error text-h6">
-              These invoices have no payment link yet. Contact support to settle them.
-            </p>
-          )}
-
-          <Button
-            {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
-            rightIcon={<ExternalLinkIcon />}
-          >
-            Pay Invoice
-          </Button>
+          <div className="relative flex flex-wrap justify-center gap-[var(--spacing-system-m)]">
+            {/* PAST_DUE leaves Billing & Usage open (`isRouteOpenWhileLocked`),
+                and the nav is disabled under the lock, so this is the way there. */}
+            {status === SubscriptionStatus.PAST_DUE && (
+              <Button variant="outline" href={routes.settings.billingUsage()}>
+                Open Billing & Usage
+              </Button>
+            )}
+            <Button
+              {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
+              rightIcon={<ExternalLinkIcon />}
+            >
+              Pay Invoice
+            </Button>
+            {/* Under the actions and out of the flow: it appears only once the invoices answer, so it must move
+                nothing on this vertically centred screen. */}
+            {nothingPayable && (
+              <p className="absolute inset-x-0 top-full mt-[var(--spacing-system-xs)] text-center text-ods-error text-h6">
+                These invoices have no payment link yet. Contact support to settle them.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 }
 
-function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow }) {
-  const overdue = isOverdue(invoice);
-  const name = invoice.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
+const INVOICE_ROW_CLASS =
+  'flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0';
+
+/** One outstanding invoice; `null` while it is read, when the row draws its own loading state (captions real). */
+function OutstandingInvoiceRow({ invoice }: { invoice: InvoiceRow | null }) {
+  const loading = useLoadingScope() || !invoice;
+  const overdue = invoice ? isOverdue(invoice) : false;
+  const name = invoice?.invoiceNumber ? `invoice ${invoice.invoiceNumber}` : 'invoice';
+  const payUrl = invoice?.hostedInvoiceUrl;
 
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-sm:h-20 content-sm:flex-row content-sm:items-center content-sm:py-0">
+    <div data-loading-item className={INVOICE_ROW_CLASS}>
       {/* The identifier over the date it was issued — an em dash when a legacy
           entry has no number, the same reading the Invoices History table uses. */}
-      <InvoiceCell caption={formatDate(invoice.createdAt)}>{invoice.invoiceNumber ?? EMPTY_VALUE}</InvoiceCell>
-      <InvoiceCell caption="Due Date">{formatDate(invoice.dueDate)}</InvoiceCell>
-      <InvoiceCell caption="Amount">{formatCurrency(invoice.amountDue)}</InvoiceCell>
-      <InvoiceCell caption="Status">
-        <Tag variant={overdue ? 'error' : 'warning'} label={overdue ? 'Overdue' : 'Unpaid'} />
-      </InvoiceCell>
+      <InfoCell
+        loading={loading}
+        value={invoice?.invoiceNumber}
+        label={invoice ? formatDate(invoice.createdAt) : ''}
+        skeletonWidth="w-24"
+        labelSkeletonWidth="w-20"
+      />
+      <InfoCell
+        loading={loading}
+        value={invoice && formatDate(invoice.dueDate)}
+        label="Due Date"
+        skeletonWidth="w-24"
+      />
+      <InfoCell
+        loading={loading}
+        value={invoice && formatCurrency(invoice.amountDue)}
+        label="Amount"
+        skeletonWidth="w-24"
+      />
+      <InfoCell
+        loading={loading}
+        // No label while the invoice loads: the tag draws its own skeleton in the cell's scope.
+        value={
+          <Tag variant={overdue ? 'error' : 'warning'} label={invoice ? (overdue ? 'Overdue' : 'Unpaid') : null} />
+        }
+        label="Status"
+      />
       {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the row keeps its shape. */}
       <Button
         variant="outline"
         size="icon"
-        {...(invoice.hostedInvoiceUrl ? { href: invoice.hostedInvoiceUrl, openInNewTab: true } : { disabled: true })}
-        aria-label={invoice.hostedInvoiceUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
+        {...(payUrl ? { href: payUrl, openInNewTab: true } : { disabled: true })}
+        aria-label={loading ? 'Invoice link' : payUrl ? `Open ${name}` : `This ${name} has no payment link yet`}
       >
         <ExternalLinkIcon />
       </Button>
-    </div>
-  );
-}
-
-/** The row's shape with nothing in it — one row, because at least one is why we are here. */
-function OutstandingInvoiceRowPlaceholder() {
-  return (
-    <LoadingRegion className="contents" label="Loading invoices">
-      <UnifiedSkeleton className="h-20 w-full rounded-md border border-ods-border" />
-    </LoadingRegion>
-  );
-}
-
-function InvoiceCell({ caption, children }: { caption: string; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col justify-center">
-      {typeof children === 'string' ? (
-        <span className="truncate text-ods-text-primary text-h4">{children}</span>
-      ) : (
-        <span className="flex items-center">{children}</span>
-      )}
-      <span className="truncate text-ods-text-secondary text-h6">{caption}</span>
     </div>
   );
 }

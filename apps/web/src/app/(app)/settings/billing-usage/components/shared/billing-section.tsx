@@ -1,14 +1,37 @@
-import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import { AlertTriangleIcon, InfoCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LeaderRow, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
-// Static "Test mode" banner. Shared by the live view and its loading skeleton so
-// the copy/chrome are defined once.
+// The "Test mode" banner, until `billing-live-mode` is on. Nothing until the flag answers: a live account must never
+// flash "no real charges". Only test accounts have it, so it sits below the page's sections and is marked
+// `data-loading-optional`: appearing never moves them.
 export function TestModeBanner() {
+  const gate = useFeatureFlagGate('billing-live-mode');
+  if (gate !== 'off') return null;
+
   return (
-    <div className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent">
+    <div
+      data-loading-optional
+      className="flex items-start gap-[var(--spacing-system-s)] rounded-md bg-[var(--ods-open-yellow-base)] p-[var(--spacing-system-s)] text-ods-text-on-accent"
+    >
       <AlertTriangleIcon className="size-6 shrink-0" />
       <p className="flex-1 font-bold text-h3">
         Test mode — invoices and usage shown here are samples. No real charges are being made.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The desktop build's line over its read-only billing page: said out loud, because a billing page with no way to
+ * change anything otherwise reads as a broken build.
+ */
+export function BillingReadOnlyNotice() {
+  return (
+    <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+      <InfoCircleIcon className="size-6 shrink-0 text-ods-accent" />
+      <p className="text-ods-text-secondary text-h4">
+        Billing and payments are managed in the browser. Manage Billing opens your workspace's billing page there.
       </p>
     </div>
   );
@@ -23,23 +46,34 @@ export function SectionBlock({ title, children }: { title: string; children: Rea
   );
 }
 
+/** A billing summary row: the label as body copy, a leader line, the value (the lib's `LeaderRow`). */
 export function BillingRow({
   label,
   value,
   muted = false,
   warning = false,
+  loading = false,
+  optional = false,
 }: {
   label: string;
-  value: React.ReactNode;
+  /** Unread while loading. */
+  value?: React.ReactNode;
   muted?: boolean;
   warning?: boolean;
+  /** Its value has not answered: the row draws its own skeleton (as it does in a loading scope). */
+  loading?: boolean;
+  /** Only some records have this row: it is left out while loading and marked `data-loading-optional`. */
+  optional?: boolean;
 }) {
-  const valueClass = warning ? 'text-ods-warning' : muted ? 'text-ods-text-secondary' : 'text-ods-text-primary';
   return (
-    <div className="flex w-full items-center gap-2">
-      <span className="whitespace-nowrap text-ods-text-primary text-h4">{label}</span>
-      <div className="h-px min-w-4 flex-1 bg-ods-border" />
-      <span className={cn('inline-flex items-center gap-1 whitespace-nowrap text-h4', valueClass)}>{value}</span>
-    </div>
+    <LeaderRow
+      label={label}
+      value={value}
+      labelTone="primary"
+      valueTone={warning ? 'warning' : muted ? 'secondary' : 'primary'}
+      // Every row's value is read data: in a page's loading scope it is a bar even where a value was passed.
+      loading={useLoadingScope() || loading}
+      data-loading-optional={optional || undefined}
+    />
   );
 }

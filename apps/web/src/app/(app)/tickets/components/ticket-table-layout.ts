@@ -3,12 +3,10 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
 /**
  * Column layout for the ticket tables.
  *
- * Data-only on purpose (see `table-column-layout.ts`). Two renderers read it:
- * `getTicketTableColumns` (the live table on `/tickets` and, minus SOURCE, the
- * device Tickets tab) and `DeviceDetailsSkeleton`. The skeleton can't import
- * the live builder — it carries the cells, the avatar and the status tag —
- * which is why it used to re-declare these widths and had drifted (a missing
- * `hideAt` on ASSIGNEE plus a missing `align` on the trailing button).
+ * Data-only on purpose (see `table-column-layout.ts`): `getTicketTableColumns`
+ * builds the live table on `/tickets` from it, and the device Tickets tab reads
+ * its widths (`DEVICE_TICKET_COLUMNS`), so both tables, loading and loaded, are
+ * laid out from one declaration.
  *
  * SOURCE, ASSIGNEE and STATUS carry no width in the fleet-wide table: they share
  * the row's leftover space. An empty `width` reproduces that — `DataTable` falls
@@ -21,9 +19,9 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * wires a server sort (`TicketsTable`); the device and customer tabs render the
  * same columns without a handler, and an arrow there would be inert. The live
  * builder adds the flag per consumer (`getTicketTableColumns({ sortable })`).
- * The skeletons reading this layout (the device tab's `DEVICE_TICKET_COLUMNS`,
- * the customer tab's header labels) belong to tabs that never sort, so their
- * loading and loaded headers still agree.
+ * The tabs reading this layout (the device tab's `DEVICE_TICKET_COLUMNS`, the
+ * customer tab's header labels) never sort, so their headers carry no arrow in
+ * either state.
  */
 const TICKET_COLUMNS = {
   // Header reads TICKET (Figma tickets 8002-256659): the cell carries the title
@@ -38,11 +36,6 @@ const TICKET_COLUMNS = {
 export { TICKET_COLUMNS };
 
 interface TicketColumnLayoutOptions {
-  /**
-   * Archived tickets have no status filter, so their STATUS header renders a
-   * plain label and does NOT survive below `lg` the way a filterable one does.
-   */
-  isArchived?: boolean;
   /** Drop SOURCE — redundant on the device-scoped list, which is device-scoped already. */
   withSource?: boolean;
   /** Trailing open-in-new-tab column (`getTicketOpenColumn`). */
@@ -56,7 +49,6 @@ interface TicketColumnLayoutOptions {
 
 /** Ordered layout for a ticket table, as the live builder and its skeletons render it. */
 export function ticketTableColumns({
-  isArchived = false,
   withSource = true,
   withOpen = true,
   widths,
@@ -65,7 +57,7 @@ export function ticketTableColumns({
     TICKET_COLUMNS.title,
     ...(withSource ? [TICKET_COLUMNS.source] : []),
     TICKET_COLUMNS.assignee,
-    { ...TICKET_COLUMNS.status, filterable: !isArchived },
+    TICKET_COLUMNS.status,
     ...(withOpen ? [TICKET_COLUMNS.open] : []),
   ];
 

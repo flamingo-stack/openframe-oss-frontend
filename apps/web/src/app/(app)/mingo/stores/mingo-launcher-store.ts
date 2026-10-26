@@ -1,6 +1,7 @@
 import type { ChatPrefillDraft } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { DialogIntent } from '../../tickets/constants';
 
 /** What `draftToMingo` puts in the composer — relayed verbatim to the panel's `prefillDraft`. */
 export type MingoDraft = ChatPrefillDraft;
@@ -15,6 +16,8 @@ export type MingoDraft = ChatPrefillDraft;
  *     decides. Relayed to the panel's `prefillDraft` handle.
  *   - `startNewChat()` — land on a fresh chat with nothing sent; relayed to the
  *     panel's imperative handle, since which view it shows is its own state.
+ *   - `startIntentChat(intent)` — open a dialog created to make one entity
+ *     ("Generate with AI"); the server greets in it, nothing is sent.
  *
  * Each action clears the others' pending values, so a queued prompt can't fire
  * into a chat the user opened for something else.
@@ -37,6 +40,8 @@ interface MingoLauncherStore {
   pendingDraft: MingoDraft | null;
   /** One-shot "open on a fresh chat" request; false once consumed. */
   pendingNewChat: boolean;
+  /** One-shot "open a dialog to create this entity" request; null once consumed. */
+  pendingIntent: DialogIntent | null;
   /**
    * The drawer was closed BY a navigation the same handler had just issued, so it
    * does not own the URL on this pass — the destination is already param-free.
@@ -62,10 +67,18 @@ interface MingoLauncherStore {
    * header over the page, which a navigation still closes.
    */
   panelDocked: boolean;
+  /**
+   * Mingo v2: the docked panel was dragged over the whole content area, and this
+   * steps it back to the column it left so the page shows again. Null whenever
+   * the page is already on screen beside the chat. A link that opens a page in
+   * place calls it first, or the page would change under the chat unseen.
+   */
+  revealPage: (() => void) | null;
 
   setOpen: (open: boolean) => void;
   setPanelShown: (shown: boolean) => void;
   setPanelDocked: (docked: boolean) => void;
+  setRevealPage: (reveal: (() => void) | null) => void;
   setCanOpen: (canOpen: boolean) => void;
   toggle: () => void;
   close: () => void;
@@ -85,6 +98,10 @@ interface MingoLauncherStore {
   startNewChat: () => void;
   /** Read and clear the pending new-chat request (safe against double-consume). */
   consumePendingNewChat: () => boolean;
+  /** Open the drawer on a new dialog created with `intent` — Mingo speaks first. */
+  startIntentChat: (intent: DialogIntent) => void;
+  /** Read and clear the pending intent (safe against double-consume). */
+  consumePendingIntent: () => DialogIntent | null;
 }
 
 export const useMingoLauncherStore = create<MingoLauncherStore>()(
@@ -95,12 +112,15 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
       pendingPrompt: null,
       pendingDraft: null,
       pendingNewChat: false,
+      pendingIntent: null,
       closedForNavigation: false,
       panelShown: false,
       panelDocked: false,
+      revealPage: null,
 
       setPanelShown: panelShown => set({ panelShown }, false, 'setPanelShown'),
       setPanelDocked: panelDocked => set({ panelDocked }, false, 'setPanelDocked'),
+      setRevealPage: revealPage => set({ revealPage }, false, 'setRevealPage'),
       setOpen: open => set(open ? { isOpen: true, closedForNavigation: false } : { isOpen: false }, false, 'setOpen'),
       setCanOpen: canOpen => set({ canOpen }, false, 'setCanOpen'),
       toggle: () =>
@@ -119,6 +139,7 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
             pendingPrompt: prompt,
             pendingDraft: null,
             pendingNewChat: false,
+            pendingIntent: null,
             closedForNavigation: false,
           },
           false,
@@ -127,7 +148,14 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
 
       draftToMingo: draft =>
         set(
-          { isOpen: true, pendingDraft: draft, pendingPrompt: null, pendingNewChat: false, closedForNavigation: false },
+          {
+            isOpen: true,
+            pendingDraft: draft,
+            pendingPrompt: null,
+            pendingNewChat: false,
+            pendingIntent: null,
+            closedForNavigation: false,
+          },
           false,
           'draftToMingo',
         ),
@@ -151,6 +179,7 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
             pendingNewChat: true,
             pendingPrompt: null,
             pendingDraft: null,
+            pendingIntent: null,
             closedForNavigation: false,
           },
           false,
@@ -161,6 +190,26 @@ export const useMingoLauncherStore = create<MingoLauncherStore>()(
         const { pendingNewChat } = get();
         if (pendingNewChat) set({ pendingNewChat: false }, false, 'consumePendingNewChat');
         return pendingNewChat;
+      },
+
+      startIntentChat: intent =>
+        set(
+          {
+            isOpen: true,
+            pendingIntent: intent,
+            pendingPrompt: null,
+            pendingDraft: null,
+            pendingNewChat: false,
+            closedForNavigation: false,
+          },
+          false,
+          'startIntentChat',
+        ),
+
+      consumePendingIntent: () => {
+        const { pendingIntent } = get();
+        if (pendingIntent !== null) set({ pendingIntent: null }, false, 'consumePendingIntent');
+        return pendingIntent;
       },
     }),
     { name: 'mingo-launcher-store' },

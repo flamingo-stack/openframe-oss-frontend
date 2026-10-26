@@ -1,9 +1,14 @@
 'use client';
 
-import { type AutocompleteOption, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  type AutocompleteOption,
+  SquareAvatar,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { newOwnerCandidatesQuery } from '@/__generated__/newOwnerCandidatesQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
+import { noop, useRetryKey } from '@/app/components/shared';
 import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { toGlobalId } from '@/lib/relay-id';
 import { NewOwnerField } from './new-owner-field';
@@ -25,6 +30,7 @@ const newOwnerCandidatesQueryNode = graphql`
 `;
 
 const CANDIDATES_LIMIT = 20;
+const NO_OPTIONS: AutocompleteOption[] = [];
 const SUPPORT_EMAIL = 'hello@openframe.ai';
 
 interface NewOwnerCandidatesProps {
@@ -51,7 +57,23 @@ interface NewOwnerCandidatesProps {
  * rather than a select nothing can be chosen from: a confirm that stays disabled
  * with no explanation is the dead end App Review reads as "no account deletion".
  */
-export function NewOwnerCandidates({
+export function NewOwnerCandidates(props: NewOwnerCandidatesProps) {
+  return (
+    <LoadingSuspense label="Loading the members">
+      <NewOwnerCandidatesReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (the boundary's fallback) it reads nothing: the field draws its own loading form. */
+function NewOwnerCandidatesReader(props: NewOwnerCandidatesProps) {
+  if (useLoadingScope()) {
+    return <NewOwnerField options={NO_OPTIONS} value={null} onChange={noop} onSearch={props.onSearch} disabled />;
+  }
+  return <NewOwnerCandidatesQuery {...props} />;
+}
+
+function NewOwnerCandidatesQuery({
   currentUserId,
   organizationName,
   search,

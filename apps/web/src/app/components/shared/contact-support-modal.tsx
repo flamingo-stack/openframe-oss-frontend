@@ -10,11 +10,18 @@ import { useTicketActions } from '@flamingo-stack/openframe-frontend-core/compon
 import { Button, Input, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, useCallback, useRef, useState } from 'react';
+import { noop } from './no-next-page';
 import { SimpleModal } from './simple-modal';
 
 interface ContactSupportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The modal's heading. Defaults to the lock screen's "Open a New Ticket". */
+  title?: string;
+  /** The submit button's label. Defaults to "Open Ticket". */
+  submitLabel?: string;
+  /** When set, a Cancel button with this label leads the footer on phones. */
+  cancelLabel?: string;
 }
 
 /** The lib's own cap on ticket body text. Its barrel does not export the constant. */
@@ -25,8 +32,6 @@ const SUBJECT_MAX_CHARS = 200;
 const COUNTER_VISIBLE_AT = Math.floor(MESSAGE_MAX_CHARS * 0.8);
 
 /** `useTicketActions` drives a ticket LIST's optimistic cache. This modal has no list. */
-const noop = () => {};
-
 /**
  * "Open a New Ticket" — the support ticket form, as a modal.
  *
@@ -50,7 +55,13 @@ const noop = () => {};
  * the lib's `ChatAttachmentAddButton` is a bare `+` glyph for a chat composer,
  * and the design here calls for a labelled control.
  */
-export function ContactSupportModal({ open, onOpenChange }: ContactSupportModalProps) {
+export function ContactSupportModal({
+  open,
+  onOpenChange,
+  title = 'Open a New Ticket',
+  submitLabel = 'Open Ticket',
+  cancelLabel,
+}: ContactSupportModalProps) {
   const { toast } = useToast();
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -121,11 +132,17 @@ export function ContactSupportModal({ open, onOpenChange }: ContactSupportModalP
       isOpen={open}
       onClose={handleClose}
       className="md:max-w-[600px]"
-      title="Open a New Ticket"
+      title={title}
       contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
       footer={
         <>
-          {/* The design's empty half — the submit occupies the right column. */}
+          {/* The design's empty half — the submit occupies the right column. On a
+              phone the wizard's design fills it with a Cancel instead. */}
+          {cancelLabel ? (
+            <Button type="button" variant="outline" className="flex-1 sm:hidden" onClick={handleClose}>
+              {cancelLabel}
+            </Button>
+          ) : null}
           <div className="hidden flex-1 sm:block" />
           <Button
             type="button"
@@ -134,7 +151,7 @@ export function ContactSupportModal({ open, onOpenChange }: ContactSupportModalP
             disabled={!canSubmit}
             loading={isSubmittingForm}
           >
-            Open Ticket
+            {submitLabel}
           </Button>
         </>
       }

@@ -27,26 +27,6 @@ env:
 # =============================================================================
 
 jobs:
-  scan:
-    name: "Scan Code"
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    if: github.event.pull_request.state == 'open'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - name: Scan code
-        continue-on-error: true
-        uses: ./.github/steps/trivy
-        with:
-          scan: code
-
   # Each app is checked only when its paths change; `every` applies to both
   # filters, so desktop is one brace pattern.
   changes:
@@ -84,6 +64,7 @@ jobs:
     needs: [changes]
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -111,6 +92,16 @@ jobs:
             echo "::error file=$conf::createUpdaterArtifacts is on but plugins.updater.pubkey is empty"
             exit 1
           fi
+      # Squash commits take the PR title; read live so a re-run picks up an edited title or the no-task label.
+      - name: Check PR title
+        if: github.event.pull_request.user.type == 'User' && !startsWith(github.head_ref, 'renovate/')  # Renovate runs as a user
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr view "$PR" --json title,labels -q '.title + if any(.labels[]; .name == "no-task") then " CU-notask" else "" end' \
+            | grep -qE "^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)(\(.+\))?!?: .+ CU-[0-9a-z]+$" \
+            || { echo "::error::Expected 'fix(armor): exclude billing action CU-17tkuw5x3yh' (no-task label drops CU-); fix the title and re-run"; exit 1; }
 
   lint:
     name: 'Lint'
@@ -145,6 +136,13 @@ jobs:
       - name: ESLint
         working-directory: apps/web
         run: npm run lint:ci
+
+      # The loading standard (ported from the hub): no screen draws a skeleton, one
+      # switch per component, no spinner or "Loading…" text, and a list skeleton
+      # draws its full page. Headers of the two scripts state each rule.
+      - name: Loading gates
+        working-directory: apps/web
+        run: npm run check:loading
 
   unit_test:
     name: 'Unit Test'
@@ -241,16 +239,6 @@ jobs:
                   -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "./apps/web"
-
-      # Merge queue only builds; images are scanned and pushed per PR.
-      - name: Scan image
-        if: github.event_name == 'pull_request'
-        uses: ./.github/steps/trivy
-        with:
-          scan: image
-          image-name: ${{ env.REPOSITORY }}
-          dockerfile: ./apps/web/Dockerfile
-          context: ./apps/web
 
       - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push

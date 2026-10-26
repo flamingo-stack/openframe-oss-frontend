@@ -1,10 +1,11 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DashboardInfoCard, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { DashboardInfoCard, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useLazyLoadQuery } from 'react-relay';
-import type { usageViewQuery as UsageViewQueryType } from '@/__generated__/usageViewQuery.graphql';
+import type { usageViewQuery as UsageViewQueryType, usageViewQuery$data } from '@/__generated__/usageViewQuery.graphql';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { formatCount } from '@/lib/format-number';
@@ -56,13 +57,44 @@ const usageViewQuery = graphql`
  * Dropped: prices, Next Payment, invoices, trial/plan-end dates, "Package"/
  *        "Pay as you go" labels, and every Update/Activate/Pay/Cancel action.
  */
-export function UsageView() {
-  const handleBack = useSafeBack(routes.settings.root());
-  const data = useLazyLoadQuery<UsageViewQueryType>(usageViewQuery, {}, { fetchPolicy: 'store-and-network' });
+export function UsageView({ loading = false }: { loading?: boolean }) {
+  // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
+  return (
+    <LoadingSuspense gated={loading} label="Loading usage">
+      <UsageReader />
+    </LoadingSuspense>
+  );
+}
 
-  const subscription = data.subscription;
+function UsageReader() {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the page with no data and runs no read.
+  if (useLoadingScope()) return <UsageScreen data={null} />;
+  return <UsageQuery />;
+}
+
+function UsageQuery() {
+  const data = useLazyLoadQuery<UsageViewQueryType>(
+    usageViewQuery,
+    {},
+    {
+      fetchPolicy: 'store-and-network',
+      // PAST_DUE leaves this page open while the subscription gate stays shut
+      // for the rest of the app — see `subscription-gate.ts`.
+      networkCacheConfig: { metadata: { skipSubscriptionGate: true } },
+    },
+  );
+  return <UsageScreen data={data} />;
+}
+
+/** The page drawn from its query's answer; `data` is `null` while it loads (it draws itself in a loading scope). */
+function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
+  const loading = useLoadingScope() || data == null;
+  const handleBack = useSafeBack(routes.settings.root());
+  const subscription = data?.subscription ?? null;
   const device = subscription ? deviceAllocation(subscription) : null;
-  const hasAi = subscription?.products.some(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? false;
+  // While it loads, both cards and both sections: the typical subscription carries the AI product, and only this read
+  // says whether it does (no flag or catalog knows it before).
+  const hasAi = loading || (subscription?.products.some(p => p.name === OpenframeProduct.AI_ASSISTANCE) ?? false);
 
   const activeDevices = subscription?.usage?.activeDevices ?? 0;
   const inactiveDevices = subscription?.usage?.inactiveDevices ?? 0;
@@ -83,7 +115,7 @@ export function UsageView() {
   // users learn to scroll past.
   const deviceOverLimit = device?.overLimit ?? false;
 
-  const showDeviceLimit = !devicePerUse && deviceLimit > 0;
+  const showDeviceLimit = loading || (!devicePerUse && deviceLimit > 0);
   const showLimits = showDeviceLimit;
 
   return (
@@ -99,6 +131,7 @@ export function UsageView() {
         )}
       >
         <DashboardInfoCard
+          loading={loading}
           title="Device Usage"
           value={devicesUsed}
           percentage={devicePerUse ? undefined : devicePct}
@@ -106,20 +139,8 @@ export function UsageView() {
           showProgress={showDeviceLimit}
           progressOverflow="wrap"
         />
-        {hasAi && <DashboardInfoCard title="AI Usage" value={aiTokensUsed} />}
+        {hasAi && <DashboardInfoCard loading={loading} title="AI Usage" value={aiTokensUsed} />}
       </div>
-
-      {deviceOverLimit && (
-        <div className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]">
-          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
-            <p className="text-ods-text-secondary text-h4">
-              Your workspace administrator can raise the limit for your team.
-            </p>
-          </div>
-        </div>
-      )}
 
       <div
         className={cn(
@@ -137,6 +158,21 @@ export function UsageView() {
           </SectionBlock>
         )}
       </div>
+      {/* Below the sections it would otherwise push: only a workspace over its limit has it. */}
+      {deviceOverLimit && (
+        <div
+          data-loading-optional
+          className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]"
+        >
+          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
+            <p className="text-ods-text-secondary text-h4">
+              Your workspace administrator can raise the limit for your team.
+            </p>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

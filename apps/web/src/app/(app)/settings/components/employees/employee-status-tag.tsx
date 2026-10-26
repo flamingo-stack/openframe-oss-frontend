@@ -19,8 +19,13 @@ export function employeeStatusLabel(status: string): string {
   return STATUS_TAG[status]?.label ?? status;
 }
 
-/** STATUS column of both Employees tables: a user's account state or an invitation's. */
-export function EmployeeStatusTag({ status }: { status: string }) {
-  const { label, variant } = STATUS_TAG[status] ?? { label: status, variant: 'grey' };
+const NO_STATUS: TagStyle = { label: '', variant: 'grey' };
+
+/**
+ * STATUS column of both Employees tables: a user's account state or an invitation's. Null while the status is read:
+ * in a loading scope a tag with no label draws its own skeleton.
+ */
+export function EmployeeStatusTag({ status }: { status: string | null }) {
+  const { label, variant } = status === null ? NO_STATUS : (STATUS_TAG[status] ?? { label: status, variant: 'grey' });
   return <Tag label={label} variant={variant} />;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -21,11 +21,20 @@ export function CreateEditTicketPage() {
     return Object.values(values).some(Boolean) ? values : undefined;
   }, [ticketId, searchParams]);
 
-  const { form, ticket, isEditMode, ticketLoaded, isSubmitting, handleSave, tempAttachments, isFaeForm } =
-    useCreateTicketForm({
-      ticketId,
-      prefill,
-    });
+  const {
+    form,
+    ticket,
+    isEditMode,
+    isLoadingTicket,
+    ticketLoaded,
+    isSubmitting,
+    handleSave,
+    tempAttachments,
+    isFaeForm,
+  } = useCreateTicketForm({
+    ticketId,
+    prefill,
+  });
 
   const backToTicket = useSafeBack(routes.tickets.dialog(ticketId ?? ''));
   const backToTickets = useSafeBack(routes.tickets.list);
@@ -67,14 +76,17 @@ export function CreateEditTicketPage() {
       actions={actions}
       actionsVariant="primary-buttons"
     >
-      <TicketFormFields
-        form={form}
-        ticket={ticket}
-        prefill={prefill}
-        tempAttachments={tempAttachments}
-        isFaeForm={isFaeForm}
-        isEditMode={isEditMode}
-      />
+      {/* Editing: while the ticket loads the fields draw themselves in a loading scope, each its own skeleton. */}
+      <LoadingWhen loading={isEditMode && isLoadingTicket}>
+        <TicketFormFields
+          form={form}
+          ticket={ticket}
+          prefill={prefill}
+          tempAttachments={tempAttachments}
+          isFaeForm={isFaeForm}
+          isEditMode={isEditMode}
+        />
+      </LoadingWhen>
     </PageLayout>
   );
 }

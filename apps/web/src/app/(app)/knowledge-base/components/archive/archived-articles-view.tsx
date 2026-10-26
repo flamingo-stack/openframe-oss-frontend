@@ -1,16 +1,13 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
-import { TableSkeleton } from '@/app/components/shared';
+
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseSearchToolbar } from '../shared/knowledge-base-search-toolbar';
 import { useTagSearchState } from '../shared/use-tag-search-state';
-import { ARCHIVED_ARTICLE_TABLE_COLUMNS } from './archived-articles-columns';
 import { ArchivedArticlesTable } from './archived-articles-table';
 
 /**
@@ -29,6 +26,15 @@ export function ArchivedArticlesView() {
     isPending,
   } = useDeferredQuery(filters.tagIds, filters.debouncedSearch);
 
+  const rows = (
+    <ArchivedArticlesTable
+      search={deferredSearch}
+      tagIds={deferredTagIds}
+      isPending={isPending}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     <PageLayout title="Archived Articles" backButton={{ label: 'Back', onClick: handleBack }}>
       <div className="flex flex-col" style={containerStyle}>
@@ -40,23 +46,8 @@ export function ArchivedArticlesView() {
           filters={filters}
         />
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              label="Loading archived articles"
-              columns={ARCHIVED_ARTICLE_TABLE_COLUMNS}
-              rows={KNOWLEDGE_BASE_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          }
-        >
-          <ArchivedArticlesTable
-            search={deferredSearch}
-            tagIds={deferredTagIds}
-            isPending={isPending}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
+        {/* The rows: the table places its own boundary and, before they answer, draws its own loading state. */}
+        {rows}
       </div>
     </PageLayout>
   );

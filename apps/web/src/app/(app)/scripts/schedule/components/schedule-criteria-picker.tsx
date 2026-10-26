@@ -93,7 +93,7 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
         hasNextPage: preview.hasNext,
         isFetchingNextPage: preview.isLoadingNext,
         onLoadMore: loadMore,
-        skeletonRows: 2,
+        skeletonRows: DEVICE_PICKER_PAGE_SIZE,
       }}
       criteriaContent={
         <ScheduleCriteriaFields

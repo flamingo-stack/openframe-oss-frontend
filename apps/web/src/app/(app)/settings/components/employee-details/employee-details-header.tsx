@@ -2,6 +2,7 @@
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { employeeDetailsHeader_user$key } from '@/__generated__/employeeDetailsHeader_user.graphql';
@@ -29,10 +30,12 @@ type HeaderDialog = 'edit' | 'delete' | 'delete-account';
  * The page title IS the user, with the actions menu: your own page edits your
  * profile and deletes your account (the same flow as the /settings kebab, owner
  * transfer included); another user's page deletes them — unless they are the
- * owner (the backend refuses) or already deleted. Null for an unknown id: the
+ * owner (the backend refuses) or already deleted. Null for an unknown id, and
+ * while the record is read (a loading scope, where the title is its bar): the
  * Back button is drawn either way.
  */
 export function EmployeeDetailsHeader({ user }: { user: employeeDetailsHeader_user$key | null }) {
+  const loading = useLoadingScope();
   const data = useFragment(employeeDetailsHeaderFragment, user);
   const currentUser = useAuthStore(state => state.user);
   const handleBack = useSafeBack(routes.settings.employees);
@@ -40,7 +43,8 @@ export function EmployeeDetailsHeader({ user }: { user: employeeDetailsHeader_us
   const backButton = { label: 'Back', onClick: handleBack };
 
   if (!data) {
-    return <TitleBlock title={EMPLOYEE_DETAILS_TITLE} backButton={backButton} />;
+    // In a loading scope a read title arrives as '' and the title block draws its bar.
+    return <TitleBlock title={loading ? '' : EMPLOYEE_DETAILS_TITLE} backButton={backButton} />;
   }
 
   const { rawId, name, deleted } = toUserSummary(data);

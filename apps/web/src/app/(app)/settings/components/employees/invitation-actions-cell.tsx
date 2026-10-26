@@ -1,6 +1,10 @@
 'use client';
 
-import { MoreActionsMenu } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  type ActionsMenuGroup,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { invitationActionsCell_invitation$key } from '@/__generated__/invitationActionsCell_invitation.graphql';
 import { InvitationStatus } from '@/generated/schema-enums';
@@ -21,18 +25,26 @@ interface InvitationActionsCellProps {
 
 /** A pending invitation can be revoked; an expired one resent or removed. */
 export function InvitationActionsCell({ invitation, onAction }: InvitationActionsCellProps) {
-  const { status } = useFragment(invitationActionsCellFragment, invitation);
-  const items =
-    status === InvitationStatus.EXPIRED
-      ? [
-          { label: 'Resend', onClick: () => onAction('resend') },
-          { label: 'Remove', onClick: () => onAction('remove'), danger: true },
-        ]
-      : [{ label: 'Revoke', onClick: () => onAction('revoke'), danger: true }];
+  // A row still being read (a loading scope) has no fragment to read: the trigger is drawn for real and inert (the
+  // menu's own loading form), with nothing in it.
+  const data = useFragment(invitationActionsCellFragment, useLoadingScope() ? null : invitation);
+  const groups: ActionsMenuGroup[] = !data
+    ? []
+    : [
+        {
+          items:
+            data.status === InvitationStatus.EXPIRED
+              ? [
+                  { id: 'resend', label: 'Resend', onClick: () => onAction('resend') },
+                  { id: 'remove', label: 'Remove', onClick: () => onAction('remove'), danger: true },
+                ]
+              : [{ id: 'revoke', label: 'Revoke', onClick: () => onAction('revoke'), danger: true }],
+        },
+      ];
 
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-      <MoreActionsMenu items={items} />
+      <ActionsMenuDropdown groups={groups} />
     </div>
   );
 }

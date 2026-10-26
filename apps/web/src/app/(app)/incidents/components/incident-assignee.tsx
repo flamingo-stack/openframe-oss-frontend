@@ -1,10 +1,11 @@
 'use client';
 
-import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { AssigneeDropdown, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation } from 'react-relay';
 import type { assignInsightMutation as AssignInsightMutationType } from '@/__generated__/assignInsightMutation.graphql';
 import type { unassignInsightMutation as UnassignInsightMutationType } from '@/__generated__/unassignInsightMutation.graphql';
+import { noop } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { assignInsightMutation } from '@/graphql/insights/assign-insight-mutation';
 import { unassignInsightMutation } from '@/graphql/insights/unassign-insight-mutation';
@@ -17,8 +18,15 @@ import type { IncidentRow } from '../utils/incident-transform';
  * compact assignee picker (the same one the ticket board uses) beside the
  * current holder's name. Assigning is independent of status — an incident can
  * change hands while snoozed.
+ *
+ * Without the incident (or in a loading scope) it draws itself: the picker's
+ * compact avatar trigger, inert, its avatar a skeleton, and the name a bar under the same empty label.
  */
-export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
+/** The picker's trigger before the incident is read: an avatar with nothing in it yet (drawn as its skeleton). */
+const UNREAD_ASSIGNEE = { id: '', name: '' };
+
+export function IncidentAssignee({ incident }: { incident?: IncidentRow }) {
+  const loading = useLoadingScope() || !incident;
   const { toast } = useToast();
   const { options, isLoading, onSearchChange } = useAssigneeOptions();
   const [commitAssign, isAssigning] = useMutation<AssignInsightMutationType>(assignInsightMutation);
@@ -33,6 +41,7 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
   };
 
   const handleAssign = (userId: string | null) => {
+    if (!incident) return;
     if (userId === null) {
       commitUnassign({
         variables: { input: { id: incident.id } },
@@ -57,27 +66,32 @@ export function IncidentAssignee({ incident }: { incident: IncidentRow }) {
     });
   };
 
-  const assignee = incident.assignee;
+  const assignee = incident?.assignee;
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
       {/* In a table row only the picker is its own control; the name beside it opens the row like the rest of it. */}
       <div data-no-row-click className="shrink-0">
+        {/* While loading the picker is its avatar trigger, inert: the avatar draws its own skeleton in the scope. */}
         <AssigneeDropdown
           variant="compact"
           currentAssignee={
-            assignee
-              ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
-              : undefined
+            loading
+              ? UNREAD_ASSIGNEE
+              : assignee
+                ? { id: assignee.id, name: assignee.name, avatarSrc: assignee.avatarUrl, deleted: assignee.deleted }
+                : undefined
           }
           options={options}
           isLoading={isLoading}
           onSearchChange={onSearchChange}
           isPending={isAssigning || isUnassigning}
           onAssign={handleAssign}
+          onTriggerClick={loading ? noop : undefined}
         />
       </div>
       <InfoCell
+        loading={loading}
         value={
           assignee ? (
             <span className={assignee.deleted ? 'text-ods-error' : undefined}>{assignee.name}</span>

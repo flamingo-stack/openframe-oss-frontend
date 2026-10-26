@@ -1,13 +1,18 @@
 'use client';
 
-import { AgentMark, LoadingRegion, OSTypeBadgeGroup } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  AgentMark,
+  LoadingSuspense,
+  MediaSkeleton,
+  OSTypeBadgeGroup,
+  TextLineSkeleton,
+} from '@flamingo-stack/openframe-frontend-core/components';
 import {
   OpenInNewTabCell,
   RowActionsCell,
   SCRIPT_COLUMNS,
   ScriptNameCell,
   ScriptShellBadge,
-  SCRIPTS_TABLE_COLUMNS,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -25,18 +30,18 @@ import {
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   FilterModal,
   PageLayout,
   type Row,
   SquareAvatar,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchQuery, useLazyLoadQuery, useMutation, usePaginationFragment, useRelayEnvironment } from 'react-relay';
 import type { RecordSourceSelectorProxy } from 'relay-runtime';
 import type { archiveScriptMutation as ArchiveScriptMutationType } from '@/__generated__/archiveScriptMutation.graphql';
@@ -49,15 +54,19 @@ import type {
 } from '@/__generated__/scriptsTableRelayQuery.graphql';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
+import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
+import { useMingoCreatedEpoch } from '@/app/(app)/mingo/stores/mingo-created-entities-store';
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
 import {
   EmptyState,
   liveColumnMeta,
   onboardingGuideButton,
-  skeletonColumnDefs,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { DeletedUserAvatar, isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { ValueText } from '@/app/components/shared/value-text';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
@@ -76,11 +85,16 @@ import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
-import { facetToMappedOptions, facetToSortedOptions } from '../../shared/utils/facet-options';
+import {
+  type FacetOption,
+  facetFilter,
+  facetToMappedOptions,
+  facetToSortedOptions,
+} from '../../shared/utils/facet-options';
 import { platformsToEnums, platformsToIds, shellToEnum, shellToId } from '../../shared/utils/script-mappers';
 import { ArchiveScriptModal } from './archive-script-modal';
 import { RestoreScriptModal } from './restore-script-modal';
-import { ScriptsTagFilter, ScriptsTagFilterSkeleton } from './scripts-tag-filter';
+import { ScriptsTagFilter } from './scripts-tag-filter';
 
 const PAGE_SIZE = 20;
 
@@ -105,6 +119,174 @@ interface UiScriptEntry {
   /** Author account is DELETED / SELF_DELETED — from `User.status` on the payload. */
   authorDeleted: boolean;
   hasAuthor: boolean;
+}
+
+/** The shell icon's size in the table. */
+const SHELL_ICON_CLASS = 'h-4 w-4 content-md:h-6 content-md:w-6';
+
+/** The shell's icon and name; an icon box and a bar while the row is read. */
+function ScriptShellCell({ shellType }: { shellType: string }) {
+  if (useLoadingScope()) {
+    return (
+      <span className="flex items-center gap-2">
+        <MediaSkeleton.Icon className={SHELL_ICON_CLASS} />
+        <TextLineSkeleton type="h4" as="span" className="w-24" />
+      </span>
+    );
+  }
+  return <ScriptShellBadge value={shellType} iconClassName={SHELL_ICON_CLASS} />;
+}
+
+/**
+ * "Added by" = Script.author. The author id is a User global id; decode it to the raw id the REST-backed employee
+ * page expects. The whole cell opens that user's page in a new tab (accent + underline). `data-no-row-click` stops the
+ * row's own navigation (to the script) so only the user page opens. While the row is read the avatar and the name draw
+ * their loading form (most scripts have an author).
+ */
+function ScriptAuthorCell({ script }: { script: UiScriptEntry }) {
+  if (useLoadingScope()) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <SquareAvatar variant="round" size="sm" />
+        <div className="min-w-0 flex-1">
+          <TruncateText>{''}</TruncateText>
+        </div>
+      </div>
+    );
+  }
+  if (!script.hasAuthor) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center">
+        <ValueText value={null} />
+      </div>
+    );
+  }
+  const rawAuthorId = script.authorId ? (decodeGlobalId(script.authorId)?.rawId ?? script.authorId) : '';
+  const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
+  const isDeleted = script.authorDeleted;
+  const avatar = isDeleted ? (
+    <DeletedUserAvatar size="sm" />
+  ) : (
+    <SquareAvatar
+      variant="round"
+      size="sm"
+      src={script.authorImage}
+      fallback={script.authorInitials}
+      alt={script.authorName}
+      initialsClassName="text-ods-text-secondary"
+    />
+  );
+  if (!href) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {avatar}
+        {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
+        <div className="min-w-0 flex-1">
+          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{script.authorName}</TruncateText>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
+      <Button
+        variant="link"
+        size="compact"
+        noPaddingX
+        fullWidth
+        onClick={openInNewTab(href)}
+        className="h-auto min-w-0 justify-start gap-2 text-left"
+      >
+        {avatar}
+        {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
+        <div className="min-w-0 flex-1">
+          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
+            {script.authorName}
+          </TruncateText>
+        </div>
+      </Button>
+    </div>
+  );
+}
+
+/** The filter options each filterable column offers (the facets of the current answer). */
+interface ScriptColumnOptions {
+  shell: FacetOption[];
+  platform: FacetOption[];
+  author: FacetOption[];
+}
+
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones. With no `options` (loading) the
+ * funnels are pending.
+ */
+function scriptColumns({
+  options,
+  renderRowActions,
+}: {
+  options: ScriptColumnOptions | null;
+  renderRowActions: (script: UiScriptEntry) => ReactNode;
+}): ColumnDef<UiScriptEntry>[] {
+  return [
+    {
+      accessorKey: 'name',
+      header: SCRIPT_COLUMNS.name.header,
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => (
+        <ScriptNameCell name={row.original.name} description={row.original.description} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCRIPT_COLUMNS.name),
+    },
+    {
+      accessorKey: 'shellType',
+      header: SCRIPT_COLUMNS.shellType.header,
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptShellCell shellType={row.original.shellType} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: facetFilter(options?.shell) }),
+    },
+    {
+      accessorKey: 'supportedPlatforms',
+      header: SCRIPT_COLUMNS.supportedPlatforms.header,
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => (
+        <OSTypeBadgeGroup osTypes={row.original.supportedPlatforms} iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
+      ),
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: facetFilter(options?.platform) }),
+    },
+    {
+      // "Added by" = Script.author. Server filter via `authorIds`; the dropdown
+      // options come from `scriptFilters.authors` (see authorOptions). accessorKey
+      // is `authorId` so the option values (ids) match the server filter.
+      accessorKey: 'authorId',
+      header: SCRIPT_COLUMNS.authorId.header,
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => <ScriptAuthorCell script={row.original} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      // Rightmost filterable column: anchor the dropdown to the right edge so it
+      // never flips placement (start↔end) on open/close — that flip makes the
+      // panel jump sideways as it animates out.
+      meta: liveColumnMeta(SCRIPT_COLUMNS.authorId, {
+        cellClassName: 'self-stretch',
+        filter: { ...facetFilter(options?.author), placement: 'bottom-end' },
+      }),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>,
+      enableSorting: false,
+      meta: liveColumnMeta(SCRIPT_COLUMNS.actions),
+    },
+    {
+      id: 'open',
+      cell: ({ row }: { row: Row<UiScriptEntry> }) => (
+        <OpenInNewTabCell href={routes.scripts.details(row.original.id)} />
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(SCRIPT_COLUMNS.open),
+    },
+  ];
 }
 
 // ----------------------------------------------------------------
@@ -156,6 +338,8 @@ function ScriptsTableContent({
   // One round-trip per interaction: the filter facets (`scriptFilters`) ride the
   // list operation — see the query docstring for the facet semantics.
   const retryKey = useRetryKey();
+  // Mingo can add a row from the chat; its create refetches the list.
+  const mingoCreated = useMingoCreatedEpoch('script');
   const queryData = useLazyLoadQuery<ScriptsTableQueryType>(
     scriptsTableRelayQuery,
     {
@@ -164,7 +348,7 @@ function ScriptsTableContent({
       first: PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: `${retryKey}:${mingoCreated}` },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -365,132 +549,11 @@ function ScriptsTableContent({
   }, [confirmTarget, connectionId, archived, commitArchive, commitUnarchive, toast, refreshFilterMeta]);
 
   const columns = useMemo<ColumnDef<UiScriptEntry>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: SCRIPT_COLUMNS.name.header,
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <ScriptNameCell name={row.original.name} description={row.original.description} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCRIPT_COLUMNS.name),
-      },
-      {
-        accessorKey: 'shellType',
-        header: SCRIPT_COLUMNS.shellType.header,
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <ScriptShellBadge value={row.original.shellType} iconClassName="h-4 w-4 content-md:h-6 content-md:w-6" />
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(SCRIPT_COLUMNS.shellType, { filter: { options: shellOptions } }),
-      },
-      {
-        accessorKey: 'supportedPlatforms',
-        header: SCRIPT_COLUMNS.supportedPlatforms.header,
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <OSTypeBadgeGroup
-            osTypes={row.original.supportedPlatforms}
-            iconSize="w-4 h-4 content-md:w-6 content-md:h-6"
-          />
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(SCRIPT_COLUMNS.supportedPlatforms, { filter: { options: platformOptions } }),
-      },
-      {
-        // "Added by" = Script.author. Server filter via `authorIds`; the dropdown
-        // options come from `scriptFilters.authors` (see authorOptions). accessorKey
-        // is `authorId` so the option values (ids) match the server filter.
-        accessorKey: 'authorId',
-        header: SCRIPT_COLUMNS.authorId.header,
-        // The author id is a User global id; decode it to the raw id the REST-backed
-        // employee page expects. The whole cell opens that user's page in a new tab
-        // (accent + underline). `data-no-row-click` stops the row's own navigation
-        // (to the script) so only the user page opens.
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => {
-          if (!row.original.hasAuthor) {
-            return (
-              <div className="flex min-w-0 flex-1 items-center">
-                <ValueText value={null} />
-              </div>
-            );
-          }
-          const rawAuthorId = row.original.authorId
-            ? (decodeGlobalId(row.original.authorId)?.rawId ?? row.original.authorId)
-            : '';
-          const href = rawAuthorId ? employeeDetailHref(rawAuthorId) : null;
-          const isDeleted = row.original.authorDeleted;
-          const avatar = isDeleted ? (
-            <DeletedUserAvatar size="sm" />
-          ) : (
-            <SquareAvatar
-              variant="round"
-              size="sm"
-              src={row.original.authorImage}
-              fallback={row.original.authorInitials}
-              alt={row.original.authorName}
-              initialsClassName="text-ods-text-secondary"
-            />
-          );
-          if (!href) {
-            return (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                {avatar}
-                {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
-                <div className="min-w-0 flex-1">
-                  <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>
-                    {row.original.authorName}
-                  </TruncateText>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
-              <button
-                type="button"
-                onClick={openInNewTab(href)}
-                className="flex w-full min-w-0 items-center gap-2 text-left"
-              >
-                {avatar}
-                {/* min-w-0 flex-1 wrapper so the FloatingTooltip's block div can shrink and the name ellipsizes. */}
-                <div className="min-w-0 flex-1">
-                  <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-                    {row.original.authorName}
-                  </TruncateText>
-                </div>
-              </button>
-            </div>
-          );
-        },
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        // Rightmost filterable column: anchor the dropdown to the right edge so it
-        // never flips placement (start↔end) on open/close — that flip makes the
-        // panel jump sideways as it animates out.
-        meta: liveColumnMeta(SCRIPT_COLUMNS.authorId, {
-          cellClassName: 'self-stretch',
-          filter: { options: authorOptions, placement: 'bottom-end' },
-        }),
-      },
-      {
-        id: 'actions',
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <RowActionsCell>{renderRowActions(row.original)}</RowActionsCell>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCRIPT_COLUMNS.actions),
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<UiScriptEntry> }) => (
-          <OpenInNewTabCell href={routes.scripts.details(row.original.id)} />
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(SCRIPT_COLUMNS.open),
-      },
-    ],
+    () =>
+      scriptColumns({
+        options: { shell: shellOptions, platform: platformOptions, author: authorOptions },
+        renderRowActions,
+      }),
     [renderRowActions, shellOptions, platformOptions, authorOptions],
   );
 
@@ -575,30 +638,19 @@ function ScriptsTableContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in
-          flight — the subtle fade is the pending feedback. Swapping to skeletons
-          is exactly the flash the deferral avoids. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-          <DataTable.Body
-            skeletonRows={PAGE_SIZE}
-            emptyMessage={
-              debouncedSearch
-                ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
-                : 'No scripts found. Try adjusting your filters or add a new script.'
-            }
-            rowClassName="mb-1"
-            rowHref={scriptRowHref}
-          />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={fetchNextPage}
-            skeletonRows={2}
-          />
-        </DataTable>
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        emptyState={oneLineEmptyState(
+          debouncedSearch
+            ? `No scripts found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No scripts found. Try adjusting your filters or add a new script.',
+        )}
+        rowHref={scriptRowHref}
+        footer={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}
@@ -628,38 +680,30 @@ function ScriptsTableContent({
 }
 
 // ----------------------------------------------------------------
-// Loading skeleton
+// The table before its first answer
 // ----------------------------------------------------------------
 
-const EMPTY_ROWS: UiScriptEntry[] = [];
+/** The columns before the first answer: the funnels pending, no row to act on. */
+const LOADING_COLUMNS = scriptColumns({ options: null, renderRowActions: () => null });
 
-function ScriptsTableSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset: string }) {
-  // Same layout the live table above renders, including the trailing action
-  // columns — so the loading header reserves the same widths and stays aligned.
-  const columns = useMemo<ColumnDef<UiScriptEntry>[]>(
-    () => skeletonColumnDefs<UiScriptEntry>(SCRIPTS_TABLE_COLUMNS),
-    [],
-  );
-
-  const table = useDataTable<UiScriptEntry>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiScriptEntry) => row.id,
-    enableSorting: false,
-  });
-
+/** The scripts list, with its own boundary: in its scope the reader draws the table's loading form. */
+function ScriptsTableList(props: ScriptsTableContentProps) {
   return (
-    <LoadingRegion label="Loading scripts">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
-    </LoadingRegion>
+    <LoadingSuspense label="Loading scripts">
+      <ScriptsTableListReader {...props} />
+    </LoadingSuspense>
   );
 }
 
+function ScriptsTableListReader(props: ScriptsTableContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope())
+    return <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={props.stickyHeaderOffset} />;
+  return <ScriptsTableContent {...props} />;
+}
+
 // ----------------------------------------------------------------
-// Outer shell — layout + URL state + Suspense boundary
+// Outer shell — layout + URL state
 // ----------------------------------------------------------------
 
 interface ScriptsTableProps {
@@ -742,6 +786,7 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
 
   // Archived list has no header actions (back button only); the active list shows
   // Archive (→ archived page) + Add Script. "Edit Categories" is intentionally omitted.
+  const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_SCRIPT);
   const actions = useMemo(
     () =>
       archived
@@ -760,9 +805,10 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
                 <PlusCircleIcon size={24} className={isEmpty ? 'text-ods-text-on-accent' : 'text-ods-text-secondary'} />
               ),
               onClick: handleNewScript,
+              iconAction: generateWithAi,
             },
           ],
-    [archived, handleNewScript, handleOpenArchive, isEmpty],
+    [archived, handleNewScript, handleOpenArchive, isEmpty, generateWithAi],
   );
 
   const mobileFilterButton = (
@@ -789,42 +835,30 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
             ref={toolbarRef}
             className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex flex-col gap-[var(--spacing-system-xxs)] bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]"
           >
-            <Suspense
-              fallback={
-                <ScriptsTagFilterSkeleton
-                  search={searchInput}
-                  onSearchChange={setSearchInput}
-                  filterButton={mobileFilterButton}
-                />
-              }
-            >
-              <ScriptsTagFilter
-                search={searchInput}
-                onSearchChange={setSearchInput}
-                tagIds={params.tagIds}
-                onTagIdsChange={ids => setParam('tagIds', ids)}
-                filterButton={mobileFilterButton}
-                archived={archived}
-              />
-            </Suspense>
+            <ScriptsTagFilter
+              search={searchInput}
+              onSearchChange={setSearchInput}
+              tagIds={params.tagIds}
+              onTagIdsChange={ids => setParam('tagIds', ids)}
+              filterButton={mobileFilterButton}
+              archived={archived}
+            />
           </div>
         )}
 
-        <Suspense fallback={<ScriptsTableSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
-          <ScriptsTableContent
-            backendFilters={deferredFilters}
-            debouncedSearch={deferredSearch}
-            tableFilters={tableFilters}
-            hasTagFilter={params.tagIds.length > 0}
-            isPending={isPending}
-            onFilterChange={handleFilterChange}
-            onEmptyChange={setIsEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-            stickyHeaderOffset={stickyHeaderOffset}
-            archived={archived}
-          />
-        </Suspense>
+        <ScriptsTableList
+          backendFilters={deferredFilters}
+          debouncedSearch={deferredSearch}
+          tableFilters={tableFilters}
+          hasTagFilter={params.tagIds.length > 0}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          archived={archived}
+        />
       </div>
     </PageLayout>
   );

@@ -1,11 +1,18 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { usersListTable_query$key } from '@/__generated__/usersListTable_query.graphql';
 import type { usersListTablePaginationQuery } from '@/__generated__/usersListTablePaginationQuery.graphql';
 import type { usersListTableQuery } from '@/__generated__/usersListTableQuery.graphql';
-import { useRetryKey } from '@/app/components/shared';
-import { type EmployeeSelections, toUserFilter, userFilterOptions } from './employee-filters';
+import { NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  type EmployeeSelections,
+  NO_EMPLOYEE_FILTER_OPTIONS,
+  toUserFilter,
+  userFilterOptions,
+} from './employee-filters';
 import { USERS_PAGE_SIZE } from './employees-columns';
 import { UsersTable } from './users-table';
 
@@ -52,11 +59,40 @@ interface UsersListTableProps {
 }
 
 /**
- * The tenant's `users` connection, searched, narrowed and paged on the server.
- * Owns the query and the infinite scroll; the rows are `UsersTable`. Suspends on
- * the first page.
+ * The tenant's `users` connection, searched, narrowed and paged on the server, with its own boundary. In a loading
+ * scope (the boundary's fallback) the reader draws the table over one page of placeholder rows with their real cells;
+ * otherwise it runs the query, which suspends under that boundary.
  */
-export function UsersListTable({
+export function UsersListTable(props: UsersListTableProps) {
+  return (
+    <LoadingSuspense label="Loading users">
+      <UsersListReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function UsersListReader(props: UsersListTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <UsersTable
+        rows={NO_ITEMS}
+        totalCount={0}
+        search={props.search}
+        isFiltered={false}
+        filterOptions={NO_EMPLOYEE_FILTER_OPTIONS}
+        selections={props.selections}
+        onSelectionsChange={props.onSelectionsChange}
+        isPending={false}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <UsersListQuery {...props} />;
+}
+
+/** The first page and the infinite scroll. */
+function UsersListQuery({
   search,
   backendSelections,
   selections,

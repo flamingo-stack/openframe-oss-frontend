@@ -2,22 +2,16 @@
 
 import { InfoCard } from '@flamingo-stack/openframe-frontend-core';
 import { HardDrivesIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useState } from 'react';
-import { formatDateTime } from '@/lib/format-date';
+import { EMPTY_CARD, labelsOf } from '@/app/components/shared/info-card-loading';
+import { formatDateTimeOnDevice } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
+import { type DeviceInfoRow, deviceInfoItems, hasDeviceInfo } from '../../utils/device-info-rows';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
 
 interface HardwareTabProps {
   device: Device | null;
-}
-
-type InfoRow = { label: string; value?: string | number | null; copyable?: boolean };
-
-/** Keep only rows that carry a real value, normalized to a display string. */
-function toItems(rows: InfoRow[]): Array<{ label: string; value: string; copyable?: boolean }> {
-  return rows
-    .filter(row => row.value !== undefined && row.value !== null && String(row.value).trim() !== '')
-    .map(row => ({ label: row.label, value: String(row.value), copyable: row.copyable }));
 }
 
 function formatUptime(seconds?: number): string | undefined {
@@ -33,8 +27,16 @@ function formatUptime(seconds?: number): string | undefined {
 }
 
 /** A row of hardware blocks — a 3-column grid where every block stretches to an equal width. */
-function Row({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3">{children}</div>;
+/** `optional`: a row only some devices report (left out while the device is read, never in the first screen). */
+function Row({ optional, children }: { optional?: boolean; children: ReactNode }) {
+  return (
+    <div
+      data-loading-optional={optional || undefined}
+      className="grid grid-cols-1 gap-[var(--spacing-system-l)] content-lg:grid-cols-3"
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -43,11 +45,14 @@ function Row({ children }: { children: ReactNode }) {
  * multi-card group (e.g. extra disks/batteries) — an invisible placeholder keeps every card
  * top aligned across the grid.
  */
-function Block({ heading, children }: { heading?: string; children: ReactNode }) {
+function Block({ heading, item, children }: { heading?: string; item?: boolean; children: ReactNode }) {
   return (
     // `h-full` + `[&>*:last-child]:flex-1` make the card fill the grid cell (which stretches to
-    // the tallest block in the row), so all cards in a row share one height.
-    <div className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1">
+    // the tallest block in the row), so all cards in a row share one height. `item`: one entry of a read list.
+    <div
+      data-loading-item={item || undefined}
+      className="flex h-full flex-col gap-[var(--spacing-system-xxs)] [&>*:last-child]:flex-1"
+    >
       {heading ? (
         <h3 className="uppercase text-ods-text-secondary text-h5">{heading}</h3>
       ) : (
@@ -70,7 +75,11 @@ function HardwareEmptyState() {
   );
 }
 
+const STORAGE_TITLE = 'Disk';
+const STORAGE_SUBTITLE = 'Total storage';
+
 export function HardwareTab({ device }: HardwareTabProps) {
+  const loading = useLoadingScope();
   // `Date.now()` in render makes the component impure: two renders of the same
   // device disagree, and the compiler cannot memoize around it. Sampled once on
   // mount instead — the figure is a coarse "3 days", and it already only moved
@@ -78,63 +87,89 @@ export function HardwareTab({ device }: HardwareTabProps) {
   // early return below, because hooks may not be called conditionally.
   const [nowSeconds] = useState(() => Math.floor(Date.now() / 1000));
 
-  if (!device) {
+  if (!loading && !device) {
     return <HardwareEmptyState />;
   }
 
   // SYSTEM — hardware identity from Fleet (currently unused on this tab).
-  const systemItems = toItems([
-    { label: 'Serial Number', value: device.hardware_serial || device.serial_number, copyable: true },
-    { label: 'Hardware Version', value: device.hardware_version },
-    { label: 'Operating System', value: device.os_version },
-    { label: 'UUID', value: device.osUuid, copyable: true },
-  ]);
-  const systemTitle = device.hardware_model || device.make_model || device.model;
-  const systemSubtitle = device.hardware_vendor || device.manufacturer;
-  const hasSystem = Boolean(systemTitle || systemSubtitle || systemItems.length > 0);
+  const systemRows: DeviceInfoRow[] = [
+    { label: 'Serial Number', value: device?.hardware_serial || device?.serial_number, copyable: true },
+    { label: 'Hardware Version', value: device?.hardware_version },
+    { label: 'Operating System', value: device?.os_version },
+    { label: 'UUID', value: device?.osUuid, copyable: true },
+  ];
+  const systemTitle = device?.hardware_model || device?.make_model || device?.model;
+  const systemSubtitle = device?.hardware_vendor || device?.manufacturer;
+  const hasSystem = Boolean(systemTitle || systemSubtitle || hasDeviceInfo(systemRows));
 
-  // BOOT — last restart / boot time / derived uptime.
-  const uptimeSeconds = device.boot_time ? Math.max(0, nowSeconds - device.boot_time) : undefined;
-  const bootItems = toItems([
+  // BOOT — last restart / boot time / derived uptime, on the device's own clock
+  // (these events happened there), on the viewer's when it reported no zone.
+  const uptimeSeconds = device?.boot_time ? Math.max(0, nowSeconds - device?.boot_time) : undefined;
+  const onDevice = (at: string | number | undefined) => (at ? formatDateTimeOnDevice(at, device?.timezone) : undefined);
+  const bootRows: DeviceInfoRow[] = [
     { label: 'Uptime', value: formatUptime(uptimeSeconds) },
-    { label: 'Last Restarted', value: device.last_restarted_at ? formatDateTime(device.last_restarted_at) : undefined },
-    { label: 'Boot Time', value: device.boot_time ? formatDateTime(device.boot_time * 1000) : undefined },
-    { label: 'Enrolled', value: device.last_enrolled_at ? formatDateTime(device.last_enrolled_at) : undefined },
-  ]);
+    { label: 'Last Restarted', value: onDevice(device?.last_restarted_at) },
+    { label: 'Boot Time', value: onDevice(device?.boot_time ? device?.boot_time * 1000 : undefined) },
+    { label: 'Enrolled', value: onDevice(device?.last_enrolled_at) },
+  ];
+  const hasBoot = hasDeviceInfo(bootRows);
 
-  // CPU — model + architecture/cores/threads.
-  const cpuModel = device.cpu_brand;
-  const cpuItems = toItems([
-    { label: 'Architecture', value: device.cpu_type },
-    { label: 'Subtype', value: device.cpu_subtype },
-    { label: 'Physical Cores', value: device.cpu_physical_cores },
-    { label: 'Logical Cores', value: device.cpu_logical_cores },
-  ]);
-  const hasCpu = Boolean(cpuModel || cpuItems.length > 0);
+  // CPU — model + architecture/cores/threads. The CPU subtype is left out: only Apple hosts report it, so it is a
+  // row most devices would draw empty.
+  const cpuModel = device?.cpu_brand;
+  const cpuRows: DeviceInfoRow[] = [
+    { label: 'Architecture', value: device?.cpu_type },
+    { label: 'Physical Cores', value: device?.cpu_physical_cores },
+    { label: 'Logical Cores', value: device?.cpu_logical_cores },
+  ];
+  const hasCpu = Boolean(cpuModel || hasDeviceInfo(cpuRows));
 
   // MEMORY — total only (per-DIMM/slot detail is not in our payload).
-  const memoryItems = toItems([{ label: 'Total Memory', value: device.totalRam }]);
+  const memoryRows: DeviceInfoRow[] = [{ label: 'Total Memory', value: device?.totalRam }];
+  const hasMemory = hasDeviceInfo(memoryRows);
 
   // STORAGE — Fleet whole-disk totals.
-  const fleetTotalGb = device.gigs_total_disk_space;
-  const fleetAvailableGb = device.gigs_disk_space_available;
+  const fleetTotalGb = device?.gigs_total_disk_space;
+  const fleetAvailableGb = device?.gigs_disk_space_available;
   const hasFleetStorage = typeof fleetTotalGb === 'number' && fleetTotalGb > 0;
   const fleetUsedPercent =
-    device.percent_disk_space_available !== undefined
-      ? Math.max(0, Math.min(100, Math.round(100 - device.percent_disk_space_available)))
+    device?.percent_disk_space_available !== undefined
+      ? Math.max(0, Math.min(100, Math.round(100 - device?.percent_disk_space_available)))
       : undefined;
   const fleetUsedGb =
     typeof fleetTotalGb === 'number' && typeof fleetAvailableGb === 'number'
       ? Math.max(0, fleetTotalGb - fleetAvailableGb)
       : undefined;
 
-  // BATTERY — macOS battery health from Fleet.
-  const batteries = device.batteries || [];
+  const storageRows: DeviceInfoRow[] = [
+    {
+      label: 'Current Usage',
+      value: fleetUsedPercent !== undefined ? `${fleetUsedPercent}%` : undefined,
+    },
+    {
+      label: 'Used Space',
+      value: fleetUsedGb !== undefined ? `${fleetUsedGb.toFixed(2)} GB` : undefined,
+    },
+    {
+      label: 'Free Space',
+      value: typeof fleetAvailableGb === 'number' ? `${fleetAvailableGb.toFixed(2)} GB` : undefined,
+    },
+    { label: 'Total Capacity', value: typeof fleetTotalGb === 'number' ? `${fleetTotalGb.toFixed(2)} GB` : undefined },
+  ];
 
-  const hasAnyData =
-    hasSystem || bootItems.length > 0 || hasCpu || memoryItems.length > 0 || hasFleetStorage || batteries.length > 0;
-  if (!hasAnyData) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  // BATTERY — macOS battery health from Fleet.
+  const batteries = device?.batteries || [];
+
+  // While the device is read every block that most devices report is drawn, each card its own skeleton.
+  const showSystem = loading || hasSystem;
+  const showBoot = loading || hasBoot;
+  const showCpu = loading || hasCpu;
+  const showMemory = loading || hasMemory;
+  const showStorage = loading || hasFleetStorage;
+
+  const hasAnyData = hasSystem || hasBoot || hasCpu || hasMemory || hasFleetStorage || batteries.length > 0;
+  if (!loading && !hasAnyData) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<HardDrivesIcon />} section="Hardware" />;
     }
     return <HardwareEmptyState />;
@@ -143,28 +178,35 @@ export function HardwareTab({ device }: HardwareTabProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       {/* System, Boot, CPU share one row — three equal, stretched columns. */}
-      {(hasSystem || bootItems.length > 0 || hasCpu) && (
+      {(showSystem || showBoot || showCpu) && (
         <Row>
-          {hasSystem && (
+          {showSystem && (
             <Block heading="System">
-              <InfoCard data={{ title: systemTitle || undefined, subtitle: systemSubtitle, items: systemItems }} />
+              <InfoCard
+                data={
+                  loading
+                    ? EMPTY_CARD
+                    : { title: systemTitle || undefined, subtitle: systemSubtitle, items: deviceInfoItems(systemRows) }
+                }
+                skeleton={{ rows: labelsOf(systemRows), subtitle: true }}
+              />
             </Block>
           )}
 
-          {bootItems.length > 0 && (
+          {showBoot && (
             <Block heading="Boot">
-              <InfoCard data={{ items: bootItems }} />
+              <InfoCard
+                data={loading ? EMPTY_CARD : { items: deviceInfoItems(bootRows) }}
+                skeleton={{ rows: labelsOf(bootRows), title: false }}
+              />
             </Block>
           )}
 
-          {hasCpu && (
+          {showCpu && (
             <Block heading="CPU">
               <InfoCard
-                data={{
-                  title: cpuModel || undefined,
-                  subtitle: cpuItems.length > 0 ? undefined : 'No detailed information available',
-                  items: cpuItems.length > 0 ? cpuItems : [{ label: 'Status', value: 'Basic info only' }],
-                }}
+                data={loading ? EMPTY_CARD : { title: cpuModel || undefined, items: deviceInfoItems(cpuRows) }}
+                skeleton={{ rows: labelsOf(cpuRows) }}
               />
             </Block>
           )}
@@ -172,46 +214,46 @@ export function HardwareTab({ device }: HardwareTabProps) {
       )}
 
       {/* Memory — its own row. */}
-      {memoryItems.length > 0 && (
+      {showMemory && (
         <Row>
           <Block heading="Memory">
-            <InfoCard data={{ items: memoryItems }} />
-          </Block>
-        </Row>
-      )}
-
-      {/* Storage — Fleet whole-disk totals. */}
-      {hasFleetStorage && (
-        <Row>
-          <Block heading="Storage">
             <InfoCard
-              data={{
-                title: 'Disk',
-                subtitle: 'Total storage',
-                items: toItems([
-                  {
-                    label: 'Current Usage',
-                    value: fleetUsedPercent !== undefined ? `${fleetUsedPercent}%` : undefined,
-                  },
-                  {
-                    label: 'Used Space',
-                    value: fleetUsedGb !== undefined ? `${fleetUsedGb.toFixed(2)} GB` : undefined,
-                  },
-                  {
-                    label: 'Free Space',
-                    value: typeof fleetAvailableGb === 'number' ? `${fleetAvailableGb.toFixed(2)} GB` : undefined,
-                  },
-                  { label: 'Total Capacity', value: `${(fleetTotalGb as number).toFixed(2)} GB` },
-                ]),
-                ...(fleetUsedPercent !== undefined && { progress: { value: fleetUsedPercent } }),
-              }}
+              data={loading ? EMPTY_CARD : { items: deviceInfoItems(memoryRows) }}
+              skeleton={{ rows: labelsOf(memoryRows), title: false }}
             />
           </Block>
         </Row>
       )}
 
-      {batteries.length > 0 && (
+      {/* Storage — Fleet whole-disk totals. */}
+      {showStorage && (
         <Row>
+          <Block heading="Storage">
+            <InfoCard
+              skeleton={{
+                rows: labelsOf(storageRows),
+                title: STORAGE_TITLE,
+                subtitle: STORAGE_SUBTITLE,
+                progress: true,
+              }}
+              data={
+                loading
+                  ? EMPTY_CARD
+                  : {
+                      title: STORAGE_TITLE,
+                      subtitle: STORAGE_SUBTITLE,
+                      items: deviceInfoItems(storageRows),
+                      ...(fleetUsedPercent !== undefined && { progress: { value: fleetUsedPercent } }),
+                    }
+              }
+            />
+          </Block>
+        </Row>
+      )}
+
+      {/* Batteries: only laptops report them, so the row is not drawn while the device is read (it sits last). */}
+      {batteries.length > 0 && (
+        <Row optional>
           {batteries.map((battery, index) => {
             const healthStatus = battery.health || 'Unknown';
             const cycleCount = battery.cycle_count || 0;
@@ -228,7 +270,7 @@ export function HardwareTab({ device }: HardwareTabProps) {
             }
 
             return (
-              <Block key={`battery-${index}`} heading={index === 0 ? 'Battery Health' : undefined}>
+              <Block key={`battery-${index}`} heading={index === 0 ? 'Battery Health' : undefined} item>
                 <InfoCard
                   data={{
                     title: `Battery ${index + 1}`,

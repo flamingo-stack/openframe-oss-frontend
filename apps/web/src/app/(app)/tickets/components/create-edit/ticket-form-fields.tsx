@@ -14,6 +14,7 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn, useWatch } from 'react-hook-form';
+import { lazyMarkdownEditor, SimpleMarkdownRenderer } from '@/app/components/shared/lazy-markdown';
 import { AssignmentsField } from '@/components/assignments';
 import { getFullImageUrl } from '@/lib/image-url';
 import { nativeFilePicker, type UploadSource } from '@/lib/native-files';
@@ -35,8 +36,11 @@ import { getTicketDeviceName } from '../../utils/ticket-device-name';
 import { TICKET_STATUS_KIND } from '../../utils/ticket-statistics';
 import { avatarStartAdornment, renderAvatarOption } from '../avatar-autocomplete';
 import { renderStatusOption, type StatusOption, statusStartAdornment } from '../status-autocomplete';
-import { MarkdownEditor, SimpleMarkdownRenderer } from './lazy-markdown';
 import { TicketTagsManager } from './ticket-tags-manager';
+
+/** The editor's height: the field the form draws and the skeleton its code-split loader draws. */
+const TICKET_DESCRIPTION_EDITOR_HEIGHT = 500;
+const MarkdownEditor = lazyMarkdownEditor(TICKET_DESCRIPTION_EDITOR_HEIGHT);
 
 const renderOrganizationOption = renderAvatarOption('square');
 const renderAssigneeOption = renderAvatarOption('round');
@@ -370,7 +374,7 @@ export function TicketFormFields({
             value={field.value}
             onChange={field.onChange}
             placeholder="Ticket Description"
-            height={500}
+            height={TICKET_DESCRIPTION_EDITOR_HEIGHT}
             renderPreview={renderPreview}
             disabled={isFaeForm}
           />
