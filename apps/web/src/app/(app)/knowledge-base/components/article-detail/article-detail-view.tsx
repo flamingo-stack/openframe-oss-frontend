@@ -1,7 +1,5 @@
 'use client';
 
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
-
 import { ArticleDetailContent } from './article-detail-content';
 
 /**
@@ -11,9 +9,7 @@ import { ArticleDetailContent } from './article-detail-content';
 export function ArticleDetailView({ articleId }: { articleId: string }) {
   return (
     <div className="flex w-full flex-col">
-      <LiveSuspense label="Loading article">
-        <ArticleDetailContent articleId={articleId} />
-      </LiveSuspense>
+      <ArticleDetailContent articleId={articleId} />
     </div>
   );
 }

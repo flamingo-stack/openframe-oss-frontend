@@ -10,6 +10,7 @@ import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
@@ -45,11 +46,12 @@ export interface MingoTour {
  * dock then mounts, it creates the "Welcome to OpenFrame" conversation, opens
  * it and records it on the server (`userOnboardingProgress.tourDialogId`), so
  * every device of this user finds the same conversation. In it Mingo's
- * greeting heads the thread (a local message, re-added on every load) and the
- * Getting Started block sits above the composer — on every page while that
- * conversation is the open one. A chip sends its prompt there through the
- * state it was given, opens its section and marks its step done on the
- * server. "Finish tour" completes the user's onboarding, which takes the block
+ * greeting heads the thread (a local message, re-added on every load, and kept
+ * once the tour is over) and the Getting Started block sits above the composer,
+ * on every page while that conversation is the open one. A chip sends its
+ * prompt there through the state it was given, opens its section beside the
+ * chat and marks its step done on the server. "Finish tour" completes the
+ * user's onboarding, which takes the block
  * away.
  */
 export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpened }: MingoTourInput): MingoTour {
@@ -133,20 +135,16 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
         return false;
       }
       // The block shows in the tour's conversation only, so this lands there.
-      // A prompt about the first device names it by its mention, and a chip
-      // about it opens that device's page; "my device" and the section stand
-      // in while there is no device to name (or the read fails).
+      // A prompt about the first device names it by its mention; "my device"
+      // stands in while there is no device to name (or the read fails). The
+      // chip opens its section beside the chat.
       // The step is done once the prompt is in the conversation: a refused
       // or failed send leaves it to try again.
-      const { deviceHref } = action;
+      router.push(action.href);
+      onStepOpened?.(action.href);
       void fetchFirstDevice(environment)
         .catch(() => null)
-        .then(device => {
-          const href = deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href;
-          router.push(href);
-          onStepOpened?.(href);
-          return sendMessage(tourPrompt(action, device));
-        })
+        .then(device => sendMessage(tourPrompt(action, device)))
         .then(sent => {
           if (sent === false) return;
           if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);
@@ -160,6 +158,13 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
 
   const showing = dialogId !== null && activeDialogId === dialogId;
 
+  // The conversation Mingo greeted in keeps the greeting after the tour, finished
+  // or skipped: the server keeps it recorded, and the greeting is a local message,
+  // so without it a tour that ended before a chip was used - archiving the
+  // conversation skips the tour - leaves it empty once it is unarchived.
+  const greetedDialogId = createdDialogId ?? user?.tourDialogId ?? null;
+  const greeted = greetedDialogId !== null && activeDialogId === greetedDialogId;
+
   // When the tour began, for the greeting's timestamp: the handoff marker on
   // the device that pressed "Start with Mingo"; elsewhere the first time this
   // panel showed the conversation.
@@ -169,14 +174,14 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
   // The greeting heads the thread once all of it is loaded: with older pages
   // still to come it would land mid-conversation.
   const greeting = useMemo<ChatMessage | null>(() => {
-    if (!showing || hasMoreMessages) return null;
+    if (!greeted || hasMoreMessages) return null;
     return {
-      id: `tour-greeting-${dialogId}`,
+      id: `tour-greeting-${greetedDialogId}`,
       role: 'assistant',
       content: tourGreeting(firstName),
       timestamp: startedAt,
     };
-  }, [showing, hasMoreMessages, startedAt, dialogId, firstName]);
+  }, [greeted, hasMoreMessages, startedAt, greetedDialogId, firstName]);
 
   // Archiving the tour's conversation while the tour is on sets the tour
   // aside: it is skipped once the archive lands, so "Reset Onboarding" can
@@ -202,6 +207,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError, onStepOpen
         doneStepIds={doneStepIds}
         onAction={handleAction}
         onFinish={handleFinish}
+        onOpenFae={canOpenFaeApp() ? openFaeApp : undefined}
         busy={isLoading}
       />
     ) : null,

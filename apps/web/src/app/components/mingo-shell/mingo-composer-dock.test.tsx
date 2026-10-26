@@ -132,6 +132,10 @@ vi.mock('../reset-onboarding-dialog', () => ({
   ResetOnboardingDialog: () => null,
   useCanResetOnboarding: () => false,
 }));
+vi.mock('../dev-onboarding-shortcuts', () => ({
+  ResetInitialSetupDialog: () => null,
+  useDevOnboardingMenuItems: () => [],
+}));
 // The chip has tests of its own (its sources import Relay queries); none here.
 vi.mock('./use-open-view-chip', () => ({ useOpenViewChip: () => null }));
 // The props builder has tests of its own; here: what the dock asks of it.

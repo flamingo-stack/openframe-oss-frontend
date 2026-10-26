@@ -193,6 +193,28 @@ export function rawDialogIdToAdopt(
   return activeDialogId && dialog?.id === activeDialogId ? dialog.dialogId : null;
 }
 
+/**
+ * Create a dialog the app names itself and open it. Opened as soon as it
+ * exists, not once the rename has landed: until a dialog is open the wide panel
+ * lists a "New Chat" draft row, and the created dialog would sit beside it as a
+ * second one for the length of the rename. `create` lists it under its name.
+ * Resolves to the dialog id once it is named, or null when it was not created.
+ */
+export async function openNamedDialog(
+  title: string,
+  steps: {
+    create: (options: { title: string }) => Promise<string | null>;
+    open: (id: string) => void;
+    rename: (id: string, title: string) => Promise<void>;
+  },
+): Promise<string | null> {
+  const id = await steps.create({ title });
+  if (!id) return null;
+  steps.open(id);
+  await steps.rename(id, title);
+  return id;
+}
+
 /** Slash-command action that dumps a row's body into the chat verbatim. */
 const DISPLAY_ACTION_ID = 'display';
 
@@ -532,18 +554,19 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   );
 
   const createNamedDialog = useCallback(
-    async (title: string): Promise<string | null> => {
-      const newId = await createDialog();
-      if (!newId) return null;
-      // The title is the app's, not the user's: no "Chat renamed" toast. A
-      // rename that fails leaves the dialog on its generated title and toasts.
-      await renameDialog(newId, title, { silent: true });
-      setActiveDialogId(newId);
-      resetUnread(newId);
-      subscribeToDialog(newId);
-      selectDialogMut(newId);
-      return newId;
-    },
+    (title: string): Promise<string | null> =>
+      openNamedDialog(title, {
+        create: createDialog,
+        open: newId => {
+          setActiveDialogId(newId);
+          resetUnread(newId);
+          subscribeToDialog(newId);
+          selectDialogMut(newId);
+        },
+        // The title is the app's, not the user's: no "Chat renamed" toast. A
+        // rename that fails leaves the dialog on its generated title and toasts.
+        rename: (newId, name) => renameDialog(newId, name, { silent: true }),
+      }),
     [createDialog, renameDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 

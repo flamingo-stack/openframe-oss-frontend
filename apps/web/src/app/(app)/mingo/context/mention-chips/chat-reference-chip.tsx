@@ -20,11 +20,13 @@
  * under a generic label, since the chat resolves the dialog on its own.
  */
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
+import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 /** The marker the ai-agent writes in front of a recalled dialog's id
  *  (`ConversationMemoryReferenceService.CHAT_TAG_PREFIX`, without the `@`). */
@@ -81,6 +83,26 @@ function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: 
   return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
 }
 
+/**
+ * The chip's boundary: while its entity is fetched, the reader draws the chip itself (no label yet) in a loading
+ * scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the chip
+ * lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
+ */
+function ChatReferenceLoader(props: ChatReferenceChipProps) {
+  return (
+    <LoadingSuspense as="span" className="contents" status={false}>
+      <ChatReferenceReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ChatReferenceReader(props: ChatReferenceChipProps) {
+  // In a loading scope it draws the chip with no label and runs no read.
+  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  return <ChatReferenceInner {...props} />;
+}
+
 function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
   const { data } = useSuspenseQuery({
     queryKey: ['mingo-mention', CHAT_REFERENCE_MARKER, id],
@@ -98,9 +120,7 @@ function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
 export function ChatReferenceChip({ id, icon }: ChatReferenceChipProps) {
   return (
     <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} icon={icon} />}>
-      <MentionSuspense icon={icon}>
-        <ChatReferenceInner id={id} icon={icon} />
-      </MentionSuspense>
+      <ChatReferenceLoader id={id} icon={icon} />
     </MentionErrorBoundary>
   );
 }

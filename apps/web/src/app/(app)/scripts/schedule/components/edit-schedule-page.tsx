@@ -7,8 +7,8 @@ import {
   ScheduleFormFields,
   type ScheduleScriptSearchSlotProps,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type ComponentProps, useLayoutEffect, useMemo, useState } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -71,6 +71,67 @@ function ScheduleRecordLoader({
   return null;
 }
 
+interface ScheduleRecordFieldsProps {
+  scheduleId: string | null;
+  record: ScheduleRecordState;
+  onResolved: (state: ScheduleRecordState) => void;
+  showErrors: boolean;
+  timeReferenceGate: ComponentProps<typeof ScheduleFormFields>['timeReferenceGate'];
+}
+
+/**
+ * The form's fields with the record they edit, with their own boundary. The
+ * loader suspends on the record; until it lands the reader draws the form in the
+ * loading scope (each field its own skeleton), and once the record is seeded the
+ * same fields unlock.
+ */
+function ScheduleRecordFields(props: ScheduleRecordFieldsProps) {
+  return (
+    <LoadingSuspense label="Loading schedule">
+      <ScheduleRecordFieldsReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleRecordFieldsReader({
+  scheduleId,
+  record,
+  onResolved,
+  showErrors,
+  timeReferenceGate,
+}: ScheduleRecordFieldsProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) {
+    return (
+      <ScheduleFormFields
+        showErrors={false}
+        disabled
+        renderScriptSearch={renderScriptSearch}
+        timeReferenceGate={timeReferenceGate}
+        platforms={AVAILABLE_PLATFORMS}
+        comingSoonPlatforms={DISABLED_PLATFORMS}
+      />
+    );
+  }
+  return (
+    <>
+      {scheduleId && <ScheduleRecordLoader scheduleId={scheduleId} onResolved={onResolved} />}
+      {record.status === 'missing' ? (
+        <NotFoundError message="Schedule not found" />
+      ) : (
+        <ScheduleFormFields
+          showErrors={showErrors}
+          disabled={record.status !== 'ready'}
+          renderScriptSearch={renderScriptSearch}
+          timeReferenceGate={timeReferenceGate}
+          platforms={AVAILABLE_PLATFORMS}
+          comingSoonPlatforms={DISABLED_PLATFORMS}
+        />
+      )}
+    </>
+  );
+}
+
 /**
  * The page around the fields: the title, the Back button, the action bar and the
  * form instance itself. None of it reads the schedule, so all of it paints on the
@@ -121,36 +182,13 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {/* The loader suspends on the record; until it lands the form draws
-            itself in a loading scope (each field its own skeleton), and once
-            the record is seeded the same fields unlock. */}
-        <LoadingSuspense
-          label="Loading schedule"
-          fallback={
-            <ScheduleFormFields
-              showErrors={false}
-              disabled
-              renderScriptSearch={renderScriptSearch}
-              timeReferenceGate={deviceTimeGate}
-              platforms={AVAILABLE_PLATFORMS}
-              comingSoonPlatforms={DISABLED_PLATFORMS}
-            />
-          }
-        >
-          {scheduleId && <ScheduleRecordLoader scheduleId={scheduleId} onResolved={setRecord} />}
-          {record.status === 'missing' ? (
-            <NotFoundError message="Schedule not found" />
-          ) : (
-            <ScheduleFormFields
-              showErrors={showErrors}
-              disabled={!isRecordReady}
-              renderScriptSearch={renderScriptSearch}
-              timeReferenceGate={deviceTimeGate}
-              platforms={AVAILABLE_PLATFORMS}
-              comingSoonPlatforms={DISABLED_PLATFORMS}
-            />
-          )}
-        </LoadingSuspense>
+        <ScheduleRecordFields
+          scheduleId={scheduleId}
+          record={record}
+          onResolved={setRecord}
+          showErrors={showErrors}
+          timeReferenceGate={deviceTimeGate}
+        />
       </PageLayout>
     </FormProvider>
   );

@@ -23,7 +23,7 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
     // No page padding here: it lives in `SoftwarePageShell`, around the error
     // boundary, so a thrown query keeps the title indented.
     <PageLayout title={title}>
-      <SoftwareListFrame placeholder="Search for Software" loadingLabel="Loading software" loading={loading}>
+      <SoftwareListFrame placeholder="Search for Software" loading={loading}>
         {list => <SoftwareListTable {...list} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}
       </SoftwareListFrame>
     </PageLayout>

@@ -2,6 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ComponentProps, useEffect, useState } from 'react';
@@ -25,28 +26,35 @@ const EMPTY_RESET_FORM = {
 } satisfies ResetFormProps;
 
 /**
- * The password reset screen: the shell, its Back to login footer and the form. One view for the loaded page and the
- * Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ * The password reset screen: the shell and its Back to login footer render at once; only the form waits for the URL
+ * (the reset token). `useSearchParams` bails out to the client during the static prerender, so the form stands in
+ * empty and inert, in a loading scope, until the token is read.
  */
-function PasswordResetView({ form, onBack = noop }: { form?: Partial<ResetFormProps>; onBack?: () => void }) {
+export default function PasswordResetPage() {
+  const router = useRouter();
+  const handleBack = () => router.push('/auth');
   return (
-    <BackToLoginShell onBack={onBack}>
-      <PasswordResetForm {...EMPTY_RESET_FORM} {...form} />
+    <BackToLoginShell onBack={handleBack}>
+      <PasswordResetContent onBack={handleBack} />
     </BackToLoginShell>
   );
 }
 
-export default function PasswordResetPage() {
+/** The form, with its own boundary: in its scope the reader draws the form empty and inert. */
+function PasswordResetContent(props: { onBack: () => void }) {
   return (
-    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
-    // stands in until the URL (the reset token) is read.
-    <LoadingSuspense label="Loading password reset" fallback={<PasswordResetView />}>
-      <PasswordResetContent />
+    <LoadingSuspense label="Loading password reset">
+      <PasswordResetContentReader {...props} />
     </LoadingSuspense>
   );
 }
 
-function PasswordResetContent() {
+function PasswordResetContentReader(props: { onBack: () => void }) {
+  if (useLoadingScope()) return <PasswordResetForm {...EMPTY_RESET_FORM} />;
+  return <PasswordResetContentLive {...props} />;
+}
+
+function PasswordResetContentLive({ onBack: handleBack }: { onBack: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -66,8 +74,6 @@ function PasswordResetContent() {
       router.push('/auth');
     }
   }, [token, router, toast]);
-
-  const handleBack = () => router.push('/auth');
 
   const handleSubmit = async () => {
     if (!token || !isValid) return;
@@ -109,17 +115,15 @@ function PasswordResetContent() {
   };
 
   return (
-    <PasswordResetView
-      onBack={handleBack}
-      form={{
-        ...pair,
-        onSubmit: handleSubmit,
-        onCancel: handleBack,
-        onBackToLogin: handleBack,
-        submitDisabled: !isValid,
-        loading: isLoading,
-        errors,
-      }}
+    <PasswordResetForm
+      {...EMPTY_RESET_FORM}
+      {...pair}
+      onSubmit={handleSubmit}
+      onCancel={handleBack}
+      onBackToLogin={handleBack}
+      submitDisabled={!isValid}
+      loading={isLoading}
+      errors={errors}
     />
   );
 }

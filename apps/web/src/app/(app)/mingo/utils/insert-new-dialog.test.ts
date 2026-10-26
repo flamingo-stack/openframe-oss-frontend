@@ -1,8 +1,9 @@
 // Pins that a just-created dialog is listed at once: at the top of every cached
 // chat list (MY and ALL), owned by the signed-in admin and titled by the list as
-// "New Chat", but not in a list filtered by a search term, and never twice; and
-// that a list read the server answered without it (it lags a few seconds)
-// keeps it on top until the server returns it, for at most a minute.
+// "New Chat" (or by the title its creator names it with), but not in a list
+// filtered by a search term, and never twice; and that a list read the server
+// answered without it (it lags a few seconds) keeps it on top until the server
+// returns it, for at most a minute.
 
 import { type InfiniteData, QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -60,6 +61,18 @@ describe('insertNewDialog', () => {
     expect(ids(client, { scope: 'all', search: 'printer' })).toEqual(['a']);
     expect(ids(client, { scope: 'my' })).toEqual(['new', 'a']);
   });
+
+  it('lists a dialog its creator names under that name, not as "New Chat"', () => {
+    const client = new QueryClient();
+    client.setQueryData(key({ scope: 'my' }), page('a'));
+
+    insertNewDialog(client, 'new', OWNER, { title: 'Welcome to OpenFrame' });
+
+    const node = client.getQueryData<DialogsData>(key({ scope: 'my' }))?.pages[0].dialogs[0];
+    expect(node).toMatchObject({ dialogId: 'new', title: 'Welcome to OpenFrame' });
+    // A list read that still lacks it puts it back under the same name.
+    expect(keepCreatedDialogs(page('a').pages[0]).dialogs[0]).toMatchObject({ title: 'Welcome to OpenFrame' });
+  });
 });
 
 describe('raiseDialog', () => {
@@ -104,14 +117,14 @@ describe('keepCreatedDialogs', () => {
 
   it('puts a created dialog the server has not returned yet back on top, newest first', () => {
     const client = new QueryClient();
-    insertNewDialog(client, 'first', OWNER, 1_000);
-    insertNewDialog(client, 'second', OWNER, 2_000);
+    insertNewDialog(client, 'first', OWNER, { now: 1_000 });
+    insertNewDialog(client, 'second', OWNER, { now: 2_000 });
 
     expect(listed(keepCreatedDialogs(serverPage('a'), 3_000))).toEqual(['second', 'first', 'a']);
   });
 
   it('stops holding a dialog once the server returns it', () => {
-    insertNewDialog(new QueryClient(), 'new', OWNER, 1_000);
+    insertNewDialog(new QueryClient(), 'new', OWNER, { now: 1_000 });
 
     expect(listed(keepCreatedDialogs(serverPage('new', 'a'), 2_000))).toEqual(['new', 'a']);
     // Gone from the server's answer later (archived, say): no longer put back.
@@ -119,7 +132,7 @@ describe('keepCreatedDialogs', () => {
   });
 
   it('holds a dialog for a minute at most', () => {
-    insertNewDialog(new QueryClient(), 'new', OWNER, 1_000);
+    insertNewDialog(new QueryClient(), 'new', OWNER, { now: 1_000 });
 
     expect(listed(keepCreatedDialogs(serverPage('a'), 1_000 + 60_001))).toEqual(['a']);
   });

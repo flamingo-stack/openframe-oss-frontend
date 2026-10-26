@@ -34,24 +34,25 @@ interface TestClockPanelProps {
  * which strips these fields from the schema when off, so an ungated render would fire
  * requests that fail GraphQL validation on prod.
  *
- * In a loading scope (the billing page drawn while it loads) the panel draws itself without its query, like every
- * other part of the page.
+ * It has its own boundary: in a loading scope (the boundary's own, or the billing page drawn while it loads) the
+ * reader draws the panel without its query, like every other part of the page.
  */
 export function TestClockPanel({ onClockChanged }: TestClockPanelProps) {
   const testClockEnabled = useFeatureFlag('test-clock');
-  const loading = useLoadingScope();
 
   if (!testClockEnabled) return null;
-  if (loading) return <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />;
 
   return (
-    <LoadingSuspense
-      label="Loading the test clock"
-      fallback={<TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />}
-    >
-      <TestClockPanelContent onClockChanged={onClockChanged} />
+    <LoadingSuspense label="Loading the test clock">
+      <TestClockPanelReader onClockChanged={onClockChanged} />
     </LoadingSuspense>
   );
+}
+
+function TestClockPanelReader({ onClockChanged }: TestClockPanelProps) {
+  // In a loading scope it draws the panel with no clock and runs no read.
+  if (useLoadingScope()) return <TestClockPanelView frozenTime={null} onClockChanged={onClockChanged} />;
+  return <TestClockPanelContent onClockChanged={onClockChanged} />;
 }
 
 const testClockPanelQuery = graphql`

@@ -13,6 +13,7 @@ import {
   FilterModal,
   Input,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
@@ -253,6 +254,28 @@ function ScheduleRunsContent({
   );
 }
 
+/** The runs list, with its own boundary: in its scope the reader draws the table's loading form. */
+function ScheduleRunsTable(props: ContentProps) {
+  return (
+    <LoadingSuspense label="Loading schedule runs">
+      <ScheduleRunsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleRunsTableReader(props: ContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope())
+    return (
+      <LiveTable
+        columns={SCHEDULE_RUN_LOADING_COLUMNS}
+        pageSize={RUNS_PAGE_SIZE}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+      />
+    );
+  return <ScheduleRunsContent {...props} />;
+}
+
 /**
  * Schedule Runs — one row per *fire* of the schedule, the aggregate above the
  * flat Execution History (a run fans out to one execution per script × device).
@@ -385,31 +408,20 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <LoadingSuspense
-        label="Loading schedule runs"
-        fallback={
-          <LiveTable
-            columns={SCHEDULE_RUN_LOADING_COLUMNS}
-            pageSize={RUNS_PAGE_SIZE}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        }
-      >
-        <ScheduleRunsContent
-          scheduleId={scheduleId}
-          debouncedSearch={deferredSearch}
-          backendFilters={deferredVars.filter}
-          sort={deferredVars.sort}
-          isPending={isPending}
-          tableFilters={tableFilters}
-          dateFilter={dateFilter}
-          onFilterChange={handleFilterChange}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          onEmptyChange={setIsEmpty}
-        />
-      </LoadingSuspense>
+      <ScheduleRunsTable
+        scheduleId={scheduleId}
+        debouncedSearch={deferredSearch}
+        backendFilters={deferredVars.filter}
+        sort={deferredVars.sort}
+        isPending={isPending}
+        tableFilters={tableFilters}
+        dateFilter={dateFilter}
+        onFilterChange={handleFilterChange}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={() => setMobileFilterOpen(false)}
+        stickyHeaderOffset={stickyHeaderOffset}
+        onEmptyChange={setIsEmpty}
+      />
     </div>
   );
 });

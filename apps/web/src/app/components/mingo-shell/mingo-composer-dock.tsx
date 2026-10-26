@@ -61,6 +61,7 @@ import { useMingoTour } from '@/app/(app)/mingo/tour/use-mingo-tour';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isMobileShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
+import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
@@ -355,21 +356,28 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   ) : undefined;
 
   // "Reset Onboarding" replays the Getting Started tour once it is over (finished or
-  // skipped) — in the chat's ⋯, after the chat's own actions, as the v2 panel had it.
-  // Only with onboarding v2: without it this shell has no tour to replay.
+  // skipped) — in the chat's ⋯, after the chat's own actions, as the v2 panel had it;
+  // the dev/QA onboarding shortcuts follow it. Only with onboarding v2: without it
+  // this shell has no tour to replay.
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
-  const canResetOnboarding = useCanResetOnboarding() && onboardingV2 === 'on';
+  const canResetOnboarding = useCanResetOnboarding();
   const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
-  const chatMenuExtraItems = canResetOnboarding
-    ? [
-        {
-          id: 'reset-onboarding',
-          label: 'Reset Onboarding',
-          icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
-          onClick: () => setResetOnboardingOpen(true),
-        },
-      ]
-    : undefined;
+  const [resetInitialSetupOpen, setResetInitialSetupOpen] = useState(false);
+  const devOnboardingItems = useDevOnboardingMenuItems(() => setResetInitialSetupOpen(true));
+  const onboardingItems = [
+    ...(canResetOnboarding
+      ? [
+          {
+            id: 'reset-onboarding',
+            label: 'Reset Onboarding',
+            icon: <Refresh01RightIcon className="h-5 w-5 text-ods-text-secondary" />,
+            onClick: () => setResetOnboardingOpen(true),
+          },
+        ]
+      : []),
+    ...devOnboardingItems,
+  ];
+  const chatMenuExtraItems = onboardingV2 === 'on' && onboardingItems.length > 0 ? onboardingItems : undefined;
 
   const activeDialogId = chat.state.activeDialogId;
   // Compact under the input, at the end of the model row: the chat's memory is what
@@ -461,6 +469,11 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         onOpenChange={setResetOnboardingOpen}
         // The tour starts over from the wizard's "Start with Mingo": this menu is
         // on every page, so the reset takes the user there.
+        onReset={() => router.push(routes.setup)}
+      />
+      <ResetInitialSetupDialog
+        open={resetInitialSetupOpen}
+        onOpenChange={setResetInitialSetupOpen}
         onReset={() => router.push(routes.setup)}
       />
     </>

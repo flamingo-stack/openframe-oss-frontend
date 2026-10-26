@@ -61,10 +61,6 @@ export function NotificationsSection({
   // `null` until the list answers: the search stays drawn while it loads, the header actions wait for rows.
   const [isEmpty, setIsEmpty] = useState<boolean | null>(null);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
-  // The table before its query answers, built once: the boundary's fallback, and the section's body while the query
-  // has not even been started (no `queryRef` yet).
-  const loadingLabel = sectionLoadingLabel(rowVariant);
-  const loadingTable = <SectionTableLoading rowVariant={rowVariant} stickyHeaderOffset={stickyHeaderOffset} />;
 
   return (
     <PageLayout
@@ -94,28 +90,23 @@ export function NotificationsSection({
           </div>
         )}
 
-        <LoadingSuspense label={loadingLabel} fallback={loadingTable}>
-          {queryRef ? (
-            <SectionTable
-              queryRef={queryRef}
-              rowVariant={rowVariant}
-              searchValue={searchValue}
-              onMarkRead={onMarkRead}
-              onDelete={onDelete}
-              onEmptyChange={setIsEmpty}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          ) : (
-            <LoadingFallback label={loadingLabel}>{loadingTable}</LoadingFallback>
-          )}
-        </LoadingSuspense>
+        <SectionTable
+          queryRef={queryRef}
+          rowVariant={rowVariant}
+          searchValue={searchValue}
+          onMarkRead={onMarkRead}
+          onDelete={onDelete}
+          onEmptyChange={setIsEmpty}
+          stickyHeaderOffset={stickyHeaderOffset}
+        />
       </div>
     </PageLayout>
   );
 }
 
 interface SectionTableProps {
-  queryRef: PreloadedQuery<NotificationsSectionRelayQueryType>;
+  /** Absent while the query has not even been started. */
+  queryRef: PreloadedQuery<NotificationsSectionRelayQueryType> | null | undefined;
   rowVariant: 'unread' | 'read';
   searchValue: string;
   onMarkRead?: (id: string) => void;
@@ -124,8 +115,28 @@ interface SectionTableProps {
   stickyHeaderOffset: string;
 }
 
+/** The section's table, with its own boundary: in its scope the reader draws its own loading form. */
+function SectionTable(props: SectionTableProps) {
+  return (
+    <LoadingSuspense label={sectionLoadingLabel(props.rowVariant)}>
+      <SectionTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SectionTableReader({ queryRef, ...props }: SectionTableProps) {
+  // The table before its query answers: in a loading scope (its boundary's fallback, or an outer loading state), and
+  // while the query has not even been started (no `queryRef` yet), the same table with no rows, reading nothing.
+  const loadingTable = (
+    <SectionTableLoading rowVariant={props.rowVariant} stickyHeaderOffset={props.stickyHeaderOffset} />
+  );
+  if (useLoadingScope()) return loadingTable;
+  if (!queryRef) return <LoadingFallback label={sectionLoadingLabel(props.rowVariant)}>{loadingTable}</LoadingFallback>;
+  return <SectionTableLive queryRef={queryRef} {...props} />;
+}
+
 /** The section's query: reads the notifications page and hands the rows to `SectionTableView`. */
-function SectionTable({
+function SectionTableLive({
   queryRef,
   rowVariant,
   searchValue,
@@ -133,7 +144,7 @@ function SectionTable({
   onDelete,
   onEmptyChange,
   stickyHeaderOffset,
-}: SectionTableProps) {
+}: SectionTableProps & { queryRef: PreloadedQuery<NotificationsSectionRelayQueryType> }) {
   const { toast } = useToast();
   const queryData = usePreloadedQuery(notificationsSectionRelayQuery, queryRef);
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<

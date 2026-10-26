@@ -1,10 +1,9 @@
 'use client';
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { mingoHomeIncidentsQuery as MingoHomeIncidentsQueryType } from '@/__generated__/mingoHomeIncidentsQuery.graphql';
 import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-tags';
@@ -82,11 +81,23 @@ export function MingoHomeIncidents() {
       label="MingoHomeIncidents"
       fallback={(retry, { isOffline }) => <IncidentsFailed isOffline={isOffline} retry={retry} />}
     >
-      <Suspense fallback={<IncidentsSkeleton />}>
-        <IncidentsCards />
-      </Suspense>
+      <IncidentsSection />
     </ContentErrorBoundary>
   );
+}
+
+function IncidentsSection() {
+  return (
+    <LoadingSuspense label="Loading incidents">
+      <IncidentsReader />
+    </LoadingSuspense>
+  );
+}
+
+/** In its boundary's loading scope it draws the section's loading state and runs no read. */
+function IncidentsReader() {
+  if (useLoadingScope()) return <IncidentsSkeleton />;
+  return <IncidentsCards />;
 }
 
 function IncidentsCards() {

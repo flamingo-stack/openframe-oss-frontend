@@ -32,6 +32,9 @@ const createdDialogs = new Map<string, { node: DialogNode; at: number }>();
  * Later list reads keep it there until the server returns it (see
  * `keepCreatedDialogs`).
  *
+ * `title`: a dialog the app names itself (the Getting Started tour's) is
+ * listed under that name while the rename is still on its way.
+ *
  * Lists filtered by a search term are left alone: the new chat may not match
  * it. A list that already holds the dialog is left alone too.
  */
@@ -39,12 +42,12 @@ export function insertNewDialog(
   queryClient: QueryClient,
   dialogId: string,
   owner: NewDialogOwner | null,
-  now = Date.now(),
+  { title = '', now = Date.now() }: { title?: string; now?: number } = {},
 ): void {
   const node: DialogNode = {
     id: dialogId,
     dialogId,
-    title: '',
+    title,
     status: 'ACTIVE',
     streamState: 'IDLE',
     pendingApproval: null,

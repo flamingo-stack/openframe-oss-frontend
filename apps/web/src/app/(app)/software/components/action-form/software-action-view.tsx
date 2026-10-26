@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type DeviceFilterInput,
   DEVICE_STATUS,
@@ -41,14 +40,12 @@ const SCHEDULE_TIMING: SoftwareScheduleTiming<ScheduleTimeReference> = {
 
 const INITIAL_VALUES = { timeReference: ScheduleTimeReference.SERVER };
 
-/** "Software Name": the catalog search, behind its own boundaries so a failed search does not take the form down. */
+/** "Software Name": the catalog search (which owns its loading boundary), behind an error boundary so a failed search does not take the form down. */
 function renderPackageSearch({ packageManager, value, onChange }: PackageSearchSlotProps) {
   return (
     // Keyed by catalog: a new package manager starts a new search.
     <ErrorBoundary key={packageManager} fallback={<PackageSearchFieldPlaceholder error="Couldn't search packages." />}>
-      <LoadingSuspense label="Loading packages">
-        <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
-      </LoadingSuspense>
+      <PackageSearchField packageManager={packageManager} value={value} onChange={onChange} />
     </ErrorBoundary>
   );
 }

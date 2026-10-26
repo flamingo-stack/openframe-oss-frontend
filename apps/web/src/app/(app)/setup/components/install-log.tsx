@@ -3,7 +3,7 @@
 import { Collapse01Icon, Expand01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ScrollFadeOverlay, Tag, useScrollFade } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useState } from 'react';
 import {
   DEVICE_LOG_LEVEL_COLUMN,
   DEVICE_LOG_LINE,
@@ -32,12 +32,55 @@ export function InstallLog({ lines }: { lines: InstallOutputLine[] }) {
 /** The fades are 40px, the design's scroll gradient; they fade into the box's own surface. */
 const FADE_COLOR = 'var(--color-bg-card)';
 const VERTICAL_FADE_CLASS = 'h-10';
+/** The shortest the opened-out log gets: the closed box's height (`max-h-40`). */
+const MIN_EXPANDED_HEIGHT = 160;
+
+/**
+ * Opened out, the log takes all the height the window has left: its own height
+ * plus the slack in the frame's centred `<main>`, less whatever already runs
+ * past the window, so the page itself never scrolls. Re-measured as the window
+ * or the step around the log changes (the progress list grows under it).
+ * Written to the element, not to state: each measure reads the layout the
+ * last write produced, and a stable layout writes nothing.
+ */
+function useFillWindowHeight(scrollRef: RefObject<HTMLDivElement | null>, expanded: boolean) {
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const main = scroller?.closest('main');
+    const content = main?.firstElementChild;
+    if (!expanded || !scroller || !main || !(content instanceof HTMLElement)) return undefined;
+    const root = document.documentElement;
+    const fit = () => {
+      const style = getComputedStyle(main);
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const slack = Math.max(0, main.clientHeight - padding - content.offsetHeight);
+      const overflow = Math.max(0, root.scrollHeight - root.clientHeight);
+      const next = Math.max(MIN_EXPANDED_HEIGHT, scroller.offsetHeight + slack - overflow);
+      if (Math.abs(next - scroller.offsetHeight) > 1) scroller.style.height = `${next}px`;
+    };
+    fit();
+    // The step around the log changes size with the progress list; the window
+    // only with itself - a page taller than the window keeps its own size as the
+    // window shrinks, so nothing in it would say. The wizard is drawn bare, with
+    // no docked panel beside it, so the window is the page's room.
+    const observer = new ResizeObserver(fit);
+    observer.observe(content);
+    window.addEventListener('resize', fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+      scroller.style.height = '';
+    };
+  }, [expanded, scrollRef]);
+}
 
 /**
  * The box itself, mounted with its first line: the scroll fades measure the
  * scroller from mount, so it has to exist by then. Each edge fades where more
  * of the log continues past it - the older lines above while it follows the
  * tail, the newer ones below once scrolled up, and either side of a long line.
+ * Closed it is the controls' 600px; opened out it widens to 900px and takes
+ * the height the window has left.
  */
 function InstallLogBox({ rows }: { rows: InstallLogRow[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -52,9 +95,15 @@ function InstallLogBox({ rows }: { rows: InstallLogRow[] }) {
     if (!scroller || expanded || rowCount === 0) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [rowCount, expanded, scrollRef]);
+  useFillWindowHeight(scrollRef, expanded);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-md border border-ods-border bg-ods-card">
+    <div
+      className={cn(
+        'relative w-full overflow-hidden rounded-md border border-ods-border bg-ods-card',
+        expanded ? 'max-w-[900px]' : 'max-w-[600px]',
+      )}
+    >
       <div
         ref={scrollRef}
         onScroll={update}
