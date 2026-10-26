@@ -1,25 +1,29 @@
 'use client';
 
-import { ArrowRightUpIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Button,
   type ColumnDef,
-  DataTable,
+  LoadingWhen,
   PageError,
-  type Row,
   SearchInput,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
-import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { getTicketTableColumns } from '../../../tickets/components/ticket-table-columns';
-import { useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
+import {
+  getTicketOpenColumn,
+  getTicketTableColumns,
+  ticketRowHref,
+} from '../../../tickets/components/ticket-table-columns';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../../../tickets/hooks/use-tickets-query';
 import type { Dialog } from '../../../tickets/types/dialog.types';
 import { CustomerTabHeader } from './customer-tab-header';
 
@@ -29,6 +33,8 @@ interface CustomerTicketsTabProps {
 
 export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) {
   const router = useRouter();
+  // While the customer loads the tab is drawn in the page's loading scope (no id, nothing fetched).
+  const scoped = useLoadingScope();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
@@ -39,6 +45,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     dialogs: tickets,
     filteredCount,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -47,43 +54,29 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     archived: false,
     search: debouncedSearch,
     organizationIds: [organizationId],
+    // While the customer loads the tab draws itself in a loading scope with no id: nothing is fetched then.
+    enabled: !!organizationId,
   });
 
   const { isUserDeleted } = useUserStatusMap();
-  const baseColumns = useMemo(() => getTicketTableColumns({ isArchived: false, isUserDeleted }), [isUserDeleted]);
-
+  // The shared ticket columns and the trailing open-in-new-tab action.
   const columns = useMemo<ColumnDef<Dialog>[]>(
-    () => [
-      ...baseColumns,
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<Dialog> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(routes.tickets.dialog(row.original.id))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: { width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
-      },
-    ],
-    [baseColumns],
+    () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],
+    [isUserDeleted],
   );
 
+  const loading = scoped || isLoading;
+  // While the customer or the first page is read the table holds one page of placeholder rows, drawn with the real
+  // cells (each cell draws its own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<Dialog>(TICKETS_PAGE_SIZE) : null), [loading]);
+
   const table = useDataTable<Dialog>({
-    data: tickets,
+    data: loadingRows ?? tickets,
     columns,
     getRowId: (row: Dialog) => String(row.id),
     enableSorting: false,
   });
 
-  const ticketRowHref = useCallback((t: Dialog) => routes.tickets.dialog(t.id), []);
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
   if (error) {
@@ -114,26 +107,21 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
         <SearchInput value={search} onChange={setSearch} placeholder="Search for Tickets" />
       </div>
 
-      <DataTable table={table}>
-        <DataTable.Header
-          stickyHeader
+      {/* The first page is a client read: the table draws its own loading state in this scope. */}
+      <LoadingWhen loading={loading}>
+        <LiveTable
+          table={table}
+          pageSize={TICKETS_PAGE_SIZE}
+          isPending={isPending}
           stickyHeaderOffset={stickyHeaderOffset}
-          rightSlot={<DataTable.RowCount itemName="ticket" totalCount={filteredCount} />}
-        />
-        <DataTable.Body
-          loading={isLoading}
-          skeletonRows={8}
-          emptyMessage="No tickets found for this customer."
+          itemName="ticket"
+          totalCount={filteredCount}
+          emptyState={oneLineEmptyState('No tickets found for this customer.')}
           rowHref={ticketRowHref}
-          rowClassName="mb-1"
+          footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
+          loadingCells={loading}
         />
-        <DataTable.InfiniteFooter
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          onLoadMore={handleLoadMore}
-          skeletonRows={2}
-        />
-      </DataTable>
+      </LoadingWhen>
     </div>
   );
 }

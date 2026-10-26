@@ -1,6 +1,7 @@
 'use client';
 
 import { Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { paidAiTokensCard_subscription$key } from '@/__generated__/paidAiTokensCard_subscription.graphql';
 import { formatCurrency } from '@/lib/format-currency';
@@ -17,7 +18,8 @@ const paidAiTokensCardFragment = graphql`
 `;
 
 interface PaidAiTokensCardProps {
-  subscription: paidAiTokensCard_subscription$key;
+  /** `null` only while the page loads. */
+  subscription: paidAiTokensCard_subscription$key | null;
   /**
    * The standing refill arrangement. `null` while it is on its way, when it
    * could not be loaded, and on a trial — which has no balance to refill. The
@@ -28,32 +30,40 @@ interface PaidAiTokensCardProps {
 
 /** The prepaid balance AI draws from once the grant is spent, and what it is worth. */
 export function PaidAiTokensCard({ subscription, autoTopUp }: PaidAiTokensCardProps) {
-  const ai = aiBalanceState(useFragment(paidAiTokensCardFragment, subscription));
+  const data = useFragment(paidAiTokensCardFragment, subscription);
+  // One card, both forms: while the balance is on its way the figure and caption are bars; the rates trigger is a
+  // static control, drawn for real.
+  const ai = useLoadingScope() || data == null ? null : aiBalanceState(data);
 
   return (
     <UsageStatCard
       title="Paid AI Tokens"
-      tone={ai.paidTone}
+      loading={ai == null}
+      tone={ai?.paidTone}
       value={
-        <>
-          {formatCompactCount(ai.paid)}
-          {/* The mockup's mark for a balance that refills itself; the popover
-              beside it spells the same state out in words. */}
-          {autoTopUp?.enabled && (
-            <Refresh02VrIcon
-              role="img"
-              aria-label="Auto top-up enabled"
-              className="ml-[var(--spacing-system-xsf)] inline-block size-6 align-middle text-ods-success"
-            />
-          )}
-        </>
+        ai && (
+          <>
+            {formatCompactCount(ai.paid)}
+            {/* The mockup's mark for a balance that refills itself; the popover
+                beside it spells the same state out in words. */}
+            {autoTopUp?.enabled && (
+              <Refresh02VrIcon
+                role="img"
+                aria-label="Auto top-up enabled"
+                className="ml-[var(--spacing-system-xsf)] inline-block size-6 align-middle text-ods-success"
+              />
+            )}
+          </>
+        )
       }
       caption={
-        <>
-          <StatEmphasis>{formatCurrency(ai.paidUsd)}</StatEmphasis> balance
-        </>
+        ai && (
+          <>
+            <StatEmphasis>{formatCurrency(ai.paidUsd)}</StatEmphasis> balance
+          </>
+        )
       }
-      trailing={<ModelTokenRatesPopover autoTopUpEnabled={autoTopUp?.enabled} />}
+      trailing={<ModelTokenRatesPopover autoTopUpEnabled={ai ? autoTopUp?.enabled : undefined} />}
     />
   );
 }

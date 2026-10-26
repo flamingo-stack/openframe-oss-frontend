@@ -1,8 +1,14 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { Ellipsis01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { ActionsMenuDropdown, FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  ActionsMenuDropdown,
+  FloatingTooltip,
+  LoadingItems,
+  Tag,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useAutoLimitTags } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useMemo } from 'react';
@@ -19,6 +25,15 @@ export interface SelectableTag {
  */
 const MAX_TAG_LABEL_LENGTH = 24;
 
+/** The row's frame, one line of chips tall (a tag chip is `h-8`): loading, loaded and empty alike. */
+const ROW_CLASS = 'flex min-h-8 items-center gap-[var(--spacing-system-xxs)] overflow-hidden';
+
+/**
+ * The row while its tags are read: a typical row of tag chips (the vocabulary has no page size, so the declared count
+ * is this list's length), each the lib's `Tag` in its loading form at varied widths so the placeholder reads as tags.
+ */
+const TAG_SKELETON_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
+
 const formatTagLabel = (key: string): string =>
   key.length > MAX_TAG_LABEL_LENGTH ? `${key.slice(0, MAX_TAG_LABEL_LENGTH)}…` : key;
 
@@ -26,6 +41,8 @@ interface SelectableTagsRowProps {
   tags: ReadonlyArray<SelectableTag>;
   selectedIds: ReadonlyArray<string>;
   onAdd: (tag: SelectableTag) => void;
+  /** The tags have not been read yet (a client read); inside a loading scope the row switches itself. */
+  loading?: boolean;
 }
 
 /**
@@ -33,7 +50,8 @@ interface SelectableTagsRowProps {
  * not fit on one line collapses into a "…" chip that opens an actions menu of
  * the remaining tags; each caller supplies its own (already-fetched) tag list.
  */
-export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRowProps) {
+export function SelectableTagsRow({ tags, selectedIds, onAdd, loading: loadingProp }: SelectableTagsRowProps) {
+  const loading = useLoadingScope() || !!loadingProp;
   const available = useMemo(() => {
     const selected = new Set(selectedIds);
     return tags.filter(tag => !selected.has(tag.id));
@@ -44,19 +62,31 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
     reserveInputWidth: false,
   });
 
-  if (available.length === 0) return null;
+  if (loading) {
+    return (
+      <LoadingRegion label="Loading tags" className={ROW_CLASS}>
+        <LoadingItems count={TAG_SKELETON_WIDTHS.length}>
+          {index => <Tag label="" loading data-loading-item className={cn('shrink-0', TAG_SKELETON_WIDTHS[index])} />}
+        </LoadingItems>
+      </LoadingRegion>
+    );
+  }
+  // Nothing left to add: the row keeps its line, so the list under it does not move when the tags answer.
+  if (available.length === 0) return <div className={ROW_CLASS} />;
 
   const visible = available.slice(0, visibleCount);
   const hidden = available.slice(visibleCount);
 
   return (
     <div className="relative">
-      <div ref={middleRef} className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
+      <div ref={middleRef} className={ROW_CLASS}>
+        {/* loading-standard-ok(ITEM_MARK): each item's Tag (inside its tooltip, which adds no element) carries data-loading-item */}
         {visible.map(tag => {
           const isTruncated = tag.key.length > MAX_TAG_LABEL_LENGTH;
           return (
             <FloatingTooltip key={tag.id} content={tag.key} side="top" disabled={!isTruncated} className="break-all">
               <Tag
+                data-loading-item
                 variant="outline"
                 // Element (not a string) so the chip doesn't also set a native `title`
                 // tooltip on top of the styled one.
@@ -108,19 +138,5 @@ export function SelectableTagsRow({ tags, selectedIds, onAdd }: SelectableTagsRo
         ))}
       </div>
     </div>
-  );
-}
-
-// Mirrors the visible row: same height (h-8), corner radius (rounded-md, via UnifiedSkeleton)
-// and gap as the real Tag chips, with varied widths so the placeholder reads as tags.
-const SKELETON_TAG_WIDTHS = ['w-16', 'w-24', 'w-20', 'w-16', 'w-28', 'w-20'];
-
-export function SelectableTagsRowSkeleton() {
-  return (
-    <LoadingRegion label="Loading tags" className="flex items-center gap-[var(--spacing-system-xxs)] overflow-hidden">
-      {SKELETON_TAG_WIDTHS.map((width, idx) => (
-        <UnifiedSkeleton key={idx} className={cn('h-8 shrink-0', width)} />
-      ))}
-    </LoadingRegion>
   );
 }

@@ -36,7 +36,9 @@ const EMPTY_POLICIES: Policy[] = [];
 
 export const policiesQueryKeys = {
   all: ['policies'] as const,
-  list: (params?: ListPoliciesParams) => [...policiesQueryKeys.all, 'list', params] as const,
+  /** Every list query, whatever its params; not the policy details. */
+  lists: () => [...policiesQueryKeys.all, 'list'] as const,
+  list: (params?: ListPoliciesParams) => [...policiesQueryKeys.lists(), params] as const,
   // `null` is accepted so a hook whose id is not known yet can still build a key;
   // that query is skipped, so the key it produces is never used to fetch anything.
   detail: (id: number | null) => [...policiesQueryKeys.all, 'detail', id] as const,

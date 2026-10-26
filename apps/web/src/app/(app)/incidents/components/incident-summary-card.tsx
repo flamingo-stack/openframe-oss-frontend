@@ -1,10 +1,12 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
+import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { InsightStatus } from '@/generated/schema-enums';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -24,14 +26,21 @@ function Row({ children }: { children: ReactNode }) {
   );
 }
 
-/** A cell of the strip — the same footprint for the loaded card and its skeleton. */
+/** A cell of the strip. */
 function Cell({ children }: { children: ReactNode }) {
-  return <div className="flex min-h-16 min-w-[140px] flex-[1_0_0] items-center">{children}</div>;
+  return <div className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>{children}</div>;
 }
 
+/** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
+const DESCRIPTION_SKELETON_LINES = 2;
+
+/** The device-type icon's box, shared by the icon and its loading placeholder. */
+const DEVICE_ICON_CLASS = 'size-6';
+
 interface IncidentSummaryCardProps {
-  incident: Incident;
-  /** The "Assigned" cell, which owns its own mutations — see `IncidentAssignee`. */
+  /** Absent while the record loads: the card draws itself, every value a bar. */
+  incident?: Incident;
+  /** The "Assigned" cell, which owns its own mutations and its own loading state — see `IncidentAssignee`. */
   assigneeSlot: ReactNode;
 }
 
@@ -39,25 +48,41 @@ interface IncidentSummaryCardProps {
  * The summary card of the incident page: the finding's title and what the
  * detecting query looks for, then two strips — device / customer / detected /
  * assignee, and severity / category / interval / status (+ until, while snoozed).
+ *
+ * In a loading scope (or without the incident) it draws itself: the same cells
+ * and labels, the values bars (`InfoCell`), the tags tag-shaped bars, the
+ * device icon and customer logo their own placeholders. Every cell is drawn in
+ * both forms ("Until" reads the empty mark unless the incident is snoozed).
  */
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
-  const snoozedUntil = incident.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
+  const loading = useLoadingScope() || !incident;
+  const snoozedUntil = incident?.status === InsightStatus.SNOOZED ? incident.snoozedUntil : null;
 
   return (
     <div className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        <TruncateText variant="h4">{incident.title}</TruncateText>
-        {incident.description && <p className="text-ods-text-secondary text-h6">{incident.description}</p>}
-      </div>
+      {/* The description is always drawn: what the detecting query looks for, which nearly every finding states; one
+          without it shows the empty mark. It wraps, so while loading it draws its typical line count. */}
+      <TitleLines
+        title={incident?.title ?? ''}
+        subline={incident?.description}
+        wrapSubline
+        sublineLines={DESCRIPTION_SKELETON_LINES}
+        titleSkeletonWidth="w-64"
+        sublineSkeletonWidth="w-full max-w-[720px]"
+        loading={loading}
+        className="gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]"
+      />
 
       <Row>
         <Cell>
           <InfoCell
-            icon={renderDeviceTypeIcon(incident.deviceType ?? undefined, 'size-6 text-ods-text-primary')}
+            loading={loading}
+            icon={renderDeviceTypeIcon(incident?.deviceType ?? undefined, `${DEVICE_ICON_CLASS} text-ods-text-primary`)}
+            iconSkeleton={{ className: DEVICE_ICON_CLASS }}
             value={
               // Only a device that resolved gets a link — a QA seed or a retired
               // machine has no page to land on.
-              incident.hasDevice ? (
+              incident?.hasDevice ? (
                 <Link
                   href={routes.devices.details(incident.machineId)}
                   className="text-ods-accent underline hover:text-ods-accent-hover"
@@ -65,86 +90,58 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
                   {incident.deviceName}
                 </Link>
               ) : (
-                incident.deviceName
+                incident?.deviceName
               )
             }
             label="Device"
           />
         </Cell>
         <Cell>
-          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xs)]">
-            <EntityImage
-              src={incident.organizationImageUrl}
-              alt={incident.organizationName || 'Customer'}
-              sizeClassName="size-10"
-            />
-            <InfoCell
-              value={
-                <Link
-                  href={routes.customers.details(incident.organizationId)}
-                  className="text-ods-accent underline hover:text-ods-accent-hover"
-                >
-                  {incident.organizationName || incident.organizationId}
-                </Link>
-              }
-              label="Customer"
-            />
-          </div>
+          <CustomerInfoCell
+            label="Customer"
+            customer={
+              incident
+                ? {
+                    id: incident.organizationId,
+                    name: incident.organizationName || incident.organizationId,
+                    logoUrl: incident.organizationImageUrl,
+                  }
+                : null
+            }
+          />
         </Cell>
         <Cell>
-          <InfoCell value={formatDateTime(incident.detectedAt)} label="Detected" />
+          <InfoCell loading={loading} value={incident ? formatDateTime(incident.detectedAt) : ''} label="Detected" />
         </Cell>
         <Cell>{assigneeSlot}</Cell>
       </Row>
 
       <Row>
         <Cell>
-          <InfoCell value={<IncidentSeverityTag severity={incident.severity} />} label="Severity" />
-        </Cell>
-        <Cell>
-          <InfoCell value={labelOf(INCIDENT_TYPE_LABELS, incident.type)} label="Category" />
+          <InfoCell loading={loading} value={<IncidentSeverityTag severity={incident?.severity} />} label="Severity" />
         </Cell>
         <Cell>
           <InfoCell
-            value={incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
+            loading={loading}
+            value={incident ? labelOf(INCIDENT_TYPE_LABELS, incident.type) : ''}
+            label="Category"
+          />
+        </Cell>
+        <Cell>
+          <InfoCell
+            loading={loading}
+            value={!incident || incident.interval === null ? EMPTY_VALUE : formatInterval(incident.interval)}
             label="Interval"
           />
         </Cell>
         <Cell>
-          <InfoCell value={<IncidentStatusTag status={incident.status} />} label="Status" />
+          <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
         </Cell>
-        {snoozedUntil && (
-          <Cell>
-            <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
-          </Cell>
-        )}
+        {/* Always drawn, so the strip keeps its cells: the empty mark unless the incident is snoozed. */}
+        <Cell>
+          <InfoCell loading={loading} value={snoozedUntil ? formatDateTime(snoozedUntil) : EMPTY_VALUE} label="Until" />
+        </Cell>
       </Row>
     </div>
-  );
-}
-
-/** Same header + two strips, every value a bar, so the card keeps its height while the record loads. */
-export function IncidentSummaryCardSkeleton({ region = true }: { region?: boolean } = {}) {
-  const cell = (label: string, index: number) => (
-    <Cell key={index}>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-        <UnifiedSkeleton className="h-6 w-32" />
-        <p className="text-ods-text-secondary text-h6">{label}</p>
-      </div>
-    </Cell>
-  );
-  return (
-    <LoadingRegion
-      label="Loading incident summary"
-      announce={region}
-      className="overflow-hidden rounded-[6px] border border-ods-border bg-ods-card"
-    >
-      <div className="flex flex-col gap-[var(--spacing-system-xxs)] border-b border-ods-border p-[var(--spacing-system-m)]">
-        <UnifiedSkeleton className="h-6 w-64" />
-        <UnifiedSkeleton className="h-5 w-full max-w-[720px]" />
-      </div>
-      <Row>{['Device', 'Customer', 'Detected', 'Assigned'].map(cell)}</Row>
-      <Row>{['Severity', 'Category', 'Interval', 'Status'].map(cell)}</Row>
-    </LoadingRegion>
   );
 }

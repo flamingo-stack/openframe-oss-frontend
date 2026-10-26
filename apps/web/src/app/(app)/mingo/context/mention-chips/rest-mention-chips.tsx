@@ -18,12 +18,12 @@ import { useSuspenseQuery } from '@tanstack/react-query';
  * via the Relay `GraphqlMentionChip`; `render-mention.tsx` dispatches by id shape
  * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
  */
-import { type ReactNode, Suspense } from 'react';
+import type { ReactNode } from 'react';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
+import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
 
 interface Resolved {
   label: string;
@@ -108,9 +108,9 @@ function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
 export function RestMentionChip({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
   return (
     <MentionErrorBoundary fallback={<MentionTag icon={icon} label={fallbackLabel || id} />}>
-      <Suspense fallback={<MentionTagSkeleton icon={icon} />}>
+      <MentionSuspense icon={icon}>
         <RestInner marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
-      </Suspense>
+      </MentionSuspense>
     </MentionErrorBoundary>
   );
 }

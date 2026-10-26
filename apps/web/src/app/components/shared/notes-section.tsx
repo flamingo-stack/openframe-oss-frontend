@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckCircleIcon,
   Ellipsis01Icon,
@@ -14,6 +14,7 @@ import {
   SquareAvatar,
   Textarea,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type KeyboardEvent, type ReactNode, useState } from 'react';
@@ -37,6 +38,8 @@ interface NotesSectionProps {
   onEditNote: (id: string, text: string) => void;
   /** Fired once the user has confirmed the delete — the section owns the confirmation step. */
   onDeleteNote: (id: string) => void;
+  /** The notes have not been read yet (a client read); inside a loading scope the section switches itself. */
+  loading?: boolean;
 }
 
 interface NoteEditorProps {
@@ -91,6 +94,12 @@ function NoteEditor({ initialText = '', isPending, onSave, onCancel }: NoteEdito
   );
 }
 
+const NOTE_CARD_CLASS =
+  'flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]';
+const NOTE_HEADER_CLASS = 'flex w-full items-center gap-[var(--spacing-system-xs)]';
+const NOTE_AUTHOR_CLASS = 'flex min-w-0 flex-1 flex-col';
+const NOTE_TEXT_CLASS = 'break-words text-ods-text-primary text-h4';
+
 interface NoteCardProps {
   note: NoteItem;
   onEdit: (id: string, text: string) => void;
@@ -115,8 +124,8 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
   }
 
   return (
-    <div className="group flex flex-col gap-[var(--spacing-system-xs)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)]">
-      <div className="flex w-full items-center gap-[var(--spacing-system-xs)]">
+    <div data-loading-item className={cn('group', NOTE_CARD_CLASS)}>
+      <div className={NOTE_HEADER_CLASS}>
         <SquareAvatar
           src={note.authorAvatar}
           alt={note.authorName}
@@ -124,7 +133,7 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
           size="sm"
           variant="round"
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className={NOTE_AUTHOR_CLASS}>
           <TruncateText className="text-ods-open-yellow">{note.authorName}</TruncateText>
           <TruncateText variant="h6" tone="secondary">
             {formatDateTime(note.createdAt)}
@@ -173,12 +182,12 @@ function NoteCard({ note, onEdit, onDelete }: NoteCardProps) {
         )}
       </div>
 
-      <p className="break-words text-ods-text-primary text-h4">{note.text}</p>
+      <p className={NOTE_TEXT_CLASS}>{note.text}</p>
     </div>
   );
 }
 
-/** The section's shell — the "Notes" heading over its content — shared by the loaded state and its skeleton. */
+/** The section's shell: the "Notes" heading over its content. */
 function NotesSectionFrame({ children }: { children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
@@ -188,25 +197,43 @@ function NotesSectionFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/** The heading with a bar where the first note lands. */
-/**
- * The heading over an "Add Note" sized bar — the shape of the loaded section
- * when there are no notes yet, which is what most records have. Notes, when
- * there are any, grow the section either way.
- */
-export function NotesSectionSkeleton({ region = true }: { region?: boolean } = {}) {
+function AddNoteButton({ disabled, onClick }: { disabled?: boolean; onClick?: () => void }) {
   return (
-    <LoadingRegion className="contents" label="Loading notes" announce={region}>
-      <NotesSectionFrame>
-        <UnifiedSkeleton className="h-8 w-28 rounded-md" />
-      </NotesSectionFrame>
-    </LoadingRegion>
+    <Button
+      variant="outline"
+      size="small"
+      className="w-fit"
+      leftIcon={<PlusCircleIcon />}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      Add Note
+    </Button>
   );
 }
 
-export function NotesSection({ notes, isAddingNote, onAddNote, onEditNote, onDeleteNote }: NotesSectionProps) {
+export function NotesSection({
+  notes,
+  isAddingNote,
+  onAddNote,
+  onEditNote,
+  onDeleteNote,
+  loading: loadingProp,
+}: NotesSectionProps) {
+  const loading = useLoadingScope() || !!loadingProp;
   const [isAdding, setIsAdding] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+
+  // While the notes are read: the heading and the real, disabled "Add Note", and no note card. Notes are optional
+  // and a record usually has none, so the typical loaded section is exactly that.
+  if (loading)
+    return (
+      <LoadingRegion className="contents" label="Loading notes">
+        <NotesSectionFrame>
+          <AddNoteButton disabled />
+        </NotesSectionFrame>
+      </LoadingRegion>
+    );
 
   const confirmDelete = () => {
     if (noteToDelete) onDeleteNote(noteToDelete);
@@ -228,15 +255,7 @@ export function NotesSection({ notes, isAddingNote, onAddNote, onEditNote, onDel
           onCancel={() => setIsAdding(false)}
         />
       ) : (
-        <Button
-          variant="outline"
-          size="small"
-          className="w-fit"
-          leftIcon={<PlusCircleIcon />}
-          onClick={() => setIsAdding(true)}
-        >
-          Add Note
-        </Button>
+        <AddNoteButton onClick={() => setIsAdding(true)} />
       )}
       <ConfirmDialog
         open={noteToDelete !== null}

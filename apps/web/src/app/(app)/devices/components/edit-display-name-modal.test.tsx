@@ -55,11 +55,20 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOri
     SelectTrigger: ({ children }: { children: ReactNode }) => <div data-trigger="">{children}</div>,
     SelectValue: ({ children }: { children: ReactNode }) => <>{children}</>,
     SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    SelectItem: function SelectItem({ value, children }: { value: string; children: ReactNode }) {
+    SelectItem: function SelectItem({
+      value,
+      children,
+      description,
+    }: {
+      value: string;
+      children: ReactNode;
+      description?: ReactNode;
+    }) {
       const pick = useContext(PickContext);
       return (
         <button type="button" data-option={value} onClick={() => pick(value)}>
           {children}
+          {description}
         </button>
       );
     },

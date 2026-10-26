@@ -1,7 +1,6 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChartDonutIcon,
   ClipboardListIcon,
@@ -14,7 +13,7 @@ import {
   ShieldKeyholeIcon,
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ComponentType, useCallback, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -33,7 +32,7 @@ import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { EmailVerificationModal } from './email-verification-modal';
-import { SettingMenuItem, SettingMenuItemSkeleton } from './setting-menu-item';
+import { SettingMenuItem } from './setting-menu-item';
 
 interface SettingsNavItem {
   href: string;
@@ -45,12 +44,6 @@ interface SettingsNavItem {
 }
 
 const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  {
-    href: routes.settings.billingUsage(),
-    icon: PiggyBankIcon,
-    title: 'Billing & Usage',
-    description: 'Subscription details, usage data, and payment settings',
-  },
   {
     href: routes.settings.aiSettings(),
     icon: ShieldCheckIcon,
@@ -95,6 +88,14 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: 'Device logs across every device in your workspace',
     badge: 'Beta',
   },
+  // LAST on purpose: it is the one cell whose presence waits on an answer (the flag and the caller's role). Drawn while
+  // the gates load, it is the cell that leaves when they say no, and nothing after it re-flows.
+  {
+    href: routes.settings.billingUsage(),
+    icon: PiggyBankIcon,
+    title: 'Billing & Usage',
+    description: 'Subscription details, usage data, and payment settings',
+  },
 ];
 
 /**
@@ -112,9 +113,8 @@ const USAGE_MENU_ITEM = {
 export function SettingsHub() {
   const { toast } = useToast();
   const billingHidden = isBillingHidden();
-  // Tri-state, not booleans: these are the conditional cells in the grid and Billing is
-  // the FIRST one, so treating "not answered yet" as "hide it" dropped a cell and
-  // re-flowed every card after it the moment the answers landed.
+  // Tri-state, not booleans: Billing is the conditional cell in the grid (the LAST one), so the loading grid draws it
+  // and a "no" drops only the final cell.
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
@@ -240,36 +240,32 @@ export function SettingsHub() {
         <BiometricLoginCard />
       </div>
 
-      {/* Navigation Cards Grid */}
-      <LoadingRegion
+      {/* Navigation Cards Grid: until every gate has answered, the full default set this build can show (the app
+          mode and the shell are known synchronously, so only Billing's presence is in question), each card drawing
+          itself in the loading scope, rather than a lone cell wedged between real cards. */}
+      <LoadingWhen
+        loading={!gatesResolved}
         label="Loading settings"
-        announce={!gatesResolved}
         className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2"
       >
-        {gatesResolved
-          ? visibleItems.map(item => {
-              const {
-                icon: Icon,
-                title,
-                description,
-              } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
-              return (
-                <SettingMenuItem
-                  key={item.href}
-                  href={item.href}
-                  icon={<Icon size={24} />}
-                  title={title}
-                  description={description}
-                  badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
-                />
-              );
-            })
-          : // Whole grid as placeholders until every gate has answered, rather than a
-            // lone grey cell wedged between real cards. The count is the full default
-            // set this build can show — the app mode is known synchronously, so only
-            // Billing's and Download Apps' presence is actually in question.
-            defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
-      </LoadingRegion>
+        {(gatesResolved ? visibleItems : defaultItems).map(item => {
+          const {
+            icon: Icon,
+            title,
+            description,
+          } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
+          return (
+            <SettingMenuItem
+              key={item.href}
+              href={item.href}
+              icon={<Icon size={24} />}
+              title={title}
+              description={description}
+              badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
+            />
+          );
+        })}
+      </LoadingWhen>
 
       {/* Log Out — pinned to the bottom-left of the page */}
       <div className="mt-auto">

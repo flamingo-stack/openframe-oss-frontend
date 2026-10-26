@@ -467,6 +467,20 @@ export async function nativeShellVersion(): Promise<string | null> {
   return null;
 }
 
+/**
+ * Desktop only: maximize the main window (the OS's own maximize, not a
+ * fullscreen space). Granted by `core:window:allow-maximize`; a shell binary
+ * that predates the grant refuses it, and the window keeps its size.
+ */
+export async function maximizeDesktopWindow(): Promise<void> {
+  if (!isDesktopShell()) return;
+  try {
+    await tauriInvoke()?.('plugin:window|maximize', { label: 'main' });
+  } catch (error) {
+    console.warn('[Native Shell] window maximize unavailable:', error);
+  }
+}
+
 const TENANT_HOST_STORAGE_KEY = 'native:tenant-host-url';
 
 /**
@@ -726,6 +740,79 @@ export function onDesktopUpdateInstalling(callback: () => void): Promise<boolean
  */
 export function onDesktopUpdateError(callback: (error: DesktopUpdateError) => void): Promise<boolean> {
   return listenDesktop('update:error', callback);
+}
+
+/**
+ * Why a local agent install did not happen, classified SHELL-side
+ * (installer.rs). `message` is for the log; the kind is what the UI acts on.
+ *
+ * - `cancelled` — the user declined the administrator prompt (offer again)
+ * - `failed` — the command ran and exited non-zero, or the launcher failed;
+ *   the install log has the installer's own words
+ * - `busy` — an install is already running; this call owns nothing
+ * - `unsupported` — this shell cannot run an installer on this platform
+ * - `unavailable` — our own precondition failed (wrong window, empty command)
+ * - `io` — the run could not be set up or started
+ * - `unknown` — a rejection from the IPC layer itself (an older shell binary)
+ */
+export type AgentInstallErrorKind = 'cancelled' | 'failed' | 'busy' | 'unsupported' | 'unavailable' | 'io' | 'unknown';
+
+export interface AgentInstallError {
+  kind: AgentInstallErrorKind;
+  message: string;
+}
+
+/** How a local agent install ended (shell event `agent-install:done`). */
+export interface AgentInstallDone {
+  success: boolean;
+  /** The command's own exit code, when it ran at all. */
+  exitCode?: number | null;
+  error?: AgentInstallError | null;
+}
+
+function asAgentInstallError(error: unknown): AgentInstallError {
+  const kind = (error as AgentInstallError | null)?.kind;
+  if (typeof kind === 'string') return error as AgentInstallError;
+  return { kind: 'unknown', message: String((error as Error)?.message ?? error) };
+}
+
+/**
+ * Whether "Deploy on this Device" has anything to run the installer with: the
+ * desktop shell, with its IPC in reach. The web and the phone have no way to
+ * run a command on the machine they are on.
+ */
+export function canInstallAgentLocally(): boolean {
+  return isDesktopShell() && tauriInvoke() !== undefined;
+}
+
+/**
+ * Run the agent install command on this machine with administrator rights.
+ * `command` is the same text the page offers to copy; the shell runs it as is
+ * behind the OS's own elevation prompt. Resolves once the run is under way -
+ * the output then arrives through {@link onLocalAgentInstallOutput} and the
+ * outcome through {@link onLocalAgentInstallDone}. Rejects with an
+ * {@link AgentInstallError} when the run could not even start.
+ */
+export async function startLocalAgentInstall(command: string): Promise<void> {
+  const invoke = tauriInvoke();
+  if (!isDesktopShell() || !invoke) {
+    throw { kind: 'unsupported', message: 'not running in the desktop shell' } satisfies AgentInstallError;
+  }
+  try {
+    await invoke('agent_install_start', { command });
+  } catch (error) {
+    throw asAgentInstallError(error);
+  }
+}
+
+/** Lines the installer printed, in order, batched per 200ms by the shell. */
+export function onLocalAgentInstallOutput(callback: (lines: string[]) => void): Promise<boolean> {
+  return listenDesktop<{ lines: string[] }>('agent-install:output', event => callback(event.lines));
+}
+
+/** The run is over - success, or why not. */
+export function onLocalAgentInstallDone(callback: (done: AgentInstallDone) => void): Promise<boolean> {
+  return listenDesktop('agent-install:done', callback);
 }
 
 /**

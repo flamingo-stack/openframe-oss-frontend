@@ -1,6 +1,7 @@
 // Pins where "Reset Onboarding" lives: the profile menu offers it only while
 // Mingo v2 is off (v2 moves it into the Mingo chat's ⋯ menu), never while the
-// flag has not answered yet, and only when there is a finished tour to replay.
+// flag has not answered yet, and only when there is a finished or started tour
+// to replay.
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -69,11 +70,42 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: false,
       skippedAt: null,
+      tourDialogId: null,
     });
     useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
     renderCard();
 
     expect(menuLabels()).toContain('Reset Onboarding');
+  });
+
+  it('is offered for a tour in progress, so an archived tour can start over', () => {
+    useOnboardingStore.getState().setUser({
+      completedSteps: [],
+      completed: false,
+      completedAt: null,
+      skipped: false,
+      skippedAt: null,
+      tourDialogId: 'd-tour',
+    });
+    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
+    renderCard();
+
+    expect(menuLabels()).toContain('Reset Onboarding');
+  });
+
+  it('is not offered before the tour has started', () => {
+    useOnboardingStore.getState().setUser({
+      completedSteps: [],
+      completed: false,
+      completedAt: null,
+      skipped: false,
+      skippedAt: null,
+      tourDialogId: null,
+    });
+    useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: false }]);
+    renderCard();
+
+    expect(menuLabels()).not.toContain('Reset Onboarding');
   });
 
   it('moves out with Mingo v2 on', () => {
@@ -83,6 +115,7 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: false,
       skippedAt: null,
+      tourDialogId: null,
     });
     useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-v2', enabled: true }]);
     renderCard();
@@ -99,6 +132,7 @@ describe('ProfileCard - Reset Onboarding', () => {
       completedAt: null,
       skipped: true,
       skippedAt: null,
+      tourDialogId: null,
     });
     renderCard();
 

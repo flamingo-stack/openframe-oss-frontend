@@ -1,8 +1,7 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { InfoCircleIcon, PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, LoadError } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadError, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { AiSettingsOverview } from '@/app/(app)/settings/ai-settings/components/ai-settings-overview';
 import { ASSISTANT_QUICK_ACTIONS_CONFIG } from '@/app/(app)/settings/ai-settings/components/ai-settings-quick-actions';
@@ -19,17 +18,6 @@ import { routes } from '@/lib/routes';
 
 interface CustomerCustomAiAssistantTabProps {
   organizationId: string;
-}
-
-/** Loading shape of the tab: customer card, previews, quick actions. */
-function CustomerAiTabSkeleton() {
-  return (
-    <LoadingRegion label="Loading the AI assistant settings" className="flex flex-col gap-[var(--spacing-system-l)]">
-      <UnifiedSkeleton className="h-16 w-full rounded-md" />
-      <UnifiedSkeleton className="h-40 w-full rounded-md" />
-      <UnifiedSkeleton className="h-64 w-full rounded-md" />
-    </LoadingRegion>
-  );
 }
 
 /**
@@ -56,11 +44,11 @@ export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomA
   // source the settings CLIENT tab uses.
   const hubDefaults = useHubDefaultQuickActions(ASSISTANT_QUICK_ACTIONS_CONFIG.agentSlug);
 
-  if (isViewLoading || isConfigLoading || hubDefaults.loading) {
-    return <CustomerAiTabSkeleton />;
-  }
+  // While the settings load the tab draws itself in a loading scope: the static banner for real (most customers
+  // inherit the defaults), the overview's customer card, previews and quick actions each their own skeleton.
+  const loading = isViewLoading || isConfigLoading || hubDefaults.loading;
 
-  if (configError) {
+  if (!loading && configError) {
     return (
       <LoadError
         message="Couldn't load the customer AI configuration. The service may be temporarily unavailable."
@@ -104,36 +92,41 @@ export function CustomerCustomAiAssistantTab({ organizationId }: CustomerCustomA
       : { value: 'Using custom actions', label: 'These quick actions were configured for this customer.' };
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      {inheritsDefault && (
-        <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)] content-md:flex-row content-md:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-s)]">
-            <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
-            <div className="flex min-w-0 flex-col">
-              <p className="text-ods-text-primary text-h4">Using default AI-Assistant configuration</p>
-              <p className="text-ods-text-secondary text-h6">
-                Inherits all AI-Assistant settings from your global configuration.
-              </p>
+    <LoadingWhen loading={loading}>
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        {inheritsDefault && (
+          <div className="flex flex-col gap-[var(--spacing-system-s)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-s)] content-md:flex-row content-md:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-s)]">
+              <InfoCircleIcon className="size-6 shrink-0 text-ods-text-secondary" />
+              <div className="flex min-w-0 flex-col">
+                <p className="text-ods-text-primary text-h4">Using default AI-Assistant configuration</p>
+                <p className="text-ods-text-secondary text-h6">
+                  Inherits all AI-Assistant settings from your global configuration.
+                </p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={() => router.push(routes.settings.aiSettings({ tab: 'customer', edit: true }))}
+              leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
+              className="shrink-0 self-start content-md:self-auto"
+            >
+              Edit Default Configuration
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => router.push(routes.settings.aiSettings({ tab: 'customer', edit: true }))}
-            leftIcon={<PenEditIcon className="size-5 text-ods-text-secondary" />}
-            className="shrink-0 self-start content-md:self-auto"
-          >
-            Edit Default Configuration
-          </Button>
-        </div>
-      )}
+        )}
 
-      <AiSettingsOverview
-        aiConfig={aiConfig}
-        view={effectiveView}
-        providerModelLabel={getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel)}
-        quickActions={quickActions}
-        quickActionsBanner={quickActionsBanner}
-      />
-    </div>
+        {/* Loading: no values handed over (the overview's parts read nothing in the scope). */}
+        <AiSettingsOverview
+          aiConfig={loading ? undefined : aiConfig}
+          view={loading ? undefined : effectiveView}
+          providerModelLabel={
+            loading ? undefined : getProviderModelLabel(modelsByProvider, aiConfig.llmProvider, aiConfig.providerModel)
+          }
+          quickActions={loading ? undefined : quickActions}
+          quickActionsBanner={quickActionsBanner}
+        />
+      </div>
+    </LoadingWhen>
   );
 }

@@ -1,15 +1,15 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { deleteFolderModal_folder$key } from '@/__generated__/deleteFolderModal_folder.graphql';
 import type { deleteFolderModalMutation as DeleteFolderModalMutationType } from '@/__generated__/deleteFolderModalMutation.graphql';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { FolderChildrenAction } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { FolderPicker } from '../shared/folder-picker';
-import { FolderPickerFallback } from '../shared/folder-picker-fallback';
 import type { FolderTarget } from '../shared/folder-tree';
 import {
   invalidateArchiveListing,
@@ -34,7 +34,6 @@ const deleteFolderModalMutation = graphql`
 `;
 
 const ARCHIVE_LABEL = "Don't Move and Archive";
-const NO_LISTINGS: readonly string[] = [];
 
 interface DeleteFolderModalProps {
   folder: deleteFolderModal_folder$key;
@@ -50,7 +49,7 @@ export function DeleteFolderModal({
   folder,
   isOpen,
   onClose,
-  listingIds = NO_LISTINGS,
+  listingIds = NO_ITEMS,
   onDeleted,
 }: DeleteFolderModalProps) {
   const { toast } = useToast();
@@ -121,16 +120,14 @@ export function DeleteFolderModal({
       extraContent={
         <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
           <p className="text-ods-text-primary text-h4">Move Articles to</p>
-          <Suspense fallback={<FolderPickerFallback label={ARCHIVE_LABEL} />}>
-            <FolderPicker
-              value={destination ? destination.id : undefined}
-              label={destination ? undefined : ARCHIVE_LABEL}
-              onSelect={setDestination}
-              leadingItems={[{ id: '__archive__', label: ARCHIVE_LABEL, onClick: () => setDestination(null) }]}
-              excludeFolderId={data.id}
-              disabled={isInFlight}
-            />
-          </Suspense>
+          <FolderPicker
+            value={destination ? destination.id : undefined}
+            label={destination ? undefined : ARCHIVE_LABEL}
+            onSelect={setDestination}
+            leadingItems={[{ id: '__archive__', label: ARCHIVE_LABEL, onClick: () => setDestination(null) }]}
+            excludeFolderId={data.id}
+            disabled={isInFlight}
+          />
         </div>
       }
     />

@@ -1,5 +1,6 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareDeviceVersionCell_softwareOnDevice$key } from '@/__generated__/softwareDeviceVersionCell_softwareOnDevice.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -18,11 +19,12 @@ export function SoftwareDeviceVersionCell({
 }: {
   softwareOnDevice: softwareDeviceVersionCell_softwareOnDevice$key;
 }) {
-  const { softwareVersion, status } = useFragment(softwareDeviceVersionCellFragment, softwareOnDevice);
+  // A row still being read (a loading scope) has no fragment to read: `ValueText` draws its bar.
+  const data = useFragment(softwareDeviceVersionCellFragment, useLoadingScope() ? null : softwareOnDevice);
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <ValueText value={softwareVersion} />
-      <SoftwareOnDeviceStatusTag status={status} />
+      <ValueText value={data?.softwareVersion} />
+      <SoftwareOnDeviceStatusTag status={data?.status} />
     </div>
   );
 }

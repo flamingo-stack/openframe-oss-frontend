@@ -1,6 +1,7 @@
 'use client';
 
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChatIdentityProvider,
   MINGO_V2_RAIL_WIDTH,
@@ -19,13 +20,16 @@ import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend
 import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import { usePathname, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
 import { useMingoDialogUrlSync } from '@/app/(app)/mingo/hooks/use-mingo-dialog-url-sync';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
+import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { DesktopUpdateModal } from '@/app/components/desktop-update-modal';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { LogoutConfirmModal } from '@/app/components/shared/logout-confirm-modal';
 import { SidebarUpdateButton } from '@/app/components/sidebar-update-button';
 import { useFeatureFlag, useFeatureFlagGate, useFeatureFlagsReady } from '@/app/hooks/use-feature-flag';
@@ -39,7 +43,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
 import { getNavigationItems, type NavigationFlags } from '../../lib/navigation-config';
 import { AnnouncementTopBar } from './announcement-top-bar';
-import { APP_MAIN_CLASS_NAME, headerLoadingCells } from './app-shell-chrome';
+import { APP_MAIN_CLASS_NAME, headerLoadingCells, holdsDashboard, isBareChromeRoute } from './app-shell-chrome';
 import { AiBalanceBar, BillingBarsHydrator, type BillingBarsState, NO_BARS, TrialEndingBar } from './billing-bars';
 import { BiometricEnrollPrompt } from './biometric-enroll-prompt';
 import { ChatDrawerErrorBoundary } from './chat-drawer-error-boundary';
@@ -49,14 +53,24 @@ import { NativePushInitializer } from './native-push-initializer';
 import { type UnreadCountsByCategory, UnreadCountsHydrator } from './notifications/unread-counts-hydrator';
 import { OnboardingCoachMark } from './onboarding-coach-mark';
 import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
+import { OnboardingV2Redirect } from './onboarding-v2-redirect';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
+import { SuperUserBanner } from './super-user-banner';
 import { TimeTrackerHostProvider } from './time-tracker-host-provider';
 import { UnauthorizedOverlay } from './unauthorized-overlay';
 import { WalkthroughVideo } from './walkthrough-video';
+
+/**
+ * The rail's loading rows: the counts the nav typically settles on, so the placeholder is the loaded rail's height.
+ * Typical, not a page: which items show depends on feature flags that are not known while the chrome loads.
+ * 7 primary (Dashboard, Customers, Devices, Scripts, Monitoring, Logs, Tickets), 2 secondary (Knowledge Base, Settings).
+ */
+const NAV_SKELETON_PRIMARY_ROWS = 7;
+const NAV_SKELETON_SECONDARY_ROWS = 2;
 
 /**
  * Layer the Mingo drawer OVER the floating walkthrough video card.
@@ -135,6 +149,15 @@ function useFailOpen(loading: boolean, afterMs: number): boolean {
   return loading && !failedOpen;
 }
 
+/**
+ * The `/setup` wizard's shell: the page alone, full screen. Carries the same
+ * `app-shell-root` hook as the core layout's root so the native safe-area
+ * insets land once, on the root, exactly as they do around the chrome.
+ */
+function BareAppShell({ children }: { children: React.ReactNode }) {
+  return <div className="app-shell-root flex min-h-screen flex-col bg-ods-bg">{children}</div>;
+}
+
 function AppShell({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -179,6 +202,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // chat surface renders hangs on it, and a wrong first answer would mount the
   // overlay drawer and then swap it out.
   const mingoV2 = useFeatureFlagGate('mingo-v2');
+  // Onboarding v2 changes two things this shell owns: whether the chrome renders
+  // at all (the `/setup` wizard is bare) and whether the sidebar carries an
+  // Onboarding entry (it does not; the tour lives in the Mingo panel). Gated: a
+  // wrong first answer would draw the chrome around the wizard, then tear it down.
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
   // Latched during render, not in an effect: the provider below reads this flag,
   // so an effect would render the drawer's first frame with identity still off
   // and start the fetch one paint later than the user opened it.
@@ -268,6 +296,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // the query is `store-and-network`, so the window exists only on a cold store.
   const { isLocked, status: subscriptionStatus } = useSubscriptionLock();
   const showLockContent = isLocked && !isRouteOpenWhileLocked(pathname, subscriptionStatus);
+  // The wizard renders without the chrome - unless the workspace is locked, in
+  // which case the lock screen takes `<main>` inside the usual (disabled) chrome.
+  const bareChrome = onboardingV2 === 'on' && !showLockContent && isBareChromeRoute(pathname);
+  // The dashboard waits for the same answer the redirect acts on, so a session
+  // bound for `/setup` never sees a frame of it. Bounded like the chrome's own
+  // wait: a progress request that never settles releases the page, and the
+  // redirect still fires if the answer lands later.
+  const setupPending = useSetupPending();
+  const dashboardHeld = useFailOpen(
+    holdsDashboard(pathname, onboardingV2, setupPending, showLockContent),
+    CHROME_LOADING_FAIL_OPEN_MS,
+  );
   // Every flag this shell's CHROME depends on, read reactively in one place:
   // the sidebar memo below and the header props both consume these, and a
   // `featureFlags.*` snapshot taken before the flags query answers would leave
@@ -320,7 +360,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // push/OS-notification deep link. Also owns the drawer's close-on-navigate
   // (see the notifications effect above). Passed `chatEnabled` so an instruction
   // is HELD rather than applied into a shell that renders no drawer.
-  useMingoDialogUrlSync(chatEnabled);
+  useMingoDialogUrlSync(chatEnabled && !bareChrome);
 
   // Same answer, published for the non-React callers that need it — notification
   // clicks decide drawer-vs-navigate through `mingoDrawerDialogId`, which has no
@@ -392,7 +432,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   // The personal "Get Started" tour (sidebar tab + badge) only appears once the
   // tenant Initial Setup is complete — until then the user is kept on Initial Setup.
-  const userOnboardingActive = showOnboardingChrome && initialSetupComplete && userInProgress;
+  const userOnboardingActive = showOnboardingChrome && initialSetupComplete && userInProgress && onboardingV2 === 'off';
 
   const navigationFlags = useMemo<NavigationFlags>(
     () => ({
@@ -418,10 +458,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     () => ({
       items: navigationItems,
       loading: chromeLoading,
-      // The counts this app's nav settles on, so the placeholder is the same height
-      // as the loaded rail: 7 primary (Dashboard, Customers, Devices, Scripts,
-      // Monitoring, Logs, Tickets) and 2 secondary (Knowledge Base, Settings).
-      loadingRows: { primary: 7, secondary: 2 },
+      loadingRows: { primary: NAV_SKELETON_PRIMARY_ROWS, secondary: NAV_SKELETON_SECONDARY_ROWS },
       onNavigate: handleNavigate,
       // Desktop shell only: renders nothing until the shell reports an update
       // waiting. The slot is a render prop because the same node also draws in
@@ -609,6 +646,25 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       : undefined;
   const chatWatchers = chatEnabled && mingoV2 === 'on' ? <MingoCompactionWatchers /> : null;
 
+  // The page segment's boundary - what the chrome, bare or not, puts in its
+  // content slot. Its placement rules are on the core layout below. Every page
+  // draws its own loading state (its components in a loading scope, behind its
+  // own boundaries), so this one only keeps a read that escapes a page from
+  // suspending the chrome around it: it has no page of its own to draw.
+  const pageContent = (
+    <Suspense fallback={null /* loading-standard-ok(SUSPENSE_FALLBACK): a backstop under the pages' own boundaries */}>
+      {showLockContent ? (
+        <SubscriptionLockContent />
+      ) : dashboardHeld ? (
+        <LoadingFallback label="Loading dashboard">
+          <DashboardOverviews />
+        </LoadingFallback>
+      ) : (
+        children
+      )}
+    </Suspense>
+  );
+
   return (
     <>
       {/* `!isLocked`: the badge count is decorative, and on a locked workspace its
@@ -629,9 +685,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         // wait for a decorative badge count is served by Next's root and holds the whole
         // app. `null` because there is nothing to draw: the count simply appears.
         <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
+          <HydratorBoundary>
             <UnreadCountsHydrator onChange={setUnreadCounts} />
-          </Suspense>
+          </HydratorBoundary>
         </ErrorBoundary>
       )}
       {/* BOTH providers below are mounted UNCONDITIONALLY and told what to do
@@ -659,23 +715,38 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             CoreAppLayout so BOTH the header's TicketAlertsButton and the
             /help-center/tickets page (children) read one provider. */}
         <TicketLiveProvider enabled={sessionReady && !isLocked}>
-          <CoreAppLayout
-            // Hook for the native-shell safe-area CSS in globals.css: the layout
-            // root owns the top inset (see `.app-shell-root`). Inert on the web.
-            className="app-shell-root"
-            mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
-            sidebarConfig={sidebarConfig}
-            mobileBurgerMenuProps={mobileBurgerMenuProps}
-            headerProps={headerProps}
-            // Greys the header and nav rail out for the lock: they stay legible —
-            // the user can still see where they are and reach the account menu —
-            // but nothing they lead to is reachable until the workspace is paid for.
-            disabled={showLockContent}
-            drawer={chatDrawer ?? chatWatchers}
-            sidePanel={chatSidePanel}
-            topBar={topBar}
-          >
-            {/* The page segment's boundary. Core used to own it (`loadingFallback`,
+          {bareChrome ? (
+            <BareAppShell>{pageContent}</BareAppShell>
+          ) : (
+            <CoreAppLayout
+              // Hook for the native-shell safe-area CSS in globals.css: the layout
+              // root owns the top inset (see `.app-shell-root`). Inert on the web.
+              className="app-shell-root"
+              mainClassName={mainClassName ?? APP_MAIN_CLASS_NAME}
+              sidebarConfig={sidebarConfig}
+              mobileBurgerMenuProps={mobileBurgerMenuProps}
+              headerProps={headerProps}
+              // Greys the header and nav rail out for the lock: they stay legible —
+              // the user can still see where they are and reach the account menu —
+              // but nothing they lead to is reachable until the workspace is paid for.
+              disabled={showLockContent}
+              drawer={chatDrawer ?? chatWatchers}
+              // Held with the page: the docked Mingo panel is part of what a
+              // session bound for the wizard must not see first.
+              sidePanel={dashboardHeld ? undefined : chatSidePanel}
+              // The super user strip is not one of the bars above: it is a
+              // statement about the session, not a notice, so it stacks over
+              // whichever bar won the slot (or none), lock screen included.
+              // Only once the session has answered, so a flag persisted from a
+              // previous session cannot flash it ahead of `/me`.
+              topBar={
+                <>
+                  {sessionResolved && <SuperUserBanner />}
+                  {topBar}
+                </>
+              }
+            >
+              {/* The page segment's boundary. Core used to own it (`loadingFallback`,
               dropped in 0.0.502 — `<main>` now renders `children` bare), so it
               lives here instead.
 
@@ -694,8 +765,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
               unmounts, so moving between them is a swap inside `<main>` and not
               a re-mount of the sidebar + header — which also means the lock
               arriving late costs a content swap, not a second chrome mount. */}
-            <Suspense fallback={null}>{showLockContent ? <SubscriptionLockContent /> : children}</Suspense>
-          </CoreAppLayout>
+              {pageContent}
+            </CoreAppLayout>
+          )}
         </TicketLiveProvider>
       </TimeTrackerHostProvider>
       {/* Onboarding progress hydrator (fetches backend progress into the store)
@@ -707,16 +779,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {sessionReady && !isLocked && (
         <>
           <OnboardingProgressHydrator />
-          <OnboardingCoachMark />
+          {/* The coach mark is the old flow's; the wizard redirect is the new one's.
+              Both read the progress the hydrator above loads. */}
+          {onboardingV2 === 'off' && <OnboardingCoachMark />}
+          <OnboardingV2Redirect />
         </>
       )}
       {/* Reports what the billing banners above need. Suspends, so it sits in
           its own boundary and renders nothing either way — a shell that waited
           on it would hold the whole app for a banner. */}
       {showBillingBars && (
-        <Suspense fallback={null}>
+        <HydratorBoundary>
           <BillingBarsHydrator onResolved={setBillingBars} />
-        </Suspense>
+        </HydratorBoundary>
       )}
       {/* Desktop shell update offer. Also owns the mount-time availability
           check that the sidebar's update button reads. No-op elsewhere. */}
@@ -726,8 +801,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           drawer. Which bottom corner it pins to is content-managed (the hub
           admin sets it per platform). Left out behind the subscription lock for
           the same reason the Mingo launcher is: that screen is not the app.
-          After the session is in place, like the chat: its read is refused before. */}
-      {sessionReady && !isLocked && <WalkthroughVideo />}
+          After the session is in place, like the chat: its read is refused before.
+          Not on the bare setup wizard either: it offers the clip from its own menu. */}
+      {sessionReady && !isLocked && !bareChrome && <WalkthroughVideo />}
     </>
   );
 }
@@ -805,7 +881,11 @@ export function AppLayout({ children, mainClassName }: { children: React.ReactNo
     // prerender, and Next requires a Suspense boundary to bail out to. Without one
     // `next build` fails on every statically generated page under `(app)` — and
     // only in a production build, so a dev-mode build won't tell you.
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        null /* loading-standard-ok(SUSPENSE_FALLBACK): the prerender bail-out boundary, never shown on the client */
+      }
+    >
       {/* The admin look for every tab strip; the lib's `default` is the hub's. */}
       <TabNavigationVariantProvider variant="admin">
         <AppLayoutInner mainClassName={mainClassName}>{children}</AppLayoutInner>

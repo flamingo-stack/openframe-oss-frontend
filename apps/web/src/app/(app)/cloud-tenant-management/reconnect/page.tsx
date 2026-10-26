@@ -1,11 +1,11 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
 import { TenantPageShell } from '../components/shared/tenant-page-shell';
 import { useTenantManagementGate } from '../components/shared/use-tenant-management-gate';
-import { TenantFormSkeleton } from '../components/tenant-form/tenant-form-skeleton';
 import { ReconnectTenantView } from '../components/tenant-reconnect/reconnect-tenant-view';
 
 export default function ReconnectTenantPage() {
@@ -19,12 +19,11 @@ export default function ReconnectTenantPage() {
   }
   return (
     <TenantPageShell title="Reconnect Tenant Integration" errorMessage="Couldn't load this tenant." resetKey={id}>
-      {gate === 'loading' ? (
-        <TenantFormSkeleton variant="reconnect" />
-      ) : (
-        // Keyed by id: the mint guard and the probe verdict belong to one tenant.
+      {/* Until the flag is known the view draws in a loading scope and reads nothing. Keyed by id: the mint guard
+          and the probe verdict belong to one tenant. */}
+      <LoadingWhen loading={gate === 'loading'}>
         <ReconnectTenantView key={id} id={id} />
-      )}
+      </LoadingWhen>
     </TenantPageShell>
   );
 }

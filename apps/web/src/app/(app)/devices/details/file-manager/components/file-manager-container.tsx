@@ -1,10 +1,20 @@
 'use client';
 
-import { Button, LoadError, PageLayout, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import type { FileAction, FileItem } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
-import { FileManager, FileManagerSkeleton } from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
+import {
+  Button,
+  LoadError,
+  PageLayout,
+  Progress,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type FileAction,
+  type FileItem,
+  FileManager,
+} from '@flamingo-stack/openframe-frontend-core/components/ui/file-manager';
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { routes } from '@/lib/routes';
 import { useMeshFileManager } from '../../../hooks/use-mesh-file-manager';
@@ -20,6 +30,10 @@ interface FileManagerContainerProps {
   className?: string;
 }
 
+/**
+ * The file manager before the device's file system answers: the real toolbar and table in their `loading` state,
+ * with nothing in them, also while the device itself is read (the page's loading scope).
+ */
 export function FileManagerContainer({
   deviceId,
   meshcentralAgentId,
@@ -75,9 +89,11 @@ export function FileManagerContainer({
 
   const [deleteContext, setDeleteContext] = useState<{ fileIds: string[] } | null>(null);
 
-  const showFileManagerSkeleton =
-    connectionState === 'disconnected' || (connectionState === 'connecting' && files.length === 0);
+  // Before the device's file system answers there is nothing to list: the manager draws its own loading state with
+  // no folder, no selection and search off, and the same instance shows the files once they arrive.
+  const held = connectionState === 'disconnected' || (connectionState === 'connecting' && files.length === 0);
   const handleBackToDevice = useSafeBack(routes.devices.details(deviceId));
+  const deviceLoading = useLoadingScope();
 
   const handleNavigate = useCallback(
     (path: string) => {
@@ -282,7 +298,8 @@ export function FileManagerContainer({
   return (
     <PageLayout
       title={'File Manager'}
-      subtitle={deviceName || `Device ${deviceId}`}
+      // In the page's loading scope the device's name is not here yet: an empty subtitle draws its bar.
+      subtitle={deviceLoading ? '' : deviceName || `Device ${deviceId}`}
       className={className ? `${className} h-full` : 'h-full'}
       contentClassName="flex min-h-0 flex-col overflow-hidden"
       backButton={{
@@ -293,16 +310,15 @@ export function FileManagerContainer({
       <div className="flex min-h-0 flex-1 flex-col">
         {connectionState === 'failed' ? (
           <LoadError message="Couldn't connect to the device's file system." onRetry={retryConnection} />
-        ) : showFileManagerSkeleton ? (
-          <FileManagerSkeleton />
         ) : (
           <FileManager
-            files={files}
-            currentPath={currentPath}
-            selectedFiles={selectedFiles}
+            files={held ? NO_ITEMS : files}
+            currentPath={held ? '' : currentPath}
+            selectedFiles={held ? NO_ITEMS : selectedFiles}
             deviceName={deviceName || `Device ${deviceId}`}
             searchQuery={searchQuery}
             loading={
+              held ||
               loading ||
               connectionState === 'connecting' ||
               connectionState === 'connected_to_server' ||
@@ -315,7 +331,7 @@ export function FileManagerContainer({
             showSearch={true}
             showActions={true}
             canPaste={clipboard !== null}
-            disableSearch={currentPath === '/' || currentPath === ''}
+            disableSearch={held || currentPath === '/' || currentPath === ''}
             resultsCount={files.length}
             onNavigate={handleNavigate}
             onBreadcrumbClick={handleBreadcrumbClick}

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { PublicEnvScript } from 'next-runtime-env';
-import { Suspense } from 'react';
 import './globals.css';
 import '@flamingo-stack/openframe-frontend-core/styles';
 import { DevTicketObserver } from '@/app/(auth)/auth/components/dev-ticket-observer';
@@ -15,6 +14,7 @@ import { RouteGuard } from '../components/route-guard';
 import { isAuthEnabled } from '../lib/app-mode';
 import { QueryClientProvider } from '../lib/query-client-provider';
 import { RelayProvider } from '../lib/relay';
+import { AgentIdentities } from './components/agent-identities';
 import { AppUpdateGate, HiddenWhileUpdateRequired } from './components/app-update-gate';
 import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
@@ -25,6 +25,7 @@ import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
 import { OfflineBanner } from './components/offline-banner';
 import { RegistrationAttributionCapture } from './components/registration-attribution-capture';
+import { HydratorBoundary } from './components/shared/hydrator-boundary';
 import { TokenFreshnessWatcher } from './components/token-freshness-watcher';
 
 export const metadata: Metadata = {
@@ -144,9 +145,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 dev-ticket login exists precisely to point a local tenant build at
                 a remote tenant, and that mode has no auth pages of its own. */}
             {(isAuthEnabled() || runtimeEnv.enableDevTicketObserver()) && (
-              <Suspense fallback={null}>
+              <HydratorBoundary>
                 <DevTicketObserver />
-              </Suspense>
+              </HydratorBoundary>
             )}
             {/* Above NATS and the biometric gate: a refused bundle can do nothing
                 below it, so nothing below it mounts. */}
@@ -155,18 +156,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <BiometricLockBoundary>
                   <FeatureFlagsLoader>
                     <NotificationsDataProvider>
-                      <RouteGuard>
-                        {/* No app-wide Suspense boundary around `children` — the one
+                      <AgentIdentities>
+                        <RouteGuard>
+                          {/* No app-wide Suspense boundary around `children` — the one
                             that used to be here drew `AppShellSkeleton`, and with the
                             skeleton retired an empty one would only widen the blast
                             radius: anything suspending below would blank the chrome
                             along with the page. The boundary inside `<main>` catches
                             that in the content area instead, and each root-layout
                             component that reads search params carries its own. */}
-                        <DevicesViewConfig>
-                          <div className="relative flex min-h-screen flex-col">{children}</div>
-                        </DevicesViewConfig>
-                      </RouteGuard>
+                          <DevicesViewConfig>
+                            <div className="relative flex min-h-screen flex-col">{children}</div>
+                          </DevicesViewConfig>
+                        </RouteGuard>
+                      </AgentIdentities>
                     </NotificationsDataProvider>
                   </FeatureFlagsLoader>
                 </BiometricLockBoundary>

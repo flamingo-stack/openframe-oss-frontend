@@ -1,9 +1,12 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
+import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { routes } from '@/lib/routes';
@@ -11,13 +14,20 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import { type DataDetectableStep, useTenantOnboardingAutoDetect } from '../hooks/use-tenant-onboarding-auto-detect';
 import { MEET_MINGO_META } from '../meet-mingo-meta';
-import { countCompleted, isStepDone, TENANT_ONBOARDING_STEPS } from '../onboarding-steps';
+import {
+  isStepDone,
+  type OnboardingStepWiring,
+  onboardingProgress,
+  progressLine,
+  stepsToCompleteLabel,
+  TENANT_ONBOARDING_STEPS,
+} from '../onboarding-steps';
 import { BookCallSection } from './book-call/book-call-section';
 import { CustomerSetupStep } from './customer-setup-step';
 import { DeviceSetupStep } from './device-setup-step';
 import { MingoStep } from './mingo-step';
 import { MspSetupStep } from './msp-setup-step';
-import { OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
+import { ONBOARDING_STEP_LIST_CLASS, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
 
 interface StepMeta {
@@ -36,10 +46,7 @@ interface StepMeta {
   requiresData?: { step: DataDetectableStep; hint: string };
 }
 
-/**
- * The four steps' static presentation, shared with {@link InitialSetupSkeleton}
- * so the skeleton matches the card 1:1. Bodies are wired up in the card.
- */
+/** The four steps' static presentation. Bodies are wired up in {@link InitialSetupCardContent}. */
 const STEP_META: readonly StepMeta[] = [
   {
     step: TenantOnboardingStep.MSP_SETUP,
@@ -72,14 +79,14 @@ const STEP_META: readonly StepMeta[] = [
 ];
 
 /**
- * Tenant "Initial Setup" block on the Dashboard. Mount gate only: nothing until
- * onboarding progress has loaded, and permanently hidden once Initial Setup is
- * complete (a one-time surface). When active, it renders {@link InitialSetupCardContent},
- * which suspends on its step counts — the loading skeleton is the dashboard
- * `<Suspense fallback={<InitialSetupSkeleton />}>` that wraps this card, so the whole
- * load (counts + the content's own suspending queries) shows one skeleton, not two.
+ * Tenant "Initial Setup" block on the Dashboard. Mount gate only: it draws nothing until the onboarding store says
+ * setup is ACTIVE (most workspaces finished it, so a loading form in its slot would only vanish again); it is
+ * permanently hidden once Initial Setup is complete (a one-time surface). When active, it renders
+ * {@link InitialSetupCardContent}, which suspends on its step counts behind {@link InitialSetupCardView} in a
+ * `LoadingFallback` (and in a loading scope draws that view), so the whole load shows one loading state, not two.
  */
 export function InitialSetupCard() {
+  const inScope = useLoadingScope();
   const isLoaded = useOnboardingStore(state => state.isLoaded);
   const tenant = useOnboardingStore(state => state.tenant);
 
@@ -91,16 +98,109 @@ export function InitialSetupCard() {
     setShown(true);
   }
 
-  // `!tenant` matters on its own: the store is marked loaded even on a failed fetch, and
-  // the content fires its queries the instant it mounts.
-  if (!isLoaded || !tenant) {
-    return null;
-  }
-  if (tenant.completed && !shown) {
+  // Decided from the store even in a loading scope: a card that will not show draws no loading form either, and
+  // nothing is drawn before the store answers. `!tenant` matters on its own: the store is marked loaded even on a
+  // failed fetch, and the content fires its queries the instant it mounts.
+  if (!isLoaded || !tenant || (tenant.completed && !shown)) {
     return null;
   }
 
-  return <InitialSetupCardContent />;
+  return (
+    <GatedSuspense bare gated={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
+      <InitialSetupCardContent />
+    </GatedSuspense>
+  );
+}
+
+const NO_DATA_STEPS: ReadonlySet<TenantOnboardingStep> = new Set();
+
+interface InitialSetupCardViewProps {
+  /** Persisted ∪ satisfied-by-data steps (none while progress is read). */
+  completedSteps?: readonly string[];
+  /** Steps whose data exists — what a locked row's gate reads. */
+  completedByData?: ReadonlySet<TenantOnboardingStep>;
+  onTour?: () => void;
+  /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
+  stepWiring?: (step: TenantOnboardingStep) => OnboardingStepWiring;
+}
+
+/**
+ * The card from props: the section, its real header, the booking offer and the four rows. In a loading scope the
+ * header keeps its static copy with the done count a bar, and each row draws its own status as a skeleton with its
+ * body not mounted.
+ */
+function InitialSetupCardView({
+  completedSteps = NO_ITEMS,
+  completedByData = NO_DATA_STEPS,
+  onTour = noop,
+  stepWiring,
+}: InitialSetupCardViewProps) {
+  const loading = useLoadingScope();
+  const progress = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps, loading);
+  const { total, nextStep, allDone } = progress;
+
+  const statusOf = (meta: StepMeta): OnboardingStepStatus => {
+    if (isStepDone(meta.step, completedSteps)) return 'completed';
+    // Gates read the live data, NOT `completedSteps` — see `requiresData`.
+    if (meta.requiresData && !completedByData.has(meta.requiresData.step)) return 'disabled';
+    return 'active';
+  };
+
+  return (
+    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
+      <div className="flex min-w-0 flex-col">
+        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
+        <p className="text-ods-text-secondary text-h6">
+          {loading ? (
+            <>
+              {stepsToCompleteLabel(total)} ·{' '}
+              <TextLineSkeleton type="inherit" as="span" className="inline-flex w-12 align-top" />
+            </>
+          ) : (
+            progressLine(progress)
+          )}
+        </p>
+      </div>
+
+      {/* The "walk me through it instead" offer, above the steps it replaces. It reads
+          its own data (scheduling links, walkthrough video), none of which is onboarding
+          progress, so it settles independently in both states. */}
+      <BookCallSection />
+
+      <div className={ONBOARDING_STEP_LIST_CLASS}>
+        {STEP_META.map(meta => {
+          const wiring = loading ? undefined : stepWiring?.(meta.step);
+          return (
+            <OnboardingAccordionItem
+              key={meta.step}
+              ref={wiring?.ref}
+              icon={meta.icon}
+              status={statusOf(meta)}
+              next={meta.step === nextStep}
+              requirementHint={meta.requiresData?.hint}
+              title={meta.title}
+              description={meta.description}
+              expanded={wiring?.expanded}
+              onExpandedChange={wiring?.onExpandedChange}
+            >
+              {wiring?.body}
+            </OnboardingAccordionItem>
+          );
+        })}
+      </div>
+
+      {allDone && (
+        <OnboardingCompleteBanner
+          className="bg-ods-bg"
+          emoji="🎉"
+          title="Setup Complete"
+          description="Full onboarding is available from the menu if you need to revisit a step or set up something new."
+          actionLabel="Take the Product Tour"
+          onAction={onTour}
+        />
+      )}
+    </section>
+  );
 }
 
 /**
@@ -132,11 +232,7 @@ function InitialSetupCardContent() {
   // Every step starts collapsed; only a click opens one.
   const { expandedOf, onExpandedChangeOf, refOf } = useOnboardingAccordion<TenantOnboardingStep>();
 
-  const total = TENANT_ONBOARDING_STEPS.length;
-  const done = countCompleted(TENANT_ONBOARDING_STEPS, completedSteps);
-  // First step still to do, in display order: the one row that says "Next".
-  const nextStep = TENANT_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
-  const allDone = done >= total;
+  const { allDone } = onboardingProgress(TENANT_ONBOARDING_STEPS, completedSteps);
 
   // Commit once, the instant every step is done — that is what makes ANY exit from the
   // completed view finalize it. The ref guards the re-renders that follow, since the
@@ -148,13 +244,6 @@ function InitialSetupCardContent() {
       completeTenantInBackground();
     }
   }, [allDone, completeTenantInBackground]);
-
-  const statusOf = (meta: StepMeta): OnboardingStepStatus => {
-    if (isStepDone(meta.step, completedSteps)) return 'completed';
-    // Gates read the live data, NOT `completedSteps` — see `requiresData`.
-    if (meta.requiresData && !completedByData.has(meta.requiresData.step)) return 'disabled';
-    return 'active';
-  };
 
   const renderStepBody = (step: TenantOnboardingStep): ReactNode => {
     const completed = isStepDone(step, completedSteps);
@@ -190,97 +279,16 @@ function InitialSetupCardContent() {
   };
 
   return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        <h2 className="text-ods-text-primary text-h2">Initial Setup</h2>
-        <p className="text-ods-text-secondary text-h6">
-          {allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
-        </p>
-      </div>
-
-      {/* The "walk me through it instead" offer, above the steps it replaces. */}
-      <BookCallSection />
-
-      <div className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0">
-        {STEP_META.map(meta => (
-          <OnboardingAccordionItem
-            key={meta.step}
-            ref={refOf(meta.step)}
-            icon={meta.icon}
-            status={statusOf(meta)}
-            next={meta.step === nextStep}
-            requirementHint={meta.requiresData?.hint}
-            title={meta.title}
-            description={meta.description}
-            expanded={expandedOf(meta.step)}
-            onExpandedChange={onExpandedChangeOf(meta.step)}
-          >
-            {renderStepBody(meta.step)}
-          </OnboardingAccordionItem>
-        ))}
-      </div>
-
-      {allDone && (
-        <OnboardingCompleteBanner
-          className="bg-ods-bg"
-          emoji="🎉"
-          title="Setup Complete"
-          description="Full onboarding is available from the menu if you need to revisit a step or set up something new."
-          actionLabel="Take the Product Tour"
-          onAction={() => router.push(routes.onboarding)}
-        />
-      )}
-    </section>
-  );
-}
-
-/**
- * Loading placeholder for the card, rendered 1:1 from the same frame and `STEP_META`
- * as {@link InitialSetupCardContent}: identical section, header and four accordion rows.
- * A FULL skeleton — the header title/subtitle and each row's title/description are all
- * skeleton bars (via `OnboardingAccordionItem`'s `loading` mode), only the leading step
- * icons stay real. Kept pixel-identical in height to the loaded card.
- *
- * Used as the `<Suspense>` fallback around the card (see dashboard-content): the card
- * body renders `DeviceSetupStep`, whose `useDeviceOrganizations` suspends, so reusing
- * this same skeleton keeps the loading → content transition seamless (no empty gap).
- */
-export function InitialSetupSkeleton() {
-  return (
-    <section className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-l)]">
-      <div className="flex min-w-0 flex-col">
-        {/* Title + subtitle as core `UnifiedSkeleton` bars, kept inside the real `text-h2`/
-            `text-h6` line boxes so the header height matches the loaded card exactly.
-            Decorative `div` wrappers (not `h2`/`p`), so the loading card adds no empty heading
-            or paragraph to the page; the type utilities carry the height. */}
-        <div className="text-ods-text-primary text-h2">
-          <UnifiedSkeleton className="inline-block h-6 w-40 align-middle" />
-        </div>
-        <div className="text-ods-text-secondary text-h6">
-          <UnifiedSkeleton className="inline-block h-3 w-52 max-w-full align-middle" />
-        </div>
-      </div>
-
-      {/* The REAL block, not a placeholder: it reads its own data (scheduling links,
-          walkthrough video), none of which is onboarding progress — so it settles
-          independently, and rendering it here is what keeps the rows from jumping
-          down when the card loads. */}
-      <BookCallSection />
-
-      <LoadingRegion
-        label="Loading setup steps"
-        className="flex w-full flex-col overflow-hidden rounded-md border border-ods-border [&>*:last-child]:border-b-0"
-      >
-        {STEP_META.map(meta => (
-          <OnboardingAccordionItem
-            key={meta.step}
-            loading
-            icon={meta.icon}
-            title={meta.title}
-            description={meta.description}
-          />
-        ))}
-      </LoadingRegion>
-    </section>
+    <InitialSetupCardView
+      completedSteps={completedSteps}
+      completedByData={completedByData}
+      onTour={() => router.push(routes.onboarding)}
+      stepWiring={step => ({
+        ref: refOf(step),
+        expanded: expandedOf(step),
+        onExpandedChange: onExpandedChangeOf(step),
+        body: renderStepBody(step),
+      })}
+    />
   );
 }

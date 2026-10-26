@@ -2,6 +2,7 @@
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NO_ITEMS } from '@/app/components/shared';
 import { apiClient } from '@/lib/api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 
@@ -30,8 +31,6 @@ export type PagedInvitationsResponse = {
   hasNext: boolean;
   hasPrevious: boolean;
 };
-
-const EMPTY_INVITATIONS: InvitationRecord[] = [];
 
 // ============ Query Keys ============
 
@@ -144,7 +143,7 @@ export function useInvitations(page: number = 0, size: number = 20) {
 
   return {
     // Data
-    invitations: invitationsQuery.data?.items ?? EMPTY_INVITATIONS,
+    invitations: invitationsQuery.data?.items ?? NO_ITEMS,
 
     // Loading & error states
     isLoading: invitationsQuery.isLoading,

@@ -6,7 +6,9 @@ import {
   CheckboxBlock,
   Input,
   Label,
+  LoadingScope,
   type PageActionButton,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,6 +20,7 @@ import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { DeviceListPicker } from '@/app/components/shared/device-selector';
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -57,13 +60,16 @@ function getMachineId(device: Device): string | undefined {
 
 interface RunScriptFormProps {
   scriptId: string;
-  script: ScriptDetailData;
+  /** Absent while the script loads: the form draws itself in its loading scope. */
+  script?: ScriptDetailData;
 }
 
 function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
+  // Without the script the run config is not seeded yet: its fields are locked and show no value.
+  const loading = useLoadingScope() || !script;
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -224,89 +230,94 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        <ScriptSummaryCard
-          name={script.name}
-          description={script.description}
-          shellId={shellToId(script.shell)}
-          platforms={supportedPlatforms}
-          author={script.author ? initiatorName(script.author) : null}
-          showTimeout={false}
-        />
+        {/* The body is inert until the script answers: its fields would take input the loaded form, mounted in its
+            place, never sees. */}
+        <LoadingScope active={loading} className="contents">
+          <ScriptSummaryCard
+            name={script?.name ?? ''}
+            description={script?.description}
+            shellId={shellToId(script?.shell)}
+            platforms={supportedPlatforms}
+            author={script?.author ? initiatorName(script.author) : null}
+            showTimeout={false}
+          />
 
-        <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-          <div>
-            <Label className="text-ods-text-primary text-h3">Timeout</Label>
+          <div className="grid grid-cols-1 items-end gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+            <div>
+              <Label className="text-ods-text-primary text-h3">Timeout</Label>
+              <Controller
+                name="timeout"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    type="number"
+                    className="w-full"
+                    disabled={loading}
+                    value={field.value}
+                    onChange={e => field.onChange(Number(e.target.value) || 0)}
+                    endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+                  />
+                )}
+              />
+            </div>
+
             <Controller
-              name="timeout"
+              name="runAsUser"
               control={control}
               render={({ field }) => (
-                <Input
-                  type="number"
-                  className="w-full"
-                  value={field.value}
-                  onChange={e => field.onChange(Number(e.target.value) || 0)}
-                  endAdornment={<span className="text-ods-text-secondary text-h6">Seconds</span>}
+                <CheckboxBlock
+                  checked={field.value}
+                  onCheckedChange={checked => field.onChange(checked === true)}
+                  label="Run as User"
                 />
               )}
             />
           </div>
 
-          <Controller
-            name="runAsUser"
-            control={control}
-            render={({ field }) => (
-              <CheckboxBlock
-                checked={field.value}
-                onCheckedChange={checked => field.onChange(checked === true)}
-                label="Run as User"
-              />
-            )}
-          />
-        </div>
+          <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
+            <Controller
+              name="scriptArgs"
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value (empty=flag)"
+                  addButtonLabel="Add Script Argument"
+                  titleLabel="Script Arguments"
+                />
+              )}
+            />
+            <Controller
+              name="envVars"
+              control={control}
+              render={({ field }) => (
+                <ScriptArguments
+                  arguments={field.value}
+                  onArgumentsChange={field.onChange}
+                  keyPlaceholder="Key"
+                  valuePlaceholder="Enter Value"
+                  addButtonLabel="Add Variable"
+                  addSecretButtonLabel="Add Secret"
+                  titleLabel="Environment Vars"
+                />
+              )}
+            />
+          </div>
 
-        <div className="grid grid-cols-1 gap-[var(--spacing-system-lf)] content-lg:grid-cols-2">
-          <Controller
-            name="scriptArgs"
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value (empty=flag)"
-                addButtonLabel="Add Script Argument"
-                titleLabel="Script Arguments"
-              />
-            )}
-          />
-          <Controller
-            name="envVars"
-            control={control}
-            render={({ field }) => (
-              <ScriptArguments
-                arguments={field.value}
-                onArgumentsChange={field.onChange}
-                keyPlaceholder="Key"
-                valuePlaceholder="Enter Value"
-                addButtonLabel="Add Variable"
-                addSecretButtonLabel="Add Secret"
-                titleLabel="Environment Vars"
-              />
-            )}
-          />
-        </div>
-
-        <div className="space-y-[var(--spacing-system-xxs)]">
-          <DeviceListPicker
-            filter={deviceFilter}
-            selected={selection}
-            onSelectionChange={setSelection}
-            getDeviceKey={getDevicePrimaryId}
-            showSelectionModeRadio={false}
-            addAllBehavior="replace"
-            isDeviceDisabled={(d: Device) => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
-          />
-        </div>
+          <div className="space-y-[var(--spacing-system-xxs)]">
+            <DeviceListPicker
+              filter={deviceFilter}
+              selected={selection}
+              onSelectionChange={setSelection}
+              getDeviceKey={getDevicePrimaryId}
+              showSelectionModeRadio={false}
+              addAllBehavior="replace"
+              isDeviceDisabled={(d: Device) => (!getMachineId(d) ? 'Agent is not\nconnected' : undefined)}
+            />
+          </div>
+        </LoadingScope>
       </PageLayout>
 
       <ExecutionStartedModal
@@ -319,13 +330,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   );
 }
 
-/**
- * "Run Script" — the per-run config (timeout, privilege, args, env) over the
- * device picker. Suspends on the script query; the route renders
- * `RunScriptSkeleton` while that is in flight, so the form mounts once, already
- * seeded (no editor here, but the same contract as the edit page).
- */
-export function RunScriptView({ scriptId }: RunScriptViewProps) {
+function RunScriptContent({ scriptId }: RunScriptViewProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: scriptId },
@@ -339,6 +344,20 @@ export function RunScriptView({ scriptId }: RunScriptViewProps) {
   // Keyed by id: the router reuses this route segment when only `?id=` changes,
   // so without the key a hop from script A to B would keep A's run config.
   return <RunScriptForm key={scriptId} scriptId={scriptId} script={data.script} />;
+}
+
+/**
+ * "Run Script": the per-run config (timeout, privilege, args, env) over the
+ * device picker. Suspends on the script query; while that is in flight the
+ * same form draws itself without the script, so the form mounts once, already
+ * seeded (no editor here, but the same contract as the edit page).
+ */
+export function RunScriptView({ scriptId }: RunScriptViewProps) {
+  return (
+    <LiveSuspense label="Loading script" view={<RunScriptForm scriptId={scriptId} />}>
+      <RunScriptContent scriptId={scriptId} />
+    </LiveSuspense>
+  );
 }
 
 export default RunScriptView;

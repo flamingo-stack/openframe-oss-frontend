@@ -42,10 +42,11 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { getFullImageUrl } from '@/lib/image-url';
-import { mingoDialogLink } from '@/lib/routes';
+import { mingoDialogLink, routes } from '@/lib/routes';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { KNOWLEDGE_BASE_ROUTE } from '../(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '../(app)/mingo/context/context-sources';
@@ -54,12 +55,14 @@ import { renderMingoContextItem, renderMingoMention } from '../(app)/mingo/conte
 import { renderMingoContextItems } from '../(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '../(app)/mingo/context/use-context-memory';
 import { MINGO_DIALOG_NOT_FOUND } from '../(app)/mingo/hooks/use-mingo-dialog-selection';
+import { MINGO_DIALOGS_PAGE_SIZE } from '../(app)/mingo/hooks/use-mingo-dialogs';
 import { useMingoQuickActions } from '../(app)/mingo/hooks/use-mingo-quick-actions';
 import { DialogSubscription } from '../(app)/mingo/hooks/use-mingo-realtime-subscription';
 import { useMingoUnifiedChatState } from '../(app)/mingo/hooks/use-mingo-unified-chat-state';
 import { useMingoWhatToAsk } from '../(app)/mingo/hooks/use-mingo-what-to-ask';
 import { useMingoCompactionStore } from '../(app)/mingo/stores/mingo-compaction-store';
 import { useMingoLauncherStore } from '../(app)/mingo/stores/mingo-launcher-store';
+import { useMingoTour } from '../(app)/mingo/tour/use-mingo-tour';
 import { useAuthStore } from '../(auth)/auth/stores/auth-store';
 import { ResetOnboardingDialog, useCanResetOnboarding } from './reset-onboarding-dialog';
 
@@ -88,23 +91,31 @@ export function OpenframeEmbeddableChatEntry({
   v2,
 }: OpenframeEmbeddableChatEntryProps) {
   const {
-    state,
+    state: chatState,
     subscription,
     pendingApprovals,
     dialogStatusOf,
     sendInNewDialog,
+    createNamedDialog,
+    createIntentDialog,
     searchQuery,
     setSearchQuery,
     fetchArchivedDialogs,
     unarchiveDialog,
     dialogError,
   } = useMingoUnifiedChatState();
+  // The Getting Started tour (flag `onboarding-v2`): Mingo's greeting at the
+  // head of the tour's conversation and the step block above its composer;
+  // archiving that conversation skips the tour. Once the tour is over, this is
+  // `chatState` unchanged.
+  const { state, aboveComposer } = useMingoTour({ state: chatState, createNamedDialog, dialogError });
   const compactMemoryEnabled = useFeatureFlag('mingo-compact-memory');
 
   // v2: "Reset Onboarding" lives in the chat's ⋯ menu (Settings no longer
   // offers it), after the chat's own actions.
   const loadWhatToAsk = useMingoWhatToAsk();
   const canResetOnboarding = useCanResetOnboarding();
+  const router = useRouter();
   const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
   const chatMenuExtraItems =
     v2 && canResetOnboarding
@@ -241,6 +252,19 @@ export function OpenframeEmbeddableChatEntry({
     chatHandle.current?.startNewChat();
   }, [pendingNewChat, consumePendingNewChat]);
 
+  // Queued "Generate with AI" (`startIntentChat` — a create button's Mingo
+  // segment): a new dialog created with the intent and opened. The server has
+  // already written Mingo's greeting into it, so the history load renders it.
+  const pendingIntent = useMingoLauncherStore(s => s.pendingIntent);
+  const consumePendingIntent = useMingoLauncherStore(s => s.consumePendingIntent);
+
+  useEffect(() => {
+    if (!pendingIntent) return;
+    const intent = consumePendingIntent();
+    if (!intent) return;
+    void createIntentDialog(intent);
+  }, [pendingIntent, consumePendingIntent, createIntentDialog]);
+
   // Queued launcher draft (`draftToMingo` — e.g. "Fix with Mingo" on an incident):
   // a fresh chat with the composer prefilled and nothing sent. Same one-shot
   // drain as the prompt, but through the handle, since the composer's text is
@@ -339,8 +363,9 @@ export function OpenframeEmbeddableChatEntry({
         collapseTo={v2?.collapseTo}
         onExpand={v2?.onExpand}
         dialogStatusOf={v2 ? dialogStatusOf : undefined}
-        // v2: "What to ask Mingo?" answers in the chat (the open one, else a new
-        // one) with prompts that go into the composer, naming online devices.
+        // v2: "What to ask Mingo?" opens a new chat with prompts that go out on
+        // a click, naming online devices - never the open conversation, the
+        // tour's included.
         whatToAsk={v2 ? loadWhatToAsk : undefined}
         chatMenuExtraItems={chatMenuExtraItems}
         open={open}
@@ -360,6 +385,8 @@ export function OpenframeEmbeddableChatEntry({
         // the uncontrolled active mode defaults to 'mingo'.
         modes={{}}
         mingoState={state}
+        // One page of the dialog list: the conversation lists' loading state draws this many rows.
+        historyPageSize={MINGO_DIALOGS_PAGE_SIZE}
         // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
         // documentation, and each cited source renders as a chip whose target is
         // resolved against this route; without it the lib derives one from
@@ -415,9 +442,18 @@ export function OpenframeEmbeddableChatEntry({
         // to review and forget individual entries. Replaces the old under-the-
         // header page-context banner. The strip self-hides when memory is empty.
         contextMemory={contextMemory}
+        // The Getting Started tour: its block above the composer while its
+        // conversation is open.
+        aboveComposer={aboveComposer}
       />
 
-      <ResetOnboardingDialog open={isResetOnboardingOpen} onOpenChange={setIsResetOnboardingOpen} />
+      <ResetOnboardingDialog
+        open={isResetOnboardingOpen}
+        onOpenChange={setIsResetOnboardingOpen}
+        // The tour starts over from the wizard's "Start with Mingo": this menu is
+        // on every page, and only the dashboard sends the user there by itself.
+        onReset={() => router.push(routes.setup)}
+      />
     </>
   );
 }

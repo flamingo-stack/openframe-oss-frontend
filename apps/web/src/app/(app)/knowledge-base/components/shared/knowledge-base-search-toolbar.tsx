@@ -1,9 +1,9 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useState } from 'react';
-import { SelectableTagsRowSkeleton } from '@/app/components/shared';
+import { useState } from 'react';
 import { KnowledgeBaseTagsFilterModal } from './knowledge-base-tags-filter-modal';
 import { KnowledgeBaseTagsRow } from './knowledge-base-tags-row';
 import type { TagSearchState } from './use-tag-search-state';
@@ -33,6 +33,21 @@ export function KnowledgeBaseSearchToolbar({
   filters,
 }: KnowledgeBaseSearchToolbarProps) {
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false);
+
+  // Each suspends on the tags; while they load it is drawn in a loading scope, its own loading state.
+  const tagsRow = (
+    <KnowledgeBaseTagsRow parentId={parentId} archived={archived} selectedIds={filters.tagIds} onAdd={filters.addTag} />
+  );
+  const tagsModal = (
+    <KnowledgeBaseTagsFilterModal
+      isOpen={isTagsModalOpen}
+      onClose={() => setIsTagsModalOpen(false)}
+      parentId={parentId}
+      archived={archived}
+      selectedIds={filters.tagIds}
+      onApply={filters.setTags}
+    />
+  );
 
   return (
     <>
@@ -64,29 +79,13 @@ export function KnowledgeBaseSearchToolbar({
 
         {/* `contents`, so a folder with no tags leaves no empty box — and no gap — under the search. */}
         <div className="hidden content-md:contents">
-          <Suspense fallback={<SelectableTagsRowSkeleton />}>
-            <KnowledgeBaseTagsRow
-              parentId={parentId}
-              archived={archived}
-              selectedIds={filters.tagIds}
-              onAdd={filters.addTag}
-            />
-          </Suspense>
+          <LoadingSuspense label="Loading tags">{tagsRow}</LoadingSuspense>
         </div>
       </div>
 
       {/* Beside the bar, not inside it: the bar is a stacking context (`sticky` + `z-20`), and a
           modal inside it could never rise above the app header. */}
-      <Suspense fallback={null}>
-        <KnowledgeBaseTagsFilterModal
-          isOpen={isTagsModalOpen}
-          onClose={() => setIsTagsModalOpen(false)}
-          parentId={parentId}
-          archived={archived}
-          selectedIds={filters.tagIds}
-          onApply={filters.setTags}
-        />
-      </Suspense>
+      <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core';
 import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -26,7 +27,6 @@ import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
-import { MonitoringEditSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { useQueries } from '../../hooks/use-queries';
 import { usePolicyDevices } from '../../policy/hooks/use-policy-devices';
@@ -242,10 +242,6 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
     [handleSubmit, onSubmit, onFormError, isSaving, hasName],
   );
 
-  if (isLoadingQuery && isExistingQuery) {
-    return <MonitoringEditSkeleton kind="query" onBack={handleBack} />;
-  }
-
   if (queryError && isExistingQuery) {
     return <LoadError message={`Error loading query: ${queryError}`} />;
   }
@@ -254,131 +250,135 @@ export function EditQueryPage({ queryId }: EditQueryPageProps) {
     return <NotFoundError message="Query not found" />;
   }
 
+  // While the record loads the form draws itself empty in a loading scope: each part its own skeleton.
+  const loadingRecord = isLoadingQuery && isExistingQuery;
   return (
-    <PageLayout
-      title={isExistingQuery && queryDetails ? queryDetails.name : 'New Query'}
-      backButton={{
-        label: 'Back',
-        onClick: handleBack,
-      }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div className="space-y-6 content-md:space-y-8">
-        {/* Name & Frequency */}
-        <div className="flex flex-col gap-4 content-md:flex-row content-md:items-end">
-          {/* Name */}
-          <div className="w-full content-md:max-w-[280px]">
-            <Input
-              {...register('name', {
-                onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
-              })}
-              label="Name"
-              placeholder="Enter Query Name"
-              error={errors.name?.message}
+    <LoadingWhen loading={loadingRecord}>
+      <PageLayout
+        title={isExistingQuery ? (queryDetails?.name ?? '') : 'New Query'}
+        backButton={{
+          label: 'Back',
+          onClick: handleBack,
+        }}
+        actions={actions}
+        actionsVariant="primary-buttons"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        <div className="space-y-6 content-md:space-y-8">
+          {/* Name & Frequency */}
+          <div className="flex flex-col gap-4 content-md:flex-row content-md:items-end">
+            {/* Name */}
+            <div className="w-full content-md:max-w-[280px]">
+              <Input
+                {...register('name', {
+                  onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
+                })}
+                label="Name"
+                placeholder="Enter Query Name"
+                error={errors.name?.message}
+              />
+            </div>
+
+            {/* Frequency */}
+            <Controller
+              name="interval"
+              control={control}
+              render={({ field, fieldState }) => {
+                const handleValueChange = (raw: string) => {
+                  const num = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
+                  setFrequencyValue(num);
+                  field.onChange(unitValueToSeconds(num, frequencyUnit));
+                };
+
+                const handleUnitChange = (unit: string) => {
+                  const newUnit = unit as TimeUnit;
+                  setFrequencyUnit(newUnit);
+                  field.onChange(unitValueToSeconds(frequencyValue, newUnit));
+                };
+
+                return (
+                  <div className="space-y-1">
+                    <Label className="!mb-0">Frequency</Label>
+                    <div className="flex gap-3">
+                      <Input
+                        type="number"
+                        min={0}
+                        // Empty instead of a literal 0 so typing "1" gives "1",
+                        // not "01" appended after the sticky zero; the change
+                        // handler already maps '' back to 0.
+                        value={frequencyValue === 0 ? '' : frequencyValue}
+                        onChange={e => handleValueChange(e.target.value)}
+                        invalid={!!fieldState.error}
+                        className="w-[120px]"
+                        placeholder="0"
+                      />
+                      <Select value={frequencyUnit} onValueChange={handleUnitChange}>
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIME_UNITS.map(u => (
+                            <SelectItem key={u.value} value={u.value}>
+                              {u.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                );
+              }}
             />
           </div>
 
-          {/* Frequency */}
-          <Controller
-            name="interval"
-            control={control}
-            render={({ field, fieldState }) => {
-              const handleValueChange = (raw: string) => {
-                const num = raw === '' ? 0 : Math.max(0, Math.floor(Number(raw)));
-                setFrequencyValue(num);
-                field.onChange(unitValueToSeconds(num, frequencyUnit));
-              };
+          {/* Description */}
+          <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Query Description" />
 
-              const handleUnitChange = (unit: string) => {
-                const newUnit = unit as TimeUnit;
-                setFrequencyUnit(newUnit);
-                field.onChange(unitValueToSeconds(frequencyValue, newUnit));
-              };
-
-              return (
-                <div className="space-y-1">
-                  <Label className="!mb-0">Frequency</Label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="number"
-                      min={0}
-                      // Empty instead of a literal 0 so typing "1" gives "1",
-                      // not "01" appended after the sticky zero; the change
-                      // handler already maps '' back to 0.
-                      value={frequencyValue === 0 ? '' : frequencyValue}
-                      onChange={e => handleValueChange(e.target.value)}
-                      invalid={!!fieldState.error}
-                      className="w-[120px]"
-                      placeholder="0"
-                    />
-                    <Select value={frequencyUnit} onValueChange={handleUnitChange}>
-                      <SelectTrigger className="w-[160px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIME_UNITS.map(u => (
-                          <SelectItem key={u.value} value={u.value}>
-                            {u.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              );
-            }}
-          />
-        </div>
-
-        {/* Description */}
-        <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Query Description" />
-
-        {/* Query + inline test block */}
-        <div className="space-y-1">
-          <Label className="!mb-0">Query</Label>
-          <Controller
-            name="query"
-            control={control}
-            render={({ field }) => (
-              <ScriptEditor
-                value={field.value}
-                onChange={val => {
-                  field.onChange(val);
-                  setHasQuery(!!val?.trim());
-                }}
-                shell="sql"
-                height="300px"
-              />
-            )}
-          />
-          {/* 8px gap under the editor, matching the section's internal gap
+          {/* Query + inline test block */}
+          <div className="space-y-1">
+            <Label className="!mb-0">Query</Label>
+            <Controller
+              name="query"
+              control={control}
+              render={({ field }) => (
+                <ScriptEditor
+                  value={field.value}
+                  onChange={val => {
+                    field.onChange(val);
+                    setHasQuery(!!val?.trim());
+                  }}
+                  shell="sql"
+                  height="300px"
+                />
+              )}
+            />
+            {/* 8px gap under the editor, matching the section's internal gap
               (the parent's space-y-1 would give 4px). */}
-          <TestQuerySection
-            getQuery={getQuery}
-            hasQuery={hasQuery}
-            devices={queryDevices}
-            isLoadingDevices={isLoadingDevices}
-            className="!mt-[var(--spacing-system-xsf)]"
-          />
-        </div>
+            <TestQuerySection
+              getQuery={getQuery}
+              hasQuery={hasQuery}
+              devices={queryDevices}
+              isLoadingDevices={isLoadingDevices}
+              className="!mt-[var(--spacing-system-xsf)]"
+            />
+          </div>
 
-        {/* Devices */}
-        <div className="space-y-1">
-          <h2 className="text-ods-text-primary text-h2">Devices</h2>
-          <DeviceSelector
-            devices={queryDevices}
-            loading={isLoadingDevices}
-            selectedIds={stringSelectedIds}
-            getDeviceKey={getDeviceKey}
-            onSelectionChange={handleDeviceSelectionChange}
-            disabled={isSaving}
-            addAllBehavior="merge"
-            isDeviceDisabled={d => (getFleetHostId(d) === undefined ? 'Fleet agent is\nnot installed' : undefined)}
-          />
+          {/* Devices */}
+          <div className="space-y-1">
+            <h2 className="text-ods-text-primary text-h2">Devices</h2>
+            <DeviceSelector
+              devices={queryDevices}
+              loading={isLoadingDevices || loadingRecord}
+              selectedIds={stringSelectedIds}
+              getDeviceKey={getDeviceKey}
+              onSelectionChange={handleDeviceSelectionChange}
+              disabled={isSaving}
+              addAllBehavior="merge"
+              isDeviceDisabled={d => (getFleetHostId(d) === undefined ? 'Fleet agent is\nnot installed' : undefined)}
+            />
+          </div>
         </div>
-      </div>
-    </PageLayout>
+      </PageLayout>
+    </LoadingWhen>
   );
 }

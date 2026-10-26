@@ -1,11 +1,10 @@
 'use client';
 
 import { TitleBlock } from '@flamingo-stack/openframe-frontend-core';
-import { AgentMark, LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { memo, type ReactNode, Suspense } from 'react';
-import { NotesSectionSkeleton } from '@/app/components/shared';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { memo, type ReactNode } from 'react';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { InsightStatus } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -16,12 +15,12 @@ import { useIncident, useIncidentDetail } from '../hooks/use-incident';
 import { useLatestIncidentDialog } from '../hooks/use-incident-dialogs';
 import { useIncidentTransitions } from '../hooks/use-incident-transitions';
 import { INCIDENT_TRANSITION_ACTIONS } from '../utils/incident-labels';
-import { transitionsFrom } from '../utils/incident-transform';
+import { type Incident, type IncidentTransitionTable, transitionsFrom } from '../utils/incident-transform';
 import { IncidentAssignedTickets } from './incident-assigned-tickets';
 import { IncidentAssignee } from './incident-assignee';
 import { IncidentNotes } from './incident-notes';
-import { IncidentQueryResults, IncidentQueryResultsSkeleton } from './incident-query-results';
-import { IncidentSummaryCard, IncidentSummaryCardSkeleton } from './incident-summary-card';
+import { IncidentQueryResults } from './incident-query-results';
+import { IncidentSummaryCard } from './incident-summary-card';
 import { SnoozeIncidentModal } from './snooze-incident-modal';
 import { transitionMenuItems } from './transition-menu-items';
 
@@ -44,8 +43,48 @@ const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
  */
 function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   const { incident, transitions } = useIncidentDetail(incidentId);
+  return <IncidentHeaderView incident={incident} transitions={transitions} />;
+}
 
+interface IncidentHeaderViewProps {
+  /** Absent while the record loads: the header draws its own skeleton. */
+  incident?: Incident;
+  transitions?: IncidentTransitionTable;
+}
+
+/** Three label-width placeholders: the header settles into Fix with Mingo, Create Ticket and the status button. */
+const LOADING_ACTIONS: PageActionButton[] = [
+  { label: 'Fix with Mingo' },
+  { label: 'Create Ticket' },
+  { label: 'Resolve' },
+];
+
+/**
+ * The header over a record. Without one (or in a loading scope) the same header draws itself: the static title and
+ * back button real, the record's actions as placeholders. The loaded actions read the record's chat (a suspending
+ * query), so they live in their own component under the same title block.
+ */
+function IncidentHeaderView({ incident, transitions }: IncidentHeaderViewProps) {
+  const loading = useLoadingScope() || !incident || !transitions;
+  if (loading) return <IncidentTitleBlock actions={LOADING_ACTIONS} loading />;
+  return <IncidentHeaderLoaded incident={incident} transitions={transitions} />;
+}
+
+/** The page's title block, loaded or loading: the static title, Back to the list, the actions given. */
+function IncidentTitleBlock({ actions, loading = false }: { actions: PageActionButton[]; loading?: boolean }) {
   const handleBack = useSafeBack(routes.incidents.list);
+  return (
+    <TitleBlock
+      title="Incident Details"
+      backButton={{ label: 'Back', onClick: handleBack }}
+      actions={actions}
+      loadingActions={loading}
+      actionsVariant="icon-buttons"
+    />
+  );
+}
+
+function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeaderViewProps>) {
   const mingoControls = useFixWithMingo();
   // One Mingo button: reopen the chat already started from this incident, or start one.
   const mingoSession = useLatestIncidentDialog(incident.insightId);
@@ -101,12 +140,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
 
   return (
     <>
-      <TitleBlock
-        title="Incident Details"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={actions}
-        actionsVariant="icon-buttons"
-      />
+      <IncidentTitleBlock actions={actions} />
       <SnoozeIncidentModal
         key={snoozeTarget?.id ?? 'closed'}
         open={snoozeTarget !== null}
@@ -118,7 +152,7 @@ function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
   );
 }
 
-/** The summary card — the same record as the header (see `useIncident`). */
+/** The summary card: the same record as the header (see `useIncident`). */
 function IncidentSummary({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentSummaryCard incident={incident} assigneeSlot={<IncidentAssignee incident={incident} />} />;
@@ -128,28 +162,6 @@ function IncidentSummary({ incidentId }: IncidentDetailsViewProps) {
 function IncidentEvidence({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentQueryResults incident={incident} />;
-}
-
-/** Three label-width placeholders: the header settles into Fix with Mingo, Create Ticket and the status button. */
-const LOADING_ACTIONS: PageActionButton[] = [
-  { label: 'Fix with Mingo' },
-  { label: 'Create Ticket' },
-  { label: 'Resolve' },
-];
-
-function IncidentHeaderSkeleton({ region = true }: { region?: boolean } = {}) {
-  const handleBack = useSafeBack(routes.incidents.list);
-  return (
-    <LoadingRegion className="contents" label="Loading incident" announce={region}>
-      <TitleBlock
-        title="Incident Details"
-        backButton={{ label: 'Back', onClick: handleBack }}
-        actions={LOADING_ACTIONS}
-        loadingActions
-        actionsVariant="icon-buttons"
-      />
-    </LoadingRegion>
-  );
 }
 
 /** `PageLayout`'s two boxes, composed by hand so each island can wait on its own. */
@@ -162,47 +174,51 @@ function IncidentDetailsFrame({ header, body }: { header: ReactNode; body: React
   );
 }
 
-/** The whole page before it may render at all (the feature flag still unanswered). */
-export function IncidentDetailsSkeleton() {
-  return (
-    <IncidentDetailsFrame
-      header={<IncidentHeaderSkeleton region={false} />}
-      body={
-        <LoadingRegion className="contents" label="Loading incident">
-          <IncidentSummaryCardSkeleton region={false} />
-          <NotesSectionSkeleton region={false} />
-          <IncidentQueryResultsSkeleton region={false} />
-        </LoadingRegion>
-      }
-    />
-  );
-}
-
 /**
  * Incident details page. Composes the frozen `TitleBlock` by hand (not
  * `PageLayout`) so only the pieces that read the record suspend — the same
  * shape as the script details page.
  */
 export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incidentId }: IncidentDetailsViewProps) {
+  // In a loading scope (the feature flag still unanswered) nothing may read: every part draws itself without data.
+  if (useLoadingScope()) {
+    return (
+      <IncidentDetailsFrame
+        header={<IncidentHeaderView />}
+        body={
+          <>
+            <IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />
+            <IncidentNotes incidentId={incidentId} />
+            <IncidentQueryResults />
+          </>
+        }
+      />
+    );
+  }
   return (
     <IncidentDetailsFrame
       header={
-        <Suspense fallback={<IncidentHeaderSkeleton />}>
+        <LoadingSuspense label="Loading incident" fallback={<IncidentHeaderView />}>
           <IncidentHeader incidentId={incidentId} />
-        </Suspense>
+        </LoadingSuspense>
       }
       body={
-        // Notes sit between the card and the evidence but fetch on their own —
-        // they need only the id, so they do not wait behind the record.
+        // Notes sit between the card and the evidence but fetch on their own:
+        // they need only the id, so they do not wait behind the record. The
+        // assigned tickets come last: most incidents have none, so the section
+        // appears with its rows below everything the page always shows.
         <>
-          <Suspense fallback={<IncidentSummaryCardSkeleton />}>
+          <LoadingSuspense
+            label="Loading incident summary"
+            fallback={<IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />}
+          >
             <IncidentSummary incidentId={incidentId} />
-          </Suspense>
+          </LoadingSuspense>
           <IncidentNotes incidentId={incidentId} />
-          <IncidentAssignedTickets incidentId={incidentId} />
-          <Suspense fallback={<IncidentQueryResultsSkeleton />}>
+          <LoadingSuspense label="Loading query results" fallback={<IncidentQueryResults />}>
             <IncidentEvidence incidentId={incidentId} />
-          </Suspense>
+          </LoadingSuspense>
+          <IncidentAssignedTickets incidentId={incidentId} />
         </>
       }
     />

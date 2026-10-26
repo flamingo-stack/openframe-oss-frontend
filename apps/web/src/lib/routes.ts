@@ -191,6 +191,8 @@ export const routes = {
   root: '/',
   dashboard: '/dashboard',
   onboarding: '/onboarding',
+  /** The AI-first setup wizard (flag `onboarding-v2`): the tenant Initial Setup, full screen. */
+  setup: '/setup',
   helpCenter: {
     root: '/help-center',
     onboardingGuides: '/help-center/onboarding-guides',

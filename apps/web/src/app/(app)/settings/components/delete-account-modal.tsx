@@ -4,12 +4,14 @@ import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/compo
 import {
   Button,
   Label,
+  LoadingWhen,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   SquareAvatar,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
@@ -49,7 +51,10 @@ function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disa
   const { users, isLoading } = useUsers(0, 1000);
   const candidates = users.filter(u => u.id !== currentUserId && u.status === UserStatus.Active);
 
-  if (!isLoading && candidates.length === 0) {
+  // While the members are on their way: the real field, its label real and the select drawing its own loading state.
+  const loading = useLoadingScope() || isLoading;
+
+  if (!loading && candidates.length === 0) {
     return (
       <p className="text-ods-text-primary text-h4">
         You&apos;re the only active member of {organizationName}, so there is no one to hand ownership to. Invite
@@ -62,34 +67,34 @@ function NewOwnerSelect({ currentUserId, organizationName, value, onChange, disa
     );
   }
 
-  const placeholder = isLoading ? 'Loading users...' : 'Select new owner';
-
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xs)]">
       <Label htmlFor="new-owner-select">New Owner</Label>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id="new-owner-select">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {candidates.map(candidate => {
-            const name = `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email;
-            return (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                <span className="flex items-center gap-[var(--spacing-system-xs)]">
-                  <SquareAvatar
-                    src={getFullImageUrl(candidate.image?.imageUrl, candidate.image?.hash)}
-                    fallback={name}
-                    size="sm"
-                    variant="round"
-                  />
-                  {name}
-                </span>
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
+      <LoadingWhen loading={loading}>
+        <Select value={value} onValueChange={onChange} disabled={disabled || loading}>
+          <SelectTrigger id="new-owner-select">
+            <SelectValue placeholder="Select new owner" />
+          </SelectTrigger>
+          <SelectContent>
+            {candidates.map(candidate => {
+              const name = `${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email;
+              return (
+                <SelectItem key={candidate.id} value={candidate.id}>
+                  <span className="flex items-center gap-[var(--spacing-system-xs)]">
+                    <SquareAvatar
+                      src={getFullImageUrl(candidate.image?.imageUrl, candidate.image?.hash)}
+                      fallback={name}
+                      size="sm"
+                      variant="round"
+                    />
+                    {name}
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      </LoadingWhen>
     </div>
   );
 }

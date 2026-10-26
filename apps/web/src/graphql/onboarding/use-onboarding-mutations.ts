@@ -9,7 +9,11 @@ import type { completeTenantOnboardingStepMutation as CompleteTenantStepType } f
 import type { completeUserOnboardingMutation as CompleteUserType } from '@/__generated__/completeUserOnboardingMutation.graphql';
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
+import type { setUserOnboardingTourDialogMutation as SetTourDialogType } from '@/__generated__/setUserOnboardingTourDialogMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
+import { clearGettingStartedView, resetGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
+import { clearTourStarted } from '@/app/(app)/setup/lib/tour-state';
+import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 import type { Instant } from '@/lib/graphql-scalars';
 import {
@@ -22,10 +26,11 @@ import { completeTenantOnboardingStepMutation } from './complete-tenant-onboardi
 import { completeUserOnboardingMutation } from './complete-user-onboarding-mutation';
 import { completeUserOnboardingStepMutation } from './complete-user-onboarding-step-mutation';
 import { resetUserOnboardingMutation } from './reset-user-onboarding-mutation';
+import { setUserOnboardingTourDialogMutation } from './set-user-onboarding-tour-dialog-mutation';
 import { skipUserOnboardingMutation } from './skip-user-onboarding-mutation';
 
 type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt?: Instant | null };
-type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null };
+type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null; tourDialogId?: string | null };
 
 function toTenant(payload: TenantPayload): TenantOnboardingProgress {
   return {
@@ -42,6 +47,7 @@ function toUser(payload: UserPayload): UserOnboardingProgress {
     completedAt: payload.completedAt ?? null,
     skipped: payload.skipped,
     skippedAt: payload.skippedAt ?? null,
+    tourDialogId: payload.tourDialogId ?? null,
   };
 }
 
@@ -62,6 +68,7 @@ export function useOnboardingMutations() {
   const environment = useRelayEnvironment();
   const setTenant = useOnboardingStore(state => state.setTenant);
   const setUser = useOnboardingStore(state => state.setUser);
+  const userId = useAuthStore(state => state.user?.id);
   const [pending, setPending] = useState(0);
 
   const begin = useCallback(() => setPending(count => count + 1), []);
@@ -173,11 +180,31 @@ export function useOnboardingMutations() {
     commitMutation<CompleteUserType>(environment, {
       mutation: completeUserOnboardingMutation,
       variables: {},
-      onCompleted: res => setUser(toUser(res.completeUserOnboarding)),
+      onCompleted: res => {
+        setUser(toUser(res.completeUserOnboarding));
+        // The tour is over: the Getting Started block's remembered shape goes with it.
+        clearGettingStartedView(userId);
+      },
       onError: err =>
         toast({ title: 'Error', description: err.message || 'Failed to finish onboarding', variant: 'destructive' }),
     });
-  }, [environment, setUser, toast]);
+  }, [environment, setUser, toast, userId]);
+
+  // The Mingo panel created the tour's conversation: remember it with the rest
+  // of the user's progress, so another device finds the same conversation.
+  // Fire-and-forget like the step completions; a repeat overwrites. Errors toast.
+  const setTourDialogInBackground = useCallback(
+    (dialogId: string) => {
+      commitMutation<SetTourDialogType>(environment, {
+        mutation: setUserOnboardingTourDialogMutation,
+        variables: { dialogId },
+        onCompleted: res => setUser(toUser(res.setUserOnboardingTourDialog)),
+        onError: err =>
+          toast({ title: 'Error', description: err.message || 'Failed to save the tour', variant: 'destructive' }),
+      });
+    },
+    [environment, setUser, toast],
+  );
 
   const skipUser = useCallback(
     (onDone?: () => void) => {
@@ -188,13 +215,30 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.skipUserOnboarding));
+          clearGettingStartedView(userId);
           onDone?.();
         },
         onError: onError('Failed to skip onboarding'),
       });
     },
-    [environment, begin, finish, setUser, onError],
+    [environment, begin, finish, setUser, onError, userId],
   );
+
+  // Fire-and-forget skip, for the tour's conversation archived while the tour
+  // is on: the user set the tour aside, and "Reset Onboarding" brings it back.
+  // No spinner and no success toast - the archive has its own. Errors toast.
+  const skipUserInBackground = useCallback(() => {
+    commitMutation<SkipUserType>(environment, {
+      mutation: skipUserOnboardingMutation,
+      variables: {},
+      onCompleted: res => {
+        setUser(toUser(res.skipUserOnboarding));
+        clearGettingStartedView(userId);
+      },
+      onError: err =>
+        toast({ title: 'Error', description: err.message || 'Failed to skip onboarding', variant: 'destructive' }),
+    });
+  }, [environment, setUser, toast, userId]);
 
   const resetUser = useCallback(
     (onDone?: () => void) => {
@@ -205,6 +249,10 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.resetUserOnboarding));
+          // The v2 tour's "started" marker is part of the user's progress too,
+          // and the tour starts over as the list.
+          clearTourStarted(userId);
+          resetGettingStartedView(userId);
           toast({
             title: 'Onboarding reset',
             description: 'Your Get Started tour is available again.',
@@ -215,7 +263,7 @@ export function useOnboardingMutations() {
         onError: onError('Failed to reset onboarding'),
       });
     },
-    [environment, begin, finish, setUser, toast, onError],
+    [environment, begin, finish, setUser, toast, onError, userId],
   );
 
   return {
@@ -225,7 +273,9 @@ export function useOnboardingMutations() {
     completeUserStep,
     completeUserStepInBackground,
     completeUserInBackground,
+    setTourDialogInBackground,
     skipUser,
+    skipUserInBackground,
     resetUser,
     isMutating: pending > 0,
   };

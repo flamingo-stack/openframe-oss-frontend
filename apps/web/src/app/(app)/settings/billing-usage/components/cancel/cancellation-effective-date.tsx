@@ -1,7 +1,9 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { cancellationEffectiveDate_query$key } from '@/__generated__/cancellationEffectiveDate_query.graphql';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatDate } from '@/lib/format-date';
 
 /**
@@ -20,14 +22,22 @@ const cancellationEffectiveDateFragment = graphql`
   }
 `;
 
-export function CancellationEffectiveDate({ query }: { query: cancellationEffectiveDate_query$key }) {
+/** `query` is null only while the dialog's query is on its way (drawn in a loading scope): the sentence is fixed copy
+ * and stays real, the date is a bar. */
+export function CancellationEffectiveDate({ query }: { query: cancellationEffectiveDate_query$key | null }) {
   const data = useFragment(cancellationEffectiveDateFragment, query);
-  const date = data.subscriptionCancellationPreview ?? data.subscription?.currentPeriodEnd ?? null;
+  const loading = useLoadingScope() || data == null;
 
   return (
     <div className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4">
       <span>Your subscription will remain active until:</span>
-      <span className="text-ods-warning">{formatDate(date)}</span>
+      {loading ? (
+        <LoadingLine as="span" type="h4" className="w-20" />
+      ) : (
+        <span className="text-ods-warning">
+          {formatDate(data.subscriptionCancellationPreview ?? data.subscription?.currentPeriodEnd ?? null)}
+        </span>
+      )}
     </div>
   );
 }

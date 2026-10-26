@@ -1,7 +1,9 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useDeferredLogList } from '../../../hooks/use-deferred-log-list';
 import { DEVICE_LOG_PARAM_SCHEMA, useDeviceLogFilters } from '../../../hooks/use-device-log-filters';
@@ -9,16 +11,18 @@ import type { Device } from '../../../types/device.types';
 import { DeviceLogDrawer } from './device-log-drawer';
 import type { DeviceLogEntry } from './device-log-row';
 import { DeviceLogsList } from './device-logs-list';
-import { DeviceLogsListSkeleton } from './device-logs-skeleton';
 import { DeviceLogsToolbar } from './device-logs-toolbar';
 
 interface DeviceLogsTabProps {
-  device: Device;
+  /** Null while the device is read: the tab is drawn in the page's loading scope. */
+  device: Device | null;
 }
 
 /** Device details → Device Logs. Filters ride the URL under `log*` keys, apart from the Overview logs table's. */
 export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
-  const machineId = device.machineId || device.id;
+  // The device has not answered: the toolbar draws locked and the list its own skeleton.
+  const loading = useLoadingScope();
+  const machineId = device?.machineId || device?.id || '';
   const filters = useDeviceLogFilters(useApiParams(DEVICE_LOG_PARAM_SCHEMA));
   const { filter, anchor } = filters;
 
@@ -32,6 +36,26 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
   const [autoUpdate, setAutoUpdate] = useState(true);
   // Kept here, above the list: the list remounts per filter, and an open drawer should not close with it.
   const [selected, setSelected] = useState<{ key: string; entry: DeviceLogEntry } | null>(null);
+
+  // The deferred list trails the live one by the debounce: right after the device answers it still holds the empty
+  // machine id the loading state was built with. The list stays in its loading form (and asks for nothing) until the
+  // deferred list carries the real one.
+  const logsList = (
+    <LoadingWhen loading={!deferredList.machineIds[0]}>
+      <DeviceLogsList
+        key={deferredList.key}
+        machineIds={deferredList.machineIds}
+        filter={deferredList.filter}
+        deviceHostname={device?.hostname}
+        isPending={isPending}
+        autoUpdate={autoUpdate && !filters.rangeClosed}
+        hasFilters={filters.hasFilters}
+        onResetFilters={filters.resetFilters}
+        selectedKey={selected?.key ?? null}
+        onSelect={(key, entry) => setSelected({ key, entry })}
+      />
+    </LoadingWhen>
+  );
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -50,25 +74,15 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
         onAutoUpdateChange={setAutoUpdate}
         onRefresh={filters.refresh}
         isRefreshing={isPending}
+        disabled={loading}
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
       <ContentErrorBoundary label="DeviceLogsTab" message="Couldn't load device logs." resetKey={deferredList.key}>
-        <Suspense fallback={<DeviceLogsListSkeleton />}>
-          <DeviceLogsList
-            key={deferredList.key}
-            machineIds={deferredList.machineIds}
-            filter={deferredList.filter}
-            deviceHostname={device.hostname}
-            isPending={isPending}
-            autoUpdate={autoUpdate && !filters.rangeClosed}
-            hasFilters={filters.hasFilters}
-            onResetFilters={filters.resetFilters}
-            selectedKey={selected?.key ?? null}
-            onSelect={(key, entry) => setSelected({ key, entry })}
-          />
-        </Suspense>
+        <LoadingSuspense label="Loading logs">{logsList}</LoadingSuspense>
       </ContentErrorBoundary>
-      <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} deviceId={machineId} />
+      {device && (
+        <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} deviceId={machineId} />
+      )}
     </div>
   );
 }
