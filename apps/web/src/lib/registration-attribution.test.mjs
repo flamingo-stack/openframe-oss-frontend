@@ -61,14 +61,17 @@ const A = await import('./registration-attribution.ts');
 beforeEach(resetBrowser);
 
 test('collects cookies, URL params and a minted event id', () => {
-  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc');
+  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.Ab-Cd');
   window.location.search =
-    '?fbclid=FBID&gclid=GG&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
+    '?fbclid=FBID&gclid=GG&gbraid=GbR&wbraid=WbR&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
   A.captureAttributionFromUrl();
 
   const got = A.collectRegistrationAttribution();
   assert.equal(got.fbc, 'fb.1.170.AbC');
   assert.equal(got.fbp, 'fb.1.170.999');
+  assert.equal(got.rdtUuid, '1700000000000.Ab-Cd', 'the Reddit pixel cookie, exactly as read');
+  assert.equal(got.gbraid, 'GbR');
+  assert.equal(got.wbraid, 'WbR');
   assert.equal(got.hutk, 'hutk-abc', 'the HubSpot cookie rides to the backend for the form submission');
   assert.equal(got.fbclid, 'FBID');
   assert.equal(got.gclid, 'GG');
@@ -98,6 +101,27 @@ test('first touch wins: a landing param is kept over a later URL param', () => {
   A.captureAttributionFromUrl(); // must not overwrite the stored landing value
 
   assert.equal(A.collectRegistrationAttribution().utmSource, 'facebook');
+});
+
+// Google's click ids for iOS traffic stand in for a gclid; the backend sends them to Google Ads.
+test("Google's iOS click ids are kept first touch, like gclid", () => {
+  window.location.search = '?gbraid=FIRST-g&wbraid=FIRST-w';
+  A.captureAttributionFromUrl();
+  window.location.search = '?gbraid=later&wbraid=later';
+  A.captureAttributionFromUrl();
+
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.gbraid, 'FIRST-g');
+  assert.equal(got.wbraid, 'FIRST-w');
+});
+
+test('the ad conversion values ride exactly as read, case and all', () => {
+  cookies.push('_rdt_uuid=1700000000000.MiXeD-Case');
+  window.location.search = '?gbraid=0AAAAA-MiXeD_case';
+
+  const got = A.collectRegistrationAttribution();
+  assert.equal(got.gbraid, '0AAAAA-MiXeD_case');
+  assert.equal(got.rdtUuid, '1700000000000.MiXeD-Case');
 });
 
 test('a direct landing on the signup page still captures its params', () => {
@@ -422,19 +446,19 @@ test('no signals present yields only the always-minted event id', () => {
 // collected but silently dropped from the query string is exactly the kind of gap behind the
 // low fbp coverage on one flow.
 test('SSO query params carry every collected field, matching the password body', () => {
-  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc');
+  cookies.push('_fbc=fb.1.170.AbC', '_fbp=fb.1.170.999', 'hubspotutk=hutk-abc', '_rdt_uuid=1700000000000.uuid');
   document.referrer = 'https://www.facebook.com/';
   window.location.search =
-    '?fbclid=FBID&gclid=GG&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
+    '?fbclid=FBID&gclid=GG&gbraid=GB&wbraid=WB&rdt_cid=RD&li_fat_id=LI&utm_source=facebook&utm_medium=cpc&utm_campaign=q3&utm_content=v1&utm_term=msp';
   A.captureAttributionFromUrl();
 
   const collected = A.collectRegistrationAttribution();
   const params = new URLSearchParams({ tenantName: 'org', tenantDomain: 'org.openframe.example' });
   A.appendAttributionQueryParams(params, collected);
 
-  // 3 cookies + 9 URL params + eventId + referrer + landingUrl = 15 fields, every one present as a
+  // 4 cookies + 11 URL params + eventId + referrer + landingUrl = 18 fields, every one present as a
   // bare key alongside the two tenant params the endpoint takes as @RequestParam.
-  assert.equal([...params.keys()].length, 15 + 2);
+  assert.equal([...params.keys()].length, 18 + 2);
   assert.equal(params.get('referrer'), 'https://www.facebook.com/');
   assert.equal(params.get('landingUrl'), 'https://auth.openframe.ai/auth/');
   for (const [field, value] of Object.entries(collected)) {

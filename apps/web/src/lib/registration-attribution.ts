@@ -15,19 +15,19 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  * Three different lifetimes are at play, which is why this file has both a capture step and a
  * collect step:
  *
- * - **Cookies** (`_fbc`, `_fbp`) are written by the Meta pixel. They are not HttpOnly, they
- *   live on the openframe.ai origin, and they are still there at submit time — so they are
- *   read directly when the form is submitted, and the register request does not need to be
- *   same-domain.
+ * - **Cookies** (`_fbc`, `_fbp`, and Reddit's `_rdt_uuid`) are written by the ad pixels. They
+ *   are not HttpOnly, they live on the openframe.ai origin, and they are still there at submit
+ *   time, so they are read directly when the form is submitted, and the register request does
+ *   not need to be same-domain.
  *
- * - **URL parameters** (`fbclid`, `gclid`, `rdt_cid`, `li_fat_id`, `utm_*`) exist only in the
- *   address bar of the *landing* page. A visitor who lands on `/` and then navigates to
- *   `/auth` has already lost them, so they are captured into localStorage on first load
- *   (see `captureAttributionFromUrl`, mounted app-wide) and read back at submit. Each entry
- *   carries its capture timestamp and expires after 90 days — enforced in code, because
- *   localStorage itself never expires — so the ad click survives the tab being closed and a
- *   return visit days later, without attributing signups to clicks from another quarter.
- *   Known limitation: Safari ITP caps script-writable storage at ~7 days; accepted as-is.
+ * - **URL parameters** (`fbclid`, `gclid`, `gbraid`, `wbraid`, `rdt_cid`, `li_fat_id`, `utm_*`)
+ *   exist only in the address bar of the *landing* page. A visitor who lands on `/` and then
+ *   navigates to `/auth` has already lost them, so they are captured into localStorage on first
+ *   load (see `captureAttributionFromUrl`, mounted app-wide) and read back at submit. Each entry
+ *   carries its capture timestamp and expires after 90 days (enforced in code, because
+ *   localStorage itself never expires), so the ad click survives the tab being closed and a
+ *   return visit days later, without attributing signups to clicks from another quarter. Known
+ *   limitation: Safari ITP caps script-writable storage at ~7 days; accepted as-is.
  *
  * - **The visit** (`referrer`, `landingUrl`) is where the visitor came from and the first page
  *   they saw, kept as a pair from the page load they *arrived* on, first touch, in the same
@@ -74,8 +74,14 @@ export interface Touchpoint {
   hutk?: string;
   /** Google click id. */
   gclid?: string;
+  /** Google's click id for iOS app traffic, used when there is no `gclid`. */
+  gbraid?: string;
+  /** Google's click id for iOS web traffic, used when there is no `gclid`. */
+  wbraid?: string;
   /** Reddit click id. */
   rdtCid?: string;
+  /** `_rdt_uuid` cookie value: the Reddit pixel's browser id, sent to Reddit with the signup. */
+  rdtUuid?: string;
   /** LinkedIn click id. */
   liFatId?: string;
   utmSource?: string;
@@ -108,6 +114,8 @@ export interface Touchpoint {
 const URL_PARAM_TO_FIELD: Record<string, keyof Touchpoint> = {
   fbclid: 'fbclid',
   gclid: 'gclid',
+  gbraid: 'gbraid',
+  wbraid: 'wbraid',
   rdt_cid: 'rdtCid',
   li_fat_id: 'liFatId',
   utm_source: 'utmSource',
@@ -444,6 +452,7 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
   const raw: Touchpoint = {
     fbc: readCookie('_fbc'),
     fbp: readCookie('_fbp'),
+    rdtUuid: readCookie('_rdt_uuid'),
     // The marketing site's token first, the local cookie only for a visitor who never came
     // through the handoff (see the header). The live URL sits between them for the same reason
     // as the ad parameters below: a handoff straight to the signup page, submitted before the
