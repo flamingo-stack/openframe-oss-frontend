@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   Chevron02DownIcon,
   Chevron02UpIcon,
+  ExternalLinkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
@@ -28,6 +29,11 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /**
+   * "Open Fae", offered on the steps that open it (`TourStep.opensFae`).
+   * Absent where Fae cannot run (a phone): the chip is not shown.
+   */
+  onOpenFae?: () => void;
   /**
    * Mingo is answering in this conversation: the "try asking" chips are
    * disabled until it is done, since the chat takes one prompt at a time.
@@ -61,6 +67,7 @@ export function GettingStartedBlock({
   doneStepIds,
   onAction,
   onFinish,
+  onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
   // null until the user folds or unfolds it: the progress decides, and it may land
@@ -193,6 +200,16 @@ export function GettingStartedBlock({
                         ))}
                       </ul>
                     </fieldset>
+                    {/* Not a prompt, so it stays live while Mingo answers. */}
+                    {step.opensFae && onOpenFae && (
+                      <div className="flex">
+                        <QuickActionChipButton
+                          label="Open Fae"
+                          icon={<ExternalLinkIcon size={16} className="text-ods-flamingo-cyan" />}
+                          onSelect={onOpenFae}
+                        />
+                      </div>
+                    )}
                     {isLast && (
                       <div className="flex">
                         <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />

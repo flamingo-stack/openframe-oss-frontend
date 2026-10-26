@@ -59,6 +59,11 @@ export interface TourStep {
   /** The step as the backend records it. */
   userStep: UserOnboardingStep;
   actions: TourAction[];
+  /**
+   * The step also offers "Open Fae": the client side of tickets, Fae, opened on
+   * this machine (where the agent was just deployed) to send it a request.
+   */
+  opensFae?: boolean;
 }
 
 /** What the tour's chips depend on besides the design. */
@@ -123,6 +128,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         'Requests from your clients via their AI assistant. AI solves what it can and moves the rest to Tech required.',
       Icon: TagIcon,
       userStep: UserOnboardingStep.TICKETS,
+      opensFae: true,
       actions: [
         {
           id: 'create-ticket',

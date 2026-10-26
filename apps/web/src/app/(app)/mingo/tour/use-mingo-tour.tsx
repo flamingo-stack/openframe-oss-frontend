@@ -10,6 +10,7 @@ import { useTourState } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
+import { canOpenFaeApp, openFaeApp } from '@/lib/fae-app';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { MINGO_DIALOG_NOT_FOUND } from '../hooks/use-mingo-dialog-selection';
 import { GettingStartedBlock } from './getting-started-block';
@@ -200,6 +201,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
         doneStepIds={doneStepIds}
         onAction={handleAction}
         onFinish={handleFinish}
+        onOpenFae={canOpenFaeApp() ? openFaeApp : undefined}
         busy={isLoading}
       />
     ) : null,
