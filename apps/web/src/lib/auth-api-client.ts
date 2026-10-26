@@ -12,7 +12,7 @@ import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
   normalizeAttribution,
-  type RegistrationAttribution,
+  type Touchpoint,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
 import { refreshTokens } from './token-refresh-manager';
@@ -371,7 +371,7 @@ class AuthApiClient {
     tenantDomain: string;
     prNumber?: number;
     /** Marketing-attribution signals (click ids, campaign labels, tracking cookies, event id). */
-    attribution?: RegistrationAttribution;
+    attribution?: Touchpoint;
   }) {
     // Same "omit, never send empty" treatment the SSO query serialization applies — an
     // explicit caller-supplied object must not smuggle blank strings into the JSON body.

@@ -1,9 +1,16 @@
+import {
+  getPlatformByHostname,
+  hostOf,
+  toRegistrableBaseDomain,
+} from '@flamingo-stack/openframe-frontend-core/platform-domains';
+import { sanitizeLandingUrl } from '@flamingo-stack/openframe-frontend-core/utils';
 import { readCookie } from './cookies';
+import { isAppShell } from './platform';
 import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeReferralCode } from './referral-cookie';
 
 /**
  * Marketing-attribution signals collected at registration time, shaped to match the backend
- * `RegistrationAttribution` DTO — field names here must stay in sync with that Java class.
+ * `Touchpoint` DTO — field names here must stay in sync with that Java class.
  *
  * Three different lifetimes are at play, which is why this file has both a capture step and a
  * collect step:
@@ -21,6 +28,16 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *   localStorage itself never expires — so the ad click survives the tab being closed and a
  *   return visit days later, without attributing signups to clicks from another quarter.
  *   Known limitation: Safari ITP caps script-writable storage at ~7 days; accepted as-is.
+ *
+ * - **The visit** (`referrer`, `landingUrl`) is where the visitor came from and the first page
+ *   they saw, kept as a pair from the page load they *arrived* on, first touch, in the same
+ *   90-day localStorage. Both are reduced to `origin + pathname` (`sanitizeLandingUrl`): a raw
+ *   URL can carry tokens and email addresses, and this one goes to HubSpot. A visit handed over
+ *   by the marketing site (`?referrer=…&landing_url=…`) is the one it saw, so it beats this
+ *   page's own. A page load that came from one of our own sites, or back from a sign-in page,
+ *   is not an arrival and records no visit: an SSO return carries `accounts.google.com` as its
+ *   referrer, which the backend would count as organic search. Neither is recorded inside the
+ *   app shells, where there is no referrer and the page is a bundle URL.
  *
  * - **The HubSpot visitor token** is a cookie too (`hubspotutk`), but the token the contact
  *   should get is the *marketing site's*: the visitor's sessions and the ad click live on
@@ -43,7 +60,7 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  */
 
 /** Backend DTO shape. Every field optional; absent means "never send this property". */
-export interface RegistrationAttribution {
+export interface Touchpoint {
   /** Full `_fbc` cookie value — never truncate. */
   fbc?: string;
   /** `fbclid` from the landing URL; the backend uses it only when `_fbc` is absent. */
@@ -69,13 +86,25 @@ export interface RegistrationAttribution {
   eventId?: string;
   /** Partner referral code from the `of_ref` cookie — see `referral-cookie.ts`. */
   ref?: string;
+  /** The page the visitor came from, `origin + pathname` (see the header). The backend reads the
+   * channel from its host: a search engine, an AI assistant, or another site. */
+  referrer?: string;
+  /** The first page of the visit, `origin + pathname` (see the header). */
+  landingUrl?: string;
+  /** The id the desktop installer was downloaded with, handed to the app by its "Open the app" link. */
+  downloadId?: string;
+  /** The desktop app's "How did you hear about us?" answer: `search`, `ai`, `producthunt`,
+   * `social_ad`, `newsletter`, `friend`, `partner` or `other`. */
+  heardFrom?: string;
+  /** The text typed beside the `other` answer. */
+  heardFromOther?: string;
 }
 
 /**
  * URL parameter -> DTO field. Each entry also becomes a localStorage key (prefixed), so
  * adding a network here is a one-line change that flows through capture, storage and submit.
  */
-const URL_PARAM_TO_FIELD: Record<string, keyof RegistrationAttribution> = {
+const URL_PARAM_TO_FIELD: Record<string, keyof Touchpoint> = {
   fbclid: 'fbclid',
   gclid: 'gclid',
   rdt_cid: 'rdtCid',
@@ -100,6 +129,24 @@ const HUBSPOT_UTK_STORAGE_PARAM = 'hutk';
 
 /** A HubSpot visitor token: 32 hex characters, the `hubspotutk` cookie value. */
 const HUBSPOT_UTK_PATTERN = /^[0-9a-f]{32}$/i;
+
+/** The visit's URL parameters on the marketing site's handoff, and its localStorage entries. */
+const VISIT_REFERRER_PARAM = 'referrer';
+const VISIT_LANDING_URL_PARAM = 'landing_url';
+
+/** The backend's cap on a referrer or landing page. A longer one is dropped, not cut: half a path names no page. */
+const VISIT_URL_MAX_LENGTH = 2048;
+
+/**
+ * Sign-in pages of the SSO providers. A page load whose referrer is one of them is the end of a
+ * sign-in, not a visit — and `accounts.google.com` would read as organic search.
+ */
+const SIGN_IN_HOSTS = new Set([
+  'accounts.google.com',
+  'login.microsoftonline.com',
+  'login.live.com',
+  'appleid.apple.com',
+]);
 
 const STORAGE_PREFIX = 'of_attr_';
 
@@ -188,13 +235,92 @@ function readHubspotHandoffUtk(): string | undefined {
   return utk && readUrlParam(HUBSPOT_HSFP_PARAM) ? utk : undefined;
 }
 
+interface Visit {
+  referrer?: string;
+  landingUrl?: string;
+}
+
+/** A URL reduced to `origin + pathname`; `undefined` for anything that is not an http(s) page or is over the cap. */
+function toVisitUrl(raw: string | null | undefined): string | undefined {
+  const page = raw ? sanitizeLandingUrl(raw) : undefined;
+  return page && page.length <= VISIT_URL_MAX_LENGTH ? page : undefined;
+}
+
+/** Ours: this site's own registrable domain (`openframe.ai` from `auth.openframe.ai`), or another platform we run. */
+function isOwnHost(host: string): boolean {
+  const here = window.location.hostname.toLowerCase();
+  const base = toRegistrableBaseDomain(host);
+  return (
+    host === here ||
+    (base !== undefined && base === toRegistrableBaseDomain(here)) ||
+    getPlatformByHostname(host) !== null
+  );
+}
+
+/**
+ * Whether a referrer means the visitor did not arrive from outside: they came from one of our
+ * own sites (the original source is that site's to hand over) or back from a sign-in page.
+ */
+function isInsideReferrer(referrer: string): boolean {
+  const host = hostOf(referrer);
+  return host !== null && (SIGN_IN_HOSTS.has(host) || isOwnHost(host));
+}
+
+/** The document's referrer, `undefined` when there is none or it cannot be read. */
+function readDocumentReferrer(): string | undefined {
+  try {
+    return document.referrer || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The visit this page load stands for, or `undefined` when it is not an arrival (see the header).
+ * The marketing site's handoff comes first: it saw the real first page and the referrer before
+ * it. Otherwise this page is the landing page and the document's referrer is the source, with
+ * no referrer at all meaning a direct visit.
+ */
+function readVisit(): Visit | undefined {
+  if (!isBrowser() || isAppShell()) return undefined;
+
+  const handoffReferrer = toVisitUrl(readUrlParam(VISIT_REFERRER_PARAM));
+  const handoffLandingUrl = toVisitUrl(readUrlParam(VISIT_LANDING_URL_PARAM));
+  if (handoffReferrer || handoffLandingUrl) {
+    return {
+      referrer: handoffReferrer && !isInsideReferrer(handoffReferrer) ? handoffReferrer : undefined,
+      landingUrl: handoffLandingUrl,
+    };
+  }
+
+  const referrer = readDocumentReferrer();
+  if (referrer && isInsideReferrer(referrer)) return undefined;
+  return { referrer: toVisitUrl(referrer), landingUrl: toVisitUrl(window.location.href) };
+}
+
+/** The stored visit; `undefined` when none is stored or it has expired. */
+function readStoredVisit(): Visit | undefined {
+  const referrer = readStored(VISIT_REFERRER_PARAM);
+  const landingUrl = readStored(VISIT_LANDING_URL_PARAM);
+  return referrer || landingUrl ? { referrer, landingUrl } : undefined;
+}
+
+/** Store the visit this page load stands for, unless one is stored already: the first arrival wins. */
+function captureVisit(): void {
+  if (readStoredVisit()) return;
+  const visit = readVisit();
+  if (visit?.referrer) writeStored(VISIT_REFERRER_PARAM, visit.referrer);
+  if (visit?.landingUrl) writeStored(VISIT_LANDING_URL_PARAM, visit.landingUrl);
+}
+
 /**
  * Read every known attribution parameter out of the current URL and persist it for up to
  * 90 days. Safe to call on every page load: an existing unexpired value is never overwritten,
  * so the *first* touch wins — that is the ad click that brought the visitor, not whatever
  * internal navigation they made afterwards. An expired entry reads as absent, so the next
- * visit that carries the parameter starts a fresh 90-day window. The HubSpot handoff is the
- * one last-touch entry (see the header).
+ * visit that carries the parameter starts a fresh 90-day window. The visit (referrer and
+ * landing page) follows the same first-touch rule as one pair. The HubSpot handoff is the one
+ * last-touch entry (see the header).
  */
 export function captureAttributionFromUrl(): void {
   if (!isBrowser()) return;
@@ -211,6 +337,8 @@ export function captureAttributionFromUrl(): void {
   // and only refreshes its 90 days.
   const handoffUtk = readHubspotHandoffUtk();
   if (handoffUtk) writeStored(HUBSPOT_UTK_STORAGE_PARAM, handoffUtk);
+
+  captureVisit();
 
   // `?ref=` is deliberately NOT part of that loop: it is cookie-backed, cross-subdomain and
   // last-touch, none of which localStorage first-touch capture can express. Usually a no-op —
@@ -253,10 +381,10 @@ function publishEventIdToDataLayer(eventId: string): void {
  * attribution through this, so an explicit caller-supplied object gets the exact same
  * treatment as a collector-produced one.
  */
-export function normalizeAttribution(attribution: RegistrationAttribution): RegistrationAttribution | undefined {
+export function normalizeAttribution(attribution: Touchpoint): Touchpoint | undefined {
   const cleaned = Object.fromEntries(
     Object.entries(attribution).filter(([, value]) => typeof value === 'string' && value.trim().length > 0),
-  ) as RegistrationAttribution;
+  ) as Touchpoint;
   return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 }
 
@@ -266,11 +394,11 @@ export function normalizeAttribution(attribution: RegistrationAttribution): Regi
  * the API client) so the field set that rides the SSO redirect provably matches what
  * `collectRegistrationAttribution` produces.
  *
- * Keys are BARE, matching the `@ModelAttribute RegistrationAttribution` the endpoint binds
+ * Keys are BARE, matching the `@ModelAttribute Touchpoint` the endpoint binds
  * directly. Prefixing them (as a wrapper DTO would need) does not error — the params simply never
  * bind and the attribution is lost silently.
  */
-export function appendAttributionQueryParams(params: URLSearchParams, attribution: RegistrationAttribution): void {
+export function appendAttributionQueryParams(params: URLSearchParams, attribution: Touchpoint): void {
   for (const [field, value] of Object.entries(normalizeAttribution(attribution) ?? {})) {
     params.append(field, value);
   }
@@ -282,13 +410,13 @@ export function appendAttributionQueryParams(params: URLSearchParams, attributio
  * for this submission. Empty values are dropped so the backend never receives a blank
  * property. Returns `undefined` only when nothing at all was captured.
  */
-export function collectRegistrationAttribution(): RegistrationAttribution | undefined {
+export function collectRegistrationAttribution(): Touchpoint | undefined {
   if (!isBrowser()) return undefined;
 
   const eventId = generateEventId();
   publishEventIdToDataLayer(eventId);
 
-  const raw: RegistrationAttribution = {
+  const raw: Touchpoint = {
     fbc: readCookie('_fbc'),
     fbp: readCookie('_fbp'),
     // The marketing site's token first, the local cookie only for a visitor who never came
@@ -310,6 +438,11 @@ export function collectRegistrationAttribution(): RegistrationAttribution | unde
     // live URL is only the fallback for a visitor who lands straight on the signup page.
     raw[field] = readStored(param) ?? readUrlParam(param);
   }
+
+  // The stored arrival, else this page load's own, for the same direct-landing reason.
+  const visit = readStoredVisit() ?? readVisit();
+  raw.referrer = visit?.referrer;
+  raw.landingUrl = visit?.landingUrl;
 
   return normalizeAttribution(raw);
 }
