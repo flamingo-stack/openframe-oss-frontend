@@ -436,6 +436,41 @@ test('a referrer over the 2048-character cap is dropped, not cut', () => {
   });
 });
 
+// The desktop app's "Open the app" link: the shell hands the page the id the installer was
+// downloaded with, and the signup sends it so the backend can claim that download's source.
+const DOWNLOAD_ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
+
+test('a stored download id rides the signup as downloadId', () => {
+  A.storeDownloadId(DOWNLOAD_ID);
+  assert.equal(A.collectRegistrationAttribution().downloadId, DOWNLOAD_ID);
+});
+
+test('the download id is kept lowercase, as the gateway records it', () => {
+  A.storeDownloadId(` ${DOWNLOAD_ID.toUpperCase()} `);
+  assert.equal(A.collectRegistrationAttribution().downloadId, DOWNLOAD_ID);
+});
+
+test('the latest download id wins', () => {
+  A.storeDownloadId(DOWNLOAD_ID);
+  A.storeDownloadId('11111111-2222-4333-8444-555555555555');
+  assert.equal(A.collectRegistrationAttribution().downloadId, '11111111-2222-4333-8444-555555555555');
+});
+
+test('an id that is not a UUID is dropped and leaves the stored one alone', () => {
+  A.storeDownloadId(DOWNLOAD_ID);
+  for (const id of ['', 'not-a-uuid', '0f8fad5bd9cb469fa16570867728950e', `${DOWNLOAD_ID}x`]) {
+    A.storeDownloadId(id);
+  }
+  assert.equal(A.collectRegistrationAttribution().downloadId, DOWNLOAD_ID);
+});
+
+test('the download id rides the SSO continue URL too', () => {
+  A.storeDownloadId(DOWNLOAD_ID);
+  const params = new URLSearchParams();
+  A.appendAttributionQueryParams(params, A.collectRegistrationAttribution());
+  assert.equal(params.get('downloadId'), DOWNLOAD_ID);
+});
+
 test('no signals present yields only the always-minted event id', () => {
   const got = A.collectRegistrationAttribution();
   assert.equal(got.fbc, undefined);

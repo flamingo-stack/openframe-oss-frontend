@@ -743,6 +743,34 @@ export function onDesktopUpdateError(callback: (error: DesktopUpdateError) => vo
 }
 
 /**
+ * The download id the desktop shell holds from the download page's "Open the
+ * app" link, taken once: the page keeps it until signup. Resolves null when
+ * there is none, and outside the desktop shell.
+ */
+export async function takeDesktopDownloadId(): Promise<string | null> {
+  if (!isDesktopShell()) return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
+  try {
+    const id = await invoke('take_pending_download_id');
+    return typeof id === 'string' ? id : null;
+  } catch (error) {
+    // The command returns an Option and cannot fail, so it never ran: a
+    // misconfigured capability. The id stays with the shell for the next take.
+    console.error('[Native Shell] take_pending_download_id failed:', error);
+    return null;
+  }
+}
+
+/**
+ * An "Open the app" link reached the app while this page was open. The event
+ * carries nothing: take the id with `takeDesktopDownloadId`.
+ */
+export function onDesktopDownloadLink(callback: () => void): Promise<boolean> {
+  return listenDesktop('download-link:received', () => callback());
+}
+
+/**
  * Why a local agent install did not happen, classified SHELL-side
  * (installer.rs). `message` is for the log; the kind is what the UI acts on.
  *

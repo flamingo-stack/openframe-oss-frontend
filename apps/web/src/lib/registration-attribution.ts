@@ -40,6 +40,11 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *   referrer, which the backend would count as organic search. Neither is recorded inside the
  *   app shells, where there is no referrer and the page is a bundle URL.
  *
+ * - **The download id** (`downloadId`) exists in the desktop app only: the download page's
+ *   "Open the app" link hands the shell the id the installer was downloaded with, and the page
+ *   takes it from there (`native-shell-initializer.tsx`) into the same storage. Last touch: the
+ *   latest link names the install the person is signing up from.
+ *
  * - **The HubSpot visitor token** is a cookie too (`hubspotutk`), but the token the contact
  *   should get is the *marketing site's*: the visitor's sessions and the ad click live on
  *   flamingo.run, under the token HubSpot's cross-domain linker writes into `__hstc` on the
@@ -135,6 +140,12 @@ const HUBSPOT_HSFP_PARAM = '__hsfp';
 
 /** localStorage entry (`of_attr_hutk`) for the visitor token a handoff carried. */
 const HUBSPOT_UTK_STORAGE_PARAM = 'hutk';
+
+/** localStorage entry (`of_attr_download_id`) for the id an "Open the app" link brought. */
+const DOWNLOAD_ID_STORAGE_PARAM = 'download_id';
+
+/** A download id as the gateway records it: a lowercase UUID. Anything else it ignores. */
+const DOWNLOAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A HubSpot visitor token: 32 hex characters, the `hubspotutk` cookie value. */
 const HUBSPOT_UTK_PATTERN = /^[0-9a-f]{32}$/i;
@@ -379,6 +390,15 @@ export function captureAttributionFromUrl(): void {
   captureReferralFromUrl();
 }
 
+/**
+ * Keep the id the desktop shell handed over from an "Open the app" link, for the signup. The
+ * latest one wins (see the header); one that is not a UUID is dropped, as the gateway would.
+ */
+export function storeDownloadId(id: string): void {
+  const normalized = id.trim().toLowerCase();
+  if (DOWNLOAD_ID_PATTERN.test(normalized)) writeStored(DOWNLOAD_ID_STORAGE_PARAM, normalized);
+}
+
 /** RFC4122 id, falling back to a random string where `crypto.randomUUID` is unavailable. */
 function generateEventId(): string {
   try {
@@ -463,6 +483,7 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
     // the fallback for a partner link pointing straight at the signup page, submitted before the
     // capture effect got to write the cookie.
     ref: readReferralCode() ?? sanitizeReferralCode(readUrlParam(REFERRAL_URL_PARAM)),
+    downloadId: readStored(DOWNLOAD_ID_STORAGE_PARAM),
   };
 
   for (const [param, field] of Object.entries(URL_PARAM_TO_FIELD)) {
