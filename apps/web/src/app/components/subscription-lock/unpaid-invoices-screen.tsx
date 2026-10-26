@@ -113,15 +113,7 @@ export function UnpaidInvoicesScreen({ status, loading = false }: UnpaidInvoices
       }
     >
       <UnpaidInvoicesShell>
-        {/* One body for every wait: a gate above it (the role check: `loading`, its query not sent yet) and the
-            invoice query. */}
-        <LoadingSuspense
-          gated={loading}
-          label="Loading invoices"
-          fallback={<UnpaidInvoicesMain status={status} invoices={null} />}
-        >
-          <UnpaidInvoicesContent status={status} />
-        </LoadingSuspense>
+        <UnpaidInvoicesContent status={status} loading={loading} />
       </UnpaidInvoicesShell>
     </ErrorBoundary>
   );
@@ -146,7 +138,24 @@ function UnpaidInvoicesShell({ children }: { children: ReactNode }) {
   );
 }
 
-function UnpaidInvoicesContent({ status }: UnpaidInvoicesScreenProps) {
+/**
+ * The invoices, with their own boundary. One body for every wait: a gate above it (the role check: `loading`, its
+ * query not sent yet) and the invoice query; in its scope the reader draws the body with no invoices.
+ */
+function UnpaidInvoicesContent({ loading = false, ...props }: UnpaidInvoicesScreenProps & { loading?: boolean }) {
+  return (
+    <LoadingSuspense gated={loading} label="Loading invoices">
+      <UnpaidInvoicesContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function UnpaidInvoicesContentReader(props: UnpaidInvoicesScreenProps) {
+  if (useLoadingScope()) return <UnpaidInvoicesMain status={props.status} invoices={null} />;
+  return <UnpaidInvoicesContentLive {...props} />;
+}
+
+function UnpaidInvoicesContentLive({ status }: UnpaidInvoicesScreenProps) {
   const data = useLazyLoadQuery<UnpaidInvoicesScreenQueryType>(
     unpaidInvoicesScreenQuery,
     {},

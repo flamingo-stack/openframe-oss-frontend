@@ -630,8 +630,24 @@ function SchedulesTableContent({
 /** The columns before the first answer: the OS funnel pending, the calendar inert, no row to act on. */
 const LOADING_COLUMNS = scheduleColumns({ options: null, renderRowActions: () => null });
 
+/** The schedules list, with its own boundary: in its scope the reader draws the table's loading form. */
+function SchedulesTable(props: SchedulesTableContentProps) {
+  return (
+    <LoadingSuspense label="Loading schedules">
+      <SchedulesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SchedulesTableReader(props: SchedulesTableContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope())
+    return <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={props.stickyHeaderOffset} />;
+  return <SchedulesTableContent {...props} />;
+}
+
 // ----------------------------------------------------------------
-// Outer shell — layout + URL state + Suspense boundary
+// Outer shell — layout + URL state
 // ----------------------------------------------------------------
 
 interface ScriptSchedulesTableProps {
@@ -863,29 +879,22 @@ export function ScriptSchedulesTable({ archived = false }: ScriptSchedulesTableP
           </div>
         )}
 
-        <LoadingSuspense
-          label="Loading schedules"
-          fallback={
-            <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
-          }
-        >
-          <SchedulesTableContent
-            backendFilters={deferredVars.filter}
-            debouncedSearch={deferredSearch}
-            sort={deferredVars.sort}
-            tableFilters={tableFilters}
-            sortState={sortState}
-            onSortChange={handleSortChange}
-            isPending={isPending}
-            onFilterChange={handleFilterChange}
-            dateFilter={dateFilter}
-            onEmptyChange={setIsEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-            stickyHeaderOffset={stickyHeaderOffset}
-            archived={archived}
-          />
-        </LoadingSuspense>
+        <SchedulesTable
+          backendFilters={deferredVars.filter}
+          debouncedSearch={deferredSearch}
+          sort={deferredVars.sort}
+          tableFilters={tableFilters}
+          sortState={sortState}
+          onSortChange={handleSortChange}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          dateFilter={dateFilter}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          archived={archived}
+        />
       </div>
     </PageLayout>
   );

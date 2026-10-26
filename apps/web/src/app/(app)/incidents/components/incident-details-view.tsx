@@ -37,11 +37,25 @@ interface IncidentDetailsViewProps {
 const TICKET_PREFILL_DESCRIPTION_MAX = 1000;
 
 /**
- * The header island. The title is static, but the action set is the record's
+ * The header island, with its own boundary. The title is static, but the action set is the record's
  * own answer — which transitions are legal depends on its status — so this is
  * what waits for it.
  */
-function IncidentHeader({ incidentId }: IncidentDetailsViewProps) {
+function IncidentHeader(props: IncidentDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading incident">
+      <IncidentHeaderReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentHeaderReader(props: IncidentDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <IncidentHeaderView />;
+  return <IncidentHeaderLive {...props} />;
+}
+
+function IncidentHeaderLive({ incidentId }: IncidentDetailsViewProps) {
   const { incident, transitions } = useIncidentDetail(incidentId);
   return <IncidentHeaderView incident={incident} transitions={transitions} />;
 }
@@ -152,14 +166,42 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
   );
 }
 
-/** The summary card: the same record as the header (see `useIncident`). */
-function IncidentSummary({ incidentId }: IncidentDetailsViewProps) {
+/** The summary card: the same record as the header (see `useIncident`), with its own boundary. */
+function IncidentSummary(props: IncidentDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading incident summary">
+      <IncidentSummaryReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentSummaryReader(props: IncidentDetailsViewProps) {
+  // In a loading scope it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />;
+  return <IncidentSummaryLive {...props} />;
+}
+
+function IncidentSummaryLive({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentSummaryCard incident={incident} assigneeSlot={<IncidentAssignee incident={incident} />} />;
 }
 
-/** The evidence table, on the same record. */
-function IncidentEvidence({ incidentId }: IncidentDetailsViewProps) {
+/** The evidence table, on the same record, with its own boundary. */
+function IncidentEvidence(props: IncidentDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading query results">
+      <IncidentEvidenceReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentEvidenceReader(props: IncidentDetailsViewProps) {
+  // In a loading scope it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <IncidentQueryResults />;
+  return <IncidentEvidenceLive {...props} />;
+}
+
+function IncidentEvidenceLive({ incidentId }: IncidentDetailsViewProps) {
   const incident = useIncident(incidentId);
   return <IncidentQueryResults incident={incident} />;
 }
@@ -197,27 +239,16 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
   }
   return (
     <IncidentDetailsFrame
-      header={
-        <LoadingSuspense label="Loading incident" fallback={<IncidentHeaderView />}>
-          <IncidentHeader incidentId={incidentId} />
-        </LoadingSuspense>
-      }
+      header={<IncidentHeader incidentId={incidentId} />}
       body={
         // Notes sit between the card and the evidence but fetch on their own:
         // they need only the id, so they do not wait behind the record. The
         // assigned tickets come last: most incidents have none, so the section
         // appears with its rows below everything the page always shows.
         <>
-          <LoadingSuspense
-            label="Loading incident summary"
-            fallback={<IncidentSummaryCard assigneeSlot={<IncidentAssignee />} />}
-          >
-            <IncidentSummary incidentId={incidentId} />
-          </LoadingSuspense>
+          <IncidentSummary incidentId={incidentId} />
           <IncidentNotes incidentId={incidentId} />
-          <LoadingSuspense label="Loading query results" fallback={<IncidentQueryResults />}>
-            <IncidentEvidence incidentId={incidentId} />
-          </LoadingSuspense>
+          <IncidentEvidence incidentId={incidentId} />
           <IncidentAssignedTickets incidentId={incidentId} />
         </>
       }

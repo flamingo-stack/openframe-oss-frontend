@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -45,27 +46,38 @@ export default function SsoJoinPage() {
     // The layout renders at once. `useSearchParams` bails out to the client during the static prerender: only the
     // card waits, standing in empty, in a loading scope.
     <SsoJoinCardLayout>
-      <LoadingSuspense
-        label="Loading your account"
-        fallback={
-          <SsoJoinCard
-            pending={null}
-            agreedToTerms={false}
-            onAgreedToTermsChange={noop}
-            onSubmit={noop}
-            onBack={noop}
-            termsUrl={TERMS_URL}
-            privacyPolicyUrl={PRIVACY_POLICY_URL}
-          />
-        }
-      >
-        <SsoJoinContent />
-      </LoadingSuspense>
+      <SsoJoinContent />
     </SsoJoinCardLayout>
   );
 }
 
+/** The card, with its own boundary: in its scope the reader draws the card empty. */
 function SsoJoinContent() {
+  return (
+    <LoadingSuspense label="Loading your account">
+      <SsoJoinContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function SsoJoinContentReader() {
+  if (useLoadingScope()) {
+    return (
+      <SsoJoinCard
+        pending={null}
+        agreedToTerms={false}
+        onAgreedToTermsChange={noop}
+        onSubmit={noop}
+        onBack={noop}
+        termsUrl={TERMS_URL}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
+      />
+    );
+  }
+  return <SsoJoinContentLive />;
+}
+
+function SsoJoinContentLive() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();

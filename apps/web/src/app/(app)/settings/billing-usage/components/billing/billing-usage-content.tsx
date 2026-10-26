@@ -66,14 +66,16 @@ const billingUsageContentQuery = graphql`
  */
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
   return (
-    <LoadingSuspense
-      gated={loading}
-      label="Loading billing and usage"
-      fallback={<BillingUsageScreen data={null} onRefetch={noop} />}
-    >
-      <BillingUsageQuery />
+    <LoadingSuspense gated={loading} label="Loading billing and usage">
+      <BillingUsageReader />
     </LoadingSuspense>
   );
+}
+
+function BillingUsageReader() {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the page with no data and runs no read.
+  if (useLoadingScope()) return <BillingUsageScreen data={null} onRefetch={noop} />;
+  return <BillingUsageQuery />;
 }
 
 /** The page's query; everything it draws is `BillingUsageScreen`'s. */

@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArticleDetailContent } from './article-detail-content';
 
 /**
@@ -10,9 +9,7 @@ import { ArticleDetailContent } from './article-detail-content';
 export function ArticleDetailView({ articleId }: { articleId: string }) {
   return (
     <div className="flex w-full flex-col">
-      <LoadingSuspense live label="Loading article">
-        <ArticleDetailContent articleId={articleId} />
-      </LoadingSuspense>
+      <ArticleDetailContent articleId={articleId} />
     </div>
   );
 }

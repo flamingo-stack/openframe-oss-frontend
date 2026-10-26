@@ -11,10 +11,14 @@ import {
   narrowingToFilter,
   type SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { LoadingScope, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LoadingScope,
+  type PageActionButton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDevicesSettingsRelayQuery as ScheduleDevicesSettingsQueryType } from '@/__generated__/scriptScheduleDevicesSettingsRelayQuery.graphql';
 import { NO_ITEMS, noop } from '@/app/components/shared';
@@ -78,10 +82,16 @@ interface ScheduleDevicesViewProps {
  */
 export function ScheduleDevicesView({ scheduleId }: ScheduleDevicesViewProps) {
   return (
-    <LoadingSuspense live label="Loading schedule" fallback={<ScheduleDevicesShell scheduleId={scheduleId} />}>
-      <ScheduleDevicesContent scheduleId={scheduleId} />
+    <LoadingSuspense live label="Loading schedule">
+      <ScheduleDevicesReader scheduleId={scheduleId} />
     </LoadingSuspense>
   );
+}
+
+function ScheduleDevicesReader({ scheduleId }: ScheduleDevicesViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleDevicesShell scheduleId={scheduleId} />;
+  return <ScheduleDevicesContent scheduleId={scheduleId} />;
 }
 
 /**
@@ -386,42 +396,68 @@ function ScheduleDevicesContent({ scheduleId }: ScheduleDevicesViewProps) {
       onModeChange={handleModeChange}
       modeLocked={isSavingTargetingMode}
     >
-      {/* The fallback reads the LIVE mode, not a deferred one: the switch
-            commits immediately, so by the time this boundary suspends
-            `selectionMode` already names the half being loaded.
-
-            No enter animation on the swap. The radio is a control, not a
-            navigation: the answer belongs under the finger that asked for it,
-            and a fade — however light — is time between the click and the
-            readable half. Each branch is its own component type, so React
-            replaces the subtree on its own; there is no wrapper to key. */}
-      <LoadingSuspense label="Loading devices" fallback={<SchedulePickerLoading mode={selectionMode} />}>
-        {selectionMode === 'criteria' ? (
-          <ScheduleCriteriaPicker
-            scheduleId={scheduleId}
-            criteria={criteria}
-            onCriteriaChange={setCriteriaDraft}
-            busy={busy}
-          />
-        ) : (
-          <SchedulePickerLists
-            scheduleId={scheduleId}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            search={search}
-            onSearchChange={setSearch}
-            narrowing={narrowing}
-            onNarrowingChange={setNarrowing}
-            deferredFilter={deferredFilter}
-            deferredSearch={deferredSearch}
-            busy={busy}
-            onAdd={addDevice}
-            onRemove={removeDevice}
-            onAddAll={addAllDevices}
-            onRemoveAll={removeAllDevices}
-          />
-        )}
-      </LoadingSuspense>
+      <SchedulePicker
+        selectionMode={selectionMode}
+        scheduleId={scheduleId}
+        criteria={criteria}
+        onCriteriaChange={setCriteriaDraft}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        search={search}
+        onSearchChange={setSearch}
+        narrowing={narrowing}
+        onNarrowingChange={setNarrowing}
+        deferredFilter={deferredFilter}
+        deferredSearch={deferredSearch}
+        busy={busy}
+        onAdd={addDevice}
+        onRemove={removeDevice}
+        onAddAll={addAllDevices}
+        onRemoveAll={removeAllDevices}
+      />
     </ScheduleDevicesFrame>
+  );
+}
+
+type SchedulePickerProps = { selectionMode: DeviceSelectionMode } & ComponentProps<typeof ScheduleCriteriaPicker> &
+  ComponentProps<typeof SchedulePickerLists>;
+
+/**
+ * The picker half for the mode, with its own boundary: in its scope the reader draws the half's loading form.
+ *
+ * The loading form reads the LIVE mode, not a deferred one: the switch commits immediately, so by the time this
+ * boundary suspends `selectionMode` already names the half being loaded.
+ *
+ * No enter animation on the swap. The radio is a control, not a navigation: the answer belongs under the finger that
+ * asked for it, and a fade — however light — is time between the click and the readable half. Each branch is its own
+ * component type, so React replaces the subtree on its own; there is no wrapper to key.
+ */
+function SchedulePicker(props: SchedulePickerProps) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <SchedulePickerReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SchedulePickerReader({
+  selectionMode,
+  scheduleId,
+  criteria,
+  onCriteriaChange,
+  busy,
+  ...lists
+}: SchedulePickerProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <SchedulePickerLoading mode={selectionMode} />;
+  return selectionMode === 'criteria' ? (
+    <ScheduleCriteriaPicker
+      scheduleId={scheduleId}
+      criteria={criteria}
+      onCriteriaChange={onCriteriaChange}
+      busy={busy}
+    />
+  ) : (
+    <SchedulePickerLists scheduleId={scheduleId} busy={busy} {...lists} />
   );
 }

@@ -60,10 +60,16 @@ const usageViewQuery = graphql`
 export function UsageView({ loading = false }: { loading?: boolean }) {
   // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
   return (
-    <LoadingSuspense gated={loading} label="Loading usage" fallback={<UsageScreen data={null} />}>
-      <UsageQuery />
+    <LoadingSuspense gated={loading} label="Loading usage">
+      <UsageReader />
     </LoadingSuspense>
   );
+}
+
+function UsageReader() {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the page with no data and runs no read.
+  if (useLoadingScope()) return <UsageScreen data={null} />;
+  return <UsageQuery />;
 }
 
 function UsageQuery() {

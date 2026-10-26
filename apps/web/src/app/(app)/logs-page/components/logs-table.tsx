@@ -187,6 +187,8 @@ interface LogsTableContentProps {
    *  the filter options come from this component's logFilters query). */
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
+  /** In a loading scope (an embedding tab whose parent still loads) the table reads nothing. */
+  scoped: boolean;
 }
 
 const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
@@ -196,10 +198,41 @@ const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
 const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} />;
 
 // ----------------------------------------------------------------
-// Inner content — uses Relay hooks, must be inside Suspense
+// Inner content — uses Relay hooks, inside its own boundary
 // ----------------------------------------------------------------
 
-function LogsTableContent({
+/** The logs table, with its own boundary: in its scope the reader draws its own loading form. */
+function LogsTableContent(props: LogsTableContentProps) {
+  return (
+    <LoadingSuspense bare gated={props.scoped} label="Loading logs">
+      <LogsTableContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function LogsTableContentReader(props: LogsTableContentProps) {
+  // In a loading scope (its boundary's fallback while the first page is in flight, or an outer loading state) it reads
+  // nothing: the same table view draws its own loading rows.
+  if (useLoadingScope()) {
+    return (
+      <LogsTableView<LogRow>
+        logs={NO_ITEMS}
+        loading
+        filters={props.tableFilters}
+        onFilterChange={props.onFilterChange}
+        search={props.debouncedSearch}
+        dateFilter={props.dateFilter}
+        logIdHeader={INERT_LOG_ID_HEADER}
+        deviceScoped={props.deviceScoped}
+        organizationLocked={Boolean(props.organizationLocked)}
+        pageSize={LOGS_PAGE_SIZE}
+      />
+    );
+  }
+  return <LogsTableContentLive {...props} />;
+}
+
+function LogsTableContentLive({
   deviceScoped,
   organizationLocked,
   backendFilters,
@@ -530,23 +563,8 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
-  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: the same table view
-  // draws its own loading rows. It is also the Suspense fallback while the first page is in flight.
+  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: it draws its own loading rows.
   const scoped = useLoadingScope();
-  const loadingTable = (
-    <LogsTableView<LogRow>
-      logs={NO_ITEMS}
-      loading
-      filters={tableFilters}
-      onFilterChange={handleFilterChange}
-      search={debouncedSearch}
-      dateFilter={dateFilter}
-      logIdHeader={INERT_LOG_ID_HEADER}
-      deviceScoped={deviceScoped}
-      organizationLocked={Boolean(organizationId)}
-      pageSize={LOGS_PAGE_SIZE}
-    />
-  );
 
   return (
     <LogsPageView
@@ -560,22 +578,21 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       hideSearch={isEmpty}
       onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      <LoadingSuspense bare gated={scoped} label="Loading logs" fallback={loadingTable}>
-        <LogsTableContent
-          deviceScoped={deviceScoped}
-          organizationLocked={Boolean(organizationId)}
-          backendFilters={backendFilters}
-          sort={sort}
-          dateFilter={dateFilter}
-          debouncedSearch={debouncedSearch}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          onRefreshRef={refreshRef}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-        />
-      </LoadingSuspense>
+      <LogsTableContent
+        scoped={scoped}
+        deviceScoped={deviceScoped}
+        organizationLocked={Boolean(organizationId)}
+        backendFilters={backendFilters}
+        sort={sort}
+        dateFilter={dateFilter}
+        debouncedSearch={debouncedSearch}
+        tableFilters={tableFilters}
+        onFilterChange={handleFilterChange}
+        onRefreshRef={refreshRef}
+        onEmptyChange={setIsEmpty}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={() => setMobileFilterOpen(false)}
+      />
     </LogsPageView>
   );
 });

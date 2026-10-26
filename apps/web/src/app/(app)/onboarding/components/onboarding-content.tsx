@@ -133,10 +133,17 @@ export function OnboardingContent() {
   // The step bodies stay mounted while collapsed, and some of them suspend on their own
   // reads: the page keeps its header and rows meanwhile.
   return (
-    <LoadingSuspense bare gated={pending} label="Loading onboarding" fallback={<OnboardingView />}>
-      <LoadedOnboardingContent />
+    <LoadingSuspense bare gated={pending} label="Loading onboarding">
+      <OnboardingContentReader />
     </LoadingSuspense>
   );
+}
+
+function OnboardingContentReader() {
+  // In a loading scope (its boundary's fallback, or an outer loading state) the page draws itself with no data and
+  // runs no read.
+  if (useLoadingScope()) return <OnboardingView />;
+  return <LoadedOnboardingContent />;
 }
 
 /** Re-reads on back/forward and on the synthetic `hashchange` that `navigateSamePageHash` fires for our own writes. */

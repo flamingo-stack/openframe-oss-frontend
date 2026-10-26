@@ -167,7 +167,7 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
 }
 
 /**
- * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own Suspense
+ * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own boundary's
  * fallback, or the page's) it is the real field, locked, with no options, and reads nothing.
  */
 export function CustomerSelect(props: CustomerSelectProps) {
@@ -188,10 +188,17 @@ export function CustomerSelect(props: CustomerSelectProps) {
         />
       )}
     >
-      <LoadingSuspense label="Loading customers">
-        <CustomerSelectBody {...shellProps} includeOrganization={includeOrganization} />
-      </LoadingSuspense>
+      <CustomerSelectList {...shellProps} includeOrganization={includeOrganization} />
     </ContentErrorBoundary>
+  );
+}
+
+/** The field over its list, with its own boundary: in its scope the reader draws the locked field. */
+function CustomerSelectList(props: Omit<CustomerSelectProps, 'enabled'>) {
+  return (
+    <LoadingSuspense label="Loading customers">
+      <CustomerSelectBody {...props} />
+    </LoadingSuspense>
   );
 }
 

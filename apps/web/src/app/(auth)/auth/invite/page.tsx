@@ -6,6 +6,7 @@ import {
   CompleteAccountForm,
   InviteLinkInvalidModal,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ComponentProps, type ReactNode, useState } from 'react';
@@ -56,7 +57,7 @@ const EMPTY_INVITE_FORM = {
 
 /**
  * The invitation screen: the shell, its Back to login footer and the account form. One view for the loaded page and
- * the Suspense fallback (empty and inert, in a loading scope), so the two cannot drift.
+ * its loading form (empty and inert, in a loading scope), so the two cannot drift.
  */
 function InviteView({
   form,
@@ -76,20 +77,28 @@ function InviteView({
 }
 
 export default function InvitePage() {
+  return <InviteContent />;
+}
+
+/**
+ * The invitation screen, with its own boundary: the read decides the whole screen (an invalid invitation is a modal,
+ * no shell). `useSearchParams` bails out to the client during the static prerender: in the boundary's scope the empty
+ * form stands in until the URL (the invitation id) is read.
+ */
+function InviteContent() {
   return (
-    // `useSearchParams` bails out to the client during the static prerender: the empty form, in a loading scope,
-    // stands in until the URL (the invitation id) is read.
-    // loading-standard-ok(PAGE_BOUNDARY): the read decides the whole screen (an invalid invitation is a modal, no shell)
-    <LoadingSuspense
-      label="Loading your invitation"
-      fallback={<InviteView form={{ loading: true, ssoProvidersLoading: true }} />}
-    >
-      <InviteContent />
+    <LoadingSuspense label="Loading your invitation">
+      <InviteContentReader />
     </LoadingSuspense>
   );
 }
 
-function InviteContent() {
+function InviteContentReader() {
+  if (useLoadingScope()) return <InviteView form={{ loading: true, ssoProvidersLoading: true }} />;
+  return <InviteContentLive />;
+}
+
+function InviteContentLive() {
   const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();

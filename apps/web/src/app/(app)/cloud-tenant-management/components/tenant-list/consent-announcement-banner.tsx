@@ -19,18 +19,26 @@ const consentAnnouncementBannerQuery = graphql`
   }
 `;
 
-/**
- * The notice, when there is one. Most workspaces have none (it shows only after a release asks for permissions the
- * connected tenants have not granted), so while the query is in flight (a loading scope) nothing is drawn and
- * nothing is read: a placeholder would be a box that most often vanishes. It sits under the list, so its arrival
- * moves nothing above it.
- */
 /** `data-loading-optional`: a part only some workspaces have, measured without by the loading gate. */
 interface OptionalMarkProps {
   'data-loading-optional'?: boolean;
 }
 
+/** The notice, when there is one, with its own boundary: in its scope the reader draws nothing. */
 function AnnouncementAlert(props: OptionalMarkProps) {
+  return (
+    <LoadingSuspense label="Checking for re-authorization notices">
+      <AnnouncementAlertReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * Most workspaces have no notice (it shows only after a release asks for permissions the connected tenants have not
+ * granted), so while the query is in flight (a loading scope) nothing is drawn and nothing is read: a placeholder
+ * would be a box that most often vanishes. It sits under the list, so its arrival moves nothing above it.
+ */
+function AnnouncementAlertReader(props: OptionalMarkProps) {
   if (useLoadingScope()) return null;
   return <AnnouncementAlertQuery {...props} />;
 }
@@ -92,9 +100,7 @@ export function ConsentAnnouncementBanner(props: OptionalMarkProps) {
         <SectionLoadError {...loadErrorProps(isOffline, "Couldn't check for re-authorization notices.", retry)} />
       )}
     >
-      <LoadingSuspense label="Checking for re-authorization notices">
-        <AnnouncementAlert {...props} />
-      </LoadingSuspense>
+      <AnnouncementAlert {...props} />
     </ContentErrorBoundary>
   );
 }

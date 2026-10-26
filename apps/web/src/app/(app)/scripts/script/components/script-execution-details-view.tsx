@@ -305,23 +305,23 @@ const LOADING_EXECUTION_ACTIONS: PageActionButton[] = [
 ];
 
 export function ScriptExecutionDetailsView({ executionId }: ScriptExecutionDetailsViewProps) {
-  const handleBack = useSafeBack(routes.scripts.list);
-
   return (
-    <LoadingSuspense
-      live
-      label="Loading execution details"
-      // The page before its execution: the same page, drawing itself in the loading scope.
-      fallback={
-        <ExecutionDetailsPage
-          execution={null}
-          isInFlight={false}
-          onBack={handleBack}
-          actions={LOADING_EXECUTION_ACTIONS}
-        />
-      }
-    >
-      <ScriptExecutionDetailsContent executionId={executionId} />
+    <LoadingSuspense live label="Loading execution details">
+      <ScriptExecutionDetailsReader executionId={executionId} />
     </LoadingSuspense>
+  );
+}
+
+function ScriptExecutionDetailsReader({ executionId }: ScriptExecutionDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptExecutionDetailsLoading />;
+  return <ScriptExecutionDetailsContent executionId={executionId} />;
+}
+
+/** The page before its execution: the same page, drawing itself in the loading scope. */
+function ScriptExecutionDetailsLoading() {
+  const handleBack = useSafeBack(routes.scripts.list);
+  return (
+    <ExecutionDetailsPage execution={null} isInFlight={false} onBack={handleBack} actions={LOADING_EXECUTION_ACTIONS} />
   );
 }

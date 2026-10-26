@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ReactNode, useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptTagsRelayFilterQuery as ScriptTagsFilterQueryType } from '@/__generated__/scriptTagsRelayFilterQuery.graphql';
@@ -34,10 +35,16 @@ interface ScriptsTagFilterProps {
  */
 export function ScriptsTagFilter(props: ScriptsTagFilterProps) {
   return (
-    <LoadingSuspense live label="Loading script tags" fallback={<ScriptsTagFilterBar {...props} tags={NO_ITEMS} />}>
-      <ScriptsTagFilterContent {...props} />
+    <LoadingSuspense live label="Loading script tags">
+      <ScriptsTagFilterReader {...props} />
     </LoadingSuspense>
   );
+}
+
+function ScriptsTagFilterReader(props: ScriptsTagFilterProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptsTagFilterBar {...props} tags={NO_ITEMS} />;
+  return <ScriptsTagFilterContent {...props} />;
 }
 
 function ScriptsTagFilterContent(props: ScriptsTagFilterProps) {

@@ -249,7 +249,7 @@ function TenantSessionsTable({
 }
 
 // ----------------------------------------------------------------
-// Relay content - inside the shell's Suspense boundary
+// Relay content - with its own Suspense boundary
 // ----------------------------------------------------------------
 
 interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'rows' | 'totalCount' | 'infiniteScroll'> {
@@ -257,8 +257,17 @@ interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'row
   refreshKey: number;
 }
 
-/** The first page. In a loading scope (the Suspense fallback, the gate) it runs no query: the table draws itself. */
+/** The sessions table, with its own boundary: in its scope the reader draws its own loading form. */
 function TenantSessionsContent(props: TenantSessionsContentProps) {
+  return (
+    <LoadingSuspense label="Loading remote sessions">
+      <TenantSessionsContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** The first page. In a loading scope (its boundary's fallback, the gate) it runs no query: the table draws itself. */
+function TenantSessionsContentReader(props: TenantSessionsContentProps) {
   if (useLoadingScope()) {
     return (
       <TenantSessionsTable
@@ -390,24 +399,20 @@ export function TenantSessionsShell() {
     [sortDirection, dateRange, handleDateFilterApply],
   );
 
-  const content = (
-    <TenantSessionsContent
-      variables={deferredVariables}
-      refreshKey={refreshKey}
-      isPending={isPending}
-      tableFilters={tableFilters}
-      onFilterChange={handleFilterChange}
-      dateFilter={dateFilter}
-      // The delete marked the session stale in the store, so the refetch
-      // suspends; as a transition it keeps the rows on screen meanwhile
-      // instead of dropping the table to its skeleton.
-      onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
-    />
-  );
-
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <LoadingSuspense label="Loading remote sessions">{content}</LoadingSuspense>
+      <TenantSessionsContent
+        variables={deferredVariables}
+        refreshKey={refreshKey}
+        isPending={isPending}
+        tableFilters={tableFilters}
+        onFilterChange={handleFilterChange}
+        dateFilter={dateFilter}
+        // The delete marked the session stale in the store, so the refetch
+        // suspends; as a transition it keeps the rows on screen meanwhile
+        // instead of dropping the table to its skeleton.
+        onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
+      />
     </div>
   );
 }

@@ -106,17 +106,28 @@ export function NotificationSettingsModal({ onClose }: NotificationSettingsModal
       <ModalV2Header>
         <ModalV2Title>Notifications</ModalV2Title>
       </ModalV2Header>
-      {/* A live wait (a bare scope, no element), so Cancel stays live while the settings load and the content and
-          footer stay the panel's own flex children. */}
-      <LoadingSuspense
-        live
-        label="Loading notification settings"
-        fallback={<NotificationSettingsFormView settings={null} onClose={onClose} />}
-      >
-        <NotificationSettingsForm onClose={onClose} />
-      </LoadingSuspense>
+      <NotificationSettingsBody onClose={onClose} />
     </ModalV2>
   );
+}
+
+/**
+ * The form over its read, with its own boundary: in its scope the reader draws its own loading form. A live wait (a
+ * bare scope, no element), so Cancel stays live while the settings load and the content and footer stay the panel's
+ * own flex children.
+ */
+function NotificationSettingsBody({ onClose }: { onClose: () => void }) {
+  return (
+    <LoadingSuspense live label="Loading notification settings">
+      <NotificationSettingsReader onClose={onClose} />
+    </LoadingSuspense>
+  );
+}
+
+function NotificationSettingsReader({ onClose }: { onClose: () => void }) {
+  // In a loading scope (its boundary's fallback) it draws the form with no settings and runs no read.
+  if (useLoadingScope()) return <NotificationSettingsFormView settings={null} onClose={onClose} />;
+  return <NotificationSettingsForm onClose={onClose} />;
 }
 
 /**

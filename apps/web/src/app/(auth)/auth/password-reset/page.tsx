@@ -2,6 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ComponentProps, useEffect, useState } from 'react';
@@ -34,14 +35,26 @@ export default function PasswordResetPage() {
   const handleBack = () => router.push('/auth');
   return (
     <BackToLoginShell onBack={handleBack}>
-      <LoadingSuspense label="Loading password reset" fallback={<PasswordResetForm {...EMPTY_RESET_FORM} />}>
-        <PasswordResetContent onBack={handleBack} />
-      </LoadingSuspense>
+      <PasswordResetContent onBack={handleBack} />
     </BackToLoginShell>
   );
 }
 
-function PasswordResetContent({ onBack: handleBack }: { onBack: () => void }) {
+/** The form, with its own boundary: in its scope the reader draws the form empty and inert. */
+function PasswordResetContent(props: { onBack: () => void }) {
+  return (
+    <LoadingSuspense label="Loading password reset">
+      <PasswordResetContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function PasswordResetContentReader(props: { onBack: () => void }) {
+  if (useLoadingScope()) return <PasswordResetForm {...EMPTY_RESET_FORM} />;
+  return <PasswordResetContentLive {...props} />;
+}
+
+function PasswordResetContentLive({ onBack: handleBack }: { onBack: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();

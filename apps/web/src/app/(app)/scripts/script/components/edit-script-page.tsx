@@ -4,7 +4,7 @@
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SCRIPT_SHELL_TYPES } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
@@ -51,7 +51,7 @@ interface ScriptFieldsProps {
  * edit page, and for the edit page's loading state, which is this same tree with
  * `disabled` on.
  *
- * The tag picker keeps its OWN boundary: the tag list is a second query, and it
+ * The tag picker carries its OWN boundary: the tag list is a second query, and it
  * has no reason to hold up the field it sits between.
  */
 function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_ITEMS }: ScriptFieldsProps) {
@@ -67,17 +67,15 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_ITE
           name="tag_ids"
           control={form.control}
           render={({ field }) => (
-            <LoadingSuspense label="Loading tags">
-              <EntityTagPicker
-                entityType={TagEntityType.SCRIPT}
-                selectedIds={field.value}
-                onChange={field.onChange}
-                initialTags={initialTags}
-                deletable
-                disabled={disabled}
-                entityLabel="script"
-              />
-            </LoadingSuspense>
+            <EntityTagPicker
+              entityType={TagEntityType.SCRIPT}
+              selectedIds={field.value}
+              onChange={field.onChange}
+              initialTags={initialTags}
+              deletable
+              disabled={disabled}
+              entityLabel="script"
+            />
           )}
         />
       }
@@ -94,6 +92,48 @@ type ScriptRecordState =
 const RECORD_LOADING: ScriptRecordState = { status: 'loading' };
 /** The create page owns no record: nothing to seed, and the form is live at once. */
 const RECORD_NOT_NEEDED: ScriptRecordState = { status: 'ready', values: null, tags: NO_ITEMS };
+
+interface ScriptRecordFieldsProps {
+  scriptId: string | null;
+  record: ScriptRecordState;
+  onResolved: (state: ScriptRecordState) => void;
+  form: UseFormReturn<EditScriptFormData>;
+  showErrors: boolean;
+}
+
+/**
+ * The form's fields with the record they edit, with their own boundary. The
+ * loader suspends on the record; until it lands the reader draws the form in the
+ * loading scope (each field its own skeleton), and once the record is seeded the
+ * same fields unlock.
+ */
+function ScriptRecordFields(props: ScriptRecordFieldsProps) {
+  return (
+    <LoadingSuspense label="Loading script">
+      <ScriptRecordFieldsReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScriptRecordFieldsReader({ scriptId, record, onResolved, form, showErrors }: ScriptRecordFieldsProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptFields form={form} showErrors={false} disabled />;
+  return (
+    <>
+      {scriptId && <ScriptRecordLoader scriptId={scriptId} onResolved={onResolved} />}
+      {record.status === 'missing' ? (
+        <NotFoundError message="Script not found" />
+      ) : (
+        <ScriptFields
+          form={form}
+          showErrors={showErrors}
+          disabled={record.status !== 'ready'}
+          initialTags={record.status === 'ready' ? record.tags : NO_ITEMS}
+        />
+      )}
+    </>
+  );
+}
 
 interface ScriptRecordLoaderProps {
   scriptId: string;
@@ -292,22 +332,13 @@ function EditScriptForm({ scriptId }: { scriptId: string | null }) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {/* The loader suspends on the record; until it lands the form draws
-            itself in a loading scope (each field its own skeleton), and once
-            the record is seeded the same fields unlock. */}
-        <LoadingSuspense label="Loading script" fallback={<ScriptFields form={form} showErrors={false} disabled />}>
-          {scriptId && <ScriptRecordLoader scriptId={scriptId} onResolved={setRecord} />}
-          {record.status === 'missing' ? (
-            <NotFoundError message="Script not found" />
-          ) : (
-            <ScriptFields
-              form={form}
-              showErrors={showErrors}
-              disabled={!isRecordReady}
-              initialTags={record.status === 'ready' ? record.tags : NO_ITEMS}
-            />
-          )}
-        </LoadingSuspense>
+        <ScriptRecordFields
+          scriptId={scriptId}
+          record={record}
+          onResolved={setRecord}
+          form={form}
+          showErrors={showErrors}
+        />
       </PageLayout>
 
       <TestScriptModal

@@ -354,10 +354,16 @@ function RunScriptContent({ scriptId }: RunScriptViewProps) {
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   return (
-    <LoadingSuspense live label="Loading script" fallback={<RunScriptForm scriptId={scriptId} />}>
-      <RunScriptContent scriptId={scriptId} />
+    <LoadingSuspense live label="Loading script">
+      <RunScriptReader scriptId={scriptId} />
     </LoadingSuspense>
   );
+}
+
+function RunScriptReader({ scriptId }: RunScriptViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <RunScriptForm scriptId={scriptId} />;
+  return <RunScriptContent scriptId={scriptId} />;
 }
 
 export default RunScriptView;
