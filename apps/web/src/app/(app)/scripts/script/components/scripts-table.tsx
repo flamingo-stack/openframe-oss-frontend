@@ -686,8 +686,24 @@ function ScriptsTableContent({
 /** The columns before the first answer: the funnels pending, no row to act on. */
 const LOADING_COLUMNS = scriptColumns({ options: null, renderRowActions: () => null });
 
+/** The scripts list, with its own boundary: in its scope the reader draws the table's loading form. */
+function ScriptsTableList(props: ScriptsTableContentProps) {
+  return (
+    <LoadingSuspense label="Loading scripts">
+      <ScriptsTableListReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScriptsTableListReader(props: ScriptsTableContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope())
+    return <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={props.stickyHeaderOffset} />;
+  return <ScriptsTableContent {...props} />;
+}
+
 // ----------------------------------------------------------------
-// Outer shell — layout + URL state + Suspense boundary
+// Outer shell — layout + URL state
 // ----------------------------------------------------------------
 
 interface ScriptsTableProps {
@@ -830,26 +846,19 @@ export function ScriptsTable({ archived = false }: ScriptsTableProps = {}) {
           </div>
         )}
 
-        <LoadingSuspense
-          label="Loading scripts"
-          fallback={
-            <LiveTable columns={LOADING_COLUMNS} pageSize={PAGE_SIZE} stickyHeaderOffset={stickyHeaderOffset} />
-          }
-        >
-          <ScriptsTableContent
-            backendFilters={deferredFilters}
-            debouncedSearch={deferredSearch}
-            tableFilters={tableFilters}
-            hasTagFilter={params.tagIds.length > 0}
-            isPending={isPending}
-            onFilterChange={handleFilterChange}
-            onEmptyChange={setIsEmpty}
-            mobileFilterOpen={mobileFilterOpen}
-            onMobileFilterClose={() => setMobileFilterOpen(false)}
-            stickyHeaderOffset={stickyHeaderOffset}
-            archived={archived}
-          />
-        </LoadingSuspense>
+        <ScriptsTableList
+          backendFilters={deferredFilters}
+          debouncedSearch={deferredSearch}
+          tableFilters={tableFilters}
+          hasTagFilter={params.tagIds.length > 0}
+          isPending={isPending}
+          onFilterChange={handleFilterChange}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+          stickyHeaderOffset={stickyHeaderOffset}
+          archived={archived}
+        />
       </div>
     </PageLayout>
   );

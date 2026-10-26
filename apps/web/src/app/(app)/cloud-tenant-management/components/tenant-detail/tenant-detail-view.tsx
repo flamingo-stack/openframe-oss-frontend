@@ -2,7 +2,6 @@
 
 import { PenEditIcon, Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { routes } from '@/lib/routes';
 import { TenantDetailContent } from './tenant-detail-content';
 
@@ -36,11 +35,7 @@ interface TenantDetailViewProps {
 export function TenantDetailView({ id, loading = false }: TenantDetailViewProps) {
   return (
     <div className="flex w-full flex-col">
-      {/* While the record loads, and for the flag's own window: the content in a loading scope, where each part
-          draws its own loading state and nothing fetches. */}
-      <LiveSuspense label="Loading tenant" gated={loading}>
-        <TenantDetailContent id={id} actions={manageActions(id)} />
-      </LiveSuspense>
+      <TenantDetailContent id={id} actions={manageActions(id)} loading={loading} />
     </div>
   );
 }

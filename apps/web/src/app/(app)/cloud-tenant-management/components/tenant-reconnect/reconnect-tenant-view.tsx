@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
@@ -8,7 +9,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { reconnectTenantViewQuery as ReconnectTenantViewQueryType } from '@/__generated__/reconnectTenantViewQuery.graphql';
-import { LiveSuspense, SectionLoadError, useRetryKey } from '@/app/components/shared';
+import { SectionLoadError, useRetryKey } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { isReadable } from '../../utils/tenant-presentation';
 import { ConsentBlock } from '../consent/consent-block';
@@ -124,8 +125,8 @@ function ReconnectTenantContentQuery({ id }: { id: string }) {
  */
 export function ReconnectTenantView({ id }: { id: string }) {
   return (
-    <LiveSuspense label="Loading tenant">
+    <LoadingSuspense live label="Loading tenant">
       <ReconnectTenantContent id={id} />
-    </LiveSuspense>
+    </LoadingSuspense>
   );
 }

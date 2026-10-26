@@ -1,6 +1,6 @@
 'use client';
 
-import { AgentMark, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { AgentMark, UnifiedSkeleton, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ArrowRightUpIcon,
@@ -38,14 +38,7 @@ import type {
   InsightFilter,
 } from '@/__generated__/incidentsTableRelayQuery.graphql';
 import type { insightFacets_filters$key as InsightFacetsKey } from '@/__generated__/insightFacets_filters.graphql';
-import {
-  EmptyState,
-  GatedSuspense,
-  liveColumnMeta,
-  NO_ITEMS,
-  oneLineEmptyState,
-  useRetryKey,
-} from '@/app/components/shared';
+import { EmptyState, liveColumnMeta, NO_ITEMS, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -367,9 +360,40 @@ interface IncidentsTableContentProps {
   refreshKey: number;
   /** What a list with no incidents at all shows in place of the table. */
   emptyState: ReactNode;
+  /** In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty. */
+  scoped: boolean;
 }
 
-function IncidentsTableContent({
+/** The incidents table, with its own boundary: in its scope the reader draws its own loading form. */
+function IncidentsTableContent(props: IncidentsTableContentProps) {
+  return (
+    <LoadingSuspense bare gated={props.scoped} label="Loading incidents">
+      <IncidentsTableContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentsTableContentReader(props: IncidentsTableContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read:
+  // the live table with no rows yet (funnels pending, no row to act on), its body and row count drawing themselves.
+  if (useLoadingScope()) {
+    return (
+      <LiveTable
+        columns={incidentColumns({
+          options: null,
+          deviceScoped: props.deviceScoped,
+          statusLocked: props.statuses.length === 1,
+          renderRowActions: () => null,
+        })}
+        pageSize={PAGE_SIZE}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+      />
+    );
+  }
+  return <IncidentsTableContentLive {...props} />;
+}
+
+function IncidentsTableContentLive({
   backendFilters,
   debouncedSearch,
   tableFilters,
@@ -673,19 +697,6 @@ function IncidentsList({
   const deviceScoped = machineId !== undefined;
   // In a loading scope (the page's feature flag unanswered) the list reads nothing: the table draws itself empty.
   const scoped = useLoadingScope();
-  // The live table with no rows yet (funnels pending, no row to act on): its body and row count draw themselves.
-  const loadingTable = (
-    <LiveTable
-      columns={incidentColumns({
-        options: null,
-        deviceScoped,
-        statusLocked: statuses.length === 1,
-        renderRowActions: () => null,
-      })}
-      pageSize={PAGE_SIZE}
-      stickyHeaderOffset={stickyHeaderOffset}
-    />
-  );
 
   // URL params are untyped strings — keep only real enum members (and, for
   // status, only the list's own; none on a single-status tab, which has no
@@ -760,24 +771,23 @@ function IncidentsList({
         </div>
       )}
 
-      <GatedSuspense bare gated={scoped} label="Loading incidents" view={loadingTable}>
-        <IncidentsTableContent
-          backendFilters={deferredFilters}
-          debouncedSearch={deferredSearch}
-          tableFilters={tableFilters}
-          isPending={isPending}
-          onFilterChange={handleFilterChange}
-          onEmptyChange={setIsEmpty}
-          toolbarHidden={isEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          deviceScoped={deviceScoped}
-          statuses={statuses}
-          refreshKey={refreshKey}
-          emptyState={emptyState}
-        />
-      </GatedSuspense>
+      <IncidentsTableContent
+        scoped={scoped}
+        backendFilters={deferredFilters}
+        debouncedSearch={deferredSearch}
+        tableFilters={tableFilters}
+        isPending={isPending}
+        onFilterChange={handleFilterChange}
+        onEmptyChange={setIsEmpty}
+        toolbarHidden={isEmpty}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={() => setMobileFilterOpen(false)}
+        stickyHeaderOffset={stickyHeaderOffset}
+        deviceScoped={deviceScoped}
+        statuses={statuses}
+        refreshKey={refreshKey}
+        emptyState={emptyState}
+      />
     </div>
   );
 }

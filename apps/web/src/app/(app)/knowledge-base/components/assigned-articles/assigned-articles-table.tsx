@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -169,6 +170,15 @@ interface AssignedArticlesTableProps {
  * which suspends, so it lives under the tab's `<Suspense>`.
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
+  return (
+    <LoadingSuspense label="Loading articles">
+      <AssignedArticlesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function AssignedArticlesTableReader(props: AssignedArticlesTableProps) {
   const { target } = props;
   if (useLoadingScope() || target == null) {
     return (

@@ -109,15 +109,22 @@ export function DeployDeviceStep(props: DeployDeviceStepProps) {
         title="Deploy First Device"
         subtitle="Run one command on a machine to connect it to OpenFrame and start monitoring."
       />
-      {/* `contents`: the loading region must not become a box of its own in the frame's column. */}
-      <LoadingSuspense label="Loading the install command" className="contents">
-        <DeployDeviceBody {...props} />
-      </LoadingSuspense>
+      <DeployDeviceSection {...props} />
     </>
   );
 }
 
-/** In a loading scope (the boundary's fallback) the body draws its loading form and reads nothing. */
+/** The step's body, with its own boundary: in its scope the reader draws its own loading form. */
+function DeployDeviceSection(props: DeployDeviceStepProps) {
+  return (
+    // `contents`: the loading region must not become a box of its own in the frame's column.
+    <LoadingSuspense label="Loading the install command" className="contents">
+      <DeployDeviceBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback) the body draws its loading form and reads nothing. */
 function DeployDeviceBody(props: DeployDeviceStepProps) {
   if (useLoadingScope()) return <DeployDeviceLoading />;
   return <DeployDeviceForm {...props} />;

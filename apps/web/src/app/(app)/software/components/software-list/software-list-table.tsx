@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Parcel02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -59,11 +60,19 @@ interface SoftwareListTableProps {
 }
 
 /**
- * The Software inventory rows. In a loading scope (the frame's Suspense fallback, or the module's flag window) it
- * draws the shared table with no rows, which is the table's own loading state; otherwise it runs the query, which
- * suspends, so it lives under the frame's `<Suspense>`.
+ * The Software inventory rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's
+ * flag window) the reader draws the shared table with no rows, which is the table's own loading state; otherwise it
+ * runs the query, which suspends under that boundary.
  */
 export function SoftwareListTable(props: SoftwareListTableProps) {
+  return (
+    <LoadingSuspense label="Loading software">
+      <SoftwareListTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareListTableReader(props: SoftwareListTableProps) {
   if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
   return <SoftwareListTableQuery {...props} />;
 }

@@ -180,7 +180,7 @@ function CustomerSelectOptions({
 }
 
 /**
- * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own Suspense
+ * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own boundary's
  * fallback, or the page's), and when the list cannot be read, it is the real field, locked, offering only its
  * stored customer, and reads nothing.
  */
@@ -199,10 +199,17 @@ export function CustomerSelect({ enabled = true, ...props }: CustomerSelectProps
         />
       )}
     >
-      <LoadingSuspense label="Loading customers">
-        <CustomerSelectBody {...props} />
-      </LoadingSuspense>
+      <CustomerSelectList {...props} />
     </ContentErrorBoundary>
+  );
+}
+
+/** The field over its list, with its own boundary: in its scope the reader draws the locked field. */
+function CustomerSelectList(props: Omit<CustomerSelectProps, 'enabled'>) {
+  return (
+    <LoadingSuspense label="Loading customers">
+      <CustomerSelectBody {...props} />
+    </LoadingSuspense>
   );
 }
 

@@ -92,12 +92,7 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <SoftwareListFrame
-        paramPrefix="cve"
-        placeholder={SEARCH_PLACEHOLDER}
-        loadingLabel="Loading vulnerabilities"
-        loading={loading}
-      >
+      <SoftwareListFrame paramPrefix="cve" placeholder={SEARCH_PLACEHOLDER} loading={loading}>
         {list => (
           <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
             <DeviceVulnerabilitiesTable

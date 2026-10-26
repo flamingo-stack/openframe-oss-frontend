@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   NotFoundError,
   type PageActionButton,
@@ -39,9 +38,7 @@ export function EditTenantView({ id }: { id: string }) {
 
   return (
     <TenantFormFrame title="Edit Tenant Integration" actions={actions}>
-      <LoadingSuspense label="Loading tenant">
-        <TenantRecordLoader id={id} onResolved={setRecord} />
-      </LoadingSuspense>
+      <TenantRecordLoader id={id} onResolved={setRecord} />
       {record.status === 'missing' ? (
         <NotFoundError message="Tenant not found" onHome={() => router.replace(routes.cloudTenantManagement.list)} />
       ) : (

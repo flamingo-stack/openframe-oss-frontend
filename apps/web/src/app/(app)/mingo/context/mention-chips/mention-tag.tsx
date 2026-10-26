@@ -22,7 +22,6 @@
  * throws (never crashes the message).
  */
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -162,20 +161,6 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
         </a>
       </FloatingTooltip>
     </span>
-  );
-}
-
-/**
- * The Suspense boundary of a per-type chip: while the chip's entity is fetched, the chip itself (no label yet) in a
- * loading scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the
- * chip lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
- * "loading" read out mid-sentence for each would bury the message itself.
- */
-export function MentionSuspense({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
-  return (
-    <LoadingSuspense as="span" className="contents" status={false} fallback={<MentionTag icon={icon} label="" />}>
-      {children}
-    </LoadingSuspense>
   );
 }
 

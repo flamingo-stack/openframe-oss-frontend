@@ -134,15 +134,26 @@ function IncidentNotesContent({ incidentId }: IncidentNotesProps) {
  * boundary too, so a notes failure degrades this section rather than
  * replacing an already-loaded incident with the page's error.
  */
-export function IncidentNotes({ incidentId }: IncidentNotesProps) {
-  // The section without its notes: in a loading scope (and as the fallback) it draws its own skeleton.
-  const emptySection = <NotesSection notes={NO_ITEMS} onAddNote={noop} onEditNote={noop} onDeleteNote={noop} />;
-  if (useLoadingScope()) return emptySection;
+export function IncidentNotes(props: IncidentNotesProps) {
   return (
     <ContentErrorBoundary title="Notes" message="Couldn't load notes.">
-      <LoadingSuspense label="Loading notes" fallback={emptySection}>
-        <IncidentNotesContent incidentId={incidentId} />
-      </LoadingSuspense>
+      <IncidentNotesSection {...props} />
     </ContentErrorBoundary>
   );
+}
+
+/** The notes section, with its own boundary: in its scope the reader draws its own loading form. */
+function IncidentNotesSection(props: IncidentNotesProps) {
+  return (
+    <LoadingSuspense label="Loading notes">
+      <IncidentNotesReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function IncidentNotesReader(props: IncidentNotesProps) {
+  // The section without its notes: in a loading scope (its boundary's or an outer one) it draws its own skeleton.
+  if (useLoadingScope())
+    return <NotesSection notes={NO_ITEMS} onAddNote={noop} onEditNote={noop} onDeleteNote={noop} />;
+  return <IncidentNotesContent {...props} />;
 }

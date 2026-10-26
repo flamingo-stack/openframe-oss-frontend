@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingItems } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -91,9 +91,15 @@ function ScheduleScriptsTabLoading() {
  */
 export const ScheduleScriptsTab = memo(function ScheduleScriptsTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <LoadingSuspense label="Loading scripts" fallback={<ScheduleScriptsTabLoading />}>
-      <ScheduleScriptsTabContent scheduleId={scheduleId} />
+    <LoadingSuspense label="Loading scripts">
+      <ScheduleScriptsTabReader scheduleId={scheduleId} />
     </LoadingSuspense>
   );
 });
 ScheduleScriptsTab.displayName = 'ScheduleScriptsTab';
+
+function ScheduleScriptsTabReader({ scheduleId }: { scheduleId: string }) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleScriptsTabLoading />;
+  return <ScheduleScriptsTabContent scheduleId={scheduleId} />;
+}

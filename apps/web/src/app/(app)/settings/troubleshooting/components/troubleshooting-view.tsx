@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BuildingsIcon,
   MonitorOffIcon,
@@ -136,10 +135,10 @@ export function TroubleshootingView() {
     },
   ];
 
-  // The same list in the Suspense fallback, where it draws its own skeleton in the loading scope.
+  // The list, which owns its boundary and draws its own skeleton in that boundary's scope.
   const logsList = (
     <DeviceLogsList
-      key={deferredList.key}
+      listKey={deferredList.key}
       machineIds={deferredList.machineIds}
       organizationIds={deferredList.organizationIds}
       filter={deferredList.filter}
@@ -177,7 +176,7 @@ export function TroubleshootingView() {
         resetKey={deferredList.key}
         fallback={unknownPickFallback}
       >
-        <LoadingSuspense label="Loading logs">{logsList}</LoadingSuspense>
+        {logsList}
       </ContentErrorBoundary>
       <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} />
     </PageLayout>

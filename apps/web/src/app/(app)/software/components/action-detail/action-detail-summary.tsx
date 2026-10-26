@@ -12,7 +12,6 @@ import { SummaryCard } from '../shared/summary-card';
 import { ActionDetailLogsHeading } from './action-detail-logs-heading';
 import { ACTION_DETAIL_SUMMARY_LABELS as LABELS } from './action-detail-summary-labels';
 import { ActionPackageVersion } from './action-package-version';
-import { SummaryValueIsland } from './summary-value-island';
 
 const actionDetailSummaryFragment = graphql`
   fragment actionDetailSummary_action on SoftwareActionRun {
@@ -52,9 +51,7 @@ export function ActionDetailSummary({ action }: { action: actionDetailSummary_ac
             // No catalog to ask for a manager this build does not know.
             value:
               data && packageManager ? (
-                <SummaryValueIsland label="Loading package version">
-                  <ActionPackageVersion packageManager={packageManager} packageName={data.software} />
-                </SummaryValueIsland>
+                <ActionPackageVersion packageManager={packageManager} packageName={data.software} />
               ) : null,
           },
           {
