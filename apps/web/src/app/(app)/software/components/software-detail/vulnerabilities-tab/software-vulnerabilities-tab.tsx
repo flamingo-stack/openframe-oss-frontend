@@ -1,18 +1,15 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useState } from 'react';
-import { TableSkeleton } from '@/app/components/shared';
+import { memo, useState } from 'react';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_LIST_SKELETON_ROWS, FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
+import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
-import {
-  SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS,
-  SOFTWARE_VULNERABILITIES_TABLE_COLUMNS,
-} from './software-vulnerabilities-columns';
+import { SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilitiesTable } from './software-vulnerabilities-table';
 
 /**
@@ -53,12 +50,15 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
   // search and `isPending` covers both. The tab has no funnels.
   const { deferredFilters: deferredSort, deferredSearch, isPending } = useDeferredQuery(sort, debouncedSearch);
 
-  // The rows before they answer — the same for a query in flight and for the flag's own window.
-  const tableSkeleton = (
-    <TableSkeleton
-      label="Loading vulnerabilities"
-      columns={SOFTWARE_VULNERABILITIES_TABLE_COLUMNS}
-      rows={FLEET_LIST_SKELETON_ROWS}
+  const rows = (
+    <SoftwareVulnerabilitiesTable
+      softwareId={softwareId}
+      debouncedSearch={deferredSearch}
+      sort={deferredSort}
+      sortState={sortState}
+      onSortChange={onSortChange}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
@@ -75,22 +75,9 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
         />
       )}
 
-      {loading ? (
-        tableSkeleton
-      ) : (
-        <Suspense fallback={tableSkeleton}>
-          <SoftwareVulnerabilitiesTable
-            softwareId={softwareId}
-            debouncedSearch={deferredSearch}
-            sort={deferredSort}
-            sortState={sortState}
-            onSortChange={onSortChange}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
-      )}
+      {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's own
+          window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>{rows}</LoadingWhen>
     </div>
   );
 });

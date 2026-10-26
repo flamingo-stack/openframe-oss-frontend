@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -27,7 +29,23 @@ interface ArticleRecordLoaderProps {
  * it up, where the owner of `useForm` seeds the form (`useSeedForm` — the write
  * cannot happen here).
  */
-export function ArticleRecordLoader({ articleId, onResolved }: ArticleRecordLoaderProps) {
+export function ArticleRecordLoader(props: ArticleRecordLoaderProps) {
+  // Its own boundary renders nothing either; while it loads, its fallback is the one "Loading article" announcement,
+  // its region `contents` so it takes no slot (and no gap) in the page's column.
+  return (
+    <LoadingSuspense label="Loading article" className="contents">
+      <ArticleRecordReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ArticleRecordReader(props: ArticleRecordLoaderProps) {
+  // In a loading scope (its boundary's fallback) there is nothing to read yet, and nothing to draw.
+  if (useLoadingScope()) return null;
+  return <ArticleRecordQuery {...props} />;
+}
+
+function ArticleRecordQuery({ articleId, onResolved }: ArticleRecordLoaderProps) {
   const retryKey = useRetryKey();
   const { knowledgeBaseItem: item } = useLazyLoadQuery<ArticleRecordLoaderQueryType>(
     articleRecordLoaderQuery,

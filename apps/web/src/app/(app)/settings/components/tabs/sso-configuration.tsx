@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   PasscodeIcon,
   PenEditIcon,
@@ -20,11 +20,13 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { routes } from '@/lib/routes';
@@ -33,6 +35,41 @@ import { type TenantDomainInfo, useTenantDomain } from '../../hooks/use-tenant-d
 import { DisableOpenframeSsoModal } from '../disable-openframe-sso-modal';
 import { SsoConfigModal } from '../edit-sso-config-modal';
 import { SsoConfigurationDetailsModal } from '../sso-configuration-details-modal';
+
+/**
+ * Rows the loading table draws. The list is not paged (one row per configured provider), so there is no page size:
+ * a typical workspace configures one or two providers. A typical count, not a claim about how many exist.
+ */
+const SSO_SKELETON_ROWS = 2;
+
+/** A secondary text cell; a bar of its line on a loading row (a loading scope, no provider yet). */
+function SecondaryText({ text }: { text: string }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
+  return (
+    <TruncateText variant="h4" tone="secondary">
+      {text}
+    </TruncateText>
+  );
+}
+
+/** The edit button: static chrome, drawn real and inert on a loading row. */
+function EditProviderButton({ displayName, onEdit }: { displayName: string | undefined; onEdit: () => void }) {
+  const loading = useLoadingScope();
+  return (
+    // A square edit icon button on every breakpoint (designs 1614-66071/66116);
+    // it must not trigger the row's Configuration Details click.
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label={`Edit ${displayName ?? 'configuration'}`}
+        onClick={loading ? undefined : onEdit}
+        leftIcon={<PenEditIcon />}
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 type UiProviderRow = {
   id: string;
@@ -48,7 +85,8 @@ type UiProviderRow = {
 export function SsoConfigurationTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [providers, setProviders] = useState<UiProviderRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading from the first render: the list is read on mount, and an empty first frame reads as "no configurations".
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{
     open: boolean;
@@ -341,7 +379,13 @@ export function SsoConfigurationTab() {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <Tag className="self-start" label={row.original.status.label} variant={row.original.status.variant} />
+          <Tag
+            className="self-start"
+            label={row.original.status?.label}
+            variant={row.original.status?.variant}
+            // A loading placeholder row has no status: the tag draws its own loading form.
+            loading={!row.original.status}
+          />
         ),
         meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
@@ -349,9 +393,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'allowedDomains',
         header: 'Allowed Domains',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h4" tone="secondary">
-            {row.original.allowedDomains.length > 0 ? row.original.allowedDomains.join(', ') : 'none'}
-          </TruncateText>
+          <SecondaryText text={row.original.allowedDomains?.length ? row.original.allowedDomains.join(', ') : 'none'} />
         ),
         meta: { width: 'w-[220px] shrink-0', hideAt: 'md' },
       },
@@ -359,9 +401,7 @@ export function SsoConfigurationTab() {
         accessorKey: 'hasConfig',
         header: 'Configuration',
         cell: ({ row }: { row: Row<UiProviderRow> }) => (
-          <TruncateText variant="h4" tone="secondary">
-            {row.original.hasConfig ? 'Configured' : 'Not configured'}
-          </TruncateText>
+          <SecondaryText text={row.original.hasConfig ? 'Configured' : 'Not configured'} />
         ),
         // The tablet keeps Allowed Domains and folds Configuration first (design 1614-66094).
         meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
@@ -382,19 +422,7 @@ export function SsoConfigurationTab() {
               allowedDomains: row.original.allowedDomains,
             });
 
-          return (
-            // A square edit icon button on every breakpoint (designs 1614-66071/66116);
-            // it must not trigger the row's Configuration Details click.
-            <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={`Edit ${row.original.displayName}`}
-                onClick={openEditModal}
-                leftIcon={<PenEditIcon />}
-              />
-            </div>
-          );
+          return <EditProviderButton displayName={row.original.displayName} onEdit={openEditModal} />;
         },
         enableSorting: false,
         meta: { width: 'w-11 shrink-0 content-md:w-16', align: 'right' },
@@ -409,8 +437,15 @@ export function SsoConfigurationTab() {
     return providers.filter(p => p.displayName.toLowerCase().includes(term) || p.provider.toLowerCase().includes(term));
   }, [providers, searchTerm]);
 
+  // The first read (no provider on screen yet): the table holds placeholder rows, drawn with their real cells
+  // (`loadingCells`), each cell its own loading form. A reload keeps the providers on screen.
+  const loadingRows = isLoading && filtered.length === 0;
+  const data = useMemo(
+    () => (loadingRows ? loadingPlaceholderRows<UiProviderRow>(SSO_SKELETON_ROWS) : filtered),
+    [loadingRows, filtered],
+  );
   const table = useDataTable<UiProviderRow>({
-    data: filtered,
+    data,
     columns,
     getRowId: (row: UiProviderRow) => row.id,
     enableSorting: false,
@@ -425,8 +460,11 @@ export function SsoConfigurationTab() {
       title="SSO Configurations"
       className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
+      // While the providers load, the add action is drawn as a placeholder: a workspace typically has a provider left
+      // to configure, so the action is the likely header.
+      loadingActions={isLoading}
       actions={
-        availableForCreate.length > 0
+        isLoading || availableForCreate.length > 0
           ? [
               {
                 label: 'Add SSO Configuration',
@@ -439,57 +477,18 @@ export function SsoConfigurationTab() {
       }
     >
       {/* Tenant-wide sign-in options: built-in OpenFrame login + open access for the tenant domain */}
-      {isOpenframeLoading || isDomainLoading ? (
-        <LoadingRegion label="Loading sign-in options" as={Card} className="border-ods-border bg-ods-card p-4">
-          <div className="flex flex-col gap-6">
-            {[0, 1].map(row => (
-              <div key={row} className="flex items-start gap-3">
-                <UnifiedSkeleton className="h-5 w-5 shrink-0 rounded" />
-                <div className="flex flex-1 flex-col gap-1">
-                  <UnifiedSkeleton className="h-5 w-48 content-md:w-64" />
-                  <UnifiedSkeleton className="h-4 w-full content-md:w-96" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </LoadingRegion>
-      ) : (
-        (openframeSso || tenantDomain) && (
-          <Card className="overflow-hidden border-ods-border bg-ods-card">
-            {openframeSso && (
-              <CheckboxWithDescription
-                id="openframe-sso-enabled"
-                checked={openframeSso.enabled}
-                onCheckedChange={handleOpenframeCheckedChange}
-                disabled={isOpenframeUpdating}
-                title="Enable OpenFrame SSO"
-                description="Allow users to sign up and sign in with an OpenFrame account."
-                className="items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4"
-              />
-            )}
-            {tenantDomain && (
-              <CheckboxWithDescription
-                id="shared-auto-provision"
-                checked={tenantDomain.autoAllow}
-                onCheckedChange={handleAutoProvisionToggle}
-                disabled={tenantDomain.generic || isAutoProvisionUpdating}
-                title="Open access for your domains"
-                description={
-                  tenantDomain.generic
-                    ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
-                    : 'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.'
-                }
-                className={cn(
-                  'items-center rounded-none border-0 bg-transparent [&>button]:mt-0 [&>button]:bg-transparent [&_label]:text-h4',
-                  openframeSso && 'border-t border-ods-border',
-                )}
-              />
-            )}
-          </Card>
-        )
-      )}
+      <SignInOptionsCard
+        loading={isOpenframeLoading || isDomainLoading}
+        openframeSso={openframeSso}
+        tenantDomain={tenantDomain}
+        isOpenframeUpdating={isOpenframeUpdating}
+        isAutoProvisionUpdating={isAutoProvisionUpdating}
+        onOpenframeCheckedChange={handleOpenframeCheckedChange}
+        onAutoProvisionToggle={handleAutoProvisionToggle}
+      />
 
       <Input
+        userValue
         startAdornment={<SearchIcon />}
         placeholder="Search for SSO"
         value={searchTerm}
@@ -498,9 +497,11 @@ export function SsoConfigurationTab() {
       />
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" loading={loadingRows} />} />
         <DataTable.Body
           loading={isLoading}
+          loadingCells={loadingRows}
+          skeletonRows={SSO_SKELETON_ROWS}
           emptyState={{
             icon: <PasscodeIcon />,
             title: 'No SSO configurations',
@@ -604,5 +605,72 @@ export function SsoConfigurationTab() {
         }}
       />
     </PageLayout>
+  );
+}
+
+const OPTION_ROW_CLASS =
+  'items-center rounded-none border-0 bg-transparent [&>:first-child]:mt-0 [&>button]:bg-transparent [&_label]:text-h4';
+const OPENFRAME_SSO_TITLE = 'Enable OpenFrame SSO';
+const OPENFRAME_SSO_DESCRIPTION = 'Allow users to sign up and sign in with an OpenFrame account.';
+const OPEN_ACCESS_TITLE = 'Open access for your domains';
+const OPEN_ACCESS_DESCRIPTION =
+  'Anyone with an account on your allowed domains can sign in to OpenFrame without an invitation. Their account is created automatically the first time they sign in.';
+
+interface SignInOptionsCardProps {
+  /** The OpenFrame login or the tenant domain has not answered: the card draws its own skeleton. */
+  loading: boolean;
+  openframeSso: { enabled: boolean } | null;
+  tenantDomain: TenantDomainInfo | null;
+  isOpenframeUpdating: boolean;
+  isAutoProvisionUpdating: boolean;
+  onOpenframeCheckedChange: (checked: boolean) => void;
+  onAutoProvisionToggle: (checked: boolean) => void;
+}
+
+/** Tenant-wide sign-in options: the built-in OpenFrame login and open access for the tenant domain. */
+function SignInOptionsCard({
+  loading,
+  openframeSso,
+  tenantDomain,
+  isOpenframeUpdating,
+  isAutoProvisionUpdating,
+  onOpenframeCheckedChange,
+  onAutoProvisionToggle,
+}: SignInOptionsCardProps) {
+  // While the two answers are on their way: both rows a workspace typically has, their copy real (the open-access
+  // sentence a workspace's own domain gets), each checkbox a bar of the box's size (the lib's `loading`).
+  const isLoading = useLoadingScope() || !!loading;
+  if (!isLoading && !openframeSso && !tenantDomain) return null;
+  return (
+    <Card className="overflow-hidden border-ods-border bg-ods-card">
+      {(isLoading || openframeSso) && (
+        <CheckboxWithDescription
+          id="openframe-sso-enabled"
+          checked={openframeSso?.enabled ?? false}
+          onCheckedChange={onOpenframeCheckedChange}
+          disabled={isOpenframeUpdating}
+          title={OPENFRAME_SSO_TITLE}
+          description={OPENFRAME_SSO_DESCRIPTION}
+          className={OPTION_ROW_CLASS}
+          loading={isLoading}
+        />
+      )}
+      {(isLoading || tenantDomain) && (
+        <CheckboxWithDescription
+          id="shared-auto-provision"
+          checked={tenantDomain?.autoAllow ?? false}
+          onCheckedChange={onAutoProvisionToggle}
+          disabled={tenantDomain?.generic || isAutoProvisionUpdating}
+          title={OPEN_ACCESS_TITLE}
+          description={
+            tenantDomain?.generic
+              ? `Generic domains like ${tenantDomain.domain} cannot be used for open access.`
+              : OPEN_ACCESS_DESCRIPTION
+          }
+          className={cn(OPTION_ROW_CLASS, (isLoading || openframeSso) && 'border-t border-ods-border')}
+          loading={isLoading}
+        />
+      )}
+    </Card>
   );
 }

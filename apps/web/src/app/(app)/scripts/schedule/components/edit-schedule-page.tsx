@@ -2,12 +2,13 @@
 'use no memo';
 
 import { NotFoundError, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ScheduleFormFields,
   type ScheduleScriptSearchSlotProps,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useLayoutEffect, useMemo, useState } from 'react';
+import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { type ComponentProps, useLayoutEffect, useMemo, useState } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
@@ -33,9 +34,8 @@ const RECORD_NOT_NEEDED: ScheduleRecordState = { status: 'ready', values: null }
 /**
  * The page's data island — and it renders NOTHING.
  *
- * Everything it feeds is already on screen: the form is mounted from the first
- * render and simply locked, so the island has no placeholder to stand in for
- * (`fallback={null}`) and no fields to remount when the answer lands. It reads
+ * While it suspends, the page's form draws itself in a loading scope (the
+ * boundary's fallback); once the answer lands the same fields unlock. It reads
  * the schedule and hands it up; the page writes it into the form (see
  * `useSeedForm` for why the WRITE cannot happen here).
  *
@@ -69,6 +69,67 @@ function ScheduleRecordLoader({
   }, [values, onResolved]);
 
   return null;
+}
+
+interface ScheduleRecordFieldsProps {
+  scheduleId: string | null;
+  record: ScheduleRecordState;
+  onResolved: (state: ScheduleRecordState) => void;
+  showErrors: boolean;
+  timeReferenceGate: ComponentProps<typeof ScheduleFormFields>['timeReferenceGate'];
+}
+
+/**
+ * The form's fields with the record they edit, with their own boundary. The
+ * loader suspends on the record; until it lands the reader draws the form in the
+ * loading scope (each field its own skeleton), and once the record is seeded the
+ * same fields unlock.
+ */
+function ScheduleRecordFields(props: ScheduleRecordFieldsProps) {
+  return (
+    <LoadingSuspense label="Loading schedule">
+      <ScheduleRecordFieldsReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleRecordFieldsReader({
+  scheduleId,
+  record,
+  onResolved,
+  showErrors,
+  timeReferenceGate,
+}: ScheduleRecordFieldsProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) {
+    return (
+      <ScheduleFormFields
+        showErrors={false}
+        disabled
+        renderScriptSearch={renderScriptSearch}
+        timeReferenceGate={timeReferenceGate}
+        platforms={AVAILABLE_PLATFORMS}
+        comingSoonPlatforms={DISABLED_PLATFORMS}
+      />
+    );
+  }
+  return (
+    <>
+      {scheduleId && <ScheduleRecordLoader scheduleId={scheduleId} onResolved={onResolved} />}
+      {record.status === 'missing' ? (
+        <NotFoundError message="Schedule not found" />
+      ) : (
+        <ScheduleFormFields
+          showErrors={showErrors}
+          disabled={record.status !== 'ready'}
+          renderScriptSearch={renderScriptSearch}
+          timeReferenceGate={timeReferenceGate}
+          platforms={AVAILABLE_PLATFORMS}
+          comingSoonPlatforms={DISABLED_PLATFORMS}
+        />
+      )}
+    </>
+  );
 }
 
 /**
@@ -121,41 +182,13 @@ function ScheduleFormPage({ scheduleId }: { scheduleId: string | null }) {
         actionsVariant="primary-buttons"
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
-        {scheduleId && (
-          // Suspends with nothing in its place: what it is loading is already
-          // drawn below, locked.
-          <Suspense fallback={null}>
-            <ScheduleRecordLoader scheduleId={scheduleId} onResolved={setRecord} />
-          </Suspense>
-        )}
-
-        {/* Locked fields are announced by nothing on their own — `disabled` reads
-            as "unavailable", not "busy" — so the wait gets a line of its own.
-            `sr-only` is out of flow, so it costs no layout.
-
-            Mounted unconditionally, with only its TEXT switching: a live region
-            that appears with its content already inside it is not reliably
-            announced, and the emptied region is what retracts the message once
-            the record lands. Gated on `loading` rather than `!isRecordReady`,
-            which is also true for `missing` — that branch renders
-            `NotFoundError` below, and announcing a load that never resolves
-            next to it is the opposite of what the reader needs. */}
-        <span role="status" className="sr-only">
-          {record.status === 'loading' ? 'Loading schedule…' : ''}
-        </span>
-
-        {record.status === 'missing' ? (
-          <NotFoundError message="Schedule not found" />
-        ) : (
-          <ScheduleFormFields
-            showErrors={showErrors}
-            disabled={!isRecordReady}
-            renderScriptSearch={renderScriptSearch}
-            timeReferenceGate={deviceTimeGate}
-            platforms={AVAILABLE_PLATFORMS}
-            comingSoonPlatforms={DISABLED_PLATFORMS}
-          />
-        )}
+        <ScheduleRecordFields
+          scheduleId={scheduleId}
+          record={record}
+          onResolved={setRecord}
+          showErrors={showErrors}
+          timeReferenceGate={deviceTimeGate}
+        />
       </PageLayout>
     </FormProvider>
   );

@@ -2,6 +2,7 @@
 'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -22,7 +24,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { OrgAvatar } from '@/app/components/shared';
+import { NO_ITEMS, OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
@@ -33,7 +35,7 @@ import { routes } from '@/lib/routes';
 import { AdminPrivilegesWarning } from '../components/admin-privileges-warning';
 import { AntivirusWarning } from '../components/antivirus-warning';
 import { DoctorModeWarning } from '../components/doctor-mode-warning';
-import { useDeviceOrganizations } from '../hooks/use-device-organizations';
+import { type DeviceOrganizationOption, useDeviceOrganizations } from '../hooks/use-device-organizations';
 import { useInstallCommand } from '../hooks/use-install-command';
 import { useRemoteAccessApprovalGate } from '../hooks/use-remote-access-approval-gate';
 import { useOrganizationRemoteAccessPolicy } from '../hooks/use-remote-access-policy';
@@ -61,7 +63,46 @@ const newDeviceSchema = z.object({
 
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 
+/**
+ * The page's one form, with its own boundary: it waits whole (its organization field seeds its state), and in its
+ * scope the reader draws the form with no customers.
+ */
 export function NewDeviceContent() {
+  return (
+    <LoadingSuspense label="Loading device setup">
+      <NewDeviceContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function NewDeviceContentReader() {
+  // In a loading scope (its boundary's fallback) it reads nothing: the form over no customers, every field its own
+  // loading state.
+  if (useLoadingScope()) return <NewDeviceForm orgs={NO_ITEMS} preselectedOrgId={null} />;
+  return <NewDeviceContentLive />;
+}
+
+/**
+ * The page's data: the customers (suspends until they answer) and the customer passed by "Add Device" launched
+ * from a customer's section (`/devices/new?organizationId=<id>`), used to pre-select the dropdown.
+ */
+function NewDeviceContentLive() {
+  const preselectedOrgId = useSearchParams().get('organizationId');
+  // Organizations for the customer dropdown (GraphQL via TanStack Query).
+  const orgs = useDeviceOrganizations(100);
+  return <NewDeviceForm orgs={orgs} preselectedOrgId={preselectedOrgId} />;
+}
+
+interface NewDeviceFormProps {
+  orgs: readonly DeviceOrganizationOption[];
+  preselectedOrgId: string | null;
+}
+
+/**
+ * The form over the customers it is handed. In a loading scope it is drawn with none (every field its own loading
+ * state), so loading and loaded are one layout.
+ */
+function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
   // The remote access permission selector belongs to the next remote access
@@ -69,13 +110,6 @@ export function NewDeviceContent() {
   // hidden where only v1 is enabled.
   const remoteAccessV2 = useFeatureFlag('remote-access-v2');
   const showRemoteAccess = useRemoteAccessApprovalGate() === 'on' && remoteAccessV2;
-
-  // Customer context passed by "Add Device" launched from a customer's section
-  // (e.g. `/devices/new?organizationId=<id>`), used to pre-select the dropdown.
-  const preselectedOrgId = useSearchParams().get('organizationId');
-
-  // Organizations for the customer dropdown (GraphQL via TanStack Query).
-  const orgs = useDeviceOrganizations(100);
 
   const [tags, setTags] = useState<TagEntryWithId[]>([]);
 

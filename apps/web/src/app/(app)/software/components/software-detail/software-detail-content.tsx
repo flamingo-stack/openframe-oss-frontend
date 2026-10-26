@@ -1,6 +1,8 @@
 'use client';
 
 import { NotFoundError } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { softwareDetailContentQuery as SoftwareDetailContentQueryType } from '@/__generated__/softwareDetailContentQuery.graphql';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -30,10 +32,39 @@ const softwareDetailContentQuery = graphql`
 `;
 
 /**
- * Everything on the page that waits for the record. The summary is the page's
+ * Everything on the page that waits for the record, with its own boundary. The summary is the page's
  * not-found report; the tabs below it answer for themselves, with empty lists.
  */
-export function SoftwareDetailContent({ softwareId }: { softwareId: string }) {
+export function SoftwareDetailContent({
+  softwareId,
+  loading = false,
+}: {
+  softwareId: string;
+  /** The module's flag has not answered yet: drawn in a loading scope, nothing fetches. */
+  loading?: boolean;
+}) {
+  return (
+    <LoadingSuspense live gated={loading} label="Loading software">
+      <SoftwareDetailContentReader softwareId={softwareId} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareDetailContentReader({ softwareId }: { softwareId: string }) {
+  // In a loading scope (its boundary's fallback, or the module's flag window): the same header and card with
+  // no record, each its own loading state, and no fetch.
+  if (useLoadingScope()) {
+    return (
+      <>
+        <SoftwareDetailHeader software={null} />
+        <SoftwareDetailSummary software={null} />
+      </>
+    );
+  }
+  return <SoftwareDetailContentQuery softwareId={softwareId} />;
+}
+
+function SoftwareDetailContentQuery({ softwareId }: { softwareId: string }) {
   const retryKey = useRetryKey();
   const { software } = useLazyLoadQuery<SoftwareDetailContentQueryType>(
     softwareDetailContentQuery,

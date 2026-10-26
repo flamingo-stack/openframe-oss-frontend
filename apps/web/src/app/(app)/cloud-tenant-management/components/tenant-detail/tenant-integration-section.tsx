@@ -1,6 +1,11 @@
 'use client';
 
-import { InfoSection, type InfoSectionRow } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  InfoSection,
+  type InfoSectionRow,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantIntegrationSectionQuery as TenantIntegrationSectionQueryType } from '@/__generated__/tenantIntegrationSectionQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -40,8 +45,89 @@ function MultiLineValue({ lines }: { lines: readonly string[] }) {
   );
 }
 
-/** The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row. Suspends: mount it under `<Suspense>`. */
-export function TenantIntegrationSection({ id }: { id: string }) {
+interface TenantIntegrationSectionProps {
+  id: string;
+  /**
+   * The page's record usually holds it, so the loading rows carry the provider's directory id label; `null` before
+   * the page's own record answers (the neutral labels).
+   */
+  provider: string | null;
+}
+
+const NOT_READ: InfoSectionRow['value'] = { text: '' };
+
+type IntegrationData = NonNullable<TenantIntegrationSectionQueryType['response']['directoryConnection']>;
+
+/**
+ * The section's rows, label for label. With no record yet (a loading scope) the labels are real and every value is
+ * empty: `InfoSection` draws each as a bar in the scope.
+ */
+function integrationRows(data: IntegrationData | null, provider: string | null): InfoSectionRow[] {
+  const { directoryIdLabel, authorisedBy } = providerPresentation(data?.provider ?? provider);
+  const domainNames = data?.domains.map(domain => domain.name) ?? [];
+  const primaryDomain = data?.domains.find(domain => domain.primary)?.name ?? data?.domain ?? EMPTY_VALUE;
+  const scopes = data ? capabilityLabels(data.access.capabilities) : [];
+  /** A value read from the record; empty until it answers. */
+  const read = (value: () => InfoSectionRow['value']): InfoSectionRow['value'] => (data ? value() : NOT_READ);
+
+  return [
+    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: read(() => ({ text: primaryDomain })) },
+    { id: 'directory-id', label: directoryIdLabel, value: read(() => ({ text: data?.directoryId ?? EMPTY_VALUE })) },
+    {
+      id: 'granted-by',
+      label: INTEGRATION_LABELS.grantedBy,
+      value: read(() => ({ text: data?.grantedBy ?? EMPTY_VALUE })),
+    },
+    {
+      id: 'scopes',
+      label: INTEGRATION_LABELS.scopes,
+      // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
+      value: read(() => ({
+        type: 'custom',
+        content: (
+          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
+            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
+          </span>
+        ),
+      })),
+    },
+    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: read(() => ({ text: authorisedBy })) },
+    {
+      id: 'domains',
+      label: INTEGRATION_LABELS.domains,
+      value: read(() =>
+        domainNames.length > 1
+          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
+          : { text: domainNames[0] ?? primaryDomain },
+      ),
+    },
+  ];
+}
+
+/**
+ * The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row, with its own boundary: in its
+ * scope the reader draws its own loading form.
+ */
+export function TenantIntegrationSection(props: TenantIntegrationSectionProps) {
+  return (
+    <LoadingSuspense label="Loading integration">
+      <TenantIntegrationSectionReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (its boundary's fallback, or the page's own loading state) it reads nothing: `InfoSection` draws
+ * the real caption and labels with a bar for each value.
+ */
+function TenantIntegrationSectionReader(props: TenantIntegrationSectionProps) {
+  if (useLoadingScope()) {
+    return <InfoSection title="Integration" rows={integrationRows(null, props.provider)} />;
+  }
+  return <TenantIntegrationSectionQuery id={props.id} provider={props.provider} />;
+}
+
+function TenantIntegrationSectionQuery({ id, provider }: TenantIntegrationSectionProps) {
   const retryKey = useRetryKey();
   const { directoryConnection: data } = useLazyLoadQuery<TenantIntegrationSectionQueryType>(
     tenantIntegrationSectionQuery,
@@ -50,38 +136,5 @@ export function TenantIntegrationSection({ id }: { id: string }) {
   );
   // The page above has already said "not found" for a missing record.
   if (!data) return null;
-  const { directoryIdLabel, authorisedBy } = providerPresentation(data.provider);
-  const domainNames = data.domains.map(domain => domain.name);
-  const primaryDomain = data.domains.find(domain => domain.primary)?.name ?? data.domain ?? EMPTY_VALUE;
-  const scopes = capabilityLabels(data.access.capabilities);
-
-  const rows: InfoSectionRow[] = [
-    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: { text: primaryDomain } },
-    { id: 'directory-id', label: directoryIdLabel, value: { text: data.directoryId ?? EMPTY_VALUE } },
-    { id: 'granted-by', label: INTEGRATION_LABELS.grantedBy, value: { text: data.grantedBy ?? EMPTY_VALUE } },
-    {
-      id: 'scopes',
-      label: INTEGRATION_LABELS.scopes,
-      // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
-      value: {
-        type: 'custom',
-        content: (
-          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
-            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
-          </span>
-        ),
-      },
-    },
-    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: { text: authorisedBy } },
-    {
-      id: 'domains',
-      label: INTEGRATION_LABELS.domains,
-      value:
-        domainNames.length > 1
-          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
-          : { text: domainNames[0] ?? primaryDomain },
-    },
-  ];
-
-  return <InfoSection title="Integration" rows={rows} />;
+  return <InfoSection title="Integration" rows={integrationRows(data, provider)} />;
 }

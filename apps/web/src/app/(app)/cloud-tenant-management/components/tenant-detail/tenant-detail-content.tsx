@@ -1,8 +1,13 @@
 'use client';
 
-import { NotFoundError, type PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  LoadingScope,
+  NotFoundError,
+  type PageActionButton,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantDetailContentQuery as TenantDetailContentQueryType } from '@/__generated__/tenantDetailContentQuery.graphql';
 import { ContentErrorBoundary, SectionLoadError, useRetryKey } from '@/app/components/shared';
@@ -14,7 +19,6 @@ import { TenantConsentAlert } from './tenant-consent-alert';
 import { TenantConsentIssues } from './tenant-consent-issues';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantIntegrationSection } from './tenant-integration-section';
-import { TenantIntegrationSectionSkeleton } from './tenant-integration-section-skeleton';
 import { TenantSummaryCard } from './tenant-summary-card';
 
 // `directoryConnection` is nullable: an unknown id is a field error, which reaches the page as null.
@@ -39,10 +43,52 @@ const tenantDetailContentQuery = graphql`
 interface TenantDetailContentProps {
   id: string;
   actions: PageActionButton[];
+  /** The module's flag has not answered yet: the content draws in a loading scope and nothing fetches. */
+  loading?: boolean;
 }
 
-/** Everything on the details page that waits for the record. */
-export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
+/** The two entries the header settles into — the placeholders are sized off them. */
+const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'Edit Integration' }];
+
+const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
+
+/**
+ * Everything on the details page that waits for the record, with its own boundary: in its scope (while the record
+ * loads, and for the module's flag window) the reader draws its own loading form and nothing fetches.
+ */
+export function TenantDetailContent({ loading = false, ...props }: TenantDetailContentProps) {
+  return (
+    <LoadingSuspense live label="Loading tenant" gated={loading}>
+      <TenantDetailContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope it draws the title as a bar and the card with its labels real and its values as bars, the shape
+ * both states share, and does not fetch. Under the card it draws the integration section of a connected tenant (the
+ * typical record); a tenant still to connect replaces it with the consent hand-off on arrival.
+ *
+ * The actions are placeholders: Reconnect and Edit are links to a record the query has not confirmed yet — an
+ * unknown id settles into "Tenant not found" with no actions.
+ */
+function TenantDetailContentReader(props: TenantDetailContentProps) {
+  if (useLoadingScope()) {
+    return (
+      <>
+        <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
+        <LoadingScope className={BODY_CLASS}>
+          <TenantSummaryCard connection={null} />
+          {/* The connected tenant's section: most records on this page are connected. */}
+          <TenantIntegrationSection id={props.id} provider={null} />
+        </LoadingScope>
+      </>
+    );
+  }
+  return <TenantDetailContentQuery {...props} />;
+}
+
+function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
   const router = useRouter();
   const retryKey = useRetryKey();
   const { directoryConnection: connection } = useLazyLoadQuery<TenantDetailContentQueryType>(
@@ -66,18 +112,14 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
   return (
     <>
       <TenantDetailTitle title={connection.name} actions={actions} />
-      <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
+      <div className={BODY_CLASS}>
         <TenantSummaryCard connection={connection} />
-        <TenantConsentAlert connection={connection} />
-        <TenantConsentIssues connection={connection} />
         {isReadable(connection.access.state) ? (
           // Its own boundary: a failed live read from the provider loses this section, not the page.
           <ContentErrorBoundary
             fallback={retry => <SectionLoadError message="Couldn't load the integration details." onRetry={retry} />}
           >
-            <Suspense fallback={<TenantIntegrationSectionSkeleton provider={connection.provider} />}>
-              <TenantIntegrationSection id={connection.id} />
-            </Suspense>
+            <TenantIntegrationSection id={connection.id} provider={connection.provider} />
           </ContentErrorBoundary>
         ) : (
           <ConsentBlock
@@ -89,6 +131,9 @@ export function TenantDetailContent({ id, actions }: TenantDetailContentProps) {
             onCheck={check}
           />
         )}
+        {/* Parts only some tenants have, below the section they would otherwise push (`data-loading-optional`). */}
+        <TenantConsentAlert connection={connection} />
+        <TenantConsentIssues connection={connection} />
       </div>
     </>
   );

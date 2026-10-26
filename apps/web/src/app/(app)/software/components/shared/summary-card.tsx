@@ -24,8 +24,8 @@ interface SummaryCardProps {
 
 /**
  * The card under a Software detail page's title: labelled values in a row,
- * stacked below md. Loaded and loading both draw through it, so the two share
- * every metric by construction.
+ * stacked below md. In a loading scope every `InfoCell` draws itself (label real,
+ * value a text bar), so loading and loaded share every metric by construction.
  */
 export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
   return (
@@ -40,7 +40,7 @@ export function SummaryCard({ fields, columns, lead }: SummaryCardProps) {
               idx < fields.length - 1 && 'border-b border-ods-border content-md:border-b-0',
             )}
           >
-            <InfoCell value={field.value} label={field.label} />
+            <InfoCell value={field.value} label={field.label} skeletonWidth="w-24" />
           </div>
         ))}
       </div>

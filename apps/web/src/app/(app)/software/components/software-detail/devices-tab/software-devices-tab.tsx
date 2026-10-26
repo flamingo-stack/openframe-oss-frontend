@@ -1,16 +1,16 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { SoftwareOnDeviceFilterInput } from '@/__generated__/softwareDevicesTableQuery.graphql';
-import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_LIST_SKELETON_ROWS, FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
+import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
-import { SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS, SOFTWARE_DEVICES_TABLE_COLUMNS } from './software-devices-columns';
+import { SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS } from './software-devices-columns';
 import { SoftwareDevicesTable } from './software-devices-table';
 
 /**
@@ -60,12 +60,18 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
   }, [params.deviceStatus, sort]);
   const { deferredFilters: deferredVars, deferredSearch, isPending } = useDeferredQuery(queryVars, debouncedSearch);
 
-  // The rows before they answer — the same for a query in flight and for the flag's own window.
-  const tableSkeleton = (
-    <TableSkeleton
-      label="Loading devices"
-      columns={SOFTWARE_DEVICES_TABLE_COLUMNS}
-      rows={FLEET_LIST_SKELETON_ROWS}
+  const rows = (
+    <SoftwareDevicesTable
+      softwareId={softwareId}
+      backendFilters={deferredVars.filter}
+      debouncedSearch={deferredSearch}
+      sort={deferredVars.sort}
+      sortState={sortState}
+      onSortChange={onSortChange}
+      statusFilter={params.deviceStatus}
+      onStatusFilterChange={values => setParam('deviceStatus', values)}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
       stickyHeaderOffset={stickyHeaderOffset}
     />
   );
@@ -82,25 +88,9 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
         />
       )}
 
-      {loading ? (
-        tableSkeleton
-      ) : (
-        <Suspense fallback={tableSkeleton}>
-          <SoftwareDevicesTable
-            softwareId={softwareId}
-            backendFilters={deferredVars.filter}
-            debouncedSearch={deferredSearch}
-            sort={deferredVars.sort}
-            sortState={sortState}
-            onSortChange={onSortChange}
-            statusFilter={params.deviceStatus}
-            onStatusFilterChange={values => setParam('deviceStatus', values)}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
-      )}
+      {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's own
+          window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>{rows}</LoadingWhen>
     </div>
   );
 });

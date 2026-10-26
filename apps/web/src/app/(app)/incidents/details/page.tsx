@@ -1,10 +1,11 @@
 'use client';
 
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { ContentErrorBoundary } from '@/app/components/shared';
 import { useRequiredIdParam } from '@/app/hooks/use-required-id-param';
 import { routes } from '@/lib/routes';
-import { IncidentDetailsSkeleton, IncidentDetailsView } from '../components/incident-details-view';
+import { IncidentDetailsView } from '../components/incident-details-view';
 import { useIncidentsGate } from '../hooks/use-incidents-gate';
 
 export default function IncidentDetailsPage() {
@@ -20,13 +21,13 @@ export default function IncidentDetailsPage() {
   if (id === null) {
     return null;
   }
-  if (gate === 'loading') {
-    return <IncidentDetailsSkeleton />;
-  }
 
+  // While the flag is unanswered the page draws itself in a loading scope: each part its own skeleton.
   return (
     <ContentErrorBoundary title="Incident" message="Couldn't load this incident.">
-      <IncidentDetailsView incidentId={id} />
+      <LoadingWhen loading={gate === 'loading'}>
+        <IncidentDetailsView incidentId={id} />
+      </LoadingWhen>
     </ContentErrorBoundary>
   );
 }

@@ -27,6 +27,12 @@ const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
 
 /**
+ * Dialogs one page of the Mingo list holds (`first:` of the dialogs query). The chat's conversation lists draw
+ * exactly this many rows while the first page loads (`EmbeddableChat`'s `historyPageSize`).
+ */
+export const MINGO_DIALOGS_PAGE_SIZE = 20;
+
+/**
  * A dialog as the lib's list rows and header read it. Also the open conversation's
  * own record (`UnifiedChatState.activeDialog`), which is where the lib learns that a
  * conversation reached by link, notification or reload is archived.
@@ -59,7 +65,7 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
 }
 
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
-  const { enabled = true, search, limit = 20, scope = 'all' } = options;
+  const { enabled = true, search, limit = MINGO_DIALOGS_PAGE_SIZE, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
   // Only the v2 list shows a chat waiting for approval, and only v2 asks for it (see
   // the query). Both chat surfaces mount after the flags have answered.

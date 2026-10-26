@@ -3,6 +3,7 @@
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { NO_ITEMS } from '@/app/components/shared';
 import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
 import { fetchDeviceOrganizationCounts } from '../../devices/queries/devices-api';
@@ -127,7 +128,7 @@ async function fetchOrganizations(): Promise<{
   };
 }
 
-async function fetchCustomersOverview(_limit: number): Promise<{
+async function fetchCustomersOverview(limit: number): Promise<{
   rows: OrganizationOverviewRow[];
   totalOrganizations: number;
 }> {
@@ -175,14 +176,18 @@ async function fetchCustomersOverview(_limit: number): Promise<{
         inactivePct,
       };
     })
-    .sort((a, b) => b.total - a.total);
+    .sort((a, b) => b.total - a.total)
+    // The section lists the customers with the most devices: the limit applies after the sort, so it is a slice of
+    // the read rather than `first: limit` (which would pick an arbitrary page, not the top ones).
+    .slice(0, limit);
 
   return { rows, totalOrganizations };
 }
 
-const EMPTY_OVERVIEW_ROWS: OrganizationOverviewRow[] = [];
+/** How many customers the dashboard section lists: the hook's default limit, so its skeleton draws the same count. */
+export const CUSTOMERS_OVERVIEW_LIMIT = 10;
 
-export function useCustomersOverview(limit: number = 10) {
+export function useCustomersOverview(limit: number = CUSTOMERS_OVERVIEW_LIMIT) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
 
   const query = useQuery({
@@ -205,7 +210,7 @@ export function useCustomersOverview(limit: number = 10) {
   const state = queryState(query);
 
   return {
-    rows: query.data?.rows ?? EMPTY_OVERVIEW_ROWS,
+    rows: query.data?.rows ?? NO_ITEMS,
     loading: state.isLoading,
     isOffline: state.isOffline,
     canClaimEmpty: state.canClaimEmpty,

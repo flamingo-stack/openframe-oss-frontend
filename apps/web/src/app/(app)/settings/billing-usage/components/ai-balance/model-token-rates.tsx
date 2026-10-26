@@ -1,11 +1,12 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ErrorBoundary,
   ModelTokenRates,
   ModelTokenRatesPopover as RatesPopover,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Suspense } from 'react';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { modelTokenRatesQuery as ModelTokenRatesQueryType } from '@/__generated__/modelTokenRatesQuery.graphql';
 
@@ -55,15 +56,28 @@ export function ModelTokenRatesPopover({ autoTopUpEnabled, className }: ModelTok
   return (
     <RatesPopover triggerClassName={className}>
       <ErrorBoundary fallback={<ModelTokenRates status="error" autoTopUpEnabled={autoTopUpEnabled} />}>
-        <Suspense fallback={<ModelTokenRates status="loading" autoTopUpEnabled={autoTopUpEnabled} />}>
-          <LoadedModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />
-        </Suspense>
+        <LoadedModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />
       </ErrorBoundary>
     </RatesPopover>
   );
 }
 
+/** The rates table over its read, with its own boundary: in its scope the reader draws its own loading form. */
 function LoadedModelTokenRates({ autoTopUpEnabled }: Pick<ModelTokenRatesPopoverProps, 'autoTopUpEnabled'>) {
+  return (
+    <LoadingSuspense label="Loading model rates">
+      <ModelTokenRatesReader autoTopUpEnabled={autoTopUpEnabled} />
+    </LoadingSuspense>
+  );
+}
+
+function ModelTokenRatesReader({ autoTopUpEnabled }: Pick<ModelTokenRatesPopoverProps, 'autoTopUpEnabled'>) {
+  // In a loading scope (its boundary's fallback) it draws the table with no rates and runs no read.
+  if (useLoadingScope()) return <ModelTokenRates autoTopUpEnabled={autoTopUpEnabled} />;
+  return <ModelTokenRatesLive autoTopUpEnabled={autoTopUpEnabled} />;
+}
+
+function ModelTokenRatesLive({ autoTopUpEnabled }: Pick<ModelTokenRatesPopoverProps, 'autoTopUpEnabled'>) {
   const data = useLazyLoadQuery<ModelTokenRatesQueryType>(
     modelTokenRatesQuery,
     {},

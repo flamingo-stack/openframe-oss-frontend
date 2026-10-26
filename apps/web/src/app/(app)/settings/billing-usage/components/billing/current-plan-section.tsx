@@ -1,8 +1,10 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { currentPlanSection_billingPlan$key } from '@/__generated__/currentPlanSection_billingPlan.graphql';
 import type { currentPlanSection_subscription$key } from '@/__generated__/currentPlanSection_subscription.graphql';
+import { EmptyValue } from '@/app/components/shared/empty-value';
 import { BillingPeriod } from '@/generated/schema-enums';
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
@@ -44,14 +46,19 @@ const currentPlanSectionBillingPlanFragment = graphql`
 `;
 
 interface CurrentPlanSectionProps {
-  subscription: currentPlanSection_subscription$key;
+  /** `null` only while the page loads. */
+  subscription: currentPlanSection_subscription$key | null;
   billingPlan: currentPlanSection_billingPlan$key | null;
 }
 
 export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSectionProps) {
   const data = useFragment(currentPlanSectionSubscriptionFragment, subscription);
   const catalog = useFragment(currentPlanSectionBillingPlanFragment, billingPlan);
-  const schedule = planSchedule(data);
+  // ONE row rule for both forms: while the subscription is on its way the same rows are drawn, labels real and each
+  // value its row's own loading state. Every row is drawn whenever most plans have it; a value a plan lacks is the
+  // empty mark ("Plan ends on" for a plan that does not end).
+  const loading = useLoadingScope() || data == null;
+  const schedule = data ? planSchedule(data) : null;
   const products = catalog?.products ?? [];
 
   /**
@@ -67,35 +74,60 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
    * which is exactly what a plain "first price band" read did, quoting the
    * undiscounted $1.00 to a subscription paying $0.80.
    */
-  const deviceRate = schedule.deviceIsPayg
-    ? (schedule.paygPrice ?? catalogDeviceRate(products, null))
-    : (schedule.active?.price ?? catalogDeviceRate(products, schedule.active?.billingPeriod ?? null));
+  const deviceRate = !schedule
+    ? null
+    : schedule.deviceIsPayg || schedule.isTrial
+      ? (schedule.paygPrice ?? catalogDeviceRate(products, null))
+      : (schedule.active?.price ?? catalogDeviceRate(products, schedule.active?.billingPeriod ?? null));
   // A committed yearly package is the only thing that makes the cycle annual;
-  // pay-as-you-go and every monthly package bill each month.
-  const isAnnual = schedule.active?.billingPeriod === BillingPeriod.YEARLY;
-  // Omitted when there is nothing to bill (null / 0) instead of a "Free" placeholder.
-  const nextPayment = data.nextPayment ?? 0;
+  // pay-as-you-go and every monthly package bill each month. A trial states itself.
+  const isAnnual = schedule?.active?.billingPeriod === BillingPeriod.YEARLY;
+  const cycle = schedule?.isTrial ? 'Free trial' : isAnnual ? 'Annual' : 'Monthly';
+  // Always stated: nothing to bill reads "$0.00", so the row is there in every form.
+  const nextPayment = data?.nextPayment ?? 0;
   // GraphQL `Long` arrives as a string or a number depending on its size.
-  const freeTokens = Number(data.usage?.aiTokensFree ?? 0);
+  const freeTokens = Number(data?.usage?.aiTokensFree ?? 0);
+  const planEndsOn = data?.cancellationEffectiveAt ?? schedule?.currentPlanEndsOn ?? null;
 
   return (
     <SectionBlock title="Current Plan">
-      <BillingRow label="Billing Cycle" value={isAnnual ? 'Annual' : 'Monthly'} />
-      {deviceRate != null && <BillingRow label="Device Rate" value={<MonthlyRate amount={deviceRate} />} />}
-      {schedule.carriesAi && <BillingRow label="Free AI Tokens" value={<MonthlyTokens tokens={freeTokens} />} />}
-      {nextPayment > 0 && <BillingRow label="Next Payment" value={formatCurrency(nextPayment)} />}
+      <BillingRow loading={loading} label="Billing Cycle" value={loading ? undefined : cycle} />
+      {/* Every plan has a device rate (its own, or the catalog's for its period). */}
+      <BillingRow
+        loading={loading}
+        label="Device Rate"
+        value={deviceRate == null ? undefined : <MonthlyRate amount={deviceRate} />}
+      />
+      {/* The typical plan carries the AI product: drawn while loading. */}
+      {(loading || schedule?.carriesAi) && (
+        <BillingRow
+          loading={loading}
+          label="Free AI Tokens"
+          value={loading ? undefined : <MonthlyTokens tokens={freeTokens} />}
+        />
+      )}
+      <BillingRow loading={loading} label="Next Payment" value={loading ? undefined : formatCurrency(nextPayment)} />
       {/* Independent rows, not one slot fought over by several dates: each is
           present exactly when its own field is. A plan that is ending still has
           a billing date, and Figma shows both — they land on the same day
           because the subscription runs to the end of the paid period and stops
-          there, which is two facts, not one repeated. */}
-      {data.currentPeriodEnd && <BillingRow label="Next Billing Date" value={formatDate(data.currentPeriodEnd)} />}
-      {data.cancellationEffectiveAt && (
-        <BillingRow label="Plan ends on" warning value={<WarningDate iso={data.cancellationEffectiveAt} />} />
+          there, which is two facts, not one repeated. A running subscription has
+          a period end, so that row is drawn while loading. */}
+      {(loading || data?.currentPeriodEnd) && (
+        <BillingRow
+          loading={loading}
+          label="Next Billing Date"
+          value={data?.currentPeriodEnd ? formatDate(data.currentPeriodEnd) : undefined}
+        />
       )}
-      {schedule.currentPlanEndsOn && (
-        <BillingRow label="Plan ends on" warning value={<WarningDate iso={schedule.currentPlanEndsOn} />} />
-      )}
+      {/* One row, always: a bar while loading, the date the plan stops (the termination first, else the package's
+          own end), the empty mark for a plan that does not end. */}
+      <BillingRow
+        loading={loading}
+        label="Plan ends on"
+        warning={planEndsOn != null}
+        value={planEndsOn ? <WarningDate iso={planEndsOn} /> : <EmptyValue />}
+      />
     </SectionBlock>
   );
 }

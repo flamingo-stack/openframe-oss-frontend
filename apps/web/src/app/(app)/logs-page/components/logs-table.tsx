@@ -1,6 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -11,12 +12,15 @@ import {
   LogsTableView,
   type UiLogEntry,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { DateFilterResult, DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type DateFilterResult,
+  type DateRange,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import {
   forwardRef,
-  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -37,6 +41,7 @@ import {
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   type EmptyStateProps,
+  NO_ITEMS,
   onboardingGuideButton,
   type TableDateFilter,
   useRetryKey,
@@ -50,15 +55,16 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
 import { routes } from '@/lib/routes';
+import { LOGS_PAGE_SIZE } from '../hooks/use-logs';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
-import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
 // ----------------------------------------------------------------
 
-const LOGS_PAGE_SIZE = 20;
+/** The Log ID header before the rows land: the same header, inert (no calendar to act on yet). */
+const INERT_LOG_ID_HEADER = <DateColumnHeader label="Log ID" />;
 
 const logsTableRelayQuery = graphql`
   query logsTableRelayQuery(
@@ -143,6 +149,12 @@ interface LogRow extends UiLogEntry {
 
 interface LogsTableProps {
   deviceId?: string;
+  /**
+   * The table shows one device's logs (no Device column). Defaults to `Boolean(deviceId)`; pass it when the
+   * device id is not known yet (a device tab drawn in its page's loading scope) so the loading and loaded
+   * tables have the same columns.
+   */
+  deviceScoped?: boolean;
   /** Lock the table to a single organization. When set, the source/organization column filter is hidden. */
   organizationId?: string;
   /** Render inside a tab (e.g. customer/device details) — drops the standalone top padding. */
@@ -158,7 +170,7 @@ export interface LogsTableRef {
 }
 
 interface LogsTableContentProps {
-  deviceId?: string;
+  deviceScoped: boolean;
   organizationLocked?: boolean;
   backendFilters: LogFilterInput;
   sort: LogSortInput;
@@ -175,6 +187,8 @@ interface LogsTableContentProps {
    *  the filter options come from this component's logFilters query). */
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
+  /** In a loading scope (an embedding tab whose parent still loads) the table reads nothing. */
+  scoped: boolean;
 }
 
 const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
@@ -184,11 +198,42 @@ const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
 const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} />;
 
 // ----------------------------------------------------------------
-// Inner content — uses Relay hooks, must be inside Suspense
+// Inner content — uses Relay hooks, inside its own boundary
 // ----------------------------------------------------------------
 
-function LogsTableContent({
-  deviceId,
+/** The logs table, with its own boundary: in its scope the reader draws its own loading form. */
+function LogsTableContent(props: LogsTableContentProps) {
+  return (
+    <LoadingSuspense bare gated={props.scoped} label="Loading logs">
+      <LogsTableContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function LogsTableContentReader(props: LogsTableContentProps) {
+  // In a loading scope (its boundary's fallback while the first page is in flight, or an outer loading state) it reads
+  // nothing: the same table view draws its own loading rows.
+  if (useLoadingScope()) {
+    return (
+      <LogsTableView<LogRow>
+        logs={NO_ITEMS}
+        loading
+        filters={props.tableFilters}
+        onFilterChange={props.onFilterChange}
+        search={props.debouncedSearch}
+        dateFilter={props.dateFilter}
+        logIdHeader={INERT_LOG_ID_HEADER}
+        deviceScoped={props.deviceScoped}
+        organizationLocked={Boolean(props.organizationLocked)}
+        pageSize={LOGS_PAGE_SIZE}
+      />
+    );
+  }
+  return <LogsTableContentLive {...props} />;
+}
+
+function LogsTableContentLive({
+  deviceScoped,
   organizationLocked,
   backendFilters,
   sort,
@@ -348,7 +393,7 @@ function LogsTableContent({
         search={debouncedSearch}
         dateFilter={dateFilter}
         logIdHeader={logIdHeader}
-        deviceScoped={Boolean(deviceId)}
+        deviceScoped={deviceScoped}
         organizationLocked={organizationLocked}
         getLogHref={getLogDetailsUrl}
         renderCopyAction={renderCopyAction}
@@ -361,6 +406,7 @@ function LogsTableContent({
         onHideSearchChange={onEmptyChange}
         renderEmptyState={renderEmptyState}
         guideButton={LOGS_GUIDE_BUTTON}
+        pageSize={LOGS_PAGE_SIZE}
       />
 
       <LogDrawer
@@ -402,7 +448,7 @@ function LogsTableContent({
 // ----------------------------------------------------------------
 
 export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsTableImpl(
-  { deviceId, organizationId, embedded, showHeader }: LogsTableProps,
+  { deviceId, deviceScoped = Boolean(deviceId), organizationId, embedded, showHeader }: LogsTableProps,
   ref,
 ) {
   const { params, setParam, setParams } = useApiParams({
@@ -517,6 +563,9 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
+  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: it draws its own loading rows.
+  const scoped = useLoadingScope();
+
   return (
     <LogsPageView
       onRefresh={handleRefresh}
@@ -529,22 +578,21 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
       hideSearch={isEmpty}
       onOpenFilters={() => setMobileFilterOpen(true)}
     >
-      <Suspense fallback={<LogsTableSkeleton />}>
-        <LogsTableContent
-          deviceId={deviceId}
-          organizationLocked={Boolean(organizationId)}
-          backendFilters={backendFilters}
-          sort={sort}
-          dateFilter={dateFilter}
-          debouncedSearch={debouncedSearch}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          onRefreshRef={refreshRef}
-          onEmptyChange={setIsEmpty}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-        />
-      </Suspense>
+      <LogsTableContent
+        scoped={scoped}
+        deviceScoped={deviceScoped}
+        organizationLocked={Boolean(organizationId)}
+        backendFilters={backendFilters}
+        sort={sort}
+        dateFilter={dateFilter}
+        debouncedSearch={debouncedSearch}
+        tableFilters={tableFilters}
+        onFilterChange={handleFilterChange}
+        onRefreshRef={refreshRef}
+        onEmptyChange={setIsEmpty}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={() => setMobileFilterOpen(false)}
+      />
     </LogsPageView>
   );
 });

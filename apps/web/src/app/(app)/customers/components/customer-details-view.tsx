@@ -10,10 +10,10 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import {
   BoxArchiveIcon,
-  Loading01Icon,
   PenEditIcon,
   Refresh01RightIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -29,7 +29,6 @@ import { useCustomerArchive } from '../hooks/use-customer-archive';
 import { customerDetailsQueryKeys, useCustomerDetails } from '../hooks/use-customer-details';
 import { customersQueryKeys } from '../hooks/use-customers';
 import { ArchiveCustomerModal } from './archive-customer-modal';
-import { CustomerDetailsSkeleton } from './customer-details-skeleton';
 import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
   CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
@@ -77,8 +76,11 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // openframe-saas-ai-agent service (/chat/graphql), so they're saas-tenant only.
   const isSaasTenant = runtimeEnv.appMode() === 'saas-tenant';
   // Remote access policy: not saas-gated - MeshCentral runs in
-  // the OSS tenant too. Tri-state gate; `loading` keeps the tab hidden.
-  const showDeviceGuardrails = useRemoteAccessApprovalGate() === 'on';
+  // the OSS tenant too. Tri-state gate: the tab is kept while the gate reads (its likely answer; a deep link to it
+  // draws it in a loading scope below); it hides only on 'off'.
+  const deviceGuardrailsGate = useRemoteAccessApprovalGate();
+  const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
+  const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
@@ -170,11 +172,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
       : {
           label: 'Archive Customer',
           variant: 'outline',
-          icon: isChecking ? (
-            <Loading01Icon className="h-5 w-5 animate-spin" />
-          ) : (
-            <BoxArchiveIcon className="h-5 w-5 text-ods-text-secondary" />
-          ),
+          icon: <BoxArchiveIcon className="h-5 w-5 text-ods-text-secondary" />,
           onClick: handleArchiveClick,
           disabled: organization.isDefault || isChecking,
           loading: isChecking,
@@ -198,44 +196,56 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
     return [archiveAction, editAction];
   }, [organization, isArchived, isChecking, handleArchiveClick, id, activeTab, router]);
 
-  if (isLoading) {
-    return <CustomerDetailsSkeleton activeTab={activeTab} />;
-  }
+  // While the customer loads the page draws itself in a loading scope (`LoadingWhen` below): the header its own
+  // skeleton, the tab strip for real (static labels), and the open tab its own loading state. A tab that needs only
+  // the id has it from the URL, so its read starts at once.
+  const loading = useLoadingScope() || isLoading;
 
-  if (error) {
+  if (!loading && error) {
     return <LoadError message={`Error loading customer: ${error}`} />;
   }
 
-  if (!organization) {
+  if (!loading && !organization) {
     return <NotFoundError message="Customer not found" />;
   }
 
-  const subtitleParts = [organization.website, organization.industry].filter(Boolean);
-  const subtitle = subtitleParts.length > 0 ? subtitleParts.join(' • ') : undefined;
+  const subtitleParts = [organization?.website, organization?.industry].filter(Boolean);
+  // `''` while loading: the header draws the subtitle row as a skeleton.
+  const subtitle = loading ? '' : subtitleParts.length > 0 ? subtitleParts.join(' • ') : undefined;
 
-  const logoSrc = getFullImageUrl(organization.imageUrl, organization.imageHash);
+  const logoSrc = organization ? getFullImageUrl(organization.imageUrl, organization.imageHash) : undefined;
 
   return (
     <>
-      <PageLayout
-        title={organization.name || 'Customer'}
-        subtitle={subtitle}
-        image={{ src: logoSrc || '', alt: organization.name || 'Customer' }}
-        className="content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]"
-        backButton={{
-          label: 'Back',
-          onClick: handleBack,
-        }}
-        actions={actions}
-        contentClassName="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] content-md:px-0 content-md:pb-0"
-        headerVariant="card"
-      >
-        <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange}>
-          {tab => (
-            <TabContent activeTab={tab} TabComponent={getCustomerTabComponent(tab)} componentProps={{ organization }} />
-          )}
-        </TabNavigation>
-      </PageLayout>
+      <LoadingWhen loading={loading}>
+        <PageLayout
+          loading={loading}
+          loadingActions={loading}
+          title={organization ? organization.name || 'Customer' : ''}
+          subtitle={subtitle}
+          image={{ src: logoSrc || '', alt: organization?.name || 'Customer' }}
+          className="content-md:px-[var(--spacing-system-l)] content-md:pb-[var(--spacing-system-l)]"
+          backButton={{
+            label: 'Back',
+            onClick: handleBack,
+          }}
+          actions={actions}
+          contentClassName="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)] content-md:px-0 content-md:pb-0"
+          headerVariant="card"
+        >
+          <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
+            {tab => (
+              <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
+                <TabContent
+                  activeTab={tab}
+                  TabComponent={getCustomerTabComponent(tab)}
+                  componentProps={{ organizationId: id, organization }}
+                />
+              </LoadingWhen>
+            )}
+          </TabNavigation>
+        </PageLayout>
+      </LoadingWhen>
 
       <ArchiveCustomerModal
         open={archiveModalOpen}

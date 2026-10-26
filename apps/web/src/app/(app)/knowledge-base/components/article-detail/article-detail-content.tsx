@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { articleDetailContentQuery as ArticleDetailContentQueryType } from '@/__generated__/articleDetailContentQuery.graphql';
@@ -22,8 +24,26 @@ const articleDetailContentQuery = graphql`
   }
 `;
 
-/** Everything on the article page that waits for the article. */
-export function ArticleDetailContent({ articleId }: { articleId: string }) {
+/**
+ * Everything on the article page that waits for the article, with its own boundary: in its scope the reader draws the
+ * page with no article, each part its own loading state, and does not fetch.
+ */
+export function ArticleDetailContent(props: { articleId: string }) {
+  return (
+    <LoadingSuspense live label="Loading article">
+      <ArticleDetailContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ArticleDetailContentReader({ articleId }: { articleId: string }) {
+  if (useLoadingScope()) {
+    return <ArticleDetail article={null} />;
+  }
+  return <ArticleDetailContentQuery articleId={articleId} />;
+}
+
+function ArticleDetailContentQuery({ articleId }: { articleId: string }) {
   const retryKey = useRetryKey();
   const { knowledgeBaseItem: item } = useLazyLoadQuery<ArticleDetailContentQueryType>(
     articleDetailContentQuery,

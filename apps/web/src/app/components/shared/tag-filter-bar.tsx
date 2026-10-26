@@ -1,9 +1,13 @@
 'use client';
 
-import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Input, TagSearchInput, type TagSearchOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { type ReactNode, useMemo } from 'react';
-import { type SelectableTag, SelectableTagsRow, SelectableTagsRowSkeleton } from './selectable-tags-row';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import {
+  TagSearchInput,
+  type TagSearchOption,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
+import { type SelectableTag, SelectableTagsRow } from './selectable-tags-row';
 
 interface TagFilterBarProps {
   /** Available tags — feed both the selectable row and the selected-chip labels. */
@@ -20,7 +24,10 @@ interface TagFilterBarProps {
    * current `tags` list (e.g. folder-scoped sources that persist a key per id).
    */
   selectedTags?: TagSearchOption<string>[];
-  /** Show the row skeleton instead of the row (non-Suspense loading, e.g. react-query). */
+  /**
+   * The tags have not been read yet (a client read, or a Relay tag list still suspending): the search stays
+   * usable and the tag row draws its own skeleton. Inside a loading scope the bar switches itself.
+   */
   loading?: boolean;
   /** Render the selectable tags row. Default true (set false to hide it, e.g. on mobile). */
   showRow?: boolean;
@@ -47,10 +54,15 @@ export function TagFilterBar({
   showRow = true,
   filterButton,
 }: TagFilterBarProps) {
-  const derivedSelected = useMemo<TagSearchOption<string>[]>(() => {
-    const keyById = new Map(tags.map(t => [t.id, t.key]));
-    return selectedIds.map(id => ({ value: id, label: keyById.get(id) ?? id }));
-  }, [tags, selectedIds]);
+  const isLoading = useLoadingScope() || !!loading;
+  const keyById = new Map(tags.map(t => [t.id, t.key]));
+  const derivedSelected = selectedIds.map(id => ({ value: id, label: keyById.get(id) ?? id }));
+  // While the tags are read a selected chip whose key is not known yet is a bar, never its raw id.
+  const renderTag =
+    isLoading && !selectedTags
+      ? (option: TagSearchOption<string>) =>
+          keyById.has(option.value) ? option.label : <TextLineSkeleton type="inherit" as="span" className="w-12" />
+      : undefined;
 
   return (
     <>
@@ -67,51 +79,20 @@ export function TagFilterBar({
             }}
             placeholder={placeholder}
             addMorePlaceholder={placeholder}
+            renderTag={renderTag}
           />
         </div>
         {filterButton}
       </div>
 
-      {showRow &&
-        (loading ? (
-          <SelectableTagsRowSkeleton />
-        ) : (
-          <SelectableTagsRow
-            tags={tags}
-            selectedIds={selectedIds}
-            onAdd={tag => onSelectedIdsChange([...selectedIds, tag.id])}
-          />
-        ))}
-    </>
-  );
-}
-
-interface TagFilterBarSkeletonProps {
-  search: string;
-  onSearchChange: (value: string) => void;
-  placeholder: string;
-  filterButton?: ReactNode;
-}
-
-/**
- * Suspense fallback for `TagFilterBar` when the tag list is fetched via Relay:
- * keeps the name search usable and shows a tag-row skeleton in place of the row.
- */
-export function TagFilterBarSkeleton({ search, onSearchChange, placeholder, filterButton }: TagFilterBarSkeletonProps) {
-  return (
-    <>
-      <div className="flex items-center gap-[var(--spacing-system-m)]">
-        <div className="min-w-0 flex-1">
-          <Input
-            placeholder={placeholder}
-            value={search}
-            onChange={e => onSearchChange(e.target.value)}
-            startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
-          />
-        </div>
-        {filterButton}
-      </div>
-      <SelectableTagsRowSkeleton />
+      {showRow && (
+        <SelectableTagsRow
+          tags={tags}
+          selectedIds={selectedIds}
+          onAdd={tag => onSelectedIdsChange([...selectedIds, tag.id])}
+          loading={isLoading}
+        />
+      )}
     </>
   );
 }

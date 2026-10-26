@@ -1,14 +1,15 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DevicesList,
   type DevicesListNarrowing,
   EMPTY_DEVICES_NARROWING,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragmentKey } from '@/__generated__/scriptScheduleDevicesRelay_schedule.graphql';
@@ -16,7 +17,7 @@ import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPagina
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
-import { useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -171,22 +172,24 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
         // anything is narrowed, since the narrowing is the server's too.
         totalCount={data?.assignedDevices?.filteredCount ?? undefined}
         emptyState={EMPTY_STATE}
+        skeletonRows={PAGE_SIZE}
         infiniteScroll={{
           hasNextPage: hasNext,
           isFetchingNextPage: isLoadingNext,
           onLoadMore: fetchNextPage,
-          skeletonRows: 2,
+          skeletonRows: PAGE_SIZE,
         }}
       />
     </div>
   );
 }
 
-export function ScheduleDevicesTabSkeleton() {
+/** The tab before its devices: the same list in its loading state. */
+function ScheduleDevicesTabLoading() {
   return (
-    <LoadingRegion label="Loading devices" className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={[]} isLoading emptyState={EMPTY_STATE} />
-    </LoadingRegion>
+    <div className="pt-[var(--spacing-system-l)]">
+      <DevicesList devices={NO_ITEMS} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
+    </div>
   );
 }
 
@@ -194,16 +197,22 @@ export function ScheduleDevicesTabSkeleton() {
  * "Assigned Devices" tab — the machines this schedule runs on.
  *
  * Carries its own boundary: a tab that suspends is the tab's business, not the
- * page's, so switching to it draws this skeleton and leaves the header, the
+ * page's, so switching to it draws the tab's loading state and leaves the header, the
  * timing bar and the tab strip untouched.
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
-      <ScheduleDevicesTabContent scheduleId={scheduleId} />
-    </Suspense>
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader scheduleId={scheduleId} />
+    </LoadingSuspense>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
+
+function ScheduleDevicesTabReader({ scheduleId }: { scheduleId: string }) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleDevicesTabLoading />;
+  return <ScheduleDevicesTabContent scheduleId={scheduleId} />;
+}

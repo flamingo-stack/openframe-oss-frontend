@@ -1,22 +1,67 @@
 'use client';
 
-import { BackToLoginLink, PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { PasswordResetForm } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { StandaloneAuthShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
-import { getPasswordError } from '@/app/(auth)/auth/constants/registration-validation';
+import { type ComponentProps, useEffect, useState } from 'react';
+import { BackToLoginShell } from '@/app/(auth)/auth/components/standalone-auth-shell';
+import { usePasswordPair } from '@/app/(auth)/auth/hooks/use-password-pair';
+import { noop } from '@/app/components/shared/no-next-page';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
 
+type ResetFormProps = ComponentProps<typeof PasswordResetForm>;
+
+/** An empty, inert form: what every field reads before the reset token is read. */
+const EMPTY_RESET_FORM = {
+  password: '',
+  confirmPassword: '',
+  onPasswordChange: noop,
+  onConfirmPasswordChange: noop,
+  onSubmit: noop,
+  onCancel: noop,
+  onBackToLogin: noop,
+  submitDisabled: true,
+} satisfies ResetFormProps;
+
+/**
+ * The password reset screen: the shell and its Back to login footer render at once; only the form waits for the URL
+ * (the reset token). `useSearchParams` bails out to the client during the static prerender, so the form stands in
+ * empty and inert, in a loading scope, until the token is read.
+ */
 export default function PasswordResetPage() {
+  const router = useRouter();
+  const handleBack = () => router.push('/auth');
+  return (
+    <BackToLoginShell onBack={handleBack}>
+      <PasswordResetContent onBack={handleBack} />
+    </BackToLoginShell>
+  );
+}
+
+/** The form, with its own boundary: in its scope the reader draws the form empty and inert. */
+function PasswordResetContent(props: { onBack: () => void }) {
+  return (
+    <LoadingSuspense label="Loading password reset">
+      <PasswordResetContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function PasswordResetContentReader(props: { onBack: () => void }) {
+  if (useLoadingScope()) return <PasswordResetForm {...EMPTY_RESET_FORM} />;
+  return <PasswordResetContentLive {...props} />;
+}
+
+function PasswordResetContentLive({ onBack: handleBack }: { onBack: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
 
   const token = searchParams.get('token');
 
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const { isValid, errors, ...pair } = usePasswordPair();
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -30,12 +75,6 @@ export default function PasswordResetPage() {
     }
   }, [token, router, toast]);
 
-  const passwordError = getPasswordError(password);
-  const isMismatch = !!confirmPassword && password !== confirmPassword;
-  const isValid = !passwordError && password === confirmPassword;
-
-  const handleBack = () => router.push('/auth');
-
   const handleSubmit = async () => {
     if (!token || !isValid) return;
 
@@ -44,7 +83,7 @@ export default function PasswordResetPage() {
     try {
       const response = await authApiClient.confirmPasswordReset({
         token,
-        newPassword: password,
+        newPassword: pair.password,
       });
 
       if (!response.ok) {
@@ -76,22 +115,15 @@ export default function PasswordResetPage() {
   };
 
   return (
-    <StandaloneAuthShell footer={<BackToLoginLink onClick={handleBack} />}>
-      <PasswordResetForm
-        password={password}
-        confirmPassword={confirmPassword}
-        onPasswordChange={setPassword}
-        onConfirmPasswordChange={setConfirmPassword}
-        onSubmit={handleSubmit}
-        onCancel={handleBack}
-        onBackToLogin={handleBack}
-        submitDisabled={!isValid}
-        loading={isLoading}
-        errors={{
-          password: password ? passwordError : undefined,
-          confirmPassword: isMismatch ? 'Passwords do not match' : undefined,
-        }}
-      />
-    </StandaloneAuthShell>
+    <PasswordResetForm
+      {...EMPTY_RESET_FORM}
+      {...pair}
+      onSubmit={handleSubmit}
+      onCancel={handleBack}
+      onBackToLogin={handleBack}
+      submitDisabled={!isValid}
+      loading={isLoading}
+      errors={errors}
+    />
   );
 }

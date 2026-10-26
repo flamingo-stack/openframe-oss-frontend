@@ -7,7 +7,7 @@ import {
   PlusCircleIcon,
   SearchIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { DataTable, Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Input, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   EmptyState,
   formatQueryInterval,
   onboardingGuideButton,
+  oneLineEmptyState,
   QueriesTable,
   type QueryTableRow,
   SectionLoadError,
@@ -154,6 +155,7 @@ export function Queries() {
             className="sticky top-0 z-20 -my-[var(--spacing-system-l)] bg-ods-bg py-[var(--spacing-system-l)]"
           >
             <Input
+              userValue
               placeholder="Search for Queries"
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
@@ -165,22 +167,25 @@ export function Queries() {
             rows={rows}
             isLoading={isLoading}
             rowAsLink
-            stickyHeader
             stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount />}
-            skeletonRows={PAGE_SIZE}
+            showRowCount
+            pageSize={PAGE_SIZE}
             // The table has its own emptiness claim, and zero rows after a failed
             // or offline load would print "No queries found." under the strip
             // above. Same rule, one component down.
-            emptyMessage={
+            emptyState={oneLineEmptyState(
               canClaimEmpty
                 ? debouncedSearch
                   ? `No queries found matching "${debouncedSearch}". Try adjusting your search.`
                   : 'No queries found.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
-            hasMore={visibleCount < filteredQueries.length}
-            onLoadMore={handleLoadMore}
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            )}
+            infiniteScroll={{
+              hasNextPage: visibleCount < filteredQueries.length,
+              // The next page is revealed from the rows in hand: nothing is fetched.
+              isFetchingNextPage: false,
+              onLoadMore: handleLoadMore,
+            }}
           />
         </div>
       )}

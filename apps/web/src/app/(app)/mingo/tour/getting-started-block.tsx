@@ -8,7 +8,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
+import { useGettingStartedView } from './getting-started-view';
 import type { TourAction, TourStep, TourStepId } from './tour-steps';
+
+/**
+ * A chip under a disabled fieldset: the lib's disabled `Tag` look. The chip
+ * button takes no `disabled` of its own, so it is drawn from the fieldset.
+ */
+const DISABLED_CHIP =
+  'group-disabled:cursor-not-allowed group-disabled:[&>*]:border-transparent group-disabled:[&>*]:bg-ods-bg-surface group-disabled:[&>*]:text-ods-text-secondary group-disabled:[&_svg]:text-ods-text-secondary';
 
 export interface GettingStartedBlockProps {
   steps: readonly TourStep[];
@@ -20,6 +28,11 @@ export interface GettingStartedBlockProps {
   onAction: (step: TourStep, action: TourAction) => boolean;
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
+  /**
+   * Mingo is answering in this conversation: the "try asking" chips are
+   * disabled until it is done, since the chat takes one prompt at a time.
+   */
+  busy?: boolean;
 }
 
 /**
@@ -28,20 +41,35 @@ export interface GettingStartedBlockProps {
  *
  * - the list: one row per step, opening into its description and "try asking"
  *   chips (one open at a time). This is where the tour starts.
- * - the grid: two columns of step chips, what the block folds into once a chip
- *   has been used so the conversation gets the room. The chevron in the title
- *   row unfolds it; a step chip unfolds it on that step.
+ * - the grid: two columns of step chips, whatever the width the composer has,
+ *   what the block folds into once a chip has been used so the conversation gets
+ *   the room. The chevron in the title row unfolds it and folds it back; a step
+ *   chip unfolds it on that step.
  *
- * A step is done once any of its chips has been used; the title row counts
- * them. Which steps are done is the host's (it merges the server's record with
- * this device's); the shape and the open step are the block's own.
+ * The shape is the user's, remembered across pages and tabs
+ * (`getting-started-view.ts`): folding or unfolding it, and a chip folding it,
+ * write it there. With nothing remembered (a tour started on another device) it
+ * opens as the grid once any step is done, as the list before the first one. A
+ * step is done once any of its chips has been used; the title row counts them.
+ * Which steps are done is the host's (it merges the server's record with this
+ * device's); the open step is the block's own.
  */
-export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: GettingStartedBlockProps) {
-  const [folded, setFolded] = useState(false);
+export function GettingStartedBlock({
+  steps,
+  doneStepIds,
+  onAction,
+  onFinish,
+  busy = false,
+}: GettingStartedBlockProps) {
+  // null until the user folds or unfolds it: the progress decides, and it may land
+  // after the block has mounted.
+  const [view, setView] = useGettingStartedView();
   const [openId, setOpenId] = useState<TourStepId | null>(null);
 
   const total = steps.length;
   const done = steps.filter(step => doneStepIds.has(step.id)).length;
+  const folded = view ? view === 'collapsed' : done > 0;
+  const setFolded = (next: boolean) => setView(next ? 'collapsed' : 'default');
 
   const openStep = (id: TourStepId) => {
     setFolded(false);
@@ -49,7 +77,7 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
   };
 
   const handleAction = (step: TourStep, action: TourAction) => {
-    if (!onAction(step, action)) return;
+    if (busy || !onAction(step, action)) return;
     setOpenId(null);
     setFolded(true);
   };
@@ -64,28 +92,32 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
         <p className="text-ods-text-secondary text-h6">
           <span className="font-bold text-ods-text-primary">{done}</span> of {total} steps
         </p>
-        {folded && (
-          <button
-            type="button"
-            aria-label="Show the steps"
-            onClick={() => setFolded(false)}
-            className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
-          >
-            <Chevron02UpIcon size={24} />
-          </button>
-        )}
+        {/* Unfolds the grid into the list, and folds the list back into the grid. */}
+        <button
+          type="button"
+          aria-label={folded ? 'Show the steps' : 'Hide the steps'}
+          aria-expanded={!folded}
+          onClick={() => {
+            if (!folded) setOpenId(null);
+            setFolded(!folded);
+          }}
+          className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
+        >
+          {folded ? <Chevron02UpIcon size={24} /> : <Chevron02DownIcon size={24} />}
+        </button>
       </header>
 
       {folded ? (
         <ul
           data-testid="getting-started-grid"
-          className="flex flex-wrap gap-[var(--spacing-system-xsf)] p-[var(--spacing-system-sf)]"
+          // Scrolls in a short panel, where the block gives the thread its room.
+          className="grid min-h-0 grid-cols-2 gap-[var(--spacing-system-xsf)] overflow-y-auto p-[var(--spacing-system-sf)]"
         >
           {steps.map(step => {
             const isDone = doneStepIds.has(step.id);
-            // The chips wrap two to a row; an odd last one takes the whole row.
+            // Two to a row; an odd last one takes the whole row.
             return (
-              <li key={step.id} className="min-w-[160px] flex-1">
+              <li key={step.id} className="min-w-0 last:odd:col-span-2">
                 <button
                   type="button"
                   onClick={() => openStep(step.id)}
@@ -133,8 +165,17 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
                     className="flex flex-col gap-[var(--spacing-system-m)] px-[var(--spacing-system-sf)] pb-[var(--spacing-system-sf)]"
                   >
                     <p className="text-ods-text-primary text-h4">{step.description}</p>
-                    <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+                    {/* A disabled fieldset disables every chip button inside it. */}
+                    <fieldset
+                      disabled={busy}
+                      className="group m-0 flex min-w-0 flex-col gap-[var(--spacing-system-xxs)] border-0 p-0"
+                    >
                       <p className="text-ods-text-secondary text-h5">Try asking:</p>
+                      {busy && (
+                        <p role="status" className="text-ods-text-secondary text-h6">
+                          Mingo is answering…
+                        </p>
+                      )}
                       <ul className="flex flex-col items-start gap-[var(--spacing-system-xxs)]">
                         {step.actions.map(action => (
                           <li key={action.id} className="max-w-full">
@@ -142,11 +183,12 @@ export function GettingStartedBlock({ steps, doneStepIds, onAction, onFinish }: 
                               label={action.label}
                               icon={<action.Icon size={16} className="text-ods-flamingo-cyan" />}
                               onSelect={() => handleAction(step, action)}
+                              className={DISABLED_CHIP}
                             />
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </fieldset>
                     {isLast && (
                       <div className="flex">
                         <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />

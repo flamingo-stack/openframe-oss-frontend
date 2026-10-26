@@ -1,11 +1,12 @@
 import type { ChatRef, SlashCommandSummary } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ProcessedMessage } from './use-mingo-chat';
 import {
   buildMingoDisplayCommand,
   hasMingoDisplayCommand,
   mapMingoMessageToUnified,
   needsAllChatsScope,
+  openNamedDialog,
   rawDialogIdToAdopt,
 } from './use-mingo-unified-chat-state';
 
@@ -224,5 +225,55 @@ describe('rawDialogIdToAdopt', () => {
   it('does nothing before the dialog has loaded or with no active dialog', () => {
     expect(rawDialogIdToAdopt(GLOBAL, null)).toBeNull();
     expect(rawDialogIdToAdopt(null, dialog)).toBeNull();
+  });
+});
+
+/**
+ * A conversation the app names itself (the Getting Started tour's). While none
+ * is open the wide panel lists a "New Chat" draft row; the created dialog must
+ * replace it, named, instead of joining it as a second untitled row until the
+ * rename lands.
+ */
+describe('openNamedDialog', () => {
+  const TITLE = 'Welcome to OpenFrame';
+
+  it('creates the dialog under its name and opens it before the rename lands', async () => {
+    const events: string[] = [];
+    let landRename: () => void = () => {};
+    const create = vi.fn(async (_options: { title: string }) => {
+      events.push('create');
+      return 'd-new';
+    });
+    const open = vi.fn((id: string) => events.push(`open ${id}`));
+    const rename = vi.fn(
+      (id: string) =>
+        new Promise<void>(resolve => {
+          events.push(`rename ${id}`);
+          landRename = () => {
+            events.push('renamed');
+            resolve();
+          };
+        }),
+    );
+
+    const pending = openNamedDialog(TITLE, { create, open, rename });
+    await vi.waitFor(() => expect(rename).toHaveBeenCalled());
+
+    expect(create).toHaveBeenCalledWith({ title: TITLE });
+    expect(rename).toHaveBeenCalledWith('d-new', TITLE);
+    expect(events).toEqual(['create', 'open d-new', 'rename d-new']);
+
+    landRename();
+    await expect(pending).resolves.toBe('d-new');
+  });
+
+  it('opens and renames nothing when the dialog could not be created', async () => {
+    const open = vi.fn();
+    const rename = vi.fn(async () => {});
+
+    await expect(openNamedDialog(TITLE, { create: async () => null, open, rename })).resolves.toBeNull();
+
+    expect(open).not.toHaveBeenCalled();
+    expect(rename).not.toHaveBeenCalled();
   });
 });

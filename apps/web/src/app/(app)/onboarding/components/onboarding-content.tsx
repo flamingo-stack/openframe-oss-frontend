@@ -1,11 +1,22 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
-import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type ComponentType,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { UserOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -14,10 +25,12 @@ import { routes } from '@/lib/routes';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ANCHOR_TOP_OFFSET_PX, useOnboardingAccordion } from '../hooks/use-onboarding-accordion';
 import {
-  countCompleted,
   isStepDone,
+  type OnboardingStepWiring,
+  onboardingProgress,
   onboardingStepAnchorId,
   onboardingStepFromAnchorId,
+  progressLine,
   USER_ONBOARDING_STEPS,
   type UserOnboardingStepId,
 } from '../onboarding-steps';
@@ -29,7 +42,6 @@ import { MingoStep } from './mingo-step';
 import { MonitoringStep } from './monitoring-step';
 import { OnboardingAccordionGroup, OnboardingAccordionItem, type OnboardingStepStatus } from './onboarding-accordion';
 import { OnboardingCompleteBanner } from './onboarding-complete-banner';
-import { OnboardingSkeleton } from './onboarding-skeleton';
 import { ScriptingStep } from './scripting-step';
 import { TicketsStep } from './tickets-step';
 
@@ -74,9 +86,10 @@ const STEP_BODY: Record<UserOnboardingStepId, ComponentType<StepBodyProps>> = {
  * step is done the header flips to "All steps complete", an "All Steps Done!" banner
  * appears, and the tour auto-commits in the background so any exit finalizes it.
  *
- * Mount gate only: shows the skeleton until progress is loaded (and redirects if the
- * tenant Initial Setup isn't done, or the tour is already finished), then mounts
- * {@link LoadedOnboardingContent} — so the loaded content's hooks (notably the
+ * Mount gate only: until progress is loaded (and while it redirects because the tenant
+ * Initial Setup isn't done, or the tour is already finished) it renders the page view
+ * with no progress in a loading scope, where every row draws its own loading state; then
+ * it mounts {@link LoadedOnboardingContent} — so the loaded content's hooks (notably the
  * auto-advance flow, which picks its initial expanded step on mount) always start from
  * real progress, never from the empty pre-load state.
  */
@@ -115,11 +128,149 @@ export function OnboardingContent() {
     }
   }, [onboardingV2, isLoaded, initialSetupComplete, lockedOut, router]);
 
-  if (onboardingV2 !== 'off' || !isLoaded || !initialSetupComplete || lockedOut) {
-    return <OnboardingSkeleton />;
-  }
+  const pending = onboardingV2 !== 'off' || !isLoaded || !initialSetupComplete || lockedOut;
 
+  // The step bodies stay mounted while collapsed, and some of them suspend on their own
+  // reads: the page keeps its header and rows meanwhile.
+  return (
+    <LoadingSuspense bare gated={pending} label="Loading onboarding">
+      <OnboardingContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function OnboardingContentReader() {
+  // In a loading scope (its boundary's fallback, or an outer loading state) the page draws itself with no data and
+  // runs no read.
+  if (useLoadingScope()) return <OnboardingView />;
   return <LoadedOnboardingContent />;
+}
+
+/** Re-reads on back/forward and on the synthetic `hashchange` that `navigateSamePageHash` fires for our own writes. */
+function subscribeToHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange);
+  return () => window.removeEventListener('hashchange', onChange);
+}
+
+/**
+ * The step the URL hash opens (`/onboarding#step-tickets`), unknown fragments → null. Read from the first client
+ * render (null on the server), so the loading page opens the same row the loaded one will, before progress arrives,
+ * and the loaded page hands it to the accordion hook from its mount.
+ */
+function useHashStep(): UserOnboardingStepId | null {
+  return useSyncExternalStore(
+    subscribeToHash,
+    () => onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)),
+    () => null,
+  );
+}
+
+const PAGE_CLASS = 'px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]';
+const CONTENT_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
+
+interface OnboardingViewProps {
+  /** The steps the user has completed (none while progress is read). */
+  completedSteps?: readonly string[];
+  isMutating?: boolean;
+  onSkip?: () => void;
+  onLeave?: () => void;
+  /** A loaded row's wiring; absent while progress is read, when the rows are not interactive. */
+  stepWiring?: (step: UserOnboardingStepId) => OnboardingStepWiring;
+  /** Dialogs the loaded page owns. */
+  children?: ReactNode;
+}
+
+/**
+ * The page from props: the header, the booking offer and every group and row of the tour. In a loading scope
+ * (progress not read yet) the header keeps its static copy with Skip held off, each row draws its own status as a
+ * skeleton, and the row the URL opens draws its real body (inert handlers), which draws its own loading form.
+ */
+function OnboardingView({
+  completedSteps = NO_ITEMS,
+  isMutating = false,
+  onSkip = noop,
+  onLeave = noop,
+  stepWiring,
+  children,
+}: OnboardingViewProps) {
+  const loading = useLoadingScope();
+  // While progress is read the row the URL opens is drawn open, as it will be once loaded.
+  const hashStep = useHashStep();
+  const progress = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps, loading);
+  const { nextStep, allDone } = progress;
+  const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
+    isStepDone(step, completedSteps) ? 'completed' : 'active';
+
+  // Header action: "Skip Onboarding", available until every step is done. Once all steps
+  // complete there is no header action — the "All Steps Done!" banner (rendered as the
+  // first content block below) takes over with a "Go to Dashboard" CTA, and the tour has
+  // already auto-committed (see `LoadedOnboardingContent`).
+  const actions = allDone
+    ? []
+    : [
+        {
+          label: 'Skip Onboarding',
+          variant: 'outline' as const,
+          icon: <FastForwardIcon className="size-5" />,
+          disabled: loading || isMutating,
+          onClick: onSkip,
+        },
+      ];
+
+  return (
+    <PageLayout
+      title="Get Started"
+      // Read progress: in the loading scope the header draws the line as its bar (a page header takes text only).
+      subtitle={loading ? '' : progressLine(progress)}
+      actions={actions}
+      actionsVariant="icon-buttons"
+      className={PAGE_CLASS}
+      contentClassName={CONTENT_CLASS}
+    >
+      {allDone && (
+        <OnboardingCompleteBanner
+          emoji="🎉"
+          title="All Steps Done!"
+          description="This section will clear from your menu. Reset it from Settings anytime to go through the steps again."
+          actionLabel="Go to Dashboard"
+          actionIcon={<CheckCircleIcon className="size-5" />}
+          onAction={onLeave}
+        />
+      )}
+
+      {/* The "walk me through it instead" offer, above the steps it replaces. */}
+      <BookCallSection />
+
+      {USER_ONBOARDING_GROUPS.map(group => (
+        <OnboardingAccordionGroup key={group.label} label={group.label}>
+          {group.items.map(item => {
+            const wiring = loading ? undefined : stepWiring?.(item.step);
+            const hashOpened = loading && item.step === hashStep;
+            // The row the URL opens draws its real body in the scope, where the body draws its own loading form.
+            const LoadingBody = STEP_BODY[item.step];
+            return (
+              <OnboardingAccordionItem
+                key={item.step}
+                ref={wiring?.ref}
+                id={wiring?.id}
+                icon={item.icon}
+                status={statusOf(item.step)}
+                next={item.step === nextStep}
+                title={item.title}
+                description={item.description}
+                expanded={loading ? hashOpened : wiring?.expanded}
+                onExpandedChange={wiring?.onExpandedChange}
+              >
+                {hashOpened ? <LoadingBody expanded onComplete={noop} onCompleteBackground={noop} /> : wiring?.body}
+              </OnboardingAccordionItem>
+            );
+          })}
+        </OnboardingAccordionGroup>
+      ))}
+
+      {children}
+    </PageLayout>
+  );
 }
 
 /** The loaded page body — mounted by {@link OnboardingContent} once progress is in. */
@@ -137,25 +288,9 @@ function LoadedOnboardingContent() {
 
   const completedSteps = user?.completedSteps ?? [];
 
-  // The URL hash mirrors the open accordion block (`/onboarding#step-tickets`) —
-  // the hub's same-page anchor model. Each row's DOM id is its anchor
-  // (`onboardingStepAnchorId`); the fragment parses back to a step here, unknown
-  // fragments → null. Lazy initializer: this component only mounts client-side
-  // (behind the `isLoaded` gate), so reading `location.hash` during the first
-  // render is safe and gives the deep-linked step to the accordion hook from
-  // the start — an effect would run after the hook's mount anchor.
-  const [hashStep, setHashStep] = useState<UserOnboardingStepId | null>(() =>
-    typeof window === 'undefined'
-      ? null
-      : onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)),
-  );
-  // Back/forward + the synthetic `hashchange` that `navigateSamePageHash` fires
-  // for our own writes — both funnel into the same parsed-state refresh.
-  useEffect(() => {
-    const refresh = () => setHashStep(onboardingStepFromAnchorId(USER_ONBOARDING_STEPS, window.location.hash.slice(1)));
-    window.addEventListener('hashchange', refresh);
-    return () => window.removeEventListener('hashchange', refresh);
-  }, []);
+  // The URL hash mirrors the open accordion block (`/onboarding#step-tickets`) — the hub's same-page anchor model.
+  // Each row's DOM id is its anchor (`onboardingStepAnchorId`); see `useHashStep`.
+  const hashStep = useHashStep();
 
   // Open/close → hash write. Opening goes through the canonical
   // `navigateSamePageHash` (replaceState — a step toggle is not a history step —
@@ -182,9 +317,7 @@ function LoadedOnboardingContent() {
     urlStep: hashStep,
     onOpenStepChange: syncHashToStep,
   });
-  const total = USER_ONBOARDING_STEPS.length;
-  const done = countCompleted(USER_ONBOARDING_STEPS, completedSteps);
-  const allDone = done >= total;
+  const { allDone } = onboardingProgress(USER_ONBOARDING_STEPS, completedSteps);
 
   // The instant every step is done, commit the tour in the background exactly once. No
   // manual click required: committing here is what makes ANY action on the completed view
@@ -199,88 +332,37 @@ function LoadedOnboardingContent() {
     }
   }, [allDone, completeUserInBackground]);
 
-  const statusOf = (step: UserOnboardingStepId): OnboardingStepStatus =>
-    isStepDone(step, completedSteps) ? 'completed' : 'active';
-  // First step still to do, in display order: the one row that says "Next".
-  const nextStep = USER_ONBOARDING_STEPS.find(step => !isStepDone(step, completedSteps)) ?? null;
-  const doneOf = (step: UserOnboardingStepId) => isStepDone(step, completedSteps);
-  const completeOf = (step: UserOnboardingStepId) => () => {
-    setCompletingStep(step);
-    completeUserStep(step, () => setCompletingStep(null));
+  const stepWiring = (step: UserOnboardingStepId): OnboardingStepWiring => {
+    const StepBody = STEP_BODY[step];
+    return {
+      ref: refOf(step),
+      id: onboardingStepAnchorId(step),
+      expanded: expandedOf(step),
+      onExpandedChange: onExpandedChangeOf(step),
+      body: (
+        <StepBody
+          completed={isStepDone(step, completedSteps)}
+          completing={completingStep === step}
+          onComplete={() => {
+            setCompletingStep(step);
+            completeUserStep(step, () => setCompletingStep(null));
+          }}
+          // Fire-and-forget completion for "open"/navigate primary actions — no loading anywhere.
+          onCompleteBackground={() => completeUserStepInBackground(step)}
+          expanded={expandedOf(step)}
+        />
+      ),
+    };
   };
-  const completingOf = (step: UserOnboardingStepId) => completingStep === step;
-  // Fire-and-forget completion for "open"/navigate primary actions — no loading anywhere.
-  const completeBackgroundOf = (step: UserOnboardingStepId) => () => completeUserStepInBackground(step);
-
-  // Header action: "Skip Onboarding", available until every step is done. Once all steps
-  // complete there is no header action — the "All Steps Done!" banner (rendered as the
-  // first content block below) takes over with a "Go to Dashboard" CTA, and the tour has
-  // already auto-committed (see the effect above).
-  const actions = allDone
-    ? []
-    : [
-        {
-          label: 'Skip Onboarding',
-          variant: 'outline' as const,
-          icon: <FastForwardIcon className="size-5" />,
-          disabled: isMutating,
-          onClick: () => setSkipConfirmOpen(true),
-        },
-      ];
 
   return (
-    <PageLayout
-      title="Get Started"
-      subtitle={allDone ? 'All steps complete' : `${total} steps to complete · ${done}/${total} done`}
-      actions={actions}
-      actionsVariant="icon-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-      contentClassName="flex flex-col gap-[var(--spacing-system-l)]"
+    <OnboardingView
+      completedSteps={completedSteps}
+      isMutating={isMutating}
+      onSkip={() => setSkipConfirmOpen(true)}
+      onLeave={leaveOnboarding}
+      stepWiring={stepWiring}
     >
-      {allDone && (
-        <OnboardingCompleteBanner
-          emoji="🎉"
-          title="All Steps Done!"
-          description="This section will clear from your menu. Reset it from Settings anytime to go through the steps again."
-          actionLabel="Go to Dashboard"
-          actionIcon={<CheckCircleIcon className="size-5" />}
-          onAction={leaveOnboarding}
-        />
-      )}
-
-      {/* The "walk me through it instead" offer, above the steps it replaces. */}
-      <BookCallSection />
-
-      {USER_ONBOARDING_GROUPS.map(group => (
-        <OnboardingAccordionGroup key={group.label} label={group.label}>
-          {group.items.map(item => {
-            const StepBody = STEP_BODY[item.step];
-            return (
-              <OnboardingAccordionItem
-                key={item.step}
-                ref={refOf(item.step)}
-                id={onboardingStepAnchorId(item.step)}
-                icon={item.icon}
-                status={statusOf(item.step)}
-                next={item.step === nextStep}
-                title={item.title}
-                description={item.description}
-                expanded={expandedOf(item.step)}
-                onExpandedChange={onExpandedChangeOf(item.step)}
-              >
-                <StepBody
-                  completed={doneOf(item.step)}
-                  completing={completingOf(item.step)}
-                  onComplete={completeOf(item.step)}
-                  onCompleteBackground={completeBackgroundOf(item.step)}
-                  expanded={expandedOf(item.step)}
-                />
-              </OnboardingAccordionItem>
-            );
-          })}
-        </OnboardingAccordionGroup>
-      ))}
-
       <ConfirmDialog
         open={skipConfirmOpen}
         onOpenChange={setSkipConfirmOpen}
@@ -294,6 +376,6 @@ function LoadedOnboardingContent() {
           skipUser(leaveOnboarding);
         }}
       />
-    </PageLayout>
+    </OnboardingView>
   );
 }

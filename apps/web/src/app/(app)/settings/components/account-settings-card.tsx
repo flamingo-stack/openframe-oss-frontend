@@ -47,7 +47,7 @@ export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSet
           name={orgName}
           website={orgWebsite}
           logoUrl={orgLogoUrl}
-          isLoading={!tenantLoaded}
+          loading={!tenantLoaded}
           onEditOrganization={tenantLoaded ? () => setIsOrgModalOpen(true) : undefined}
         />
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   ChartDonutIcon,
@@ -15,7 +15,6 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   DashboardInfoCard,
-  DataTable,
   type DataTableFilterOption,
   DatePicker,
   type DateRange,
@@ -26,10 +25,11 @@ import {
   SquareAvatar,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { format, isValid, parseISO } from 'date-fns';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { deleteTimeEntryMutation as DeleteTimeEntryMutationType } from '@/__generated__/deleteTimeEntryMutation.graphql';
 import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWorkTimeRelay_query.graphql';
@@ -40,7 +40,7 @@ import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { EmptyState } from '@/app/components/shared/empty-state';
+import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
@@ -58,21 +58,34 @@ import { formatDate } from '@/lib/format-date';
 import type { Instant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
 import { decodeGlobalId, ensureGlobalIdForType } from '@/lib/relay-id';
+import { LiveTable, loadingPlaceholderRows } from '../live-table';
+import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, noop } from '../no-next-page';
 
 const PAGE_SIZE = 20;
 
+/** The stat figures the query answers, as numbers (the query's Long fields read as strings or numbers). */
+interface WorkTimeStats {
+  todayTotalSeconds: string | number;
+  todayEntryCount: string | number;
+  periodTotalSeconds: string | number;
+  periodEntryCount: string | number;
+  averagePerDaySeconds: string | number;
+}
+
 /**
- * The three stat cards the loaded table renders, in order. Titles are static —
- * only the duration and entry count come from the query — so the skeleton shows
- * them verbatim. `AVG. PER DAY` has no entry count, matching the loaded card.
+ * The three stat cards above the table, in order: one list for the loaded cards and their loading state. Titles
+ * are static (drawn for real while loading); the duration and the entry count are read. `AVG. PER DAY` has no
+ * entry count.
  */
-const STAT_CARDS = [
-  { title: 'TODAY TOTAL', showSubValue: true },
-  { title: 'PERIOD TOTAL', showSubValue: true },
-  { title: 'AVG. PER DAY', showSubValue: false },
-] as const;
-const EMPTY_ROWS: WorkTimeRow[] = [];
-const noop = () => {};
+const STAT_CARDS: ReadonlyArray<{
+  title: string;
+  seconds: (stats: WorkTimeStats) => string | number;
+  entries?: (stats: WorkTimeStats) => string | number;
+}> = [
+  { title: 'TODAY TOTAL', seconds: stats => stats.todayTotalSeconds, entries: stats => stats.todayEntryCount },
+  { title: 'PERIOD TOTAL', seconds: stats => stats.periodTotalSeconds, entries: stats => stats.periodEntryCount },
+  { title: 'AVG. PER DAY', seconds: stats => stats.averagePerDaySeconds },
+];
 const DAY_PARAM_FORMAT = 'yyyy-MM-dd';
 
 function formatDayParam(date: Date | undefined): string | null {
@@ -122,7 +135,9 @@ interface QueryVars {
 }
 
 function EmployeeCell({ row }: { row: WorkTimeRow }) {
-  const isDeleted = isDeletedUserStatus(row.userStatus);
+  // A row still being read: the avatar and both lines draw their own loading forms.
+  const loading = useLoadingScope();
+  const isDeleted = !loading && isDeletedUserStatus(row.userStatus);
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
@@ -132,11 +147,12 @@ function EmployeeCell({ row }: { row: WorkTimeRow }) {
         <SquareAvatar src={row.userImageUrl} fallback={row.userName ?? '?'} size="sm" variant="round" />
       )}
       <div className="flex min-w-0 flex-col">
-        <TruncateText>{row.userName ?? '–'}</TruncateText>
+        {/* An entry not read yet (no start) has no name to dash: the empty line draws its bar. */}
+        <TruncateText>{row.userName ?? (row.startedAt ? '–' : '')}</TruncateText>
         {/* SELF_DELETED emails are synthetic (`deleted-{id}@deleted.invalid`) — hidden. */}
-        {row.userEmail && !isSelfDeletedUserStatus(row.userStatus) && (
+        {(loading || (row.userEmail && !isSelfDeletedUserStatus(row.userStatus))) && (
           <TruncateText variant="h6" tone="secondary" mono>
-            {row.userEmail}
+            {row.userEmail ?? ''}
           </TruncateText>
         )}
       </div>
@@ -155,14 +171,7 @@ const employeeColumn: ColumnDef<WorkTimeRow> = {
 const timeColumn: ColumnDef<WorkTimeRow> = {
   id: 'time',
   header: 'TIME',
-  cell: ({ row }) => (
-    <div className="flex flex-col">
-      <span className="font-mono text-ods-text-primary text-h4">
-        {formatDurationLabel(row.original.durationSeconds)}
-      </span>
-      <span className="text-ods-text-secondary text-h6">{formatDate(row.original.startedAt)}</span>
-    </div>
-  ),
+  cell: ({ row }) => <TimeCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'w-24 content-md:w-32 shrink-0 flex-none' },
 };
@@ -170,23 +179,7 @@ const timeColumn: ColumnDef<WorkTimeRow> = {
 const customerColumn: ColumnDef<WorkTimeRow> = {
   id: 'customer',
   header: 'CUSTOMER',
-  cell: ({ row }) => {
-    const { organizationName, organizationEmail, organizationImageUrl } = row.original;
-    if (!organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
-    return (
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
-        <EntityImage src={organizationImageUrl} alt={organizationName} className="size-12 content-md:size-12" />
-        <div className="flex min-w-0 flex-col">
-          <TruncateText>{organizationName}</TruncateText>
-          {organizationEmail && (
-            <TruncateText variant="h6" tone="secondary" mono>
-              {organizationEmail}
-            </TruncateText>
-          )}
-        </div>
-      </div>
-    );
-  },
+  cell: ({ row }) => <CustomerCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
 };
@@ -194,23 +187,102 @@ const customerColumn: ColumnDef<WorkTimeRow> = {
 const ticketNotesColumn: ColumnDef<WorkTimeRow> = {
   id: 'ticketNotes',
   header: 'TICKET & NOTES',
-  cell: ({ row }) => {
-    const { ticketNumber, ticketTitle, notes } = row.original;
-    const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : '–';
-    return (
-      <div className="flex min-w-0 flex-col">
-        <TruncateText>{ticketLabel}</TruncateText>
-        {notes && (
-          <TruncateText variant="h6" tone="secondary">
-            {notes}
-          </TruncateText>
-        )}
-      </div>
-    );
-  },
+  cell: ({ row }) => <TicketNotesCell row={row.original} />,
   enableSorting: false,
   meta: { width: 'min-w-0 flex-1', hideAt: 'md' },
 };
+
+/** The duration over the day it was logged; two bars while the row is read. */
+function TimeCell({ row }: { row: WorkTimeRow }) {
+  if (useLoadingScope()) {
+    return (
+      <div className="flex flex-col">
+        <TextLineSkeleton type="h4" className="w-3/4" />
+        <TextLineSkeleton type="h6" className="w-1/2" />
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col">
+      <span className="font-mono text-ods-text-primary text-h4">{formatDurationLabel(row.durationSeconds)}</span>
+      <span className="text-ods-text-secondary text-h6">{formatDate(row.startedAt)}</span>
+    </div>
+  );
+}
+
+/** The customer's image, name and email; each its own loading form while the row is read. */
+function CustomerCell({ row }: { row: WorkTimeRow }) {
+  const loading = useLoadingScope();
+  const { organizationName, organizationEmail, organizationImageUrl } = row;
+  if (!loading && !organizationName) return <span className="text-ods-text-secondary text-h4">–</span>;
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
+      <EntityImage src={organizationImageUrl} alt={organizationName ?? ''} className="size-12 content-md:size-12" />
+      <div className="flex min-w-0 flex-col">
+        <TruncateText>{organizationName ?? ''}</TruncateText>
+        {(loading || organizationEmail) && (
+          <TruncateText variant="h6" tone="secondary" mono>
+            {organizationEmail ?? ''}
+          </TruncateText>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The ticket over the entry's notes; both draw their bars while the row is read. */
+function TicketNotesCell({ row }: { row: WorkTimeRow }) {
+  const loading = useLoadingScope();
+  const { ticketNumber, ticketTitle, notes } = row;
+  // An entry not read yet (no start) has no ticket to dash: the empty line draws its bar.
+  const noTicket = row.startedAt ? '–' : '';
+  const ticketLabel = ticketTitle ? `${ticketNumber != null ? `${ticketNumber} – ` : ''}${ticketTitle}` : noTicket;
+  return (
+    <div className="flex min-w-0 flex-col">
+      <TruncateText>{ticketLabel}</TruncateText>
+      {(loading || notes) && (
+        <TruncateText variant="h6" tone="secondary">
+          {notes ?? ''}
+        </TruncateText>
+      )}
+    </div>
+  );
+}
+
+/** Delete and edit. Static chrome: drawn real while the row is read, and inert. */
+function EntryActionsCell({
+  row,
+  onEdit,
+  onDelete,
+}: {
+  row: WorkTimeRow;
+  onEdit: (row: WorkTimeRow) => void;
+  onDelete: (row: WorkTimeRow) => void;
+}) {
+  const loading = useLoadingScope();
+  return (
+    <div className="flex items-center justify-end gap-[var(--spacing-system-xs)]">
+      <Button
+        variant="outline"
+        size="icon"
+        className="bg-ods-card"
+        aria-label="Delete Entry"
+        leftIcon={<TrashIcon className="h-5 w-5 text-ods-error" />}
+        onClick={() => onDelete(row)}
+        disabled={loading}
+      />
+      <Button
+        variant="outline"
+        size="icon"
+        className="bg-ods-card"
+        aria-label="Edit Entry"
+        leftIcon={<PenEditIcon className="h-5 w-5" />}
+        onClick={() => onEdit(row)}
+        disabled={loading}
+      />
+    </div>
+  );
+}
 
 function buildColumns(
   showEmployee: boolean,
@@ -223,26 +295,7 @@ function buildColumns(
   const actionsColumn: ColumnDef<WorkTimeRow> = {
     id: 'actions',
     header: '',
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end gap-[var(--spacing-system-xs)]">
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-ods-card"
-          aria-label="Delete Entry"
-          leftIcon={<TrashIcon className="h-5 w-5 text-ods-error" />}
-          onClick={() => onDelete(row.original)}
-        />
-        <Button
-          variant="outline"
-          size="icon"
-          className="bg-ods-card"
-          aria-label="Edit Entry"
-          leftIcon={<PenEditIcon className="h-5 w-5" />}
-          onClick={() => onEdit(row.original)}
-        />
-      </div>
-    ),
+    cell: ({ row }) => <EntryActionsCell row={row.original} onEdit={onEdit} onDelete={onDelete} />,
     enableSorting: false,
     meta: { width: 'w-24 content-md:w-28 shrink-0 flex-none', align: 'right' },
   };
@@ -284,19 +337,7 @@ function mapUserName(
   return name || user.email || null;
 }
 
-function WorkTimeTableData({
-  showEmployee,
-  showCustomer,
-  vars,
-  fetchKey,
-  onEdit,
-  onDelete,
-  employeeFilterOptions,
-  customerFilterOptions,
-  columnFilters,
-  onColumnFiltersChange,
-  richEmptyState,
-}: {
+interface WorkTimeTableDataProps {
   showEmployee: boolean;
   showCustomer: boolean;
   vars: QueryVars;
@@ -309,7 +350,26 @@ function WorkTimeTableData({
   onColumnFiltersChange: OnChangeFn<ColumnFiltersState>;
   /** The caller allows the rich empty state here — see `WorkTimeTable`. */
   richEmptyState: boolean;
-}) {
+}
+
+/** The entries and the stats, with their own boundary: in its scope the reader draws the table pending. */
+function WorkTimeTableData(props: WorkTimeTableDataProps) {
+  return (
+    <LoadingSuspense label="Loading work time">
+      <WorkTimeTableDataReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function WorkTimeTableDataReader(props: WorkTimeTableDataProps) {
+  if (useLoadingScope()) {
+    return <WorkTimeTableViewPending showEmployee={props.showEmployee} showCustomer={props.showCustomer} />;
+  }
+  return <WorkTimeTableDataLive {...props} />;
+}
+
+/** The query container: reads the entries and the stats, and renders {@link WorkTimeTableView} with them. */
+function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
     fetchKey,
@@ -318,9 +378,6 @@ function WorkTimeTableData({
     employeeWorkTimeRelayPaginationQuery,
     employeeWorkTimeRelay_query$key
   >(employeeWorkTimeRelayFragment, queryData);
-
-  const stats = queryData.employeeTimeStats;
-  const totalCount = data.employeeTimeEntries.filteredCount;
 
   const rows = useMemo<WorkTimeRow[]>(
     () =>
@@ -351,12 +408,55 @@ function WorkTimeTableData({
     [data.employeeTimeEntries.edges],
   );
 
+  return (
+    <WorkTimeTableView
+      {...viewProps}
+      stats={queryData.employeeTimeStats}
+      rows={rows}
+      totalCount={data.employeeTimeEntries.filteredCount}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: () => loadNext(PAGE_SIZE),
+      }}
+    />
+  );
+}
+
+/**
+ * The stats row and the entry table, from props. The Suspense fallback renders it with no data in a loading
+ * scope: the stat cards and the table draw their own loading states (a full page of rows).
+ */
+function WorkTimeTableView({
+  showEmployee,
+  showCustomer,
+  stats,
+  rows,
+  totalCount,
+  infiniteScroll,
+  onEdit,
+  onDelete,
+  employeeFilterOptions,
+  customerFilterOptions,
+  columnFilters,
+  onColumnFiltersChange,
+  richEmptyState,
+}: Omit<WorkTimeTableDataProps, 'vars' | 'fetchKey'> & {
+  /** The stats; null while they are read. */
+  stats: WorkTimeStats | null;
+  rows: WorkTimeRow[];
+  totalCount?: number;
+  infiniteScroll: InfiniteScroll;
+}) {
+  const loading = useLoadingScope();
   const columns = useMemo(
     () => buildColumns(showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions),
     [showEmployee, showCustomer, onEdit, onDelete, employeeFilterOptions, customerFilterOptions],
   );
+  // In a loading scope the table holds one page of placeholder rows, drawn with the real cells.
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<WorkTimeRow>(PAGE_SIZE) : null), [loading]);
   const table = useDataTable<WorkTimeRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: row => row.id,
     enableSorting: false,
@@ -367,29 +467,20 @@ function WorkTimeTableData({
   return (
     <>
       <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
-        <DashboardInfoCard
-          className="flex-1"
-          title="TODAY TOTAL"
-          value={formatDurationLabel(Number(stats.todayTotalSeconds))}
-          subValue={`${stats.todayEntryCount} entries`}
-          valueClassName="font-mono"
-        />
-        <DashboardInfoCard
-          className="flex-1"
-          title="PERIOD TOTAL"
-          value={formatDurationLabel(Number(stats.periodTotalSeconds))}
-          subValue={`${stats.periodEntryCount} entries`}
-          valueClassName="font-mono"
-        />
-        <DashboardInfoCard
-          className="flex-1"
-          title="AVG. PER DAY"
-          value={formatDurationLabel(Number(stats.averagePerDaySeconds))}
-          valueClassName="font-mono"
-        />
+        {STAT_CARDS.map(card => (
+          <DashboardInfoCard
+            key={card.title}
+            className="flex-1"
+            title={card.title}
+            value={stats ? formatDurationLabel(Number(card.seconds(stats))) : ''}
+            subValue={stats && card.entries ? `${card.entries(stats)} entries` : undefined}
+            loadingShowsSubValue={!!card.entries}
+            valueClassName="font-mono"
+          />
+        ))}
       </div>
 
-      {richEmptyState && rows.length === 0 ? (
+      {!loading && richEmptyState && rows.length === 0 ? (
         // No footer button: the other sections link their onboarding guide here, and
         // Worktime has no guide article to link to (`ONBOARDING_GUIDE_SLUGS` has no
         // entry for it), so the block ends with the bullets.
@@ -404,60 +495,38 @@ function WorkTimeTableData({
           ]}
         />
       ) : (
-        <DataTable table={table}>
-          <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />} />
-          <DataTable.Body emptyMessage="No work time entries for this period." />
-          <DataTable.InfiniteFooter
-            hasNextPage={hasNext}
-            isFetchingNextPage={isLoadingNext}
-            onLoadMore={() => loadNext(PAGE_SIZE)}
-            skeletonRows={2}
-          />
-        </DataTable>
+        <LiveTable
+          table={table}
+          pageSize={PAGE_SIZE}
+          stickyHeader={false}
+          itemName="result"
+          totalCount={totalCount}
+          emptyState={oneLineEmptyState('No work time entries for this period.')}
+          footer={infiniteScroll}
+          loadingCells={loading}
+        />
       )}
     </>
   );
 }
 
-/**
- * Loading state for the stats row + entry table. Exported so the route-level
- * Worktime skeleton renders THIS, not a copy of it.
- */
-function WorkTimeTableSkeleton({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
-  const columns = useMemo(() => buildColumns(showEmployee, showCustomer, noop, noop), [showEmployee, showCustomer]);
-  const table = useDataTable<WorkTimeRow>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: row => row.id,
-    enableSorting: false,
-  });
-
+/** {@link WorkTimeTableView} with nothing read yet: what the Suspense fallback and the loading scope render. */
+function WorkTimeTableViewPending({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
   return (
-    <LoadingRegion className="contents" label="Loading work time">
-      {/* Mirrors the loaded stats row exactly: the REAL card geometry via
-          `DashboardInfoCard` in its `loading` state, the REAL titles (static, not query-dependent), and
-          bars only for the duration + entry count. The previous hand-rolled
-          placeholder had no fixed height, so the row was ~33px short of the
-          104px cards and the table below jumped on load. */}
-      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row">
-        {STAT_CARDS.map(card => (
-          <DashboardInfoCard
-            key={card.title}
-            loading
-            value=""
-            className="flex-1"
-            title={card.title}
-            loadingShowsSubValue={card.showSubValue}
-            valueClassName="font-mono"
-          />
-        ))}
-      </div>
-
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="result" />} />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={8} />
-      </DataTable>
-    </LoadingRegion>
+    <WorkTimeTableView
+      showEmployee={showEmployee}
+      showCustomer={showCustomer}
+      stats={null}
+      rows={NO_ITEMS}
+      infiniteScroll={NO_NEXT_PAGE}
+      onEdit={noop}
+      onDelete={noop}
+      employeeFilterOptions={NO_ITEMS}
+      customerFilterOptions={NO_ITEMS}
+      columnFilters={NO_ITEMS}
+      onColumnFiltersChange={noop}
+      richEmptyState={false}
+    />
   );
 }
 
@@ -480,14 +549,73 @@ export interface WorkTimeTableProps {
   addDefaultCustomer?: { id: string; label: string; imageUrl?: string };
 }
 
+/** The filters above the table: one frame, drawn by the loading form and the loaded one. */
+const WORK_TIME_FRAME_CLASS = 'flex flex-col gap-[var(--spacing-system-l)]';
+
+/**
+ * The filters with nothing typed and the table in its loading state: what the component is in a loading scope,
+ * where it reads nothing (no option lists, no entries).
+ */
+function WorkTimeTablePending({ showEmployee, showCustomer }: { showEmployee: boolean; showCustomer: boolean }) {
+  return (
+    <div className={WORK_TIME_FRAME_CLASS}>
+      <WorkTimeFilters search="" onSearchChange={noop} range={undefined} onRangeChange={noop} />
+      <WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />
+    </div>
+  );
+}
+
+/** The search box and the date range above the table. */
+function WorkTimeFilters({
+  search,
+  onSearchChange,
+  range,
+  onRangeChange,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  range: DateRange | undefined;
+  onRangeChange: (range: DateRange | undefined) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
+      <Input
+        userValue
+        value={search}
+        onChange={e => onSearchChange(e.target.value)}
+        placeholder="Search for Work Time"
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
+        className="w-full content-md:flex-1"
+      />
+      <DatePicker
+        mode="range"
+        value={range}
+        onChange={onRangeChange}
+        formatDate={formatDate}
+        numberOfMonths={2}
+        placeholder="Select dates"
+        className="content-md:w-[276px]"
+      />
+    </div>
+  );
+}
+
 /**
  * Stats + search/date filters + paginated time-entry table + edit/delete (and optional
  * add) modals. Shared by the employee details page (single employee), the tenant Worktime
  * page (all users, Employee + Customer columns), and the customer details Worktime tab
  * (one customer, Employee column). The header/title and the "Add Work Time" trigger are
- * owned by the caller; this owns the data and the modals.
+ * owned by the caller; this owns the data and the modals. In a loading scope it draws its
+ * own loading state and reads nothing.
  */
-export function WorkTimeTable({
+export function WorkTimeTable(props: WorkTimeTableProps) {
+  if (useLoadingScope()) {
+    return <WorkTimeTablePending showEmployee={!!props.showEmployee} showCustomer={!!props.showCustomer} />;
+  }
+  return <LiveWorkTimeTable {...props} />;
+}
+
+function LiveWorkTimeTable({
   employeeId,
   organizationGlobalId,
   showEmployee = false,
@@ -630,25 +758,8 @@ export function WorkTimeTable({
   }, [deleteTarget, deleteEntry, refresh, toast]);
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <div className="flex flex-col gap-[var(--spacing-system-m)] content-md:flex-row content-md:items-start">
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search for Work Time"
-          startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
-          className="w-full content-md:flex-1"
-        />
-        <DatePicker
-          mode="range"
-          value={range}
-          onChange={setRange}
-          formatDate={formatDate}
-          numberOfMonths={2}
-          placeholder="Select dates"
-          className="content-md:w-[276px]"
-        />
-      </div>
+    <div className={WORK_TIME_FRAME_CLASS}>
+      <WorkTimeFilters search={search} onSearchChange={setSearch} range={range} onRangeChange={setRange} />
 
       <ErrorBoundary
         key={retryNonce}
@@ -656,21 +767,19 @@ export function WorkTimeTable({
           <LoadError message="Couldn't load work time entries." onRetry={() => setRetryNonce(nonce => nonce + 1)} />
         }
       >
-        <Suspense fallback={<WorkTimeTableSkeleton showEmployee={showEmployee} showCustomer={showCustomer} />}>
-          <WorkTimeTableData
-            showEmployee={showEmployee}
-            showCustomer={showCustomer}
-            vars={vars}
-            fetchKey={fetchKey}
-            onEdit={setEditTarget}
-            onDelete={setDeleteTarget}
-            employeeFilterOptions={employeeFilterOptions}
-            customerFilterOptions={customerFilterOptions}
-            columnFilters={columnFilters}
-            onColumnFiltersChange={onColumnFiltersChange}
-            richEmptyState={richEmptyState}
-          />
-        </Suspense>
+        <WorkTimeTableData
+          showEmployee={showEmployee}
+          showCustomer={showCustomer}
+          vars={vars}
+          fetchKey={fetchKey}
+          onEdit={setEditTarget}
+          onDelete={setDeleteTarget}
+          employeeFilterOptions={employeeFilterOptions}
+          customerFilterOptions={customerFilterOptions}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={onColumnFiltersChange}
+          richEmptyState={richEmptyState}
+        />
       </ErrorBoundary>
 
       {onAddWorkTimeOpenChange && (

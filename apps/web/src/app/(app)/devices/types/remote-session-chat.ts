@@ -1,3 +1,5 @@
+import type { RemoteSessionChatMessage as DesktopChatMessage } from '@flamingo-stack/openframe-frontend-core/components/features';
+
 // Session chat between the technician and the end user during a remote
 // screen session. The technician side lives on the remote-desktop page; the
 // end user answers in the openframe-chat session block. Both talk to the same
@@ -16,6 +18,17 @@ export interface RemoteSessionChatMessage {
   body: string;
   /** JetStream sequence of the row (live chunks, and history rows the backend stamped); absent on the mock. */
   seq?: number;
+}
+
+/** A message as the lib's `RemoteDesktopChatPanel` takes it. */
+export function toDesktopChatMessage(message: RemoteSessionChatMessage): DesktopChatMessage {
+  return {
+    id: message.id,
+    author: message.author,
+    name: message.authorName,
+    text: message.body,
+    at: new Date(message.sentAt),
+  };
 }
 
 /** Who is typing on this side of the chat - shown on the technician's rows. */

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Notification, NotificationSeverity } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ArrowRightUpIcon,
   CheckCircleIcon,
@@ -14,6 +15,7 @@ import {
   SplitButton,
   Tag,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn, formatTicketRelativeTime } from '@flamingo-stack/openframe-frontend-core/utils';
 import { getNotificationIcon } from '@/app/components/notifications/notification-category-icons';
@@ -67,7 +69,7 @@ const DESCRIPTION_LINES = 2;
 function NotificationTitle({ row, className }: { row: NotificationRow; className: string }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <TruncateText className={className}>{row.title}</TruncateText>
+      <TruncateText className={className}>{row.title ?? ''}</TruncateText>
       {row.archived ? <Tag label="Archived" variant="grey" className="shrink-0" /> : null}
     </div>
   );
@@ -86,32 +88,7 @@ export function buildNotificationColumns({
       header: 'Notification',
       enableSorting: false,
       meta: { width: 'flex-[2] min-w-0' },
-      cell: ({ row }: { row: Row<NotificationRow> }) => {
-        const { severity, variant = 'default' } = row.original.notification;
-        const titleColor = (severity && titleColorBySeverity[severity]) ?? 'text-ods-text-primary';
-        const relativeTime = formatTicketRelativeTime(new Date(row.original.createdAt).toISOString());
-        return (
-          <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-ods-border text-ods-text-secondary">
-              {getNotificationIcon(row.original.notification) ?? (
-                <span className={cn('size-1.5 rounded-full', dotColorByVariant[variant])} />
-              )}
-            </div>
-            <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] content-md:flex">
-              {/* Real content leads; the context-derived kind label moved to the details column. */}
-              <NotificationTitle row={row.original} className={titleColor} />
-              <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
-            </div>
-            {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
-            <div className="flex min-w-0 flex-col content-md:hidden">
-              <NotificationTitle row={row.original} className={titleColor} />
-              <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
-                {row.original.description || relativeTime}
-              </TruncateText>
-            </div>
-          </div>
-        );
-      },
+      cell: ({ row }: { row: Row<NotificationRow> }) => <NotificationCell row={row.original} />,
     },
     {
       id: 'details',
@@ -119,21 +96,7 @@ export function buildNotificationColumns({
       header: '',
       enableSorting: false,
       meta: { width: 'flex-[3] min-w-0', hideAt: 'md' },
-      cell: ({ row }: { row: Row<NotificationRow> }) => {
-        // The title owns the first column; this one carries the kind label (when the
-        // context isn't generic) and the description.
-        const kindLabel = row.original.notification.type;
-        return (
-          <div className="flex min-w-0 flex-col">
-            {kindLabel ? <TruncateText>{kindLabel}</TruncateText> : null}
-            {row.original.description ? (
-              <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
-                {row.original.description}
-              </TruncateText>
-            ) : null}
-          </div>
-        );
-      },
+      cell: ({ row }: { row: Row<NotificationRow> }) => <NotificationDetailsCell row={row.original} />,
     },
     {
       id: 'action',
@@ -141,6 +104,8 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'w-11 shrink-0 content-md:w-[210px]', align: 'right' },
       cell: ({ row }: { row: Row<NotificationRow> }) => {
+        // A row still being read has no action yet (only some notifications carry one): the slot stays empty.
+        if (!row.original.notification) return null;
         const action = resolveNotificationAction(row.original.notification);
         if (!action) return null;
         // A Mingo dialog opens the in-layout drawer instead of navigating — but only
@@ -200,26 +165,101 @@ export function buildNotificationColumns({
       enableSorting: false,
       meta: { width: 'w-11 shrink-0 content-md:w-12', align: 'right' },
       cell: ({ row }: { row: Row<NotificationRow> }) => (
-        <div data-no-row-click className="flex items-center justify-end">
-          {rowVariant === 'unread' ? (
-            <Button
-              size="icon"
-              variant="outline"
-              aria-label="Mark as done"
-              onClick={() => onMarkRead?.(row.original.id)}
-              leftIcon={<CheckCircleIcon size={24} />}
-            />
-          ) : (
-            <Button
-              size="icon"
-              variant="outline"
-              aria-label="Delete notification"
-              onClick={() => onDelete?.(row.original.id)}
-              leftIcon={<TrashIcon size={24} className="text-ods-error" />}
-            />
-          )}
-        </div>
+        <RowIconCell row={row.original} rowVariant={rowVariant} onMarkRead={onMarkRead} onDelete={onDelete} />
       ),
     },
   ];
+}
+
+/** The icon, the title and the time (the title over the description on a phone); their own bars while the row is read. */
+function NotificationCell({ row }: { row: NotificationRow }) {
+  const loading = useLoadingScope() && !row.notification;
+  const { severity, variant = 'default' } = row.notification ?? {};
+  const titleColor = (severity && titleColorBySeverity[severity]) ?? 'text-ods-text-primary';
+  const relativeTime = loading ? '' : formatTicketRelativeTime(new Date(row.createdAt).toISOString());
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-m)]">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-ods-border text-ods-text-secondary">
+        {loading ? (
+          <UnifiedSkeleton className="size-4 rounded" />
+        ) : (
+          (getNotificationIcon(row.notification) ?? (
+            <span className={cn('size-1.5 rounded-full', dotColorByVariant[variant])} />
+          ))
+        )}
+      </div>
+      <div className="hidden min-w-0 flex-col gap-[var(--spacing-system-xxs)] content-md:flex">
+        {/* Real content leads; the context-derived kind label moved to the details column. */}
+        <NotificationTitle row={row} className={titleColor} />
+        {loading ? (
+          <TextLineSkeleton type="h6" className="w-24" />
+        ) : (
+          <span className="truncate text-ods-text-secondary text-h6">{relativeTime}</span>
+        )}
+      </div>
+      {/* Mobile: the details column is hidden, so title + description collapse into this cell. */}
+      <div className="flex min-w-0 flex-col content-md:hidden">
+        <NotificationTitle row={row} className={titleColor} />
+        <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
+          {row.description || relativeTime}
+        </TruncateText>
+      </div>
+    </div>
+  );
+}
+
+/** The kind label over the description; both draw their bars while the row is read. */
+function NotificationDetailsCell({ row }: { row: NotificationRow }) {
+  // The title owns the first column; this one carries the kind label (when the
+  // context isn't generic) and the description.
+  const loading = useLoadingScope() && !row.notification;
+  const kindLabel = row.notification?.type;
+  return (
+    <div className="flex min-w-0 flex-col">
+      {kindLabel || loading ? <TruncateText>{kindLabel ?? ''}</TruncateText> : null}
+      {row.description || loading ? (
+        <TruncateText lines={DESCRIPTION_LINES} variant="h6" tone="secondary" className="break-words">
+          {row.description ?? ''}
+        </TruncateText>
+      ) : null}
+    </div>
+  );
+}
+
+/** Mark as done (unread) or delete (read). Static chrome: drawn real while the row is read, and inert. */
+function RowIconCell({
+  row,
+  rowVariant,
+  onMarkRead,
+  onDelete,
+}: {
+  row: NotificationRow;
+  rowVariant: 'unread' | 'read';
+  onMarkRead?: (id: string) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const loading = useLoadingScope() && !row.notification;
+  return (
+    <div data-no-row-click className="flex items-center justify-end">
+      {rowVariant === 'unread' ? (
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Mark as done"
+          onClick={() => onMarkRead?.(row.id)}
+          disabled={loading}
+          leftIcon={<CheckCircleIcon size={24} />}
+        />
+      ) : (
+        <Button
+          size="icon"
+          variant="outline"
+          aria-label="Delete notification"
+          onClick={() => onDelete?.(row.id)}
+          disabled={loading}
+          leftIcon={<TrashIcon size={24} className="text-ods-error" />}
+        />
+      )}
+    </div>
+  );
 }

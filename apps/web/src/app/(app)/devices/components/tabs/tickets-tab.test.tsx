@@ -12,7 +12,10 @@ import { TicketsTab } from './tickets-tab';
 
 const hooks = vi.hoisted(() => ({ useTicketsQuery: vi.fn() }));
 
-vi.mock('../../../tickets/hooks/use-tickets-query', () => ({ useTicketsQuery: hooks.useTicketsQuery }));
+vi.mock('../../../tickets/hooks/use-tickets-query', () => ({
+  TICKETS_PAGE_SIZE: 20,
+  useTicketsQuery: hooks.useTicketsQuery,
+}));
 vi.mock('@/app/hooks/use-user-status-map', () => ({ useUserStatusMap: () => ({ isUserDeleted: () => false }) }));
 vi.mock('@/app/hooks/use-sticky-toolbar', () => ({
   useStickyToolbar: () => ({ toolbarRef: { current: null }, containerStyle: {}, stickyHeaderOffset: 0 }),

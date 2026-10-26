@@ -1,7 +1,7 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { HubSpotMeetingScheduler } from '@flamingo-stack/openframe-frontend-core/components/meeting-scheduler';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { BookingConfirmation } from '@flamingo-stack/openframe-frontend-core/schemas/meeting-booking-schema';
 import { CONTENT_BASE } from '@/app/(app)/help-center/endpoints';
@@ -30,25 +30,27 @@ export function BookCallModal({ open, onClose }: { open: boolean; onClose: () =>
       // with the card); without this slot the body has no scroll box at all.
       contentClassName="flex flex-col"
     >
-      {link ? (
-        <HubSpotMeetingScheduler
-          layout="modal"
-          meetingId={link.id}
-          apiBaseUrl={CONTENT_BASE}
-          hosts={link.hosts}
-          fallbackUrl={link.link}
-          onBack={onClose}
-          onBooked={(booking: BookingConfirmation) => {
-            toast({
-              title: 'Call booked',
-              description: `${booking.title} - ${formatDateTime(booking.startTimeMs)}. Check your email for the invite.`,
-              variant: 'success',
-            });
-            onClose();
-          }}
-        />
-      ) : isLoading ? (
-        <UnifiedSkeleton className="h-[420px] w-full rounded-md" />
+      {link || isLoading ? (
+        // While the link is read the scheduler draws its own loading state, in the same tree, so nothing remounts
+        // when the link lands.
+        <LoadingWhen loading={!link}>
+          <HubSpotMeetingScheduler
+            layout="modal"
+            meetingId={link?.id ?? ''}
+            apiBaseUrl={CONTENT_BASE}
+            hosts={link?.hosts}
+            fallbackUrl={link?.link}
+            onBack={onClose}
+            onBooked={(booking: BookingConfirmation) => {
+              toast({
+                title: 'Call booked',
+                description: `${booking.title} - ${formatDateTime(booking.startTimeMs)}. Check your email for the invite.`,
+                variant: 'success',
+              });
+              onClose();
+            }}
+          />
+        </LoadingWhen>
       ) : (
         <p className="text-ods-text-secondary text-h4">No onboarding calls can be booked right now.</p>
       )}

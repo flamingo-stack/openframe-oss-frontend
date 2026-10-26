@@ -3,6 +3,7 @@
 
 import { Input, Label, LoadError, NotFoundError, PageLayout, Textarea } from '@flamingo-stack/openframe-frontend-core';
 import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -14,7 +15,6 @@ import { routes } from '@/lib/routes';
 import type { Device } from '../../../devices/types/device.types';
 import { getFleetHostId } from '../../../devices/utils/device-action-utils';
 import { ScriptEditor } from '../../../scripts/shared/components/script-editor';
-import { MonitoringEditSkeleton } from '../../components/monitoring-detail-skeleton';
 import { TestQuerySection } from '../../components/test-query-section';
 import { usePolicies } from '../../hooks/use-policies';
 import { usePolicyDetails } from '../hooks/use-policy-details';
@@ -195,10 +195,6 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
     [handleSubmit, onSubmit, onFormError, isSaving, hasName],
   );
 
-  if (isLoadingPolicy && isExistingPolicy) {
-    return <MonitoringEditSkeleton kind="policy" onBack={handleBack} />;
-  }
-
   if (policyError && isExistingPolicy) {
     return <LoadError message={`Error loading policy: ${policyError}`} />;
   }
@@ -207,77 +203,81 @@ export function EditPolicyPage({ policyId }: EditPolicyPageProps) {
     return <NotFoundError message="Policy not found" />;
   }
 
+  // While the record loads the form draws itself empty in a loading scope: each part its own skeleton.
+  const loadingRecord = isLoadingPolicy && isExistingPolicy;
   return (
-    <PageLayout
-      title={isExistingPolicy && policyDetails ? policyDetails.name : 'New Policy'}
-      backButton={{
-        label: 'Back',
-        onClick: handleBack,
-      }}
-      actions={actions}
-      actionsVariant="primary-buttons"
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
-      <div className="space-y-6 content-md:space-y-8">
-        {/* Name */}
-        <div className="content-md:max-w-[280px]">
-          <Input
-            {...register('name', {
-              onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
-            })}
-            label="Name"
-            placeholder="Enter Policy Name"
-            error={errors.name?.message}
-          />
-        </div>
+    <LoadingWhen loading={loadingRecord}>
+      <PageLayout
+        title={isExistingPolicy ? (policyDetails?.name ?? '') : 'New Policy'}
+        backButton={{
+          label: 'Back',
+          onClick: handleBack,
+        }}
+        actions={actions}
+        actionsVariant="primary-buttons"
+        className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+      >
+        <div className="space-y-6 content-md:space-y-8">
+          {/* Name */}
+          <div className="content-md:max-w-[280px]">
+            <Input
+              {...register('name', {
+                onChange: (e: React.ChangeEvent<HTMLInputElement>) => setHasName(!!e.target.value.trim()),
+              })}
+              label="Name"
+              placeholder="Enter Policy Name"
+              error={errors.name?.message}
+            />
+          </div>
 
-        {/* Description */}
-        <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Policy Description" />
+          {/* Description */}
+          <Textarea {...register('description')} label="Description" rows={3} placeholder="Enter Policy Description" />
 
-        {/* Query + inline test block */}
-        <div className="space-y-1">
-          <Label className="!mb-0">Query</Label>
-          <Controller
-            name="query"
-            control={control}
-            render={({ field }) => (
-              <ScriptEditor
-                value={field.value}
-                onChange={val => {
-                  field.onChange(val);
-                  setHasQuery(!!val?.trim());
-                }}
-                shell="sql"
-                height="300px"
-              />
-            )}
-          />
-          {/* 8px gap under the editor, matching the section's internal gap
+          {/* Query + inline test block */}
+          <div className="space-y-1">
+            <Label className="!mb-0">Query</Label>
+            <Controller
+              name="query"
+              control={control}
+              render={({ field }) => (
+                <ScriptEditor
+                  value={field.value}
+                  onChange={val => {
+                    field.onChange(val);
+                    setHasQuery(!!val?.trim());
+                  }}
+                  shell="sql"
+                  height="300px"
+                />
+              )}
+            />
+            {/* 8px gap under the editor, matching the section's internal gap
               (the parent's space-y-1 would give 4px). */}
-          <TestQuerySection
-            getQuery={getQuery}
-            hasQuery={hasQuery}
-            devices={policyDevices}
-            isLoadingDevices={isLoadingDevices}
-            className="!mt-[var(--spacing-system-xsf)]"
-          />
-        </div>
+            <TestQuerySection
+              getQuery={getQuery}
+              hasQuery={hasQuery}
+              devices={policyDevices}
+              isLoadingDevices={isLoadingDevices}
+              className="!mt-[var(--spacing-system-xsf)]"
+            />
+          </div>
 
-        {/* Devices */}
-        <div className="space-y-1">
-          <h2 className="text-ods-text-primary text-h2">Devices</h2>
-          <DeviceSelector
-            devices={policyDevices}
-            loading={isLoadingDevices}
-            selectedIds={stringSelectedIds}
-            getDeviceKey={getDeviceKey}
-            onSelectionChange={handleDeviceSelectionChange}
-            disabled={isSaving}
-            addAllBehavior="merge"
-            isDeviceDisabled={d => (getFleetHostId(d) === undefined ? 'Fleet agent is\nnot installed' : undefined)}
-          />
+          {/* Devices */}
+          <div className="space-y-1">
+            <h2 className="text-ods-text-primary text-h2">Devices</h2>
+            <DeviceSelector
+              devices={policyDevices}
+              loading={isLoadingDevices || loadingRecord}
+              selectedIds={stringSelectedIds}
+              getDeviceKey={getDeviceKey}
+              onSelectionChange={handleDeviceSelectionChange}
+              disabled={isSaving}
+              addAllBehavior="merge"
+              isDeviceDisabled={d => (getFleetHostId(d) === undefined ? 'Fleet agent is\nnot installed' : undefined)}
+            />
+          </div>
         </div>
-      </div>
-    </PageLayout>
+      </PageLayout>
+    </LoadingWhen>
   );
 }

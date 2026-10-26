@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ClockHistoryIcon,
   Filter02Icon,
@@ -7,15 +8,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
   Input,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scheduleRunsRelay_query$key as RunsFragmentKey } from '@/__generated__/scheduleRunsRelay_query.graphql';
 import type { scheduleRunsRelayPaginationQuery as RunsPaginationQueryType } from '@/__generated__/scheduleRunsRelayPaginationQuery.graphql';
@@ -26,7 +27,7 @@ import type {
 } from '@/__generated__/scheduleRunsRelayQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
-import { isDeletedUserStatus } from '@/app/components/shared/deleted-user';
+import { LiveTable } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
 import { useSearchParam } from '@/app/hooks/use-search-param';
@@ -35,12 +36,12 @@ import { ScriptExecutionStatus } from '@/generated/schema-enums';
 import { scheduleRunsRelayFragment, scheduleRunsRelayQuery } from '@/graphql/scripts/schedule-runs-relay';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
-import { getFullImageUrl } from '@/lib/image-url';
-import { executionStatusLabel, initiatorInitials, initiatorName } from '../../shared/utils/execution-helpers';
+import { toInitiator } from '../../shared/components/initiator-identity';
+import { executionStatusLabel } from '../../shared/utils/execution-helpers';
 import {
   RUNS_PAGE_SIZE,
   runDetailsHref,
-  ScheduleRunsSkeleton,
+  SCHEDULE_RUN_LOADING_COLUMNS,
   type UiRun,
   useScheduleRunColumns,
 } from './schedule-runs-columns';
@@ -136,11 +137,7 @@ function ScheduleRunsContent({
           timestamp: formatDateTime(node.dispatchedAt),
           responded: node.respondedMachineCount,
           total: node.totalMachineCount,
-          initiatorId: node.initiator?.id ?? '',
-          initiatorName: initiatorName(node.initiator),
-          initiatorInitials: initiatorInitials(node.initiator),
-          initiatorImage: getFullImageUrl(node.initiator?.image?.imageUrl, node.initiator?.image?.hash),
-          initiatorDeleted: isDeletedUserStatus(node.initiator?.status),
+          initiator: toInitiator(node.initiator),
           isScheduled: !node.initiator,
         },
       ];
@@ -223,28 +220,20 @@ function ScheduleRunsContent({
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} rightSlot={<DataTable.RowCount />} />
-          )}
-          <DataTable.Body
-            skeletonRows={RUNS_PAGE_SIZE}
-            emptyState={emptyState}
-            rowClassName="mb-1"
-            rowHref={runDetailsHref}
-          />
-          {runs.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={fetchNextPage}
-              skeletonRows={2}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        isPending={isPending}
+        table={table}
+        pageSize={RUNS_PAGE_SIZE}
+        stickyHeaderOffset={stickyHeaderOffset}
+        showHeader={showHeader}
+        emptyState={emptyState}
+        rowHref={runDetailsHref}
+        footer={
+          runs.length > 0
+            ? { hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }
+            : null
+        }
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}
@@ -263,6 +252,28 @@ function ScheduleRunsContent({
       />
     </>
   );
+}
+
+/** The runs list, with its own boundary: in its scope the reader draws the table's loading form. */
+function ScheduleRunsTable(props: ContentProps) {
+  return (
+    <LoadingSuspense label="Loading schedule runs">
+      <ScheduleRunsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleRunsTableReader(props: ContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope())
+    return (
+      <LiveTable
+        columns={SCHEDULE_RUN_LOADING_COLUMNS}
+        pageSize={RUNS_PAGE_SIZE}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+      />
+    );
+  return <ScheduleRunsContent {...props} />;
 }
 
 /**
@@ -380,6 +391,7 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
         >
           <div className="flex-1">
             <Input
+              userValue
               placeholder="Search for Runs"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
@@ -396,22 +408,20 @@ export const ScheduleRunsTab = memo(function ScheduleRunsTabImpl({ scheduleId }:
           />
         </div>
       )}
-      <Suspense fallback={<ScheduleRunsSkeleton stickyHeaderOffset={stickyHeaderOffset} />}>
-        <ScheduleRunsContent
-          scheduleId={scheduleId}
-          debouncedSearch={deferredSearch}
-          backendFilters={deferredVars.filter}
-          sort={deferredVars.sort}
-          isPending={isPending}
-          tableFilters={tableFilters}
-          dateFilter={dateFilter}
-          onFilterChange={handleFilterChange}
-          mobileFilterOpen={mobileFilterOpen}
-          onMobileFilterClose={() => setMobileFilterOpen(false)}
-          stickyHeaderOffset={stickyHeaderOffset}
-          onEmptyChange={setIsEmpty}
-        />
-      </Suspense>
+      <ScheduleRunsTable
+        scheduleId={scheduleId}
+        debouncedSearch={deferredSearch}
+        backendFilters={deferredVars.filter}
+        sort={deferredVars.sort}
+        isPending={isPending}
+        tableFilters={tableFilters}
+        dateFilter={dateFilter}
+        onFilterChange={handleFilterChange}
+        mobileFilterOpen={mobileFilterOpen}
+        onMobileFilterClose={() => setMobileFilterOpen(false)}
+        stickyHeaderOffset={stickyHeaderOffset}
+        onEmptyChange={setIsEmpty}
+      />
     </div>
   );
 });

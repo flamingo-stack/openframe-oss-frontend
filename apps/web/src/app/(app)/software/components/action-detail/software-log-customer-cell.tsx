@@ -1,6 +1,6 @@
 'use client';
 
-import { EntityImage, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EntityImage, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogCustomerCell_machine$key } from '@/__generated__/softwareLogCustomerCell_machine.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
@@ -30,26 +30,29 @@ export function SoftwareLogCustomerCell({
 }: {
   machine: softwareLogCustomerCell_machine$key | null | undefined;
 }) {
-  const data = useFragment(softwareLogCustomerCellFragment, machine);
+  // A row still being read (a loading scope) has no fragment to read: the logo, the name and the address draw their
+  // bars.
+  const loading = useLoadingScope();
+  const data = useFragment(softwareLogCustomerCellFragment, loading ? null : machine);
   const organization = data?.organization;
 
-  if (!organization?.name) return <ValueText value={null} />;
+  if (!loading && !organization?.name) return <ValueText value={null} />;
 
-  const email = customerContactEmail(organization.contactInformation?.contacts?.map(contact => contact?.email));
+  const email = customerContactEmail(organization?.contactInformation?.contacts?.map(contact => contact?.email));
 
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
       <EntityImage
-        src={getFullImageUrl(organization.image?.imageUrl, organization.image?.hash)}
-        alt={organization.name}
+        src={organization && getFullImageUrl(organization.image?.imageUrl, organization.image?.hash)}
+        alt={organization?.name ?? ''}
         sizeClassName="size-12"
         className="rounded-[4px]"
       />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <TruncateText>{organization.name}</TruncateText>
-        {email && (
+        <TruncateText>{organization?.name ?? ''}</TruncateText>
+        {(loading || email) && (
           <TruncateText variant="h6" tone="secondary">
-            {email}
+            {email ?? ''}
           </TruncateText>
         )}
       </div>

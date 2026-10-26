@@ -8,7 +8,8 @@ import { queryState } from '@/lib/query-state';
 import { GET_LOG_FILTERS_QUERY, GET_LOGS_QUERY } from '../queries/logs-queries';
 import type { LogEdge, LogEntry, LogFilterInput, LogFilters } from '../types/log.types';
 
-const LOGS_PAGE_SIZE = 20;
+/** How many logs one page holds: the logs table's request and its loading rows read this one value. */
+export const LOGS_PAGE_SIZE = 20;
 
 interface LogsPage {
   logs: LogEntry[];

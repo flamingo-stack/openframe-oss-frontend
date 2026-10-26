@@ -10,6 +10,7 @@ import { useTicketActions } from '@flamingo-stack/openframe-frontend-core/compon
 import { Button, Input, Label, Textarea } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, useCallback, useRef, useState } from 'react';
+import { noop } from './no-next-page';
 import { SimpleModal } from './simple-modal';
 
 interface ContactSupportModalProps {
@@ -31,8 +32,6 @@ const SUBJECT_MAX_CHARS = 200;
 const COUNTER_VISIBLE_AT = Math.floor(MESSAGE_MAX_CHARS * 0.8);
 
 /** `useTicketActions` drives a ticket LIST's optimistic cache. This modal has no list. */
-const noop = () => {};
-
 /**
  * "Open a New Ticket" — the support ticket form, as a modal.
  *

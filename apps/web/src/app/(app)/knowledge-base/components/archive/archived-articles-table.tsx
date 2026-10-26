@@ -1,12 +1,14 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
-  DataTable,
   type Row,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   archivedArticlesTable_query$data,
@@ -14,12 +16,13 @@ import type {
 } from '@/__generated__/archivedArticlesTable_query.graphql';
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import { liveColumnMeta, useRetryKey } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
-import { OpenItemButton } from '../shared/open-item-button';
+import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
 import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
 import { ArchivedArticleDateCell } from './archived-article-date-cell';
@@ -93,7 +96,7 @@ function buildColumns(onUnarchive: (row: ArchivedRow) => void): ColumnDef<Archiv
     },
     {
       id: KNOWLEDGE_BASE_ITEM_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<ArchivedRow> }) => <OpenItemButton href={rowHref(row.original)} />,
+      cell: ({ row }: { row: Row<ArchivedRow> }) => <OpenInNewTabCell href={rowHref(row.original)} />,
       enableSorting: false,
       meta: liveColumnMeta(KNOWLEDGE_BASE_ITEM_COLUMNS.open),
     },
@@ -110,9 +113,37 @@ interface ArchivedArticlesTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The archive's rows — suspends on the query, so it lives under the view's `<Suspense>`. */
-export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderOffset }: ArchivedArticlesTableProps) {
-  const { toast } = useToast();
+/**
+ * The archive's rows. In a loading scope (the view's Suspense fallback) it draws the table over one page of
+ * placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends,
+ * so it lives under the view's `<Suspense>`.
+ */
+export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
+  return (
+    <LoadingSuspense label="Loading archived articles">
+      <ArchivedArticlesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function ArchivedArticlesTableReader(props: ArchivedArticlesTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <ArchivedArticlesRows
+        {...props}
+        rows={NO_ITEMS}
+        totalCount={0}
+        listingIds={NO_ITEMS}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <ArchivedArticlesTableQuery {...props} />;
+}
+
+function ArchivedArticlesTableQuery(props: ArchivedArticlesTableProps) {
+  const { search, tagIds } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<ArchivedArticlesTableQueryType>(
     archivedArticlesTableQuery,
@@ -132,21 +163,49 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
   const archived = data.archivedArticles;
   const rows = archived.edges.map(edge => edge.node);
 
-  const fetchNextPage = () => {
-    if (!hasNext || isLoadingNext) return;
-    loadNext(KNOWLEDGE_BASE_PAGE_SIZE, {
-      onComplete: error => {
-        if (error) {
-          toast({ title: 'Error loading more articles', description: error.message, variant: 'destructive' });
-        }
-      },
-    });
-  };
+  const infiniteScroll = useKnowledgeBaseLoadMore({ loadNext, hasNext, isLoadingNext }, 'Error loading more articles');
 
+  return (
+    <ArchivedArticlesRows
+      {...props}
+      rows={rows}
+      totalCount={archived.filteredCount}
+      listingIds={[archived.__id]}
+      infiniteScroll={infiniteScroll}
+    />
+  );
+}
+
+interface ArchivedArticlesRowsProps extends ArchivedArticlesTableProps {
+  rows: readonly ArchivedRow[];
+  totalCount: number;
+  /** The connections the unarchive dialog marks stale. */
+  listingIds: readonly string[];
+  infiniteScroll: InfiniteScroll;
+}
+
+/** The table itself, from the rows it is handed: no query, so it also draws in a loading scope. */
+function ArchivedArticlesRows({
+  rows,
+  totalCount,
+  listingIds,
+  infiniteScroll,
+  search,
+  tagIds,
+  isPending,
+  stickyHeaderOffset,
+}: ArchivedArticlesRowsProps) {
+  const loading = useLoadingScope();
   const { dialog, open: openDialog, close: closeDialog } = useRowDialog<ArchivedRow, 'unarchive'>();
 
+  // While the page is read the table holds one page of placeholder rows, drawn with their real cells.
+  const placeholderRows = useMemo(
+    () => (loading ? loadingPlaceholderRows<ArchivedRow>(KNOWLEDGE_BASE_PAGE_SIZE) : null),
+    [loading],
+  );
   const table = useDataTable<ArchivedRow>({
-    data: rows,
+    // The table only ever reads the page it is handed.
+    data: placeholderRows ?? (rows as ArchivedRow[]),
     columns: buildColumns(row => openDialog(row, 'unarchive')),
     getRowId,
     enableSorting: false,
@@ -156,38 +215,25 @@ export function ArchivedArticlesTable({ search, tagIds, isPending, stickyHeaderO
 
   return (
     <>
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          <DataTable.Header
-            stickyHeader
-            stickyHeaderOffset={stickyHeaderOffset}
-            rightSlot={<DataTable.RowCount itemName="article" totalCount={archived.filteredCount} />}
-          />
-          <DataTable.Body
-            emptyState={{
-              title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.',
-            }}
-            rowClassName="mb-1"
-            rowHref={rowHref}
-          />
-          {rows.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={fetchNextPage}
-              skeletonRows={2}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        table={table}
+        pageSize={KNOWLEDGE_BASE_PAGE_SIZE}
+        loadingCells={loading}
+        totalCount={totalCount}
+        itemName="article"
+        emptyState={{ title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.' }}
+        rowHref={rowHref}
+        footer={rows.length > 0 ? infiniteScroll : null}
+        isPending={isPending}
+        stickyHeaderOffset={stickyHeaderOffset}
+      />
 
       {dialog && (
         <UnarchiveArticleModal
           article={dialog.row}
           isOpen={dialog.isOpen}
           onClose={closeDialog}
-          listingIds={[archived.__id]}
+          listingIds={listingIds}
         />
       )}
     </>

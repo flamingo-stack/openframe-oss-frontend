@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Button,
   Select,
@@ -9,8 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { graphql } from 'react-relay';
 import type { cancelSubscriptionModalQuery as CancelSubscriptionModalQueryType } from '@/__generated__/cancelSubscriptionModalQuery.graphql';
 import { ContentErrorBoundary, QueryIsland } from '@/app/components/shared';
@@ -18,7 +19,6 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { CancellationEffectiveDate } from './cancellation-effective-date';
 import { DataLossBox } from './data-loss-box';
 import { DataLossCoreRows } from './data-loss-core-rows';
-import { DataLossRowsSkeleton } from './data-loss-rows-skeleton';
 
 /**
  * Two parts of the dialog read the server — the date the subscription runs to,
@@ -105,25 +105,7 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
       {/* The facts are context, not a gate: a failed read drops them and the
           cancellation can still be confirmed. */}
       <ContentErrorBoundary label="CancellationEffectiveDate" fallback={() => <></>}>
-        <Suspense
-          fallback={
-            <LoadingRegion
-              label="Loading the end date"
-              className="flex gap-[var(--spacing-system-xs)] text-ods-text-primary text-h4"
-            >
-              <span>Your subscription will remain active until:</span>
-              <UnifiedSkeleton className="h-5 w-20" />
-            </LoadingRegion>
-          }
-        >
-          <QueryIsland<CancelSubscriptionModalQueryType>
-            query={cancelSubscriptionModalQuery}
-            variables={{}}
-            fetchPolicy="store-or-network"
-          >
-            {data => <CancellationEffectiveDate query={data} />}
-          </QueryIsland>
-        </Suspense>
+        <CancellationEffectiveDateIsland />
       </ContentErrorBoundary>
       <p className="text-ods-text-primary text-h4">
         Pay-as-you-go top-ups are disabled immediately. Any usage already accrued will be charged at the end of the
@@ -132,15 +114,7 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
 
       <DataLossBox>
         <ContentErrorBoundary label="DataLossCoreRows" fallback={() => <></>}>
-          <Suspense fallback={<DataLossRowsSkeleton />}>
-            <QueryIsland<CancelSubscriptionModalQueryType>
-              query={cancelSubscriptionModalQuery}
-              variables={{}}
-              fetchPolicy="store-or-network"
-            >
-              {data => <DataLossCoreRows query={data} />}
-            </QueryIsland>
-          </Suspense>
+          <DataLossCoreRowsIsland />
         </ContentErrorBoundary>
       </DataLossBox>
 
@@ -177,5 +151,54 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
         </div>
       )}
     </SimpleModal>
+  );
+}
+
+/** The date the subscription runs to, with its own boundary: in its scope the reader draws its own loading form. */
+function CancellationEffectiveDateIsland() {
+  return (
+    <LoadingSuspense label="Loading the end date">
+      <CancellationEffectiveDateReader />
+    </LoadingSuspense>
+  );
+}
+
+function CancellationEffectiveDateReader() {
+  // In a loading scope (its boundary's fallback) it draws the date with no data and runs no read.
+  if (useLoadingScope()) return <CancellationEffectiveDate query={null} />;
+  return (
+    <QueryIsland<CancelSubscriptionModalQueryType>
+      query={cancelSubscriptionModalQuery}
+      variables={{}}
+      fetchPolicy="store-or-network"
+    >
+      {data => <CancellationEffectiveDate query={data} />}
+    </QueryIsland>
+  );
+}
+
+/**
+ * What the workspace loses, with its own boundary: in its scope the reader draws its own loading form. The rows are
+ * lines of the box's list, which flattens the fallback's region.
+ */
+function DataLossCoreRowsIsland() {
+  return (
+    <LoadingSuspense label="Loading what the workspace loses">
+      <DataLossCoreRowsReader />
+    </LoadingSuspense>
+  );
+}
+
+function DataLossCoreRowsReader() {
+  // In a loading scope (its boundary's fallback) it draws the rows with no data and runs no read.
+  if (useLoadingScope()) return <DataLossCoreRows query={null} />;
+  return (
+    <QueryIsland<CancelSubscriptionModalQueryType>
+      query={cancelSubscriptionModalQuery}
+      variables={{}}
+      fetchPolicy="store-or-network"
+    >
+      {data => <DataLossCoreRows query={data} />}
+    </QueryIsland>
   );
 }
