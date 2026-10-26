@@ -169,8 +169,9 @@ install (`npm ci`); the exact pins make `package.json` say the same thing, so an
 `npm update` on a laptop cannot move a version no PR asked for. The Dockerfile base image is pinned
 to a full version tag for the same reason.
 
-- **To bump:** change the version, run `npm install`, and check the `Scan Code` job — Trivy over
-  `package-lock.json` and the Dockerfile's base images, failing on any HIGH/CRITICAL that has a fix.
+- **To bump:** change the version, run `npm install`, and check the Trivy rows of the pull request's
+  `Flamingo Code Review / tests and checks` check: Trivy over `package-lock.json`, the Dockerfile's base
+  images and the image the change builds, reporting any HIGH/CRITICAL that has a fix.
 - **A transitive finding** is fixed with `npm update <pkg>` when the parent's range allows the
   patched version, and with `overrides` only when it does not.
 - **`overrides` → `next-runtime-env`:** the package declares `next@^14` and `react@^18` as hard

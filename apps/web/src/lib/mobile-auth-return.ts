@@ -36,6 +36,37 @@ export const MOBILE_AUTH_ERROR = {
 export type MobileAuthError = (typeof MOBILE_AUTH_ERROR)[keyof typeof MOBILE_AUTH_ERROR];
 
 /**
+ * What the app says for the outcomes it words itself; any other code is an auth-server reference.
+ * Every caller keeps the cancel quiet before asking for wording. Its entry is the code itself all the
+ * same, so a caller that did ask would still stay quiet: `isUserCanceled` in use-auth matches it by
+ * message.
+ */
+const APP_WORDED_OUTCOME: Partial<Record<string, string>> = {
+  [MOBILE_AUTH_ERROR.USER_CANCELED]: MOBILE_AUTH_ERROR.USER_CANCELED,
+  [MOBILE_AUTH_ERROR.SESSION_EXPIRED]: 'Your sign-in session expired. Please sign in again.',
+} satisfies Record<MobileAuthError, string>;
+
+/** The app's own sentence for an outcome it words itself; undefined for an auth-server reference. */
+export function appWordedMessage(code: string): string | undefined {
+  return Object.hasOwn(APP_WORDED_OUTCOME, code) ? APP_WORDED_OUTCOME[code] : undefined;
+}
+
+/**
+ * The shape of a reference the auth server hands out: an `AuthErrorCode` name (`SSO_SESSION_EXPIRED`)
+ * or an 8-character stored-message key (`7KQ2M9XD`). Both are identifiers, never a sentence, so a
+ * value with a space, lowercase or punctuation is not something the server produced: not worth a round
+ * trip, and not something to show. The app's own outcome codes (`MOBILE_AUTH_ERROR`) share the shape on
+ * purpose, so this is also what tells a callback's `error` from text someone put there. The lookup is no
+ * safety boundary: the server resolves anything it does not know to its generic entry, and a page
+ * renders only what the server returns either way.
+ */
+const REFERENCE_SHAPE = /^[A-Z0-9_]{1,64}$/;
+
+export function isAuthErrorRef(value: string | null | undefined): value is string {
+  return typeof value === 'string' && REFERENCE_SHAPE.test(value);
+}
+
+/**
  * The app's return address for this page, verbatim, or null when this is not a mobile flow.
  *
  * Both params must be present: `authMobile=true` says the flow is native, `redirectTo` says where
@@ -46,20 +77,4 @@ export function readMobileAuthReturn(params: Pick<URLSearchParams, 'get'>): stri
   if (params.get('authMobile') !== 'true') return null;
   const redirectTo = params.get('redirectTo')?.trim();
   return redirectTo ? redirectTo : null;
-}
-
-/**
- * What the app tells the person when the callback carries an outcome instead of a ticket. The
- * cancel code is deliberately returned verbatim: `isUserCanceled` in use-auth matches it by message
- * and keeps it silent.
- */
-export function mobileAuthErrorMessage(code: string): string {
-  switch (code) {
-    case MOBILE_AUTH_ERROR.USER_CANCELED:
-      return MOBILE_AUTH_ERROR.USER_CANCELED;
-    case MOBILE_AUTH_ERROR.SESSION_EXPIRED:
-      return 'Your sign-in session expired. Please sign in again.';
-    default:
-      return `Sign-in could not be completed (${code}).`;
-  }
 }

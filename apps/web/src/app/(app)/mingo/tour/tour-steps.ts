@@ -47,11 +47,6 @@ export interface TourAction {
   prompt: string | ((device: string) => string);
   /** The section the chip opens beside the chat. */
   href: string;
-  /**
-   * Where the chip opens instead when the workspace's first device is known:
-   * its page, by `machineId`. `href` is the fallback without one.
-   */
-  deviceHref?: (machineId: string) => string;
   Icon: IconComponent;
 }
 
@@ -64,6 +59,11 @@ export interface TourStep {
   /** The step as the backend records it. */
   userStep: UserOnboardingStep;
   actions: TourAction[];
+  /**
+   * The step also offers "Open Fae": the client side of tickets, Fae, opened on
+   * this machine (where the agent was just deployed) to send it a request.
+   */
+  opensFae?: boolean;
 }
 
 /** What the tour's chips depend on besides the design. */
@@ -128,6 +128,7 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
         'Requests from your clients via their AI assistant. AI solves what it can and moves the rest to Tech required.',
       Icon: TagIcon,
       userStep: UserOnboardingStep.TICKETS,
+      opensFae: true,
       actions: [
         {
           id: 'create-ticket',
@@ -212,7 +213,6 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Errors since install',
           prompt: device => `Show any errors or warnings the agent logged on ${device} since it was installed.`,
           href: routes.logs.page,
-          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: AlertCircleIcon,
         },
         {
@@ -220,7 +220,6 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Search the logs',
           prompt: device => `Search the logs of ${device} for "failed" in the last 24 hours and group what you find.`,
           href: routes.logs.page,
-          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: SearchIcon,
         },
       ],
