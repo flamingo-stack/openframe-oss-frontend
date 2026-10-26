@@ -5,6 +5,7 @@ import {
   CheckCircleIcon,
   Chevron02DownIcon,
   Chevron02UpIcon,
+  ExternalLinkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
@@ -29,6 +30,11 @@ export interface GettingStartedBlockProps {
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
   /**
+   * "Open Fae", offered on the steps that open it (`TourStep.opensFae`).
+   * Absent where Fae cannot run (a phone): the chip is not shown.
+   */
+  onOpenFae?: () => void;
+  /**
    * Mingo is answering in this conversation: the "try asking" chips are
    * disabled until it is done, since the chat takes one prompt at a time.
    */
@@ -40,7 +46,9 @@ export interface GettingStartedBlockProps {
  * conversation. Two shapes:
  *
  * - the list: one row per step, opening into its description and "try asking"
- *   chips (one open at a time). This is where the tour starts.
+ *   chips (one open at a time). This is where the tour starts. Until the user
+ *   opens or closes a row, the first step not done yet is the open one, so the
+ *   list never shows as a wall of closed rows.
  * - the grid: two columns of step chips, whatever the width the composer has,
  *   what the block folds into once a chip has been used so the conversation gets
  *   the room. The chevron in the title row unfolds it and folds it back; a step
@@ -59,26 +67,29 @@ export function GettingStartedBlock({
   doneStepIds,
   onAction,
   onFinish,
+  onOpenFae,
   busy = false,
 }: GettingStartedBlockProps) {
   // null until the user folds or unfolds it: the progress decides, and it may land
   // after the block has mounted.
   const [view, setView] = useGettingStartedView();
-  const [openId, setOpenId] = useState<TourStepId | null>(null);
+  // undefined until the user picks a row: the next step to do is open meanwhile.
+  const [pickedId, setPickedId] = useState<TourStepId | null | undefined>(undefined);
 
   const total = steps.length;
   const done = steps.filter(step => doneStepIds.has(step.id)).length;
   const folded = view ? view === 'collapsed' : done > 0;
+  const openId = pickedId === undefined ? (steps.find(step => !doneStepIds.has(step.id))?.id ?? null) : pickedId;
   const setFolded = (next: boolean) => setView(next ? 'collapsed' : 'default');
 
   const openStep = (id: TourStepId) => {
     setFolded(false);
-    setOpenId(id);
+    setPickedId(id);
   };
 
   const handleAction = (step: TourStep, action: TourAction) => {
     if (busy || !onAction(step, action)) return;
-    setOpenId(null);
+    setPickedId(undefined);
     setFolded(true);
   };
 
@@ -98,7 +109,7 @@ export function GettingStartedBlock({
           aria-label={folded ? 'Show the steps' : 'Hide the steps'}
           aria-expanded={!folded}
           onClick={() => {
-            if (!folded) setOpenId(null);
+            if (!folded) setPickedId(undefined);
             setFolded(!folded);
           }}
           className="ml-auto flex size-6 items-center justify-center rounded-md text-ods-text-primary hover:text-ods-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ods-accent"
@@ -143,7 +154,7 @@ export function GettingStartedBlock({
                   type="button"
                   aria-expanded={isOpen}
                   aria-controls={panelId}
-                  onClick={() => setOpenId(isOpen ? null : step.id)}
+                  onClick={() => setPickedId(isOpen ? null : step.id)}
                   className="flex w-full items-center gap-[var(--spacing-system-sf)] p-[var(--spacing-system-sf)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-accent"
                 >
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-ods-border bg-ods-bg text-ods-text-primary">
@@ -189,6 +200,16 @@ export function GettingStartedBlock({
                         ))}
                       </ul>
                     </fieldset>
+                    {/* Not a prompt, so it stays live while Mingo answers. */}
+                    {step.opensFae && onOpenFae && (
+                      <div className="flex">
+                        <QuickActionChipButton
+                          label="Open Fae"
+                          icon={<ExternalLinkIcon size={16} className="text-ods-flamingo-cyan" />}
+                          onSelect={onOpenFae}
+                        />
+                      </div>
+                    )}
                     {isLast && (
                       <div className="flex">
                         <QuickActionChipButton label="Finish tour" variant="primary" onSelect={onFinish} />

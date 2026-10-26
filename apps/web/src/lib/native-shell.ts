@@ -13,15 +13,25 @@
 import { isAppShell, isDesktopShell, isMobileShell } from './platform';
 
 /**
- * Custom URL scheme both native shells complete their login on: the gateway
- * 302s the devTicket straight to it for authMobile=true logins, and it is the
- * one redirect target the gateway honours verbatim in every environment
- * (`openframe.gateway.redirect.allowed-uris`). Mobile registers it with the OS
- * (CFBundleURLTypes / intent-filter) because its ASWebAuthenticationSession
- * matches on it; the desktop shell never hands it to the OS — it cancels the
- * navigation inside its own login window — so it registers nothing.
+ * Default custom URL scheme the mobile shell completes its login on: the
+ * gateway 302s the devTicket straight to it for authMobile=true logins, and it
+ * is honoured verbatim because it is in `openframe.gateway.redirect.allowed-uris`.
+ * Mobile registers it with the OS (CFBundleURLTypes / intent-filter) because its
+ * ASWebAuthenticationSession matches on it. The desktop shell completes on its
+ * own scheme instead (`DESKTOP_APP_SCHEME`, via the hand-off page).
  */
 export const APP_SCHEME = 'com.openframe.app';
+
+/**
+ * What the desktop shell's `start` rejects with when the browser part ends without a result, besides
+ * `USER_CANCELED`: the `*_ERROR` strings in its lib.rs, which a web test reads.
+ */
+export const DESKTOP_LOGIN_ERROR = {
+  /** No callback within the shell's login window (`DESKTOP_LOGIN_TIMEOUT_MS`). */
+  TIMEOUT: 'LOGIN_TIMEOUT',
+  /** A callback with no outcome on it: the hand-off page landed with nothing. */
+  INCOMPLETE: 'LOGIN_INCOMPLETE',
+} as const;
 
 /** Biometry the device supports; `'none'` when biometric auth is unavailable. */
 export type BiometryType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'none';
@@ -41,10 +51,11 @@ export type CapacitorListenerHandle =
   Promise<{ remove: () => Promise<void> | void }> | { remove: () => Promise<void> | void };
 
 /**
- * Either shell surfaces a rejected bridge call as an Error whose `code` carries
- * the native error string (Capacitor's `CAPError.code`; the desktop commands
- * reject with the same shape). Read it defensively — a generic failure has no
- * code.
+ * The native error string a rejected Capacitor call carries as its `code`
+ * (`CAPError.code`). Desktop rejections have none: the auth commands reject with
+ * a bare string (`start`'s is normalized by `browserSignInError` in
+ * native-login.ts), the updater and autostart ones with `{ kind, message }`. Read
+ * it defensively — a generic failure has no code.
  */
 export function nativeErrorCode(error: unknown): string | null {
   const code = (error as { code?: unknown } | null)?.code;
@@ -61,14 +72,23 @@ export function nativeErrorCode(error: unknown): string | null {
  */
 export interface NativeAuthPlugin {
   /**
-   * Runs the OAuth login in a shell-owned browser context and resolves with
-   * the final callback URL. Both shells end the flow on `callbackScheme`:
-   * mobile runs a system browser (ASWebAuthenticationSession) that matches on
-   * it, desktop runs a dedicated window that cancels the navigation to it.
-   * Desktop additionally resolves on ANY callback carrying a `devTicket`, which
-   * is what an environment that drops the requested redirect still produces.
+   * Runs the OAuth login in a browser and resolves with the final callback URL.
+   * Both shells end the flow on `callbackScheme`: mobile runs a system browser
+   * (ASWebAuthenticationSession) that matches on it, desktop opens the user's
+   * default browser and waits for the OS to deliver the scheme URL. Desktop
+   * checks `callbackScheme` against the scheme it registered, never the login
+   * URL's `redirectTo`, which is the shared-host hand-off page there.
+   *
+   * Rejects with `USER_CANCELED` when the user backs out or a newer `start`
+   * replaces it; desktop also with a `DESKTOP_LOGIN_ERROR`, as a bare string.
    */
   start(options: { url: string; callbackScheme: string }): Promise<{ callbackUrl: string }>;
+  /**
+   * Desktop only: ends the login `start` is waiting on, which then rejects with `USER_CANCELED` —
+   * the waiting screen's Cancel. Resolves false when nothing was waiting any more: the callback (or
+   * the timeout) got there first. The browser tab cannot be closed from here; it is left behind.
+   */
+  cancel?(): Promise<boolean>;
   /** Performs the dev-ticket exchange over native HTTP (no CORS) and returns tokens from response headers. */
   exchangeTicket(options: { url: string }): Promise<NativeTokens>;
   /**
@@ -720,6 +740,34 @@ export function onDesktopUpdateInstalling(callback: () => void): Promise<boolean
  */
 export function onDesktopUpdateError(callback: (error: DesktopUpdateError) => void): Promise<boolean> {
   return listenDesktop('update:error', callback);
+}
+
+/**
+ * The download id the desktop shell holds from the download page's "Open the
+ * app" link, taken once: the page keeps it until signup. Resolves null when
+ * there is none, and outside the desktop shell.
+ */
+export async function takeDesktopDownloadId(): Promise<string | null> {
+  if (!isDesktopShell()) return null;
+  const invoke = tauriInvoke();
+  if (!invoke) return null;
+  try {
+    const id = await invoke('take_pending_download_id');
+    return typeof id === 'string' ? id : null;
+  } catch (error) {
+    // The command returns an Option and cannot fail, so it never ran: a
+    // misconfigured capability. The id stays with the shell for the next take.
+    console.error('[Native Shell] take_pending_download_id failed:', error);
+    return null;
+  }
+}
+
+/**
+ * An "Open the app" link reached the app while this page was open. The event
+ * carries nothing: take the id with `takeDesktopDownloadId`.
+ */
+export function onDesktopDownloadLink(callback: () => void): Promise<boolean> {
+  return listenDesktop('download-link:received', () => callback());
 }
 
 /**

@@ -38,6 +38,9 @@ registerHooks({
   },
 });
 
+// Touches no browser global, so it can load before the shell is faked below.
+const { DESKTOP_APP_SCHEME, readDesktopAuthReturn } = await import('./desktop-auth-return.ts');
+
 const TENANT_HOST = 'https://acme.openframe.example';
 const SHARED_HOST = 'https://auth.openframe.example';
 
@@ -46,9 +49,12 @@ let storedTokens = null;
 
 /**
  * Stands in for the Tauri shell's `__OPENFRAME_SHELL__.nativeAuth` bridge. `start` completes
- * the way the gateway does — by sending the devTicket to the login URL's own `redirectTo`.
- * Without one the real shell simply never sees a callback and the promise hangs forever; a
- * rejection is the testable stand-in for that.
+ * the way the gateway does — by appending the devTicket to the login URL's own `redirectTo`
+ * (`?` or `&`, by whether it already has a `?`). A landing on the hand-off page reaches the
+ * shell only as the scheme URL the page launches, so that is what resolves here.
+ * Without a redirect, or with a page launching a scheme the shell does not wait on, the real
+ * shell simply never sees a callback and the promise hangs forever; a rejection is the
+ * testable stand-in for that.
  */
 function fakeNativeAuth() {
   return {
@@ -56,8 +62,13 @@ function fakeNativeAuth() {
       startCalls.push(options);
       const redirectTo = new URL(options.url).searchParams.get('redirectTo');
       if (!redirectTo) throw new Error('no redirectTo — the real shell would wait for a callback that never comes');
-      if (!options.callbackScheme) throw new Error('no callbackScheme — the shell has no navigation to cancel on');
-      return { callbackUrl: `${redirectTo}?devTicket=TICKET-123` };
+      if (!options.callbackScheme) throw new Error('no callbackScheme — the shell has no scheme to wait on');
+      const landing = `${redirectTo}${redirectTo.includes('?') ? '&' : '?'}devTicket=TICKET-123`;
+      const handoff = readDesktopAuthReturn(new URL(landing));
+      if (handoff.kind === 'none' || !handoff.appUrl.startsWith(`${options.callbackScheme}://`)) {
+        throw new Error('the hand-off page launches a scheme the shell is not waiting on');
+      }
+      return { callbackUrl: handoff.appUrl };
     },
     exchangeTicket: async () => ({ accessToken: 'access-1', refreshToken: 'refresh-1' }),
     getTokens: async () => ({}),
@@ -108,12 +119,12 @@ function resetDesktopShell() {
 // platform.ts memoizes the shell kind per module instance, so this file is desktop-only
 // by construction — mobile/web belong in their own file if they ever get one.
 resetDesktopShell();
-const { nativeLogin } = await import('./native-login.ts');
-const { APP_SCHEME } = await import('./native-shell.ts');
+const { nativeLogin, NativeLoginError } = await import('./native-login.ts');
+const { getDesktopSignInWait } = await import('./desktop-sign-in-wait.ts');
 
 beforeEach(resetDesktopShell);
 
-test('saas-shared desktop login keeps its scheme callback in the login URL', async () => {
+test('desktop login returns through the hand-off page on the shared host', async () => {
   await nativeLogin({ tenantId: 'tenant-1', provider: 'google' });
 
   assert.equal(startCalls.length, 1);
@@ -122,11 +133,17 @@ test('saas-shared desktop login keeps its scheme callback in the login URL', asy
   assert.equal(url.origin, SHARED_HOST, 'shared mode logs in through the shared auth host');
   assert.equal(
     url.searchParams.get('redirectTo'),
-    `${APP_SCHEME}://auth`,
-    'without redirectTo the gateway never sends the callback start() is blocked on',
+    `${SHARED_HOST}/auth/desktop-return/#`,
+    'the gateway honours only this exact string, so it must match its allow-list entry',
   );
   assert.equal(url.searchParams.get('tenantId'), 'tenant-1');
   assert.equal(url.searchParams.get('provider'), 'google');
+});
+
+test('identity-first desktop login returns through the same page', async () => {
+  await nativeLogin({ provider: 'google' });
+
+  assert.equal(new URL(startCalls[0].url).searchParams.get('redirectTo'), `${SHARED_HOST}/auth/desktop-return/#`);
 });
 
 test('desktop login asks for the ticket the same way mobile does', async () => {
@@ -136,9 +153,20 @@ test('desktop login asks for the ticket the same way mobile does', async () => {
   const url = new URL(options.url);
 
   // Without authMobile the callback carries no ticket at all wherever dev-ticket
-  // issuance is off (prod) — the login window then waits on a URL that never comes.
+  // issuance is off (prod) — the shell then waits on a URL that never comes.
   assert.equal(url.searchParams.get('authMobile'), 'true');
-  assert.equal(options.callbackScheme, APP_SCHEME, 'the shell cancels the navigation to this scheme');
+  assert.equal(
+    options.callbackScheme,
+    DESKTOP_APP_SCHEME,
+    'the scheme the shell waits on is the one the hand-off page launches',
+  );
+});
+
+test('desktop login without a shared host fails before opening the browser', async () => {
+  globalThis.testEnv.NEXT_PUBLIC_SHARED_HOST_URL = '';
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /No shared auth host/);
+  assert.equal(startCalls.length, 0, 'a browser opened here would only run out the five-minute timeout');
 });
 
 test('saas-shared desktop login exchanges the ticket and keeps the boot host', async () => {
@@ -167,9 +195,137 @@ test('an https landing still carries the login when the gateway drops the reques
   assert.equal(result.tenantHostChanged, false);
 });
 
+// The hand-off page forwards these and the shell passes them through: the app has to act on them,
+// not fail them, or the page's "finish in the app" and "canceled" copy would be a lie.
+test('a signup callback hands the pending identity to the app’s own signup screen', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?signupTicket=SIGNUP-1`,
+  });
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error => error.name === 'SsoRegistrationRequiredError' && error.signupTicket === 'SIGNUP-1',
+  );
+});
+
+test('a canceled callback ends the login with the quiet cancel code', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=USER_CANCELED`,
+  });
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /^Error: USER_CANCELED$/);
+  assert.equal(storedTokens, null);
+});
+
+// The desktop bridge rejects with the shell's bare string, not an Error.
+test('the shell’s timeout becomes the “didn’t finish” toast', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => Promise.reject('LOGIN_TIMEOUT');
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error =>
+      error instanceof NativeLoginError &&
+      error.title === 'Sign-in didn’t finish' &&
+      /within 5 minutes/.test(error.message),
+  );
+});
+
+test('a callback with no outcome becomes the same “didn’t finish” toast', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => Promise.reject('LOGIN_INCOMPLETE');
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error =>
+      error instanceof NativeLoginError &&
+      error.title === 'Sign-in didn’t finish' &&
+      /without a sign-in result/.test(error.message),
+  );
+});
+
+test('the app’s Cancel ends the login with the quiet cancel code', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => Promise.reject('USER_CANCELED');
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /^Error: USER_CANCELED$/);
+});
+
+test('the wait is on screen only while the browser runs', async () => {
+  let duringStart = null;
+  const start = globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start;
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async options => {
+    duringStart = getDesktopSignInWait();
+    return start(options);
+  };
+
+  await nativeLogin({ tenantId: 'tenant-1', email: 'owner@acme.example' });
+
+  assert.equal(duringStart?.loginUrl, startCalls[0].url, 'Reopen sends the browser to the same sign-in');
+  assert.equal(duringStart?.email, 'owner@acme.example');
+  assert.equal(getDesktopSignInWait(), null);
+});
+
+test('a failure code is worded with the auth server’s own sentence', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=ORGANIZATION_SSO_REQUIRED`,
+  });
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        data: { authErrorMessage: { code: 'ORGANIZATION_SSO_REQUIRED', message: 'Use your organization’s sign-in.' } },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error => !(error instanceof NativeLoginError) && error.message === 'Use your organization’s sign-in.',
+  );
+});
+
+// Not an auth-server code: asked about it, the server would answer with its generic sentence.
+test('an outcome the app words itself is worded without asking the auth server', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=SESSION_EXPIRED`,
+  });
+  let asked = false;
+  globalThis.fetch = async () => {
+    asked = true;
+    return new Response(
+      JSON.stringify({ data: { authErrorMessage: { code: 'UNEXPECTED', message: 'An unexpected error occurred.' } } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  };
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /^Error: Your sign-in session expired/);
+  assert.equal(asked, false, 'SESSION_EXPIRED is worded by the app, never looked up');
+});
+
+// On desktop any page can launch the scheme while a login waits, so the `error` value is not the
+// app's to repeat: a sentence there would become a "Login Failed" toast in the app's own voice.
+test('an outcome that is not a code is never shown', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=Your+account+is+locked.+Call+555-0100`,
+  });
+
+  await assert.rejects(
+    () => nativeLogin({ tenantId: 'tenant-1' }),
+    error => error instanceof NativeLoginError && error.title === 'Sign-in didn’t finish' && !/555/.test(error.message),
+  );
+});
+
+test('a failure code still says what failed when the auth server cannot be asked', async () => {
+  globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth?error=ORGANIZATION_SSO_REQUIRED`,
+  });
+  globalThis.fetch = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+
+  await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /ORGANIZATION_SSO_REQUIRED/);
+});
+
 test('a callback without a ticket fails loudly', async () => {
   globalThis.window.__OPENFRAME_SHELL__.nativeAuth.start = async () => ({
-    callbackUrl: `${APP_SCHEME}://auth`,
+    callbackUrl: `${DESKTOP_APP_SCHEME}://auth`,
   });
 
   await assert.rejects(() => nativeLogin({ tenantId: 'tenant-1' }), /without a ticket/);

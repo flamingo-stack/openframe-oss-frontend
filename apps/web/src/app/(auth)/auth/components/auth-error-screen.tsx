@@ -2,16 +2,17 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { routes } from '@/lib/routes';
 import { AUTH_ERROR_FALLBACK } from '../hooks/use-auth-error-message';
 import { AuthStatusFrame } from './auth-status-frame';
 
 /**
- * Where every auth failure lands: the static title and the two ways out, around the description the auth server
- * answered for the URL's `ref` (`description` undefined while it is being resolved).
+ * Where every auth failure lands: the static title and the two ways out render at once, around the description the
+ * auth server answers for the URL's `ref` (`AuthErrorDescription`, the one part that waits).
  */
-export function AuthErrorScreen({ description }: { description?: string }) {
+export function AuthErrorScreen({ description }: { description: ReactNode }) {
   const router = useRouter();
 
   return (
@@ -19,7 +20,7 @@ export function AuthErrorScreen({ description }: { description?: string }) {
       <div className="flex max-w-[600px] flex-col items-center gap-10 text-center">
         <div className="flex flex-col gap-2">
           <h1 className="text-ods-text-primary text-h2">{AUTH_ERROR_FALLBACK.title}</h1>
-          <LoadingParagraph text={description} label="Loading the error details" />
+          {description}
         </div>
 
         <div className="flex gap-4">
@@ -36,4 +37,9 @@ export function AuthErrorScreen({ description }: { description?: string }) {
       </div>
     </AuthStatusFrame>
   );
+}
+
+/** The description the auth server answered (`text` undefined while it is being resolved). */
+export function AuthErrorDescription({ text }: { text?: string }) {
+  return <LoadingParagraph text={text} label="Loading the error details" />;
 }
