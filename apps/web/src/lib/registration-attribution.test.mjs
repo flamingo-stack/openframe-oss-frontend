@@ -471,6 +471,27 @@ test('the download id rides the SSO continue URL too', () => {
   assert.equal(params.get('downloadId'), DOWNLOAD_ID);
 });
 
+// The "Send me download link" page sends the same attribution, but it is not a registration: no
+// event id is minted, and nothing reaches the dataLayer for Meta's registration tag.
+test('the touchpoint carries every signal the registration does, without the event id', () => {
+  cookies.push('_fbp=fb.1.170.999', '_rdt_uuid=1700000000000.uuid');
+  document.referrer = 'https://www.reddit.com/';
+  window.location.search = '?utm_source=reddit&gbraid=GB';
+  A.captureAttributionFromUrl();
+
+  const touchpoint = A.collectTouchpoint();
+  assert.equal(touchpoint.eventId, undefined);
+  assert.equal(window.dataLayer, undefined, 'nothing is published for the registration tag');
+
+  const { eventId, ...registration } = A.collectRegistrationAttribution();
+  assert.equal(typeof eventId, 'string');
+  assert.deepEqual(touchpoint, registration);
+});
+
+test('with no signals at all, the touchpoint is this page as a direct visit', () => {
+  assert.deepEqual(A.collectTouchpoint(), { landingUrl: 'https://auth.openframe.ai/auth/' });
+});
+
 test('no signals present yields only the always-minted event id', () => {
   const got = A.collectRegistrationAttribution();
   assert.equal(got.fbc, undefined);

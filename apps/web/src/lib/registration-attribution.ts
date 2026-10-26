@@ -469,6 +469,22 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
   const eventId = generateEventId();
   publishEventIdToDataLayer(eventId);
 
+  return normalizeAttribution({ ...readTouchpoint(), eventId });
+}
+
+/**
+ * The same attribution for a request that is not a registration (the "Send me download link"
+ * page): every signal, without the `eventId`, which exists to pair the registration with Meta's
+ * pixel event and is published to the dataLayer as one. Returns `undefined` when nothing at all
+ * was captured.
+ */
+export function collectTouchpoint(): Touchpoint | undefined {
+  if (!isBrowser()) return undefined;
+  return normalizeAttribution(readTouchpoint());
+}
+
+/** Every attribution signal as it reads right now, blanks included: the two collectors above normalize it. */
+function readTouchpoint(): Touchpoint {
   const raw: Touchpoint = {
     fbc: readCookie('_fbc'),
     fbp: readCookie('_fbp'),
@@ -478,7 +494,6 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
     // as the ad parameters below: a handoff straight to the signup page, submitted before the
     // capture effect ran.
     hutk: readStored(HUBSPOT_UTK_STORAGE_PARAM) ?? readHubspotHandoffUtk() ?? readCookie('hubspotutk'),
-    eventId,
     // Cookie first — it is the one signal that can predate this visit entirely. The live URL is
     // the fallback for a partner link pointing straight at the signup page, submitted before the
     // capture effect got to write the cookie.
@@ -499,5 +514,5 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
   raw.referrer = visit?.referrer;
   raw.landingUrl = visit?.landingUrl;
 
-  return normalizeAttribution(raw);
+  return raw;
 }

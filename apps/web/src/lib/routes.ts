@@ -263,6 +263,11 @@ export const routes = {
      */
     noAccount: '/auth/no-account',
     /**
+     * "Send me download link": the page the marketing site's button opens for a visitor who cannot
+     * install here (a phone, a system with no installer). The backend emails the installer links.
+     */
+    downloadLink: '/auth/download-link',
+    /**
      * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
      * member accepting an invitation, or a first login through a shared domain
      * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
