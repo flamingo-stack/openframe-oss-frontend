@@ -82,12 +82,12 @@ function loadConnection(customers: ReturnType<typeof customer>[]) {
   return { environment, connection: (data as tenantDetailContentQuery$data).directoryConnection ?? null };
 }
 
-async function renderCard(customers: ReturnType<typeof customer>[]) {
+function renderCard(customers: ReturnType<typeof customer>[]): HTMLElement {
   const { environment, connection } = loadConnection(customers);
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => {
+  act(() => {
     root?.render(
       <RelayEnvironmentProvider environment={environment}>
         <TenantSummaryCard connection={connection} />
@@ -103,10 +103,10 @@ function customersCell(card: HTMLElement): string | null {
   return label?.previousElementSibling?.lastElementChild?.textContent ?? null;
 }
 
-async function openAllCustomers(card: HTMLElement): Promise<string[]> {
+function openAllCustomers(card: HTMLElement): string[] {
   const trigger = card.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
   expect(trigger).not.toBeNull();
-  await act(async () => {
+  act(() => {
     trigger?.focus();
     trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
@@ -139,8 +139,8 @@ afterEach(() => {
 });
 
 describe('TenantSummaryCard customers', () => {
-  it('leads with an active customer and lists every customer behind "+N", inactive ones badged', async () => {
-    const card = await renderCard([
+  it('leads with an active customer and lists every customer behind "+N", inactive ones badged', () => {
+    const card = renderCard([
       customer('o-1', { name: 'Harbor', status: 'ARCHIVED' }),
       customer('o-2', null),
       customer('o-3', { name: 'Acme', status: 'ACTIVE' }),
@@ -148,23 +148,18 @@ describe('TenantSummaryCard customers', () => {
     ]);
 
     expect(customersCell(card)).toBe('Acme+3 more customers');
-    expect(await openAllCustomers(card)).toEqual([
-      'Acme',
-      'Harbor Archived',
-      'Unknown customer Deleted',
-      'Closed Deleted',
-    ]);
+    expect(openAllCustomers(card)).toEqual(['Acme', 'Harbor Archived', 'Unknown customer Deleted', 'Closed Deleted']);
   });
 
-  it('shows a single customer without "+N"', async () => {
-    const card = await renderCard([customer('o-1', { name: 'Acme', status: 'ACTIVE' })]);
+  it('shows a single customer without "+N"', () => {
+    const card = renderCard([customer('o-1', { name: 'Acme', status: 'ACTIVE' })]);
 
     expect(customersCell(card)).toBe('Acme');
     expect(card.querySelector('button[aria-haspopup="menu"]')).toBeNull();
   });
 
-  it('says "+1 more customer" for one more', async () => {
-    const card = await renderCard([
+  it('says "+1 more customer" for one more', () => {
+    const card = renderCard([
       customer('o-1', { name: 'Acme', status: 'ACTIVE' }),
       customer('o-2', { name: 'Harbor', status: 'ACTIVE' }),
     ]);
@@ -172,8 +167,8 @@ describe('TenantSummaryCard customers', () => {
     expect(customersCell(card)).toBe('Acme+1 more customer');
   });
 
-  it('badges the lead when no customer is active', async () => {
-    const card = await renderCard([customer('o-1', { name: 'Harbor', status: 'ARCHIVED' })]);
+  it('badges the lead when no customer is active', () => {
+    const card = renderCard([customer('o-1', { name: 'Harbor', status: 'ARCHIVED' })]);
 
     expect(customersCell(card)).toBe('HarborArchived');
   });
