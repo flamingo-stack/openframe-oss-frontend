@@ -6204,10 +6204,13 @@ type DirectoryConsentInfo {
 """
 PROVIDER_ERROR: Microsoft or Google failed the step (not an admin's decline); providerCode and correlationId identify it.
 PERMISSIONS_PENDING: the admin accepted, but the permissions were not visible yet; OpenFrame rechecks automatically.
+NOT_FINISHED: Microsoft 365 only — the chain has not got the admin's answer for this tier (still on, or left on, a Microsoft screen).
+A PERMISSIONS_PENDING issue of a tier that is ACTIVE now has settled (healed) and is left out; every other issue stays.
 """
 enum DirectoryConsentIssueKind {
   PROVIDER_ERROR
   PERMISSIONS_PENDING
+  NOT_FINISHED
 }
 
 type DirectoryConsentIssue {

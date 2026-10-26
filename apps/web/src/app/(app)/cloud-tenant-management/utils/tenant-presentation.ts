@@ -83,6 +83,8 @@ export interface ConsentAlert {
 export interface ConsentAttempt {
   readonly outcome: string;
   readonly deniedTiers: readonly string[];
+  /** The tiers of its `NOT_FINISHED` issues: the admin left the chain on a Microsoft screen, or is still on one. */
+  readonly unfinishedTiers: readonly string[];
   /** The issues themselves render in their own card below the alert. */
   readonly hasIssues: boolean;
 }
@@ -115,12 +117,28 @@ const FAILED_CONSENT_MESSAGE = {
     "The consent link expired before it was used. Use Reconnect to generate a new link and send it to the customer's admin.",
 } satisfies Record<FailedConsentOutcome, (domain: string) => string>;
 
-// PARTIAL with declined tiers is verbatim from Figma (settings 2885-2333). A PARTIAL without any is a
-// tier Microsoft itself failed, which the issues card below names.
-function partialMessage(deniedTiers: readonly string[]): string {
-  return deniedTiers.length > 0
-    ? `Connected with limited access. The admin declined some permissions: ${deniedTiers.join(', ')}. Use Reconnect to approve them if you need that data.`
-    : 'Connected with limited access. Some permissions were not granted.';
+// Unanswered tiers get the backend's own instruction for them (`DirectoryConsentIssueMessages`).
+const FINISH_WITH_RECONNECT =
+  'Use Reconnect and have the admin approve every screen until Microsoft returns to OpenFrame.';
+
+// PARTIAL with declined tiers is verbatim from Figma (settings 2885-2333), and unanswered ones follow its pattern. A
+// PARTIAL with neither is a tier Microsoft itself failed, which the issues card below names.
+function partialMessage({
+  deniedTiers,
+  unfinishedTiers,
+}: Pick<ConsentAttempt, 'deniedTiers' | 'unfinishedTiers'>): string {
+  const declined = deniedTiers.join(', ');
+  const unfinished = unfinishedTiers.join(', ');
+  if (declined && unfinished) {
+    return `Connected with limited access. The admin declined some permissions: ${declined}, and hasn't finished approving: ${unfinished}. ${FINISH_WITH_RECONNECT}`;
+  }
+  if (unfinished) {
+    return `Connected with limited access. The admin hasn't finished approving: ${unfinished}. ${FINISH_WITH_RECONNECT}`;
+  }
+  if (declined) {
+    return `Connected with limited access. The admin declined some permissions: ${declined}. Use Reconnect to approve them if you need that data.`;
+  }
+  return 'Connected with limited access. Some permissions were not granted.';
 }
 
 /**
@@ -136,7 +154,7 @@ export function consentAlert(
   if (!attempt) return notConnectedYet;
 
   if (attempt.outcome === DirectoryConsentOutcome.PARTIAL) {
-    return { variant: 'warning', message: partialMessage(attempt.deniedTiers) };
+    return { variant: 'warning', message: partialMessage(attempt) };
   }
   if (attempt.outcome === DirectoryConsentOutcome.CONNECTED) {
     return attempt.hasIssues
@@ -149,13 +167,15 @@ export function consentAlert(
 }
 
 // The issue's own tag beside its tier. A provider error names who failed (the way Entra and Google
-// put their brand on their own error pages); a pending grant is grey because it settles by itself.
+// put their brand on their own error pages); a pending grant is grey because it settles by itself, and an unanswered
+// tier amber because only Reconnect finishes it.
 const CONSENT_ISSUE_TAG = {
   [DirectoryConsentIssueKind.PROVIDER_ERROR]: (providerLabel: string) => ({
     label: `${providerLabel} error`,
     variant: 'error',
   }),
   [DirectoryConsentIssueKind.PERMISSIONS_PENDING]: () => ({ label: 'Pending', variant: 'grey' }),
+  [DirectoryConsentIssueKind.NOT_FINISHED]: () => ({ label: 'Not finished', variant: 'warning' }),
 } satisfies Record<DirectoryConsentIssueKind, (providerLabel: string) => TenantStatusTag>;
 
 /** Tag for a consent issue's kind; an unknown kind renders as itself in grey. */

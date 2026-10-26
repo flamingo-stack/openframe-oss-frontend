@@ -237,9 +237,13 @@ describe('usersCountLabel', () => {
 });
 
 describe('consentAlert', () => {
-  const attempt = (outcome: string, extra: { deniedTiers?: string[]; hasIssues?: boolean } = {}) => ({
+  const attempt = (
+    outcome: string,
+    extra: { deniedTiers?: string[]; unfinishedTiers?: string[]; hasIssues?: boolean } = {},
+  ) => ({
     outcome,
     deniedTiers: extra.deniedTiers ?? [],
+    unfinishedTiers: extra.unfinishedTiers ?? [],
     hasIssues: extra.hasIssues ?? false,
   });
   const NOT_CONNECTED = "Tenant is still not connected. Data aren't available yet.";
@@ -278,6 +282,26 @@ describe('consentAlert', () => {
     });
     expect(alert?.variant).toBe('warning');
     expect(alert?.message).toContain('declined some permissions: AUDIT, WRITE.');
+  });
+
+  it('names the tiers the admin has not answered yet, and how Reconnect finishes them', () => {
+    const alert = consentAlert(
+      attempt(DirectoryConsentOutcome.PARTIAL, { unfinishedTiers: ['AUDIT', 'WRITE'], hasIssues: true }),
+      { readable: true, domain: 'acme.com' },
+    );
+    expect(alert).toEqual({
+      variant: 'warning',
+      message:
+        "Connected with limited access. The admin hasn't finished approving: AUDIT, WRITE. Use Reconnect and have the admin approve every screen until Microsoft returns to OpenFrame.",
+    });
+  });
+
+  it('names declined and unanswered tiers apart in one PARTIAL', () => {
+    const alert = consentAlert(
+      attempt(DirectoryConsentOutcome.PARTIAL, { deniedTiers: ['AUDIT'], unfinishedTiers: ['WRITE'], hasIssues: true }),
+      { readable: true, domain: 'acme.com' },
+    );
+    expect(alert?.message).toContain("declined some permissions: AUDIT, and hasn't finished approving: WRITE.");
   });
 
   it('leaves a PARTIAL with nothing declined to its issues', () => {
@@ -335,6 +359,10 @@ describe('consent issues', () => {
     expect(consentIssueTag(DirectoryConsentIssueKind.PERMISSIONS_PENDING, DirectoryProvider.MICROSOFT_365)).toEqual({
       label: 'Pending',
       variant: 'grey',
+    });
+    expect(consentIssueTag(DirectoryConsentIssueKind.NOT_FINISHED, DirectoryProvider.MICROSOFT_365)).toEqual({
+      label: 'Not finished',
+      variant: 'warning',
     });
     expect(consentIssueTag('SOMETHING_NEW', DirectoryProvider.MICROSOFT_365)).toEqual({
       label: 'SOMETHING_NEW',
