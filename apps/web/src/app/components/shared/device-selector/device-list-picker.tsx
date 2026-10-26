@@ -102,10 +102,7 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
   const [retryNonce, setRetryNonce] = useState(0);
   // In a loading scope (a parent's Suspense fallback) the picker draws its own loading state and mounts no query:
   // nothing in a scope fetches.
-  const inScope = useLoadingScope();
-  const loadingPicker = <LoadingDeviceListPicker {...props} />;
-
-  if (inScope) return loadingPicker;
+  if (useLoadingScope()) return <LoadingDeviceListPicker {...props} />;
 
   return (
     // The Relay hook THROWS on failure, and every caller here holds unsaved work
@@ -119,9 +116,21 @@ export function DeviceListPicker(props: DeviceListPickerProps) {
       key={retryNonce}
       fallback={<LoadError message="Couldn't load devices." onRetry={() => setRetryNonce(nonce => nonce + 1)} />}
     >
-      <LoadingSuspense label="Loading devices" className="contents" fallback={loadingPicker}>
-        <DeviceListPickerContent {...props} retryKey={retryNonce} />
-      </LoadingSuspense>
+      <DeviceListPickerQuery {...props} retryKey={retryNonce} />
     </ErrorBoundary>
   );
+}
+
+/** The picker's read, with its own boundary: in its scope the reader draws the picker loading. */
+function DeviceListPickerQuery(props: DeviceListPickerProps) {
+  return (
+    <LoadingSuspense label="Loading devices" className="contents">
+      <DeviceListPickerReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function DeviceListPickerReader(props: DeviceListPickerProps) {
+  if (useLoadingScope()) return <LoadingDeviceListPicker {...props} />;
+  return <DeviceListPickerContent {...props} />;
 }

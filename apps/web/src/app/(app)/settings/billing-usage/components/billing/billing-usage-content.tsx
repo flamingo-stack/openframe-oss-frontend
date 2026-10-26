@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -9,7 +10,6 @@ import type {
   billingUsageContentQuery as BillingUsageContentQueryType,
   billingUsageContentQuery$data,
 } from '@/__generated__/billingUsageContentQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { LockedScreen } from '@/app/components/shared/locked-screen';
 import { noop } from '@/app/components/shared/no-next-page';
 import { resolveSubscriptionStatus, SubscriptionStatus } from '@/app/components/subscription-lock/subscription-status';
@@ -66,14 +66,16 @@ const billingUsageContentQuery = graphql`
  */
 export function BillingUsageContent({ loading = false }: { loading?: boolean }) {
   return (
-    <GatedSuspense
-      gated={loading}
-      label="Loading billing and usage"
-      view={<BillingUsageScreen data={null} onRefetch={noop} />}
-    >
-      <BillingUsageQuery />
-    </GatedSuspense>
+    <LoadingSuspense gated={loading} label="Loading billing and usage">
+      <BillingUsageReader />
+    </LoadingSuspense>
   );
+}
+
+function BillingUsageReader() {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the page with no data and runs no read.
+  if (useLoadingScope()) return <BillingUsageScreen data={null} onRefetch={noop} />;
+  return <BillingUsageQuery />;
 }
 
 /** The page's query; everything it draws is `BillingUsageScreen`'s. */

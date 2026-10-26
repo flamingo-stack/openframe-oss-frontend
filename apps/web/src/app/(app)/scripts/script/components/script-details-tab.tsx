@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo, useLayoutEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
@@ -23,7 +24,8 @@ const SOURCE_LOADING: SourceState = { status: 'loading' };
 
 /**
  * The part that reads the script, and therefore the part that suspends: the
- * default-args and default-env-var cards, shown only when present.
+ * default-args and default-env-var cards, shown only when present. It carries
+ * its own boundary; in its scope the reader draws the cards' loading form.
  *
  * The SOURCE is deliberately not rendered here — it is handed to the tab
  * instead, so the editor below can stay mounted across the wait. See
@@ -33,7 +35,26 @@ const SOURCE_LOADING: SourceState = { status: 'loading' };
  * exact query on load, so this one reads the store instead of refetching the
  * whole script every time the user comes back to this tab.
  */
-function ScriptParamCards({ scriptId, onResolved }: { scriptId: string; onResolved: (state: SourceState) => void }) {
+interface ScriptParamCardsProps {
+  scriptId: string;
+  onResolved: (state: SourceState) => void;
+}
+
+function ScriptParamCards(props: ScriptParamCardsProps) {
+  return (
+    <LoadingSuspense label="Loading script details">
+      <ScriptParamCardsReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ScriptParamCardsReader(props: ScriptParamCardsProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptParamCardsView />;
+  return <ScriptParamCardsLive {...props} />;
+}
+
+function ScriptParamCardsLive({ scriptId, onResolved }: ScriptParamCardsProps) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
@@ -91,7 +112,7 @@ function ScriptParamCardsView({ script }: { script?: ScriptRecord }) {
  * page's, so switching to it draws a placeholder and leaves the header, the
  * summary card and the tab strip untouched.
  *
- * The boundary is around the CARDS only. The editor sits outside it and is
+ * The boundary is the CARDS' own. The editor sits outside it and is
  * mounted from the first render with `loading`, so the editor is built while the
  * query is still out and holds its own placeholder until the source arrives —
  * one placeholder for the whole wait, and the editor is never built twice (it
@@ -123,9 +144,7 @@ export const ScriptDetailsTab = memo(function ScriptDetailsTabImpl({ scriptId }:
         </div>
       )}
 
-      <LoadingSuspense label="Loading script details" fallback={<ScriptParamCardsView />}>
-        <ScriptParamCards scriptId={scriptId} onResolved={setState} />
-      </LoadingSuspense>
+      <ScriptParamCards scriptId={scriptId} onResolved={setState} />
     </div>
   );
 });

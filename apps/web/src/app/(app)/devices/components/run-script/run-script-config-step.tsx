@@ -2,6 +2,7 @@
 'use no memo';
 
 import { ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   Button,
   CheckboxBlock,
@@ -59,10 +60,26 @@ interface RunScriptConfigStepProps {
  * Step 2 of the run-script modal — a mini "run script" view for a single device.
  * Shows the selected script's details and lets the user override the per-run
  * variables (timeout, privilege, arguments, env vars) before dispatching a
- * `batchRunScript` to this one machine. Suspends on the detail query; render
- * inside a `<Suspense>`.
+ * `batchRunScript` to this one machine. With its own boundary: in its scope the
+ * reader draws its own loading form.
  */
 export function RunScriptConfigStep(props: RunScriptConfigStepProps) {
+  return (
+    <LoadingSuspense label="Loading script settings">
+      <RunScriptConfigStepReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function RunScriptConfigStepReader(props: RunScriptConfigStepProps) {
+  // In a loading scope (its boundary's fallback) it reads nothing: the step over no script, every part its own
+  // loading state.
+  if (useLoadingScope()) return <RunScriptConfigStepView {...props} script={null} />;
+  return <RunScriptConfigStepLive {...props} />;
+}
+
+/** Suspends on the detail query. */
+function RunScriptConfigStepLive(props: RunScriptConfigStepProps) {
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
     { id: props.scriptId },
@@ -72,10 +89,10 @@ export function RunScriptConfigStep(props: RunScriptConfigStepProps) {
 }
 
 /**
- * The step over the script it is handed. The modal's Suspense fallback draws it in a loading scope with no script
- * (every part its own loading state), so loading and loaded are one layout.
+ * The step over the script it is handed. In a loading scope it is drawn with no script (every part its own loading
+ * state), so loading and loaded are one layout.
  */
-export function RunScriptConfigStepView({
+function RunScriptConfigStepView({
   scriptId,
   machineId,
   onBack,

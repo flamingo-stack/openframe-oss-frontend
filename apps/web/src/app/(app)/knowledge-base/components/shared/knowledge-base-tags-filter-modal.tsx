@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { FilterModal, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { NO_ITEMS, type SelectableTag } from '@/app/components/shared';
 import type { AssignedArticlesTarget } from '../assigned-articles/assigned-articles-target';
@@ -29,6 +30,15 @@ interface KnowledgeBaseTagsFilterModalProps {
  * Suspense fallback) the modal draws its own loading state and reads nothing.
  */
 export function KnowledgeBaseTagsFilterModal(props: KnowledgeBaseTagsFilterModalProps) {
+  return (
+    <LoadingSuspense label="Loading tags">
+      <KnowledgeBaseTagsFilterModalReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function KnowledgeBaseTagsFilterModalReader(props: KnowledgeBaseTagsFilterModalProps) {
   if (useLoadingScope()) {
     return <TagsFilterModalView {...props} tags={NO_ITEMS} loading />;
   }

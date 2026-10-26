@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingRegion, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Autocomplete, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -101,11 +101,18 @@ interface EntityTagPickerProps {
  * new name and confirming creates the tag immediately and swaps the optimistic
  * entry for the persisted id. Shared by the script and article editors.
  *
- * Suspends on the vocabulary query — render it inside the lib's `LoadingSuspense`, whose
- * fallback is the same picker in a loading scope, where it draws its field disabled and
- * runs no query.
+ * With its own boundary over the vocabulary query: in its scope the reader draws its field
+ * disabled and runs no query.
  */
 export function EntityTagPicker(props: EntityTagPickerProps) {
+  return (
+    <LoadingSuspense label="Loading tags">
+      <EntityTagPickerReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function EntityTagPickerReader(props: EntityTagPickerProps) {
   if (useLoadingScope()) {
     // The vocabulary is not read yet: the same field, disabled, with the chips of the tags already selected (an
     // edit form shows them from the entity it read).
