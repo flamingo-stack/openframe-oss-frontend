@@ -2,7 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ModalV2Content, ModalV2Footer } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { ModalV2Content, ModalV2Footer, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
 import type { activateSubscriptionModalQuery as ActivateSubscriptionModalQueryType } from '@/__generated__/activateSubscriptionModalQuery.graphql';
@@ -72,15 +72,28 @@ export function ActivateSubscriptionModal({ isOpen, status, onClose }: ActivateS
           </ModalV2Content>
         }
       >
-        <LoadingSuspense label="Loading plans" fallback={<ActivateSubscriptionBody copy={copy} query={null} />}>
-          <ActivateSubscriptionContent copy={copy} />
-        </LoadingSuspense>
+        <ActivateSubscriptionContent copy={copy} />
       </ErrorBoundary>
     </SimpleModal>
   );
 }
 
+/** The modal's body over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
 function ActivateSubscriptionContent({ copy }: { copy: PaywallCopy }) {
+  return (
+    <LoadingSuspense label="Loading plans">
+      <ActivateSubscriptionReader copy={copy} />
+    </LoadingSuspense>
+  );
+}
+
+function ActivateSubscriptionReader({ copy }: { copy: PaywallCopy }) {
+  // In a loading scope (its boundary's fallback) it draws the body with no catalog and runs no read.
+  if (useLoadingScope()) return <ActivateSubscriptionBody copy={copy} query={null} />;
+  return <ActivateSubscriptionLive copy={copy} />;
+}
+
+function ActivateSubscriptionLive({ copy }: { copy: PaywallCopy }) {
   const data = useLazyLoadQuery<ActivateSubscriptionModalQueryType>(
     activateSubscriptionModalQuery,
     {},

@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -185,11 +186,19 @@ interface SoftwareActionsTableProps {
 const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
 
 /**
- * The Software Actions rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws
- * the table over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it
- * lives under the view's `<Suspense>`.
+ * The Software Actions rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's flag
+ * window) the reader draws the table over one page of placeholder rows with their real cells, each in its own loading
+ * form; otherwise it runs the query, which suspends under that boundary.
  */
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
+  return (
+    <LoadingSuspense label="Loading software actions">
+      <SoftwareActionsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareActionsTableReader(props: SoftwareActionsTableProps) {
   if (useLoadingScope()) {
     return (
       <SoftwareActionsRows

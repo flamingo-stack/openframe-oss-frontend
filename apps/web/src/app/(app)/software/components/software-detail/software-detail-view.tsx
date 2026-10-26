@@ -1,7 +1,6 @@
 'use client';
 
 import { memo } from 'react';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { SoftwareDetailContent } from './software-detail-content';
 import { SoftwareDetailTabs } from './software-detail-tabs';
 
@@ -33,11 +32,9 @@ export const SoftwareDetailView = memo(function SoftwareDetailViewImpl({
     // The page padding lives on the wrapper around `ContentErrorBoundary` (see
     // `details/page.tsx`), so a thrown query keeps the chrome indented.
     <div className="flex w-full flex-col">
-      {/* While the record loads, and for the flag's own window: the title and the card in a loading scope, where
-          each draws its own loading state and nothing fetches. */}
-      <LiveSuspense label="Loading software" gated={loading}>
-        <SoftwareDetailContent softwareId={softwareId} />
-      </LiveSuspense>
+      {/* While the record loads (its own boundary), and for the flag's own window: the title and the card in a loading
+          scope, where each draws its own loading state and nothing fetches. */}
+      <SoftwareDetailContent softwareId={softwareId} loading={loading} />
 
       {/* `TabNavigation` renders as a fragment, so its bar and its body are
           siblings — grouped into ONE flex item, spaced off the card above. Each

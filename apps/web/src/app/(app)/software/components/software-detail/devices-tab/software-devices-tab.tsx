@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useMemo, useState } from 'react';
@@ -89,11 +88,9 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
         />
       )}
 
-      {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
-          itself, in a loading scope, where it draws its own loading state and does not fetch. */}
-      <LoadingWhen loading={loading}>
-        <LoadingSuspense label="Loading devices">{rows}</LoadingSuspense>
-      </LoadingWhen>
+      {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's own
+          window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>{rows}</LoadingWhen>
     </div>
   );
 });

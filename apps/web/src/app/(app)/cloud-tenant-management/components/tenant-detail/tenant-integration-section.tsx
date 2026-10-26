@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   InfoSection,
   type InfoSectionRow,
@@ -104,11 +105,22 @@ function integrationRows(data: IntegrationData | null, provider: string | null):
 }
 
 /**
- * The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row. Suspends: mount it under
- * `<Suspense>`. In a loading scope (that boundary's fallback) it reads nothing: `InfoSection` draws the real caption
- * and labels with a bar for each value.
+ * The "INTEGRATION" section of a connected tenant (Figma 2097-140910), row for row, with its own boundary: in its
+ * scope the reader draws its own loading form.
  */
 export function TenantIntegrationSection(props: TenantIntegrationSectionProps) {
+  return (
+    <LoadingSuspense label="Loading integration">
+      <TenantIntegrationSectionReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (its boundary's fallback, or the page's own loading state) it reads nothing: `InfoSection` draws
+ * the real caption and labels with a bar for each value.
+ */
+function TenantIntegrationSectionReader(props: TenantIntegrationSectionProps) {
   if (useLoadingScope()) {
     return <InfoSection title="Integration" rows={integrationRows(null, props.provider)} />;
   }

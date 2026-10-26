@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -161,6 +162,15 @@ interface KnowledgeBaseItemsTableProps {
  * suspends, so it lives under the view's `<Suspense>`.
  */
 export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
+  return (
+    <LoadingSuspense label="Loading articles">
+      <KnowledgeBaseItemsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function KnowledgeBaseItemsTableReader(props: KnowledgeBaseItemsTableProps) {
   if (useLoadingScope()) {
     return (
       <KnowledgeBaseItemsRows
