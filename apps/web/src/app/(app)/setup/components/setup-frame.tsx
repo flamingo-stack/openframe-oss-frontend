@@ -4,6 +4,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
 import { SETUP_TENANT_SCREENS, type SetupStep, setupProgressOf } from '../setup-steps';
+import { DevSkipOnboardingButton } from './dev-skip-onboarding-button';
 import { NeedHelpMenu } from './need-help-menu';
 
 /**
@@ -43,7 +44,8 @@ function SetupProgress({ step }: { step: SetupStep }) {
 /**
  * The wizard's page frame: progress bar, the screen centred in the remaining
  * height from the tablet step up (the phone reads from the top), and the
- * footer row with "Need Help?" and the Flamingo credit. The bare app shell
+ * footer row with "Need Help?", the Flamingo credit and, on dev and QA, the
+ * tester's "Skip onboarding (dev)". The bare app shell
  * around it already owns the viewport and the native insets. Each step keeps
  * its body at the design's 600px; the heading above it is wider.
  *
@@ -62,6 +64,9 @@ export function SetupFrame({ step, children }: { step: SetupStep; children: Reac
           <NeedHelpMenu />
         </div>
         <PoweredByFlamingo />
+        <div className="absolute right-[var(--spacing-system-l)]">
+          <DevSkipOnboardingButton />
+        </div>
       </footer>
     </div>
   );
