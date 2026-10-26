@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -108,11 +107,9 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
           />
         )}
 
-        {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
-            itself, in a loading scope, where it draws its own loading state and does not fetch. */}
-        <LoadingWhen loading={loading}>
-          <LoadingSuspense label="Loading software actions">{rows}</LoadingSuspense>
-        </LoadingWhen>
+        {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's
+            own window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+        <LoadingWhen loading={loading}>{rows}</LoadingWhen>
       </div>
     </PageLayout>
   );

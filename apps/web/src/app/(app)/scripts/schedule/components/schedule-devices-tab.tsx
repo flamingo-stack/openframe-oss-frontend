@@ -7,6 +7,7 @@ import {
   EMPTY_DEVICES_NARROWING,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
@@ -203,9 +204,15 @@ function ScheduleDevicesTabLoading() {
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <LoadingSuspense label="Loading devices" fallback={<ScheduleDevicesTabLoading />}>
-      <ScheduleDevicesTabContent scheduleId={scheduleId} />
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader scheduleId={scheduleId} />
     </LoadingSuspense>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
+
+function ScheduleDevicesTabReader({ scheduleId }: { scheduleId: string }) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleDevicesTabLoading />;
+  return <ScheduleDevicesTabContent scheduleId={scheduleId} />;
+}

@@ -1,11 +1,11 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { DashboardInfoCard, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { usageViewQuery as UsageViewQueryType, usageViewQuery$data } from '@/__generated__/usageViewQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { OpenframeProduct } from '@/generated/schema-enums';
 import { formatCount } from '@/lib/format-number';
@@ -60,10 +60,16 @@ const usageViewQuery = graphql`
 export function UsageView({ loading = false }: { loading?: boolean }) {
   // Every wait (the page's gates: `loading`; the query: the Suspense boundary) is the same page in a loading scope.
   return (
-    <GatedSuspense gated={loading} label="Loading usage" view={<UsageScreen data={null} />}>
-      <UsageQuery />
-    </GatedSuspense>
+    <LoadingSuspense gated={loading} label="Loading usage">
+      <UsageReader />
+    </LoadingSuspense>
   );
+}
+
+function UsageReader() {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the page with no data and runs no read.
+  if (useLoadingScope()) return <UsageScreen data={null} />;
+  return <UsageQuery />;
 }
 
 function UsageQuery() {

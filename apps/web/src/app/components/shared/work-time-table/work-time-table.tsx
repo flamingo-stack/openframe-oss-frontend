@@ -352,8 +352,24 @@ interface WorkTimeTableDataProps {
   richEmptyState: boolean;
 }
 
+/** The entries and the stats, with their own boundary: in its scope the reader draws the table pending. */
+function WorkTimeTableData(props: WorkTimeTableDataProps) {
+  return (
+    <LoadingSuspense label="Loading work time">
+      <WorkTimeTableDataReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function WorkTimeTableDataReader(props: WorkTimeTableDataProps) {
+  if (useLoadingScope()) {
+    return <WorkTimeTableViewPending showEmployee={props.showEmployee} showCustomer={props.showCustomer} />;
+  }
+  return <WorkTimeTableDataLive {...props} />;
+}
+
 /** The query container: reads the entries and the stats, and renders {@link WorkTimeTableView} with them. */
-function WorkTimeTableData({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
+function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
     fetchKey,
@@ -751,24 +767,19 @@ function LiveWorkTimeTable({
           <LoadError message="Couldn't load work time entries." onRetry={() => setRetryNonce(nonce => nonce + 1)} />
         }
       >
-        <LoadingSuspense
-          label="Loading work time"
-          fallback={<WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />}
-        >
-          <WorkTimeTableData
-            showEmployee={showEmployee}
-            showCustomer={showCustomer}
-            vars={vars}
-            fetchKey={fetchKey}
-            onEdit={setEditTarget}
-            onDelete={setDeleteTarget}
-            employeeFilterOptions={employeeFilterOptions}
-            customerFilterOptions={customerFilterOptions}
-            columnFilters={columnFilters}
-            onColumnFiltersChange={onColumnFiltersChange}
-            richEmptyState={richEmptyState}
-          />
-        </LoadingSuspense>
+        <WorkTimeTableData
+          showEmployee={showEmployee}
+          showCustomer={showCustomer}
+          vars={vars}
+          fetchKey={fetchKey}
+          onEdit={setEditTarget}
+          onDelete={setDeleteTarget}
+          employeeFilterOptions={employeeFilterOptions}
+          customerFilterOptions={customerFilterOptions}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={onColumnFiltersChange}
+          richEmptyState={richEmptyState}
+        />
       </ErrorBoundary>
 
       {onAddWorkTimeOpenChange && (
