@@ -38,7 +38,11 @@ export interface StoredAttribution {
   options: ReadonlyMap<string, PickerCustomer>;
 }
 
-function storedOption({ organizationId, organization }: StoredCustomer): PickerCustomer {
+/** A bound customer as every list of them names it: an archived one with its badge, a deleted one as "Unknown customer". */
+export function storedOption({
+  organizationId,
+  organization,
+}: Pick<StoredCustomer, 'organizationId' | 'organization'>): PickerCustomer {
   const badge = inactiveCustomerBadge(organization);
   return {
     organizationId,

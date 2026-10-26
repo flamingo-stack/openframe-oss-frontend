@@ -5,7 +5,17 @@ import {
   formatLastRead,
   lastReadAt,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { SquareAvatar, LoadingWhen, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  LoadingWhen,
+  SquareAvatar,
+  Tag,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { graphql, useFragment } from 'react-relay';
 import type {
@@ -16,6 +26,9 @@ import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSumma
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
 import { attributionSummary, providerPresentation } from '../../utils/tenant-presentation';
+import { storedOption } from '../tenant-form/attribution-helpers';
+import { type PickerCustomer, toCustomerOption } from '../tenant-form/customer-option';
+import { CustomerOptionLabel } from '../tenant-form/customer-select';
 
 // The two-row identity card of the details page (Figma 3065-17490 / 3051-7340) and its one-row cut
 // on Edit / Reconnect (2097-123264). Own row classes: the employee card's `content-md:contents` folds into one row.
@@ -53,12 +66,10 @@ const tenantSummaryCardFragment = graphql`
       state
     }
     customers {
+      organizationId
       organization {
-        name
-        image {
-          imageUrl
-          hash
-        }
+        status
+        ...customerOption_organization
       }
     }
   }
@@ -84,14 +95,47 @@ function ProviderCell({ provider }: { provider: string | null }) {
 }
 
 /**
- * The first customer's logo and name, "+N" for the rest (Figma 3065-17490). A customer whose organization document
- * is gone has nothing to name and is left out; none at all is the empty mark. Before the record answers (`null`) the
- * avatar and a name bar.
+ * Every bound customer, named as the Attribution Rules table names it (an archived one with its badge, a deleted one
+ * as "Unknown customer"), the active ones first so the card leads with one when there is any.
+ */
+function summaryCustomers(customers: SummaryCustomers): PickerCustomer[] {
+  return customers
+    .map(({ organizationId, organization }) =>
+      storedOption({
+        organizationId,
+        organization: organization ? { ...toCustomerOption(organization), status: organization.status } : null,
+      }),
+    )
+    .sort((a, b) => Number(!!a.badge) - Number(!!b.badge));
+}
+
+/** "+N": a menu of every customer, the lead among them, since the card has room for one. */
+function AllCustomersMenu({ customers }: { customers: readonly PickerCustomer[] }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="shrink-0 rounded-sm px-[var(--spacing-system-xxs)] text-ods-text-secondary outline-none hover:text-ods-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus">
+        +{customers.length - 1}
+        <span className="sr-only"> more customers</span>
+      </DropdownMenuTrigger>
+      {/* On a phone the menu is shifted to fit: the page's gutter keeps it off the screen's edge. */}
+      <DropdownMenuContent align="start" collisionPadding={16} className="max-h-80 w-72 overflow-y-auto">
+        {customers.map(customer => (
+          <DropdownMenuItem key={customer.organizationId} className="cursor-default">
+            <CustomerOptionLabel organization={customer} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * The lead customer's logo and name, "+N" for the rest (Figma 3065-17490), which opens them all; no customer is the
+ * empty mark. Before the record answers (`null`) the avatar and a name bar.
  */
 function CustomersCell({ customers }: { customers: SummaryCustomers | null }) {
-  const named = customers?.flatMap(({ organization }) => (organization ? [organization] : [])) ?? [];
-  const [first] = named;
-  const more = named.length - 1;
+  const all = customers ? summaryCustomers(customers) : [];
+  const [first] = all;
   return (
     <InfoCell
       label={LABELS.customers}
@@ -109,12 +153,15 @@ function CustomersCell({ customers }: { customers: SummaryCustomers | null }) {
         ) : null
       }
       value={
-        first && more > 0 ? (
-          <>
-            {first.name} <span className="text-ods-text-secondary">+{more}</span>
-          </>
-        ) : (
-          first?.name
+        first && (
+          // A long name ellipsizes; the badge and "+N" stay whole.
+          <span className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+            <TruncateText as="span" className="text-inherit">
+              {first.name}
+            </TruncateText>
+            {first.badge && <Tag as="span" variant="warning" label={first.badge} className="shrink-0" />}
+            {all.length > 1 && <AllCustomersMenu customers={all} />}
+          </span>
         )
       }
     />

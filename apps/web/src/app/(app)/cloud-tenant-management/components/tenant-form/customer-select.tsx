@@ -80,7 +80,8 @@ interface CustomerSelectShellProps extends Omit<CustomerSelectProps, 'includeOrg
   footer?: ReactNode;
 }
 
-function CustomerOptionLabel({ organization }: { organization: PickerCustomer }) {
+/** A customer's avatar, name and badge: a picker's option, and a row of the details card's customer list. */
+export function CustomerOptionLabel({ organization }: { organization: PickerCustomer }) {
   return (
     <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
       <SquareAvatar
