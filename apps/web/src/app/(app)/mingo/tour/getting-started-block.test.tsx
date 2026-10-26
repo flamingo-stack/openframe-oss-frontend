@@ -39,8 +39,10 @@ afterEach(() => {
 
 const onAction = vi.fn(() => true);
 const onFinish = vi.fn();
+const onOpenFae = vi.fn();
 
-function render(done: TourStepId[] = [], busy = false) {
+/** `openFae: null` renders the block where Fae cannot run. */
+function render(done: TourStepId[] = [], busy = false, openFae: (() => void) | null = onOpenFae) {
   act(() => {
     root.render(
       <GettingStartedBlock
@@ -48,6 +50,7 @@ function render(done: TourStepId[] = [], busy = false) {
         doneStepIds={new Set(done)}
         onAction={onAction}
         onFinish={onFinish}
+        onOpenFae={openFae ?? undefined}
         busy={busy}
       />,
     );
@@ -202,6 +205,27 @@ describe('GettingStartedBlock', () => {
     expect(container.querySelector('[role="status"]')).toBeNull();
     click(chip);
     expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers Open Fae on Tickets alone, live while Mingo answers, without folding', () => {
+    onOpenFae.mockClear();
+    onAction.mockClear();
+    render([], true);
+    expect(buttons().some(b => b.textContent?.trim() === 'Open Fae')).toBe(false);
+
+    click(button('TicketsTickets and time logs'));
+    const chip = button('Open Fae');
+    expect(chip.matches(':disabled')).toBe(false);
+    click(chip);
+    expect(onOpenFae).toHaveBeenCalledTimes(1);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="getting-started-grid"]')).toBeNull();
+  });
+
+  it('leaves Open Fae out where Fae cannot run', () => {
+    render([], false, null);
+    click(button('TicketsTickets and time logs'));
+    expect(buttons().some(b => b.textContent?.trim() === 'Open Fae')).toBe(false);
   });
 
   it('counts the done steps and offers to finish on the last one', () => {
