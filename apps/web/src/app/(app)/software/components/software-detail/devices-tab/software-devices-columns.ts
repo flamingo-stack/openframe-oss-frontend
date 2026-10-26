@@ -1,5 +1,4 @@
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
-import { FLEET_LIST_PAGE_SIZE } from '../../shared/fleet-list-paging';
 
 /**
  * Column layout for Software → Devices, read by the live table — see `table-column-layout.ts` for why this module is
@@ -27,4 +26,4 @@ export { SOFTWARE_DEVICE_COLUMNS };
  */
 export const SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS: readonly string[] = [SOFTWARE_DEVICE_COLUMNS.softwareVersion.id];
 
-export const SOFTWARE_DEVICES_PAGE_SIZE = FLEET_LIST_PAGE_SIZE;
+export const SOFTWARE_DEVICES_PAGE_SIZE = 20;

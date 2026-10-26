@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  type DataTableFilterOption,
   type DataTableSortState,
   type Row,
   useDataTable,
@@ -32,6 +33,7 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
+import { presentationFor } from '@/lib/exhaustive-map';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
@@ -39,13 +41,20 @@ import { singleColumnFilter } from '../../shared/column-filters';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
-import { SOFTWARE_ON_DEVICE_STATUS_OPTIONS } from './software-on-device-status';
+import { SOFTWARE_ON_DEVICE_STATUS } from './software-on-device-status';
 
 /**
  * Software → Devices: the machines carrying this title, each with its OWN
  * installed version and per-device status (OUTDATED / SCHEDULED_UPDATE / …).
- * The Status funnel offers the states the backend can report — a fixed list,
- * see `SOFTWARE_ON_DEVICE_STATUS_OPTIONS`.
+ * The Status funnel offers the states that actually occur among them, with
+ * counts, from `softwareDeviceFilters` — asked in the same request as the rows,
+ * so neither waits on the other.
+ *
+ * The facet is scoped to the title and to nothing else. The user's own
+ * narrowing is deliberately NOT sent, for the reason `useScheduleDeviceFilters`
+ * gives: a funnel answered through its own selection offers one option after
+ * the first click. The counts are therefore per-title totals; the narrowed
+ * number is the list's to report, from its connection's `filteredCount`.
  */
 const softwareDevicesTableQuery = graphql`
   query softwareDevicesTableQuery(
@@ -58,6 +67,13 @@ const softwareDevicesTableQuery = graphql`
   ) {
     ...softwareDevicesTable_query
       @arguments(softwareId: $softwareId, filter: $filter, search: $search, sort: $sort, first: $first, after: $after)
+    softwareDeviceFilters(softwareId: $softwareId) {
+      statuses {
+        value
+        label
+        count
+      }
+    }
   }
 `;
 
@@ -113,8 +129,11 @@ function deviceHref(row: SoftwareDeviceRow): string | null {
   return device ? routes.devices.details(device.machineId || device.id) : null;
 }
 
-/** The columns, with the Status funnel over the states the backend reports. */
-function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
+/** The loading form's funnel options: none. */
+const NO_STATUS_OPTIONS: DataTableFilterOption[] = [];
+
+/** The columns, with the Status funnel offering exactly the states this title's devices are in. */
+function buildColumns(statusOptions: DataTableFilterOption[]): ColumnDef<SoftwareDeviceRow>[] {
   return [
     {
       id: SOFTWARE_DEVICE_COLUMNS.device.id,
@@ -134,7 +153,7 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.softwareVersion, {
         // The column stretches to the row's end, so an end-anchored popover would
         // hang off the far right, nowhere near the header it belongs to.
-        filter: { options: SOFTWARE_ON_DEVICE_STATUS_OPTIONS },
+        filter: { options: statusOptions },
       }),
     },
     {
@@ -194,7 +213,16 @@ export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
 
 function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   if (useLoadingScope()) {
-    return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
+    // No funnel until the facet answers: one drawn now would be taken away if no device turns out to be in any state.
+    return (
+      <SoftwareDevicesTableRows
+        {...props}
+        rows={NO_ITEMS}
+        totalCount={0}
+        statusOptions={NO_STATUS_OPTIONS}
+        infiniteScroll={NO_NEXT_PAGE}
+      />
+    );
   }
   return <SoftwareDevicesTableQuery {...props} />;
 }
@@ -212,7 +240,7 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
       first: SOFTWARE_DEVICES_PAGE_SIZE,
       after: null,
     },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -223,6 +251,19 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
   const rows = (data.softwareDevices?.edges ?? []).map(edge => edge.node);
   const totalCount = data.softwareDevices?.filteredCount ?? rows.length;
 
+  // A state no device is in is not offered: the option has no disabled form,
+  // and a tick that narrows the list to nothing is worse than no tick. The
+  // label is the app's own — the word the row's chip uses — with the server's
+  // as the fallback for a state this build does not know yet.
+  const statusOptions = queryData.softwareDeviceFilters.statuses
+    .filter(option => option.count > 0)
+    .map(option => ({
+      id: option.value,
+      label: presentationFor(SOFTWARE_ON_DEVICE_STATUS, option.value)?.label ?? option.label,
+      value: option.value,
+      count: option.count,
+    }));
+
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(SOFTWARE_DEVICES_PAGE_SIZE);
   };
@@ -232,6 +273,7 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
       {...props}
       rows={rows}
       totalCount={totalCount}
+      statusOptions={statusOptions}
       infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: fetchNextPage }}
     />
   );
@@ -240,6 +282,8 @@ function SoftwareDevicesTableQuery(props: SoftwareDevicesTableProps) {
 interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
   rows: readonly SoftwareDeviceRow[];
   totalCount: number;
+  /** The Status funnel's options — what occurs among this title's devices; none draws no funnel. */
+  statusOptions: DataTableFilterOption[];
   infiniteScroll: InfiniteScroll;
 }
 
@@ -247,6 +291,7 @@ interface SoftwareDevicesTableRowsProps extends SoftwareDevicesTableProps {
 function SoftwareDevicesTableRows({
   rows,
   totalCount,
+  statusOptions,
   infiniteScroll,
   backendFilters,
   debouncedSearch,
@@ -275,7 +320,7 @@ function SoftwareDevicesTableRows({
   const table = useDataTable<SoftwareDeviceRow>({
     // The table only ever reads the page it is handed.
     data: placeholderRows ?? (rows as SoftwareDeviceRow[]),
-    columns: buildColumns(),
+    columns: buildColumns(statusOptions),
     getRowId,
     enableSorting: false,
     state: { columnFilters },

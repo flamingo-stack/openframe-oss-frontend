@@ -8,7 +8,6 @@ import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { useServerSort } from '../../shared/use-server-sort';
 import { SOFTWARE_DEVICES_SORTABLE_COLUMN_IDS } from './software-devices-columns';
 import { SoftwareDevicesTable } from './software-devices-table';
@@ -37,7 +36,7 @@ export const SoftwareDevicesTab = memo(function SoftwareDevicesTabImpl({
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), FLEET_SEARCH_DEBOUNCE_MS);
+  } = useSearchParam(params.deviceSearch, value => setParam('deviceSearch', value), 300);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();

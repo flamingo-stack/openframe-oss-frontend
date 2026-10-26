@@ -9,7 +9,6 @@ import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_SEARCH_DEBOUNCE_MS } from './fleet-list-paging';
 import { type ServerSortInput, useServerSort } from './use-server-sort';
 
 /** Every funnel's selection, keyed by its column id. */
@@ -116,7 +115,7 @@ export function SoftwareListFrame({
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(readString(params, searchKey), value => setParam(searchKey, value), FLEET_SEARCH_DEBOUNCE_MS);
+  } = useSearchParam(readString(params, searchKey), value => setParam(searchKey, value), 300);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
