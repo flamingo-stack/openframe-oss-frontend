@@ -2530,6 +2530,7 @@ enum NotificationCategory {
   LOGS
   TICKETS
   INSIGHTS
+  INTEGRATIONS
   MINGO
   GENERIC
 }

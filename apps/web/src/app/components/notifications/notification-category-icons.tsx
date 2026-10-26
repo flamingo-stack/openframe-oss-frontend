@@ -25,6 +25,7 @@ const ICON_BY_CATEGORY: Readonly<Record<string, IconRef>> = {
   LOGS: { set: 'ClipboardListIcon' },
   TICKETS: { set: 'TagIcon' },
   INSIGHTS: { set: 'AlertTriangleIcon' },
+  INTEGRATIONS: { set: 'CodingForkIcon' },
 };
 
 /** The category whose notifications carry the assistant's own mark, drawn from its identity. */

@@ -1,6 +1,8 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import {
+  DIRECTORY_CUSTOMER_DEACTIVATED_TYPE,
+  DIRECTORY_RULE_VALUE_REMOVED_TYPE,
   INCIDENT_DETECTED_TYPE,
   isApprovalNotificationType,
   isIncidentNotificationType,
@@ -9,6 +11,7 @@ import {
   NEW_PERMISSIONS_REQUIRED_TYPE,
   NOTIFICATION_ATTR,
   RECORDING_NOTIFICATION_TYPES,
+  readConnectionIds,
   readNotificationAttributes,
 } from '@/graphql/notifications/notification-attributes';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
@@ -88,6 +91,11 @@ const deviceRemoteSessionsAction = (deviceId: string): NotificationAction => ({
   label: 'Remote Sessions',
   route: routes.devices.details(deviceId, { tab: 'remote-sessions' }),
 });
+const TENANT_LIST_ACTION: NotificationAction = { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
+const tenantAction = (connectionId: string): NotificationAction => ({
+  label: 'Tenant Details',
+  route: routes.cloudTenantManagement.details(connectionId),
+});
 
 /**
  * Action for a Mingo dialog: the canonical route ALWAYS, plus the drawer id.
@@ -130,11 +138,14 @@ interface NotificationIds {
   insightId: string | null;
   recordingId: string | null;
   deviceId: string | null;
+  connectionId: string | null;
+  /** The `connections` JSON list, read by `readConnectionIds`. */
+  connections: string | null;
 }
 
 function resolveAction(
   type: string | null,
-  { ticketId, dialogId, insightId, recordingId, deviceId }: NotificationIds,
+  { ticketId, dialogId, insightId, recordingId, deviceId, connectionId, connections }: NotificationIds,
   category: string | null,
 ): NotificationAction | null {
   // Approval requests live in their ticket when one exists, otherwise the mingo dialog.
@@ -161,7 +172,19 @@ function resolveAction(
 
   // Names no entity: the tenant list is where each connection re-authorizes.
   if (type === NEW_PERMISSIONS_REQUIRED_TYPE) {
-    return { label: 'Cloud Tenants', route: routes.cloudTenantManagement.list };
+    return TENANT_LIST_ACTION;
+  }
+
+  // The deleted group or org unit was a rule of one tenant's: its page shows the rule and is where it is replaced.
+  if (type === DIRECTORY_RULE_VALUE_REMOVED_TYPE) {
+    return connectionId ? tenantAction(connectionId) : TENANT_LIST_ACTION;
+  }
+
+  // The customer's rules matched users on these tenants: one opens its page, several (or a push that dropped the
+  // list) the tenant list.
+  if (type === DIRECTORY_CUSTOMER_DEACTIVATED_TYPE) {
+    const [only, ...others] = readConnectionIds(connections);
+    return only && others.length === 0 ? tenantAction(only) : TENANT_LIST_ACTION;
   }
 
   // A recording about to expire, about to be deleted, or released by someone else opens the
@@ -213,6 +236,8 @@ export function resolveNotificationAction(notification: Notification): Notificat
       insightId: nonEmptyString(meta.insightId),
       recordingId: nonEmptyString(meta.recordingId),
       deviceId: nonEmptyString(meta.deviceId),
+      connectionId: nonEmptyString(meta.connectionId),
+      connections: nonEmptyString(meta.connections),
     },
     nonEmptyString(notification.category),
   );
@@ -244,6 +269,8 @@ function routeFromWireFields(fields: Record<string, unknown>): string | null {
         insightId: id('insightId'),
         recordingId: id('recordingId'),
         deviceId: id('deviceId'),
+        connectionId: id('connectionId'),
+        connections: id('connections'),
       },
       nonEmptyString(fields.category),
     ),

@@ -45,6 +45,7 @@ const tenantsTableFragment = graphql`
           provider
           domain
           userCount
+          unattributedUserCount
           lastSyncAt
           access {
             state
@@ -136,6 +137,7 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
               : [],
           ),
           userCount: node.userCount,
+          unattributedUserCount: node.unattributedUserCount,
           accessState: node.access.state,
           lastReadAt: lastReadAt({ lastSyncAt }),
         };

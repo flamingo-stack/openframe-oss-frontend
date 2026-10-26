@@ -37,6 +37,18 @@ const INCIDENT_TYPE_PREFIX = 'INCIDENT_';
 export const NEW_PERMISSIONS_REQUIRED_TYPE = 'NEW_PERMISSIONS_REQUIRED';
 
 /**
+ * A customer bound to directories was archived or deleted, and its rules still matched users; sent to every active
+ * admin. `attributes.connections` is a JSON list of the directories concerned (`{ id, name, provider, userCount }`).
+ */
+export const DIRECTORY_CUSTOMER_DEACTIVATED_TYPE = 'DIRECTORY_CUSTOMER_DEACTIVATED';
+
+/**
+ * A group or org unit a customer's rule names was deleted in the directory; sent to every active admin after the
+ * sync. `attributes.connectionId` is the directory whose rule it was.
+ */
+export const DIRECTORY_RULE_VALUE_REMOVED_TYPE = 'DIRECTORY_RULE_VALUE_REMOVED';
+
+/**
  * The Remote Sessions recording family, by what each card opens: a recording that is about
  * to go or was released by someone else opens that recording (`recordingId`); a session that
  * left no recording opens its device's Remote Sessions tab (`deviceId`); the tenant's
@@ -107,7 +119,30 @@ export const NOTIFICATION_ATTR = {
   recordingId: 'recordingId',
   /** The device (machine id) a recording card is about. */
   deviceId: 'deviceId',
+  /** The directory connection a rule-value card is about. */
+  connectionId: 'connectionId',
+  /** The directory connections a deactivated-customer card is about: a JSON list (`readConnectionIds`). */
+  connections: 'connections',
 } as const;
+
+/**
+ * The ids of a `connections` attribute (a JSON list of `{ id, … }`), in its order. Anything else — no attribute, a push
+ * that dropped the blob, a malformed one — is no ids.
+ */
+export function readConnectionIds(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap(row => {
+    const id: unknown = row && typeof row === 'object' ? (row as { id?: unknown }).id : undefined;
+    return typeof id === 'string' && id ? [id] : [];
+  });
+}
 
 /**
  * Narrow the `attributes` JSON scalar (typed `any` by relay-compiler) to the flat

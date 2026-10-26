@@ -25,8 +25,8 @@ import { ValueText } from '@/app/components/shared/value-text';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import {
   inactiveCustomerBadge,
+  missingValuesBadge,
   ruleKindLabel,
-  ruleValueLabel,
   UNKNOWN_CUSTOMER,
 } from '../../utils/tenant-presentation';
 
@@ -70,8 +70,10 @@ interface AttributionRuleRow {
   /** "Archived" / "Deleted": the customer stays bound, and its users count as unattributed. */
   badge: string | null;
   matchBy: string;
-  /** `null` for a rule with no values (`ALL`): the empty mark. */
+  /** `null` for a rule with no values (`ALL`): the empty mark. A value the directory no longer has reads as its id. */
   values: string | null;
+  /** "Not in directory" while some of `values` are gone from the directory: the rule claims nobody through them. */
+  valuesBadge: string | null;
   /** `undefined` until the first sync counts anyone: sorts last in both directions. */
   users: number | undefined;
 }
@@ -93,7 +95,8 @@ function toRows(customers: Customers): AttributionRuleRow[] {
       customer: customer.organization?.name ?? UNKNOWN_CUSTOMER,
       badge: inactiveCustomerBadge(customer.organization && { status: customer.organization.status }),
       matchBy: ruleKindLabel(rule.kind),
-      values: rule.values.length > 0 ? rule.values.map(ruleValueLabel).join(', ') : null,
+      values: rule.values.length > 0 ? rule.values.map(value => value.name ?? value.id).join(', ') : null,
+      valuesBadge: missingValuesBadge(rule.values.filter(value => value.name == null).length),
       users: rule.userCount ?? undefined,
     })),
   );
@@ -135,7 +138,14 @@ function attributionRuleColumns(
     {
       accessorKey: 'values',
       header: ATTRIBUTION_RULE_COLUMNS.values.header,
-      cell: ({ row }: { row: Row<AttributionRuleRow> }) => <ValueText value={row.original.values} />,
+      cell: ({ row }: { row: Row<AttributionRuleRow> }) => (
+        <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
+          <ValueText value={row.original.values} />
+          {row.original.valuesBadge && (
+            <Tag as="span" variant="warning" label={row.original.valuesBadge} className="shrink-0" />
+          )}
+        </span>
+      ),
       enableSorting: false,
       meta: liveColumnMeta(ATTRIBUTION_RULE_COLUMNS.values),
     },

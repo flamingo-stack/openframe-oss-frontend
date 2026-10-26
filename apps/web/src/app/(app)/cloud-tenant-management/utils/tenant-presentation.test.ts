@@ -31,6 +31,7 @@ import {
   formatConnectedAt,
   inactiveCustomerBadge,
   isReadable,
+  missingValuesBadge,
   PROVIDER_ORDER,
   providerErrorLookupUrl,
   providerPresentation,
@@ -178,6 +179,12 @@ describe('attribution rules', () => {
   it('names a value the directory no longer has by its id', () => {
     expect(ruleValueLabel({ id: 'g-1', name: 'Clinicians' })).toBe('Clinicians');
     expect(ruleValueLabel({ id: 'g-gone', name: null })).toBe('g-gone (not found in directory)');
+  });
+
+  it('badges a rule while some of its values are gone from the directory', () => {
+    expect(missingValuesBadge(0)).toBeNull();
+    expect(missingValuesBadge(1)).toBe('Not in directory');
+    expect(missingValuesBadge(3)).toBe('3 not in directory');
   });
 
   it('summarises attribution as the details card draws it', () => {

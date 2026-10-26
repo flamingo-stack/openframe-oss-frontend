@@ -14,4 +14,9 @@ describe('getNotificationIcon', () => {
     const device = { ...generic, category: 'DEVICES', meta: { notificationType: 'DEVICE_OFFLINE' } };
     expect(getNotificationIcon(device)).toBeDefined();
   });
+
+  it('draws the Integrations icon for a directory notice', () => {
+    const notice = { ...generic, category: 'INTEGRATIONS', meta: { notificationType: 'DIRECTORY_RULE_VALUE_REMOVED' } };
+    expect(getNotificationIcon(notice)).toBeDefined();
+  });
 });

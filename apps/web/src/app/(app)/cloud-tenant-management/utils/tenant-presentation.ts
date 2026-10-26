@@ -13,6 +13,7 @@ import {
   type TenantAccessState,
   type TenantProvider,
   type TenantStatusTag,
+  unattributedLabel,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   DirectoryAccessState,
@@ -319,9 +320,21 @@ export function ruleKindPlural(kind: string): string {
   return `${ruleKindLabel(kind).toLowerCase()}s`;
 }
 
-/** A rule value by its directory name; one the directory no longer has keeps its id, so the reader can tell which. */
+/**
+ * A rule value in the values picker, whose chips take text only: its directory name, or for one the directory no
+ * longer has, its id so the user can tell which to remove.
+ */
 export function ruleValueLabel(value: { readonly id: string; readonly name: string | null | undefined }): string {
   return value.name ?? `${value.id} (not found in directory)`;
+}
+
+/**
+ * The badge beside a rule's values while `missing` of them are gone from the directory (deleted there; the rule
+ * keeps them, and claims nobody through them), or `null` while none are.
+ */
+export function missingValuesBadge(missing: number): string | null {
+  if (missing <= 0) return null;
+  return missing === 1 ? 'Not in directory' : `${missing} not in directory`;
 }
 
 /** A bound customer whose organization document is gone: there is no name left to show. */
@@ -345,17 +358,17 @@ export interface AttributionSummary {
   warning: boolean;
 }
 
-/** The details card's Attribution cell (Figma 3065-17490, 3051-7925); `null` until the first sync counts anyone. */
+/**
+ * The details card's Attribution cell (Figma 3065-17490, 3051-7925), worded as the list's Customers cell words it;
+ * `null` until the first sync counts anyone.
+ */
 export function attributionSummary(
   unattributed: number | null | undefined,
   users: number | null | undefined,
 ): AttributionSummary | null {
   if (unattributed == null) return null;
-  if (unattributed === 0) return { text: 'Fully attributed', warning: false };
-  return {
-    text: users == null ? `${unattributed} unattributed` : `${unattributed} of ${users} unattributed`,
-    warning: true,
-  };
+  const text = unattributedLabel(unattributed, users);
+  return text ? { text, warning: true } : { text: 'Fully attributed', warning: false };
 }
 
 /** The two-tone "11/12/24 09:43:00" of a consent issue's time; `null` = no time. */
