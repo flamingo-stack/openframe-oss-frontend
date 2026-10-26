@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -218,12 +219,17 @@ function AttributionRulesTable({ customers }: { customers: Customers | null }) {
   );
 }
 
-/**
- * "Attribution Rules": every customer's rules with the users each one claims. Suspends: mount it under `<Suspense>`.
- * In a loading scope (that boundary's fallback, or the page's) it reads nothing and draws the table's placeholder
- * rows.
- */
+/** "Attribution Rules": every customer's rules with the users each one claims, with its own boundary. */
 export function TenantAttributionRules({ id }: { id: string }) {
+  return (
+    <LoadingSuspense label="Loading attribution rules">
+      <TenantAttributionRulesReader id={id} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or the page's) it reads nothing and draws the table's placeholder rows. */
+function TenantAttributionRulesReader({ id }: { id: string }) {
   if (useLoadingScope()) {
     return <AttributionRulesTable customers={null} />;
   }

@@ -149,14 +149,21 @@ export function RuleValuesField({ kind, locked = false, ...props }: RuleValuesFi
         </div>
       )}
     >
-      <LoadingSuspense label="Loading values">
-        <RuleValuesBody {...props} kind={kind} />
-      </LoadingSuspense>
+      <RuleValuesList {...props} kind={kind} />
     </ContentErrorBoundary>
   );
 }
 
-/** In a loading scope (its own Suspense fallback, or the page's) the field draws its own skeleton and reads nothing. */
+/** The field over the directory's values, with its own boundary: in its scope the reader draws the locked field. */
+function RuleValuesList(props: RuleValuesOptionsProps) {
+  return (
+    <LoadingSuspense label="Loading values">
+      <RuleValuesBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or the page's) the field draws its own skeleton and reads nothing. */
 function RuleValuesBody(props: RuleValuesOptionsProps) {
   if (useLoadingScope()) {
     return <LockedValues {...props} />;
