@@ -578,7 +578,10 @@ export const myFileNameQuery = graphql`
   }
 `;
 
-// In a component (wrap in <Suspense> — useLazyLoadQuery suspends):
+// In a component. useLazyLoadQuery suspends: wrap ONLY this component in the lib's LoadingSuspense (the one
+// boundary: `live` keeps plain controls usable through the wait, `gated` holds the query behind a page gate), never a
+// raw <Suspense> and never the whole page. The rules are the lib engine's header (RAW_SUSPENSE, PAGE_BOUNDARY),
+// checked by `npm run check:loading`.
 const data = useLazyLoadQuery<MyFileNameQueryType>(myFileNameQuery, { first: 30 }, { fetchPolicy: 'store-and-network' });
 ```
 - Prefer fragments + `usePaginationFragment` for connections; use `@connection` + `ConnectionHandler` updaters to keep lists consistent after mutations

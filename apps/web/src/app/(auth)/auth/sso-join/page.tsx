@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -42,29 +43,41 @@ import { routes } from '@/lib/routes';
  */
 export default function SsoJoinPage() {
   return (
-    // `useSearchParams` bails out to the client during the static prerender: the card, in a loading scope, stands in.
-    <LoadingSuspense
-      label="Loading your account"
-      fallback={
-        <SsoJoinCardLayout>
-          <SsoJoinCard
-            pending={null}
-            agreedToTerms={false}
-            onAgreedToTermsChange={noop}
-            onSubmit={noop}
-            onBack={noop}
-            termsUrl={TERMS_URL}
-            privacyPolicyUrl={PRIVACY_POLICY_URL}
-          />
-        </SsoJoinCardLayout>
-      }
-    >
+    // The layout renders at once. `useSearchParams` bails out to the client during the static prerender: only the
+    // card waits, standing in empty, in a loading scope.
+    <SsoJoinCardLayout>
       <SsoJoinContent />
+    </SsoJoinCardLayout>
+  );
+}
+
+/** The card, with its own boundary: in its scope the reader draws the card empty. */
+function SsoJoinContent() {
+  return (
+    <LoadingSuspense label="Loading your account">
+      <SsoJoinContentReader />
     </LoadingSuspense>
   );
 }
 
-function SsoJoinContent() {
+function SsoJoinContentReader() {
+  if (useLoadingScope()) {
+    return (
+      <SsoJoinCard
+        pending={null}
+        agreedToTerms={false}
+        onAgreedToTermsChange={noop}
+        onSubmit={noop}
+        onBack={noop}
+        termsUrl={TERMS_URL}
+        privacyPolicyUrl={PRIVACY_POLICY_URL}
+      />
+    );
+  }
+  return <SsoJoinContentLive />;
+}
+
+function SsoJoinContentLive() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -138,22 +151,20 @@ function SsoJoinContent() {
   const mobileLoginOnly = mobileReturn !== null && isMobileAuthLoginOnly();
 
   return (
-    <SsoJoinCardLayout>
-      <SsoJoinCard
-        pending={pending}
-        // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
-        // person is joining an organization that already exists. The label leaves the name out: the
-        // identity row above shows it, and a long one pushed the button past the card.
-        submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
-        termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
-        agreedToTerms={agreedToTerms}
-        onAgreedToTermsChange={setAgreedToTerms}
-        onSubmit={handleSubmit}
-        onBack={handleBack}
-        loading={isNavigating}
-        termsUrl={TERMS_URL}
-        privacyPolicyUrl={PRIVACY_POLICY_URL}
-      />
-    </SsoJoinCardLayout>
+    <SsoJoinCard
+      pending={pending}
+      // "Create Account" and "signing up" are what App Review told us to remove from the app, and the
+      // person is joining an organization that already exists. The label leaves the name out: the
+      // identity row above shows it, and a long one pushed the button past the card.
+      submitLabel={mobileLoginOnly ? 'Join Organization' : undefined}
+      termsSuffix={mobileLoginOnly ? ' by joining.' : undefined}
+      agreedToTerms={agreedToTerms}
+      onAgreedToTermsChange={setAgreedToTerms}
+      onSubmit={handleSubmit}
+      onBack={handleBack}
+      loading={isNavigating}
+      termsUrl={TERMS_URL}
+      privacyPolicyUrl={PRIVACY_POLICY_URL}
+    />
   );
 }

@@ -1,11 +1,11 @@
 'use client';
 
-import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BuildingsIcon, IdCardIcon, MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
+import { NO_ITEMS } from '@/app/components/shared';
 import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
@@ -82,8 +82,8 @@ const STEP_META: readonly StepMeta[] = [
  * Tenant "Initial Setup" block on the Dashboard. Mount gate only: it draws nothing until the onboarding store says
  * setup is ACTIVE (most workspaces finished it, so a loading form in its slot would only vanish again); it is
  * permanently hidden once Initial Setup is complete (a one-time surface). When active, it renders
- * {@link InitialSetupCardContent}, which suspends on its step counts behind {@link InitialSetupCardView} in a
- * `LoadingFallback` (and in a loading scope draws that view), so the whole load shows one loading state, not two.
+ * {@link InitialSetupCardContent} inside its own boundary, which suspends on its step counts while the reader draws
+ * {@link InitialSetupCardView} in the boundary's loading scope, so the whole load shows one loading state, not two.
  */
 export function InitialSetupCard() {
   const inScope = useLoadingScope();
@@ -106,10 +106,17 @@ export function InitialSetupCard() {
   }
 
   return (
-    <GatedSuspense bare gated={inScope} label="Loading setup steps" view={<InitialSetupCardView />}>
-      <InitialSetupCardContent />
-    </GatedSuspense>
+    <LoadingSuspense bare gated={inScope} label="Loading setup steps">
+      <InitialSetupCardReader />
+    </LoadingSuspense>
   );
+}
+
+function InitialSetupCardReader() {
+  // In a loading scope (its boundary's fallback, or an outer loading state) the card draws itself with no data and
+  // runs no read.
+  if (useLoadingScope()) return <InitialSetupCardView />;
+  return <InitialSetupCardContent />;
 }
 
 const NO_DATA_STEPS: ReadonlySet<TenantOnboardingStep> = new Set();

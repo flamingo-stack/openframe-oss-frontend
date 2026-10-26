@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { upgradePlanModalQuery as UpgradePlanModalQueryType } from '@/__generated__/upgradePlanModalQuery.graphql';
@@ -86,27 +87,37 @@ export function UpgradePlanModal({ isOpen, onClose, onUpdated }: UpgradePlanModa
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <p className="text-ods-text-primary text-h4">Choose how you'd like to be billed.</p>
-        {/* The picker draws its own pending state, so the wait shows the real
-            controls rather than a spinner where the plan will be — the same
-            component, with no refs to read yet. */}
-        <LoadingSuspense
-          label="Loading plans"
-          fallback={
-            <DevicePlanPicker
-              productRef={null}
-              subscriptionProductRef={null}
-              onUpdatesChange={noop /* the loading frame reports nothing: no selection to submit yet */}
-            />
-          }
-        >
-          <UpgradePlanBody onUpdatesChange={setUpdates} />
-        </LoadingSuspense>
+        <UpgradePlanBody onUpdatesChange={setUpdates} />
       </div>
     </SimpleModal>
   );
 }
 
+/** The plan picker over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
 function UpgradePlanBody({ onUpdatesChange }: { onUpdatesChange: (updates: ProductUpdates) => void }) {
+  return (
+    <LoadingSuspense label="Loading plans">
+      <UpgradePlanReader onUpdatesChange={onUpdatesChange} />
+    </LoadingSuspense>
+  );
+}
+
+function UpgradePlanReader({ onUpdatesChange }: { onUpdatesChange: (updates: ProductUpdates) => void }) {
+  // The picker draws its own pending state, so the wait shows the real controls rather than a spinner where the plan
+  // will be: the same component, with no refs to read yet, and no read run.
+  if (useLoadingScope()) {
+    return (
+      <DevicePlanPicker
+        productRef={null}
+        subscriptionProductRef={null}
+        onUpdatesChange={noop /* the loading frame reports nothing: no selection to submit yet */}
+      />
+    );
+  }
+  return <UpgradePlanLive onUpdatesChange={onUpdatesChange} />;
+}
+
+function UpgradePlanLive({ onUpdatesChange }: { onUpdatesChange: (updates: ProductUpdates) => void }) {
   const data = useLazyLoadQuery<UpgradePlanModalQueryType>(
     upgradePlanModalQuery,
     {},

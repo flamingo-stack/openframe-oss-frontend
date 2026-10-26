@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
@@ -47,8 +46,8 @@ export function ArchivedArticlesView() {
           filters={filters}
         />
 
-        {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <LoadingSuspense label="Loading archived articles">{rows}</LoadingSuspense>
+        {/* The rows: the table places its own boundary and, before they answer, draws its own loading state. */}
+        {rows}
       </div>
     </PageLayout>
   );

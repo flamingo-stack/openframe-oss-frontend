@@ -1,6 +1,7 @@
 'use client';
 
-import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -33,9 +34,9 @@ const START_FAIL_OPEN_MS = 8_000;
 
 /**
  * The wizard's first screen while its progress is read: static copy, its Continue inert. Rendered in a loading
- * scope by both the page's Suspense fallback and the wizard itself, so the two waits are one screen.
+ * scope both by the wizard's boundary and by the wizard itself, so the two waits are one screen.
  */
-export function SetupWelcomeFrame() {
+function SetupWelcomeFrame() {
   return (
     <SetupFrame step="welcome">
       <WelcomeStep onContinue={noop} />
@@ -51,8 +52,25 @@ export function SetupWelcomeFrame() {
  * itself through the onboarding mutations and the walk ends on "You are ready
  * to go". "Start with Mingo" marks the tenant setup complete, records that the
  * tour has started and leaves for the dashboard with a fresh Mingo chat.
+ *
+ * With its own boundary: in its scope the reader draws the welcome screen. The boundary is the one element between
+ * the bare shell's column and the frame: it has to be a filling column too, or the frame's `flex-1` has nothing to
+ * fill and the welcome screen sits at the top until the wizard loads.
  */
 export function SetupWizard() {
+  return (
+    <LoadingSuspense label="Loading setup" className="flex flex-1 flex-col">
+      <SetupWizardReader />
+    </LoadingSuspense>
+  );
+}
+
+function SetupWizardReader() {
+  if (useLoadingScope()) return <SetupWelcomeFrame />;
+  return <SetupWizardLive />;
+}
+
+function SetupWizardLive() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
   const userId = useAuthStore(state => state.user?.id);

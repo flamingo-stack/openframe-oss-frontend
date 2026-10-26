@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Input,
@@ -53,15 +52,6 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();
 
-  const rows = (
-    <TenantsTable
-      search={deferredSearch}
-      isPending={isPending}
-      onEmptyChange={setIsEmpty}
-      stickyHeaderOffset={stickyHeaderOffset}
-    />
-  );
-
   return (
     // No page padding here: it lives in `TenantPageShell`, around the error boundary.
     <PageLayout
@@ -90,7 +80,12 @@ export function TenantListView({ loading = false }: TenantListViewProps) {
         {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
             itself, in a loading scope, where it draws its own loading state and does not fetch. */}
         <LoadingWhen loading={loading}>
-          <LoadingSuspense label="Loading tenants">{rows}</LoadingSuspense>
+          <TenantsTable
+            search={deferredSearch}
+            isPending={isPending}
+            onEmptyChange={setIsEmpty}
+            stickyHeaderOffset={stickyHeaderOffset}
+          />
         </LoadingWhen>
         {/* Below the list, not above it: most workspaces have no notice, and one that lands after the list would
             push the rows down in the first screen. */}

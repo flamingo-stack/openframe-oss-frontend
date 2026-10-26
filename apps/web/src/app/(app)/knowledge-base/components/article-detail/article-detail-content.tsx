@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -24,10 +25,18 @@ const articleDetailContentQuery = graphql`
 `;
 
 /**
- * Everything on the article page that waits for the article. In a loading scope (the page's Suspense fallback) it
- * draws the page with no article, each part its own loading state, and does not fetch.
+ * Everything on the article page that waits for the article, with its own boundary: in its scope the reader draws the
+ * page with no article, each part its own loading state, and does not fetch.
  */
-export function ArticleDetailContent({ articleId }: { articleId: string }) {
+export function ArticleDetailContent(props: { articleId: string }) {
+  return (
+    <LoadingSuspense live label="Loading article">
+      <ArticleDetailContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ArticleDetailContentReader({ articleId }: { articleId: string }) {
   if (useLoadingScope()) {
     return <ArticleDetail article={null} />;
   }

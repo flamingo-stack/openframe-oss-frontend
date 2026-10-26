@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
@@ -118,6 +119,15 @@ interface ArchivedArticlesTableProps {
  * so it lives under the view's `<Suspense>`.
  */
 export function ArchivedArticlesTable(props: ArchivedArticlesTableProps) {
+  return (
+    <LoadingSuspense label="Loading archived articles">
+      <ArchivedArticlesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function ArchivedArticlesTableReader(props: ArchivedArticlesTableProps) {
   if (useLoadingScope()) {
     return (
       <ArchivedArticlesRows

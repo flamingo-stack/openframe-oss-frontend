@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql } from 'react-relay';
 import type { dataLossModuleRowsIncidentsQuery } from '@/__generated__/dataLossModuleRowsIncidentsQuery.graphql';
@@ -67,11 +67,24 @@ function ModuleRow({ gate, label, children }: { gate: FeatureFlagGate; label: st
   }
   return (
     <ContentErrorBoundary label={label} fallback={() => <></>}>
-      <LoadingSuspense label="Loading what the workspace loses" fallback={<DataLossItem />}>
-        {children}
-      </LoadingSuspense>
+      <ModuleRowCount>{children}</ModuleRowCount>
     </ContentErrorBoundary>
   );
+}
+
+/** A module's count, with its own boundary: in its scope the reader draws its own loading form. */
+function ModuleRowCount({ children }: { children: ReactNode }) {
+  return (
+    <LoadingSuspense label="Loading what the workspace loses">
+      <ModuleRowCountReader>{children}</ModuleRowCountReader>
+    </LoadingSuspense>
+  );
+}
+
+function ModuleRowCountReader({ children }: { children: ReactNode }) {
+  // In a loading scope (its boundary's fallback) it draws the line with no count and runs no read.
+  if (useLoadingScope()) return <DataLossItem />;
+  return <>{children}</>;
 }
 
 function CountRow({ value, children }: { value: number; children: ReactNode }) {
