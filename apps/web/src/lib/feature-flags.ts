@@ -66,6 +66,12 @@ export const FEATURE_FLAG_NAMES = [
   // docked Mingo panel in place of `/onboarding`. Off = the card, the page, the
   // sidebar entry and the coach marks. The tour needs `mingo-v2` on as well.
   'onboarding-v2',
+  // Tester shortcut over the onboarding above: "Skip onboarding (dev)" in the
+  // `/setup` wizard and the Mingo chat menu, plus "Reset Initial Setup (dev)".
+  // Pairs with the backend switch that puts `skipOnboarding` /
+  // `resetTenantOnboarding` into the schema; both exist on dev / qa only, so
+  // the flag is absent elsewhere, which reads as off.
+  'onboarding-skip',
   // "Show All Customers" on Settings → Troubleshooting, over
   // `deviceLogs(organizationIds:)`. The API only matches lines from agents that
   // report their customer, so the control stays hidden until the agents do. On

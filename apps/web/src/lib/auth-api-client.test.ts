@@ -102,6 +102,37 @@ describe('authApiClient.authErrorMessage', () => {
   });
 });
 
+describe('authApiClient.requestDownloadLink', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.localStorage.setItem('of_attr_utm_source', JSON.stringify({ v: 'reddit', t: Date.now() }));
+  });
+
+  it("posts the address, the honeypot and the visit's attribution to the shared host", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 204, headers: { get: () => null }, json: async () => undefined });
+
+    const result = await authApiClient.requestDownloadLink({ email: 'kate@acme.com', website: '' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [requestUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(requestUrl).toBe('https://auth.test/sas/tenant/download-link');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('omit');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    const body = JSON.parse(String(init.body)) as {
+      email: string;
+      website: string;
+      attribution: Record<string, string>;
+    };
+    expect(body.email).toBe('kate@acme.com');
+    expect(body.website).toBe('');
+    expect(body.attribution.utmSource).toBe('reddit');
+    // Not a registration: no event id to pair with Meta's pixel.
+    expect(body.attribution.eventId).toBeUndefined();
+    expect(result).toEqual({ ok: true, status: 204, data: undefined, error: undefined });
+  });
+});
+
 describe('getAuthFailureMessage', () => {
   const accept = () =>
     authApiClient.acceptInvitation({ invitationId: 'inv-1', firstName: 'Ann', lastName: 'Lee', password: 'x' });
