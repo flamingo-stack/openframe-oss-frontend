@@ -1,7 +1,7 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { SuperUserBannerView } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { SuperUserBannerView, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Component, type ReactNode } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { superUserBannerQuery as SuperUserBannerQueryType } from '@/__generated__/superUserBannerQuery.graphql';
@@ -42,7 +42,21 @@ function hostLabel(): string | undefined {
   return environmentLabel(hostname);
 }
 
+/** The strip over its tenant name, with its own boundary: in its scope the reader draws the strip loading. */
 function SuperUserBannerContent() {
+  return (
+    <LoadingSuspense label="Loading tenant" className="contents">
+      <SuperUserBannerContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function SuperUserBannerContentReader() {
+  if (useLoadingScope()) return <SuperUserBannerView loading tenantName="" environmentLabel={hostLabel()} />;
+  return <SuperUserBannerContentLive />;
+}
+
+function SuperUserBannerContentLive() {
   const data = useLazyLoadQuery<SuperUserBannerQueryType>(
     superUserBannerQuery,
     {},
@@ -57,8 +71,8 @@ function SuperUserBannerContent() {
 }
 
 /**
- * The name arriving a beat late must not cost the strip itself: the Suspense
- * fallback is the same strip in its loading form (the name a bar), and a failed
+ * The name arriving a beat late must not cost the strip itself: in its boundary's
+ * scope it is the same strip in its loading form (the name a bar), and a failed
  * lookup keeps the strip with the name blank instead of unmounting the shell
  * around it.
  */
@@ -91,13 +105,7 @@ export function SuperUserBanner() {
 
   return (
     <SuperUserBannerBoundary>
-      <LoadingSuspense
-        label="Loading tenant"
-        className="contents"
-        fallback={<SuperUserBannerView loading tenantName="" environmentLabel={hostLabel()} />}
-      >
-        <SuperUserBannerContent />
-      </LoadingSuspense>
+      <SuperUserBannerContent />
     </SuperUserBannerBoundary>
   );
 }

@@ -67,12 +67,23 @@ export function BundleDevicePicker({
         <ThrowError error={createError} />
       ) : (
         <LoadingWhen loading={!bundleId}>
-          <LoadingSuspense label="Loading devices">
-            <BundleDevicePickerLists bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
-          </LoadingSuspense>
+          <BundleDevicePickerBody bundleId={bundleId ?? ''} scope={scope} isDeviceDisabled={isDeviceDisabled} />
         </LoadingWhen>
       )}
     </ContentErrorBoundary>
+  );
+}
+
+type BundleDevicePickerListsProps = Omit<BundleDevicePickerProps, 'bundleId' | 'createError' | 'onRetryCreate'> & {
+  bundleId: string;
+};
+
+/** The picker, with its own boundary: in its scope the lists draw their own loading form. */
+function BundleDevicePickerBody(props: BundleDevicePickerListsProps) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <BundleDevicePickerLists {...props} />
+    </LoadingSuspense>
   );
 }
 
@@ -81,11 +92,7 @@ export function BundleDevicePicker({
  * +/− commits as it is clicked, so there is nothing to collect for submit; the
  * bundle IS the selection.
  */
-function BundleDevicePickerLists({
-  bundleId,
-  scope,
-  isDeviceDisabled,
-}: Omit<BundleDevicePickerProps, 'bundleId' | 'createError' | 'onRetryCreate'> & { bundleId: string }) {
+function BundleDevicePickerLists({ bundleId, scope, isDeviceDisabled }: BundleDevicePickerListsProps) {
   const [activeTab, setActiveTab] = useState<SubTab>('available');
   const [search, setSearch] = useState('');
   const [narrowing, setNarrowing] = useState<DeviceSelectorNarrowing>(EMPTY_NARROWING);

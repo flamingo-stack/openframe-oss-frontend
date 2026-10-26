@@ -52,7 +52,22 @@ interface LogDrawerDetailsContentProps {
   fallback: string;
 }
 
-function LogDrawerDetailsContent({ variables, fallback }: LogDrawerDetailsContentProps) {
+/** The log's details, with its own boundary: in its scope the reader draws its own loading form. */
+function LogDrawerDetailsContent(props: LogDrawerDetailsContentProps) {
+  return (
+    <LoadingSuspense label="Loading log details">
+      <LogDrawerDetailsContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function LogDrawerDetailsContentReader(props: LogDrawerDetailsContentProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <LogDrawerDetailsText />;
+  return <LogDrawerDetailsContentLive {...props} />;
+}
+
+function LogDrawerDetailsContentLive({ variables, fallback }: LogDrawerDetailsContentProps) {
   const data = useLazyLoadQuery<LogDrawerDetailsQueryType>(logDrawerDetailsQuery, variables, {
     fetchPolicy: 'store-or-network',
   });
@@ -112,12 +127,10 @@ export function LogDrawerDetails({ log, fallback }: LogDrawerDetailsProps) {
         })
       }
     >
-      <LoadingSuspense label="Loading log details" fallback={<LogDrawerDetailsText />}>
-        <LogDrawerDetailsContent
-          variables={{ toolEventId, ingestDay, toolType, eventType, timestamp }}
-          fallback={fallback}
-        />
-      </LoadingSuspense>
+      <LogDrawerDetailsContent
+        variables={{ toolEventId, ingestDay, toolType, eventType, timestamp }}
+        fallback={fallback}
+      />
     </LogDrawerDetailsErrorBoundary>
   );
 }

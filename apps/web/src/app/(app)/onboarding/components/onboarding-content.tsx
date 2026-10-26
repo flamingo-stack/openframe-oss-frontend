@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CheckCircleIcon, FastForwardIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigateSamePageHash } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -13,7 +14,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { NO_ITEMS, GatedSuspense } from '@/app/components/shared';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { noop } from '@/app/components/shared/no-next-page';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
@@ -132,10 +133,17 @@ export function OnboardingContent() {
   // The step bodies stay mounted while collapsed, and some of them suspend on their own
   // reads: the page keeps its header and rows meanwhile.
   return (
-    <GatedSuspense bare gated={pending} label="Loading onboarding" view={<OnboardingView />}>
-      <LoadedOnboardingContent />
-    </GatedSuspense>
+    <LoadingSuspense bare gated={pending} label="Loading onboarding">
+      <OnboardingContentReader />
+    </LoadingSuspense>
   );
+}
+
+function OnboardingContentReader() {
+  // In a loading scope (its boundary's fallback, or an outer loading state) the page draws itself with no data and
+  // runs no read.
+  if (useLoadingScope()) return <OnboardingView />;
+  return <LoadedOnboardingContent />;
 }
 
 /** Re-reads on back/forward and on the synthetic `hashchange` that `navigateSamePageHash` fires for our own writes. */

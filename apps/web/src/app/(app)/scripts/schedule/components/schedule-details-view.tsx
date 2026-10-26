@@ -19,7 +19,7 @@ import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import { LiveSuspense, NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -45,13 +45,28 @@ interface ScheduleDetailsViewProps {
 }
 
 /**
- * The header island: the title, the "Archived" tag and the ACTION SET are all
- * the record's own answer, so this is what waits for it.
+ * The header island, with its own boundary: the title, the "Archived" tag and
+ * the ACTION SET are all the record's own answer, so this is what waits for it.
+ * In its scope the reader draws the header with no record.
  *
  * A missing schedule keeps the Back button and drops everything else — the way
  * out has to survive a bad id, and the timing bar below reports the miss once.
  */
 function ScheduleHeader({ scheduleId }: ScheduleDetailsViewProps) {
+  return (
+    <LoadingSuspense live label="Loading the schedule">
+      <ScheduleHeaderReader scheduleId={scheduleId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleHeaderReader({ scheduleId }: ScheduleDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleHeaderView scheduleId={scheduleId} />;
+  return <ScheduleHeaderLive scheduleId={scheduleId} />;
+}
+
+function ScheduleHeaderLive({ scheduleId }: ScheduleDetailsViewProps) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScheduleDetailQueryType>(
     scriptScheduleDetailRelayQuery,
@@ -170,7 +185,8 @@ function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps &
 }
 
 /**
- * The timing bar island. Reads the SAME query as the header with the same
+ * The timing bar island, with its own boundary (the reader draws the bar's
+ * skeleton in its scope). Reads the SAME query as the header with the same
  * variables, so Relay dedupes them into one request and both render from the
  * store afterwards.
  *
@@ -179,6 +195,22 @@ function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps &
  * page says it once.
  */
 function ScheduleInfoBar({ scheduleId }: ScheduleDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading schedule details">
+      <ScheduleInfoBarReader scheduleId={scheduleId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScheduleInfoBarReader({ scheduleId }: ScheduleDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) {
+    return <ScheduleInfoBarFromData date="" time="" repeat="" platforms={NO_ITEMS} addedBy="" ifDeviceOffline="" />;
+  }
+  return <ScheduleInfoBarLive scheduleId={scheduleId} />;
+}
+
+function ScheduleInfoBarLive({ scheduleId }: ScheduleDetailsViewProps) {
   // Shares the header's key deliberately. NOT for network dedupe — that is keyed
   // on `operation.request.identifier` (`loadQuery.js`), which does not contain
   // `fetchKey`, so mismatched keys still share one in-flight request. The reason
@@ -301,19 +333,10 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LiveSuspense label="Loading the schedule" view={<ScheduleHeaderView scheduleId={scheduleId} />}>
-        <ScheduleHeader scheduleId={scheduleId} />
-      </LiveSuspense>
+      <ScheduleHeader scheduleId={scheduleId} />
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <LoadingSuspense
-          label="Loading schedule details"
-          fallback={
-            <ScheduleInfoBarFromData date="" time="" repeat="" platforms={NO_ITEMS} addedBy="" ifDeviceOffline="" />
-          }
-        >
-          <ScheduleInfoBar scheduleId={scheduleId} />
-        </LoadingSuspense>
+        <ScheduleInfoBar scheduleId={scheduleId} />
 
         {/* The strip's own island — WHICH tabs exist is the schedule's answer
             (no Schedule Runs on an event-driven one). Its fallback is the same
@@ -321,6 +344,7 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
             included, so a link into the Runs tab keeps its tab through the wait),
             a working tab bar instead of a placeholder, and the bodies below go on
             loading under it. */}
+        {/* loading-standard-ok(RAW_SUSPENSE): the fallback is the live strip; a loading scope would stop its bodies */}
         <Suspense fallback={<ScheduleTabs scheduleId={scheduleId} tabs={SCHEDULE_DETAIL_TABS} />}>
           <ScheduleTabsIsland scheduleId={scheduleId} />
         </Suspense>
