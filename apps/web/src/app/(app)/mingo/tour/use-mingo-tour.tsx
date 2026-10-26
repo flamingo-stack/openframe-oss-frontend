@@ -129,18 +129,15 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
         return false;
       }
       // The block shows in the tour's conversation only, so this lands there.
-      // A prompt about the first device names it by its mention, and a chip
-      // about it opens that device's page; "my device" and the section stand
-      // in while there is no device to name (or the read fails).
+      // A prompt about the first device names it by its mention; "my device"
+      // stands in while there is no device to name (or the read fails). The
+      // chip opens its section beside the chat.
       // The step is done once the prompt is in the conversation: a refused
       // or failed send leaves it to try again.
-      const { deviceHref } = action;
+      router.push(action.href);
       void fetchFirstDevice(environment)
         .catch(() => null)
-        .then(device => {
-          router.push(deviceHref && device?.machineId ? deviceHref(device.machineId) : action.href);
-          return sendMessage(tourPrompt(action, device));
-        })
+        .then(device => sendMessage(tourPrompt(action, device)))
         .then(sent => {
           if (sent === false) return;
           if (!(serverSteps?.includes(step.userStep) ?? false)) completeUserStepInBackground(step.userStep);

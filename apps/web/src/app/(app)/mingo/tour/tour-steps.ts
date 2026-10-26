@@ -47,11 +47,6 @@ export interface TourAction {
   prompt: string | ((device: string) => string);
   /** The section the chip opens beside the chat. */
   href: string;
-  /**
-   * Where the chip opens instead when the workspace's first device is known:
-   * its page, by `machineId`. `href` is the fallback without one.
-   */
-  deviceHref?: (machineId: string) => string;
   Icon: IconComponent;
 }
 
@@ -212,7 +207,6 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Errors since install',
           prompt: device => `Show any errors or warnings the agent logged on ${device} since it was installed.`,
           href: routes.logs.page,
-          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: AlertCircleIcon,
         },
         {
@@ -220,7 +214,6 @@ export function tourSteps({ softwareManagement }: TourStepOptions): readonly Tou
           label: 'Search the logs',
           prompt: device => `Search the logs of ${device} for "failed" in the last 24 hours and group what you find.`,
           href: routes.logs.page,
-          deviceHref: machineId => routes.devices.details(machineId, { tab: 'device-logs' }),
           Icon: SearchIcon,
         },
       ],
