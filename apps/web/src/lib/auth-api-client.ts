@@ -11,6 +11,7 @@ import { isAppShell } from './platform';
 import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
+  collectTouchpoint,
   normalizeAttribution,
   type Touchpoint,
 } from './registration-attribution';
@@ -195,6 +196,21 @@ class AuthApiClient {
   discoverTenants<T = unknown>(email: string) {
     const path = `/sas/tenant/discover?email=${encodeURIComponent(email)}`;
     return requestPublic<T>(path, { method: 'GET' });
+  }
+
+  /**
+   * "Send me download link": the backend emails the installer links, each carrying a download id
+   * recorded with this visit's attribution. It answers 204 whatever it decided about the address,
+   * so a caller shows "sent" on any success. `website` is the page's honeypot, sent as it holds:
+   * a filled one makes the request a no-op on the server.
+   */
+  requestDownloadLink(payload: { email: string; website: string }) {
+    const attribution = collectTouchpoint();
+    return requestPublic('/sas/tenant/download-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ...(attribution ? { attribution } : {}) }),
+    });
   }
 
   /**
