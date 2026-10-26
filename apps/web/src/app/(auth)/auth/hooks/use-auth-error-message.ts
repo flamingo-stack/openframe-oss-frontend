@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { authApiClient } from '@/lib/auth-api-client';
+import { isAuthErrorRef } from '@/lib/mobile-auth-return';
 
 /**
  * What the error page shows when it has nothing better: no `ref`, a `ref` that is not a reference,
@@ -10,19 +11,6 @@ export const AUTH_ERROR_FALLBACK = {
   title: 'Oops, Something Went Wrong',
   description: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
 } as const;
-
-/**
- * The shape of a reference the auth server hands out: an `AuthErrorCode` name (`SSO_SESSION_EXPIRED`)
- * or an 8-character stored-message key (`7KQ2M9XD`). Both are identifiers, never a sentence, so a
- * value with a space, lowercase or punctuation is not something the server produced and is not worth a
- * round trip. This is a filter, not the safety boundary: the server resolves anything it does not know
- * to its generic entry, and the page renders only what the server returns either way.
- */
-const REFERENCE_SHAPE = /^[A-Z0-9_]{1,64}$/;
-
-export function isAuthErrorRef(value: string | null | undefined): value is string {
-  return typeof value === 'string' && REFERENCE_SHAPE.test(value);
-}
 
 export const authErrorMessageQueryKey = (ref: string) => ['auth-error-message', ref] as const;
 

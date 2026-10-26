@@ -269,6 +269,12 @@ export const routes = {
      * session and takes the Terms consent; nothing travels in the URL.
      */
     ssoJoin: '/auth/sso-join',
+    /**
+     * The browser end of a desktop sign-in, on the shared host: the gateway sends the outcome here in
+     * the fragment, and the page shows it and hands it to the app's scheme. Its absolute address is
+     * built by `desktopAuthReturnTarget`, which must match the gateway allow-list entry exactly.
+     */
+    desktopReturn: '/auth/desktop-return',
   },
 
   customers: {
