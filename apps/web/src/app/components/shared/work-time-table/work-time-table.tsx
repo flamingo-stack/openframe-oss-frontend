@@ -40,7 +40,7 @@ import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
-import { EmptyState } from '@/app/components/shared/empty-state';
+import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { deleteTimeEntryMutation } from '@/graphql/time-tracker/delete-time-entry-mutation';
 import {
@@ -485,7 +485,7 @@ function WorkTimeTableView({
           stickyHeader={false}
           itemName="result"
           totalCount={totalCount}
-          emptyState={{ title: 'No work time entries for this period.' }}
+          emptyState={oneLineEmptyState('No work time entries for this period.')}
           footer={infiniteScroll}
           loadingCells={loading}
         />

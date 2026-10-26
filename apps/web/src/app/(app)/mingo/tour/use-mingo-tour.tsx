@@ -42,10 +42,10 @@ export interface MingoTour {
  * panel then shows, it creates the "Welcome to OpenFrame" conversation, opens
  * it and records it on the server (`userOnboardingProgress.tourDialogId`), so
  * every device of this user finds the same conversation. In it Mingo's
- * greeting heads the thread (a local message, re-added on every load) and the
- * Getting Started block sits above the composer. A chip sends its prompt
- * there, opens its section beside the chat and marks its step done on the
- * server. "Finish tour" completes the user's onboarding, which takes the block
+ * greeting heads the thread (a local message, re-added on every load, and kept
+ * once the tour is over) and the Getting Started block sits above the composer.
+ * A chip sends its prompt there, opens its section beside the chat and marks
+ * its step done on the server. "Finish tour" completes the user's onboarding, which takes the block
  * away.
  */
 export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTourInput): MingoTour {
@@ -56,7 +56,7 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const firstName = useAuthStore(s => s.user?.firstName);
   const userId = useAuthStore(s => s.user?.id);
   const user = useOnboardingStore(s => s.user);
-  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground } =
+  const { completeUserStepInBackground, completeUserInBackground, setTourDialogInBackground, skipUserInBackground } =
     useOnboardingMutations();
 
   // The tour is on while the user's onboarding is neither finished nor skipped
@@ -117,7 +117,9 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   const handleAction = useCallback(
     (step: TourStep, action: TourAction): boolean => {
       // While Mingo is answering, the chat refuses a send; the step is not
-      // done then, and the block stays where it is.
+      // done then, and the block stays where it is. The block disables its
+      // chips meanwhile (`busy`), so this only catches a click that lands
+      // before that render.
       if (isLoading) {
         toast({
           title: 'Mingo is busy',
@@ -152,6 +154,13 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
 
   const showing = dialogId !== null && activeDialogId === dialogId;
 
+  // The conversation Mingo greeted in keeps the greeting after the tour, finished
+  // or skipped: the server keeps it recorded, and the greeting is a local message,
+  // so without it a tour that ended before a chip was used - archiving the
+  // conversation skips the tour - leaves it empty once it is unarchived.
+  const greetedDialogId = createdDialogId ?? user?.tourDialogId ?? null;
+  const greeted = greetedDialogId !== null && activeDialogId === greetedDialogId;
+
   // When the tour began, for the greeting's timestamp: the handoff marker on
   // the device that pressed "Start with Mingo"; elsewhere the first time this
   // panel showed the conversation.
@@ -161,24 +170,41 @@ export function useMingoTour({ state, createNamedDialog, dialogError }: MingoTou
   // The greeting heads the thread once all of it is loaded: with older pages
   // still to come it would land mid-conversation.
   const greeting = useMemo<ChatMessage | null>(() => {
-    if (!showing || hasMoreMessages) return null;
+    if (!greeted || hasMoreMessages) return null;
     return {
-      id: `tour-greeting-${dialogId}`,
+      id: `tour-greeting-${greetedDialogId}`,
       role: 'assistant',
       content: tourGreeting(firstName),
       timestamp: startedAt,
     };
-  }, [showing, hasMoreMessages, startedAt, dialogId, firstName]);
+  }, [greeted, hasMoreMessages, startedAt, greetedDialogId, firstName]);
 
-  const decoratedState = useMemo<UnifiedChatState>(
-    () => (greeting ? { ...state, messages: [greeting, ...messages] } : state),
-    [state, greeting, messages],
-  );
+  // Archiving the tour's conversation while the tour is on sets the tour
+  // aside: it is skipped once the archive lands, so "Reset Onboarding" can
+  // bring it back instead of leaving it out of sight and unfinished.
+  const { archiveDialog } = state;
+  const decoratedState = useMemo<UnifiedChatState>(() => {
+    const withGreeting = greeting ? { ...state, messages: [greeting, ...messages] } : state;
+    if (!dialogId) return withGreeting;
+    return {
+      ...withGreeting,
+      archiveDialog: async (id: string) => {
+        await archiveDialog(id);
+        if (id === dialogId) skipUserInBackground();
+      },
+    };
+  }, [state, greeting, messages, dialogId, archiveDialog, skipUserInBackground]);
 
   return {
     state: decoratedState,
     aboveComposer: showing ? (
-      <GettingStartedBlock steps={steps} doneStepIds={doneStepIds} onAction={handleAction} onFinish={handleFinish} />
+      <GettingStartedBlock
+        steps={steps}
+        doneStepIds={doneStepIds}
+        onAction={handleAction}
+        onFinish={handleFinish}
+        busy={isLoading}
+      />
     ) : null,
   };
 }

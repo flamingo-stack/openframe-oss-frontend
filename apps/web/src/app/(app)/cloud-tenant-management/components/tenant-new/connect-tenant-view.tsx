@@ -1,14 +1,13 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-
+import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { ConnectTenantContent } from './connect-tenant-content';
 
 /** `/cloud-tenant-management/new?id=`: the record Generate created, its consent hand-off below. */
 export function ConnectTenantView({ id }: { id: string }) {
   return (
-    <LoadingSuspense label="Loading tenant form">
+    <LiveSuspense label="Loading tenant form">
       <ConnectTenantContent id={id} />
-    </LoadingSuspense>
+    </LiveSuspense>
   );
 }

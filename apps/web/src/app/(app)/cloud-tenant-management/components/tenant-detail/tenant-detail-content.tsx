@@ -2,6 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
+  LoadingScope,
   NotFoundError,
   type PageActionButton,
   useLoadingScope,
@@ -63,11 +64,11 @@ export function TenantDetailContent(props: TenantDetailContentProps) {
     return (
       <>
         <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
-        <div className={BODY_CLASS}>
+        <LoadingScope className={BODY_CLASS}>
           <TenantSummaryCard connection={null} />
           {/* The connected tenant's section: most records on this page are connected. */}
           <TenantIntegrationSection id={props.id} provider={null} />
-        </div>
+        </LoadingScope>
       </>
     );
   }

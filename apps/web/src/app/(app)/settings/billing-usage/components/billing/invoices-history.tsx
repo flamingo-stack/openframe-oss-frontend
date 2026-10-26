@@ -93,7 +93,11 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       </div>
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
+        <DataTable.Header
+          rightSlot={<DataTable.RowCount loading={loading} />}
+          sort={sortState}
+          onSortChange={handleSortChange}
+        />
         <DataTable.Body
           loading={loading}
           loadingCells={loading}

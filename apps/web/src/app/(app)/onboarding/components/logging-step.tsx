@@ -21,6 +21,7 @@ import {
 import { normalizeToolTypeWithFallback } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
+import { oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDateTime } from '@/lib/format-date';
@@ -173,7 +174,11 @@ export function LoggingStep({
         cell: ({ row }: { row: Row<LogRow> }) => (
           <div className="shrink-0">
             {/* A placeholder row (the table's loading form) has no status: the tag draws its loading form. */}
-            <Tag label={row.original.status?.label} variant={row.original.status?.variant} />
+            <Tag
+              label={row.original.status?.label}
+              variant={row.original.status?.variant}
+              loading={!row.original.status}
+            />
           </div>
         ),
       },
@@ -237,12 +242,12 @@ export function LoggingStep({
       <p className="text-ods-text-primary text-h4">Here's what activity looks like once things start happening:</p>
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} />
+        <DataTable.Header rightSlot={<DataTable.RowCount loading={isLoading} />} />
         <DataTable.Body
           loading={isLoading}
           loadingCells={isLoading}
           skeletonRows={LOG_PREVIEW_LIMIT}
-          emptyState={{ title: 'No activity yet. Actions across your workspace will show up here.' }}
+          emptyState={oneLineEmptyState('No activity yet. Actions across your workspace will show up here.')}
           rowClassName="mb-1"
         />
       </DataTable>

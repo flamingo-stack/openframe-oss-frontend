@@ -39,23 +39,35 @@ export function PaywallDescription({
  *
  * The title comes from the subscription status, which the app shell has already
  * resolved, so it is complete on the first paint. The second line names the
- * fleet the plan is for once billing has counted it (`PaywallDescription`).
+ * fleet the plan is for once billing has counted it (`PaywallSubtitle`).
  *
  * The "…" menu on the title row is this screen's copy of the exits the other
  * lock screens spell out as a button row (`LockScreenActionsMenu`). It sits
  * where every other page in the app puts its header actions, which is also the
  * only place on THIS page that does not compete with "Proceed to Payment".
- * Rendered unconditionally: none of the three depends on billing data, so they
- * are there while the prices are still loading — which is exactly when a user
- * who cannot pay wants them.
+ * None of the three depends on billing data, so they are there while the prices
+ * are still loading — which is exactly when a user who cannot pay wants them.
+ * That is why this row renders ABOVE the page's Suspense boundary, as the
+ * unpaid-invoices screen renders its actions: outside the boundary's loading
+ * scope (which locks an actions menu), and with the support and delete-account
+ * dialogs the menu owns kept open when the boundary resolves.
  */
-export function PaywallHeader({ copy, deviceCount = null, loading }: PaywallHeaderProps) {
+export function PaywallTitle({ copy }: { copy: PaywallCopy }) {
   return (
-    <div className="flex flex-col gap-2 pt-6">
-      <div className="flex items-start justify-between gap-[var(--spacing-system-mf)]">
-        <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
-        <LockScreenActionsMenu triggerClassName="shrink-0" />
-      </div>
+    <div className="flex items-start justify-between gap-[var(--spacing-system-mf)] pt-6">
+      <h1 className="text-ods-text-primary text-h2">{copy.title}</h1>
+      <LockScreenActionsMenu triggerClassName="shrink-0" />
+    </div>
+  );
+}
+
+/**
+ * The title's second line, drawn from inside the boundary (it needs billing's device count). The page column's gap
+ * between the two is taken back and the heading's own 8px restored, so it sits where it did when the two were one block.
+ */
+export function PaywallSubtitle({ copy, deviceCount = null, loading }: PaywallHeaderProps) {
+  return (
+    <div className="-mt-[var(--spacing-system-l)] pt-[var(--spacing-system-xsf)]">
       <PaywallDescription copy={copy} deviceCount={deviceCount} loading={loading} lines={PAGE_DESCRIPTION_LINES} />
     </div>
   );

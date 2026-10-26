@@ -19,7 +19,7 @@ import { memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { scheduleTriggerRelayQuery as ScheduleTriggerQueryType } from '@/__generated__/scheduleTriggerRelayQuery.graphql';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
-import { NO_ITEMS, useRetryKey } from '@/app/components/shared';
+import { LiveSuspense, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { scheduleTriggerRelayQuery } from '@/graphql/scripts/schedule-trigger-relay';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -301,9 +301,9 @@ export const ScheduleDetailsView = memo(function ScheduleDetailsViewImpl({ sched
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LoadingSuspense label="Loading the schedule" fallback={<ScheduleHeaderView scheduleId={scheduleId} />}>
+      <LiveSuspense label="Loading the schedule" view={<ScheduleHeaderView scheduleId={scheduleId} />}>
         <ScheduleHeader scheduleId={scheduleId} />
-      </LoadingSuspense>
+      </LiveSuspense>
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
         <LoadingSuspense

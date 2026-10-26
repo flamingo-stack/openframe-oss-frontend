@@ -5,23 +5,30 @@ import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-muta
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
- * Whether there is a finished Get Started tour to replay: progress has loaded
- * and the user completed or skipped it. While the tour is still in progress it
- * is already on screen, so there is nothing to reset.
+ * Whether there is a Get Started tour to replay: progress has loaded and the
+ * user completed or skipped it, or started it (its conversation is recorded).
+ * A tour in progress is offered too: its conversation is an ordinary chat that
+ * can be archived out of sight, and this is the way back from there.
  */
 export function useCanResetOnboarding(): boolean {
   const progress = useOnboardingStore(state => state.user);
   const loaded = useOnboardingStore(state => state.isLoaded);
-  return loaded && !!(progress?.completed || progress?.skipped);
+  return loaded && !!(progress?.completed || progress?.skipped || progress?.tourDialogId);
 }
 
 interface ResetOnboardingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * The reset landed. The tour starts over from the setup wizard's "Start
+   * with Mingo", which only the dashboard redirects to by itself: a host
+   * offering this away from the dashboard takes the user there.
+   */
+  onReset?: () => void;
 }
 
 /** Confirms "Reset Onboarding" and replays the user's Get Started tour. */
-export function ResetOnboardingDialog({ open, onOpenChange }: ResetOnboardingDialogProps) {
+export function ResetOnboardingDialog({ open, onOpenChange, onReset }: ResetOnboardingDialogProps) {
   const { resetUser, isMutating } = useOnboardingMutations();
   return (
     <ConfirmDialog
@@ -33,7 +40,12 @@ export function ResetOnboardingDialog({ open, onOpenChange }: ResetOnboardingDia
       cancelLabel="Cancel"
       variant="warning"
       isPending={isMutating}
-      onConfirm={() => resetUser(() => onOpenChange(false))}
+      onConfirm={() =>
+        resetUser(() => {
+          onOpenChange(false);
+          onReset?.();
+        })
+      }
     />
   );
 }

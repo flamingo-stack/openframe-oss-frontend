@@ -26,6 +26,7 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -137,9 +138,11 @@ function buildColumns(): ColumnDef<SoftwareDeviceRow>[] {
     },
     {
       id: SOFTWARE_DEVICE_COLUMNS.open.id,
-      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => (
-        <OpenRowButton label="Open device in new tab" onClick={openInNewTab(deviceHref(row.original) ?? '')} />
-      ),
+      cell: ({ row }: { row: Row<SoftwareDeviceRow> }) => {
+        // A loading placeholder row (or a device with no address) has nothing to open: the button is inert.
+        const href = deviceHref(row.original);
+        return <OpenRowButton label="Open device in new tab" onClick={openInNewTab(href ?? '')} disabled={!href} />;
+      },
       enableSorting: false,
       meta: liveColumnMeta(SOFTWARE_DEVICE_COLUMNS.open),
     },
@@ -299,11 +302,11 @@ function SoftwareDevicesTableRows({
       sort={sortState}
       onSortChange={onSortChange}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={oneLineEmptyState(
+        debouncedSearch
           ? `No devices found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No devices with the selected status. Try adjusting your filter.',
-      }}
+      )}
       rowHref={deviceHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}
