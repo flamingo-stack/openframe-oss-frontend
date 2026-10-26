@@ -6,6 +6,7 @@ import {
   type InfoSectionRow,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantIntegrationSectionQuery as TenantIntegrationSectionQueryType } from '@/__generated__/tenantIntegrationSectionQuery.graphql';
 import { useRetryKey } from '@/app/components/shared';
@@ -34,15 +35,27 @@ const tenantIntegrationSectionQuery = graphql`
   }
 `;
 
-/** A right-aligned value that may take several lines — `InfoSection`'s text values truncate. */
-function MultiLineValue({ lines }: { lines: readonly string[] }) {
+/** A break opportunity after every dot and at sign: a domain or an address wraps between its parts, not mid-word. */
+function breakAtParts(text: string): ReactNode[] {
+  return text.split(/(?<=[.@])/).flatMap((part, index) => (index === 0 ? [part] : [<wbr key={index} />, part]));
+}
+
+/**
+ * A right-aligned value, one line per entry, that wraps where it does not fit: `InfoSection`'s text values truncate,
+ * and the full text is then only a hover away, never on a phone. Ten-plus scopes must wrap too (Figma comment #109).
+ */
+function WrappingValue({ lines }: { lines: readonly string[] }) {
   return (
-    <div className="flex flex-col items-end text-right text-ods-text-primary text-h4">
+    <div className="flex flex-col items-end text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
       {lines.map(line => (
-        <span key={line}>{line}</span>
+        <span key={line}>{breakAtParts(line)}</span>
       ))}
     </div>
   );
+}
+
+function wrapping(...lines: string[]): InfoSectionRow['value'] {
+  return { type: 'custom', content: <WrappingValue lines={lines} /> };
 }
 
 interface TenantIntegrationSectionProps {
@@ -71,35 +84,23 @@ function integrationRows(data: IntegrationData | null, provider: string | null):
   const read = (value: () => InfoSectionRow['value']): InfoSectionRow['value'] => (data ? value() : NOT_READ);
 
   return [
-    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: read(() => ({ text: primaryDomain })) },
-    { id: 'directory-id', label: directoryIdLabel, value: read(() => ({ text: data?.directoryId ?? EMPTY_VALUE })) },
+    { id: 'primary-domain', label: INTEGRATION_LABELS.primaryDomain, value: read(() => wrapping(primaryDomain)) },
+    { id: 'directory-id', label: directoryIdLabel, value: read(() => wrapping(data?.directoryId ?? EMPTY_VALUE)) },
     {
       id: 'granted-by',
       label: INTEGRATION_LABELS.grantedBy,
-      value: read(() => ({ text: data?.grantedBy ?? EMPTY_VALUE })),
+      value: read(() => wrapping(data?.grantedBy ?? EMPTY_VALUE)),
     },
     {
       id: 'scopes',
       label: INTEGRATION_LABELS.scopes,
-      // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
-      value: read(() => ({
-        type: 'custom',
-        content: (
-          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
-            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
-          </span>
-        ),
-      })),
+      value: read(() => wrapping(scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE)),
     },
-    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: read(() => ({ text: authorisedBy })) },
+    { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: read(() => wrapping(authorisedBy)) },
     {
       id: 'domains',
       label: INTEGRATION_LABELS.domains,
-      value: read(() =>
-        domainNames.length > 1
-          ? { type: 'custom', content: <MultiLineValue lines={domainNames} /> }
-          : { text: domainNames[0] ?? primaryDomain },
-      ),
+      value: read(() => wrapping(...(domainNames.length > 0 ? domainNames : [primaryDomain]))),
     },
   ];
 }
