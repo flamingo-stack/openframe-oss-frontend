@@ -37,7 +37,7 @@
     "check:loading": "node scripts/check-page-skeletons.mjs"
   },
   "dependencies": {
-    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/autocomplete": "6.20.4",
     "@codemirror/commands": "6.11.0",
     "@codemirror/lang-javascript": "6.2.5",
     "@codemirror/lang-python": "6.2.1",
