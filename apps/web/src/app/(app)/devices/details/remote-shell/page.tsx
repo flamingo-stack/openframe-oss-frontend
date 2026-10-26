@@ -136,12 +136,10 @@ function RemoteShellSession() {
       // without the window changing size.
       const resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(container);
-      const disposeResize = term.onResize(() => handleResize);
       const disposeData = term.onData((d: string) => tunnelRef.current?.sendBinary(new TextEncoder().encode(d)));
 
       cleanupRef.current = () => {
         resizeObserver.disconnect();
-        disposeResize.dispose();
         disposeData.dispose();
         tunnelRef.current?.stop();
         term.dispose();
