@@ -219,7 +219,7 @@ test('the first arrival wins: a later page load does not replace the visit', () 
   });
 });
 
-// "Direct" names no channel, so the first arrival that does name one replaces it — as a whole
+// "Direct" names no channel, so the first arrival that does name one replaces it, as a whole
 // pair, never its referrer next to the direct visit's landing page.
 test('a direct visit gives way to the first later arrival with a referrer', () => {
   A.captureAttributionFromUrl(); // direct, on /auth/

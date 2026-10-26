@@ -10,7 +10,7 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
 
 /**
  * Marketing-attribution signals collected at registration time, shaped to match the backend
- * `Touchpoint` DTO — field names here must stay in sync with that Java class.
+ * `Touchpoint` DTO: field names here must stay in sync with that Java class.
  *
  * Three different lifetimes are at play, which is why this file has both a capture step and a
  * collect step:
@@ -31,7 +31,7 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *
  * - **The visit** (`referrer`, `landingUrl`) is where the visitor came from and the first page
  *   they saw, kept as a pair from the page load they *arrived* on, first touch, in the same
- *   90-day localStorage — except that a direct visit (no referrer) gives way to the first later
+ *   90-day localStorage, except that a direct visit (no referrer) gives way to the first later
  *   arrival that has one, since "direct" names no channel. Both are reduced to `origin + pathname` (`sanitizeLandingUrl`): a raw
  *   URL can carry tokens and email addresses, and this one goes to HubSpot. A visit handed over
  *   by the marketing site (`?referrer=…&landing_url=…`) is the one it saw, so it beats this
@@ -140,7 +140,7 @@ const VISIT_URL_MAX_LENGTH = 2048;
 
 /**
  * Sign-in pages of the SSO providers. A page load whose referrer is one of them is the end of a
- * sign-in, not a visit — and `accounts.google.com` would read as organic search.
+ * sign-in, not a visit, and `accounts.google.com` would read as organic search.
  */
 const SIGN_IN_HOSTS = new Set([
   'accounts.google.com',
@@ -309,7 +309,7 @@ function readStoredVisit(): Visit | undefined {
 /**
  * The visit that counts: the stored one, unless it was direct and this page load arrived from a
  * source. A direct visit says nothing about the channel, so the first arrival that names one
- * replaces it — whole, so a landing page is never paired with another visit's referrer.
+ * replaces it whole, so a landing page is never paired with another visit's referrer.
  */
 function chooseVisit(stored: Visit | undefined, arrival: Visit | undefined): Visit | undefined {
   if (!stored) return arrival;
