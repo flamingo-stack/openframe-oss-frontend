@@ -31,7 +31,8 @@ import { captureReferralFromUrl, REFERRAL_URL_PARAM, readReferralCode, sanitizeR
  *
  * - **The visit** (`referrer`, `landingUrl`) is where the visitor came from and the first page
  *   they saw, kept as a pair from the page load they *arrived* on, first touch, in the same
- *   90-day localStorage. Both are reduced to `origin + pathname` (`sanitizeLandingUrl`): a raw
+ *   90-day localStorage — except that a direct visit (no referrer) gives way to the first later
+ *   arrival that has one, since "direct" names no channel. Both are reduced to `origin + pathname` (`sanitizeLandingUrl`): a raw
  *   URL can carry tokens and email addresses, and this one goes to HubSpot. A visit handed over
  *   by the marketing site (`?referrer=…&landing_url=…`) is the one it saw, so it beats this
  *   page's own. A page load that came from one of our own sites, or back from a sign-in page,
@@ -305,12 +306,36 @@ function readStoredVisit(): Visit | undefined {
   return referrer || landingUrl ? { referrer, landingUrl } : undefined;
 }
 
-/** Store the visit this page load stands for, unless one is stored already: the first arrival wins. */
+/**
+ * The visit that counts: the stored one, unless it was direct and this page load arrived from a
+ * source. A direct visit says nothing about the channel, so the first arrival that names one
+ * replaces it — whole, so a landing page is never paired with another visit's referrer.
+ */
+function chooseVisit(stored: Visit | undefined, arrival: Visit | undefined): Visit | undefined {
+  if (!stored) return arrival;
+  return !stored.referrer && arrival?.referrer ? arrival : stored;
+}
+
+function writeStoredVisitField(param: string, value: string | undefined): void {
+  if (value) {
+    writeStored(param, value);
+    return;
+  }
+  try {
+    window.localStorage.removeItem(STORAGE_PREFIX + param);
+  } catch {
+    // Same as writeStored: a blocked localStorage only costs the attribution.
+  }
+}
+
+/** Store the visit this page load stands for when it is the one that counts (see `chooseVisit`). */
 function captureVisit(): void {
-  if (readStoredVisit()) return;
-  const visit = readVisit();
-  if (visit?.referrer) writeStored(VISIT_REFERRER_PARAM, visit.referrer);
-  if (visit?.landingUrl) writeStored(VISIT_LANDING_URL_PARAM, visit.landingUrl);
+  const stored = readStoredVisit();
+  if (stored?.referrer) return;
+  const visit = chooseVisit(stored, readVisit());
+  if (!visit || visit === stored) return;
+  writeStoredVisitField(VISIT_REFERRER_PARAM, visit.referrer);
+  writeStoredVisitField(VISIT_LANDING_URL_PARAM, visit.landingUrl);
 }
 
 /**
@@ -319,8 +344,8 @@ function captureVisit(): void {
  * so the *first* touch wins — that is the ad click that brought the visitor, not whatever
  * internal navigation they made afterwards. An expired entry reads as absent, so the next
  * visit that carries the parameter starts a fresh 90-day window. The visit (referrer and
- * landing page) follows the same first-touch rule as one pair. The HubSpot handoff is the one
- * last-touch entry (see the header).
+ * landing page) follows the same first-touch rule as one pair, a direct one giving way to the
+ * first referred arrival. The HubSpot handoff is the one last-touch entry (see the header).
  */
 export function captureAttributionFromUrl(): void {
   if (!isBrowser()) return;
@@ -439,8 +464,8 @@ export function collectRegistrationAttribution(): Touchpoint | undefined {
     raw[field] = readStored(param) ?? readUrlParam(param);
   }
 
-  // The stored arrival, else this page load's own, for the same direct-landing reason.
-  const visit = readStoredVisit() ?? readVisit();
+  // This page load's own arrival counts too, for the same direct-landing reason.
+  const visit = chooseVisit(readStoredVisit(), readVisit());
   raw.referrer = visit?.referrer;
   raw.landingUrl = visit?.landingUrl;
 

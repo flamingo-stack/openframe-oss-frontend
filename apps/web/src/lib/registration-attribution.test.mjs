@@ -219,6 +219,71 @@ test('the first arrival wins: a later page load does not replace the visit', () 
   });
 });
 
+// "Direct" names no channel, so the first arrival that does name one replaces it — as a whole
+// pair, never its referrer next to the direct visit's landing page.
+test('a direct visit gives way to the first later arrival with a referrer', () => {
+  A.captureAttributionFromUrl(); // direct, on /auth/
+
+  document.referrer = 'https://chatgpt.com/';
+  window.location.pathname = '/auth/login/';
+  A.captureAttributionFromUrl();
+
+  document.referrer = 'https://www.bing.com/';
+  window.location.pathname = '/auth/signup/';
+  A.captureAttributionFromUrl(); // the referred visit is final
+
+  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+    referrer: 'https://chatgpt.com/',
+    landingUrl: 'https://auth.openframe.ai/auth/login/',
+  });
+});
+
+test("a direct visit gives way to the marketing site's handoff", () => {
+  A.captureAttributionFromUrl(); // direct, on /auth/
+
+  window.location.search = `?referrer=${encodeURIComponent('https://www.google.com/')}&landing_url=${encodeURIComponent('https://flamingo.run/pricing')}`;
+  A.captureAttributionFromUrl();
+
+  window.location.search = '';
+  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+    referrer: 'https://www.google.com/',
+    landingUrl: 'https://flamingo.run/pricing',
+  });
+});
+
+test("the replacing visit takes the direct one's landing page with it", () => {
+  A.captureAttributionFromUrl(); // direct, on /auth/
+
+  window.location.search = `?referrer=${encodeURIComponent('https://www.google.com/')}`;
+  A.captureAttributionFromUrl(); // a handoff that names its source but not its landing page
+
+  window.location.search = '';
+  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+    referrer: 'https://www.google.com/',
+    landingUrl: undefined,
+  });
+});
+
+test('a later direct page load keeps the first direct visit', () => {
+  A.captureAttributionFromUrl(); // direct, on /auth/
+
+  window.location.pathname = '/auth/login/';
+  A.captureAttributionFromUrl();
+
+  assert.equal(A.collectRegistrationAttribution().landingUrl, 'https://auth.openframe.ai/auth/');
+});
+
+test('a signup on a referred page load counts it over a stored direct visit, before the capture effect ran', () => {
+  A.captureAttributionFromUrl(); // direct, on /auth/
+
+  document.referrer = 'https://www.perplexity.ai/';
+  window.location.pathname = '/auth/signup/';
+  assert.deepEqual(visitOf(A.collectRegistrationAttribution()), {
+    referrer: 'https://www.perplexity.ai/',
+    landingUrl: 'https://auth.openframe.ai/auth/signup/',
+  });
+});
+
 test('a direct arrival records the landing page alone', () => {
   A.captureAttributionFromUrl();
 
