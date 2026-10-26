@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { notFound } from 'next/navigation';
 import { useLayoutEffect, useMemo } from 'react';
@@ -29,7 +30,17 @@ interface ArticleRecordLoaderProps {
  * cannot happen here).
  */
 export function ArticleRecordLoader(props: ArticleRecordLoaderProps) {
-  // In a loading scope (the page's Suspense fallback) there is nothing to read yet, and nothing to draw.
+  // Its own boundary renders nothing either; while it loads, its fallback is the one "Loading article" announcement,
+  // its region `contents` so it takes no slot (and no gap) in the page's column.
+  return (
+    <LoadingSuspense label="Loading article" className="contents">
+      <ArticleRecordReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ArticleRecordReader(props: ArticleRecordLoaderProps) {
+  // In a loading scope (its boundary's fallback) there is nothing to read yet, and nothing to draw.
   if (useLoadingScope()) return null;
   return <ArticleRecordQuery {...props} />;
 }

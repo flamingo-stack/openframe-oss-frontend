@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   buildDevicePanelActions,
   type DeviceFilterInput,
@@ -34,7 +35,6 @@ import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
-import { GatedSuspense } from '../gated-suspense';
 import { NO_ITEMS } from '../no-next-page';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
@@ -336,9 +336,7 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // error boundary without the panel having to reach inside the content that threw.
   const searchParams = useSearchParams();
   const resetKey = searchParams.toString();
-  const inScope = useLoadingScope();
-
-  const chrome = {
+  const chrome: DevicesPanelChrome = {
     title: props.title ?? 'Devices',
     backButton: props.backButton,
     className: props.className,
@@ -351,35 +349,6 @@ export function DevicesPanel(props: DevicesPanelProps) {
   // the params hook applies.
   const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
 
-  // The panel's loading state, drawn by the panel: in a loading scope (the gate below) or behind the boundary it is
-  // its own view in `loading`, with no query mounted. Everything here is a prop or a URL value, none of it the device
-  // query: the header buttons come from the one declaration the loaded panel reads (`buildDevicePanelActions`), the
-  // view switch reflects `?viewMode` (table and grid are different shapes), and the filter toolbar is the real one
-  // with empty tags. Only what the request answers draws its loading form: the rows.
-  const pending = (
-    <DevicesPanelView<Device>
-      pageSize={DEVICES_PAGE_SIZE}
-      loading
-      title={chrome.title}
-      backButton={chrome.backButton}
-      className={cn(chrome.offsetClassName, chrome.className)}
-      viewMode={viewMode}
-      actions={buildDevicePanelActions({
-        archiveHref: props.archiveHref,
-        showAddDevice: props.showAddDevice,
-        noOrganizations: props.noOrganizations,
-        isCheckingOrganizations: props.isCheckingOrganizations,
-        addCustomerHref: routes.customers.new,
-        disabled: true,
-      })}
-      devices={NO_ITEMS}
-      filterColumns={PENDING_FILTER_COLUMNS}
-      // The loaded table always carries a row-actions column, and it takes real width from the others.
-      actionsColumn={PENDING_ACTIONS_COLUMN}
-      hideColumns={props.hideColumns}
-      hideFilters={props.hideFilters}
-    />
-  );
   return (
     <ContentErrorBoundary
       resetKey={resetKey}
@@ -405,9 +374,68 @@ export function DevicesPanel(props: DevicesPanelProps) {
         </PageLayout>
       )}
     >
-      <GatedSuspense bare gated={inScope} label="Loading devices" view={pending}>
-        <DevicesPanelContent {...props} />
-      </GatedSuspense>
+      <DevicesPanelBody panel={props} chrome={chrome} viewMode={viewMode} />
     </ContentErrorBoundary>
+  );
+}
+
+interface DevicesPanelChrome {
+  title: string;
+  backButton: DevicesPanelProps['backButton'];
+  className: DevicesPanelProps['className'];
+  offsetClassName: string | undefined;
+}
+
+interface DevicesPanelBodyProps {
+  panel: DevicesPanelProps;
+  chrome: DevicesPanelChrome;
+  viewMode: 'table' | 'grid';
+}
+
+/** The panel's content, with its own boundary: in its scope the reader draws the panel's loading state. */
+function DevicesPanelBody(props: DevicesPanelBodyProps) {
+  return (
+    <LoadingSuspense bare label="Loading devices">
+      <DevicesPanelBodyReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function DevicesPanelBodyReader(props: DevicesPanelBodyProps) {
+  if (useLoadingScope()) return <DevicesPanelPending {...props} />;
+  return <DevicesPanelContent {...props.panel} />;
+}
+
+/**
+ * The panel's loading state, drawn by the panel: in a loading scope (an outer one, or its boundary's) it is its own
+ * view in `loading`, with no query mounted. Everything here is a prop or a URL value, none of it the device
+ * query: the header buttons come from the one declaration the loaded panel reads (`buildDevicePanelActions`), the
+ * view switch reflects `?viewMode` (table and grid are different shapes), and the filter toolbar is the real one
+ * with empty tags. Only what the request answers draws its loading form: the rows.
+ */
+function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBodyProps) {
+  return (
+    <DevicesPanelView<Device>
+      pageSize={DEVICES_PAGE_SIZE}
+      loading
+      title={chrome.title}
+      backButton={chrome.backButton}
+      className={cn(chrome.offsetClassName, chrome.className)}
+      viewMode={viewMode}
+      actions={buildDevicePanelActions({
+        archiveHref: props.archiveHref,
+        showAddDevice: props.showAddDevice,
+        noOrganizations: props.noOrganizations,
+        isCheckingOrganizations: props.isCheckingOrganizations,
+        addCustomerHref: routes.customers.new,
+        disabled: true,
+      })}
+      devices={NO_ITEMS}
+      filterColumns={PENDING_FILTER_COLUMNS}
+      // The loaded table always carries a row-actions column, and it takes real width from the others.
+      actionsColumn={PENDING_ACTIONS_COLUMN}
+      hideColumns={props.hideColumns}
+      hideFilters={props.hideFilters}
+    />
   );
 }

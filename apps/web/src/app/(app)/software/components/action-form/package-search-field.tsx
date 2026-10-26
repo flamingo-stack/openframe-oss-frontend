@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   PACKAGE_SEARCH_LABEL,
   PACKAGE_SEARCH_PLACEHOLDER,
@@ -96,10 +97,18 @@ interface PackageSearchFieldProps {
  * and typeable from the first paint, never the disabled placeholder, and a query
  * typed meanwhile simply supersedes it.
  *
- * Callers key it by package manager: switching catalogs starts a fresh search. In a loading scope (its caller's
- * Suspense fallback) it draws the field's own loading state and reads nothing.
+ * Callers key it by package manager: switching catalogs starts a fresh search. It has its own boundary: in its scope
+ * the reader draws the field's own loading state and reads nothing.
  */
 export function PackageSearchField(props: PackageSearchFieldProps) {
+  return (
+    <LoadingSuspense label="Loading packages">
+      <PackageSearchFieldReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function PackageSearchFieldReader(props: PackageSearchFieldProps) {
   if (useLoadingScope()) {
     return (
       <Autocomplete

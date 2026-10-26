@@ -582,6 +582,34 @@ export interface ExecutionsTabState {
   onEmptyChange: (empty: boolean) => void;
 }
 
+interface ExecutionsTabBodyProps {
+  state: ExecutionsTabState;
+  children: (state: ExecutionsTabState) => ReactNode;
+}
+
+/** The tab's rows under its toolbar, with their own boundary: in its scope the reader draws the table's loading form. */
+function ExecutionsTabBody(props: ExecutionsTabBodyProps) {
+  return (
+    <LoadingSuspense label="Loading executions">
+      <ExecutionsTabBodyReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ExecutionsTabBodyReader({ state, children }: ExecutionsTabBodyProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) {
+    return (
+      <LiveTable
+        columns={LOADING_COLUMNS}
+        pageSize={EXECUTIONS_PAGE_SIZE}
+        stickyHeaderOffset={state.stickyHeaderOffset}
+      />
+    );
+  }
+  return children(state);
+}
+
 /**
  * URL-backed filter/search state + the sticky search toolbar + the Suspense
  * boundary around the Relay content. Every executions list renders this — the
@@ -751,17 +779,8 @@ export function ExecutionsTabShell({
           />
         </div>
       )}
-      <LoadingSuspense
-        label="Loading executions"
-        fallback={
-          <LiveTable
-            columns={LOADING_COLUMNS}
-            pageSize={EXECUTIONS_PAGE_SIZE}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        }
-      >
-        {children({
+      <ExecutionsTabBody
+        state={{
           backendFilters: deferredVars.filter,
           sort: deferredVars.sort,
           // A caller whose `search` is spoken for gets the typed term as
@@ -777,8 +796,10 @@ export function ExecutionsTabShell({
           onMobileFilterClose: () => setMobileFilterOpen(false),
           stickyHeaderOffset,
           onEmptyChange: setIsEmpty,
-        })}
-      </LoadingSuspense>
+        }}
+      >
+        {children}
+      </ExecutionsTabBody>
     </div>
   );
 }

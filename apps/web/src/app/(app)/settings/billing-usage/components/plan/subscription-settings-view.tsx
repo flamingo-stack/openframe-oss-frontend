@@ -1,12 +1,12 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
-import { GatedSuspense } from '@/app/components/shared/gated-suspense';
 import { PaywallSubtitle, PaywallTitle } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
@@ -77,15 +77,28 @@ export function SubscriptionSettingsView({ loading = false }: { loading?: boolea
         {/* Above the boundary: its exits keep working, and their dialogs stay open, through every wait below. */}
         <PaywallTitle copy={copy} />
         {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
-        <GatedSuspense gated={loading} label="Loading plans" view={<PaywallBody copy={copy} query={null} />}>
-          <SubscriptionSettingsContent copy={copy} />
-        </GatedSuspense>
+        <SubscriptionSettingsContent copy={copy} loading={loading} />
       </ErrorBoundary>
     </PageLayout>
   );
 }
 
-function SubscriptionSettingsContent({ copy }: { copy: PaywallCopy }) {
+/** The paywall's body over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
+function SubscriptionSettingsContent({ copy, loading }: { copy: PaywallCopy; loading: boolean }) {
+  return (
+    <LoadingSuspense gated={loading} label="Loading plans">
+      <SubscriptionSettingsReader copy={copy} />
+    </LoadingSuspense>
+  );
+}
+
+function SubscriptionSettingsReader({ copy }: { copy: PaywallCopy }) {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the body with no catalog and runs no read.
+  if (useLoadingScope()) return <PaywallBody copy={copy} query={null} />;
+  return <SubscriptionSettingsLive copy={copy} />;
+}
+
+function SubscriptionSettingsLive({ copy }: { copy: PaywallCopy }) {
   const data = useLazyLoadQuery<SubscriptionSettingsViewQueryType>(
     subscriptionSettingsViewQuery,
     {},

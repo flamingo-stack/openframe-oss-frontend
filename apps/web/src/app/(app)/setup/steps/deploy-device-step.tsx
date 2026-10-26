@@ -24,9 +24,6 @@ import { SetupHeading } from '../components/setup-heading';
 import { type FirstDevice, useFirstDeviceEnrollment } from '../hooks/use-first-device-enrollment';
 import { useLocalAgentInstall } from '../hooks/use-local-agent-install';
 
-/** How long the finished checklist stays up before the wizard moves on. */
-const ADVANCE_DELAY_MS = 1_200;
-
 /** The column the step's controls stack in, at the design's 600px. */
 const BODY_CLASS = 'flex w-full max-w-[600px] flex-col gap-[var(--spacing-system-m)]';
 /** The box the install command sits in; the loading form draws the same box. */
@@ -74,19 +71,32 @@ function installFailureCopy(error: AgentInstallError | null): { title: string; d
 interface DeployDeviceStepProps {
   /** The customer created on the previous screen; null = use the default organization. */
   organizationId: string | null;
-  /** The first device is fully enrolled; persist the step and move on. */
-  onEnrolled: (device: FirstDevice) => void;
+  /** "Continue" with the first device fully enrolled: persist the step and move on. */
+  onContinue: (device: FirstDevice) => void;
+  /** The step is being persisted after "Continue". */
+  persisting: boolean;
 }
+
+/**
+ * What stands beside "Copy Command": nothing while the web waits for its first
+ * device, "Deploy on this Device" in the desktop shell until a run goes
+ * through, then "Continue".
+ */
+type PrimaryAction = 'none' | 'deploy' | 'continue';
 
 /**
  * "Deploy First Device": the install command for the customer created a step
  * earlier (else the default organization), and under it the enrollment
- * checklist that fills in as the agent comes up. Done when the assistant is
- * live on the machine - the wizard then shows "You are ready to go".
+ * checklist that fills in as the agent comes up. The admin moves on with
+ * "Continue", live once the assistant is up on the machine; nothing moves on
+ * by itself.
  *
  * In the desktop shell "Deploy on this Device" runs that same command on this
  * machine behind the OS's administrator prompt and shows what the installer
- * prints; the web has nothing to run it with and offers the copy alone.
+ * prints; once it has installed, "Continue" takes its place, and a failed run
+ * offers it again. The web and the phone have nothing to run it with
+ * (`canInstallAgentLocally`) and offer the copy alone, "Continue" joining it
+ * when the device is up.
  *
  * The step waits for its own reads: the organizations and the enrollment both
  * suspend on first read, and without a boundary here the wait reached the
@@ -99,15 +109,22 @@ export function DeployDeviceStep(props: DeployDeviceStepProps) {
         title="Deploy First Device"
         subtitle="Run one command on a machine to connect it to OpenFrame and start monitoring."
       />
-      {/* `contents`: the loading region must not become a box of its own in the frame's column. */}
-      <LoadingSuspense label="Loading the install command" className="contents">
-        <DeployDeviceBody {...props} />
-      </LoadingSuspense>
+      <DeployDeviceSection {...props} />
     </>
   );
 }
 
-/** In a loading scope (the boundary's fallback) the body draws its loading form and reads nothing. */
+/** The step's body, with its own boundary: in its scope the reader draws its own loading form. */
+function DeployDeviceSection(props: DeployDeviceStepProps) {
+  return (
+    // `contents`: the loading region must not become a box of its own in the frame's column.
+    <LoadingSuspense label="Loading the install command" className="contents">
+      <DeployDeviceBody {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback) the body draws its loading form and reads nothing. */
 function DeployDeviceBody(props: DeployDeviceStepProps) {
   if (useLoadingScope()) return <DeployDeviceLoading />;
   return <DeployDeviceForm {...props} />;
@@ -115,45 +132,60 @@ function DeployDeviceBody(props: DeployDeviceStepProps) {
 
 /** The controls under the command, and the line under them; the loading form draws them inert. */
 function DeployActions({
-  localSupported,
+  primary,
   canDeployHere,
   deploying,
-  deployed,
+  continueReady,
+  continuing,
   onCopy,
   onDeploy,
+  onContinue,
 }: {
-  localSupported: boolean;
+  primary: PrimaryAction;
   canDeployHere: boolean;
-  /** The local install is running: the button waits on it. */
+  /** The local install is running: "Deploy on this Device" waits on it. */
   deploying: boolean;
-  /** The local install went through: there is nothing left to run here. Off again only after a failed run. */
-  deployed: boolean;
+  /** The assistant is up on the device: "Continue" stops waiting. */
+  continueReady: boolean;
+  /** "Continue" was pressed and the step is being persisted. */
+  continuing: boolean;
   onCopy: () => void;
   onDeploy: () => void;
+  onContinue: () => void;
 }) {
   return (
     <div className="flex flex-col items-center gap-[var(--spacing-system-xs)]">
-      {localSupported ? (
+      {primary === 'none' ? (
+        <Button variant="accent" leftIcon={<Copy01Icon />} onClick={onCopy} className="w-full">
+          Copy Command
+        </Button>
+      ) : (
         <div className="grid w-full grid-cols-1 gap-[var(--spacing-system-l)] md:grid-cols-2">
           <Button variant="outline" leftIcon={<Copy01Icon />} onClick={onCopy}>
             Copy Command
           </Button>
-          <Button
-            variant="accent"
-            onClick={onDeploy}
-            disabled={!canDeployHere || deploying || deployed}
-            loading={deploying}
-            title={
-              deployed ? 'Deployed on this device' : canDeployHere ? undefined : 'Pick the platform this device runs on'
-            }
-          >
-            Deploy on this Device
-          </Button>
+          {primary === 'deploy' ? (
+            <Button
+              variant="accent"
+              onClick={onDeploy}
+              disabled={!canDeployHere || deploying}
+              loading={deploying}
+              title={canDeployHere ? undefined : 'Pick the platform this device runs on'}
+            >
+              Deploy on this Device
+            </Button>
+          ) : (
+            <Button
+              variant="accent"
+              onClick={onContinue}
+              disabled={!continueReady || continuing}
+              loading={!continueReady || continuing}
+              title={continueReady ? undefined : 'Waiting for the AI assistant to come up on the device'}
+            >
+              Continue
+            </Button>
+          )}
         </div>
-      ) : (
-        <Button variant="accent" leftIcon={<Copy01Icon />} onClick={onCopy} className="w-full">
-          Copy Command
-        </Button>
       )}
       <p className="text-ods-text-secondary text-h6">Deployment may take 2-3 minutes to install all agents</p>
     </div>
@@ -180,18 +212,20 @@ function DeployDeviceLoading() {
         <TextLineSkeleton type="code" className="min-w-0 flex-1" />
       </CommandBox>
       <DeployActions
-        localSupported={localSupported}
+        primary={localSupported ? 'deploy' : 'none'}
         canDeployHere={false}
         deploying={false}
-        deployed={false}
+        continueReady={false}
+        continuing={false}
         onCopy={noop}
         onDeploy={noop}
+        onContinue={noop}
       />
     </div>
   );
 }
 
-function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps) {
+function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDeviceStepProps) {
   const { toast } = useToast();
   const organizations = useDeviceOrganizations(100);
   const effectiveOrganizationId =
@@ -215,15 +249,6 @@ function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps)
   const device = useFirstDeviceEnrollment(true);
   const lines = checklistLines(handedOver, device);
   const enrolled = device?.stages.aiReady ?? false;
-
-  // Hand over once: the effect re-runs on every poll, the callback must not.
-  const handedOffRef = useRef(false);
-  useEffect(() => {
-    if (!enrolled || !device || handedOffRef.current) return undefined;
-    handedOffRef.current = true;
-    const timer = setTimeout(() => onEnrolled(device), ADVANCE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [enrolled, device, onEnrolled]);
 
   // A failed local run says so once, when it settles; the log keeps the detail.
   const reportedFailureRef = useRef<AgentInstallError | null>(null);
@@ -256,48 +281,61 @@ function DeployDeviceForm({ organizationId, onEnrolled }: DeployDeviceStepProps)
   // The shell runs the command for the OS it is on; the selector may be
   // showing another platform's command for copying elsewhere.
   const canDeployHere = local.supported && platform === hostPlatform;
-  // Locked from the click until the run says how it went: for good once it
-  // installed, released again by a failure or a declined prompt.
+  // Locked from the click until the run says how it went: an install hands
+  // over to "Continue", a failure or a declined prompt offers the run again.
   const deploying = local.status === 'running';
-  const deployed = local.status === 'succeeded';
   const handleDeploy = () => {
-    if (!canDeployHere || deploying || deployed || !commandReady()) return;
+    if (!canDeployHere || deploying || !commandReady()) return;
     trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
     setHandedOver(true);
     void local.start(command);
   };
 
+  // An install that went through, or a device up from a copied command, is
+  // nothing left to run: the way on is "Continue", live once the assistant is.
+  const primary: PrimaryAction =
+    local.status === 'succeeded' || enrolled ? 'continue' : local.supported ? 'deploy' : 'none';
+  const handleContinue = () => {
+    if (device && enrolled && !persisting) onContinue(device);
+  };
+
   return (
     <>
-      <div className={BODY_CLASS}>
-        <OsPlatformSelector
-          value={platform}
-          onValueChange={setPlatform}
-          disabledPlatforms={DISABLED_PLATFORMS}
-          options={PLATFORM_OPTIONS}
-        />
-        <CommandBox>
-          <p className={cn('min-w-0 flex-1 text-ods-text-primary text-code', expanded ? 'break-all' : 'truncate')}>
-            {command}
-          </p>
-          <button
-            type="button"
-            aria-label={expanded ? 'Collapse command' : 'Show the whole command'}
-            aria-expanded={expanded}
-            onClick={() => setExpanded(value => !value)}
-            className="shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
-          >
-            <Chevron01DownIcon className={cn('size-5 transition-transform', expanded && 'rotate-180')} />
-          </button>
-        </CommandBox>
-        <DeployActions
-          localSupported={local.supported}
-          canDeployHere={canDeployHere}
-          deploying={deploying}
-          deployed={deployed}
-          onCopy={handleCopy}
-          onDeploy={handleDeploy}
-        />
+      {/* The log sits under the controls at their spacing, in a column of its own:
+          opened out it is wider than they are. */}
+      <div className="flex w-full flex-col items-center gap-[var(--spacing-system-m)]">
+        <div className={BODY_CLASS}>
+          <OsPlatformSelector
+            value={platform}
+            onValueChange={setPlatform}
+            disabledPlatforms={DISABLED_PLATFORMS}
+            options={PLATFORM_OPTIONS}
+          />
+          <CommandBox>
+            <p className={cn('min-w-0 flex-1 text-ods-text-primary text-code', expanded ? 'break-all' : 'truncate')}>
+              {command}
+            </p>
+            <button
+              type="button"
+              aria-label={expanded ? 'Collapse command' : 'Show the whole command'}
+              aria-expanded={expanded}
+              onClick={() => setExpanded(value => !value)}
+              className="shrink-0 text-ods-text-secondary transition-colors hover:text-ods-text-primary"
+            >
+              <Chevron01DownIcon className={cn('size-5 transition-transform', expanded && 'rotate-180')} />
+            </button>
+          </CommandBox>
+          <DeployActions
+            primary={primary}
+            canDeployHere={canDeployHere}
+            deploying={deploying}
+            continueReady={enrolled}
+            continuing={persisting}
+            onCopy={handleCopy}
+            onDeploy={handleDeploy}
+            onContinue={handleContinue}
+          />
+        </div>
         {local.status !== 'idle' && <InstallLog lines={local.lines} />}
       </div>
       {lines.length > 0 && (

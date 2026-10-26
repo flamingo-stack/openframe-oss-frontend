@@ -10,7 +10,7 @@ import type { scheduleExecutionsRelay_query$key as ScheduleExecutionsFragmentKey
 import type { scheduleExecutionsRelayPaginationQuery as ScheduleExecutionsPaginationQueryType } from '@/__generated__/scheduleExecutionsRelayPaginationQuery.graphql';
 import type { scheduleExecutionsRelayQuery as ScheduleExecutionsQueryType } from '@/__generated__/scheduleExecutionsRelayQuery.graphql';
 import type { scheduleRunDetailRelayQuery as ScheduleRunDetailQueryType } from '@/__generated__/scheduleRunDetailRelayQuery.graphql';
-import { LiveSuspense, NO_ITEMS } from '@/app/components/shared';
+import { NO_ITEMS } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import {
@@ -139,9 +139,24 @@ function useScheduleRun(runId: string, fetchPolicy: 'store-and-network' | 'store
 /**
  * The header island. The title is a constant, but the subtitle (the run's
  * executionId) and the Back target (the schedule it belongs to) are the record's
- * own answer, so this is what waits for it.
+ * own answer, so this is what waits for it. It carries its own boundary; in its
+ * scope the reader draws the header with no run.
  */
 function RunHeader({ runId }: ScheduleRunDetailsViewProps) {
+  return (
+    <LoadingSuspense live label="Loading the run">
+      <RunHeaderReader runId={runId} />
+    </LoadingSuspense>
+  );
+}
+
+function RunHeaderReader({ runId }: ScheduleRunDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <RunHeaderView />;
+  return <RunHeaderLive runId={runId} />;
+}
+
+function RunHeaderLive({ runId }: ScheduleRunDetailsViewProps) {
   const { executionId, scheduleId } = useScheduleRun(runId, 'store-and-network');
   return <RunHeaderView executionId={executionId ?? null} scheduleId={scheduleId} />;
 }
@@ -171,8 +186,25 @@ function RunHeaderView({ executionId, scheduleId = '' }: { executionId?: string 
   );
 }
 
-/** The summary island — and the page's single not-found report. */
+/**
+ * The summary island — and the page's single not-found report. It carries its
+ * own boundary; in its scope the reader draws the info bar with no run.
+ */
 function RunSummary({ runId }: ScheduleRunDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading run details">
+      <RunSummaryReader runId={runId} />
+    </LoadingSuspense>
+  );
+}
+
+function RunSummaryReader({ runId }: ScheduleRunDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <RunInfoBar />;
+  return <RunSummaryLive runId={runId} />;
+}
+
+function RunSummaryLive({ runId }: ScheduleRunDetailsViewProps) {
   const { run, executionId } = useScheduleRun(runId, 'store-and-network');
 
   if (!run || !executionId) {
@@ -285,17 +317,13 @@ function RunExecutionRows({
 export function ScheduleRunDetailsView({ runId }: ScheduleRunDetailsViewProps) {
   return (
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LiveSuspense label="Loading the run" view={<RunHeaderView />}>
-        <RunHeader runId={runId} />
-      </LiveSuspense>
+      <RunHeader runId={runId} />
 
       {/* No gap: the executions block carries its own top padding (the sticky
           toolbar's `pt-l`), the same contract the details pages give their tab
           bodies. */}
       <div className="flex flex-1 flex-col">
-        <LoadingSuspense label="Loading run details" fallback={<RunInfoBar />}>
-          <RunSummary runId={runId} />
-        </LoadingSuspense>
+        <RunSummary runId={runId} />
 
         {/* The whole shell, exactly as the two Execution History tabs render it —
             same search box, same funnels, same sticky toolbar and boundary. It
