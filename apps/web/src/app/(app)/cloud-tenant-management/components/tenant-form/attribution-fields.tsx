@@ -163,10 +163,14 @@ export function AttributionFields({
     if (target === ATTRIBUTION_MODE.SHARED && form.getValues('customers').length === 0) {
       form.setValue('customers', [{ organizationId: form.getValues('soleCustomerId'), rules: [newRule()] }]);
     }
-    if (target === ATTRIBUTION_MODE.SOLE && !form.getValues('soleCustomerId')) {
-      form.setValue('soleCustomerId', form.getValues('customers')[0]?.organizationId ?? '');
-    }
     onChange(target);
+    // After the mode is set, so a re-check reads the sole mode: a failed save's "Select a customer" clears once a
+    // customer is carried across. Only then: a field showing no error is not checked early.
+    if (target === ATTRIBUTION_MODE.SOLE && !form.getValues('soleCustomerId')) {
+      form.setValue('soleCustomerId', form.getValues('customers')[0]?.organizationId ?? '', {
+        shouldValidate: form.getFieldState('soleCustomerId').invalid,
+      });
+    }
   };
 
   return (

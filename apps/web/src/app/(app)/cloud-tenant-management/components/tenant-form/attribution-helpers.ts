@@ -24,10 +24,20 @@ import type { CustomerOption, PickerCustomer } from './customer-option';
 
 type RecordCustomer = tenantFormHelpers_connection$data['customers'][number];
 
-/** A stored customer with its organization read into the picker's option; `null` when the document is gone. */
-export type StoredCustomer = Omit<RecordCustomer, 'organization'> & {
-  organization: (CustomerOption & { readonly status: string | null | undefined }) | null;
-};
+/**
+ * A customer bound to a directory, its organization read into the picker's option (`readBoundCustomer`). Plain data,
+ * so this module and its tests need no Relay.
+ */
+export interface BoundCustomer {
+  readonly organizationId: string;
+  /** `null` when the organization document is gone. */
+  readonly organization: (CustomerOption & { readonly status: string | null | undefined }) | null;
+}
+
+/** A bound customer with the rules that claim its accounts, as the forms read it. */
+export interface StoredCustomer extends BoundCustomer {
+  readonly rules: RecordCustomer['rules'];
+}
 
 export interface StoredAttribution {
   values: AttributionFormData;
@@ -38,11 +48,11 @@ export interface StoredAttribution {
   options: ReadonlyMap<string, PickerCustomer>;
 }
 
-/** A bound customer as every list of them names it: an archived one with its badge, a deleted one as "Unknown customer". */
-export function storedOption({
-  organizationId,
-  organization,
-}: Pick<StoredCustomer, 'organizationId' | 'organization'>): PickerCustomer {
+/**
+ * A bound customer as every list of them names it: an archived or deleted one with its badge, one whose organization
+ * document is gone as "Unknown customer".
+ */
+export function storedOption({ organizationId, organization }: BoundCustomer): PickerCustomer {
   const badge = inactiveCustomerBadge(organization);
   return {
     organizationId,

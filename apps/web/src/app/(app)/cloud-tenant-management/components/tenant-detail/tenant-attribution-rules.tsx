@@ -24,22 +24,14 @@ import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import {
-  inactiveCustomerBadge,
-  missingValuesBadge,
-  ruleKindLabel,
-  UNKNOWN_CUSTOMER,
-} from '../../utils/tenant-presentation';
+import { missingValuesBadge, ruleKindLabel } from '../../utils/tenant-presentation';
+import { boundCustomerOption } from '../tenant-form/bound-customer';
 
 // A fragment, so Save re-selects it (`useSaveIntegrationMutation`) and a saved set lands here with its counts.
 const tenantAttributionRulesFragment = graphql`
   fragment tenantAttributionRules_connection on DirectoryConnection {
     customers {
-      organizationId
-      organization {
-        name
-        status
-      }
+      ...boundCustomer_customer
       rules {
         kind
         values {
@@ -69,7 +61,7 @@ interface AttributionRuleRow {
   id: string;
   customer: string;
   /** "Archived" / "Deleted": the customer stays bound, and its users count as unattributed. */
-  badge: string | null;
+  badge?: string;
   matchBy: string;
   /** `null` for a rule with no values (`ALL`): the empty mark. A value the directory no longer has reads as its id. */
   values: string | null;
@@ -90,17 +82,18 @@ const ATTRIBUTION_RULE_COLUMNS = {
 const ATTRIBUTION_RULES_SKELETON_ROWS = 2;
 
 function toRows(customers: Customers): AttributionRuleRow[] {
-  return customers.flatMap(customer =>
-    customer.rules.map((rule, index) => ({
-      id: `${customer.organizationId}:${index}`,
-      customer: customer.organization?.name ?? UNKNOWN_CUSTOMER,
-      badge: inactiveCustomerBadge(customer.organization && { status: customer.organization.status }),
+  return customers.flatMap(customer => {
+    const { organizationId, name, badge } = boundCustomerOption(customer);
+    return customer.rules.map((rule, index) => ({
+      id: `${organizationId}:${index}`,
+      customer: name,
+      badge,
       matchBy: ruleKindLabel(rule.kind),
       values: rule.values.length > 0 ? rule.values.map(value => value.name ?? value.id).join(', ') : null,
       valuesBadge: missingValuesBadge(rule.values.filter(value => value.name == null).length),
       users: rule.userCount ?? undefined,
-    })),
-  );
+    }));
+  });
 }
 
 const getRowId = (row: AttributionRuleRow) => row.id;

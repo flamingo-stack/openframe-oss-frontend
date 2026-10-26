@@ -173,6 +173,8 @@ describe('attribution rules', () => {
     expect(inactiveCustomerBadge({ status: 'ACTIVE' })).toBeNull();
     expect(inactiveCustomerBadge({ status: null })).toBeNull();
     expect(inactiveCustomerBadge({ status: 'ARCHIVED' })).toBe('Archived');
+    expect(inactiveCustomerBadge({ status: 'DELETED' })).toBe('Deleted');
+    // A missing document is broken data: deleting one keeps it, with the status above.
     expect(inactiveCustomerBadge(null)).toBe('Deleted');
   });
 

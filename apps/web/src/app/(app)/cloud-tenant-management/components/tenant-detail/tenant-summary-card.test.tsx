@@ -13,12 +13,14 @@ import tenantDetailContentQuery, {
 } from '@/__generated__/tenantDetailContentQuery.graphql';
 import { DirectoryAccessState, DirectoryProvider } from '@/generated/schema-enums';
 
-// Vitest runs no Relay Babel transform, so a `graphql` tag would throw at module scope. The card's own tags resolve to
-// their compiled artifacts, as the transform makes them; the rest of what it imports never reads its tags here.
+// Vitest runs no Relay Babel transform, so a `graphql` tag would throw at module scope. The tags the card reads (its
+// own and the `@inline` ones it reads through) resolve to their compiled artifacts, as the transform makes them; the
+// rest of what it imports never reads its tags here.
 vi.mock('react-relay', async importOriginal => {
   const artifacts: Record<string, unknown> = {
     tenantSummaryCard_connection: (await import('@/__generated__/tenantSummaryCard_connection.graphql')).default,
     tenantSummaryCard_identity: (await import('@/__generated__/tenantSummaryCard_identity.graphql')).default,
+    boundCustomer_customer: (await import('@/__generated__/boundCustomer_customer.graphql')).default,
     customerOption_organization: (await import('@/__generated__/customerOption_organization.graphql')).default,
   };
   const actual = await importOriginal<Record<string, unknown> & { default?: Record<string, unknown> }>();
@@ -142,10 +144,16 @@ describe('TenantSummaryCard customers', () => {
       customer('o-1', { name: 'Harbor', status: 'ARCHIVED' }),
       customer('o-2', null),
       customer('o-3', { name: 'Acme', status: 'ACTIVE' }),
+      customer('o-4', { name: 'Closed', status: 'DELETED' }),
     ]);
 
-    expect(customersCell(card)).toBe('Acme+2 more customers');
-    expect(await openAllCustomers(card)).toEqual(['Acme', 'Harbor Archived', 'Unknown customer Deleted']);
+    expect(customersCell(card)).toBe('Acme+3 more customers');
+    expect(await openAllCustomers(card)).toEqual([
+      'Acme',
+      'Harbor Archived',
+      'Unknown customer Deleted',
+      'Closed Deleted',
+    ]);
   });
 
   it('shows a single customer without "+N"', async () => {
@@ -153,6 +161,15 @@ describe('TenantSummaryCard customers', () => {
 
     expect(customersCell(card)).toBe('Acme');
     expect(card.querySelector('button[aria-haspopup="menu"]')).toBeNull();
+  });
+
+  it('says "+1 more customer" for one more', async () => {
+    const card = await renderCard([
+      customer('o-1', { name: 'Acme', status: 'ACTIVE' }),
+      customer('o-2', { name: 'Harbor', status: 'ACTIVE' }),
+    ]);
+
+    expect(customersCell(card)).toBe('Acme+1 more customer');
   });
 
   it('badges the lead when no customer is active', async () => {

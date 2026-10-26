@@ -16,6 +16,7 @@ import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__
 import { EmptyState, NO_NEXT_PAGE, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
+import { boundCustomerOptions } from '../tenant-form/bound-customer';
 
 const TENANTS_PAGE_SIZE = 20;
 
@@ -52,13 +53,7 @@ const tenantsTableFragment = graphql`
             state
           }
           customers {
-            organization {
-              name
-              image {
-                imageUrl
-                hash
-              }
-            }
+            ...boundCustomer_customer
           }
         }
       }
@@ -134,17 +129,10 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
           name: node.name,
           provider: node.provider,
           domain: node.domain,
-          // A customer whose organization document is gone (broken data) has nothing to show.
-          customers: node.customers.flatMap(({ organization }) =>
-            organization
-              ? [
-                  {
-                    name: organization.name,
-                    imageUrl: getFullImageUrl(organization.image?.imageUrl, organization.image?.hash),
-                  },
-                ]
-              : [],
-          ),
+          customers: boundCustomerOptions(node.customers).map(({ name, image }) => ({
+            name,
+            imageUrl: getFullImageUrl(image?.imageUrl, image?.hash),
+          })),
           userCount: node.userCount,
           unattributedUserCount: node.unattributedUserCount,
           accessState: node.access.state,

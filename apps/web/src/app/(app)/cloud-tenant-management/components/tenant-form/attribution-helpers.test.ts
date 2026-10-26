@@ -95,11 +95,18 @@ describe('readAttribution', () => {
     const { values, options } = readAttribution([
       customer('acme', [DOMAIN_RULE], null),
       customer('old', [GROUP_RULE], 'ARCHIVED'),
+      customer('closed', [ALL_RULE], 'DELETED'),
       { organizationId: 'gone', organization: null, rules: [LAB_GROUP] },
     ]);
-    expect(values.customers.map(stored => stored.organizationId)).toEqual(['acme', 'old', 'gone']);
+    expect(values.customers.map(stored => stored.organizationId)).toEqual(['acme', 'old', 'closed', 'gone']);
     expect(options.get('acme')).toEqual({ organizationId: 'acme', name: 'Org acme', image: null });
     expect(options.get('old')).toEqual({ organizationId: 'old', name: 'Org old', image: null, badge: 'Archived' });
+    expect(options.get('closed')).toEqual({
+      organizationId: 'closed',
+      name: 'Org closed',
+      image: null,
+      badge: 'Deleted',
+    });
     expect(options.get('gone')).toEqual({
       organizationId: 'gone',
       name: 'Unknown customer',

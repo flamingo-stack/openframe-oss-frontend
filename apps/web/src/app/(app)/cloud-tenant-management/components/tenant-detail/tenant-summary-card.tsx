@@ -25,9 +25,10 @@ import type {
 import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSummaryCard_identity.graphql';
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
+import { pluralNoun } from '@/lib/pluralize';
 import { attributionSummary, providerPresentation } from '../../utils/tenant-presentation';
-import { storedOption } from '../tenant-form/attribution-helpers';
-import { type PickerCustomer, toCustomerOption } from '../tenant-form/customer-option';
+import { boundCustomerOptions } from '../tenant-form/bound-customer';
+import type { PickerCustomer } from '../tenant-form/customer-option';
 import { CustomerOptionLabel } from '../tenant-form/customer-select';
 
 // The two-row identity card of the details page (Figma 3065-17490 / 3051-7340) and its one-row cut
@@ -66,11 +67,7 @@ const tenantSummaryCardFragment = graphql`
       state
     }
     customers {
-      organizationId
-      organization {
-        status
-        ...customerOption_organization
-      }
+      ...boundCustomer_customer
     }
   }
 `;
@@ -94,28 +91,14 @@ function ProviderCell({ provider }: { provider: string | null }) {
   );
 }
 
-/**
- * Every bound customer, named as the Attribution Rules table names it (an archived one with its badge, a deleted one
- * as "Unknown customer"), the active ones first so the card leads with one when there is any.
- */
-function summaryCustomers(customers: SummaryCustomers): PickerCustomer[] {
-  return customers
-    .map(({ organizationId, organization }) =>
-      storedOption({
-        organizationId,
-        organization: organization ? { ...toCustomerOption(organization), status: organization.status } : null,
-      }),
-    )
-    .sort((a, b) => Number(!!a.badge) - Number(!!b.badge));
-}
-
 /** "+N": a menu of every customer, the lead among them, since the card has room for one. */
 function AllCustomersMenu({ customers }: { customers: readonly PickerCustomer[] }) {
+  const more = customers.length - 1;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="shrink-0 rounded-sm px-[var(--spacing-system-xxs)] text-ods-text-secondary outline-none hover:text-ods-text-primary hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ods-focus">
-        +{customers.length - 1}
-        <span className="sr-only"> more customers</span>
+        +{more}
+        <span className="sr-only">{` more ${pluralNoun(more, 'customer')}`}</span>
       </DropdownMenuTrigger>
       {/* On a phone the menu is shifted to fit: the page's gutter keeps it off the screen's edge. */}
       <DropdownMenuContent align="start" collisionPadding={16} className="max-h-80 w-72 overflow-y-auto">
@@ -134,7 +117,7 @@ function AllCustomersMenu({ customers }: { customers: readonly PickerCustomer[] 
  * empty mark. Before the record answers (`null`) the avatar and a name bar.
  */
 function CustomersCell({ customers }: { customers: SummaryCustomers | null }) {
-  const all = customers ? summaryCustomers(customers) : [];
+  const all = customers ? boundCustomerOptions(customers) : [];
   const [first] = all;
   return (
     <InfoCell

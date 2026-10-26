@@ -363,12 +363,13 @@ export const UNKNOWN_CUSTOMER = 'Unknown customer';
 /**
  * Why a customer bound to a directory is no longer an active one ("Archived", "Deleted"), or `null` while it is. Such a
  * customer stays bound and editable, its users count as unattributed, and it cannot be bound anew. Active is the
- * backend's own test (`DirectoryActiveOrganizations`): a legacy organization with no status is active.
+ * backend's own test (`DirectoryActiveOrganizations`): a legacy organization with no status is active. Deleting one
+ * flips its status and keeps its document, so a missing document (`null`) is broken data, read as deleted too.
  */
 export function inactiveCustomerBadge(
   organization: { readonly status: string | null | undefined } | null | undefined,
 ): string | null {
-  if (!organization) return 'Deleted';
+  if (!organization || organization.status === 'DELETED') return 'Deleted';
   return organization.status == null || organization.status === 'ACTIVE' ? null : 'Archived';
 }
 

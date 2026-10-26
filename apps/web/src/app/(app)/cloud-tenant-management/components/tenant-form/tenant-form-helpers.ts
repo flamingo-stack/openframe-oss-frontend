@@ -15,7 +15,7 @@ import { collectFormErrorMessages } from '@/lib/collect-form-error-messages';
 import { knownValue } from '@/lib/exhaustive-map';
 import { scrollToFirstInvalidField } from '@/lib/scroll-to-first-invalid-field';
 import { readAttribution, type StoredAttribution } from './attribution-helpers';
-import { toCustomerOption } from './customer-option';
+import { readBoundCustomer } from './bound-customer';
 import type { TenantFormData } from './tenant-form.types';
 
 type Toast = ReturnType<typeof useToast>['toast'];
@@ -33,11 +33,7 @@ const tenantFormHelpersFragment = graphql`
     consentUrl
     connectedAt
     customers {
-      organizationId
-      organization {
-        status
-        ...customerOption_organization
-      }
+      ...boundCustomer_customer
       rules {
         kind
         values {
@@ -85,10 +81,10 @@ export function readTenantFormRecord(ref: tenantFormHelpers_connection$key): Ten
     connected: connectedAt != null,
     values: connectionToFormValues({ provider, domain, name }),
     attribution: readAttribution(
-      customers.map(({ organizationId, organization, rules }) => ({
-        organizationId,
-        organization: organization ? { ...toCustomerOption(organization), status: organization.status } : null,
-        rules: rules.map(({ kind, values }) => ({ kind, values })),
+      customers.map(customer => ({
+        ...readBoundCustomer(customer),
+        // Field by field: `relay/unused-fields` counts only the fields this file names.
+        rules: customer.rules.map(({ kind, values }) => ({ kind, values })),
       })),
     ),
   };
