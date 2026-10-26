@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   lastReadAt,
   type TenantRow,
@@ -76,12 +77,20 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-/**
- * The tenant rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws the
- * table with no rows, which is the table's own loading state; otherwise it runs the query, which suspends, so it
- * lives under the view's `<Suspense>`.
- */
+/** The tenant rows, with their own boundary: in its scope the reader draws its own loading form. */
 export function TenantsTable(props: TenantsTableProps) {
+  return (
+    <LoadingSuspense label="Loading tenants">
+      <TenantsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (its boundary's fallback, or the module's flag window) it draws the table with no rows, which
+ * is the table's own loading state; otherwise it runs the query, which suspends.
+ */
+function TenantsTableReader(props: TenantsTableProps) {
   if (useLoadingScope()) {
     return (
       <TenantsTableView

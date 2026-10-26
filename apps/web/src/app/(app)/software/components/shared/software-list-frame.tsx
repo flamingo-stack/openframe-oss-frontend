@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { type DataTableSortState, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -51,8 +50,6 @@ interface SoftwareListFrameProps {
   sortableIds?: readonly string[];
   /** Column ids that carry a funnel — each keeps its selection in the URL under its own name. */
   filterKeys?: readonly string[];
-  /** What the screen reader hears while the rows load. */
-  loadingLabel: string;
   /**
    * The module's flag has not answered yet: the toolbar draws locked, and the rows draw in a loading scope, where
    * the list component draws its own loading state and does not fetch.
@@ -98,7 +95,6 @@ export function SoftwareListFrame({
   placeholder,
   sortableIds = NO_ITEMS,
   filterKeys = NO_ITEMS,
-  loadingLabel,
   loading = false,
   className,
   children,
@@ -182,11 +178,9 @@ export function SoftwareListFrame({
         />
       )}
 
-      {/* The rows before they answer, the same for a query in flight and for the flag's own window: the list
-          itself, in a loading scope, where it draws its own loading state and does not fetch. */}
-      <LoadingWhen loading={loading}>
-        <LoadingSuspense label={loadingLabel}>{children(list)}</LoadingSuspense>
-      </LoadingWhen>
+      {/* The rows before they answer, the same for a query in flight (the list's own boundary) and for the flag's own
+          window: the list itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>{children(list)}</LoadingWhen>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ClipboardListIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingItems, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -92,6 +93,11 @@ interface DeviceLogsListProps {
   /** The row open in the Log Details drawer, by its cursor. */
   selectedKey: string | null;
   onSelect: (key: string, entry: DeviceLogEntry) => void;
+  /**
+   * The list's identity (its filter): a new one remounts the list INSIDE its boundary, so a filter change in a
+   * transition keeps the rows on screen. A `key` on `DeviceLogsList` itself would remount the boundary too.
+   */
+  listKey?: string;
 }
 
 /**
@@ -113,10 +119,21 @@ function DeviceLogsLoadingPage({ dayHeader = false }: { dayHeader?: boolean }) {
 
 /**
  * The list, newest first, grouped by local day; older pages on scroll, the head re-read by the live tail. Remounted
- * per filter. In a loading scope (the device has not answered, or the Suspense fallback) it draws its first page's
- * loading form under the live list's top sentinel, and runs no query.
+ * per filter (`listKey`). With its own boundary: in its scope the reader draws its own loading form.
  */
-export function DeviceLogsList(props: DeviceLogsListProps) {
+export function DeviceLogsList({ listKey, ...props }: DeviceLogsListProps) {
+  return (
+    <LoadingSuspense label="Loading logs">
+      <DeviceLogsListReader key={listKey} {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (the device has not answered, or its boundary's fallback) it draws its first page's loading
+ * form under the live list's top sentinel, and runs no query.
+ */
+function DeviceLogsListReader(props: DeviceLogsListProps) {
   if (useLoadingScope()) {
     return (
       <div className={DEVICE_LOG_LIST_CLASS}>

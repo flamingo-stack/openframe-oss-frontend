@@ -1,12 +1,10 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
@@ -106,13 +104,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
       {folderId === null ? (
         <KnowledgeBaseListTitle title={ROOT_FOLDER.name} actions={actions} />
       ) : (
-        // The folder's name is read: in the scope the title draws it as its bar ('' is a read title there).
-        <LiveSuspense
-          label="Loading the folder"
-          view={<KnowledgeBaseListTitle title="" backTo={routes.knowledgeBase.list} actions={actions} />}
-        >
-          <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
-        </LiveSuspense>
+        // The folder's name is read: the title places its own boundary and draws its loading form there.
+        <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
       )}
 
       <div className="flex flex-col" style={containerStyle}>
@@ -126,8 +119,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
           />
         )}
 
-        {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-        <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
+        {/* The rows: the table places its own boundary and, before they answer, draws its own loading state. */}
+        {rows}
       </div>
 
       <NewFolderModal isOpen={isNewFolderOpen} onClose={() => setIsNewFolderOpen(false)} parentId={folderId} />

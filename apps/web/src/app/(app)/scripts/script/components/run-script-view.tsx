@@ -2,6 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
@@ -20,7 +21,6 @@ import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { DeviceListPicker } from '@/app/components/shared/device-selector';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -354,10 +354,16 @@ function RunScriptContent({ scriptId }: RunScriptViewProps) {
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   return (
-    <LiveSuspense label="Loading script" view={<RunScriptForm scriptId={scriptId} />}>
-      <RunScriptContent scriptId={scriptId} />
-    </LiveSuspense>
+    <LoadingSuspense live label="Loading script">
+      <RunScriptReader scriptId={scriptId} />
+    </LoadingSuspense>
   );
+}
+
+function RunScriptReader({ scriptId }: RunScriptViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <RunScriptForm scriptId={scriptId} />;
+  return <RunScriptContent scriptId={scriptId} />;
 }
 
 export default RunScriptView;
