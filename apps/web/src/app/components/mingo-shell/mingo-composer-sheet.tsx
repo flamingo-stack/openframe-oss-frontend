@@ -2,7 +2,7 @@
 
 import { ComposerSheet } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useNativeBackDismissible } from '@/lib/native-back';
@@ -41,13 +41,16 @@ function escapeIsTaken(): boolean {
  *
  * It closes with its ×, the scrim, Esc (unless a menu or a draft takes it) and
  * Android back, and on any navigation — the next page is a different context;
- * "Continue" brings it back. Only on plain pages: Mingo's home is always a new chat
- * and the chat page is the thread itself. Full width on a phone, the composer card's
+ * "Continue" brings it back. On every page but the chat page, which is the thread
+ * itself: over Mingo's home only when asked there ("What to ask Mingo?", a chat
+ * collapsed back from its page). It also tells the store which page the chat page
+ * collapses back to (`lastPage`). Full width on a phone, the composer card's
  * width elsewhere (its edges meet the composer's); `SHEET_DEFAULT_HEIGHT` tall on a desktop until dragged, the
  * dragged height after that.
  */
 export function MingoComposerSheet() {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const route = composerRouteOf(pathname);
   // Up on the first frame of a page it was asked to open on, not only once `navigated` ran.
   const up = useMingoSheetStore(s => isSheetUp(s, pathname));
@@ -57,16 +60,20 @@ export function MingoComposerSheet() {
   const resetHeight = useMingoSheetStore(s => s.resetHeight);
   const setNode = useMingoSheetStore(s => s.setNode);
   const navigated = useMingoSheetStore(s => s.navigated);
-  const clearFullFrom = useMingoSheetStore(s => s.clearFullFrom);
+  const rememberPage = useMingoSheetStore(s => s.rememberPage);
   const phone = useMdUp() === false;
   const shown = up && canShowSheet(route);
 
-  // Every location change closes it, or opens it there when that was asked for. The
-  // way back from a chat opened in full lasts only while the chat page is on screen.
+  // Every location change closes it, or opens it there when that was asked for. A
+  // query change on the same page is not one: filters do not close the chat.
   useEffect(() => {
     navigated();
-    if (route !== 'chat') clearFullFrom();
-  }, [pathname, route, navigated, clearFullFrom]);
+  }, [pathname, navigated]);
+
+  // The page a chat page collapses back to: the last one on screen, with its query.
+  useEffect(() => {
+    if (route !== 'chat') rememberPage(search ? `${pathname}?${search}` : pathname);
+  }, [pathname, search, route, rememberPage]);
 
   useNativeBackDismissible(shown, hide);
 

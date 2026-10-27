@@ -218,14 +218,14 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const navigate = (href: string) => router.push(href);
   const view = dockViewOf(route);
   // The chat over the page (`MingoComposerSheet`): over plain pages, and over home for
-  // "What to ask Mingo?" only (`canShowSheet`).
+  // "What to ask Mingo?" and a chat collapsed back from its page (`canShowSheet`).
   const sheetOpen = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
   const sheetNode = useMingoSheetStore(s => s.node);
   const showSheet = useMingoSheetStore(s => s.show);
   const hideSheet = useMingoSheetStore(s => s.hide);
   const showSheetAfterNavigation = useMingoSheetStore(s => s.showAfterNavigation);
   const openFull = useMingoSheetStore(s => s.openFull);
-  const fullFrom = useMingoSheetStore(s => s.fullFrom);
+  const lastPage = useMingoSheetStore(s => s.lastPage);
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
   // Tells the chat page whether a chat will portal into it (it draws a skeleton until then).
@@ -264,6 +264,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     createIntentDialog: chat.createIntentDialog,
     navigate,
     openSheet: showSheet,
+    sheetOpen,
   });
   useComposerLauncherDrain({
     handle,
@@ -283,9 +284,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // Its × lets the chat go: the next send from the page starts a new one in the sheet.
   const openDialogId = chat.state.activeDialogId ?? null;
   const onSheetRoute = isSheetRoute(route);
-  // A chat opened in full from a page leads back to it, raised over it again.
-  const backFromFull =
-    route === 'chat' && fullFrom !== null && fullFrom.dialogId === openDialogId ? fullFrom.href : null;
+  // Every chat on its page collapses back to the last page this tab was on, raised
+  // over it again; to Mingo's home when there is none.
+  const collapseTo = route === 'chat' && openDialogId !== null ? (lastPage ?? routes.mingo.home) : null;
   let threadHeaderActions;
   if (sheetOpen) {
     // A chat not created yet (the suggestions of "What to ask Mingo?") has no page of its own.
@@ -297,7 +298,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
               label: 'Open as full chat',
               icon: <Expand02Icon size={24} />,
               onClick: () => {
-                openFull(`${window.location.pathname}${window.location.search}`, openDialogId);
+                openFull();
                 navigate(routes.mingo.chat(openDialogId));
               },
             },
@@ -305,17 +306,15 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         : []),
       { id: 'back-to-page', label: 'Back to page', icon: <XmarkIcon size={24} />, onClick: hideSheet },
     ];
-  } else if (backFromFull !== null) {
+  } else if (collapseTo !== null) {
     threadHeaderActions = [
       {
         id: 'back-to-page',
         label: 'Back to page',
         icon: <Collapse02Icon size={24} />,
-        // The way back stays until the page is reached (`MingoComposerSheet` drops it
-        // there): cleared here, the button left the header before the page came.
         onClick: () => {
           showSheetAfterNavigation();
-          navigate(backFromFull);
+          navigate(collapseTo);
         },
       },
     ];
@@ -396,8 +395,9 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
 
   return (
     <>
-      {/* Home: Mingo's quick actions over the composer, sent through the dock's own send. */}
-      {route === 'home' && (
+      {/* Home: Mingo's quick actions over the composer, sent through the dock's own send.
+          Not under the sheet: the composer then replies to the chat in it. */}
+      {route === 'home' && !sheetOpen && (
         <MingoDockQuickActions
           onSend={text => void target.sendInNewDialog(text)}
           onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}

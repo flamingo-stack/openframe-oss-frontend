@@ -17,6 +17,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { routes } from '@/lib/routes';
+import { openMingoDialog } from '../notifications/open-mingo-dialog';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useHistorySearchStore } from './history-search-store';
@@ -38,8 +39,8 @@ const onServer = () => false;
  * is someone else's), paging with no cap, the working / approval glyphs — the chat
  * with the latest message first, grouped by the day of that message.
  *
- * A row opens its chat page, which selects it; the selected chat stays highlighted on
- * every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —
+ * A row opens its chat in the sheet over the page (on the chat page, in its place); the
+ * selected chat stays highlighted on every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —
  * through the same modals, mutations and toasts as the chat's own menus; archiving
  * the open chat drops it, which takes its chat page home. The history's ⋯ also offers
  * "Reset Onboarding" (onboarding v2), as the chat's ⋯ does. The search is a modal,
@@ -89,6 +90,12 @@ export function MingoSidebarHistory() {
     closeMobileMenu();
     router.push(href);
   };
+  // A chat opens over the page in the sheet, as every chat does at first ("Open as
+  // full chat" takes it to its page); on the chat page, in its place.
+  const openChat = (id: string) => {
+    closeMobileMenu();
+    openMingoDialog(id, { navigate: href => router.push(href) });
+  };
 
   const confirmRename = (title: string) => {
     if (renameTarget) void state.renameDialog(renameTarget.id, title);
@@ -115,7 +122,7 @@ export function MingoSidebarHistory() {
         variant="section"
         dialogs={state.dialogs}
         activeDialogId={state.activeDialogId ?? undefined}
-        onSelectDialog={id => open(routes.mingo.chat(id))}
+        onSelectDialog={openChat}
         statusOf={chat.dialogStatusOf}
         // A row whose `owner.id` is not the viewer's shows the owner's initials.
         currentUserId={currentUserId}
@@ -243,7 +250,7 @@ export function MingoSidebarHistorySlot({ minimized }: { minimized: boolean }) {
  * The history's search (`MingoChatSearchModal`), once for the page: the sidebar
  * section is drawn twice (the sidebar and the phone drawer) and leaves the modal to
  * its host, which opens it from either one's Search, or on ⌘K / Ctrl+K. Picking a
- * chat opens its page.
+ * chat opens it as a row does.
  */
 export function MingoHistorySearch() {
   const { chat, enabled } = useMingoChat();
@@ -269,7 +276,7 @@ export function MingoHistorySearch() {
       onSearchChange={chat.setSearchQuery}
       onSelectDialog={id => {
         closeMobileMenu();
-        router.push(routes.mingo.chat(id));
+        openMingoDialog(id, { navigate: href => router.push(href) });
       }}
       hasMore={state.hasMoreDialogs}
       isLoadingMore={loading && state.dialogs.length > 0}

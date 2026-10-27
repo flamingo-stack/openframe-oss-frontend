@@ -11,8 +11,9 @@ describe('mingo sheet store', () => {
       askedFrom: null,
       height: null,
       node: null,
-      fullFrom: null,
+      lastPage: null,
     });
+    window.sessionStorage.clear();
   });
 
   it('closes on a navigation', () => {
@@ -49,11 +50,18 @@ describe('mingo sheet store', () => {
 
   it('stays up while a chat opened in full goes to its page', () => {
     store().show();
-    store().openFull('/devices/', 'a');
+    store().openFull();
     expect(store().open).toBe(true);
-    expect(store().fullFrom).toEqual({ href: '/devices/', dialogId: 'a' });
     store().navigated();
     expect(store().open).toBe(false);
+  });
+
+  it('keeps the page a chat page collapses back to for this tab', () => {
+    store().rememberPage('/devices/?statuses=ONLINE');
+    expect(store().lastPage).toBe('/devices/?statuses=ONLINE');
+    expect(window.sessionStorage.getItem('of.mingo-last-page')).toBe('/devices/?statuses=ONLINE');
+    store().rememberPage('/mingo/');
+    expect(store().lastPage).toBe('/mingo/');
   });
 
   it('keeps the dragged height for this viewer', () => {

@@ -35,8 +35,8 @@ export function canOpenMingoDialogOverPage(): boolean {
 }
 
 /**
- * Open a Mingo dialog: over the current page when the dock is there (its chat page from
- * Mingo's home and from another chat's page), else its chat page. `navigate` overrides the
+ * Open a Mingo dialog: over the current page when the dock is there (in its place on
+ * another chat's page), else its chat page. `navigate` overrides the
  * registered shell navigator for that fallback — for a caller that already holds the router
  * it navigates everything else with.
  */

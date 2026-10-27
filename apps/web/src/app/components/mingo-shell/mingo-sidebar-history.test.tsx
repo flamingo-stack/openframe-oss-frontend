@@ -12,6 +12,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeFakeChat } from '@/app/(app)/mingo/providers/__tests__/fake-mingo-chat';
 import type { MingoChat, MingoChatState } from '@/app/(app)/mingo/providers/mingo-chat-provider';
+import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { routes } from '@/lib/routes';
 import { useHistorySearchStore } from './history-search-store';
@@ -128,6 +129,7 @@ beforeEach(() => {
   onboarding.canReset = true;
   onboarding.v2 = 'on';
   useHistorySearchStore.setState({ open: false });
+  useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -156,11 +158,13 @@ describe('MingoSidebarHistory', () => {
     expect(rail().onRequestCompact).toBeUndefined();
   });
 
-  it('opens a chat on its page, and the archive on the archive page', () => {
+  it('opens a chat over the page through the dock, and the archive on the archive page', () => {
+    useMingoLauncherStore.setState({ dockMounted: true });
     render(session());
 
     act(() => rail().onSelectDialog?.('d-2'));
-    expect(push).toHaveBeenLastCalledWith(routes.mingo.chat('d-2'));
+    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'open', dialogId: 'd-2' });
+    expect(push).not.toHaveBeenCalled();
 
     act(() => rail().onOpenArchive?.());
     expect(push).toHaveBeenLastCalledWith(routes.mingo.archive);
@@ -311,7 +315,15 @@ describe('MingoHistorySearch', () => {
     expect(useHistorySearchStore.getState().open).toBe(false);
   });
 
-  it('opens a picked chat on its page and searches through the session', () => {
+  it('opens a picked chat over the page through the dock', () => {
+    useMingoLauncherStore.setState({ dockMounted: true });
+    renderSearch(session());
+    act(() => (seen.search?.onSelectDialog as (id: string) => void)('d-2'));
+    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'open', dialogId: 'd-2' });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('opens a picked chat on its page without the dock and searches through the session', () => {
     renderSearch(session());
     act(() => (seen.search?.onSelectDialog as (id: string) => void)('d-2'));
     expect(push).toHaveBeenCalledWith(routes.mingo.chat('d-2'));

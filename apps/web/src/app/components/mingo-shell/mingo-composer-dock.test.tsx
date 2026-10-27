@@ -246,7 +246,7 @@ describe('MingoComposerDock', () => {
     useChatPageNodeStore.setState({ node: null, chatMounted: false, threadReady: true });
     useFeatureFlagsStore.getState().reset();
     useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
-    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, fullFrom: null });
+    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, lastPage: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -375,7 +375,6 @@ describe('MingoComposerDock', () => {
       act(() => full.onClick());
       // Up over the page until the chat page comes: the page never shows undimmed meanwhile.
       expect(useMingoSheetStore.getState().open).toBe(true);
-      expect(useMingoSheetStore.getState().fullFrom?.dialogId).toBe('a');
       expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('a'));
       render('/mingo/chat/');
       expect(props().threadContainer).not.toBe(useMingoSheetStore.getState().node);
@@ -394,26 +393,43 @@ describe('MingoComposerDock', () => {
       expect(props().threadContainer).toBe(sheetNode);
     });
 
-    it('leads a chat opened in full back to its page, raised over it again', () => {
+    it('leads every chat page back to the last page, raised over it again', () => {
       setSurface({ activeDialogId: 'a' });
-      useMingoSheetStore.setState({ fullFrom: { href: '/devices/?statuses=ONLINE', dialogId: 'a' } });
+      useMingoSheetStore.setState({ lastPage: '/devices/?statuses=ONLINE' });
       render('/mingo/chat/');
       const [back] = headerActions();
       expect(back.label).toBe('Back to page');
       act(() => back.onClick());
       expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
       expect(useMingoSheetStore.getState()).toMatchObject({ openAfterNavigation: true });
-      // The button stays until the page is reached (the sheet drops the way back there).
+      // The button stays until the page is reached.
       expect(headerActions().map(action => action.label)).toEqual(['Back to page']);
     });
 
-    it('offers no way back on the chat page of another chat, or without one', () => {
-      setSurface({ activeDialogId: 'b' });
-      useMingoSheetStore.setState({ fullFrom: { href: '/devices/', dialogId: 'a' } });
+    it("leads a chat page with no page before it back to Mingo's home", () => {
+      setSurface({ activeDialogId: 'a' });
+      render('/mingo/chat/');
+      act(() => headerActions()[0].onClick());
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.home);
+    });
+
+    it('offers no way back on the chat page before its chat is open', () => {
+      useMingoSheetStore.setState({ lastPage: '/devices/' });
       render('/mingo/chat/');
       expect(headerActions()).toEqual([]);
-      act(() => useMingoSheetStore.setState({ fullFrom: null }));
-      expect(headerActions()).toEqual([]);
+    });
+
+    it('raises a chat collapsed back to home over it, with both header actions', () => {
+      setSurface({ activeDialogId: 'a' });
+      const sheetNode = document.createElement('div');
+      useMingoSheetStore.setState({ open: true, node: sheetNode });
+      chips.onSend = null;
+      render('/mingo/');
+      expect(props().threadContainer).toBe(sheetNode);
+      expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
+      // The composer replies to the chat in the sheet: no quick actions for a new one.
+      expect(chips.onSend).toBeNull();
+      expect(selectDialog).not.toHaveBeenCalledWith(null);
     });
   });
 
@@ -705,7 +721,7 @@ describe('MingoComposerDock', () => {
       expect(panel.prefillDraft).toHaveBeenCalledWith(draft);
     });
 
-    it('opens an existing chat over the page, and on its own page from home', () => {
+    it('opens an existing chat over the page, home included, and on its own page from the chat page', () => {
       render('/devices/');
       act(() => useMingoLauncherStore.getState().openDialog('b'));
       expect(selectDialog).toHaveBeenCalledWith('b');
@@ -716,7 +732,14 @@ describe('MingoComposerDock', () => {
       act(() => useMingoSheetStore.setState({ open: false }));
       render('/mingo/');
       act(() => useMingoLauncherStore.getState().openDialog('c'));
-      expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('c'));
+      expect(selectDialog).toHaveBeenCalledWith('c');
+      expect(useMingoSheetStore.getState().open).toBe(true);
+      expect(nav.push).not.toHaveBeenCalled();
+
+      act(() => useMingoSheetStore.setState({ open: false }));
+      render('/mingo/chat/');
+      act(() => useMingoLauncherStore.getState().openDialog('d'));
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('d'));
       expect(useMingoSheetStore.getState().open).toBe(false);
     });
 

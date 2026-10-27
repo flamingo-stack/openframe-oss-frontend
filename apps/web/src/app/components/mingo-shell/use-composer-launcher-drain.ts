@@ -45,11 +45,11 @@ interface ComposerLauncherDrainOptions {
  *    request waits until the dock is there; the way home does not wait for the chat
  *    module to load;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
- *    which then opens over the page (or, from home, on its own page: `useComposerTarget`);
+ *    which then opens over the page, home included (`useComposerTarget`);
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
  *    Mingo greets in it, nothing is sent — and opens it as a prompt does;
- *  - an existing chat (a notification, "Open Mingo Session") opens over the page; from
- *    home and the chat page, on its own page;
+ *  - an existing chat (a notification, "Open Mingo Session", the sidebar's history) opens
+ *    over the page, home included; from the chat page, on its own page;
  *  - "What to ask Mingo?" puts the suggestions in the open chat, or a new one, and shows
  *    it: over the page or home (the sheet), in place on the chat page. The suggestions
  *    are local until one is picked, so home cannot send them to a chat page of their own.
@@ -72,7 +72,7 @@ export function useComposerLauncherDrain({
     if (!dockRequest) return;
     if (dockRequest.kind === 'open') {
       consumeDockRequest();
-      if (isSheetRoute(route)) {
+      if (route !== 'chat') {
         selectDialog(dockRequest.dialogId);
         openSheet();
       } else {

@@ -19,7 +19,11 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   },
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', () => ({ useMdUp: () => viewport.mdUp }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/devices/' }));
+const location = { pathname: '/devices/', search: '' };
+vi.mock('next/navigation', () => ({
+  usePathname: () => location.pathname,
+  useSearchParams: () => new URLSearchParams(location.search),
+}));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({ useMingoChatThreadOnScreen: () => {} }));
 vi.mock('@/lib/native-back', () => ({ useNativeBackDismissible: () => {} }));
 
@@ -31,7 +35,9 @@ describe('MingoComposerSheet height', () => {
   beforeEach(() => {
     sheet.props = null;
     viewport.mdUp = true;
-    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, height: null, node: null });
+    location.pathname = '/devices/';
+    location.search = '';
+    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, height: null, node: null, lastPage: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -59,5 +65,40 @@ describe('MingoComposerSheet height', () => {
     render();
     expect(sheet.props?.height).toBeNull();
     expect(sheet.props?.defaultShare).toBe(0.88);
+  });
+});
+
+describe('MingoComposerSheet way back', () => {
+  beforeEach(() => {
+    location.pathname = '/devices/';
+    location.search = '';
+    useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, lastPage: null });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('remembers the page on screen, with its query, as the one the chat page collapses to', () => {
+    location.search = 'statuses=ONLINE';
+    render();
+    expect(useMingoSheetStore.getState().lastPage).toBe('/devices/?statuses=ONLINE');
+
+    location.pathname = '/mingo/chat/';
+    location.search = 'id=a';
+    render();
+    expect(useMingoSheetStore.getState().lastPage).toBe('/devices/?statuses=ONLINE');
+  });
+
+  it('keeps the sheet open over a query change on the same page', () => {
+    render();
+    act(() => useMingoSheetStore.getState().show());
+    location.search = 'statuses=ONLINE';
+    render();
+    expect(useMingoSheetStore.getState().open).toBe(true);
   });
 });

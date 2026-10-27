@@ -1,6 +1,6 @@
 /**
  * The composer target rule (PLAN §3.7): home is a new chat, entered once per
- * visit; every other page continues the selected chat; any send from a page that is
+ * visit and again once its sheet closes; every other page continues the selected chat; any send from a page that is
  * not the chat page goes to its chat — at once into the open one, as soon as the id
  * is known for a created one; sends on the chat page stay put.
  */
@@ -31,10 +31,18 @@ const target = () => {
   return probe.target;
 };
 
-function Harness({ route }: { route: ComposerRoute }) {
+function Harness({ route, sheetOpen }: { route: ComposerRoute; sheetOpen: boolean }) {
   const active = selection(s => s.active);
   const state = { activeDialogId: active, selectDialog, sendMessage } as unknown as UnifiedChatState;
-  const result = useComposerTarget({ route, state, sendInNewDialog, createIntentDialog, navigate, openSheet });
+  const result = useComposerTarget({
+    route,
+    state,
+    sendInNewDialog,
+    createIntentDialog,
+    navigate,
+    openSheet,
+    sheetOpen,
+  });
   useEffect(() => {
     probe.target = result;
   });
@@ -56,9 +64,9 @@ function deferredCreate(newId: string | null) {
 let container: HTMLDivElement;
 let root: Root;
 
-function render(route: ComposerRoute) {
+function render(route: ComposerRoute, { sheetOpen = false }: { sheetOpen?: boolean } = {}) {
   act(() => {
-    root.render(<Harness route={route} />);
+    root.render(<Harness route={route} sheetOpen={sheetOpen} />);
   });
 }
 
@@ -95,6 +103,25 @@ describe('useComposerTarget', () => {
     render('page');
     render('home');
     expect(selectDialog).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a chat collapsed back over home while the sheet is up, then makes home a new chat', async () => {
+    sendMessage.mockResolvedValue(undefined);
+    select('a');
+    render('chat');
+    render('home', { sheetOpen: true });
+    expect(selectDialog).not.toHaveBeenCalled();
+
+    // Its sends continue it in the sheet: home does not leave for the chat page.
+    await act(async () => {
+      await target().mingoState.sendMessage('and the other one?');
+    });
+    expect(sendMessage).toHaveBeenLastCalledWith('and the other one?', undefined);
+    expect(navigate).not.toHaveBeenCalled();
+
+    render('home', { sheetOpen: false });
+    expect(selectDialog).toHaveBeenCalledTimes(1);
+    expect(selectDialog).toHaveBeenCalledWith(null);
   });
 
   it('does not deselect on any other page', () => {
@@ -187,11 +214,41 @@ describe('useComposerTarget', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('follows any chat that becomes active on home', () => {
+  it("takes a chat that becomes active on home without a send to its page (the tour's)", () => {
     render('home');
-    // e.g. the home page's own quick action: `sendInNewDialog` straight from the session.
-    act(() => select('quick-1'));
-    expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('quick-1'));
+    act(() => select('tour-1'));
+    expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('tour-1'));
+    expect(openSheet).not.toHaveBeenCalled();
+  });
+
+  it('leaves a chat selected into the sheet over home there', () => {
+    render('home', { sheetOpen: true });
+    act(() => select('b'));
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('opens a chat created by a send from home over home, and makes home new again once it closes', async () => {
+    render('home');
+    const { send, releaseCreate, finish } = deferredCreate('new-home');
+    sendInNewDialog.mockImplementation(send);
+
+    let sending: Promise<void> = Promise.resolve();
+    act(() => {
+      sending = target().sendInNewDialog('List every online machine');
+    });
+    await act(async () => releaseCreate());
+    expect(openSheet).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => {
+      finish();
+      await sending;
+    });
+
+    render('home', { sheetOpen: true });
+    expect(selectDialog).not.toHaveBeenCalled();
+    render('home', { sheetOpen: false });
+    expect(selectDialog).toHaveBeenCalledWith(null);
+    expect(selection.getState().active).toBeNull();
   });
 
   it('opens an always-new send over the page, away from the chat open there', async () => {

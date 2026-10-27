@@ -299,13 +299,17 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
-- **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). On
-  every page but home and the chat page, a send opens the chat over the page instead of leaving
-  it (`useComposerTarget` → `useMingoSheetStore.show`); the dock portals the thread into the
-  sheet's node. It closes on its ×, the scrim, Esc and any navigation, leaving a "Continue …"
+- **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). Every
+  chat opens there first: on every page but the chat page, home included, a send, a history row
+  or a notification opens the chat over the page instead of leaving it (`useComposerTarget` /
+  `useComposerLauncherDrain` → `useMingoSheetStore.show`); only the Getting Started tour's chat
+  goes to its page. The dock portals the thread into the sheet's node. Closing it on home
+  makes home a new chat again. It closes on its ×, the scrim, Esc and any navigation, leaving a "Continue …"
   chip at the start of the composer's context strip; the chip's × lets the chat go
   (`startNewChat`), so the next send from the page starts a new one. "Open as full chat" goes to the chat page,
-  whose header then offers "Back to page" (`fullFrom`). The chat behind the pages survives a
+  and every chat page's header offers "Back to page": the chat in the sheet over the last other page this
+  tab was on (`lastPage`, `sessionStorage`), or over home when there is none, where its sends continue it
+  until the sheet closes. The chat behind the pages survives a
   reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
   `localStorage` convenience.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
