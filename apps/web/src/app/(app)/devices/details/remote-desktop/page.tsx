@@ -211,7 +211,9 @@ function RemoteDesktopSession() {
 
   // Keep this device as the Mingo "open view" while on the remote-desktop surface
   // (the parent detail page unmounted on navigation, clearing its own openView).
-  useTrackOpenView(deviceName ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName } : null);
+  useTrackOpenView(deviceName ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName } : null, {
+    loading: isDeviceLoading,
+  });
 
   // Remote desktop state
   const canvasRef = useRef<HTMLCanvasElement>(null);
