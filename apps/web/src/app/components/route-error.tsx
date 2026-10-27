@@ -2,6 +2,7 @@
 
 import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef } from 'react';
+import { reportError } from '@/lib/error-reporting';
 
 /**
  * The body every Next route-segment boundary renders. One implementation shared
@@ -49,6 +50,7 @@ export function RouteError({
 
   useEffect(() => {
     console.error(`[${label}]`, error);
+    reportError(error, label);
   }, [error, label]);
 
   // The heading lives inside PageLayout, so the primary action is the focus

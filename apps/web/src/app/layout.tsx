@@ -20,6 +20,7 @@ import { BiometricLockBoundary } from './components/biometric-lock-boundary';
 import { DeploymentInitializer } from './components/deployment-initializer';
 import { DevicesViewConfig } from './components/devices-view-config';
 import { EmbedShimRegistration } from './components/embed-shim-registration';
+import { ErrorReportingBridge } from './components/error-reporting-bridge';
 import { GoogleTagManager } from './components/google-tag-manager';
 import { NativeShellInitializer } from './components/native-shell-initializer';
 import { NotificationsDataProvider } from './components/notifications/notifications-data-provider';
@@ -124,6 +125,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript }} />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
+        <ErrorReportingBridge />
         <GoogleTagManager />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />

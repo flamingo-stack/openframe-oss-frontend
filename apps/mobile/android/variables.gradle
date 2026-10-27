@@ -14,6 +14,7 @@ ext {
     androidxLifecycleProcessVersion = '2.6.2'
     androidxWorkVersion = '2.10.1'
     okhttpVersion = '4.12.0'
+    sentryAndroidVersion = '8.60.0'
     // Read by @capacitor-firebase/messaging's build.gradle too, so the app's own
     // FirebaseMessagingService subclass compiles against the plugin's exact SDK.
     firebaseMessagingVersion = '25.0.1'

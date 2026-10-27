@@ -25,6 +25,8 @@ tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-ap
 tauri-plugin-log = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+# Panic reports. ureq + rustls keeps TLS on the ring provider the rest of the tree uses.
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "panic", "ureq", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = "0.4"

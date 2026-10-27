@@ -712,6 +712,14 @@ This style is being migrated to react-relay. Don't write new code like this; whe
 
 The GraphQL endpoint is determined at runtime: `${NEXT_PUBLIC_TENANT_HOST_URL || window.location.origin}/api/graphql` (the Relay environment resolves the same endpoint).
 
+### Error Reporting (Sentry, SaaS only)
+
+`src/lib/error-reporting.ts` is the only module that talks to Sentry. It is on only when `NEXT_PUBLIC_SENTRY_DSN`
+is set **and** the mode is not `oss-tenant`, and it loads the SDK on first use, so an OSS bundle never downloads
+it. Error boundaries call `reportError(error, label)`: the SDK's global handlers never see what a boundary caught.
+Users go out by id only, console breadcrumbs are off, auth query params are redacted. The shells start their own
+native SDK from a DSN their release lanes bake in, and hand the same DSN to the bundle through `window.__ENV`.
+
 ### API Error Handling with useToast
 
 **MANDATORY:** All API operations must provide user feedback via `useToast`:

@@ -18,6 +18,8 @@ android {
         // cannot drift; a plain Studio build leaves it empty and the shell uses
         // the shared host the web view pushes at login and hydration.
         buildConfigField "String", "OPENFRAME_SHARED_HOST_URL", "\"${findProperty('ofSharedHostUrl') ?: ''}\""
+        // Crash reporting, from the lanes' NEXT_PUBLIC_SENTRY_DSN. Empty (Studio, OSS) reports nothing.
+        buildConfigField "String", "OPENFRAME_SENTRY_DSN", "\"${findProperty('ofSentryDsn') ?: ''}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -97,6 +99,8 @@ dependencies {
     // it — the gateway would then read the jar's refresh cookie over the
     // Refresh-Token header. OkHttp with CookieJar.NO_COOKIES carries nothing ambient.
     implementation "com.squareup.okhttp3:okhttp:$okhttpVersion"
+    // Java and native (NDK) crashes, ANRs. Started by hand in OpenFrameApplication.
+    implementation "io.sentry:sentry-android:$sentryAndroidVersion"
     // The plugin's FirebaseMessagingService is subclassed here (OpenFrameMessagingService);
     // the plugin declares this as `implementation`, so it is not on the app's classpath otherwise.
     implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"

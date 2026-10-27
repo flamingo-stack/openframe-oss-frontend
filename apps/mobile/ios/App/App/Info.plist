@@ -56,6 +56,12 @@
 	     build, where the refresher falls back to the tenant host learned at login. -->
 	<key>OpenFrameSharedHostURL</key>
 	<string>$(OPENFRAME_SHARED_HOST_URL)</string>
+	<!-- Crash reporting (AppDelegate.swift): the DSN from the lanes' NEXT_PUBLIC_SENTRY_DSN,
+	     empty in a plain Xcode build, which then reports nothing. -->
+	<key>OpenFrameSentryDSN</key>
+	<string>$(OPENFRAME_SENTRY_DSN)</string>
+	<key>OpenFrameSentryEnvironment</key>
+	<string>$(OPENFRAME_SENTRY_ENVIRONMENT)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
