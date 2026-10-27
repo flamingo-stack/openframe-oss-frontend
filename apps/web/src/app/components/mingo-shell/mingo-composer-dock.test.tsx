@@ -1,12 +1,12 @@
 /**
  * The Mingo-first composer dock: the session's one `EmbeddableChat`, laid out per
  * route — the thread portalled into the chat page's node (an element there, `null`
- * everywhere else, never `undefined`), Compact under the input off home, no memory
+ * everywhere else, never `undefined`), Compact in the chat's ⋯, no memory
  * strip on full-width pages — plus the launcher drain, the locked composer that holds
  * its place while the chat loads, and its own crash fallback.
  */
 
-import { act, forwardRef, type ReactElement, type ReactNode, useEffect, useImperativeHandle } from 'react';
+import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -530,14 +530,13 @@ describe('MingoComposerDock', () => {
   });
 
   describe('per route', () => {
-    it('home: a new chat — no Compact, its own prompt, the model row, the quick actions', () => {
+    it('home: a new chat — its own prompt, the model row, the quick actions', () => {
       chips.onSend = null;
       render('/mingo/');
       expect(chips.onSend).toBeTypeOf('function');
       // The lib's default: the model row is on every route, so the composer keeps its height.
       expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
-        composerFooterActions: undefined,
         composerPlaceholder: 'Ask Mingo or describe a task…',
         contextMemory: CONTEXT_MEMORY,
       });
@@ -550,12 +549,11 @@ describe('MingoComposerDock', () => {
       expect(chips.onSend).toBeNull();
     });
 
-    it('chat: the 760px column, the model row and Compact', () => {
+    it('chat: the 760px column and the model row', () => {
       setSurface({ activeDialogId: 'd-1' });
       render('/mingo/chat/');
       expect(props()).toMatchObject({ composerPlaceholder: 'Reply to Mingo…' });
       expect(props().showModel).toBeUndefined();
-      expect(props().composerFooterActions).toBeTruthy();
       expect(container.firstElementChild?.className).toContain('max-w-[760px]');
     });
 
@@ -584,35 +582,19 @@ describe('MingoComposerDock', () => {
     });
   });
 
-  describe('Compact under the input', () => {
-    type CompactButton = ReactElement<{ onClick: () => void }>;
-    const compact = () => (props().composerFooterActions as CompactButton).props;
-
-    it('offers Compact chat memory for the open chat', () => {
+  describe("Compact: the chat's ⋯, not a button under the input", () => {
+    it("hands the session's Compact to the chat's dialog actions", () => {
       setSurface({ activeDialogId: 'd-1' });
-      render('/devices/');
-      act(() => compact().onClick());
-      expect(compactDialog).toHaveBeenCalledWith('d-1');
-      // Not in a ⋯ of the input row any more.
+      render('/mingo/chat/');
+      expect(builder.lastOptions).toMatchObject({ compactDialog });
+      expect(props().composerFooterActions).toBeUndefined();
       expect(props().composerMenuItems).toBeUndefined();
     });
 
-    it('is not offered with no chat open: nothing to compact', () => {
-      render('/devices/');
-      expect(props().composerFooterActions).toBeUndefined();
-    });
-
-    it('is absent while the compact flag is off', () => {
-      useFeatureFlagsStore.getState().setFlags([{ name: 'mingo-compact-memory', enabled: false }]);
+    it('hands none while the compact flag is off', () => {
       setSurface({ activeDialogId: 'd-1', compact: false });
       render('/mingo/chat/');
-      expect(props().composerFooterActions).toBeUndefined();
-    });
-
-    it("keeps Compact's height while its flag has not answered, so the row does not grow", () => {
-      setSurface({ activeDialogId: 'd-1', compact: false });
-      render('/mingo/chat/');
-      expect((props().composerFooterActions as ReactElement<{ className: string }>).props.className).toContain('h-6');
+      expect(builder.lastOptions?.compactDialog).toBeUndefined();
     });
   });
 

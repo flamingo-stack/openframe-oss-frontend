@@ -1,8 +1,8 @@
 /**
  * What OpenFrame's chat can do, as the dock hands it to `EmbeddableChat`: the session's
- * state, the row status glyphs and "What to ask Mingo?", every dialog action but
- * Compact (the composer's), and quick actions that start their chat through the send
- * the dock passes.
+ * state, the row status glyphs and "What to ask Mingo?", every dialog action (Compact
+ * while its flag is on), and quick actions that start their chat through the send the
+ * dock passes.
  */
 
 import { act, useLayoutEffect } from 'react';
@@ -40,13 +40,20 @@ vi.mock('@/lib/image-url', () => ({ getFullImageUrl: () => undefined }));
 const chat = { ...makeFakeChat({ activeDialogId: 'd-1' }) } as unknown as MingoChatState;
 const copyDialogLink = vi.fn(async () => {});
 const sendInNewDialog = vi.fn(async () => {});
+const compactDialog = vi.fn();
+const probe = { compact: true };
 
 let container: HTMLDivElement;
 let root: Root;
 const seen: { props: OpenframeChatProps | null } = { props: null };
 
 function Probe() {
-  const props = useOpenframeChatProps({ chat, copyDialogLink, sendInNewDialog });
+  const props = useOpenframeChatProps({
+    chat,
+    copyDialogLink,
+    compactDialog: probe.compact ? compactDialog : undefined,
+    sendInNewDialog,
+  });
   useLayoutEffect(() => {
     seen.props = props;
   });
@@ -80,7 +87,7 @@ describe('useOpenframeChatProps', () => {
     });
   });
 
-  it('offers every dialog action but Compact, which is the composer’s', () => {
+  it('offers every dialog action, Compact compacting the chat it is asked for', () => {
     expect(seen.props?.mingoDialogCapabilities).toMatchObject({
       canRename: true,
       canArchive: true,
@@ -88,7 +95,15 @@ describe('useOpenframeChatProps', () => {
       fetchArchivedDialogs: chat.fetchArchivedDialogs,
       onCopyLink: copyDialogLink,
     });
-    expect(seen.props?.mingoDialogCapabilities).not.toHaveProperty('compactDialog');
+    seen.props?.mingoDialogCapabilities?.compactDialog?.({ id: 'd-7', title: 'Disk space' });
+    expect(compactDialog).toHaveBeenCalledWith('d-7');
+  });
+
+  it('offers no Compact while its flag is off', () => {
+    probe.compact = false;
+    act(() => root.render(<Probe />));
+    expect(seen.props?.mingoDialogCapabilities?.compactDialog).toBeUndefined();
+    probe.compact = true;
   });
 
   it('starts a quick action through the send it is given', () => {

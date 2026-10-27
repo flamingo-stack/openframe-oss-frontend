@@ -40,7 +40,7 @@ const onServer = () => false;
  * with the latest message first, grouped by the day of that message.
  *
  * A row opens its chat in the sheet over the page (on the chat page, in its place); the
- * selected chat stays highlighted on every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —
+ * selected chat stays highlighted on every page. Row ⋯ is Rename / Copy link / Archive — Compact is in the open chat's ⋯ —
  * through the same modals, mutations and toasts as the chat's own menus; archiving
  * the open chat drops it, which takes its chat page home. The history's ⋯ also offers
  * "Reset Onboarding" (onboarding v2), as the chat's ⋯ does. The search is a modal,

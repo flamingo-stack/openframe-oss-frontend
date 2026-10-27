@@ -45,6 +45,8 @@ export type OpenframeChatProps = Pick<
 interface OpenframeChatPropsOptions {
   chat: MingoChatState;
   copyDialogLink: MingoChat['copyDialogLink'];
+  /** "Compact Chat Memory" in the chat's ⋯; undefined while its flag is off. */
+  compactDialog?: MingoChat['compactDialog'];
   /** How a quick-action chip starts its chat. Default: the session's `sendInNewDialog`. */
   sendInNewDialog?: (text: string) => Promise<void>;
 }
@@ -53,6 +55,7 @@ interface OpenframeChatPropsOptions {
 export function useOpenframeChatProps({
   chat,
   copyDialogLink,
+  compactDialog,
   sendInNewDialog: sendInNewDialogOption,
 }: OpenframeChatPropsOptions): OpenframeChatProps {
   // Not a parameter default: one read from another parameter is a construct the
@@ -145,7 +148,7 @@ export function useOpenframeChatProps({
     //    `setSearchQuery`, which rides the `useMingoDialogs` query key.
     //  - rename/archive: enable the row + header ⋯ menu (mutations live on
     //    `mingoState` via `useMingoDialogActions`).
-    //  - compact: not here — it is the composer's, under the input.
+    //  - compact: the chat's ⋯, before Archive, while its flag is on.
     //  - archive page: `fetchArchivedDialogs` gates the clock-history button;
     //    `unarchiveDialog` enables restore.
     mingoDialogCapabilities: {
@@ -156,6 +159,7 @@ export function useOpenframeChatProps({
       fetchArchivedDialogs,
       unarchiveDialog,
       onCopyLink: copyDialogLink,
+      compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
     },
     // Admin-configured Mingo quick actions rendered as chips in the Mingo
     // empty state. Omitted when none are configured so the lib keeps its

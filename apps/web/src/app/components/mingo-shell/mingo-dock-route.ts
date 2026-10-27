@@ -20,7 +20,7 @@ function isFullWidthPage(pathname: string): boolean {
 
 /**
  * Where the Mingo-first composer dock is, as far as the dock is concerned:
- *  - `home` — `/mingo`: always a new chat, no Compact.
+ *  - `home` — `/mingo`: always a new chat.
  *  - `chat` — `/mingo/chat?id=`: the thread is the page (portalled into its node).
  *  - `full-width` — a remote screen, terminal, file manager or script editor: no
  *    memory strip, which takes height.
@@ -77,8 +77,6 @@ export interface DockView {
   placeholder: string;
   /** The context-memory strip — not on full-width pages (height). What is SENT is the same everywhere. */
   showContextMemory: boolean;
-  /** Compact chat memory under the input — not on home: there is no chat to compact (PLAN §2.3). */
-  showCompact: boolean;
   /**
    * The dock lies over the page's end (`AppLayout`'s `composerDockFloats`): the page runs
    * on under it and fades out. Not on the chat page (one surface with the thread) nor on
@@ -104,28 +102,24 @@ const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo or describe a task…',
     showContextMemory: true,
-    showCompact: false,
     floats: true,
   },
   chat: {
     widthClassName: CHAT_WIDTH,
     placeholder: 'Reply to Mingo…',
     showContextMemory: true,
-    showCompact: true,
     floats: false,
   },
   'full-width': {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo about this page…',
     showContextMemory: false,
-    showCompact: true,
     floats: false,
   },
   page: {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo about this page…',
     showContextMemory: true,
-    showCompact: true,
     floats: true,
   },
 };
