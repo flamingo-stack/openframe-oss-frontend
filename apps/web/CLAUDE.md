@@ -309,9 +309,14 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   (`startNewChat`), so the next send from the page starts a new one. "Open as full chat" goes to the chat page,
   and every chat page's header offers "Back to page": the chat in the sheet over the last other page this
   tab was on (`lastPage`, `sessionStorage`), or over home when there is none, where its sends continue it
-  until the sheet closes. The chat behind the pages survives a
+  until the sheet closes; its × ("Close chat") goes to that page without the sheet, the chat left behind it. The chat behind the pages survives a
   reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
   `localStorage` convenience.
+- **Under a page's action bar (a phone or a tablet)** the composer folds into a draggable button
+  (`MingoDockWidget`, `mingo-dock-widget.tsx`) while the page draws `PageActions`' window-pinned bar
+  (`useMobileActionBarHeight()` from the lib): two bottom bars took a third of the screen. A tap opens the
+  composer under the bar; its ×, a tap outside the chat or another page folds it back. The sheet over the
+  page hides the bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by the bar's height.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
   entry. A session that owes its setup lands on the bare `/setup` wizard instead of
   `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a

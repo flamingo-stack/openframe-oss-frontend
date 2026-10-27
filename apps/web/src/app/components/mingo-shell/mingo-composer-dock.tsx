@@ -45,10 +45,10 @@ import {
   Refresh01RightIcon,
   XmarkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useMobileActionBarHeight } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter } from 'next/navigation';
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import {
   type MingoChat,
@@ -67,6 +67,7 @@ import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
 import { canShowSheet, type ComposerRoute, composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
+import { MingoDockWidget, useMingoDockWidgetStore } from './mingo-dock-widget';
 import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
@@ -89,6 +90,9 @@ const CONTINUE_TITLE_MAX = 34;
 /** Nothing closes the dock: the lib still reports a same-tab navigation from a thread card as a close. */
 const ignoreClose = () => {};
 const noop = () => {};
+
+/** What the composer opens over the page: a tap there is not a tap outside the chat. */
+const COMPOSER_POPUPS = '[role="menu"], [role="listbox"], [role="dialog"], [data-radix-popper-content-wrapper]';
 
 /** The locked composer takes no input; its `+` menu needs a picker to draw the card it sits in. */
 const LOADING_PICKER = { entityTypes: [], renderItems: () => null };
@@ -133,29 +137,71 @@ function DockComposerLoading({ route }: { route: ComposerRoute }) {
 }
 
 export function MingoComposerDock() {
-  const route = composerRouteOf(usePathname());
+  const pathname = usePathname();
+  const route = composerRouteOf(pathname);
   usePublishComposerDock();
+  const sectionRef = useRef<HTMLElement>(null);
+  // A page's window-pinned action bar on a phone or a tablet: the composer folds into a
+  // button over the page (`MingoDockWidget`), and opens under the bar on a tap. Not while
+  // the chat is over the page: its composer is the one it replies with.
+  const barHeight = useMobileActionBarHeight();
+  const widgetOpen = useMingoDockWidgetStore(s => s.open);
+  const setWidgetOpen = useMingoDockWidgetStore(s => s.setOpen);
+  const sheetUp = useMingoSheetStore(s => isSheetUp(s, pathname)) && canShowSheet(route);
+  const folds = barHeight > 0 && isSheetRoute(route) && !sheetUp;
+  const folded = folds && !widgetOpen;
+
+  // Every page starts folded.
+  useEffect(() => {
+    setWidgetOpen(false);
+  }, [pathname, setWidgetOpen]);
+
+  // Opened: the input takes the focus, and a tap anywhere but the chat folds it again.
+  useEffect(() => {
+    if (!folds || !widgetOpen) return undefined;
+    const frame = requestAnimationFrame(() =>
+      sectionRef.current?.querySelector<HTMLElement>('[contenteditable="true"], textarea')?.focus(),
+    );
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // The composer, and what it opens over the page (menus, the picker, a modal).
+      if (sectionRef.current?.contains(target) || target.closest(COMPOSER_POPUPS)) return;
+      setWidgetOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [folds, widgetOpen, setWidgetOpen]);
 
   return (
-    // Centred at the route's width, a step below the page's last line. No overflow
-    // clipping and no transform here: the composer's popovers open above it. Named
-    // here: an inline chat names itself through its host's region.
-    <section
-      aria-label="Mingo AI chat"
-      // `pointer-events-auto`: a floating dock leaves the pointer to the page around it.
-      className={cn(
-        'pointer-events-auto mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]',
-        dockViewOf(route).widthClassName,
-      )}
-    >
-      <MingoDockErrorBoundary>
-        <DockSurface route={route} />
-      </MingoDockErrorBoundary>
-    </section>
+    <>
+      {/* Centred at the route's width, a step below the page's last line. No overflow
+          clipping and no transform here: the composer's popovers open above it. Named
+          here: an inline chat names itself through its host's region. Folded, it stays
+          mounted (the draft and the uploads with it) and takes no room. */}
+      <section
+        ref={sectionRef}
+        aria-label="Mingo AI chat"
+        // `pointer-events-auto`: a floating dock leaves the pointer to the page around it.
+        className={cn(
+          'pointer-events-auto mx-auto w-full min-w-0 pt-[var(--spacing-system-mf)]',
+          dockViewOf(route).widthClassName,
+          folded && 'hidden',
+        )}
+      >
+        <MingoDockErrorBoundary>
+          <DockSurface route={route} onFold={folds ? () => setWidgetOpen(false) : undefined} />
+        </MingoDockErrorBoundary>
+      </section>
+      {folded && <MingoDockWidget barHeight={barHeight} onOpen={() => setWidgetOpen(true)} />}
+    </>
   );
 }
 
-function DockSurface({ route }: { route: ComposerRoute }) {
+function DockSurface({ route, onFold }: { route: ComposerRoute; onFold?: () => void }) {
   // A surface for the whole session: the chat state runs while the dock is mounted.
   const { chat, error, enabled, identityEnabled, compactDialog, copyDialogLink } = useMingoChatSurface();
   if (error) throw error;
@@ -166,7 +212,13 @@ function DockSurface({ route }: { route: ComposerRoute }) {
     // must not wrap the page (see `MingoChatProvider`). The thread portalled into the
     // chat page still reads it — context follows the React tree.
     <ChatIdentityProvider enabled={identityEnabled}>
-      <DockChat route={route} chat={chat} compactDialog={compactDialog} copyDialogLink={copyDialogLink} />
+      <DockChat
+        route={route}
+        chat={chat}
+        compactDialog={compactDialog}
+        copyDialogLink={copyDialogLink}
+        onFold={onFold}
+      />
     </ChatIdentityProvider>
   );
 }
@@ -176,9 +228,11 @@ interface DockChatProps {
   chat: MingoChatState;
   compactDialog: MingoChat['compactDialog'];
   copyDialogLink: MingoChat['copyDialogLink'];
+  /** Folds the composer back into its button (`MingoDockWidget`), where a page's action bar folds it. */
+  onFold?: () => void;
 }
 
-function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps) {
+function DockChat({ route, chat, compactDialog, copyDialogLink, onFold }: DockChatProps) {
   const router = useRouter();
   const pathname = usePathname();
   const navigate = (href: string) => router.push(href);
@@ -256,7 +310,8 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const openDialogId = chat.state.activeDialogId ?? null;
   const onSheetRoute = isSheetRoute(route);
   // Every chat on its page collapses back to the last page this tab was on, raised
-  // over it again; to Mingo's home when there is none.
+  // over it again, or closes there, leaving it behind the page ("Continue …"); to
+  // Mingo's home when there is none.
   const collapseTo = route === 'chat' && openDialogId !== null ? (lastPage ?? routes.mingo.home) : null;
   let threadHeaderActions;
   if (sheetOpen) {
@@ -288,6 +343,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
           navigate(collapseTo);
         },
       },
+      { id: 'close-chat', label: 'Close chat', icon: <XmarkIcon size={24} />, onClick: () => navigate(collapseTo) },
     ];
   }
   const continuing = onSheetRoute && !sheetOpen && openDialogId !== null;
@@ -406,6 +462,14 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
             : continuing
               ? 'Reply, or ask something else about this page…'
               : view.placeholder
+        }
+        // Opened from its button under a page's action bar: × folds it back.
+        composerFooterActions={
+          onFold ? (
+            <Button variant="transparent" size="icon-sm" onClick={onFold} aria-label="Hide Mingo" title="Hide Mingo">
+              <XmarkIcon />
+            </Button>
+          ) : undefined
         }
         // One bottom inset: in the phone shell the layout root already pads it (and the
         // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it

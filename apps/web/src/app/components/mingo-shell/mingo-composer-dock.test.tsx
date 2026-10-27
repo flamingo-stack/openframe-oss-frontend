@@ -6,7 +6,7 @@
  * its place while the chat loads, and its own crash fallback.
  */
 
-import { act, forwardRef, type ReactNode, useEffect, useImperativeHandle } from 'react';
+import { act, forwardRef, type ReactElement, type ReactNode, useEffect, useImperativeHandle } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -16,6 +16,7 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
+import { useMingoDockWidgetStore } from './mingo-dock-widget';
 import { useMingoSheetStore } from './mingo-sheet-store';
 
 const {
@@ -26,6 +27,7 @@ const {
   shell,
   identity,
   chips,
+  bar,
   CONTEXT_MEMORY,
   CAPABILITIES,
   PENDING_APPROVALS,
@@ -49,6 +51,8 @@ const {
   shell: { mobile: false },
   identity: { enabled: null as boolean | null },
   chips: { onSend: null as ((text: string) => void) | null },
+  /** A page's window-pinned action bar (`PageActions` below md): its height, 0 for none. */
+  bar: { height: 0 },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
   CAPABILITIES: { canRename: true, canArchive: true, unarchiveDialog: () => Promise.resolve() },
   PENDING_APPROVALS: [{ type: 'approval_request', data: { requestId: 'r-1', status: 'pending' } }],
@@ -99,6 +103,16 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', () => ({
   Button: ({ children, onClick, ...rest }: { children: ReactNode; onClick?: () => void; 'aria-label'?: string }) => (
     <button type="button" onClick={onClick} aria-label={rest['aria-label']}>
       {children}
+    </button>
+  ),
+  useMobileActionBarHeight: () => bar.height,
+}));
+// The button has tests of its own (dragging, where it settles); here: when the dock draws it.
+vi.mock('./mingo-dock-widget', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  MingoDockWidget: ({ onOpen }: { onOpen: () => void }) => (
+    <button type="button" onClick={onOpen}>
+      Ask Mingo
     </button>
   ),
 }));
@@ -247,6 +261,8 @@ describe('MingoComposerDock', () => {
     useFeatureFlagsStore.getState().reset();
     useMingoLauncherStore.setState({ dockMounted: false, dockRequest: null });
     useMingoSheetStore.setState({ open: false, openAfterNavigation: false, node: null, lastPage: null });
+    bar.height = 0;
+    useMingoDockWidgetStore.setState({ open: false });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -402,8 +418,19 @@ describe('MingoComposerDock', () => {
       act(() => back.onClick());
       expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
       expect(useMingoSheetStore.getState()).toMatchObject({ openAfterNavigation: true });
-      // The button stays until the page is reached.
-      expect(headerActions().map(action => action.label)).toEqual(['Back to page']);
+      // The buttons stay until the page is reached.
+      expect(headerActions().map(action => action.label)).toEqual(['Back to page', 'Close chat']);
+    });
+
+    it('closes every chat page to the last page, leaving the chat behind it', () => {
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ lastPage: '/devices/?statuses=ONLINE' });
+      render('/mingo/chat/');
+      const close = headerActions()[1];
+      expect(close.label).toBe('Close chat');
+      act(() => close.onClick());
+      expect(nav.push).toHaveBeenCalledWith('/devices/?statuses=ONLINE');
+      expect(useMingoSheetStore.getState()).toMatchObject({ open: false, openAfterNavigation: false });
     });
 
     it("leads a chat page with no page before it back to Mingo's home", () => {
@@ -626,6 +653,77 @@ describe('MingoComposerDock', () => {
     setSurface({ identityEnabled: false });
     render('/devices/');
     expect(identity.enabled).toBe(false);
+  });
+
+  describe("under a page's action bar (a phone or a tablet)", () => {
+    const section = () => container.querySelector('section');
+    const widget = () => container.querySelector<HTMLButtonElement>('button');
+    const foldButton = () => props().composerFooterActions as ReactElement<{ onClick: () => void }> | undefined;
+
+    it('folds the composer into its button, still mounted', () => {
+      bar.height = 96;
+      render('/scripts/new/');
+      expect(section()?.className).toContain('hidden');
+      expect(widget()?.textContent).toBe('Ask Mingo');
+      expect(panel.mounts).toBe(1);
+    });
+
+    it('opens it under the bar on a tap, with × to fold it back', () => {
+      bar.height = 96;
+      render('/scripts/new/');
+      act(() => widget()?.click());
+      expect(section()?.className).not.toContain('hidden');
+      expect(widget()).toBeNull();
+
+      act(() => foldButton()?.props.onClick());
+      expect(section()?.className).toContain('hidden');
+      expect(panel.mounts).toBe(1);
+    });
+
+    it('folds it again on a tap outside the chat, but not on one inside it or in its menus', () => {
+      bar.height = 96;
+      render('/scripts/new/');
+      act(() => widget()?.click());
+
+      const menu = document.createElement('div');
+      menu.setAttribute('role', 'menu');
+      document.body.appendChild(menu);
+      act(() => {
+        section()?.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        menu.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      });
+      expect(section()?.className).not.toContain('hidden');
+
+      act(() => {
+        document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      });
+      expect(section()?.className).toContain('hidden');
+      menu.remove();
+    });
+
+    it('starts folded on every page', () => {
+      bar.height = 96;
+      render('/scripts/new/');
+      act(() => widget()?.click());
+      render('/scripts/edit/');
+      expect(section()?.className).toContain('hidden');
+    });
+
+    it('keeps the composer where there is no bar, on the chat page, and under the chat over the page', () => {
+      render('/scripts/new/');
+      expect(section()?.className).not.toContain('hidden');
+      expect(foldButton()).toBeUndefined();
+
+      bar.height = 96;
+      setSurface({ activeDialogId: 'd-1' });
+      render('/mingo/chat/');
+      expect(section()?.className).not.toContain('hidden');
+
+      useMingoSheetStore.setState({ open: true });
+      render('/scripts/new/');
+      expect(section()?.className).not.toContain('hidden');
+      expect(foldButton()).toBeUndefined();
+    });
   });
 
   describe('while the chat is not up', () => {
