@@ -1796,19 +1796,19 @@ mod tests {
     }
 
     /// The boot clock must advance with real time; the schedule is meaningless on
-    /// one that stands still.
+    /// one that stands still or jumps. Over an awake interval it agrees with
+    /// `Instant` to within the second each side floors away.
     #[test]
-    fn the_boot_clock_never_runs_behind_the_monotonic_one() {
-        // Counting sleep it can only be ahead of (or equal to) the clock that does
-        // not, up to the second each floors away.
-        assert!(boot_secs() + 1 >= mono_secs());
-    }
-
-    #[test]
-    fn the_boot_clock_moves() {
-        let before = boot_secs();
-        std::thread::sleep(Duration::from_millis(1_100));
-        assert!(boot_secs() > before);
+    fn the_boot_clock_advances_with_real_time() {
+        let (boot, instant) = (boot_secs(), std::time::Instant::now());
+        std::thread::sleep(Duration::from_millis(2_100));
+        let elapsed = instant.elapsed().as_secs();
+        let advanced = boot_secs() - boot;
+        assert!(
+            advanced.abs_diff(elapsed) <= 1,
+            "boot {advanced}s vs instant {elapsed}s"
+        );
+        assert!(advanced >= 2);
     }
 
     /// 410 is its own outcome: not a rejection, which ends the session, and not
