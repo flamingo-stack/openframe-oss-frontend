@@ -38,7 +38,7 @@ describe('session re-validation', () => {
   it('probes on a slow timer while paused, re-arming until the pause ends', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused();
+    health.markSessionPaused('rejected');
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS - 1);
     expect(mocks.me).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
@@ -47,7 +47,6 @@ describe('session re-validation', () => {
     expect(mocks.me).toHaveBeenCalledTimes(2);
 
     mocks.me.mockImplementation(async () => {
-      health.noteGatewayResponse(res(200));
       return { ok: true, status: 200 };
     });
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS);
@@ -61,7 +60,7 @@ describe('session re-validation', () => {
   it('probes when the tab becomes visible or the link returns, no more often than the floor', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused();
+    health.markSessionPaused('rejected');
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
     await vi.advanceTimersByTimeAsync(0);
@@ -79,7 +78,7 @@ describe('session re-validation', () => {
   it('does not probe a hidden tab', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused();
+    health.markSessionPaused('rejected');
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
     document.dispatchEvent(new Event('visibilitychange'));
     await vi.advanceTimersByTimeAsync(0);
@@ -90,7 +89,7 @@ describe('session re-validation', () => {
   it('does not probe once gone', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused();
+    health.markSessionPaused('rejected');
     health.noteGatewayResponse(res(410));
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS * 2);
     window.dispatchEvent(new Event('online'));
@@ -100,7 +99,7 @@ describe('session re-validation', () => {
 
   it('clears a pause that predates a token rotation at start-up instead of probing', async () => {
     const { health, probe } = await load();
-    health.markSessionPaused();
+    health.markSessionPaused('rejected');
     mocks.epoch = 2;
     const stop = probe.startSessionRevalidation();
     expect(health.getSessionHealth()).toBe('healthy');

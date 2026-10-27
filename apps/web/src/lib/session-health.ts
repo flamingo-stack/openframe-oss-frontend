@@ -7,11 +7,15 @@
  * interval, and a deleted tenant (410 on every path) was polled forever.
  *
  *   - `healthy` — nothing known against the session.
- *   - `paused`  — auth could not be re-established: a 401 survived a successful
- *     refresh (the gateway refused the token it had just issued), or the refresh
- *     itself failed transiently. Background polling stops; user-driven requests
- *     still go out, since any 2xx is the proof the session works. Leaves on a 2xx
- *     from the gateway, on a token rotation, or on a probe that is answered.
+ *   - `paused`  — auth could not be re-established. Background polling stops;
+ *     user-driven requests still go out. Why it paused decides what ends it:
+ *       - `transient`: the refresh itself failed (dropped link, auth-server 5xx).
+ *         The tokens may be fine, so any gateway 2xx — the link coming back — ends it.
+ *       - `rejected`: a 401 survived a successful refresh, i.e. the gateway refused
+ *         the token it had just issued. Other paths keep answering 2xx while this
+ *         one is refused (images, `/api/me`), so a stray 2xx proves nothing and
+ *         would flap the pause, costing a refresh-token rotation per flap. It ends
+ *         only on a token rotation or a successful re-validation probe.
  *   - `gone`    — a 410: the tenant was deleted. Terminal until sign-out; every
  *     gateway request is answered locally from then on (`SessionGoneError`).
  *
@@ -31,14 +35,19 @@ export const SESSION_GONE_MESSAGE = 'This workspace has been deleted.';
 
 export type SessionHealth = 'healthy' | 'paused' | 'gone';
 
+export type PauseReason = 'transient' | 'rejected';
+
 interface SessionHealthState {
   health: SessionHealth;
+  pauseReason: PauseReason | null;
   /** The token epoch the pause was recorded at: a later epoch is a rotation the pause predates. */
   pausedAtEpoch: number;
 }
 
 export const useSessionHealthStore = create<SessionHealthState>()(
-  devtools(() => ({ health: 'healthy' as SessionHealth, pausedAtEpoch: 0 }), { name: 'session-health-store' }),
+  devtools(() => ({ health: 'healthy' as SessionHealth, pauseReason: null as PauseReason | null, pausedAtEpoch: 0 }), {
+    name: 'session-health-store',
+  }),
 );
 
 /** A request answered locally because the tenant is gone. Never retried: it cannot succeed. */
@@ -57,16 +66,21 @@ export function isSessionGone(): boolean {
   return getSessionHealth() === 'gone';
 }
 
-/** Auth could not be re-established. Never overrides `gone`. */
-export function markSessionPaused(): void {
-  if (getSessionHealth() !== 'healthy') return;
-  useSessionHealthStore.setState({ health: 'paused', pausedAtEpoch: getTokenEpoch() }, false, 'markPaused');
+/** Auth could not be re-established. Never overrides `gone`; `rejected` upgrades a `transient` pause. */
+export function markSessionPaused(reason: PauseReason): void {
+  const { health, pauseReason } = useSessionHealthStore.getState();
+  if (health === 'gone' || (health === 'paused' && (reason === 'transient' || pauseReason === 'rejected'))) return;
+  useSessionHealthStore.setState(
+    { health: 'paused', pauseReason: reason, pausedAtEpoch: getTokenEpoch() },
+    false,
+    'markPaused',
+  );
 }
 
 /** Back to `healthy` from `paused`. A `gone` tenant does not come back by itself. */
 export function markSessionHealthy(): void {
   if (getSessionHealth() !== 'paused') return;
-  useSessionHealthStore.setState({ health: 'healthy' }, false, 'markHealthy');
+  useSessionHealthStore.setState({ health: 'healthy', pauseReason: null }, false, 'markHealthy');
 }
 
 function markSessionGone(): void {
@@ -76,7 +90,7 @@ function markSessionGone(): void {
 
 /** Sign-out or a tenant change: the only exits from `gone`. */
 export function resetSessionHealth(): void {
-  useSessionHealthStore.setState({ health: 'healthy', pausedAtEpoch: 0 }, false, 'reset');
+  useSessionHealthStore.setState({ health: 'healthy', pauseReason: null, pausedAtEpoch: 0 }, false, 'reset');
 }
 
 /**
@@ -90,7 +104,8 @@ function isDeletedTenantResponse(response: Pick<Response, 'status' | 'headers'>)
 
 /**
  * Record what a TENANT-GATEWAY response says about the session; true when it is
- * the deleted-tenant 410. A 2xx ends a pause. Everything else (including a 401, which the caller
+ * the deleted-tenant 410. A 2xx ends a `transient` pause only — a `rejected` one is
+ * ended by a token rotation or a successful probe (`markSessionHealthy`). Everything else (including a 401, which the caller
  * resolves through refresh first) is not this function's to judge.
  */
 export function noteGatewayResponse(response: Pick<Response, 'ok' | 'status' | 'headers'>): boolean {
@@ -98,7 +113,7 @@ export function noteGatewayResponse(response: Pick<Response, 'ok' | 'status' | '
     markSessionGone();
     return true;
   }
-  if (response.ok) markSessionHealthy();
+  if (response.ok && useSessionHealthStore.getState().pauseReason === 'transient') markSessionHealthy();
   return false;
 }
 

@@ -30,7 +30,7 @@ describe('sessionRetry', () => {
   it('never retries while paused or gone', async () => {
     const { health, poll } = await load();
     const retry = poll.sessionRetry(5);
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     expect(retry(0, new Error('x'))).toBe(false);
     health.markSessionHealthy();
     health.noteGatewayResponse(res(410));
@@ -43,7 +43,7 @@ describe('sessionInterval', () => {
     const { health, poll } = await load();
     const interval = poll.sessionInterval(15_000);
     expect(interval()).toBe(15_000);
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     expect(interval()).toBe(false);
     expect(poll.sessionPollsAllowed()).toBe(false);
   });
@@ -59,7 +59,7 @@ describe('resumeSessionPolls', () => {
     const { health, poll } = await load();
     const spy = vi.spyOn(client, 'refetchQueries').mockResolvedValue(undefined);
     const stop = poll.resumeSessionPolls(client);
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     expect(spy).not.toHaveBeenCalled();
     health.markSessionHealthy();
     expect(spy).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe('resumeSessionPolls', () => {
   it('actually restarts a stopped interval', async () => {
     const { health, poll } = await load();
     const fetcher = vi.fn(() => Promise.resolve('ok'));
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     const { QueryObserver } = await import('@tanstack/react-query');
     const observer = new QueryObserver(client, {
       queryKey: ['poll'],

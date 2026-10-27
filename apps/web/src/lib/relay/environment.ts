@@ -430,7 +430,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
       // (`token-refresh-manager.ts`). The tokens are still good — the boundary
       // shows the offline copy and re-issues when the link returns.
       if (outcome === 'transient') {
-        markSessionPaused();
+        markSessionPaused('transient');
         if (!isOnline()) throw new OfflineError(request.name);
         throw new Error(`Relay fetch failed: authentication temporarily unavailable (${request.name})`);
       }
@@ -441,7 +441,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
     if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
     if (noteGatewayResponse(response)) throw new SessionGoneError();
     // The gateway refused the token it was just handed: retrying cannot help.
-    if (response.status === 401) markSessionPaused();
+    if (response.status === 401) markSessionPaused('rejected');
   }
 
   if (!response.ok) {

@@ -278,7 +278,7 @@ class ApiClient {
         // request and leave the session alone. Mirrors `relay/environment.ts` —
         // both halves of the data layer have to agree.
         if (outcome === 'transient') {
-          markSessionPaused();
+          markSessionPaused('transient');
           return { error: isOnline() ? 'Authentication temporarily unavailable' : 'Offline', status: 0, ok: false };
         }
 
@@ -293,7 +293,7 @@ class ApiClient {
 
       // The gateway refused the token it was just handed: nothing in-process can
       // fix that, so background polling stops until the session is re-validated.
-      if (response.status === 401 && isRetry && !skipAuth && toGateway) markSessionPaused();
+      if (response.status === 401 && isRetry && !skipAuth && toGateway) markSessionPaused('rejected');
 
       // Parse response
       let data: T | undefined;

@@ -32,9 +32,9 @@ describe('session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
-  it('pauses, and a 2xx from the gateway resumes', async () => {
+  it('a transient pause resumes on a 2xx from the gateway', async () => {
     const health = await load();
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     expect(health.getSessionHealth()).toBe('paused');
     expect(health.noteGatewayResponse(res(401))).toBe(false);
     expect(health.getSessionHealth()).toBe('paused');
@@ -42,9 +42,40 @@ describe('session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
+  it('a rejected pause is not cleared by a 2xx from an unrelated request', async () => {
+    const health = await load();
+    health.markSessionPaused('rejected');
+    expect(health.noteGatewayResponse(res(200))).toBe(false);
+    expect(health.noteGatewayResponse(res(200))).toBe(false);
+    expect(health.getSessionHealth()).toBe('paused');
+    health.markSessionHealthy();
+    expect(health.getSessionHealth()).toBe('healthy');
+  });
+
+  it('a rejected pause still ends on a token rotation', async () => {
+    const health = await load();
+    health.markSessionPaused('rejected');
+    tokens.epoch = 2;
+    emitTokenChange();
+    expect(health.getSessionHealth()).toBe('healthy');
+  });
+
+  it('a rejection upgrades a transient pause, and a transient mark never downgrades a rejected one', async () => {
+    const health = await load();
+    health.markSessionPaused('transient');
+    health.markSessionPaused('rejected');
+    health.noteGatewayResponse(res(200));
+    expect(health.getSessionHealth()).toBe('paused');
+    health.markSessionHealthy();
+    health.markSessionPaused('rejected');
+    health.markSessionPaused('transient');
+    health.noteGatewayResponse(res(200));
+    expect(health.getSessionHealth()).toBe('paused');
+  });
+
   it('clears a pause on a token rotation, but not on a change at the same epoch', async () => {
     const health = await load();
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     emitTokenChange();
     expect(health.getSessionHealth()).toBe('paused');
     tokens.epoch = 2;
@@ -54,7 +85,7 @@ describe('session health', () => {
 
   it('clearPauseIfTokenRotated covers a cookie-mode rotation that emits nothing', async () => {
     const health = await load();
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     tokens.epoch = 2;
     health.clearPauseIfTokenRotated();
     expect(health.getSessionHealth()).toBe('healthy');
@@ -67,7 +98,7 @@ describe('session health', () => {
     health.noteGatewayResponse(res(200));
     tokens.epoch = 2;
     emitTokenChange();
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     expect(health.getSessionHealth()).toBe('gone');
   });
 
@@ -79,7 +110,7 @@ describe('session health', () => {
 
   it('a pause can turn into gone', async () => {
     const health = await load();
-    health.markSessionPaused();
+    health.markSessionPaused('transient');
     health.noteGatewayResponse(res(410));
     expect(health.getSessionHealth()).toBe('gone');
   });

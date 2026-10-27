@@ -107,10 +107,22 @@ describe('apiClient session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
-  it('resumes on a 2xx', async () => {
+  it('keeps a rejected pause through unrelated 2xx responses', async () => {
     const { apiClient } = await load();
     const health = await loadSessionHealth();
-    health.markSessionPaused();
+    mocks.refreshTokens.mockResolvedValue('refreshed');
+    fetchMock.mockImplementation(respond(401));
+    await apiClient.get('/chat/graphql');
+    expect(health.getSessionHealth()).toBe('paused');
+    fetchMock.mockImplementation(respond(200));
+    await apiClient.get('/api/me');
+    expect(health.getSessionHealth()).toBe('paused');
+  });
+
+  it('resumes a transient pause on a 2xx', async () => {
+    const { apiClient } = await load();
+    const health = await loadSessionHealth();
+    health.markSessionPaused('transient');
     fetchMock.mockImplementation(respond(200));
     await apiClient.get('/api/devices');
     expect(health.getSessionHealth()).toBe('healthy');
