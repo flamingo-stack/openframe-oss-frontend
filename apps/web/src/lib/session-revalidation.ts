@@ -19,12 +19,16 @@ import { onAppResume } from './native-shell';
 import {
   clearPauseIfTokenRotated,
   getSessionHealth,
+  isPausedFor,
   markSessionHealthy,
   useSessionHealthStore,
 } from './session-health';
 
 export const REVALIDATE_INTERVAL_MS = 5 * 60 * 1000;
-/** Ceiling for the interval while a refusal keeps coming back; see `RELAPSE_WINDOW_MS`. */
+/**
+ * Ceiling for the interval while a refusal keeps coming back: a probe that leaves the
+ * session `rejected`, or a relapse (see `RELAPSE_WINDOW_MS`), doubles it.
+ */
 export const REVALIDATE_MAX_INTERVAL_MS = 60 * 60 * 1000;
 /** Floor between event-driven probes, so a flapping tab focus cannot turn into a poller. */
 export const REVALIDATE_MIN_GAP_MS = 30 * 1000;
@@ -64,10 +68,18 @@ export function startSessionRevalidation(): () => void {
         resumedAt = Date.now();
         markSessionHealthy();
       }
+    } catch (error) {
+      // A probe that threw did not resume anything; the re-arm below is the retry.
+      console.warn('[Session Revalidation] probe failed:', error);
     } finally {
       inFlight = false;
       // Stopped while the probe was out: re-arming would leave a timer nothing clears.
-      if (!stopped && getSessionHealth() === 'paused') arm();
+      if (!stopped && getSessionHealth() === 'paused') {
+        // Still refused: the probe's 401 went through a refresh, so each round
+        // costs a rotation. With the window hidden nothing else ends the pause.
+        if (isPausedFor('rejected')) interval = Math.min(interval * 2, REVALIDATE_MAX_INTERVAL_MS);
+        arm();
+      }
     }
   }
 

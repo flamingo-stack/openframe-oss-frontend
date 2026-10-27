@@ -60,10 +60,10 @@ describe('session re-validation', () => {
     stop();
   });
 
-  it('probes on a slow timer while paused, re-arming until the pause ends', async () => {
+  it('probes a transient pause on a slow timer, re-arming until the pause ends', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused('rejected');
+    health.markSessionPaused('transient');
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS - 1);
     expect(mocks.me).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
@@ -83,7 +83,7 @@ describe('session re-validation', () => {
   it('probes when the tab becomes visible or the link returns, no more often than the floor', async () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
-    health.markSessionPaused('rejected');
+    health.markSessionPaused('transient');
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
     await vi.advanceTimersByTimeAsync(0);
@@ -169,6 +169,44 @@ describe('session re-validation', () => {
     health.markSessionPaused('rejected');
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS);
     expect(mocks.me).toHaveBeenCalledTimes(3);
+    stop();
+  });
+
+  it('backs off while each probe comes back still rejected, up to the ceiling', async () => {
+    const { health, probe } = await load();
+    const stop = probe.startSessionRevalidation();
+    health.markSessionPaused('rejected');
+    const base = probe.REVALIDATE_INTERVAL_MS;
+    await vi.advanceTimersByTimeAsync(base);
+    expect(mocks.me).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(base);
+    expect(mocks.me).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(base); // 10 min after the first
+    expect(mocks.me).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(base * 4); // 20
+    expect(mocks.me).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(base * 8); // 40
+    expect(mocks.me).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(probe.REVALIDATE_MAX_INTERVAL_MS);
+    expect(mocks.me).toHaveBeenCalledTimes(5);
+    await vi.advanceTimersByTimeAsync(probe.REVALIDATE_MAX_INTERVAL_MS);
+    expect(mocks.me).toHaveBeenCalledTimes(6);
+    stop();
+  });
+
+  it('treats a probe that throws as one that did not resume, and probes again', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { health, probe } = await load();
+    const stop = probe.startSessionRevalidation();
+    health.markSessionPaused('transient');
+    mocks.me.mockRejectedValueOnce(new Error('network down'));
+    await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS);
+    expect(mocks.me).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    expect(health.getSessionHealth()).toBe('paused');
+    await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS);
+    expect(mocks.me).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
     stop();
   });
 
