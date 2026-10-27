@@ -74,10 +74,15 @@ exists.**
 - **`MainViewController.swift`** — registers local plugins with the bridge; enables WKWebView
   **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl.
   `pushState` → SPA `popstate`).
-- **`AppDelegate.swift`** — stock + the three APNs forwarding methods
+- **`AppDelegate.swift`** — the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`), plus native push retraction and the
-  background-fetch completion call (see Push).
+  background-fetch completion call (see Push). No window, no URL or user-activity
+  handlers: those are the scene's.
+- **`SceneDelegate.swift`** — the one window scene (`UIApplicationSceneManifest` in
+  Info.plist; window + `MainViewController` from Main.storyboard via
+  `UISceneStoryboardFile`). Hands URL opens and user activities — cold (connection
+  options) and warm — to Capacitor's `ApplicationDelegateProxy`. See the UIScene gotcha.
 - **`OpenFrameApplication.java`** — the Android process-level init point (manifest
   `android:name`): installs the lifecycle's foreground observer and creates the
   notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,
@@ -426,6 +431,18 @@ swapped.
 
 ## Gotchas (hard-won)
 
+- **iOS 27 kills an app without the UIScene lifecycle at launch.** Built against the
+  iOS 27 SDK (Xcode 27), an app with no `UIApplicationSceneManifest` traps in UIKit
+  (`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`, `EXC_BREAKPOINT`
+  ~75ms after launch) on every iOS 27 device. iOS 26 only logged "`UIScene` lifecycle
+  will soon be required" and the iOS 26 SDK never tripped it, so 1.0.1 was fine and the
+  first Xcode 27 store build (1.0.2, 2026102701, 2026-10-27) crashed for everyone on
+  TestFlight. Hence `SceneDelegate`. Under scenes UIKit never calls the AppDelegate's
+  `application(_:open:options:)`, `application(_:continue:…)` or `applicationDid…`
+  methods — URL/activity handling goes in the scene delegate, lifecycle observers use the
+  `UIApplication.*Notification`s (`TokenLifecycle` already does), and the window is the
+  scene's (plugins reach it through the bridge view). An iOS 26 simulator does not
+  reproduce the crash: verify on an iOS 27 runtime.
 - **Simulator builds must be signed**: `CODE_SIGN_IDENTITY="-"`. Never
   `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so Keychain
   tokens don't persist across restarts.
