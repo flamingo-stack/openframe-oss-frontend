@@ -50,7 +50,7 @@ export function RecordingPlayer({ player, unavailableNote, className }: Recordin
             type="button"
             aria-label="Play recording"
             onClick={togglePlay}
-            className="flex size-[100px] items-center justify-center rounded-full bg-ods-card text-ods-text-primary outline-none transition-colors hover:bg-ods-bg-hover focus-visible:ring-2 focus-visible:ring-ods-focus"
+            className="flex size-[50px] items-center justify-center rounded-full bg-ods-card text-ods-text-primary outline-none transition-colors hover:bg-ods-bg-hover focus-visible:ring-2 focus-visible:ring-ods-focus content-lg:size-[100px]"
           >
             <PlayIcon className="h-6 w-6" />
           </button>
