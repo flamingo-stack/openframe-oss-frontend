@@ -18,7 +18,7 @@ import { useHistorySearchStore } from './history-search-store';
 import { MingoHistorySearch, MingoSidebarHistory, MingoSidebarHistorySlot } from './mingo-sidebar-history';
 import { useMobileMenuStore } from './mobile-menu-store';
 
-const { push, seen } = vi.hoisted(() => ({
+const { push, seen, onboarding } = vi.hoisted(() => ({
   push: vi.fn<(href: string) => void>(),
   seen: {
     rail: null as MingoChatRailProps | null,
@@ -26,7 +26,9 @@ const { push, seen } = vi.hoisted(() => ({
     archive: null as { isOpen: boolean; onConfirm: () => void } | null,
     mingo: null as MingoChat | null,
     search: null as Record<string, unknown> | null,
+    reset: null as { open: boolean; onOpenChange: (open: boolean) => void; onReset?: () => void } | null,
   },
+  onboarding: { canReset: true, v2: 'on' as 'loading' | 'on' | 'off' },
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
@@ -49,6 +51,14 @@ vi.mock('@flamingo-stack/openframe-frontend-core/components/chat', () => ({
   },
 }));
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({ useMingoChat: () => seen.mingo }));
+vi.mock('@/app/hooks/use-feature-flag', () => ({ useFeatureFlagGate: () => onboarding.v2 }));
+vi.mock('../reset-onboarding-dialog', () => ({
+  useCanResetOnboarding: () => onboarding.canReset,
+  ResetOnboardingDialog: (props: NonNullable<typeof seen.reset>) => {
+    seen.reset = props;
+    return null;
+  },
+}));
 
 const DIALOG: DialogItem = { id: 'd-1', title: 'Backups' };
 const OTHER: DialogItem = { id: 'd-2', title: 'Printers' };
@@ -114,6 +124,9 @@ beforeEach(() => {
   seen.rename = null;
   seen.archive = null;
   seen.search = null;
+  seen.reset = null;
+  onboarding.canReset = true;
+  onboarding.v2 = 'on';
   useHistorySearchStore.setState({ open: false });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -151,6 +164,30 @@ describe('MingoSidebarHistory', () => {
 
     act(() => rail().onOpenArchive?.());
     expect(push).toHaveBeenLastCalledWith(routes.mingo.archive);
+  });
+
+  it('offers Reset Onboarding in the history ⋯, confirmed, then takes the user to the wizard', () => {
+    render(session());
+    const items = rail().moreMenuItems ?? [];
+    expect(items.map(item => item.label)).toEqual(['Reset Onboarding']);
+    expect(seen.reset?.open).toBe(false);
+
+    act(() => items[0].onClick?.());
+    expect(seen.reset?.open).toBe(true);
+
+    act(() => seen.reset?.onReset?.());
+    expect(push).toHaveBeenLastCalledWith(routes.setup);
+  });
+
+  it('offers no Reset Onboarding without a tour to replay, or without onboarding v2', () => {
+    onboarding.canReset = false;
+    render(session());
+    expect(rail().moreMenuItems).toBeUndefined();
+
+    onboarding.canReset = true;
+    onboarding.v2 = 'loading';
+    render(session());
+    expect(rail().moreMenuItems).toBeUndefined();
   });
 
   it("tells someone else's chats by the rows' owner ids against the viewer's", () => {

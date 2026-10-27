@@ -7,7 +7,7 @@ import {
   MingoChatSearchModal,
   RenameChatModal,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ChatsIcon, Refresh01RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { NavigationSidebarActionRow } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { useRouter } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
@@ -15,7 +15,9 @@ import { createPortal } from 'react-dom';
 import { useMingoChat } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { routes } from '@/lib/routes';
+import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useHistorySearchStore } from './history-search-store';
 import { closeMobileMenu } from './mobile-menu-store';
@@ -39,7 +41,8 @@ const onServer = () => false;
  * A row opens its chat page, which selects it; the selected chat stays highlighted on
  * every page. Row ⋯ is Rename / Copy link / Archive — Compact lives in the composer —
  * through the same modals, mutations and toasts as the chat's own menus; archiving
- * the open chat drops it, which takes its chat page home. The search is a modal,
+ * the open chat drops it, which takes its chat page home. The history's ⋯ also offers
+ * "Reset Onboarding" (onboarding v2), as the chat's ⋯ does. The search is a modal,
  * `MingoHistorySearch` below, drawn once by the shell; its open state is shared with
  * the shell, which opens it on ⌘K / Ctrl+K.
  */
@@ -51,6 +54,9 @@ export function MingoSidebarHistory() {
   const router = useRouter();
   const [renameTarget, setRenameTarget] = useState<DialogItem | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<DialogItem | null>(null);
+  const onboardingV2 = useFeatureFlagGate('onboarding-v2');
+  const canResetOnboarding = useCanResetOnboarding() && onboardingV2 === 'on';
+  const [resetOnboardingOpen, setResetOnboardingOpen] = useState(false);
   // The modals render over the window, outside the sidebar: a drawer that slides
   // the sidebar in (a transform) would otherwise become their containing block.
   const canPortal = useSyncExternalStore(subscribeToNothing, onClient, onServer);
@@ -119,6 +125,18 @@ export function MingoSidebarHistory() {
         onOpenArchive={() => open(routes.mingo.archive)}
         // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, over the page.
         onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}
+        moreMenuItems={
+          canResetOnboarding
+            ? [
+                {
+                  id: 'reset-onboarding',
+                  label: 'Reset Onboarding',
+                  icon: <Refresh01RightIcon className="h-full w-full text-ods-text-secondary" />,
+                  onClick: () => setResetOnboardingOpen(true),
+                },
+              ]
+            : undefined
+        }
         scope={state.dialogScope}
         onScopeChange={state.setDialogScope}
         searchQuery={chat.searchQuery}
@@ -143,6 +161,10 @@ export function MingoSidebarHistory() {
             archiveTarget={archiveTarget}
             onCloseArchive={() => setArchiveTarget(null)}
             onConfirmArchive={() => void confirmArchive()}
+            resetOnboardingOpen={resetOnboardingOpen}
+            onResetOnboardingOpenChange={setResetOnboardingOpen}
+            // The tour starts over from the wizard's "Start with Mingo", as from the chat's ⋯.
+            onResetOnboarding={() => open(routes.setup)}
           />,
           document.body,
         )}
@@ -157,6 +179,9 @@ function SidebarHistoryModals({
   archiveTarget,
   onCloseArchive,
   onConfirmArchive,
+  resetOnboardingOpen,
+  onResetOnboardingOpenChange,
+  onResetOnboarding,
 }: {
   renameTarget: DialogItem | null;
   onCloseRename: () => void;
@@ -164,6 +189,9 @@ function SidebarHistoryModals({
   archiveTarget: DialogItem | null;
   onCloseArchive: () => void;
   onConfirmArchive: () => void;
+  resetOnboardingOpen: boolean;
+  onResetOnboardingOpenChange: (open: boolean) => void;
+  onResetOnboarding: () => void;
 }) {
   return (
     <>
@@ -174,6 +202,11 @@ function SidebarHistoryModals({
         onSave={onConfirmRename}
       />
       <ArchiveChatModal isOpen={archiveTarget != null} onClose={onCloseArchive} onConfirm={onConfirmArchive} />
+      <ResetOnboardingDialog
+        open={resetOnboardingOpen}
+        onOpenChange={onResetOnboardingOpenChange}
+        onReset={onResetOnboarding}
+      />
     </>
   );
 }
