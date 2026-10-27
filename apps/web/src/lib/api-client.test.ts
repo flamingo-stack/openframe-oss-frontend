@@ -72,8 +72,10 @@ describe('apiClient on 426', () => {
 });
 
 describe('apiClient session health', () => {
-  const respond = (status: number) => () =>
-    Promise.resolve(new Response('{}', { status, headers: { 'Content-Type': 'application/json' } }));
+  const respond =
+    (status: number, type = status === 410 ? 'text/html' : 'application/json') =>
+    () =>
+      Promise.resolve(new Response('{}', { status, headers: { 'Content-Type': type } }));
 
   it('pauses the session when a 401 survives a successful refresh, and returns the plain 401', async () => {
     const { apiClient } = await load();
@@ -124,6 +126,16 @@ describe('apiClient session health', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(mocks.refreshTokens).not.toHaveBeenCalled();
     expect(mocks.forceLogout).not.toHaveBeenCalled();
+  });
+
+  it('hands a JSON 410 back unchanged and does not short-circuit afterwards', async () => {
+    const { apiClient } = await load();
+    const health = await loadSessionHealth();
+    fetchMock.mockImplementation(respond(410, 'application/json'));
+    expect(await apiClient.get('/api/recordings/1')).toMatchObject({ status: 410, ok: false });
+    expect(health.getSessionHealth()).toBe('healthy');
+    await apiClient.get('/api/recordings/2');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('ignores a 410 from a host that is not the tenant gateway', async () => {

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./token-store', () => ({ getTokenEpoch: () => 1, subscribeToTokenChange: () => () => undefined }));
 
+const res = (status: number, type = 'text/html') => new Response('', { status, headers: { 'Content-Type': type } });
+
 async function load() {
   vi.resetModules();
   const [health, poll] = await Promise.all([import('./session-health'), import('./session-poll')]);
@@ -31,7 +33,7 @@ describe('sessionRetry', () => {
     health.markSessionPaused();
     expect(retry(0, new Error('x'))).toBe(false);
     health.markSessionHealthy();
-    health.noteGatewayResponse({ ok: false, status: 410 });
+    health.noteGatewayResponse(res(410));
     expect(retry(0, new Error('x'))).toBe(false);
   });
 });

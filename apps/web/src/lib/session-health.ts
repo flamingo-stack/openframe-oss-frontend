@@ -80,12 +80,21 @@ export function resetSessionHealth(): void {
 }
 
 /**
+ * The gateway's deleted-tenant answer is an HTML error page. Tenant services
+ * answer 410 too (a recording that is gone), but with JSON — that one is the
+ * caller's to handle and says nothing about the tenant.
+ */
+function isDeletedTenantResponse(response: Pick<Response, 'status' | 'headers'>): boolean {
+  return response.status === SESSION_GONE_STATUS && !!response.headers.get('content-type')?.includes('text/html');
+}
+
+/**
  * Record what a TENANT-GATEWAY response says about the session; true when it is
- * the 410. A 2xx ends a pause. Everything else (including a 401, which the caller
+ * the deleted-tenant 410. A 2xx ends a pause. Everything else (including a 401, which the caller
  * resolves through refresh first) is not this function's to judge.
  */
-export function noteGatewayResponse(response: Pick<Response, 'ok' | 'status'>): boolean {
-  if (response.status === SESSION_GONE_STATUS) {
+export function noteGatewayResponse(response: Pick<Response, 'ok' | 'status' | 'headers'>): boolean {
+  if (isDeletedTenantResponse(response)) {
     markSessionGone();
     return true;
   }

@@ -10,6 +10,8 @@ vi.mock('./token-store', () => ({
   },
 }));
 
+const res = (status: number, type = 'text/html') => new Response('', { status, headers: { 'Content-Type': type } });
+
 async function load() {
   vi.resetModules();
   tokens.listeners.clear();
@@ -34,9 +36,9 @@ describe('session health', () => {
     const health = await load();
     health.markSessionPaused();
     expect(health.getSessionHealth()).toBe('paused');
-    expect(health.noteGatewayResponse({ ok: false, status: 401 })).toBe(false);
+    expect(health.noteGatewayResponse(res(401))).toBe(false);
     expect(health.getSessionHealth()).toBe('paused');
-    expect(health.noteGatewayResponse({ ok: true, status: 200 })).toBe(false);
+    expect(health.noteGatewayResponse(res(200))).toBe(false);
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
@@ -60,25 +62,31 @@ describe('session health', () => {
 
   it('goes gone on a 410 and a 2xx or a rotation does not bring it back', async () => {
     const health = await load();
-    expect(health.noteGatewayResponse({ ok: false, status: 410 })).toBe(true);
+    expect(health.noteGatewayResponse(res(410))).toBe(true);
     expect(health.isSessionGone()).toBe(true);
-    health.noteGatewayResponse({ ok: true, status: 200 });
+    health.noteGatewayResponse(res(200));
     tokens.epoch = 2;
     emitTokenChange();
     health.markSessionPaused();
     expect(health.getSessionHealth()).toBe('gone');
   });
 
+  it("treats a JSON 410 as the caller's own answer, not a deleted tenant", async () => {
+    const health = await load();
+    expect(health.noteGatewayResponse(res(410, 'application/json'))).toBe(false);
+    expect(health.getSessionHealth()).toBe('healthy');
+  });
+
   it('a pause can turn into gone', async () => {
     const health = await load();
     health.markSessionPaused();
-    health.noteGatewayResponse({ ok: false, status: 410 });
+    health.noteGatewayResponse(res(410));
     expect(health.getSessionHealth()).toBe('gone');
   });
 
   it('resetSessionHealth is the way out of gone', async () => {
     const health = await load();
-    health.noteGatewayResponse({ ok: false, status: 410 });
+    health.noteGatewayResponse(res(410));
     health.resetSessionHealth();
     expect(health.getSessionHealth()).toBe('healthy');
   });

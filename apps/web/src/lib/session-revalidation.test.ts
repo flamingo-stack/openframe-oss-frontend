@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({ me: vi.fn(), epoch: 1 }));
 vi.mock('./api-client', () => ({ apiClient: { me: mocks.me } }));
 vi.mock('./token-store', () => ({ getTokenEpoch: () => mocks.epoch, subscribeToTokenChange: () => () => undefined }));
 
+const res = (status: number, type = 'text/html') => new Response('', { status, headers: { 'Content-Type': type } });
+
 async function load() {
   vi.resetModules();
   const [health, probe] = await Promise.all([import('./session-health'), import('./session-revalidation')]);
@@ -45,7 +47,7 @@ describe('session re-validation', () => {
     expect(mocks.me).toHaveBeenCalledTimes(2);
 
     mocks.me.mockImplementation(async () => {
-      health.noteGatewayResponse({ ok: true, status: 200 });
+      health.noteGatewayResponse(res(200));
       return { ok: true, status: 200 };
     });
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS);
@@ -89,7 +91,7 @@ describe('session re-validation', () => {
     const { health, probe } = await load();
     const stop = probe.startSessionRevalidation();
     health.markSessionPaused();
-    health.noteGatewayResponse({ ok: false, status: 410 });
+    health.noteGatewayResponse(res(410));
     await vi.advanceTimersByTimeAsync(probe.REVALIDATE_INTERVAL_MS * 2);
     window.dispatchEvent(new Event('online'));
     expect(mocks.me).not.toHaveBeenCalled();
