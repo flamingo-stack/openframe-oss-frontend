@@ -8,6 +8,7 @@ import { isOnline, subscribeConnectivity } from '../connectivity';
 import { forceLogout } from '../force-logout';
 import { OfflineError } from '../query-state';
 import { runtimeEnv } from '../runtime-config';
+import { isSessionGone, markSessionPaused, noteGatewayResponse, SessionGoneError } from '../session-health';
 import { waitForSessionReady } from '../session-ready';
 import { markSubscriptionLocked, waitForSubscriptionGate } from '../subscription-gate';
 import { detectTrialExpiredFromGraphqlErrors, hasTrialExpiredClassification } from '../subscription-lock-signal';
@@ -400,6 +401,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
 
   // A 426 may have landed while this request was parked on the gates above.
   if (isUpdateRequired()) throw new UpdateRequiredError();
+  if (isSessionGone()) throw new SessionGoneError();
 
   // Captured BEFORE the request goes out: a 401 that comes back after the
   // credential has already rotated needs a retry, not another rotation.
@@ -409,6 +411,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
   // Ahead of the 401 path: a too-old bundle says nothing about the session. 426
   // is a 4xx, so the retry policy above has already passed it straight through.
   if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+  if (noteGatewayResponse(response)) throw new SessionGoneError();
 
   // --- 401 handling: token refresh, then retry once ---
   if (response.status === 401) {
@@ -427,6 +430,7 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
       // (`token-refresh-manager.ts`). The tokens are still good — the boundary
       // shows the offline copy and re-issues when the link returns.
       if (outcome === 'transient') {
+        markSessionPaused();
         if (!isOnline()) throw new OfflineError(request.name);
         throw new Error(`Relay fetch failed: authentication temporarily unavailable (${request.name})`);
       }
@@ -435,6 +439,9 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
     }
     response = await send(request, variables, getAuthHeaders());
     if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+    if (noteGatewayResponse(response)) throw new SessionGoneError();
+    // The gateway refused the token it was just handed: retrying cannot help.
+    if (response.status === 401) markSessionPaused();
   }
 
   if (!response.ok) {

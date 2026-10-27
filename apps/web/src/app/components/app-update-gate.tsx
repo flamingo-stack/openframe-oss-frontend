@@ -6,6 +6,7 @@ import { isMobileShell } from '@/lib/platform';
 import { refreshVersionPolicy, useAppUpdateStore } from '@/lib/version-check';
 import { UpdateAvailableModal } from './update-available-modal';
 import { UpdateRequiredScreen } from './update-required-screen';
+import { WorkspaceGoneGate } from './workspace-gone-gate';
 
 /**
  * Mobile force-update (`version-check.ts`). Fetches the version policy on cold
@@ -13,6 +14,9 @@ import { UpdateRequiredScreen } from './update-required-screen';
  * the blocking screen in place of everything below it — the NATS socket, the
  * biometric unlock gate and the login pages included. Children render untouched
  * on the web and desktop, where neither signal ever fires.
+ *
+ * Also hosts the "workspace deleted" gate (`session-health.ts`): the same kind of
+ * refusal, on every shell, and it belongs at the same height in the tree.
  */
 export function AppUpdateGate({ children }: { children: ReactNode }) {
   const required = useAppUpdateStore(s => s.required !== null);
@@ -27,7 +31,7 @@ export function AppUpdateGate({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {children}
+      <WorkspaceGoneGate>{children}</WorkspaceGoneGate>
       <UpdateAvailableModal />
     </>
   );
