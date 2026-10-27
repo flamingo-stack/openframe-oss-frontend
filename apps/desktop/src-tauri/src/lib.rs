@@ -1197,14 +1197,8 @@ async fn native_auth_get_tokens(app: AppHandle) -> Result<NativeAuthTokens, Stri
 /// the access token the webview says the gateway refused.
 ///
 /// `rejected_access_token` is that token, passed through the bridge by
-/// `env_init_script`. Dampening against the *stored* token instead — which is
-/// what this did when the argument was dropped — compares the shell with itself:
-/// it always matched, so every 401 the webview reported rotated, including ones
-/// for a token the shell had long since replaced, and each rotation also changes
-/// the NATS URL and tears that connection down. With the real argument, a stored
-/// token that already differs is the answer: `tokens::refresh` returns it
-/// without a request. Absent (a webview with no token), it
-/// falls back to the stored one.
+/// `env_init_script`; see [`tokens::damping_token`] for why it, and not the
+/// stored token, is what the refresh is dampened against.
 ///
 /// A transient failure rejects, and the webview takes a rejection to mean
 /// "transient": `executeRefresh` maps it to the `transient` outcome, which every

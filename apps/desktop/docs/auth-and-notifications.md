@@ -40,21 +40,22 @@ what must survive idle:
   `exp - iat` (two readings of the gateway's clock), counted from the moment the
   token arrived — recorded by a rotation, and by the webview's `setTokens` when
   the access token is new — on a clock that keeps counting through sleep
-  (`CLOCK_MONOTONIC` on macOS, `Instant` on Windows). The device's wall clock
-  is not consulted, so a machine whose clock is wrong rotates on the same
-  cadence as one whose clock is right: judging `exp` against a wall clock that
-  ran behind kept presenting a token the gateway had already expired. After a
+  (`CLOCK_MONOTONIC` on macOS, `CLOCK_BOOTTIME` on Linux, `Instant` on
+  Windows). The device's wall clock is not consulted, so a machine whose clock
+  is wrong rotates on the same cadence as one whose clock is right: judging
+  `exp` against a wall clock that ran behind kept presenting a token the gateway
+  had already expired. After a
   restart there is no receipt; the token is judged by `exp` against the wall
   clock instead, plus one guard — an `iat` ahead of the device's now proves the
   clock is behind and rotates once. (The device agent refreshes once at start;
   the shell does not, because each launch would then spend a rotation, and the
   residual — a clock behind by less than the token's age — is recovered by the
-  first 401, which the rejected-token handoff below keeps to one rotation.) That
-  margin is squeezed from both sides: it must
-  span several poll ticks (App Nap coalesces a hidden app's timers, and a margin
-  the poll can skip entirely lets the access token die), yet stay a small
-  fraction of the token's 900-second life, because every rotation is a chance to
-  lose the session — see the hazard note below.
+  first 401, which the rejected-token handoff below keeps to one rotation.) The
+  120-second margin is squeezed from both sides: it must span several poll ticks
+  (App Nap coalesces a hidden app's timers, and a margin the poll can skip
+  entirely lets the access token die), yet stay a small fraction of the token's
+  900-second life, because every rotation is a chance to lose the session — see
+  the hazard note below.
 - **Refresh.** `POST {base}/oauth/refresh` with the `Refresh-Token` header;
   rotated tokens come back on the `Access-Token`/`Refresh-Token` response
   headers. `tenantId` is omitted — the gateway resolves the tenant from the token.
@@ -87,7 +88,9 @@ what must survive idle:
   reads as `refreshed`: the retry carried the same rejected bearer and rotated
   again.) Deciding a session is over stays here, where custody is.
 - **Tenant gone.** The shared gateway answers every path of a deleted tenant
-  with 410. Nothing a retry does changes that, so the shell stops: a 410 to a
+  with a 410 and its HTML error page; a tenant service's own 410 is JSON and is
+  not the tenant being deleted (the web app draws the same line). Nothing a
+  retry does changes that page, so the shell stops: the page in answer to a
   refresh (possible only on the tenant-host fallback — the shared host looks the
   tenant up through the authorization record, which offboarding deletes, and so
   answers 401) or to a plain-HTTP probe marks the tenant gone. While gone, no
@@ -340,6 +343,13 @@ dials with a fresh bearer.
   tears the connection down and re-dials, since the connection itself is then
   wrong. A single-runner guard prevents overlapping switches from starting two
   dial loops.
+- Tearing down cannot stop a connection that is between connections (above), so
+  each one is dialled under a generation number its callbacks carry, and a switch
+  bumps it. A superseded connector parks at its next delay or auth callback,
+  after at most the dial already under way. Without that it dialled the previous
+  tenant every 15–30s until restart, which is a deleted tenant's gateway after
+  its sign-out and the next sign-in, and counted those failures toward the new
+  tenant's gone detection.
 
 ### Subscription and dispatch (`src-tauri/src/notifications.rs`)
 

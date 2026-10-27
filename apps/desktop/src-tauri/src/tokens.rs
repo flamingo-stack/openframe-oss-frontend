@@ -1,5 +1,6 @@
-// Shell-owned token lifecycle: custody (tokens.json), freshness (JWT exp),
-// and refresh against the gateway BFF. Owning refresh in the shell keeps the
+// Shell-owned token lifecycle: custody (tokens.json), freshness (scheduled from
+// the token's own lifetime), refresh against the gateway BFF, and the
+// tenant-gone state that stands both down. Owning refresh in the shell keeps the
 // session alive independent of the webview's idle state, and enforces a single
 // refresher — refresh tokens rotate, so a webview refresher racing a shell
 // refresher would invalidate each other's tokens. In shells that expose
@@ -21,8 +22,10 @@ use crate::{load_config, tenant_host, AppConfig, MAIN_LABEL};
 /// Rust side (refresh rotation or session death). Payload: NativeAuthTokens.
 pub const TOKEN_UPDATE_EVENT: &str = "native-auth:token-update";
 
-/// Refresh when the access token is within this margin of its `exp`. Sized
-/// against two opposing risks, both observed in the wild:
+/// Refresh this long before the end of the access token's life (counted from
+/// receipt, see [`refresh_delay_secs`]; after a restart, before its `exp`, see
+/// [`needs_refresh_at`]). Sized against two opposing risks, both observed in the
+/// wild:
 ///
 /// - too small and a stretch of not being scheduled at all (a background app
 ///   with hidden windows is an App Nap candidate, and macOS coalesces its
@@ -143,7 +146,7 @@ const LOST_ROTATION_COOLDOWN_SECS: u64 = 60;
 /// Why a refresh was refused without a request going out. Shared by the settle
 /// gates so a post-mortem sees one reason, not a spelling of it per site.
 const UNSETTLED: &str = "the machine has not been awake long enough to rotate";
-/// Why a refresh was refused for a deleted tenant, here and in the NATS logs.
+/// Why a refresh was refused for a deleted tenant.
 const TENANT_GONE: &str = "the tenant is gone (the gateway answered 410)";
 
 /// The two bounds the wake gate is only useful between: the settle window has to
@@ -174,9 +177,9 @@ const DIAL_PROBE_MIN_GAP_SECS: u64 = 5 * 60;
 /// rotation there is nothing to protect from the sleep-stalled timer.
 const PROBE_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
-/// Where the probe goes. Only the status class of the answer is read — the
-/// gateway answers 410 on every path of a deleted tenant — so the path need not
-/// exist on a live one.
+/// Where the probe goes. Only the status is read, and whether a 410 is the
+/// gateway's deleted-tenant page — which it serves on every path of a deleted
+/// tenant — so the path need not exist on a live one.
 const PROBE_PATH: &str = "/api/health";
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -353,15 +356,46 @@ enum ProbeVerdict {
     Unclear,
 }
 
+/// A gateway answer as the gone state reads it. The shared gateway's
+/// deleted-tenant answer is a 410 with its HTML error page; a tenant service's
+/// own 410 (a recording that expired) is JSON and says nothing about the tenant.
+/// The web app draws the same line (`session-health.ts`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct GatewayAnswer {
+    status: reqwest::StatusCode,
+    html: bool,
+}
+
+impl GatewayAnswer {
+    fn from_response(response: &reqwest::Response) -> Self {
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok());
+        Self {
+            status: response.status(),
+            html: content_type_is_html(content_type),
+        }
+    }
+
+    fn deleted_tenant(self) -> bool {
+        self.status == reqwest::StatusCode::GONE && self.html
+    }
+}
+
+fn content_type_is_html(content_type: Option<&str>) -> bool {
+    content_type.is_some_and(|v| v.contains("text/html"))
+}
+
 /// Anything the gateway routes counts as alive, not only a 2xx. A bearer the
 /// shell has stopped rotating cannot earn a 2xx once it expires, and waiting for
 /// one would make leaving the gone state depend on the very rotation it
 /// suppresses; a 401 from a tenant's gateway is proof the tenant exists, since
 /// the 410 is decided before the token is looked at.
-fn probe_verdict(status: Option<reqwest::StatusCode>) -> ProbeVerdict {
-    match status {
-        Some(s) if s == reqwest::StatusCode::GONE => ProbeVerdict::Gone,
-        Some(s) if s.is_server_error() => ProbeVerdict::Unclear,
+fn probe_verdict(answer: Option<GatewayAnswer>) -> ProbeVerdict {
+    match answer {
+        Some(a) if a.deleted_tenant() => ProbeVerdict::Gone,
+        Some(a) if a.status.is_server_error() => ProbeVerdict::Unclear,
         Some(_) => ProbeVerdict::Alive,
         None => ProbeVerdict::Unclear,
     }
@@ -583,7 +617,7 @@ fn mono_secs() -> u64 {
 /// sleep (only `CLOCK_UPTIME_RAW` stops); Linux's `CLOCK_MONOTONIC` stops, so it
 /// takes `CLOCK_BOOTTIME`; Windows's `Instant` is `QueryPerformanceCounter`, which
 /// Windows documents as counting standby.
-#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn boot_secs() -> u64 {
     #[cfg(target_os = "macos")]
     let id = libc::CLOCK_MONOTONIC;
@@ -602,7 +636,7 @@ fn boot_secs() -> u64 {
     ts.tv_sec.max(0) as u64
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 fn boot_secs() -> u64 {
     mono_secs()
 }
@@ -908,7 +942,7 @@ enum Outcome {
     Rotated(NativeAuthTokens),
     /// The gateway refused the refresh token (401/403).
     Rejected,
-    /// The gateway answered 410: the tenant is deleted. Settled before the
+    /// The gateway answered with its deleted-tenant page (an HTML 410). Settled before the
     /// request reached the auth service, so nothing rotated and the token is
     /// exactly as good as it was.
     Gone,
@@ -960,7 +994,7 @@ pub async fn refresh(
     prev_access: Option<String>,
     trigger: &str,
 ) -> Result<NativeAuthTokens, String> {
-    if lifecycle_gone(app) {
+    if tenant_gone(app) {
         return Err(TENANT_GONE.into());
     }
     // A lock-free look before paying the settle wait, which is otherwise pure
@@ -1125,7 +1159,7 @@ pub async fn refresh(
             Ok(end_stored_session(app, why, trigger))
         }
         Outcome::Gone => {
-            mark_gone(app, "a refresh was answered with 410");
+            mark_gone(&lifecycle, "a refresh was answered with 410");
             Err(TENANT_GONE.into())
         }
         Outcome::Unreached(e) => Err(e),
@@ -1190,17 +1224,17 @@ async fn attempt_refresh(
 }
 
 /// What a non-2xx answer to the refresh settles as.
-fn outcome_for_failure(status: reqwest::StatusCode) -> Outcome {
-    match status {
+fn outcome_for_failure(answer: GatewayAnswer) -> Outcome {
+    match answer.status {
         reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => Outcome::Rejected,
         // The gateway's routing filter, which runs ahead of everything that could
         // have rotated. Distinct from the 401 above on purpose: the token is not
         // refused, its tenant is gone, and ending the session over it would sign
         // the user out of a workspace that may yet be restored.
-        reqwest::StatusCode::GONE => Outcome::Gone,
+        _ if answer.deleted_tenant() => Outcome::Gone,
         // Answered, so a rotation is not ruled out (a 5xx from a front end can
         // sit in front of a gateway that already did the work).
-        _ => Outcome::Unknown(format!("refresh failed: HTTP {status}")),
+        status => Outcome::Unknown(format!("refresh failed: HTTP {status}")),
     }
 }
 
@@ -1239,10 +1273,13 @@ async fn post_refresh(client: &reqwest::Client, base: &str, refresh_token: &str)
         }
     };
 
-    let status = response.status();
-    if !status.is_success() {
-        log::warn!("[tokens] refresh against {base} failed: HTTP {status}");
-        return outcome_for_failure(status);
+    let answer = GatewayAnswer::from_response(&response);
+    if !answer.status.is_success() {
+        log::warn!(
+            "[tokens] refresh against {base} failed: HTTP {}",
+            answer.status
+        );
+        return outcome_for_failure(answer);
     }
 
     let header = |name: &str| {
@@ -1265,23 +1302,21 @@ async fn post_refresh(client: &reqwest::Client, base: &str, refresh_token: &str)
     Outcome::Rotated(rotated)
 }
 
-fn lifecycle_gone(app: &AppHandle) -> bool {
+/// Whether the shell currently treats the tenant as deleted. Refresh and the
+/// NATS plane read this to stand down.
+pub(crate) fn tenant_gone(app: &AppHandle) -> bool {
     app.state::<TokenLifecycle>().tenant_gone.is_gone()
 }
 
-/// Whether the shell currently treats the tenant as deleted. The NATS plane
-/// reads this to stop dialling.
-pub(crate) fn tenant_gone(app: &AppHandle) -> bool {
-    lifecycle_gone(app)
-}
-
-fn mark_gone(app: &AppHandle, why: &str) {
-    if app.state::<TokenLifecycle>().tenant_gone.mark(boot_secs()) {
+/// True if the tenant was not gone until this call.
+fn mark_gone(lifecycle: &TokenLifecycle, why: &str) -> bool {
+    let marked = lifecycle.tenant_gone.mark(boot_secs());
+    if marked {
         log::warn!(
-            "[tokens] tenant is gone ({why}) — rotation and NATS dialling are suspended; probing every {GONE_PROBE_BACKOFF_INITIAL_SECS}s, backing off to {}s",
-            GONE_PROBE_BACKOFF_MAX_SECS
+            "[tokens] tenant is gone ({why}) — rotation and NATS dialling are suspended; probing every {GONE_PROBE_BACKOFF_INITIAL_SECS}s, backing off to {GONE_PROBE_BACKOFF_MAX_SECS}s"
         );
     }
+    marked
 }
 
 /// The signed-in tenant changed, so what the gateway said about the previous one
@@ -1290,8 +1325,8 @@ pub(crate) fn clear_tenant_gone(app: &AppHandle, why: &str) {
     clear_gone(&app.state::<TokenLifecycle>(), why);
 }
 
-/// One read-only GET at the tenant gateway, returning its status if it answered.
-async fn probe_tenant(app: &AppHandle) -> Option<reqwest::StatusCode> {
+/// One read-only GET at the tenant gateway, returning its answer if it answered.
+async fn probe_tenant(app: &AppHandle) -> Option<GatewayAnswer> {
     let base = tenant_host(&load_config(app))?;
     // No redirects: a 3xx is already an answer, and following it would report
     // the status of wherever it points.
@@ -1306,7 +1341,7 @@ async fn probe_tenant(app: &AppHandle) -> Option<reqwest::StatusCode> {
         request = request.bearer_auth(access);
     }
     match request.send().await {
-        Ok(response) => Some(response.status()),
+        Ok(response) => Some(GatewayAnswer::from_response(&response)),
         Err(e) => {
             log::debug!("[tokens] tenant probe got no answer: {e}");
             None
@@ -1314,8 +1349,9 @@ async fn probe_tenant(app: &AppHandle) -> Option<reqwest::StatusCode> {
     }
 }
 
-/// Probe the tenant and act on the answer: a 410 marks it gone (or keeps it
-/// so, backing off), any other routed answer clears the state.
+/// Probe the tenant and act on the answer: the gateway's deleted-tenant page
+/// marks it gone (or keeps it so, backing off); any other routed answer — a
+/// service's JSON 410 included — clears the state.
 async fn probe_and_apply(app: &AppHandle) {
     let lifecycle = app.state::<TokenLifecycle>();
     let gone = &lifecycle.tenant_gone;
@@ -1323,34 +1359,31 @@ async fn probe_and_apply(app: &AppHandle) {
         return;
     }
     let epoch = gone.epoch();
-    let status = probe_tenant(app).await;
+    let answer = probe_tenant(app).await;
     gone.probing.store(false, Ordering::Release);
     // Signed out, logged in or switched tenant while the probe was on the wire:
     // its answer is about the tenant that was left.
     if gone.epoch() != epoch {
         return;
     }
-    let now = boot_secs();
-    match probe_verdict(status) {
+    match probe_verdict(answer) {
         ProbeVerdict::Gone => {
-            if !gone.mark(now) {
-                gone.defer_probe(now);
-                log::info!("[tokens] tenant is still gone (probe answered 410)");
-            } else {
-                log::warn!("[tokens] tenant is gone (probe answered 410) — rotation and NATS dialling are suspended");
+            let why = "a probe answered 410";
+            if !mark_gone(&lifecycle, why) {
+                gone.defer_probe(boot_secs());
+                log::info!("[tokens] tenant is still gone ({why})");
             }
         }
         ProbeVerdict::Alive => {
-            if gone.clear() {
-                log::info!(
-                    "[tokens] tenant answers again (HTTP {}) — resuming rotation and NATS dialling",
-                    status.map_or(0, |s| s.as_u16())
-                );
-            }
+            let why = format!(
+                "a probe answered HTTP {}",
+                answer.map_or(0, |a| a.status.as_u16())
+            );
+            clear_gone(&lifecycle, &why);
         }
         ProbeVerdict::Unclear => {
             if gone.is_gone() {
-                gone.defer_probe(now);
+                gone.defer_probe(boot_secs());
             }
         }
     }
@@ -1406,7 +1439,7 @@ pub fn spawn_refresh_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(poll_delay(failures(&app))).await;
-            if lifecycle_gone(&app) || !needs_refresh(&app, &load_tokens(&app)) {
+            if tenant_gone(&app) || !needs_refresh(&app, &load_tokens(&app)) {
                 continue;
             }
             if let Err(e) = refresh(&app, false, None, "the background poll").await {
@@ -1443,7 +1476,7 @@ fn poll_delay(failures: u32) -> Duration {
 /// pull the schedule forward without replacing it. Measured before this gate: 132
 /// refresh attempts in ten minutes against an unreachable host.
 pub fn refresh_soon(app: &AppHandle, why: &'static str) {
-    if lifecycle_gone(app) || !needs_refresh(app, &load_tokens(app)) {
+    if tenant_gone(app) || !needs_refresh(app, &load_tokens(app)) {
         return;
     }
     let now = now_secs();
@@ -1811,6 +1844,29 @@ mod tests {
         assert!(advanced >= 2);
     }
 
+    /// A JSON answer, as the auth service and the tenant services send.
+    fn answer(status: reqwest::StatusCode) -> GatewayAnswer {
+        GatewayAnswer {
+            status,
+            html: false,
+        }
+    }
+
+    fn deleted_tenant_page() -> GatewayAnswer {
+        GatewayAnswer {
+            status: reqwest::StatusCode::GONE,
+            html: true,
+        }
+    }
+
+    #[test]
+    fn only_an_html_content_type_marks_the_gateways_page() {
+        assert!(content_type_is_html(Some("text/html")));
+        assert!(content_type_is_html(Some("text/html; charset=utf-8")));
+        assert!(!content_type_is_html(Some("application/json")));
+        assert!(!content_type_is_html(None));
+    }
+
     /// 410 is its own outcome: not a rejection, which ends the session, and not
     /// an unknown, which arms the lost-rotation cooldown for a request that never
     /// got as far as the auth service.
@@ -1818,49 +1874,69 @@ mod tests {
     fn a_410_is_neither_a_rejection_nor_an_unknown() {
         use reqwest::StatusCode;
         assert!(matches!(
-            outcome_for_failure(StatusCode::GONE),
+            outcome_for_failure(deleted_tenant_page()),
             Outcome::Gone
         ));
         assert!(matches!(
-            outcome_for_failure(StatusCode::UNAUTHORIZED),
+            outcome_for_failure(answer(StatusCode::UNAUTHORIZED)),
             Outcome::Rejected
         ));
         assert!(matches!(
-            outcome_for_failure(StatusCode::FORBIDDEN),
+            outcome_for_failure(answer(StatusCode::FORBIDDEN)),
             Outcome::Rejected
         ));
         assert!(matches!(
-            outcome_for_failure(StatusCode::BAD_GATEWAY),
+            outcome_for_failure(answer(StatusCode::BAD_GATEWAY)),
             Outcome::Unknown(_)
         ));
         assert!(matches!(
-            outcome_for_failure(StatusCode::NOT_FOUND),
+            outcome_for_failure(answer(StatusCode::NOT_FOUND)),
             Outcome::Unknown(_)
         ));
         // Only an unreached request is retried, and a 410 is not one.
         assert!(!matches!(
-            outcome_for_failure(StatusCode::GONE),
+            outcome_for_failure(deleted_tenant_page()),
             Outcome::Unreached(_)
         ));
     }
 
+    /// A tenant service's own 410 is JSON, and is not the tenant being deleted.
     #[test]
-    fn a_probe_reads_only_the_status_class() {
+    fn only_the_gateways_410_page_is_a_deleted_tenant() {
         use reqwest::StatusCode;
-        assert_eq!(probe_verdict(Some(StatusCode::GONE)), ProbeVerdict::Gone);
-        assert_eq!(probe_verdict(Some(StatusCode::OK)), ProbeVerdict::Alive);
+        assert!(matches!(
+            outcome_for_failure(answer(StatusCode::GONE)),
+            Outcome::Unknown(_)
+        ));
+        assert_eq!(
+            probe_verdict(Some(answer(StatusCode::GONE))),
+            ProbeVerdict::Alive
+        );
+    }
+
+    #[test]
+    fn a_probe_reads_the_status_class_and_the_gone_page() {
+        use reqwest::StatusCode;
+        assert_eq!(
+            probe_verdict(Some(deleted_tenant_page())),
+            ProbeVerdict::Gone
+        );
+        assert_eq!(
+            probe_verdict(Some(answer(StatusCode::OK))),
+            ProbeVerdict::Alive
+        );
         // A live tenant's gateway refuses a stale bearer with 401; that is proof
         // of life, not of death.
         assert_eq!(
-            probe_verdict(Some(StatusCode::UNAUTHORIZED)),
+            probe_verdict(Some(answer(StatusCode::UNAUTHORIZED))),
             ProbeVerdict::Alive
         );
         assert_eq!(
-            probe_verdict(Some(StatusCode::NOT_FOUND)),
+            probe_verdict(Some(answer(StatusCode::NOT_FOUND))),
             ProbeVerdict::Alive
         );
         assert_eq!(
-            probe_verdict(Some(StatusCode::SERVICE_UNAVAILABLE)),
+            probe_verdict(Some(answer(StatusCode::SERVICE_UNAVAILABLE))),
             ProbeVerdict::Unclear
         );
         assert_eq!(probe_verdict(None), ProbeVerdict::Unclear);

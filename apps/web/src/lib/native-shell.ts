@@ -156,7 +156,7 @@ export interface NativeAuthPlugin {
    * `rejectedAccessToken` is the bearer the gateway just refused. A shell that
    * reads it skips the rotation when its stored token already differs — a
    * rotation the shell ran on its own beat this call, and rotating again would
-   * only spend another refresh token. The desktop shell ignores it.
+   * only spend another refresh token. The desktop shell reads it.
    */
   refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<NativeTokens>;
   /**
