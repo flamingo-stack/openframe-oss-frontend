@@ -6,9 +6,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { signOutToLogin } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
+import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
 import { resetSessionHealth, useSessionHealthStore } from '@/lib/session-health';
-import { OpenframeLockup } from './shared/openframe-lockup';
-import { PoweredByFlamingo } from './shared/powered-by-flamingo';
 
 /**
  * Blocks the app once the gateway answers 410 (`session-health.ts`): the tenant

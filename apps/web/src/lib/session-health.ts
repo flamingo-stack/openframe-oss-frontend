@@ -1,23 +1,24 @@
 /**
  * Whether the tenant gateway is still willing to talk to this session.
  *
- * The gateway runs one path-independent JWT check, so a client that keeps
- * re-sending a rejected token is refused on every path it touches — and before
- * this module nothing remembered the refusal: every poller re-sent it on its own
- * interval, and a deleted tenant (410 on every path) was polled forever.
+ * Before this module nothing remembered a refusal: every poller re-sent a refused
+ * request on its own interval, and a deleted tenant (410 on every path) was
+ * polled forever.
  *
  *   - `healthy` — nothing known against the session.
  *   - `paused`  — auth could not be re-established. Background polling stops;
  *     user-driven requests still go out. Why it paused decides what ends it:
  *       - `transient`: the refresh itself failed (dropped link, auth-server 5xx).
- *         The tokens may be fine, so any gateway 2xx — the link coming back — ends it.
- *       - `rejected`: a 401 survived a successful refresh, i.e. the gateway refused
- *         the token it had just issued. Other paths keep answering 2xx while this
- *         one is refused (images, `/api/me`), so a stray 2xx proves nothing and
- *         would flap the pause, costing a refresh-token rotation per flap. It ends
- *         only on a token rotation or a successful re-validation probe.
- *   - `gone`    — a 410: the tenant was deleted. Terminal until sign-out; every
- *     gateway request is answered locally from then on (`SessionGoneError`).
+ *         The tokens may be fine, so any gateway 2xx — the link coming back — or a
+ *         later rotation ends it.
+ *       - `rejected`: a 401 survived a successful refresh. The gateway's JWT check
+ *         is the same on every path, so a path refusing a just-issued token while
+ *         others answer 2xx is refused behind the gateway; a stray 2xx proves
+ *         nothing. Nor does a rotation: the next 401 rotates, and if that ended the
+ *         pause, the polls it restarts would 401 and rotate again, indefinitely.
+ *         Only a successful re-validation probe ends it.
+ *   - `gone`    — a 410 page: the tenant was deleted. Terminal until sign-out;
+ *     every gateway request is answered locally from then on (`SessionGoneError`).
  *
  * Fed from the same places that feed `noteUpgradeRequired` — and only from
  * tenant-gateway responses: a 410 from a hub lookup means "not configured", and a
@@ -26,7 +27,7 @@
 
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { getTokenEpoch, subscribeToTokenChange } from './token-store';
+import { getTokenEpoch, hasTokensSync, isBearerAuthMode, subscribeToTokenChange } from './token-store';
 
 /** HTTP 410 Gone — the shared gateway's answer, on every path, for a deleted tenant. */
 export const SESSION_GONE_STATUS = 410;
@@ -44,10 +45,10 @@ interface SessionHealthState {
   pausedAtEpoch: number;
 }
 
+const INITIAL_STATE: SessionHealthState = { health: 'healthy', pauseReason: null, pausedAtEpoch: 0 };
+
 export const useSessionHealthStore = create<SessionHealthState>()(
-  devtools(() => ({ health: 'healthy' as SessionHealth, pauseReason: null as PauseReason | null, pausedAtEpoch: 0 }), {
-    name: 'session-health-store',
-  }),
+  devtools(() => INITIAL_STATE, { name: 'session-health-store' }),
 );
 
 /** A request answered locally because the tenant is gone. Never retried: it cannot succeed. */
@@ -64,6 +65,11 @@ export function getSessionHealth(): SessionHealth {
 
 export function isSessionGone(): boolean {
   return getSessionHealth() === 'gone';
+}
+
+export function isPausedFor(reason: PauseReason): boolean {
+  const { health, pauseReason } = useSessionHealthStore.getState();
+  return health === 'paused' && pauseReason === reason;
 }
 
 /** Auth could not be re-established. Never overrides `gone`; `rejected` upgrades a `transient` pause. */
@@ -88,9 +94,9 @@ function markSessionGone(): void {
   useSessionHealthStore.setState({ health: 'gone' }, false, 'markGone');
 }
 
-/** Sign-out or a tenant change: the only exits from `gone`. */
+/** The session ended (sign-out, a tenant change): what was known was about it. The only exit from `gone`. */
 export function resetSessionHealth(): void {
-  useSessionHealthStore.setState({ health: 'healthy', pauseReason: null, pausedAtEpoch: 0 }, false, 'reset');
+  useSessionHealthStore.setState(INITIAL_STATE, false, 'reset');
 }
 
 /**
@@ -104,27 +110,46 @@ function isDeletedTenantResponse(response: Pick<Response, 'status' | 'headers'>)
 
 /**
  * Record what a TENANT-GATEWAY response says about the session; true when it is
- * the deleted-tenant 410. A 2xx ends a `transient` pause only — a `rejected` one is
- * ended by a token rotation or a successful probe (`markSessionHealthy`). Everything else (including a 401, which the caller
- * resolves through refresh first) is not this function's to judge.
+ * the deleted-tenant 410. A 2xx ends a `transient` pause only. Everything else
+ * (including a 401, which the caller resolves through refresh first) is not
+ * this function's to judge.
  */
 export function noteGatewayResponse(response: Pick<Response, 'ok' | 'status' | 'headers'>): boolean {
   if (isDeletedTenantResponse(response)) {
     markSessionGone();
     return true;
   }
-  if (response.ok && useSessionHealthStore.getState().pauseReason === 'transient') markSessionHealthy();
+  if (response.ok && isPausedFor('transient')) markSessionHealthy();
   return false;
 }
 
 /**
- * A new credential is the answer to "could auth be re-established". Compared on
- * the epoch because cookie mode rotates without announcing it, and because a
- * pause recorded right after a refresh already carries that refresh's epoch.
+ * A new credential answers a `transient` pause: the refresh that failed has run
+ * since. Compared on the epoch because cookie mode rotates without announcing it.
+ * Never a `rejected` one — see the header.
  */
 export function clearPauseIfTokenRotated(): void {
-  const { health, pausedAtEpoch } = useSessionHealthStore.getState();
-  if (health === 'paused' && getTokenEpoch() !== pausedAtEpoch) markSessionHealthy();
+  if (isPausedFor('transient') && getTokenEpoch() !== useSessionHealthStore.getState().pausedAtEpoch) {
+    markSessionHealthy();
+  }
 }
 
-subscribeToTokenChange(clearPauseIfTokenRotated);
+// In bearer mode a cleared store is a sign-out, and the shells sign out without
+// reloading: without a reset, a pause or `gone` would carry into the next
+// sign-in. The reset waits for the tokens to come back: the store is cleared at
+// the START of a sign-out, while the app still looks signed in, and lifting
+// `gone` there remounts it into the 410s that put the screen back over /auth.
+// Not "no tokens before, tokens now": native hydration fills the store without
+// emitting, so the first rotation after a cold start would read as a sign-in.
+// A cookie-mode sign-in comes back through the auth host, which reloads.
+let signedOut = false;
+subscribeToTokenChange(() => {
+  if (isBearerAuthMode() && !hasTokensSync()) {
+    signedOut = true;
+  } else if (signedOut) {
+    signedOut = false;
+    resetSessionHealth();
+  } else {
+    clearPauseIfTokenRotated();
+  }
+});

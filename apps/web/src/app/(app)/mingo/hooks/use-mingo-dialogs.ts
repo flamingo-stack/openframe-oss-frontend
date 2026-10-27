@@ -130,11 +130,11 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // realtime subscription, and mutation invalidations (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    retry: sessionRetry(3),
+    meta: sessionPollMeta,
     // Titles are generated asynchronously on the backend with no realtime
     // event — while the list holds a fresh title-less dialog ("New Chat"),
     // poll faster so the generated title replaces it promptly.
-    retry: sessionRetry(3),
-    meta: sessionPollMeta,
     refetchInterval: liveQuery => {
       if (!sessionPollsAllowed()) return false;
       const pages = liveQuery.state.data?.pages;

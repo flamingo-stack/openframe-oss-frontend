@@ -110,6 +110,9 @@ function isGatewayUrl(url: string): boolean {
   }
 }
 
+/** `/tools/{toolId}/*` on the gateway, relative or absolute (the Fleet client sends the latter). */
+const TOOL_PROXY_PATH = /^(?:https?:\/\/[^/]+)?\/tools\//;
+
 class ApiClient {
   /**
    * Get authentication headers based on current configuration
@@ -169,7 +172,8 @@ class ApiClient {
       ...fetchOptions
     } = options;
 
-    const toGateway = isGatewayUrl(this.buildUrl(path));
+    const url = this.buildUrl(path);
+    const toGateway = isGatewayUrl(url);
 
     if (isUpdateRequired()) return updateRequiredResponse<T>();
     if (toGateway && isSessionGone()) return sessionGoneResponse<T>();
@@ -184,7 +188,7 @@ class ApiClient {
       // network layer left the larger half of the requests firing into a locked
       // workspace. See `subscription-gate.ts`.
       await waitForSubscriptionGate();
-      // A 426 may have landed while this request was parked on the gates.
+      // A 426 or a 410 may have landed while this request was parked on the gates.
       if (isUpdateRequired()) return updateRequiredResponse<T>();
       if (toGateway && isSessionGone()) return sessionGoneResponse<T>();
     }
@@ -201,9 +205,6 @@ class ApiClient {
     if (!skipAuth) {
       Object.assign(requestHeaders, this.getAuthHeaders());
     }
-
-    // Build full URL
-    const url = this.buildUrl(path);
 
     // Captured BEFORE the request goes out: a 401 that comes back after the
     // credential has already rotated needs a retry, not another rotation.
@@ -291,9 +292,14 @@ class ApiClient {
         };
       }
 
-      // The gateway refused the token it was just handed: nothing in-process can
-      // fix that, so background polling stops until the session is re-validated.
-      if (response.status === 401 && isRetry && !skipAuth && toGateway) markSessionPaused('rejected');
+      // A token the refresh just issued was refused: nothing in-process can fix
+      // that, so background polling stops until the session is re-validated. Not
+      // for the tool proxies: a 401 there is the tool's own answer (Fleet's
+      // "missing tenant"), past the gateway's JWT check, and says nothing about
+      // the session.
+      if (response.status === 401 && isRetry && !skipAuth && toGateway && !TOOL_PROXY_PATH.test(url)) {
+        markSessionPaused('rejected');
+      }
 
       // Parse response
       let data: T | undefined;

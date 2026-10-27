@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const tokens = vi.hoisted(() => ({ epoch: 1, listeners: new Set<() => void>() }));
+const tokens = vi.hoisted(() => ({
+  epoch: 1,
+  stored: true,
+  bearer: true,
+  listeners: new Set<() => void>(),
+}));
 
 vi.mock('./token-store', () => ({
   getTokenEpoch: () => tokens.epoch,
+  hasTokensSync: () => tokens.stored,
+  isBearerAuthMode: () => tokens.bearer,
   subscribeToTokenChange: (listener: () => void) => {
     tokens.listeners.add(listener);
     return () => tokens.listeners.delete(listener);
@@ -24,6 +31,8 @@ const emitTokenChange = () => {
 
 beforeEach(() => {
   tokens.epoch = 1;
+  tokens.stored = true;
+  tokens.bearer = true;
 });
 
 describe('session health', () => {
@@ -52,12 +61,49 @@ describe('session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
-  it('a rejected pause still ends on a token rotation', async () => {
+  it('a rejected pause outlives a token rotation: the next 401 rotates, and would end its own pause', async () => {
     const health = await load();
     health.markSessionPaused('rejected');
     tokens.epoch = 2;
     emitTokenChange();
+    expect(health.getSessionHealth()).toBe('paused');
+  });
+
+  it('a bearer sign-out leaves gone in place: the store is cleared while the app still looks signed in', async () => {
+    const health = await load();
+    health.noteGatewayResponse(res(410));
+    tokens.stored = false;
+    emitTokenChange();
+    expect(health.getSessionHealth()).toBe('gone');
+  });
+
+  it('the next bearer sign-in ends whatever was known about the last session, a pause or gone', async () => {
+    const health = await load();
+    health.markSessionPaused('rejected');
+    tokens.stored = false;
+    emitTokenChange();
+    expect(health.getSessionHealth()).toBe('paused');
+    tokens.stored = true;
+    emitTokenChange();
     expect(health.getSessionHealth()).toBe('healthy');
+
+    health.noteGatewayResponse(res(410));
+    tokens.stored = false;
+    emitTokenChange();
+    tokens.stored = true;
+    emitTokenChange();
+    expect(health.getSessionHealth()).toBe('healthy');
+  });
+
+  it('a cookie-mode token change is read as neither a sign-out nor a sign-in', async () => {
+    const health = await load();
+    tokens.bearer = false;
+    tokens.stored = false;
+    health.markSessionPaused('rejected');
+    emitTokenChange();
+    tokens.stored = true;
+    emitTokenChange();
+    expect(health.getSessionHealth()).toBe('paused');
   });
 
   it('a rejection upgrades a transient pause, and a transient mark never downgrades a rejected one', async () => {

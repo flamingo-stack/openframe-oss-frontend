@@ -107,6 +107,16 @@ describe('apiClient session health', () => {
     expect(health.getSessionHealth()).toBe('healthy');
   });
 
+  it("does not pause on a tool proxy's own 401, relative or absolute", async () => {
+    const { apiClient } = await load();
+    const health = await loadSessionHealth();
+    mocks.refreshTokens.mockResolvedValue('refreshed');
+    fetchMock.mockImplementation(respond(401));
+    await apiClient.get('https://tenant.example.com/tools/fleetmdm-server/api/v1/fleet/hosts/1');
+    await apiClient.get('/tools/fleetmdm-server/api/v1/fleet/hosts/1');
+    expect(health.getSessionHealth()).toBe('healthy');
+  });
+
   it('keeps a rejected pause through unrelated 2xx responses', async () => {
     const { apiClient } = await load();
     const health = await loadSessionHealth();

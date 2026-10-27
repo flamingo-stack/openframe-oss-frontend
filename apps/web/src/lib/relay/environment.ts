@@ -41,7 +41,7 @@ function getGraphqlUrl(): string {
  * by then there is no page to hold the request for.
  */
 export function sendGraphqlKeepalive(request: { text: string | null }, variables: Record<string, unknown>): void {
-  if (!request.text || typeof window === 'undefined' || isUpdateRequired()) return;
+  if (!request.text || typeof window === 'undefined' || isUpdateRequired() || isSessionGone()) return;
   void fetch(getGraphqlUrl(), {
     method: 'POST',
     headers: {
