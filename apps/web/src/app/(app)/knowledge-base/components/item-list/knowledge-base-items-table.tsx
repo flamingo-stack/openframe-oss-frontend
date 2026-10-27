@@ -31,6 +31,7 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -289,11 +290,11 @@ function KnowledgeBaseItemsRows({
           loadingCells={loading}
           totalCount={totalCount}
           itemName="item"
-          emptyState={{
-            title: listing.search
+          emptyState={oneLineEmptyState(
+            listing.search
               ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
               : 'No articles match the selected tags. Try adjusting your filters.',
-          }}
+          )}
           rowHref={rowHref}
           footer={rows.length > 0 ? infiniteScroll : null}
           isPending={isPending}

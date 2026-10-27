@@ -16,7 +16,14 @@ import type {
 } from '@/__generated__/archivedArticlesTable_query.graphql';
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  oneLineEmptyState,
+  useRetryKey,
+} from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { routes } from '@/lib/routes';
@@ -221,7 +228,11 @@ function ArchivedArticlesRows({
         loadingCells={loading}
         totalCount={totalCount}
         itemName="article"
-        emptyState={{ title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.' }}
+        emptyState={
+          isNarrowed
+            ? { title: 'No archived articles match your filters.' }
+            : oneLineEmptyState('No archived articles.')
+        }
         rowHref={rowHref}
         footer={rows.length > 0 ? infiniteScroll : null}
         isPending={isPending}
