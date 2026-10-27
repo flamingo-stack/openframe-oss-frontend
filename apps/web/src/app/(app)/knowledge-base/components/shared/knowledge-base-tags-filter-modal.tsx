@@ -51,9 +51,24 @@ function KnowledgeBaseTagsFilterModalQuery(props: KnowledgeBaseTagsFilterModalPr
   return <TagsFilterModalView {...props} tags={tags} loading={false} />;
 }
 
+/** Whose articles had no tags to offer, for the modal's empty state. */
+function noTagsDescription({
+  parentId,
+  archived,
+  assignedTo,
+}: Pick<KnowledgeBaseTagsFilterModalProps, 'parentId' | 'archived' | 'assignedTo'>): string {
+  if (assignedTo) return 'No assigned article has tags.';
+  if (archived) return 'No archived article has tags.';
+  if (parentId) return 'No article in this folder has tags.';
+  return 'No article in the knowledge base has tags.';
+}
+
 function TagsFilterModalView({
   isOpen,
   onClose,
+  parentId,
+  archived,
+  assignedTo,
   selectedIds,
   onApply,
   tags,
@@ -70,6 +85,9 @@ function TagsFilterModalView({
       onClose={onClose}
       title="Filter by Tags"
       filterGroups={[{ id: TAGS_GROUP_ID, title: 'Tags', options: tags.map(tag => ({ id: tag.id, label: tag.key })) }]}
+      // With no tags the group has no options, and `FilterModal` draws this empty state instead.
+      emptyStateTitle="No tags to filter by"
+      emptyStateDescription={noTagsDescription({ parentId, archived, assignedTo })}
       // `FilterModal` re-seeds its checkboxes from this each time it opens.
       currentFilters={{ [TAGS_GROUP_ID]: [...selectedIds] }}
       onFilterChange={handleFilterChange}
