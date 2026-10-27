@@ -13,7 +13,8 @@ import WebKit
  * links), and every non-web scheme (`mailto:`, `tel:`, the update screen's
  * `itms-apps:`), which SFSafariViewController cannot open anyway. Subframe loads
  * (embedded players) are never touched. While a browser is up the plugin also
- * reports the app inactive through `@capacitor/app`'s event (see `browser`).
+ * reports the app inactive through `@capacitor/app`'s event (see `browser`), and a
+ * notification tap closes it (`dismissBrowser()`).
  */
 @objc(ExternalLinksPlugin)
 public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -110,6 +111,23 @@ public class ExternalLinksPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         self.browser = browser
         reportAppState(isActive: false)
+    }
+
+    /// A notification tap is about to navigate the page behind the browser
+    /// (`NotificationActions.forward`): close it so the user lands on the item. Through
+    /// the presenter, so whatever the browser itself has up (a share sheet) goes too; a
+    /// programmatic dismiss never calls `safariViewControllerDidFinish`, so the state is
+    /// cleared here. When the app is not active yet, `@capacitor/app`'s activation
+    /// reports it active.
+    func dismissBrowser() {
+        guard let browser else {
+            return
+        }
+        self.browser = nil
+        browser.presentingViewController?.dismiss(animated: true)
+        if UIApplication.shared.applicationState == .active {
+            reportAppState(isActive: true)
+        }
     }
 
     /// Through `@capacitor/app`'s own event: it is what the bundles in the field

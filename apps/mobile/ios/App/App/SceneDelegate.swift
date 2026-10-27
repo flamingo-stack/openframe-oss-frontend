@@ -3,13 +3,13 @@ import UIKit
 
 /**
  * The app's one window scene (`UIApplicationSceneManifest` in Info.plist; the window
- * and `MainViewController` still come from Main.storyboard, through
- * `UISceneStoryboardFile`). Mandatory: an iOS 27 SDK build without it is killed by
- * UIKit at launch (apps/mobile CLAUDE.md, "iOS 27 kills an app without the UIScene
- * lifecycle").
+ * and `MainViewController` come from Main.storyboard, through `UISceneStoryboardFile`).
+ * Mandatory: an iOS 27 SDK build without it is killed by UIKit at launch
+ * (apps/mobile CLAUDE.md, "iOS 27 kills an app without the UIScene lifecycle").
  *
  * Under scenes UIKit delivers URL opens and user activities here instead of to
- * AppDelegate, so they go to Capacitor's proxy exactly as AppDelegate sent them.
+ * AppDelegate, so they go to Capacitor's `ApplicationDelegateProxy`, the same
+ * forwarding Capacitor's template AppDelegate does.
  * Login does not depend on them: ASWebAuthenticationSession receives its callback
  * inside the session.
  */

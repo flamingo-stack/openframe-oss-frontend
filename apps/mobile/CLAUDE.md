@@ -84,15 +84,16 @@ exists.**
   FLAG_ACTIVITY_REQUIRE_DEFAULT`). Left to the system: store hosts (`systemHosts` /
   `SYSTEM_HOSTS`, which must cover the web's `mobile-app-links.ts` listings — a tab would
   render the store page instead of opening the store), every non-web scheme (`mailto:`,
-  `tel:`, `itms-apps:`/`market:`, the OAuth callback), and iOS subframes. On iOS
-  `window.open` bypasses `shouldOverrideLoad` (it reaches `createWebViewWith`, which
+  `tel:`, `itms-apps:`/`market:`, the OAuth callback). iOS subframes are never touched:
+  they load in the web view. On iOS `window.open` bypasses `shouldOverrideLoad` (it reaches `createWebViewWith`, which
   Capacitor answers with `UIApplication.open`), hence `NewWindowRouter`; a
   `target="_blank"` link is asked first through `decidePolicyFor` with no target frame.
   Shell-only, not `@capacitor/browser`: that needs a frontend `Browser.open` call, which
   frozen bundles never make. Sign-in is separate (ASWebAuthenticationSession /
-  NativeAuth's own Custom Tab). iOS reports the app inactive while the browser is up (see
-  the SFSafariViewController gotcha). SFSafariViewController does not share Safari's
-  cookies, so a vendor portal asks to sign in again; Custom Tabs run in Chrome and do.
+  NativeAuth's own Custom Tab). iOS reports the app inactive while the browser is up and
+  closes it on a notification tap (see the SFSafariViewController gotcha).
+  SFSafariViewController does not share Safari's cookies, so a vendor portal asks to sign
+  in again; Custom Tabs run in the default browser (Chrome on most devices) and do.
 - **`AppDelegate.swift`** — the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`), plus native push retraction and the
@@ -457,8 +458,10 @@ swapped.
   will soon be required" and the iOS 26 SDK never tripped it, so 1.0.1 was fine and the
   first Xcode 27 store build (1.0.2, 2026102701, 2026-10-27) crashed for everyone on
   TestFlight. Hence `SceneDelegate`. Under scenes UIKit never calls the AppDelegate's
-  `application(_:open:options:)`, `application(_:continue:…)` or `applicationDid…`
-  methods — URL/activity handling goes in the scene delegate, lifecycle observers use the
+  `application(_:open:options:)`, `application(_:continue:…)`,
+  `applicationDidBecomeActive`, `applicationWillResignActive`,
+  `applicationDidEnterBackground` or `applicationWillEnterForeground` — URL/activity
+  handling goes in the scene delegate, lifecycle observers use the
   `UIApplication.*Notification`s (`TokenLifecycle` already does), and the window is the
   scene's (plugins reach it through the bridge view). An iOS 26 simulator does not
   reproduce the crash: verify on an iOS 27 runtime.
@@ -473,10 +476,11 @@ swapped.
   each one as active; its observer runs first, the re-send follows it), and `true` on
   Done. Android needs none of it: a full-screen Custom Tab stops `MainActivity`, which
   fires the real event. Foreground banners stay suppressed meanwhile
-  (`presentationOptions: []`), so such a push lands silently and stays unread. Known
-  gaps: nothing dismisses the browser on a notification tap (`NotificationActions`
-  forwards it to the web, which navigates behind it), and a web view reloaded while the
-  browser is up (content process killed in the background) starts out active until Done.
+  (`presentationOptions: []`), so such a push lands silently and stays unread. A
+  notification tap closes the browser (`NotificationActions.forward` →
+  `dismissBrowser()`) before the web deep-links to the item, which it would otherwise do
+  behind it. Known gap: a web view reloaded while the browser is up (content process
+  killed in the background) starts out active until the next activation or Done.
 - **Simulator builds must be signed**: `CODE_SIGN_IDENTITY="-"`. Never
   `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so Keychain
   tokens don't persist across restarts.
