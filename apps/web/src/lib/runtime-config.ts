@@ -47,6 +47,14 @@ export const runtimeEnv = {
     return getEnvVar('NEXT_PUBLIC_SHARED_HOST_URL') || '';
   },
   /**
+   * Homebrew cask of this environment's agent build in the `flamingo-stack/openframe` tap
+   * (`openframe-client@stage`, `openframe-client@dev`). Unset — self-hosted OSS, prod — is the
+   * prod cask.
+   */
+  brewCask(): string {
+    return getEnvVar('NEXT_PUBLIC_BREW_CASK') || 'openframe-client';
+  },
+  /**
    * OAuth callback scheme for the native shells. Per-env MOBILE builds
    * (stage/dev) override it so side-by-side installs don't fight over one
    * scheme — the value must match the shell's Info.plist / manifest
