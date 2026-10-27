@@ -120,9 +120,10 @@ to its own repo, wire it as a git submodule or CI artifact (see
    dependency on `capacitor-swift-pm` (the Capacitor + Cordova native libraries),
    pinned to the CLI version (`exact: "8.4.3"`). Xcode resolves it — **this is why
    there's no CocoaPods.** The file is CLI-managed (`// DO NOT MODIFY`).
-4. **Native host (Swift, yours):** `ios/App/App/AppDelegate.swift` boots the app and a
-   `CAPBridgeViewController` (a `WKWebView` host that loads `public/`). This is the only
-   Swift you touch — e.g. the notification-authorization request we added.
+4. **Native host (Swift, yours):** `ios/App/App/AppDelegate.swift` boots the app, and
+   `SceneDelegate.swift` owns its one window scene, which Main.storyboard fills with a
+   `CAPBridgeViewController` (a `WKWebView` host that loads `public/`). The scene is
+   mandatory: an iOS 27 SDK build without one is killed by UIKit at launch.
 
 **Plugin code** (push, camera, …): each plugin is an npm package whose JS you import in
 the web layer and whose Swift/Kotlin `cap sync` wires into the native project. Installed
