@@ -180,7 +180,8 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   allowedOrigins: bearerGatewayOrigins(),
   // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
   // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
-  // token (a refresh it could not run). Native-only: the web branch never emits.
+  // token (a shell re-emitting the pair on resume), and the web branch of
+  // `setTokens` emits on every write.
   subscribe: listener => {
     let seenEpoch = getTokenEpoch();
     return subscribeToTokenChange(() => {
