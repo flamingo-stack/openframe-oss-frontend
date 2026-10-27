@@ -15,13 +15,12 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button, LoadingWhen, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { type ComponentType, useCallback, useEffect, useState } from 'react';
+import { type ComponentType, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
-import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
@@ -145,55 +144,11 @@ export function SettingsHub() {
   });
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);
-  const updateUser = useAuthStore(state => state.updateUser);
   const fetchFullProfile = useAuthStore(state => state.fetchFullProfile);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-
-  const updateProfile = useCallback(
-    async (data: { firstName: string; lastName: string }) => {
-      if (!user?.id) return;
-
-      setIsUpdating(true);
-      try {
-        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
-          `api/users/${encodeURIComponent(user.id)}`,
-          data,
-        );
-        if (!res.ok) {
-          throw new Error(res.error || 'Failed to update profile');
-        }
-
-        // A 2xx with no body means the server accepted the change without echoing
-        // it back; keep the values that were just submitted.
-        const updatedData = res.data ?? data;
-
-        updateUser({
-          firstName: updatedData.firstName,
-          lastName: updatedData.lastName,
-        });
-
-        toast({
-          title: 'Profile Updated',
-          description: 'Your profile has been updated successfully.',
-          variant: 'success',
-          duration: 3000,
-        });
-
-        setIsEditModalOpen(false);
-      } catch (error) {
-        handleApiError(error, toast, 'Failed to update profile');
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    // `setIsEditModalOpen` is listed because the compiler infers it; a useState
-    // setter is stable, so it changes nothing at runtime.
-    [user, updateUser, toast, setIsEditModalOpen],
-  );
 
   const handleResendVerification = async () => {
     setIsSendingVerification(true);
@@ -277,13 +232,7 @@ export function SettingsHub() {
       {/* Modals */}
       {user && (
         <>
-          <EditProfileModal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            user={user}
-            onSave={updateProfile}
-            isSaving={isUpdating}
-          />
+          <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} />
           <EmailVerificationModal
             open={isVerificationModalOpen}
             onOpenChange={setIsVerificationModalOpen}

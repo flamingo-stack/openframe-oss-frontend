@@ -3,10 +3,9 @@
 import type { BoardTicket } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { AssigneeDropdown } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { memo } from 'react';
-import { useUserStatusMap } from '@/app/hooks/use-user-status-map';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
-import { useAssigneeOptions } from '../hooks/use-ticket-options';
+import { useAssigneeOptions } from '../hooks/use-assignee-options';
 
 interface BoardAssigneePickerProps {
   ticket: BoardTicket;
@@ -14,9 +13,8 @@ interface BoardAssigneePickerProps {
 
 /** Memoized: this sits in every card, and a board update re-renders the lanes. */
 export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({ ticket }: BoardAssigneePickerProps) {
-  const { options, isLoading } = useAssigneeOptions();
+  const { options, isLoading, onSearchChange } = useAssigneeOptions();
   const assign = useAssignTicket();
-  const { isUserDeleted } = useUserStatusMap();
   const assignee = ticket.assignees?.[0];
 
   return (
@@ -28,12 +26,13 @@ export const BoardAssigneePicker = memo(function BoardAssigneePickerImpl({ ticke
               id: assignee.id,
               name: assignee.name ?? assignee.initials ?? assignee.id,
               avatarSrc: getFullImageUrl(assignee.avatarUrl),
-              deleted: assignee.deleted || isUserDeleted(assignee.id),
+              deleted: assignee.deleted,
             }
           : undefined
       }
       options={options}
       isLoading={isLoading}
+      onSearchChange={onSearchChange}
       isPending={assign.isPending}
       onAssign={userId => assign.mutate({ ticketId: ticket.id, assigneeId: userId })}
     />

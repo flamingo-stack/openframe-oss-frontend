@@ -1,5 +1,15 @@
 type ControlAuthCookies = { authCookie: string; relayCookie?: string };
 
+type ActiveTunnel = {
+  nodeId: string;
+  relayId: string;
+  protocol: number;
+  domainPrefix?: string;
+  usage?: number;
+  /** The agent was asked for this relay id on the current control socket. */
+  announced: boolean;
+};
+
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
@@ -22,13 +32,8 @@ export class MeshControlClient {
    * callable and told the reader nothing.
    */
   private pendingRequests: Map<string, PendingRequest> = new Map();
-  private activeTunnels: Array<{
-    nodeId: string;
-    relayId: string;
-    protocol: number;
-    domainPrefix?: string;
-    usage?: number;
-  }> = [];
+  /** Keyed by `MeshTunnel.key`: a redial changes the relay id, not the tunnel. */
+  private activeTunnels = new Map<string, ActiveTunnel>();
 
   constructor(credentials?: { user: string; pass: string }, authCookie?: string) {
     const qs = new URLSearchParams();
@@ -72,6 +77,8 @@ export class MeshControlClient {
         } else if (state === 'disconnected' || state === 'failed') {
           this.isOpen = false;
           this.cookies = null;
+          // The next socket asks again for every relay still waited on.
+          for (const tunnel of this.activeTunnels.values()) tunnel.announced = false;
           this.clearPendingRequests('WebSocket disconnected');
         }
       },
@@ -238,9 +245,9 @@ export class MeshControlClient {
     await this.getAuthCookies();
   }
 
-  sendTunnelMsg(nodeId: string, relayPathValue: string, usage?: number): void {
+  sendTunnelMsg(nodeId: string, relayPathValue: string, usage?: number): boolean {
     if (!this.wsManager?.isConnected()) {
-      return;
+      return false;
     }
 
     const msg: Record<string, unknown> = { action: 'msg', type: 'tunnel', nodeid: nodeId, value: relayPathValue };
@@ -250,12 +257,16 @@ export class MeshControlClient {
 
     try {
       this.wsManager.send(JSON.stringify(msg));
+      return true;
     } catch (error) {
       console.error('[MeshControl] Error sending tunnel message:', error);
+      return false;
     }
   }
 
+  /** Asked once per control socket; without cookies yet, the `authcookie` reply sends it. */
   sendRelayTunnel(
+    tunnelKey: string,
     nodeId: string,
     relayId: string,
     protocol: number,
@@ -263,35 +274,37 @@ export class MeshControlClient {
     domainPrefix = '',
     usage?: number,
   ): void {
-    this.upsertActiveTunnel(nodeId, relayId, protocol, domainPrefix, usage);
-
-    const prefix = domainPrefix ? `${domainPrefix.replace(/^\/*|\/*$/g, '')}/` : '';
-    const effectiveRelayCookie = this.cookies?.relayCookie ?? relayCookie;
-    const value = `*/${prefix}meshrelay.ashx?p=${protocol}&nodeid=${encodeURIComponent(nodeId)}&id=${encodeURIComponent(relayId)}${effectiveRelayCookie ? `&rauth=${encodeURIComponent(effectiveRelayCookie)}` : ''}`;
-    this.sendTunnelMsg(nodeId, value, usage);
+    const previous = this.activeTunnels.get(tunnelKey);
+    const announced = previous?.relayId === relayId && previous.announced;
+    const tunnel: ActiveTunnel = { nodeId, relayId, protocol, domainPrefix, usage, announced };
+    this.activeTunnels.set(tunnelKey, tunnel);
+    if (!announced) tunnel.announced = this.announceTunnel(tunnel, relayCookie);
   }
 
-  sendDesktopTunnel(nodeId: string, relayId: string, relayCookie?: string, domainPrefix = ''): void {
-    this.sendRelayTunnel(nodeId, relayId, 2, relayCookie, domainPrefix);
+  sendDesktopTunnel(tunnelKey: string, nodeId: string, relayId: string, relayCookie?: string, domainPrefix = ''): void {
+    this.sendRelayTunnel(tunnelKey, nodeId, relayId, 2, relayCookie, domainPrefix);
   }
 
-  sendFileTunnel(nodeId: string, relayId: string, relayCookie?: string, domainPrefix = ''): void {
-    this.sendRelayTunnel(nodeId, relayId, 5, relayCookie, domainPrefix, 5);
+  sendFileTunnel(tunnelKey: string, nodeId: string, relayId: string, relayCookie?: string, domainPrefix = ''): void {
+    this.sendRelayTunnel(tunnelKey, nodeId, relayId, 5, relayCookie, domainPrefix, 5);
   }
 
-  private upsertActiveTunnel(nodeId: string, relayId: string, protocol: number, domainPrefix?: string, usage?: number) {
-    const existingIndex = this.activeTunnels.findIndex(t => t.relayId === relayId);
-    if (existingIndex >= 0) {
-      this.activeTunnels[existingIndex] = { nodeId, relayId, protocol, domainPrefix, usage };
-      return;
-    }
-    this.activeTunnels.push({ nodeId, relayId, protocol, domainPrefix, usage });
+  forgetTunnel(tunnelKey: string): void {
+    this.activeTunnels.delete(tunnelKey);
+  }
+
+  private announceTunnel(tunnel: ActiveTunnel, relayCookie?: string): boolean {
+    if (!this.cookies) return false;
+    const prefix = tunnel.domainPrefix ? `${tunnel.domainPrefix.replace(/^\/*|\/*$/g, '')}/` : '';
+    const effectiveRelayCookie = this.cookies.relayCookie ?? relayCookie;
+    const value = `*/${prefix}meshrelay.ashx?p=${tunnel.protocol}&nodeid=${encodeURIComponent(tunnel.nodeId)}&id=${encodeURIComponent(tunnel.relayId)}${effectiveRelayCookie ? `&rauth=${encodeURIComponent(effectiveRelayCookie)}` : ''}`;
+    return this.sendTunnelMsg(tunnel.nodeId, value, tunnel.usage);
   }
 
   private resendActiveTunnels() {
     if (!this.isOpen || !this.wsManager?.isConnected()) return;
-    for (const t of this.activeTunnels) {
-      this.sendRelayTunnel(t.nodeId, t.relayId, t.protocol, undefined, t.domainPrefix, t.usage);
+    for (const tunnel of this.activeTunnels.values()) {
+      if (!tunnel.announced) tunnel.announced = this.announceTunnel(tunnel);
     }
   }
 
@@ -388,6 +401,7 @@ export class MeshControlClient {
 
   close(): void {
     this.clearPendingRequests('Client closing');
+    this.activeTunnels.clear();
     this.wsManager?.disconnect();
     this.wsManager = null;
     this.isOpen = false;

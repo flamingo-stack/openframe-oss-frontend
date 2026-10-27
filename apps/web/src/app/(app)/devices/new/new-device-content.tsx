@@ -223,7 +223,7 @@ function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
     // admin warning points users at has no '&&'. macOS keeps '&&' so
     // registration only runs after a successful install.
     const separator = platform === 'windows' ? '; ' : ' && ';
-    doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
+    doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand()}${separator}${registerCommand}`);
   }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction, rotateMachineId]);
 
   // Corner copy buttons take their own clipboard hook so the main button's
@@ -365,8 +365,8 @@ function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
             <>
               <CommandBox
                 title={PACKAGE_MANAGER_METHODS[installMethod].commandTitle}
-                command={PACKAGE_MANAGER_METHODS[installMethod].installCommand}
-                onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand)}
+                command={PACKAGE_MANAGER_METHODS[installMethod].installCommand()}
+                onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand())}
                 copyAriaLabel="Copy install command"
                 commandClassName="text-ods-accent"
               />

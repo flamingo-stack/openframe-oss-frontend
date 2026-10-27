@@ -172,6 +172,10 @@ export function useAuth() {
 
       return data;
     } catch (error) {
+      // A failed lookup for an abandoned address must not toast over, or reset, the current one.
+      if (latestDiscovery.current !== userEmail) {
+        return null;
+      }
       toast({
         title: 'Discovery Failed',
         description: error instanceof Error ? error.message : 'Unable to check for existing accounts',
