@@ -7,6 +7,13 @@ describe('dockViewOf(…).floats', () => {
     expect(dockViewOf(composerRouteOf('/mingo/')).floats).toBe(true);
   });
 
+  it('lays it over a session recording and the script editor, which scroll like any page', () => {
+    for (const pathname of ['/devices/details/remote-session/', '/scripts/new/', '/scripts/edit/']) {
+      expect(composerRouteOf(pathname)).toBe('page');
+      expect(dockViewOf(composerRouteOf(pathname)).floats).toBe(true);
+    }
+  });
+
   it('keeps it a band under the chat page and full-width pages', () => {
     expect(dockViewOf(composerRouteOf('/mingo/chat/')).floats).toBe(false);
     expect(dockViewOf(composerRouteOf('/devices/details/remote-desktop/')).floats).toBe(false);

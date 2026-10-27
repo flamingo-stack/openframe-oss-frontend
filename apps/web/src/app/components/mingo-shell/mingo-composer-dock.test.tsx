@@ -572,7 +572,6 @@ describe('MingoComposerDock', () => {
         '/devices/details/remote-desktop/',
         '/devices/details/remote-shell/',
         '/devices/details/file-manager/',
-        '/scripts/edit/',
       ]) {
         render(pathname);
         expect(composerRouteOf(pathname)).toBe('full-width');

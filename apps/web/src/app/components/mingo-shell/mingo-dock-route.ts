@@ -1,17 +1,15 @@
 import { routes } from '@/lib/routes';
 
 /**
- * Pages that need the whole content width (a remote screen, a terminal, the file
- * manager, the script editor): the dock drops its memory strip there. Path prefixes,
- * matched against the pathname, so they carry no query.
+ * Pages that fill the window's height (a remote screen, a terminal, the file manager):
+ * the dock drops its memory strip there. Path prefixes, matched against the pathname,
+ * so they carry no query. A session recording and the script editor are not ones: they
+ * scroll like any details page (the recording's fullscreen player covers the dock).
  */
 const FULL_WIDTH_PATHS = [
   '/devices/details/remote-desktop',
   '/devices/details/remote-shell',
-  '/devices/details/remote-session',
   '/devices/details/file-manager',
-  '/scripts/new',
-  '/scripts/edit',
 ] as const;
 
 function isFullWidthPage(pathname: string): boolean {
@@ -22,8 +20,8 @@ function isFullWidthPage(pathname: string): boolean {
  * Where the Mingo-first composer dock is, as far as the dock is concerned:
  *  - `home` — `/mingo`: always a new chat.
  *  - `chat` — `/mingo/chat?id=`: the thread is the page (portalled into its node).
- *  - `full-width` — a remote screen, terminal, file manager or script editor: no
- *    memory strip, which takes height.
+ *  - `full-width` — a remote screen, terminal or file manager: no memory strip,
+ *    which takes height.
  *  - `page` — every other page: the composer under it, continuing the selected chat.
  * The model row is on every route: a composer that changed height from page to page
  * moved under the cursor.
