@@ -30,6 +30,8 @@ export function DeviceSummaryCard({ device, deviceId, loading, onNavigate }: Dev
   return (
     <DeviceCard
       loading={loading}
+      // The device a log or a ticket names: its tags are not listed here, so no tags row loading or loaded.
+      showTags={false}
       device={{
         id,
         machineId,

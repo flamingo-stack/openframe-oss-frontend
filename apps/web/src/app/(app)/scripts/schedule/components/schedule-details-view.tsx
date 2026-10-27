@@ -109,6 +109,7 @@ function ScheduleHeaderView({ scheduleId, schedule }: ScheduleDetailsViewProps &
     !loading && schedule
       ? { type: CONTEXT_ENTITY_KIND.SCHEDULED_SCRIPT, id: scheduleDbId, label: schedule.name || scheduleDbId }
       : null,
+    { loading: loading },
   );
 
   const closeArchiveDialog = useCallback(() => setConfirmArchiveOpen(false), []);

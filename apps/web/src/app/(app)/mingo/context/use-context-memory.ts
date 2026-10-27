@@ -24,12 +24,15 @@ import { useMingoContextStore } from '../stores/mingo-context-store';
 export interface MingoContextMemory {
   items: ChatContextItem[];
   onRemove: (item: ChatContextItem) => void;
+  /** A detail page is still reading the entity it will add: the empty strip draws its loading form. */
+  pending: boolean;
 }
 
 export function useMingoContextMemory(): MingoContextMemory {
   const openView = useMingoContextStore(s => s.openView);
   const recentViews = useMingoContextStore(s => s.recentViews);
   const removeView = useMingoContextStore(s => s.removeView);
+  const pending = useMingoContextStore(s => s.openViewPending);
 
   const items = useMemo<ChatContextItem[]>(
     () => (openView ? [openView, ...recentViews] : recentViews),
@@ -39,5 +42,5 @@ export function useMingoContextMemory(): MingoContextMemory {
   // The store keys on `type:id`, which is exactly what the lib's row hands back.
   const onRemove = useCallback((item: ChatContextItem) => removeView(item), [removeView]);
 
-  return useMemo(() => ({ items, onRemove }), [items, onRemove]);
+  return useMemo(() => ({ items, onRemove, pending }), [items, onRemove, pending]);
 }

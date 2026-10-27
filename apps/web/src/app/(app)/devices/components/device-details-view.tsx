@@ -136,6 +136,7 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
           label: getDeviceName(normalizedDevice) || deviceId,
         }
       : null,
+    { loading: isLoading },
   );
 
   const handleBack = useSafeBack(routes.devices.list);
