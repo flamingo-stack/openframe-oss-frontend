@@ -84,13 +84,8 @@ function TagsFilterModalView({
       isOpen={isOpen}
       onClose={onClose}
       title="Filter by Tags"
-      // No group at all when there are no tags: `FilterModal` skips a group with no options
-      // but draws its empty state only when it has no groups, so an empty group left a blank body.
-      filterGroups={
-        tags.length > 0
-          ? [{ id: TAGS_GROUP_ID, title: 'Tags', options: tags.map(tag => ({ id: tag.id, label: tag.key })) }]
-          : []
-      }
+      filterGroups={[{ id: TAGS_GROUP_ID, title: 'Tags', options: tags.map(tag => ({ id: tag.id, label: tag.key })) }]}
+      // With no tags the group has no options, and `FilterModal` draws this empty state instead.
       emptyStateTitle="No tags to filter by"
       emptyStateDescription={noTagsDescription({ parentId, archived, assignedTo })}
       // `FilterModal` re-seeds its checkboxes from this each time it opens.
