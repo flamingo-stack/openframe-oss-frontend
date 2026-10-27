@@ -97,7 +97,9 @@ export function QueryDetailsView({ queryId }: QueryDetailsViewProps) {
 
   // Register this query as the Mingo "open view" (passive context) so the agent
   // gets the user's working context on the next message; cleared → recent views.
-  useTrackOpenView(queryDetails ? { type: CONTEXT_ENTITY_KIND.QUERY, id: queryId, label: queryDetails.name } : null);
+  useTrackOpenView(queryDetails ? { type: CONTEXT_ENTITY_KIND.QUERY, id: queryId, label: queryDetails.name } : null, {
+    loading: isLoading,
+  });
 
   const handleBack = useSafeBack(routes.monitoring.root({ tab: 'queries' }));
 

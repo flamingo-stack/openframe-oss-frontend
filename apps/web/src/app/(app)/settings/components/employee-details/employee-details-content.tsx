@@ -47,7 +47,10 @@ export function EmployeeDetailsContent({ userId }: { userId: string }) {
 
 /** In a loading scope (the boundary's fallback) it reads nothing: the header and the card draw their loading form. */
 function EmployeeDetailsReader({ userId }: { userId: string }) {
-  if (useLoadingScope()) {
+  const loading = useLoadingScope();
+  // Mingo's context strip draws its loading form while the employee is read, instead of moving the chat when it lands.
+  useTrackOpenView(null, { loading });
+  if (loading) {
     return (
       <>
         <EmployeeDetailsHeader user={null} />
