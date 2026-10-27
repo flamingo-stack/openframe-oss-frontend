@@ -37,6 +37,20 @@ const PING_INTERVAL: Duration = Duration::from_secs(10);
 /// How often a parked reconnect loop looks for credentials. Matches `run`'s own
 /// credential wait, so signing in costs the same wherever the connector is.
 const PARK_POLL: Duration = Duration::from_secs(5);
+/// Floor of the reconnect delay while the tenant is gone, plus up to
+/// [`GONE_DELAY_JITTER_MS`]. The device agent waits the same five minutes: long
+/// enough that a deleted tenant costs a handful of dials an hour instead of the
+/// hundred and sixty the 30s cap produced, short enough that a restored one is
+/// picked up without a restart.
+const GONE_DELAY: Duration = Duration::from_secs(5 * 60);
+const GONE_DELAY_JITTER_MS: u64 = 60_000;
+
+/// The fast retries alone must never reach the tenant probe, and the gone delay
+/// has to sit above the ordinary cap or it is no change at all.
+const _: () = {
+    assert!(tokens::DIALS_BEFORE_PROBE > FAST_RETRIES);
+    assert!(MAX_DELAY_MS < GONE_DELAY.as_millis() as u64);
+};
 
 struct Connector {
     app: AppHandle,
@@ -133,6 +147,7 @@ pub(crate) fn reconnect(app: &AppHandle) {
             return;
         };
         log::info!("[nats] tenant changed — dropping the connection and re-dialling");
+        tokens::clear_tenant_gone(&app, "the tenant changed");
         {
             let _session = connector.session.lock().await;
             // Order matters: a live Subscriber holds a clone of the client's
@@ -195,7 +210,10 @@ async fn run(connector: Arc<Connector>) {
             .name(CLIENT_NAME)
             .user_and_password(NATS_USER.into(), NATS_PASS.into())
             .retry_on_initial_connect()
-            .reconnect_delay_callback(reconnect_delay)
+            .reconnect_delay_callback({
+                let app = app.clone();
+                move |attempt| attempt_delay(&app, attempt)
+            })
             .ping_interval(PING_INTERVAL)
             .event_callback(move |event| {
                 let connector = event_connector.clone();
@@ -253,6 +271,11 @@ async fn run(connector: Arc<Connector>) {
 /// TLS+WS handshakes every ~200ms forever. Asks for the token at the moment
 /// async-nats needs it, so the reconnect uses the freshest rotation.
 async fn rebuild_connect_url(connector: &Arc<Connector>) -> Result<String, async_nats::AuthError> {
+    // A 401 on a tenant that is gone is a stale race (the gateway answers 410
+    // ahead of any token check), and a fresh bearer would only be spent on a
+    // dial that cannot succeed. Parked rather than failed, for the reason given
+    // on [`park_until_credentials`].
+    park_while_gone(connector).await;
     let failures = connector.auth_failures.fetch_add(1, Ordering::Relaxed);
     if failures > 0 {
         let delay_ms = backoff_ms(failures);
@@ -298,6 +321,19 @@ async fn park_until_credentials(connector: &Arc<Connector>) -> String {
     }
 }
 
+/// Hold the reconnect loop for as long as the tenant is gone. Resuming is just
+/// returning, so a probe that finds the tenant back needs no separate trigger.
+async fn park_while_gone(connector: &Arc<Connector>) {
+    if !tokens::tenant_gone(&connector.app) {
+        return;
+    }
+    log::info!("[nats] tenant is gone — parking the reconnect loop");
+    while tokens::tenant_gone(&connector.app) {
+        tokio::time::sleep(PARK_POLL).await;
+    }
+    log::info!("[nats] tenant answers again — resuming the reconnect loop");
+}
+
 async fn handle_event(event: Event, connector: &Arc<Connector>) {
     match event {
         Event::Connected => {
@@ -335,6 +371,21 @@ fn backoff_ms(exp: u32) -> u64 {
     BASE_DELAY_MS
         .saturating_mul(2u64.saturating_pow(exp.min(20)))
         .min(MAX_DELAY_MS)
+}
+
+/// The connector's delay callback: reports the attempt count to the tenant-gone
+/// detector, then picks the delay. Neither can stop the loop (see
+/// [`park_until_credentials`]), so a long delay is how a gone tenant is left alone.
+fn attempt_delay(app: &AppHandle, attempt: usize) -> Duration {
+    tokens::note_failed_dials(app, attempt);
+    if tokens::tenant_gone(app) {
+        return gone_delay();
+    }
+    reconnect_delay(attempt)
+}
+
+fn gone_delay() -> Duration {
+    GONE_DELAY + Duration::from_millis((rand::random::<f64>() * GONE_DELAY_JITTER_MS as f64) as u64)
 }
 
 /// `attempt` is 1-based — async-nats increments before invoking us, and the
@@ -381,5 +432,28 @@ fn mask_connect_url(url: &str) -> String {
     match url.split_once("authorization=") {
         Some((base, token)) => format!("{base}authorization={}", mask_token(token)),
         None => url.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The point of the gone state on the NATS side: a deleted tenant is dialled
+    /// a handful of times an hour, not once per capped backoff.
+    #[test]
+    fn a_gone_tenant_is_redialled_no_sooner_than_five_minutes() {
+        for _ in 0..100 {
+            let delay = gone_delay();
+            assert!(delay >= GONE_DELAY);
+            assert!(delay < GONE_DELAY + Duration::from_millis(GONE_DELAY_JITTER_MS));
+        }
+    }
+
+    #[test]
+    fn the_ordinary_backoff_stays_below_the_gone_delay() {
+        for attempt in 1..200 {
+            assert!(reconnect_delay(attempt) <= Duration::from_millis(MAX_DELAY_MS));
+        }
     }
 }

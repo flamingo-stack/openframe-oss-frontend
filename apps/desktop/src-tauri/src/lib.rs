@@ -552,8 +552,10 @@ window.__OPENFRAME_SHELL__ = {{
     clearTokens: function () {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_clear_tokens');
     }},
-    refreshTokens: function () {{
-      return window.__TAURI_INTERNALS__.invoke('native_auth_refresh_tokens');
+    refreshTokens: function (o) {{
+      return window.__TAURI_INTERNALS__.invoke('native_auth_refresh_tokens', {{
+        rejectedAccessToken: (o && o.rejectedAccessToken) || null
+      }});
     }},
     setTenantHost: function (o) {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_set_tenant_host', {{ origin: o.origin }});
@@ -1192,34 +1194,42 @@ async fn native_auth_get_tokens(app: AppHandle) -> Result<NativeAuthTokens, Stri
 
 /// Shell-owned refresh, delegated to by the webview's token-refresh-manager on
 /// upstream 401s. Force-refreshes (exp can't predict revocation), dampened by
-/// the previous access token so parallel callers don't rotate twice.
+/// the access token the webview says the gateway refused.
 ///
-/// A transient failure resolves with the tokens we still hold rather than
-/// rejecting. The webview cannot act on the difference: it maps every refresh
-/// that doesn't yield an access token to `forceLogout`, which calls back into
-/// `native_auth_clear_tokens` and deletes a refresh token that is good for days
-/// — so a rejection here turns one failed request into a lost session. Resolving
-/// with the stored set makes the caller retry that request (and fail it, which
-/// is not terminal) while the shell keeps retrying the rotation on its own.
-/// Deciding a session is over stays where custody is: `tokens::refresh` clears
-/// the store itself and then resolves empty, which the webview does act on.
+/// `rejected_access_token` is that token, passed through the bridge by
+/// `env_init_script`. Dampening against the *stored* token instead — which is
+/// what this did when the argument was dropped — compares the shell with itself:
+/// it always matched, so every 401 the webview reported rotated, including ones
+/// for a token the shell had long since replaced, and each rotation also changes
+/// the NATS URL and tears that connection down. With the real argument, a stored
+/// token that already differs is the answer: `tokens::refresh` returns it
+/// without a request. Absent (a webview with no token), it
+/// falls back to the stored one.
+///
+/// A transient failure rejects, and the webview takes a rejection to mean
+/// "transient": `executeRefresh` maps it to the `transient` outcome, which every
+/// caller of `refreshTokens` (apiClient, auth-api-client, the Relay environment)
+/// answers by failing that one request and leaving the session alone, while
+/// `refreshAccessToken` callers read it as "do not retry". Only a resolve with
+/// no access token is `terminal` and reaches `forceLogout`, which calls back into
+/// `native_auth_clear_tokens` and deletes a refresh token that is good for days —
+/// so deciding a session is over stays where custody is: `tokens::refresh` clears
+/// the store itself and then resolves empty. The bundle is the one staged from this
+/// commit (`scripts/build-web.sh`) and an update replaces shell and bundle
+/// together, so no older bundle meets this behaviour. It used to resolve with the
+/// stored tokens instead, which the webview reads as `refreshed`: it retried with
+/// the same rejected bearer, got another 401, and rotated again.
 #[tauri::command]
-async fn native_auth_refresh_tokens(app: AppHandle) -> Result<NativeAuthTokens, String> {
+async fn native_auth_refresh_tokens(
+    app: AppHandle,
+    rejected_access_token: Option<String>,
+) -> Result<NativeAuthTokens, String> {
     log::info!("[tokens] webview requested a refresh (upstream 401)");
-    let prev_access = tokens::load_tokens(&app).access_token;
-    match tokens::refresh(&app, true, prev_access, "webview upstream 401").await {
-        Ok(tokens) => Ok(tokens),
-        Err(e) => {
-            let stored = tokens::load_tokens(&app);
-            if stored.access_token.is_some() && stored.refresh_token.is_some() {
-                log::warn!(
-                    "[tokens] delegated refresh failed transiently ({e}) — keeping the session"
-                );
-                return Ok(stored);
-            }
-            Err(e)
-        }
-    }
+    let prev_access = tokens::damping_token(
+        rejected_access_token,
+        tokens::load_tokens(&app).access_token,
+    );
+    tokens::refresh(&app, true, prev_access, "webview upstream 401").await
 }
 
 /// Merge semantics and the lock they need both live in `tokens::merge_and_save`:
@@ -1538,6 +1548,7 @@ pub fn run() {
             }
             tokens::spawn_wake_watch(app.handle().clone());
             tokens::spawn_refresh_loop(app.handle().clone());
+            tokens::spawn_gone_watch(app.handle().clone());
             #[cfg(target_os = "macos")]
             macos_wake::observe(app.handle().clone());
             notifications::init(app.handle());

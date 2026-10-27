@@ -6,7 +6,8 @@
 // `refreshTokens`, the frontend's token-refresh-manager delegates here instead
 // of calling /oauth/refresh itself.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 use base64::Engine;
@@ -37,16 +38,31 @@ pub const TOKEN_UPDATE_EVENT: &str = "native-auth:token-update";
 /// The second cost is the higher one, so this stays close to the floor: four
 /// poll ticks of slack, which moves rotation from every 840s to every 780s.
 const REFRESH_MARGIN_SECS: u64 = 120;
+/// Shortest wait between a token's receipt and the rotation that replaces it,
+/// whatever its lifetime says — the guard against a hot loop on a token that
+/// claims to live seconds.
+const MIN_REFRESH_INTERVAL_SECS: u64 = 60;
+/// The lead used instead of [`REFRESH_MARGIN_SECS`] for a token that lives no
+/// longer than the margin itself, which would otherwise be due before it was
+/// received.
+const SHORT_TOKEN_LEAD_SECS: u64 = 30;
+/// Cap on a lifetime read from a token, so a bogus claim cannot schedule a
+/// rotation days out.
+const MAX_TOKEN_LIFETIME_SECS: u64 = 24 * 3600;
+/// How far ahead of the device clock a token's `iat` may be before the clock,
+/// not the token, is what is wrong. Only consulted for a token this process did
+/// not see arrive (see [`needs_refresh_at`]).
+const CLOCK_SLACK_SECS: u64 = 120;
 /// Background freshness poll.
 ///
 /// Note what this does *not* do: self-heal across sleep. `tokio::time::sleep`
 /// runs on `Instant`, which on macOS is `CLOCK_UPTIME_RAW` and stops while the
 /// machine is out — so on a laptop cycling through maintenance DarkWake (see
 /// [`LONGEST_DARKWAKE_SECS`]) one tick of this can take over an hour of wall
-/// clock, and [`poll_delay`] multiplies that. Freshness is still decided on the
-/// wall clock in [`needs_refresh`], so a late tick refreshes correctly; it is
-/// only the cadence that stretches. Anything that must happen while the machine
-/// sleeps cannot be hung off this loop.
+/// clock, and [`poll_delay`] multiplies that. Freshness is decided on
+/// [`boot_secs`], which keeps counting through sleep, so a late tick refreshes
+/// correctly; it is only the cadence that stretches. Anything that must happen
+/// while the machine sleeps cannot be hung off this loop.
 const POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// Waits between attempts within one refresh; the count of them sets how many
 /// retries a refresh gets. Only failures that never reached the gateway are
@@ -127,6 +143,8 @@ const LOST_ROTATION_COOLDOWN_SECS: u64 = 60;
 /// Why a refresh was refused without a request going out. Shared by the settle
 /// gates so a post-mortem sees one reason, not a spelling of it per site.
 const UNSETTLED: &str = "the machine has not been awake long enough to rotate";
+/// Why a refresh was refused for a deleted tenant, here and in the NATS logs.
+const TENANT_GONE: &str = "the tenant is gone (the gateway answered 410)";
 
 /// The two bounds the wake gate is only useful between: the settle window has to
 /// outlast every maintenance DarkWake or a rotation still goes out inside one,
@@ -136,6 +154,30 @@ const _: () = {
     assert!(WAKE_SETTLE_SECS > LONGEST_DARKWAKE_SECS);
     assert!(SLEEP_DETECT_SECS >= WAKE_TICK.as_secs() + 2);
 };
+
+/// First wait between probes of a tenant the gateway reports gone, doubling up
+/// to [`GONE_PROBE_BACKOFF_MAX_SECS`] — the device agent's schedule, so both
+/// clients stop talking to a deleted tenant at the same pace.
+const GONE_PROBE_BACKOFF_INITIAL_SECS: u64 = 60;
+const GONE_PROBE_BACKOFF_MAX_SECS: u64 = 30 * 60;
+/// How often [`spawn_gone_watch`] looks at whether a probe is due.
+const GONE_WATCH_TICK: Duration = Duration::from_secs(15);
+/// Failed dial attempts, as counted by the NATS connector, before one of them is
+/// worth a probe. The connector only keeps counting across failures that are not
+/// authentication (it resets on each auth callback), so a count this high means
+/// the gateway is refusing the upgrade for some other reason — 410 included.
+pub(crate) const DIALS_BEFORE_PROBE: usize = 5;
+/// Least gap between probes that dial failures ask for, so a network that is
+/// simply down is not probed on every reconnect.
+const DIAL_PROBE_MIN_GAP_SECS: u64 = 5 * 60;
+/// Bounds a probe's connect and its whole request; it is read-only, so unlike a
+/// rotation there is nothing to protect from the sleep-stalled timer.
+const PROBE_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Where the probe goes. Only the status class of the answer is read — the
+/// gateway answers 410 on every path of a deleted tenant — so the path need not
+/// exist on a live one.
+const PROBE_PATH: &str = "/api/health";
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -196,6 +238,133 @@ pub struct TokenLifecycle {
     /// [`settle_left_secs`]. Zero means no resume has been recorded yet, handled
     /// there as its own case, so a watcher that is not running gates nothing.
     awake_since: AtomicU64,
+    /// When the stored access token is due for rotation, on [`boot_secs`] and
+    /// counted from when it arrived — see [`AccessClock`]. None until this
+    /// process has seen a token arrive.
+    access_clock: std::sync::Mutex<Option<AccessClock>>,
+    /// Whether the gateway says the tenant is deleted. Gates every rotation and
+    /// every NATS dial; see [`TenantGone`].
+    tenant_gone: TenantGone,
+}
+
+/// When one particular access token is due for rotation.
+///
+/// Counted from the moment the token arrived, on a clock the device's wall clock
+/// cannot move — the same reasoning as the device agent's `RefreshSchedule`. The
+/// JWT's `exp` is the gateway's time and a wall clock is the device's, so
+/// comparing them is only right on a machine whose clock is right: on one that
+/// runs behind, the shell kept presenting a token the gateway had already
+/// expired, and nothing local noticed because the poll, `refresh_soon` and
+/// `ensure_fresh` all asked the same question. What the token itself reports is
+/// its *lifetime* (`exp - iat`, both the gateway's), and a lifetime needs no
+/// clock agreement.
+///
+/// Keyed by the token, so a token that arrives by any other road than the two
+/// that record it (a restart, a file edited by hand) is never judged by a
+/// schedule built for its predecessor.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct AccessClock {
+    fingerprint: u64,
+    due_boot: u64,
+}
+
+/// The shell's idea of whether the tenant has been deleted, and the pacing of
+/// the probes that find out whether it came back.
+///
+/// The shared gateway answers every path of a deleted tenant with 410 — the
+/// upgrade of `/ws/nats-api` included, which the NATS client cannot tell from
+/// any other failed handshake (see [`note_failed_dials`]). Nothing a retry does
+/// can change that answer, so the only useful behaviour is the one the device
+/// agent has: stop rotating, stop dialling, and ask rarely whether it is over.
+///
+/// Cleared by a sign-out, a fresh login and a tenant change — each is a new
+/// question the old answer says nothing about — and by a probe that finds the
+/// gateway routing again.
+#[derive(Default)]
+pub struct TenantGone {
+    gone: AtomicBool,
+    /// Bumped by every clear, so a probe that was already on the wire when the
+    /// session or tenant changed cannot put the verdict it fetched on the new one.
+    epoch: AtomicU64,
+    /// [`boot_secs`] before which no probe is due.
+    next_probe: AtomicU64,
+    backoff_secs: AtomicU64,
+    /// One probe in flight at a time, whichever of the watch and the dial hook
+    /// started it.
+    probing: AtomicBool,
+    /// [`boot_secs`] before which dial failures may not ask for another probe.
+    dial_probe_after: AtomicU64,
+}
+
+impl TenantGone {
+    fn is_gone(&self) -> bool {
+        self.gone.load(Ordering::Acquire)
+    }
+
+    fn epoch(&self) -> u64 {
+        self.epoch.load(Ordering::Acquire)
+    }
+
+    /// True if this call is the one that moved the state.
+    fn mark(&self, now: u64) -> bool {
+        if self.gone.swap(true, Ordering::AcqRel) {
+            return false;
+        }
+        self.backoff_secs
+            .store(GONE_PROBE_BACKOFF_INITIAL_SECS, Ordering::Relaxed);
+        self.next_probe.store(
+            now.saturating_add(GONE_PROBE_BACKOFF_INITIAL_SECS),
+            Ordering::Relaxed,
+        );
+        true
+    }
+
+    /// A probe found the tenant still gone (or could not say): wait longer.
+    fn defer_probe(&self, now: u64) {
+        let backoff = self
+            .backoff_secs
+            .load(Ordering::Relaxed)
+            .saturating_mul(2)
+            .clamp(GONE_PROBE_BACKOFF_INITIAL_SECS, GONE_PROBE_BACKOFF_MAX_SECS);
+        self.backoff_secs.store(backoff, Ordering::Relaxed);
+        self.next_probe
+            .store(now.saturating_add(backoff), Ordering::Relaxed);
+    }
+
+    fn probe_due(&self, now: u64) -> bool {
+        self.is_gone() && now >= self.next_probe.load(Ordering::Relaxed)
+    }
+
+    /// True if the tenant was gone until this call.
+    fn clear(&self) -> bool {
+        self.epoch.fetch_add(1, Ordering::AcqRel);
+        self.gone.swap(false, Ordering::AcqRel)
+    }
+}
+
+/// What a probe's answer says about the tenant.
+#[derive(Debug, PartialEq, Eq)]
+enum ProbeVerdict {
+    Gone,
+    Alive,
+    /// A 5xx or no answer at all: the gateway may be down for a live tenant
+    /// (it answers 503 when it cannot reach the tenant's cluster), so neither
+    /// conclusion is earned.
+    Unclear,
+}
+
+/// Anything the gateway routes counts as alive, not only a 2xx. A bearer the
+/// shell has stopped rotating cannot earn a 2xx once it expires, and waiting for
+/// one would make leaving the gone state depend on the very rotation it
+/// suppresses; a 401 from a tenant's gateway is proof the tenant exists, since
+/// the 410 is decided before the token is looked at.
+fn probe_verdict(status: Option<reqwest::StatusCode>) -> ProbeVerdict {
+    match status {
+        Some(s) if s == reqwest::StatusCode::GONE => ProbeVerdict::Gone,
+        Some(s) if s.is_server_error() => ProbeVerdict::Unclear,
+        Some(_) => ProbeVerdict::Alive,
+        None => ProbeVerdict::Unclear,
+    }
 }
 
 fn tokens_path(app: &AppHandle) -> std::path::PathBuf {
@@ -259,9 +428,22 @@ pub async fn merge_and_save(
     // webview re-saving the set it just read must not clear a doubt that stands.
     if incoming.refresh_token.is_some() && incoming.refresh_token != stored.refresh_token {
         lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+        // A new session, not a re-save: whatever the gateway said about the last
+        // one's tenant is no answer for this one's.
+        clear_gone(&lifecycle, "a different session signed in");
     }
+    // Only an access token that differs is news; the webview re-saving the one it
+    // just read from us must not restart its clock.
+    let new_access = incoming
+        .access_token
+        .clone()
+        .filter(|access| stored.access_token.as_ref() != Some(access));
     stored.merge_from(incoming);
-    save_tokens(app, &stored)
+    save_tokens(app, &stored)?;
+    if let Some(access) = new_access {
+        note_access_received(&lifecycle, &access, boot_secs());
+    }
+    Ok(())
 }
 
 pub fn clear_tokens(app: &AppHandle) -> Result<(), String> {
@@ -269,6 +451,8 @@ pub fn clear_tokens(app: &AppHandle) -> Result<(), String> {
     // The doubt belonged to the token being deleted; whatever arrives next is
     // not the one that was in question.
     lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+    set_access_clock(&lifecycle, None);
+    clear_gone(&lifecycle, "tokens were cleared");
     let removed = match std::fs::remove_file(tokens_path(app)) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -292,6 +476,69 @@ fn jwt_payload(token: &str) -> Option<serde_json::Value> {
 
 fn jwt_exp_secs(token: &str) -> Option<u64> {
     jwt_payload(token)?.get("exp")?.as_u64()
+}
+
+fn jwt_iat_secs(token: &str) -> Option<u64> {
+    jwt_payload(token)?.get("iat")?.as_u64()
+}
+
+/// How long the gateway made this token good for. `exp - iat` when the token
+/// carries both — two readings of the gateway's own clock, so the device's does
+/// not enter into it. A token without `iat` has only `exp`, and the best that
+/// can be done is `exp` against the device clock at receipt: no worse than
+/// judging it by `exp` later, and no better.
+fn lifetime_secs(token: &str, now_wall: u64) -> Option<u64> {
+    let exp = jwt_exp_secs(token)?;
+    let life = match jwt_iat_secs(token) {
+        Some(iat) => exp.checked_sub(iat).filter(|life| *life > 0)?,
+        None => exp.checked_sub(now_wall)?,
+    };
+    Some(life.min(MAX_TOKEN_LIFETIME_SECS))
+}
+
+/// Seconds from receipt to the rotation: the lifetime less a lead, but never
+/// sooner than [`MIN_REFRESH_INTERVAL_SECS`]. A 900-second token rotates at 780,
+/// the cadence the margin always produced.
+fn refresh_delay_secs(lifetime: u64) -> u64 {
+    let lead = if lifetime > REFRESH_MARGIN_SECS {
+        REFRESH_MARGIN_SECS
+    } else {
+        SHORT_TOKEN_LEAD_SECS
+    };
+    lifetime.saturating_sub(lead).max(MIN_REFRESH_INTERVAL_SECS)
+}
+
+/// Identity of a token for [`AccessClock`] without keeping the bearer in a second
+/// place. `DefaultHasher::new()` is unkeyed, so it is stable within a process,
+/// which is all this needs.
+fn fingerprint(token: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    token.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn set_access_clock(lifecycle: &TokenLifecycle, clock: Option<AccessClock>) {
+    *lifecycle
+        .access_clock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = clock;
+}
+
+/// Start the clock for an access token that arrived at `received_boot`. A token
+/// whose lifetime cannot be read gets no clock, which leaves it to the `exp`
+/// fallback — and, failing that, to the 401 path.
+fn note_access_received(lifecycle: &TokenLifecycle, access: &str, received_boot: u64) {
+    let clock = lifetime_secs(access, now_secs()).map(|life| AccessClock {
+        fingerprint: fingerprint(access),
+        due_boot: received_boot.saturating_add(refresh_delay_secs(life)),
+    });
+    set_access_clock(lifecycle, clock);
+}
+
+fn clear_gone(lifecycle: &TokenLifecycle, why: &str) {
+    if lifecycle.tenant_gone.clear() {
+        log::info!("[tokens] tenant no longer treated as gone ({why})");
+    }
 }
 
 /// String claim from a JWT, e.g. `userId` (gateway access tokens carry the
@@ -327,6 +574,32 @@ fn mono_secs() -> u64 {
     BASE.get_or_init(std::time::Instant::now)
         .elapsed()
         .as_secs()
+}
+
+/// Seconds since boot on a clock that keeps counting through sleep: neither the
+/// device's wall clock, which can be set to anything, nor [`mono_secs`], which
+/// stops while the machine is out and would leave a token's due time slipping by
+/// the length of every nap. macOS's `CLOCK_MONOTONIC` is the one that counts
+/// sleep (only `CLOCK_UPTIME_RAW` stops); Windows's `Instant` is
+/// `QueryPerformanceCounter`, which Windows documents as counting standby.
+#[cfg(target_os = "macos")]
+fn boot_secs() -> u64 {
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    // SAFETY: `ts` is a valid out-pointer for the duration of the call and
+    // CLOCK_MONOTONIC is supported on every macOS this ships on.
+    let rc = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
+    if rc != 0 {
+        return mono_secs();
+    }
+    ts.tv_sec.max(0) as u64
+}
+
+#[cfg(not(target_os = "macos"))]
+fn boot_secs() -> u64 {
+    mono_secs()
 }
 
 /// Tracks when the machine last resumed from sleep, by watching the wall clock
@@ -524,17 +797,47 @@ where
     }
 }
 
-fn needs_refresh(tokens: &NativeAuthTokens) -> bool {
+/// Whether the access token should be rotated now.
+///
+/// When this process saw the token arrive, that is its clock against
+/// [`boot_secs`]. When it did not — the first look after a restart — the only
+/// evidence left is the token against the device's wall clock, with one guard: a
+/// token issued *after* the device's idea of now has demonstrably been judged by
+/// a clock that runs behind, and is rotated once so that it gets a clock of its
+/// own. A clock that is behind by less than the token's age passes undetected
+/// until the first rotation or the first 401 — the price of not spending a
+/// rotation on every launch, each of which is a chance to lose the session.
+fn needs_refresh(app: &AppHandle, tokens: &NativeAuthTokens) -> bool {
+    let clock = *app
+        .state::<TokenLifecycle>()
+        .access_clock
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    needs_refresh_at(tokens, clock, now_secs(), boot_secs())
+}
+
+fn needs_refresh_at(
+    tokens: &NativeAuthTokens,
+    clock: Option<AccessClock>,
+    now_wall: u64,
+    now_boot: u64,
+) -> bool {
     if tokens.refresh_token.is_none() {
         return false;
     }
-    match &tokens.access_token {
-        None => true,
-        Some(access) => match jwt_exp_secs(access) {
-            // Unparseable exp: can't schedule — leave it to the 401 path.
-            None => false,
-            Some(exp) => now_secs() + REFRESH_MARGIN_SECS >= exp,
-        },
+    let Some(access) = &tokens.access_token else {
+        return true;
+    };
+    if let Some(clock) = clock.filter(|c| c.fingerprint == fingerprint(access)) {
+        return now_boot >= clock.due_boot;
+    }
+    match jwt_exp_secs(access) {
+        // Unparseable exp: can't schedule — leave it to the 401 path.
+        None => false,
+        Some(exp) => {
+            now_wall + REFRESH_MARGIN_SECS >= exp
+                || jwt_iat_secs(access).is_some_and(|iat| iat > now_wall + CLOCK_SLACK_SECS)
+        }
     }
 }
 
@@ -579,7 +882,7 @@ fn end_stored_session(app: &AppHandle, why: &str, trigger: &str) -> NativeAuthTo
 /// [`refresh_soon`] instead — a rotation awaited from inside a retry loop runs
 /// exactly when the network is least able to deliver its answer.
 pub async fn ensure_fresh(app: &AppHandle) -> NativeAuthTokens {
-    if needs_refresh(&load_tokens(app)) {
+    if needs_refresh(app, &load_tokens(app)) {
         if let Err(e) = refresh(app, false, None, "an on-demand read").await {
             log::warn!("[tokens] on-demand refresh failed: {e}");
         }
@@ -600,11 +903,23 @@ enum Outcome {
     Rotated(NativeAuthTokens),
     /// The gateway refused the refresh token (401/403).
     Rejected,
+    /// The gateway answered 410: the tenant is deleted. Settled before the
+    /// request reached the auth service, so nothing rotated and the token is
+    /// exactly as good as it was.
+    Gone,
     /// The gateway never saw it — DNS, connect, or TLS. Safe to retry.
     Unreached(String),
     /// The request went out and the outcome is unknown: a broken or timed-out
     /// response, or a success carrying no tokens. Not retried.
     Unknown(String),
+}
+
+/// The access token a forced refresh is dampened against: the one the caller
+/// says the gateway refused, or the stored one when it does not say. Dampening
+/// against the stored token is the old behaviour — it compares the shell with
+/// itself, so it can never find that a rotation already happened.
+pub(crate) fn damping_token(rejected: Option<String>, stored: Option<String>) -> Option<String> {
+    rejected.filter(|token| !token.is_empty()).or(stored)
 }
 
 /// Single-flight refresh.
@@ -622,6 +937,9 @@ enum Outcome {
 ///   unused, Ok(empty). The frontend acts on this the same way it acts on any
 ///   empty result, which is right: the session really is over.
 /// - unreached or unknown → Err, stored tokens kept
+/// - the tenant is gone (410, now or earlier) → Err, stored tokens kept, and no
+///   request made once it is known. The session is not over — only its tenant
+///   is — and rotating against a deleted tenant cannot succeed.
 /// - held back, because the machine has not been awake long enough or an
 ///   earlier rotation's fate is still unknown → Err, stored tokens kept, no
 ///   request made. Indistinguishable from a transient failure by design: every
@@ -637,6 +955,9 @@ pub async fn refresh(
     prev_access: Option<String>,
     trigger: &str,
 ) -> Result<NativeAuthTokens, String> {
+    if lifecycle_gone(app) {
+        return Err(TENANT_GONE.into());
+    }
     // A lock-free look before paying the settle wait, which is otherwise pure
     // latency for a caller with nothing to rotate — a force refresh whose access
     // token already moved would wait out the whole budget only to be told so
@@ -645,7 +966,7 @@ pub async fn refresh(
     let wanted = if force {
         stored.access_token == prev_access
     } else {
-        needs_refresh(&stored)
+        needs_refresh(app, &stored)
     };
     // Before the lock, so a settling caller does not stall sign-in behind it.
     if wanted && !wait_until_settled(app).await {
@@ -664,7 +985,7 @@ pub async fn refresh(
         if current.access_token != prev_access {
             return Ok(current);
         }
-    } else if !needs_refresh(&current) {
+    } else if !needs_refresh(app, &current) {
         return Ok(current);
     }
 
@@ -711,6 +1032,9 @@ pub async fn refresh(
         .build()
         .map_err(|e| e.to_string())?;
 
+    // Taken before the POST, not after the answer: latency then shortens the lead
+    // rather than the token's life, as in the agent.
+    let sent_boot = boot_secs();
     let outcome = attempt_refresh(app, &client, &base, &refresh_token).await;
     match &outcome {
         // Settled, either way: whatever the answer was, the gateway is reachable
@@ -723,6 +1047,9 @@ pub async fn refresh(
                 .consecutive_failures
                 .fetch_add(1, Ordering::Relaxed);
         }
+        // Not a failure to back off from: the gateway answered, and the gone
+        // state's own probe schedule paces everything from here.
+        Outcome::Gone => {}
     }
     match outcome {
         Outcome::Rotated(rotated) => {
@@ -737,6 +1064,7 @@ pub async fn refresh(
                 );
                 return Ok(NativeAuthTokens::default());
             }
+            let new_access = rotated.access_token.clone();
             let mut merged = current;
             merged.merge_from(rotated);
             if let Err(e) = save_tokens(app, &merged) {
@@ -767,6 +1095,9 @@ pub async fn refresh(
             // more, so a later rejection is a real revocation and must not be
             // reported — or held back — as that old loss resurfacing.
             lifecycle.lost_rotation_at.store(0, Ordering::Relaxed);
+            if let Some(access) = new_access {
+                note_access_received(&lifecycle, &access, sent_boot);
+            }
             log::info!(
                 "[tokens] refreshed (trigger: {trigger}, access exp: {:?})",
                 merged.access_token.as_deref().and_then(jwt_exp_secs)
@@ -787,6 +1118,10 @@ pub async fn refresh(
                 "the gateway rejected the refresh token"
             };
             Ok(end_stored_session(app, why, trigger))
+        }
+        Outcome::Gone => {
+            mark_gone(app, "a refresh was answered with 410");
+            Err(TENANT_GONE.into())
         }
         Outcome::Unreached(e) => Err(e),
         Outcome::Unknown(e) => {
@@ -849,6 +1184,21 @@ async fn attempt_refresh(
     }
 }
 
+/// What a non-2xx answer to the refresh settles as.
+fn outcome_for_failure(status: reqwest::StatusCode) -> Outcome {
+    match status {
+        reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => Outcome::Rejected,
+        // The gateway's routing filter, which runs ahead of everything that could
+        // have rotated. Distinct from the 401 above on purpose: the token is not
+        // refused, its tenant is gone, and ending the session over it would sign
+        // the user out of a workspace that may yet be restored.
+        reqwest::StatusCode::GONE => Outcome::Gone,
+        // Answered, so a rotation is not ruled out (a 5xx from a front end can
+        // sit in front of a gateway that already did the work).
+        _ => Outcome::Unknown(format!("refresh failed: HTTP {status}")),
+    }
+}
+
 /// Same contract as the frontend's token-refresh-manager: POST with the
 /// Refresh-Token header; rotated tokens ride back on response headers
 /// (dev-ticket mode). tenantId is optional — the BFF resolves the tenant from
@@ -885,15 +1235,9 @@ async fn post_refresh(client: &reqwest::Client, base: &str, refresh_token: &str)
     };
 
     let status = response.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        log::warn!("[tokens] refresh against {base} rejected: HTTP {status}");
-        return Outcome::Rejected;
-    }
     if !status.is_success() {
-        // Answered, so a rotation is not ruled out (a 5xx from a front end can
-        // sit in front of a gateway that already did the work).
         log::warn!("[tokens] refresh against {base} failed: HTTP {status}");
-        return Outcome::Unknown(format!("refresh failed: HTTP {status}"));
+        return outcome_for_failure(status);
     }
 
     let header = |name: &str| {
@@ -916,11 +1260,148 @@ async fn post_refresh(client: &reqwest::Client, base: &str, refresh_token: &str)
     Outcome::Rotated(rotated)
 }
 
+fn lifecycle_gone(app: &AppHandle) -> bool {
+    app.state::<TokenLifecycle>().tenant_gone.is_gone()
+}
+
+/// Whether the shell currently treats the tenant as deleted. The NATS plane
+/// reads this to stop dialling.
+pub(crate) fn tenant_gone(app: &AppHandle) -> bool {
+    lifecycle_gone(app)
+}
+
+fn mark_gone(app: &AppHandle, why: &str) {
+    if app.state::<TokenLifecycle>().tenant_gone.mark(boot_secs()) {
+        log::warn!(
+            "[tokens] tenant is gone ({why}) — rotation and NATS dialling are suspended; probing every {GONE_PROBE_BACKOFF_INITIAL_SECS}s, backing off to {}s",
+            GONE_PROBE_BACKOFF_MAX_SECS
+        );
+    }
+}
+
+/// The signed-in tenant changed, so what the gateway said about the previous one
+/// is no answer for this one.
+pub(crate) fn clear_tenant_gone(app: &AppHandle, why: &str) {
+    clear_gone(&app.state::<TokenLifecycle>(), why);
+}
+
+/// One read-only GET at the tenant gateway, returning its status if it answered.
+async fn probe_tenant(app: &AppHandle) -> Option<reqwest::StatusCode> {
+    let base = tenant_host(&load_config(app))?;
+    // No redirects: a 3xx is already an answer, and following it would report
+    // the status of wherever it points.
+    let client = reqwest::Client::builder()
+        .connect_timeout(PROBE_CONNECT_TIMEOUT)
+        .timeout(PROBE_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .ok()?;
+    let mut request = client.get(format!("{base}{PROBE_PATH}"));
+    if let Some(access) = load_tokens(app).access_token {
+        request = request.bearer_auth(access);
+    }
+    match request.send().await {
+        Ok(response) => Some(response.status()),
+        Err(e) => {
+            log::debug!("[tokens] tenant probe got no answer: {e}");
+            None
+        }
+    }
+}
+
+/// Probe the tenant and act on the answer: a 410 marks it gone (or keeps it
+/// so, backing off), any other routed answer clears the state.
+async fn probe_and_apply(app: &AppHandle) {
+    let lifecycle = app.state::<TokenLifecycle>();
+    let gone = &lifecycle.tenant_gone;
+    if gone.probing.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let epoch = gone.epoch();
+    let status = probe_tenant(app).await;
+    gone.probing.store(false, Ordering::Release);
+    // Signed out, logged in or switched tenant while the probe was on the wire:
+    // its answer is about the tenant that was left.
+    if gone.epoch() != epoch {
+        return;
+    }
+    let now = boot_secs();
+    match probe_verdict(status) {
+        ProbeVerdict::Gone => {
+            if !gone.mark(now) {
+                gone.defer_probe(now);
+                log::info!("[tokens] tenant is still gone (probe answered 410)");
+            } else {
+                log::warn!("[tokens] tenant is gone (probe answered 410) — rotation and NATS dialling are suspended");
+            }
+        }
+        ProbeVerdict::Alive => {
+            if gone.clear() {
+                log::info!(
+                    "[tokens] tenant answers again (HTTP {}) — resuming rotation and NATS dialling",
+                    status.map_or(0, |s| s.as_u16())
+                );
+            }
+        }
+        ProbeVerdict::Unclear => {
+            if gone.is_gone() {
+                gone.defer_probe(now);
+            }
+        }
+    }
+}
+
+/// The NATS connector's failed-dial count, offered here because the connector
+/// hides the one thing that would settle it: the fork's handshake error carries
+/// the HTTP status only as text, and the event callback gets a bare kind. So a
+/// 410 on the upgrade looks like any other broken connection, and the only
+/// way to learn it is to ask the gateway the same question over plain HTTP.
+///
+/// Called on every attempt; acts once enough have failed, at most every
+/// [`DIAL_PROBE_MIN_GAP_SECS`], and never while the tenant is already gone (the
+/// watch owns probing from there). Sync because it runs inside the connector's
+/// delay callback.
+pub(crate) fn note_failed_dials(app: &AppHandle, attempt: usize) {
+    if attempt < DIALS_BEFORE_PROBE {
+        return;
+    }
+    let lifecycle = app.state::<TokenLifecycle>();
+    let gone = &lifecycle.tenant_gone;
+    let now = boot_secs();
+    if gone.is_gone() || now < gone.dial_probe_after.load(Ordering::Relaxed) {
+        return;
+    }
+    gone.dial_probe_after.store(
+        now.saturating_add(DIAL_PROBE_MIN_GAP_SECS),
+        Ordering::Relaxed,
+    );
+    log::info!("[tokens] {attempt} NATS dials have failed in a row — probing the tenant gateway");
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { probe_and_apply(&app).await });
+}
+
+/// Probes a tenant known to be gone, on the backoff schedule, until it answers
+/// again or the session ends.
+pub fn spawn_gone_watch(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(GONE_WATCH_TICK).await;
+            let due = app
+                .state::<TokenLifecycle>()
+                .tenant_gone
+                .probe_due(boot_secs());
+            if due {
+                probe_and_apply(&app).await;
+            }
+        }
+    });
+}
+
 pub fn spawn_refresh_loop(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(poll_delay(failures(&app))).await;
-            if !needs_refresh(&load_tokens(&app)) {
+            if lifecycle_gone(&app) || !needs_refresh(&app, &load_tokens(&app)) {
                 continue;
             }
             if let Err(e) = refresh(&app, false, None, "the background poll").await {
@@ -957,7 +1438,7 @@ fn poll_delay(failures: u32) -> Duration {
 /// pull the schedule forward without replacing it. Measured before this gate: 132
 /// refresh attempts in ten minutes against an unreachable host.
 pub fn refresh_soon(app: &AppHandle, why: &'static str) {
-    if !needs_refresh(&load_tokens(app)) {
+    if lifecycle_gone(app) || !needs_refresh(app, &load_tokens(app)) {
         return;
     }
     let now = now_secs();
@@ -990,6 +1471,18 @@ mod tests {
         format!("header.{payload}.signature")
     }
 
+    /// A token with both claims, at fixed instants of the gateway's clock.
+    fn token_issued(iat: u64, exp: u64) -> String {
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(format!(r#"{{"iat":{iat},"exp":{exp},"userId":"u-1"}}"#));
+        format!("header.{payload}.signature")
+    }
+
+    /// The fallback judgement for a token this process never saw arrive.
+    fn due(tokens: &NativeAuthTokens) -> bool {
+        needs_refresh_at(tokens, None, now_secs(), 0)
+    }
+
     fn tokens(access: Option<String>, refresh: Option<&str>) -> NativeAuthTokens {
         NativeAuthTokens {
             access_token: access,
@@ -999,29 +1492,20 @@ mod tests {
 
     #[test]
     fn nothing_to_refresh_without_a_refresh_token() {
-        assert!(!needs_refresh(&tokens(
-            Some(token_expiring_in(-3600)),
-            None
-        )));
+        assert!(!due(&tokens(Some(token_expiring_in(-3600)), None)));
     }
 
     #[test]
     fn a_missing_access_token_is_refreshable() {
-        assert!(needs_refresh(&tokens(None, Some("r"))));
+        assert!(due(&tokens(None, Some("r"))));
     }
 
     #[test]
     fn refresh_is_due_inside_the_margin_and_not_before() {
         let outside = REFRESH_MARGIN_SECS as i64 + 60;
-        assert!(!needs_refresh(&tokens(
-            Some(token_expiring_in(outside)),
-            Some("r")
-        )));
+        assert!(!due(&tokens(Some(token_expiring_in(outside)), Some("r"))));
         let inside = REFRESH_MARGIN_SECS as i64 - 60;
-        assert!(needs_refresh(&tokens(
-            Some(token_expiring_in(inside)),
-            Some("r")
-        )));
+        assert!(due(&tokens(Some(token_expiring_in(inside)), Some("r"))));
     }
 
     /// Two competing bounds on the margin, both in [`REFRESH_MARGIN_SECS`]:
@@ -1061,7 +1545,7 @@ mod tests {
     /// An `exp` we can't read is not a schedule — the 401 path owns it.
     #[test]
     fn an_unparseable_token_is_left_alone() {
-        assert!(!needs_refresh(&tokens(Some("not-a-jwt".into()), Some("r"))));
+        assert!(!due(&tokens(Some("not-a-jwt".into()), Some("r"))));
     }
 
     /// The wall clock counts sleep and the monotonic clock does not, so the gap
@@ -1156,5 +1640,262 @@ mod tests {
         assert_eq!(poll_delay(0), POLL_INTERVAL);
         assert_eq!(poll_delay(1), POLL_INTERVAL * 2);
         assert_eq!(poll_delay(u32::MAX), POLL_INTERVAL * MAX_POLL_BACKOFF);
+    }
+
+    /// 900 seconds of life rotates at 780: the cadence the fixed margin always
+    /// produced, so the new schedule moves nothing on a healthy machine.
+    #[test]
+    fn the_delay_is_the_lifetime_less_the_margin() {
+        assert_eq!(refresh_delay_secs(900), 900 - REFRESH_MARGIN_SECS);
+        // A token no longer than the margin gets the short lead, and nothing is
+        // ever due sooner than the floor.
+        assert_eq!(
+            refresh_delay_secs(REFRESH_MARGIN_SECS),
+            REFRESH_MARGIN_SECS - SHORT_TOKEN_LEAD_SECS
+        );
+        assert_eq!(refresh_delay_secs(10), MIN_REFRESH_INTERVAL_SECS);
+        assert_eq!(refresh_delay_secs(0), MIN_REFRESH_INTERVAL_SECS);
+    }
+
+    /// The lifetime is two readings of the gateway's own clock, so the device's
+    /// can be anywhere.
+    #[test]
+    fn the_lifetime_comes_from_the_token_not_the_device_clock() {
+        let token = token_issued(1_000_000, 1_000_900);
+        for device_now in [0, 1_000_000, 5_000_000_000] {
+            assert_eq!(lifetime_secs(&token, device_now), Some(900));
+        }
+        // Without iat only exp is left, read against the clock at receipt.
+        let bare = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(r#"{"exp":1000900}"#);
+        assert_eq!(lifetime_secs(&format!("h.{bare}.s"), 1_000_000), Some(900));
+        assert_eq!(lifetime_secs(&format!("h.{bare}.s"), 2_000_000), None);
+        // A claim that would schedule days out is capped, an inverted one refused.
+        assert_eq!(
+            lifetime_secs(&token_issued(0, 10_000_000), 0),
+            Some(MAX_TOKEN_LIFETIME_SECS)
+        );
+        assert_eq!(lifetime_secs(&token_issued(500, 400), 0), None);
+        assert_eq!(lifetime_secs("not-a-jwt", 0), None);
+    }
+
+    fn clock_for(token: &str, received_boot: u64) -> AccessClock {
+        AccessClock {
+            fingerprint: fingerprint(token),
+            due_boot: received_boot + refresh_delay_secs(lifetime_secs(token, 0).unwrap()),
+        }
+    }
+
+    /// The reason for all of it: the gateway minted this token at 1_000_000 on its
+    /// clock, and the device's wall clock is an hour and a day away from that. The
+    /// answer is the same either way, because only the boot clock is consulted.
+    #[test]
+    fn the_schedule_is_the_same_with_the_wall_clock_far_behind_or_ahead() {
+        let access = token_issued(1_000_000, 1_000_900);
+        let held = tokens(Some(access.clone()), Some("r"));
+        let clock = Some(clock_for(&access, 5_000));
+        let due_at = 5_000 + 900 - REFRESH_MARGIN_SECS;
+        for wall in [1_000_000 - 3_600, 1_000_000, 1_000_000 + 86_400] {
+            assert!(
+                !needs_refresh_at(&held, clock, wall, due_at - 1),
+                "wall {wall}"
+            );
+            assert!(needs_refresh_at(&held, clock, wall, due_at), "wall {wall}");
+        }
+    }
+
+    /// The failure this fixes, stated directly: judged by `exp` against a wall
+    /// clock behind, a token the gateway expired long ago looks live.
+    #[test]
+    fn a_wall_clock_behind_hides_an_expired_token_only_without_a_schedule() {
+        let access = token_issued(1_000_000, 1_000_900);
+        let held = tokens(Some(access.clone()), Some("r"));
+        // 1_002_000 on the gateway's clock, 1_800 seconds earlier on the device's.
+        let behind = 1_000_200;
+        assert!(!needs_refresh_at(&held, None, behind, 0));
+        let clock = Some(clock_for(&access, 100));
+        assert!(needs_refresh_at(&held, clock, behind, 100 + 2_000));
+    }
+
+    /// A schedule built for the previous token must never judge the next one.
+    #[test]
+    fn a_schedule_belongs_to_its_token() {
+        let old = token_issued(1_000_000, 1_000_900);
+        let new = token_issued(1_000_900, 1_001_800);
+        let held = tokens(Some(new), Some("r"));
+        // Due long ago for `old`; for `new` the fallback applies and finds it live.
+        assert!(!needs_refresh_at(
+            &held,
+            Some(clock_for(&old, 0)),
+            1_001_000,
+            10_000
+        ));
+    }
+
+    /// After a restart there is no receipt. Falling back to `exp` costs no
+    /// rotation on a healthy machine; a token issued in the device's future is
+    /// the one case where the clock is provably wrong, and is rotated once.
+    #[test]
+    fn a_restart_judges_by_exp_and_catches_a_clock_behind_the_issue_time() {
+        let access = token_issued(1_000_000, 1_000_900);
+        let held = tokens(Some(access), Some("r"));
+        assert!(!needs_refresh_at(&held, None, 1_000_100, 0));
+        assert!(needs_refresh_at(
+            &held,
+            None,
+            1_000_900 - REFRESH_MARGIN_SECS,
+            0
+        ));
+        // Clock an hour behind: iat is well ahead of "now".
+        assert!(needs_refresh_at(&held, None, 1_000_000 - 3_600, 0));
+        // Ahead: rotates early, once, then has a clock of its own.
+        assert!(needs_refresh_at(&held, None, 1_000_000 + 86_400, 0));
+    }
+
+    /// At most one rotation per lifetime: the moment after one lands the new token
+    /// is not due until its own delay has passed.
+    #[test]
+    fn a_rotation_is_not_due_again_within_its_lifetime() {
+        let access = token_issued(2_000_000, 2_000_900);
+        let held = tokens(Some(access.clone()), Some("r"));
+        let received = 9_000;
+        let clock = Some(clock_for(&access, received));
+        for elapsed in [0, 1, 300, 779] {
+            assert!(!needs_refresh_at(&held, clock, 0, received + elapsed));
+        }
+        assert!(needs_refresh_at(&held, clock, 0, received + 780));
+    }
+
+    /// The webview's report is what a forced refresh is judged against. A stored
+    /// token that already differs from it means a rotation happened since the
+    /// webview last looked, and the force is then answered from the store.
+    #[test]
+    fn a_forced_refresh_is_dampened_by_the_rejected_token() {
+        let stored = Some("current".to_string());
+        // Same token refused: the force goes ahead.
+        let prev = damping_token(Some("current".into()), stored.clone());
+        assert_eq!(prev, stored);
+        // A stale report: stored differs, so the refresh answers from the store.
+        let prev = damping_token(Some("stale".into()), stored.clone());
+        assert_eq!(prev.as_deref(), Some("stale"));
+        assert_ne!(stored, prev);
+        // Nothing reported (or an empty string off the bridge): today's behaviour.
+        assert_eq!(damping_token(None, stored.clone()), stored);
+        assert_eq!(damping_token(Some(String::new()), stored.clone()), stored);
+        assert_eq!(damping_token(None, None), None);
+    }
+
+    #[test]
+    fn a_missing_access_token_is_due_whatever_the_clock_says() {
+        assert!(needs_refresh_at(&tokens(None, Some("r")), None, 0, 0));
+        assert!(!needs_refresh_at(&tokens(None, None), None, 0, 0));
+    }
+
+    /// The boot clock must advance with real time; the schedule is meaningless on
+    /// one that stands still.
+    #[test]
+    fn the_boot_clock_moves() {
+        let before = boot_secs();
+        std::thread::sleep(Duration::from_millis(1_100));
+        assert!(boot_secs() > before);
+    }
+
+    /// 410 is its own outcome: not a rejection, which ends the session, and not
+    /// an unknown, which arms the lost-rotation cooldown for a request that never
+    /// got as far as the auth service.
+    #[test]
+    fn a_410_is_neither_a_rejection_nor_an_unknown() {
+        use reqwest::StatusCode;
+        assert!(matches!(
+            outcome_for_failure(StatusCode::GONE),
+            Outcome::Gone
+        ));
+        assert!(matches!(
+            outcome_for_failure(StatusCode::UNAUTHORIZED),
+            Outcome::Rejected
+        ));
+        assert!(matches!(
+            outcome_for_failure(StatusCode::FORBIDDEN),
+            Outcome::Rejected
+        ));
+        assert!(matches!(
+            outcome_for_failure(StatusCode::BAD_GATEWAY),
+            Outcome::Unknown(_)
+        ));
+        assert!(matches!(
+            outcome_for_failure(StatusCode::NOT_FOUND),
+            Outcome::Unknown(_)
+        ));
+        // Only an unreached request is retried, and a 410 is not one.
+        assert!(!matches!(
+            outcome_for_failure(StatusCode::GONE),
+            Outcome::Unreached(_)
+        ));
+    }
+
+    #[test]
+    fn a_probe_reads_only_the_status_class() {
+        use reqwest::StatusCode;
+        assert_eq!(probe_verdict(Some(StatusCode::GONE)), ProbeVerdict::Gone);
+        assert_eq!(probe_verdict(Some(StatusCode::OK)), ProbeVerdict::Alive);
+        // A live tenant's gateway refuses a stale bearer with 401; that is proof
+        // of life, not of death.
+        assert_eq!(
+            probe_verdict(Some(StatusCode::UNAUTHORIZED)),
+            ProbeVerdict::Alive
+        );
+        assert_eq!(
+            probe_verdict(Some(StatusCode::NOT_FOUND)),
+            ProbeVerdict::Alive
+        );
+        assert_eq!(
+            probe_verdict(Some(StatusCode::SERVICE_UNAVAILABLE)),
+            ProbeVerdict::Unclear
+        );
+        assert_eq!(probe_verdict(None), ProbeVerdict::Unclear);
+    }
+
+    #[test]
+    fn the_gone_state_moves_once_and_probes_back_off() {
+        let gone = TenantGone::default();
+        assert!(!gone.is_gone());
+        assert!(!gone.probe_due(10_000_000));
+
+        assert!(gone.mark(1_000));
+        assert!(!gone.mark(1_500), "a second 410 is not a transition");
+        assert!(gone.is_gone());
+
+        // Not due until the first backoff has run, then each miss doubles it.
+        assert!(!gone.probe_due(1_000 + GONE_PROBE_BACKOFF_INITIAL_SECS - 1));
+        assert!(gone.probe_due(1_000 + GONE_PROBE_BACKOFF_INITIAL_SECS));
+        let mut now = 1_000 + GONE_PROBE_BACKOFF_INITIAL_SECS;
+        let mut wait = GONE_PROBE_BACKOFF_INITIAL_SECS;
+        for _ in 0..12 {
+            gone.defer_probe(now);
+            wait = (wait * 2).min(GONE_PROBE_BACKOFF_MAX_SECS);
+            assert!(!gone.probe_due(now + wait - 1));
+            assert!(gone.probe_due(now + wait));
+            now += wait;
+        }
+        assert_eq!(wait, GONE_PROBE_BACKOFF_MAX_SECS);
+    }
+
+    /// Sign-out, a new login and a tenant change all go through `clear`; a probe
+    /// that started before any of them must be able to tell.
+    #[test]
+    fn clearing_ends_the_state_and_invalidates_probes_in_flight() {
+        let gone = TenantGone::default();
+        gone.mark(0);
+        let epoch = gone.epoch();
+        assert!(gone.clear());
+        assert!(!gone.is_gone());
+        assert!(!gone.probe_due(u64::MAX));
+        assert_ne!(gone.epoch(), epoch);
+        // Clearing what is not gone reports no transition but still bumps.
+        let epoch = gone.epoch();
+        assert!(!gone.clear());
+        assert_ne!(gone.epoch(), epoch);
+        // And a cleared state can be entered afresh, backoff reset.
+        assert!(gone.mark(500));
+        assert!(gone.probe_due(500 + GONE_PROBE_BACKOFF_INITIAL_SECS));
     }
 }

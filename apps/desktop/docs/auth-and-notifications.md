@@ -33,10 +33,24 @@ what must survive idle:
   temp-file rename so a concurrent reader never sees a half-written file. A torn
   read would deserialize as "no session" and tear down the notification
   subscription.
-- **Freshness.** The access token's JWT `exp` is decoded without signature
-  verification — it is a scheduling hint about our own token, nothing more. A
+- **Freshness.** The access token's JWT claims are decoded without signature
+  verification — they are scheduling hints about our own token, nothing more. A
   refresh is due when a refresh token exists and the access token is missing or
-  expires within 120 seconds. That margin is squeezed from both sides: it must
+  within 120 seconds of the end of its life. The life is the token's own
+  `exp - iat` (two readings of the gateway's clock), counted from the moment the
+  token arrived — recorded by a rotation, and by the webview's `setTokens` when
+  the access token is new — on a clock that keeps counting through sleep
+  (`CLOCK_MONOTONIC` on macOS, `Instant` on Windows). The device's wall clock
+  is not consulted, so a machine whose clock is wrong rotates on the same
+  cadence as one whose clock is right: judging `exp` against a wall clock that
+  ran behind kept presenting a token the gateway had already expired. After a
+  restart there is no receipt; the token is judged by `exp` against the wall
+  clock instead, plus one guard — an `iat` ahead of the device's now proves the
+  clock is behind and rotates once. (The device agent refreshes once at start;
+  the shell does not, because each launch would then spend a rotation, and the
+  residual — a clock behind by less than the token's age — is recovered by the
+  first 401, which the rejected-token handoff below keeps to one rotation.) That
+  margin is squeezed from both sides: it must
   span several poll ticks (App Nap coalesces a hidden app's timers, and a margin
   the poll can skip entirely lets the access token die), yet stay a small
   fraction of the token's 900-second life, because every rotation is a chance to
@@ -56,22 +70,44 @@ what must survive idle:
   on the first answer, since re-presenting the same token cannot change it; and
   *unknown* (a broken or timed-out response, a 5xx, a 200 with no token headers)
   is never retried, because a retry can only turn "maybe rotated" into a
-  rejection.
+  rejection. A fourth, *gone* (410), is settled by the gateway's routing filter
+  before anything can rotate, so it is neither a rejection nor an unknown — see
+  **Tenant gone**.
 - **Outcome contract**, consumed by the frontend's delegation: rotated → tokens;
   session over (rejected, or a rotation that could not be written to disk) →
   tokens cleared, empty set returned; unreached/unknown → error, stored tokens
-  kept. The `refreshTokens` command softens the last case before the webview sees
-  it: it resolves with the stored tokens instead of rejecting, because the
-  frontend maps every refresh that yields no access token to `forceLogout`, and
-  that deletes a refresh token which is good for days. Deciding a session is over
-  stays here, where custody is.
+  kept. The `refreshTokens` command takes the access token the webview says the
+  gateway refused (`rejectedAccessToken`) and dampens against that, not against
+  the stored token: if the store already holds a different one, a rotation
+  already happened and the stored tokens are the answer, without a request. A
+  failure *rejects*, which the frontend's `executeRefresh` maps to `transient`
+  (fail the one request, keep the session); only a resolve with no access token
+  is `terminal` and reaches `forceLogout`, which deletes a refresh token that is
+  good for days. (It used to resolve with the stored tokens, which the frontend
+  reads as `refreshed`: the retry carried the same rejected bearer and rotated
+  again.) Deciding a session is over stays here, where custody is.
+- **Tenant gone.** The shared gateway answers every path of a deleted tenant
+  with 410. Nothing a retry does changes that, so the shell stops: a 410 to a
+  refresh (possible only on the tenant-host fallback — the shared host looks the
+  tenant up through the authorization record, which offboarding deletes, and so
+  answers 401) or to a plain-HTTP probe marks the tenant gone. While gone, no
+  rotation is attempted (the poll, `refresh_soon` and the delegated refresh all
+  stand down), NATS redials no sooner than every five minutes and its auth
+  callback parks, and a probe on the device agent's schedule (60s doubling to
+  30 min) looks for the tenant to answer again — any routed answer, not only a
+  2xx, since a stale bearer cannot earn one. The NATS fork reports a refused
+  upgrade as a plain IO failure with the status only in its error text, so the
+  connector's failed-dial count (five in a row, which only non-auth failures
+  accumulate) is what triggers the first probe. Cleared by a sign-out, a new
+  session's tokens, a tenant change, or a probe that finds the gateway routing.
+  The webview detects 410 on its own requests; no bridge event carries this.
 - **Background loop.** A 30-second freshness poll rather than a scheduled timer.
   It backs off while refreshes keep failing, up to 16× the interval. Note that it
   does *not* self-heal across sleep, contrary to what this file used to say:
   `tokio::time::sleep` runs on `Instant`, which is `CLOCK_UPTIME_RAW` on macOS
   and stops while the machine is out, so on a laptop cycling through maintenance
   DarkWake a single tick can take over an hour of wall clock. Freshness itself is
-  decided on the wall clock, so a late tick still refreshes correctly.
+  decided on a clock that counts sleep, so a late tick still refreshes correctly.
 - **Wake and window-show.** macOS `NSWorkspaceDidWakeNotification`
   (`macos_wake.rs`) and showing the main window both nudge a refresh. A machine
   that slept through the access token's whole life comes back with every overdue
@@ -142,7 +178,7 @@ The bridge is shell-agnostic; the frontend feature-detects each method.
 |---|---|
 | `start` / `exchangeTicket` | OAuth in the user's default browser, then a native token exchange — the response headers carrying tokens are invisible to a cross-origin webview fetch. |
 | `get` / `set` / `clearTokens` | `set` merges per field: a rotation response may carry one token or both. |
-| `refreshTokens` | Optional. Its presence means "the shell owns refresh", and the webview stops calling the refresh endpoint entirely. Rejects only when there is genuinely nothing to refresh with — a rejection is a logout on the frontend side. |
+| `refreshTokens` | Optional. Its presence means "the shell owns refresh", and the webview stops calling the refresh endpoint entirely. Takes `{ rejectedAccessToken }`, the bearer the gateway refused. Resolves with the tokens (empty = session over, the webview logs out); rejects on any transient failure, which the webview treats as "keep the session, fail this request". |
 | `setTenantHost` | Persists the login-learned tenant origin shell-side, so shell networking has a gateway without depending on webview storage. |
 
 ### Where the login ends
@@ -295,6 +331,9 @@ dials with a fresh bearer.
   polling the client's command channel, so dropping the `Client` is unobserved.
   Blocking in the callback suspends the task that actually needs suspending, and
   resuming is just returning a URL — so sign-in needs no separate wake-up.
+- While the tenant is gone (see **Tenant gone** above) the delay callback returns
+  five minutes plus jitter and the auth callback parks, so a deleted tenant costs a
+  handful of dials an hour instead of one per capped backoff (~160/h).
 - On every `Connected` the subscription is re-established, because the subject
   changes when the signed-in user does.
 - Sign-in on the same tenant re-subscribes on the live connection; a tenant switch
