@@ -256,8 +256,9 @@ export function SectionTableView({
 
   const renderSubRow = useCallback(
     (item: NotificationRow) => {
-      // A placeholder row (the table still loading) carries no notification.
-      if (!item.notification) return null;
+      // A placeholder row (the table still loading) carries no notification: it draws the approval block's loading
+      // form, because a typical notification is an approval request (45 of 50 in a measured tenant).
+      if (!item.notification) return loading ? <NotificationApprovalSubRow notification={null} /> : null;
       if (!isApprovalNotification(item.notification) || !getApprovalMeta(item.notification)) return null;
       return (
         <NotificationApprovalSubRow
@@ -266,7 +267,7 @@ export function SectionTableView({
         />
       );
     },
-    [rowVariant, onMarkRead],
+    [rowVariant, onMarkRead, loading],
   );
 
   // In a loading scope the table holds one page of placeholder rows, drawn with the real cells (each cell draws its
@@ -307,6 +308,7 @@ export function SectionTableView({
         stickyHeaderOffset={stickyHeaderOffset}
         itemName="result"
         renderSubRow={renderSubRow}
+        loadingSubRows
         footer={infiniteScroll}
         loadingCells={loading}
       />
