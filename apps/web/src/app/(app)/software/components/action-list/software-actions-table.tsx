@@ -26,6 +26,7 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -315,11 +316,11 @@ function SoftwareActionsRows({
       itemName="result"
       totalCount={totalCount}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={oneLineEmptyState(
+        debouncedSearch
           ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No software actions match the selected filters. Try adjusting your filters.',
-      }}
+      )}
       rowHref={detailsHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}

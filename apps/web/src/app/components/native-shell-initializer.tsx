@@ -8,10 +8,13 @@ import { initNativeBack } from '@/lib/native-back';
 import {
   hideSplashScreen,
   initNativeChrome,
+  onDesktopDownloadLink,
   onNativeNotificationClick,
+  takeDesktopDownloadId,
   takeNativeStartupNotificationClick,
 } from '@/lib/native-shell';
 import { isAppShell, isDesktopShell, isMobileShell, shellKind } from '@/lib/platform';
+import { storeDownloadId } from '@/lib/registration-attribution';
 import { routes } from '@/lib/routes';
 import { initTokenStore } from '@/lib/token-store';
 import { resolveNatsNotificationRoute } from './notifications/notification-navigation';
@@ -20,6 +23,8 @@ import { resolveNatsNotificationRoute } from './notifications/notification-navig
 // and drain the startup click exactly once per page, however many times the
 // component (re)mounts.
 let nativeClickHandlingInitialized = false;
+// Same for the "Open the app" link's download id.
+let downloadLinkHandlingInitialized = false;
 
 /**
  * Per-shell startup, split by which shell actually owns each step:
@@ -31,7 +36,8 @@ let nativeClickHandlingInitialized = false;
  * - Mobile: status bar + safe-area insets, hardware back, splash hide.
  * - Desktop: OS-notification clicks forwarded by the Rust notification plane —
  *   the envelope context maps to the same route the in-app drawer would use,
- *   falling back to the notifications page.
+ *   falling back to the notifications page. And the download id an "Open the app" link brought,
+ *   stored for the signup (`registration-attribution.ts`).
  *
  * The keyboard inset also runs on the touch web; every other step below is a
  * no-op outside a shell.
@@ -98,6 +104,24 @@ export function NativeShellInitializer() {
           // remount would stack a second one.
           console.error('[Native Shell] startup notification route failed:', error);
         }
+      })();
+    }
+
+    if (isDesktopShell() && !downloadLinkHandlingInitialized) {
+      downloadLinkHandlingInitialized = true;
+      const takeDownloadId = () =>
+        void takeDesktopDownloadId().then(id => {
+          if (id) storeDownloadId(id);
+        });
+      void (async () => {
+        try {
+          await onDesktopDownloadLink(takeDownloadId);
+        } catch (error) {
+          console.error('[Native Shell] download link listener failed:', error);
+        }
+        // After the listener, so a link that lands in between is taken by one of the two: a link
+        // that started the app is already waiting, one that arrives later signals.
+        takeDownloadId();
       })();
     }
   }, [router]);

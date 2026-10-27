@@ -126,6 +126,7 @@ export function EmployeeDetailsView({ userId }: EmployeeDetailsViewProps) {
           label: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
         }
       : null,
+    { loading: isLoading },
   );
 
   if (error) {

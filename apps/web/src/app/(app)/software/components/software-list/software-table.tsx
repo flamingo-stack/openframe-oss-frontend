@@ -12,7 +12,7 @@ import type {
   softwareTable_software$data,
   softwareTable_software$key,
 } from '@/__generated__/softwareTable_software.graphql';
-import { type InfiniteScroll, liveColumnMeta } from '@/app/components/shared';
+import { type InfiniteScroll, liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
 import { LiveTable } from '@/app/components/shared/live-table';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -133,11 +133,11 @@ function LoadedSoftwareTable({
       itemName="result"
       totalCount={totalCount}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={oneLineEmptyState(
+        debouncedSearch
           ? `No software found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No software found.',
-      }}
+      )}
       rowHref={rowHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}

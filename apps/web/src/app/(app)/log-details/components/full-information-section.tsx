@@ -25,10 +25,20 @@ const ROW = {
 
 /**
  * The card's loading shape: the rows a typical log carries, their labels real, no title (the loaded card has none).
- * Most logs come from a device, so `deviceId` is drawn; `userId` appears only on some, so it is left out.
+ * Logs come from a device, so `deviceId` is drawn; most are a person's action (a script, a command, a file operation,
+ * a query: 12 of 20 in a measured tenant's log list, the rest system events), which carry `userId`, so it is drawn too.
  */
 const LOADING_SKELETON = {
-  rows: [ROW.toolEventId, ROW.ingestDay, ROW.toolType, ROW.eventType, ROW.severity, ROW.deviceId, ROW.timestamp],
+  rows: [
+    ROW.toolEventId,
+    ROW.ingestDay,
+    ROW.toolType,
+    ROW.eventType,
+    ROW.severity,
+    ROW.userId,
+    ROW.deviceId,
+    ROW.timestamp,
+  ],
   title: false,
 };
 

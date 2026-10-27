@@ -11,6 +11,7 @@ import {
   maxPersistedStreamSeq,
   NotFoundError,
 } from '@flamingo-stack/openframe-frontend-core';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName, useOptionalTimeTracker } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   BoxArchiveIcon,
@@ -136,6 +137,12 @@ function withActivityTracking(
  * which carries the open ticket as context — see `useTrackOpenView` below — so
  * this view neither renders nor subscribes to the ticket's ADMIN chat side.
  */
+/**
+ * The lines a typical ticket title takes while it loads: two on a phone (most titles run past the ~20 characters a
+ * phone's title line holds: 29 of 50 in a measured tenant, median 21), one truncated line from `content-md` up.
+ */
+const TICKET_TITLE_SKELETON_LINES = { phone: 2, md: 1, lg: 1 } as const;
+
 export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -166,6 +173,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
   // `@ticket:id` marker expects (TICKET is REST-resolved — no global-id round-trip).
   useTrackOpenView(
     dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
+    { loading: isLoading },
   );
 
   // Device referenced by the ticket. Same hook & availability utility used by
@@ -904,11 +912,18 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         </section>
       ) : (
         // No description: show the empty state only when there's nothing else in
-        // the pane (assigned items render on their own when present).
-        !loading &&
-        !hasAssignedItems && (
+        // the pane (assigned items render on their own when present). While the ticket loads it draws the
+        // typical ticket's (one with no description) at the same size, its words as lines: nothing is claimed yet.
+        !hasAssignedItems &&
+        (loading ? (
+          <NoData
+            icon={<Menu02Icon />}
+            title={<TextLineSkeleton type="inherit" as="span" className="w-32" />}
+            description={<TextLineSkeleton type="inherit" as="span" className="w-56" />}
+          />
+        ) : (
           <NoData icon={<Menu02Icon />} title="No Description" description="This ticket has no description added yet" />
-        )
+        ))
       )}
       {hasAssignedItems && (
         <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
@@ -957,6 +972,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
         <PageLayout
           loading={loading}
           title={dialog ? dialog.title || 'Untitled Dialog' : ''}
+          titleSkeletonLines={TICKET_TITLE_SKELETON_LINES}
           backButton={{ label: 'Back', onClick: handleBackToTickets }}
           className="h-[calc(100%)] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
           actions={sidebarActions}
