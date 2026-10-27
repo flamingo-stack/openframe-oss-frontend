@@ -68,6 +68,10 @@ windows = { version = "0.61", features = [
 windows-core = "0.61"
 winreg = "0.52"
 
+# clock_gettime(CLOCK_BOOTTIME) for tokens::boot_secs — the clock that counts suspend.
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+libc = "0.2"
+
 # UNUserNotificationCenter backend (clicks survive the process, unlike the
 # deprecated NSUserNotificationCenter path), plus the NSWorkspace wake
 # notification the token refresh hangs off.

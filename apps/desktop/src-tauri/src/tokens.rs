@@ -580,24 +580,29 @@ fn mono_secs() -> u64 {
 /// device's wall clock, which can be set to anything, nor [`mono_secs`], which
 /// stops while the machine is out and would leave a token's due time slipping by
 /// the length of every nap. macOS's `CLOCK_MONOTONIC` is the one that counts
-/// sleep (only `CLOCK_UPTIME_RAW` stops); Windows's `Instant` is
-/// `QueryPerformanceCounter`, which Windows documents as counting standby.
-#[cfg(target_os = "macos")]
+/// sleep (only `CLOCK_UPTIME_RAW` stops); Linux's `CLOCK_MONOTONIC` stops, so it
+/// takes `CLOCK_BOOTTIME`; Windows's `Instant` is `QueryPerformanceCounter`, which
+/// Windows documents as counting standby.
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
 fn boot_secs() -> u64 {
+    #[cfg(target_os = "macos")]
+    let id = libc::CLOCK_MONOTONIC;
+    #[cfg(not(target_os = "macos"))]
+    let id = libc::CLOCK_BOOTTIME;
     let mut ts = libc::timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    // SAFETY: `ts` is a valid out-pointer for the duration of the call and
-    // CLOCK_MONOTONIC is supported on every macOS this ships on.
-    let rc = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
+    // SAFETY: `ts` is a valid out-pointer for the duration of the call and `id`
+    // is a clock every supported kernel provides.
+    let rc = unsafe { libc::clock_gettime(id, &mut ts) };
     if rc != 0 {
         return mono_secs();
     }
     ts.tv_sec.max(0) as u64
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
 fn boot_secs() -> u64 {
     mono_secs()
 }
@@ -1792,6 +1797,13 @@ mod tests {
 
     /// The boot clock must advance with real time; the schedule is meaningless on
     /// one that stands still.
+    #[test]
+    fn the_boot_clock_never_runs_behind_the_monotonic_one() {
+        // Counting sleep it can only be ahead of (or equal to) the clock that does
+        // not, up to the second each floors away.
+        assert!(boot_secs() + 1 >= mono_secs());
+    }
+
     #[test]
     fn the_boot_clock_moves() {
         let before = boot_secs();
