@@ -79,18 +79,20 @@ exists.**
   No JS methods: it answers Capacitor's `shouldOverrideLoad`, which every navigation asks
   before Capacitor's own fallback hands an off-origin URL to Safari / the default browser.
   Takes top-level `http(s)` URLs off the app origin and opens them in an in-app browser,
-  after first offering them to an installed app that claims the link (iOS
-  `.universalLinksOnly`, Android 11+ `FLAG_ACTIVITY_REQUIRE_NON_BROWSER`). Left to the
-  system: store hosts (`apps.apple.com`, `itunes.apple.com`, `play.google.com` — a tab
-  would render the store page instead of opening the store), every non-web scheme
-  (`mailto:`, `tel:`, `itms-apps:`/`market:`, the OAuth callback), and iOS subframes. On
-  iOS `window.open` / `target="_blank"` bypass `shouldOverrideLoad` (they reach
-  `createWebViewWith`, which Capacitor answers with `UIApplication.open`), hence
-  `NewWindowRouter`. Shell-only: frozen bundles get it with the shell, and no frontend
-  code knows which browser opens. Sign-in is separate (ASWebAuthenticationSession /
-  NativeAuth's own Custom Tab). iOS caveat: SFSafariViewController does not share
-  Safari's cookies, so a vendor portal asks to sign in again; Custom Tabs run in Chrome
-  and do share them.
+  after first offering them to the app that claims the link (iOS `.universalLinksOnly`,
+  Android 11+ the default non-browser handler: `FLAG_ACTIVITY_REQUIRE_NON_BROWSER |
+  FLAG_ACTIVITY_REQUIRE_DEFAULT`). Left to the system: store hosts (`systemHosts` /
+  `SYSTEM_HOSTS`, which must cover the web's `mobile-app-links.ts` listings — a tab would
+  render the store page instead of opening the store), every non-web scheme (`mailto:`,
+  `tel:`, `itms-apps:`/`market:`, the OAuth callback), and iOS subframes. On iOS
+  `window.open` bypasses `shouldOverrideLoad` (it reaches `createWebViewWith`, which
+  Capacitor answers with `UIApplication.open`), hence `NewWindowRouter`; a
+  `target="_blank"` link is asked first through `decidePolicyFor` with no target frame.
+  Shell-only, not `@capacitor/browser`: that needs a frontend `Browser.open` call, which
+  frozen bundles never make. Sign-in is separate (ASWebAuthenticationSession /
+  NativeAuth's own Custom Tab). iOS reports the app inactive while the browser is up (see
+  the SFSafariViewController gotcha). SFSafariViewController does not share Safari's
+  cookies, so a vendor portal asks to sign in again; Custom Tabs run in Chrome and do.
 - **`AppDelegate.swift`** — the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`), plus native push retraction and the
@@ -460,6 +462,21 @@ swapped.
   `UIApplication.*Notification`s (`TokenLifecycle` already does), and the window is the
   scene's (plugins reach it through the bridge view). An iOS 26 simulator does not
   reproduce the crash: verify on an iOS 27 runtime.
+- **SFSafariViewController never resigns the app active.** The in-app browser
+  (`ExternalLinksPlugin`) covers the web view while the app stays in the foreground, and
+  on the shell, foreground alone counts as attended (frontend
+  `apps/web/src/lib/session-activity.ts`): anything arriving behind it would be auto-read
+  and its push cancelled, unseen — a loss the Safari hand-off it replaced never had. So
+  the plugin emits `@capacitor/app`'s `appStateChange` itself, the only foreground signal
+  the bundles in the field listen to: `isActive: false` once the browser is actually
+  presented, again after every activation while it is still up (`@capacitor/app` reports
+  each one as active; its observer runs first, the re-send follows it), and `true` on
+  Done. Android needs none of it: a full-screen Custom Tab stops `MainActivity`, which
+  fires the real event. Foreground banners stay suppressed meanwhile
+  (`presentationOptions: []`), so such a push lands silently and stays unread. Known
+  gaps: nothing dismisses the browser on a notification tap (`NotificationActions`
+  forwards it to the web, which navigates behind it), and a web view reloaded while the
+  browser is up (content process killed in the background) starts out active until Done.
 - **Simulator builds must be signed**: `CODE_SIGN_IDENTITY="-"`. Never
   `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so Keychain
   tokens don't persist across restarts.

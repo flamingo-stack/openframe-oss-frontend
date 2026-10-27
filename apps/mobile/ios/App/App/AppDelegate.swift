@@ -2,11 +2,11 @@ import UIKit
 import Capacitor
 import UserNotifications
 
+/// The window, URL opens and user activities belong to SceneDelegate: under the
+/// scene lifecycle UIKit never calls their AppDelegate counterparts.
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-    // The window, URL opens and user activities belong to SceneDelegate: under the
-    // scene lifecycle UIKit never calls their AppDelegate counterparts.
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Notification permission is requested by the web layer after login
         // (openframe-frontend src/lib/native-push.ts) — not at launch.

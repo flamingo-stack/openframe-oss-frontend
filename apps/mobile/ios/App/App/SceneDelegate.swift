@@ -1,29 +1,26 @@
 import Capacitor
 import UIKit
 
-/// The app's one window scene (`UIApplicationSceneManifest` in Info.plist).
-/// Built against the iOS 27 SDK, an app without a scene delegate is killed by
-/// UIKit at launch (`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`),
-/// which is how 1.0.2 (2026102701) crashed on every iOS 27 device. The window
-/// and `MainViewController` still come from Main.storyboard, now through the
-/// scene configuration's `UISceneStoryboardFile`.
-///
-/// Under the scene lifecycle UIKit delivers URL opens and user activities here
-/// instead of to AppDelegate, so they are handed to Capacitor's proxy exactly as
-/// AppDelegate used to. Login does not depend on them: ASWebAuthenticationSession
-/// receives its callback inside the session.
+/**
+ * The app's one window scene (`UIApplicationSceneManifest` in Info.plist; the window
+ * and `MainViewController` still come from Main.storyboard, through
+ * `UISceneStoryboardFile`). Mandatory: an iOS 27 SDK build without it is killed by
+ * UIKit at launch (apps/mobile CLAUDE.md, "iOS 27 kills an app without the UIScene
+ * lifecycle").
+ *
+ * Under scenes UIKit delivers URL opens and user activities here instead of to
+ * AppDelegate, so they go to Capacitor's proxy exactly as AppDelegate sent them.
+ * Login does not depend on them: ASWebAuthenticationSession receives its callback
+ * inside the session.
+ */
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // A cold launch carries its URL / activity in the connection options; the
-        // proxy keeps it as `lastURL` until the bridge is up to read it.
-        if let context = connectionOptions.urlContexts.first {
-            open(context)
-        }
-        if let activity = connectionOptions.userActivities.first {
-            self.scene(scene, continue: activity)
-        }
+        // A cold launch carries its URLs and activities in the connection options; the
+        // proxy keeps the last URL as `lastURL` until the bridge is up to read it.
+        self.scene(scene, openURLContexts: connectionOptions.urlContexts)
+        connectionOptions.userActivities.forEach { self.scene(scene, continue: $0) }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
