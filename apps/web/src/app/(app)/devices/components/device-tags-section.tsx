@@ -2,13 +2,12 @@
 
 import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingItems, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { ValueText } from '@/app/components/shared/value-text';
 import type { Device } from '../types/device.types';
 
 /** How many tag chips the row draws while the device is read (a typical device's tags; the list has no limit). */
 const DEVICE_TAGS_SKELETON_COUNT = 3;
 
-/** The chip row: at least one chip's height, so the empty mark and the bars take the row the chips take. */
+/** The chip row: at least one chip's height, so the bars take the row the chips take. */
 const TAGS_ROW_CLASS = 'flex min-h-8 flex-wrap items-center gap-2';
 
 interface DeviceTagsSectionProps {
@@ -17,13 +16,17 @@ interface DeviceTagsSectionProps {
 
 /**
  * "Device Tags" section for the device Overview tab — renders the device's
- * key:value tags as chips. The section sits in the first screen, so it is always
- * drawn: chip bars while the device is read, the empty mark when it has no tags.
+ * key:value tags as chips. Chip bars while the device is read; once it is read,
+ * a device with no tags has no section.
  */
 export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
   const loading = useLoadingScope();
   const tagValues =
     device?.tags?.flatMap(tag => tag.values.map(value => ({ id: `${tag.tagId}-${value}`, key: tag.key, value }))) ?? [];
+
+  if (!loading && tagValues.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-s)]">
@@ -33,8 +36,6 @@ export function DeviceTagsSection({ device }: DeviceTagsSectionProps) {
           <LoadingItems count={DEVICE_TAGS_SKELETON_COUNT}>
             {() => <Tag as="span" variant="badge" label="" loading data-loading-item />}
           </LoadingItems>
-        ) : tagValues.length === 0 ? (
-          <ValueText value={null} />
         ) : (
           tagValues.map(tag => (
             // `badge` is the DS tag-badge skin (ods-card + border, mono uppercase); the string
