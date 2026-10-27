@@ -95,6 +95,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   // Register this organization as the Mingo "open view".
   useTrackOpenView(
     organization ? { type: CONTEXT_ENTITY_KIND.ORGANIZATION, id, label: organization.name || id } : null,
+    { loading: isLoading },
   );
   const { checkCanArchive, archiveOrganization, restoreOrganization } = useCustomerArchive();
   const queryClient = useQueryClient();

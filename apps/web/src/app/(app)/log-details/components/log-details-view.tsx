@@ -33,10 +33,10 @@ interface LogDetailsViewProps {
 }
 
 /**
- * How many lines a log's message typically runs to: an agent's one-sentence event, which wraps to two lines on a
- * phone and fits one line from `content-md` up.
+ * How many lines a log's message typically runs to: an agent's one-sentence event ("Script <name> executed."), one
+ * line at every width the page is drawn at, the docked chat's narrow column and a phone included (measured).
  */
-const LOG_MESSAGE_SKELETON_LINES = { base: 2, md: 1 } as const;
+const LOG_MESSAGE_SKELETON_LINES = 1;
 
 const getSeverityVariant = (severity: string): 'success' | 'warning' | 'error' | 'grey' | 'critical' => {
   switch (severity?.toUpperCase()) {
