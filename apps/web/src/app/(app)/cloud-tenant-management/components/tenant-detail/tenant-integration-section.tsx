@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense, TextLinesByBreakpointSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   InfoSection,
   type InfoSectionRow,
@@ -56,6 +56,25 @@ interface TenantIntegrationSectionProps {
 
 const NOT_READ: InfoSectionRow['value'] = { text: '' };
 
+/**
+ * The scopes a typical tenant holds while they are read: a Microsoft 365 tenant holds five ("Users, Groups, Licences,
+ * Devices, OAuth apps"). They wrap where the WINDOW is narrow (two lines on a phone), never because a docked panel
+ * narrows the content, so the lines follow the viewport step.
+ */
+const SCOPES_NOT_READ: InfoSectionRow['value'] = {
+  type: 'custom',
+  content: (
+    <span className="flex w-full flex-col items-end text-h4">
+      <span className="contents md:hidden">
+        <TextLinesByBreakpointSkeleton as="span" type="inherit" lines={{ phone: 2, md: 2, lg: 2 }} />
+      </span>
+      <span className="hidden md:contents">
+        <TextLinesByBreakpointSkeleton as="span" type="inherit" lines={{ phone: 1, md: 1, lg: 1 }} />
+      </span>
+    </span>
+  ),
+};
+
 type IntegrationData = NonNullable<TenantIntegrationSectionQueryType['response']['directoryConnection']>;
 
 /**
@@ -82,14 +101,16 @@ function integrationRows(data: IntegrationData | null, provider: string | null):
       id: 'scopes',
       label: INTEGRATION_LABELS.scopes,
       // Ten-plus scopes must wrap (Figma comment #109), so this is not a text value.
-      value: read(() => ({
-        type: 'custom',
-        content: (
-          <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
-            {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
-          </span>
-        ),
-      })),
+      value: data
+        ? {
+            type: 'custom',
+            content: (
+              <span className="text-right text-ods-text-primary text-h4 [overflow-wrap:anywhere]">
+                {scopes.length > 0 ? scopes.join(', ') : EMPTY_VALUE}
+              </span>
+            ),
+          }
+        : SCOPES_NOT_READ,
     },
     { id: 'authorised-by', label: INTEGRATION_LABELS.authorisedBy, value: read(() => ({ text: authorisedBy })) },
     {
