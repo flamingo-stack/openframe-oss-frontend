@@ -4,7 +4,7 @@
  * Mingo entity-context types — the picker's first-level list (Figma 31:28708).
  * `type` is the backend discriminator (also stamped onto each `ChatContextItem.
  * type`); `icon` is the lead glyph. The DATA for each type is fetched by its
- * per-type component (`relay-items` / `rest-items` / `batch-items`), dispatched
+ * per-type component (`relay-items` / `rest-items`), dispatched
  * by `renderMingoContextItems`.
  */
 

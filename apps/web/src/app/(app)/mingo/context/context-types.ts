@@ -117,6 +117,7 @@ export const CONTEXT_RELAY_TYPENAME: Partial<Record<ContextEntityKind, string>> 
   KB_FOLDER: 'KnowledgeBaseItem',
   SCRIPT: 'Script',
   SCHEDULED_SCRIPT: 'ScriptSchedule',
+  USER: 'User',
   // An INSIGHT reference carries the STORED id (what the ai-agent's resolver looks
   // up); the chip re-encodes it through `ensureGlobalIdForType('Insight', …)` for
   // the `insight(id:)` query, which takes the global handle.

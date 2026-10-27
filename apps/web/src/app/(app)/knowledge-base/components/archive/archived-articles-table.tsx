@@ -25,12 +25,12 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
 import { ArchivedArticleDateCell } from './archived-article-date-cell';
 import { ARCHIVED_COLUMN } from './archived-articles-columns';

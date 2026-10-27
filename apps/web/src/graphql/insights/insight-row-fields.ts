@@ -38,7 +38,7 @@ export const insightRowFieldsFragment = graphql`
     }
     assigneeId
     assignee {
-      ...insightUserFields_user
+      ...userSummaryFields_user
     }
   }
 `;
