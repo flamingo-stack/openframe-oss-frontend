@@ -105,6 +105,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
     !loading && script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    { loading: loading },
   );
 
   const handleUnarchive = useCallback(() => {
