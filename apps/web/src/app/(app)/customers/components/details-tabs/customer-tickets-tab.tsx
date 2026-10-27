@@ -58,7 +58,7 @@ export function CustomerTicketsTab({ organizationId }: CustomerTicketsTabProps) 
     enabled: !!organizationId,
   });
 
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
   // The shared ticket columns and the trailing open-in-new-tab action.
   const columns = useMemo<ColumnDef<Dialog>[]>(
     () => [...getTicketTableColumns({ isArchived: false, isUserDeleted }), getTicketOpenColumn()],

@@ -304,7 +304,6 @@ export function TicketsBoard({
   const movingIds = useMovingTicketIds();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isUserDeleted } = useUserStatusMap();
   const { handleApproveRequest, handleRejectRequest } = useApprovalRequests();
 
   const handleApprovalAction = useCallback(
@@ -341,6 +340,9 @@ export function TicketsBoard({
   );
 
   const [columnUpdates, setColumnUpdates] = useState<Record<string, BoardColumnUpdate>>({});
+  const { isUserDeleted } = useUserStatusMap(
+    Object.values(columnUpdates).flatMap(update => (update.state?.tickets ?? []).map(ticket => ticket.assignedTo)),
+  );
   // Bumped when an intercepted drag is discarded (Take Over / Reopen cancelled):
   // nothing was persisted, but the Board's internal drag state still shows the
   // card in the target column. A fresh `columns` array identity makes it resync

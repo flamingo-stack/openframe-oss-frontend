@@ -16,14 +16,21 @@ import type {
 } from '@/__generated__/archivedArticlesTable_query.graphql';
 import type { archivedArticlesTablePaginationQuery as ArchivedArticlesTablePaginationQueryType } from '@/__generated__/archivedArticlesTablePaginationQuery.graphql';
 import type { archivedArticlesTableQuery as ArchivedArticlesTableQueryType } from '@/__generated__/archivedArticlesTableQuery.graphql';
-import { type InfiniteScroll, liveColumnMeta, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import {
+  type InfiniteScroll,
+  liveColumnMeta,
+  NO_ITEMS,
+  NO_NEXT_PAGE,
+  oneLineEmptyState,
+  useRetryKey,
+} from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { routes } from '@/lib/routes';
 import { UnarchiveArticleModal } from '../dialogs/unarchive-article-modal';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseItemNameCell } from '../shared/knowledge-base-item-name-cell';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { useRowDialog } from '../shared/use-row-dialog';
 import { ArchivedArticleActionsCell } from './archived-article-actions-cell';
 import { ArchivedArticleDateCell } from './archived-article-date-cell';
 import { ARCHIVED_COLUMN } from './archived-articles-columns';
@@ -221,7 +228,11 @@ function ArchivedArticlesRows({
         loadingCells={loading}
         totalCount={totalCount}
         itemName="article"
-        emptyState={{ title: isNarrowed ? 'No archived articles match your filters.' : 'No archived articles.' }}
+        emptyState={
+          isNarrowed
+            ? { title: 'No archived articles match your filters.' }
+            : oneLineEmptyState('No archived articles.')
+        }
         rowHref={rowHref}
         footer={rows.length > 0 ? infiniteScroll : null}
         isPending={isPending}

@@ -411,19 +411,21 @@ function RemoteDesktopSession() {
             setAgentMessage(msg);
             if (msg) toastRef.current({ title: 'Remote Desktop', description: msg, variant: 'default' });
           },
-          onRequestPairing: async relayId => {
+          onRequestPairing: async (relayId, tunnelKey) => {
             try {
               const ctrl = controlRef.current;
               if (!ctrl) return;
+              // Before the await: with the control socket down, its authcookie reply sends this relay id.
+              ctrl.sendDesktopTunnel(tunnelKey, meshcentralAgentId, relayId);
               await ctrl.openSession();
               const cookies = await ctrl.getAuthCookies();
               tunnelRef.current?.updateAuthCookie(cookies.authCookie);
-              ctrl.sendDesktopTunnel(meshcentralAgentId, relayId);
             } catch {
               // The re-announce races the socket coming back. If it loses, the tunnel raises its own state change and the retry path above runs again — throwing out of a reconnect callback would strand the session instead.
             }
           },
-          onStateChange: s => {
+          onStateChange: (s, tunnelKey) => {
+            if (s === 0) controlRef.current?.forgetTunnel(tunnelKey);
             setState(s);
             if (s === 1 && tunnelRef.current?.getState() === 0) {
               isReconnectingRef.current = true;

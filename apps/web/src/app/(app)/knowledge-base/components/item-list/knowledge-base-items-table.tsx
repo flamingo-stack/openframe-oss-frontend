@@ -31,9 +31,11 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -44,7 +46,6 @@ import {
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
 import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';
@@ -289,11 +290,11 @@ function KnowledgeBaseItemsRows({
           loadingCells={loading}
           totalCount={totalCount}
           itemName="item"
-          emptyState={{
-            title: listing.search
+          emptyState={oneLineEmptyState(
+            listing.search
               ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
               : 'No articles match the selected tags. Try adjusting your filters.',
-          }}
+          )}
           rowHref={rowHref}
           footer={rows.length > 0 ? infiniteScroll : null}
           isPending={isPending}
