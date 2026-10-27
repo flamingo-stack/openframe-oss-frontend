@@ -212,19 +212,23 @@ function RemoteShellSession() {
           onConsoleMessage: msg => {
             if (msg) toastRef.current({ title: 'Remote Shell', description: msg, variant: 'default' });
           },
-          onRequestPairing: async relayId => {
+          onRequestPairing: async (relayId, tunnelKey) => {
             try {
               const ctrl = controlRef.current;
               if (!ctrl) return;
+              // Before the await: with the control socket down, its authcookie reply sends this relay id.
+              ctrl.sendRelayTunnel(tunnelKey, meshcentralAgentId, relayId, 1);
               await ctrl.openSession();
               const cookies = await ctrl.getAuthCookies();
               tunnelRef.current?.updateAuthCookie(cookies.authCookie);
-              ctrl.sendRelayTunnel(meshcentralAgentId, relayId, 1);
             } catch {
               // The re-announce races the socket coming back. If it loses, the tunnel raises its own state change and the retry path above runs again — throwing out of a reconnect callback would strand the session instead.
             }
           },
-          onStateChange: s => setState(s),
+          onStateChange: (s, tunnelKey) => {
+            if (s === 0) controlRef.current?.forgetTunnel(tunnelKey);
+            setState(s);
+          },
         });
         tunnelRef.current = tunnel;
         try {
