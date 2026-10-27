@@ -31,11 +31,11 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
-import { OpenRowButton } from '../../shared/open-row-button';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';

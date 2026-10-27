@@ -14,9 +14,9 @@ import type {
 } from '@/__generated__/softwareTable_software.graphql';
 import { type InfiniteScroll, liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
 import { LiveTable } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { OpenRowButton } from '../shared/open-row-button';
 import { SOFTWARE_LIST_COLUMNS, SOFTWARE_LIST_PAGE_SIZE } from './software-list-columns';
 import { SoftwareNameCell } from './software-name-cell';
 import { SoftwareVersionCell } from './software-version-cell';
