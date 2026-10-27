@@ -108,8 +108,19 @@ describe('package manager install methods', () => {
   });
 
   it('installs the published packages under their published names', () => {
-    expect(PACKAGE_MANAGER_METHODS.chocolatey.installCommand).toBe('choco install openframe-client -y');
-    expect(PACKAGE_MANAGER_METHODS.brew.installCommand).toBe(
+    expect(PACKAGE_MANAGER_METHODS.chocolatey.installCommand()).toBe('choco install openframe-client -y');
+    expect(PACKAGE_MANAGER_METHODS.brew.installCommand()).toBe(
+      'brew install --cask flamingo-stack/openframe/openframe-client',
+    );
+  });
+
+  it("installs the environment's own Homebrew cask, read when the command is built", () => {
+    vi.stubEnv('NEXT_PUBLIC_BREW_CASK', 'openframe-client@stage');
+    expect(PACKAGE_MANAGER_METHODS.brew.installCommand()).toBe(
+      'brew install --cask flamingo-stack/openframe/openframe-client@stage',
+    );
+    vi.unstubAllEnvs();
+    expect(PACKAGE_MANAGER_METHODS.brew.installCommand()).toBe(
       'brew install --cask flamingo-stack/openframe/openframe-client',
     );
   });
