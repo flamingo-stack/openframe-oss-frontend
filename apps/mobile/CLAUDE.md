@@ -73,7 +73,24 @@ exists.**
   that file out and then deletes it, and the path arrives from JS.
 - **`MainViewController.swift`** — registers local plugins with the bridge; enables WKWebView
   **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl.
-  `pushState` → SPA `popstate`).
+  `pushState` → SPA `popstate`); puts `NewWindowRouter` in front of Capacitor's UI delegate.
+- **`ExternalLinksPlugin`** — `ios/App/App/ExternalLinksPlugin.swift` (SFSafariViewController)
+  and `android/app/src/main/java/ai/openframe/mobile/ExternalLinksPlugin.java` (Custom Tabs).
+  No JS methods: it answers Capacitor's `shouldOverrideLoad`, which every navigation asks
+  before Capacitor's own fallback hands an off-origin URL to Safari / the default browser.
+  Takes top-level `http(s)` URLs off the app origin and opens them in an in-app browser,
+  after first offering them to an installed app that claims the link (iOS
+  `.universalLinksOnly`, Android 11+ `FLAG_ACTIVITY_REQUIRE_NON_BROWSER`). Left to the
+  system: store hosts (`apps.apple.com`, `itunes.apple.com`, `play.google.com` — a tab
+  would render the store page instead of opening the store), every non-web scheme
+  (`mailto:`, `tel:`, `itms-apps:`/`market:`, the OAuth callback), and iOS subframes. On
+  iOS `window.open` / `target="_blank"` bypass `shouldOverrideLoad` (they reach
+  `createWebViewWith`, which Capacitor answers with `UIApplication.open`), hence
+  `NewWindowRouter`. Shell-only: frozen bundles get it with the shell, and no frontend
+  code knows which browser opens. Sign-in is separate (ASWebAuthenticationSession /
+  NativeAuth's own Custom Tab). iOS caveat: SFSafariViewController does not share
+  Safari's cookies, so a vendor portal asks to sign in again; Custom Tabs run in Chrome
+  and do share them.
 - **`AppDelegate.swift`** — the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`), plus native push retraction and the
