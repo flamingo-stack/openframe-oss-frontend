@@ -29,6 +29,7 @@ import {
   NO_ITEMS,
   NO_NEXT_PAGE,
   noop,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -328,11 +329,11 @@ function AssignedArticlesRows({
       loadingCells={loading}
       totalCount={totalCount}
       itemName="article"
-      emptyState={{
-        title: listing.search
+      emptyState={oneLineEmptyState(
+        listing.search
           ? `No articles found matching "${listing.search}". Try adjusting your search.`
           : 'No articles match the selected tags. Try adjusting your filters.',
-      }}
+      )}
       rowHref={rowHref}
       footer={rows.length > 0 ? infiniteScroll : null}
       isPending={isPending}
