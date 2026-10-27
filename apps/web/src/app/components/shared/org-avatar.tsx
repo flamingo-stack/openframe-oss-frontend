@@ -1,8 +1,6 @@
 'use client';
 
-import { useAuthedImageSrc } from '@flamingo-stack/openframe-frontend-core/hooks';
-import Image from 'next/image';
-import { useState } from 'react';
+import { IMAGE_FIXED_PX, SquareAvatar } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { getFullImageUrl } from '@/lib/image-url';
 
 interface OrgAvatarProps {
@@ -11,29 +9,20 @@ interface OrgAvatarProps {
   name: string;
 }
 
+/**
+ * An organization's logo in a list row: the lib's `SquareAvatar` (round, the initials when there is no logo or it
+ * fails to load), at the image-size table's glyph size. `SquareAvatar` reads the URL through the authed-image hook, so
+ * a bearer-mode native shell gets an authed blob URL like before.
+ */
 export function OrgAvatar({ imageUrl, hash, name }: OrgAvatarProps) {
-  const initials = name.substring(0, 2).toUpperCase() || '??';
-  // In bearer-mode native shells the hook swaps the gateway URL for an
-  // authed blob URL (plain <img> loads can't carry Authorization);
-  // elsewhere it passes the URL through untouched.
-  const fullUrl = useAuthedImageSrc(getFullImageUrl(imageUrl, hash));
-  const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined);
-
-  const showImage = Boolean(fullUrl) && failedUrl !== fullUrl;
-
   return (
-    <div className="relative flex size-5 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-ods-border bg-ods-bg">
-      {!showImage && <span className="text-[10px] font-medium text-ods-text-secondary">{initials}</span>}
-      {showImage && fullUrl && (
-        <Image
-          src={fullUrl}
-          alt={initials}
-          width={20}
-          height={20}
-          className="absolute inset-0 size-full object-cover"
-          onError={() => setFailedUrl(fullUrl)}
-        />
-      )}
-    </div>
+    <SquareAvatar
+      variant="round"
+      sizePx={IMAGE_FIXED_PX.glyph}
+      src={getFullImageUrl(imageUrl, hash)}
+      alt={name}
+      fallback={name}
+      initialsClassName="text-badge text-ods-text-secondary"
+    />
   );
 }

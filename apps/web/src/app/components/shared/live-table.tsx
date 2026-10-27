@@ -87,6 +87,8 @@ interface LiveTableShellProps<T> {
   rowClassName?: (row: T) => string;
   /** Content attached below a row, inside the same card (the body's `renderSubRow`). */
   renderSubRow?: DataTableBodyProps<T>['renderSubRow'];
+  /** Draw `renderSubRow` below loading rows too (the body's `loadingSubRows`). */
+  loadingSubRows?: boolean;
   /** The design row height, when the list's rows are not the default (the body's `rowHeightClassName`). */
   rowHeightClassName?: string;
   /** The next page's infinite-scroll sentinel; `null` (or omitted) draws none. */
@@ -157,6 +159,7 @@ function LiveTableShell<T>({
   onRowClick,
   rowClassName,
   renderSubRow,
+  loadingSubRows,
   rowHeightClassName,
   footer,
   loadingCells = false,
@@ -184,6 +187,7 @@ function LiveTableShell<T>({
           rowHref={rowHref}
           onRowClick={onRowClick}
           renderSubRow={renderSubRow}
+          loadingSubRows={loadingSubRows}
           rowHeightClassName={rowHeightClassName}
         />
         {footer && <DataTable.InfiniteFooter {...footer} skeletonRows={rows} />}

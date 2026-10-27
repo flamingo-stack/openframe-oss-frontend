@@ -195,21 +195,25 @@ export class MeshCentralFileManager {
       },
       onCtrlMessage: msg => this.handleCtrlChannelMessage(msg),
       onConsoleMessage: msg => console.log('[FileManager][Console]', msg),
-      onRequestPairing: async relayId => {
+      onRequestPairing: async (relayId, tunnelKey) => {
         try {
+          // Before the await: with the control socket down, its authcookie reply sends this relay id.
+          if (this.nodeId && this.controlClient) {
+            this.controlClient.sendFileTunnel(tunnelKey, this.nodeId, relayId);
+          }
           if (!this.controlClient?.isConnected()) {
             await this.controlClient?.openSession();
           }
           const cookie = this.controlClient?.getCachedAuthCookie();
           if (cookie) this.authCookie = cookie;
-          if (this.nodeId && this.controlClient) {
-            this.controlClient.sendFileTunnel(this.nodeId, relayId);
-          }
         } catch (error) {
           console.error('[FileManager] Error pairing file tunnel:', error);
         }
       },
-      onStateChange: state => this.handleTunnelStateChange(state),
+      onStateChange: (state, tunnelKey) => {
+        if (state === 0) this.controlClient?.forgetTunnel(tunnelKey);
+        this.handleTunnelStateChange(state);
+      },
     });
 
     this.tunnel.start();
