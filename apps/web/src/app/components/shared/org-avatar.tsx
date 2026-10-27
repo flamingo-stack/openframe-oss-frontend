@@ -22,7 +22,7 @@ export function OrgAvatar({ imageUrl, hash, name }: OrgAvatarProps) {
       src={getFullImageUrl(imageUrl, hash)}
       alt={name}
       fallback={name}
-      initialsClassName="text-badge text-ods-text-secondary"
+      initialsClassName="text-ods-text-secondary text-badge"
     />
   );
 }

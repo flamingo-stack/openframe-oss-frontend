@@ -13,26 +13,46 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { graphql, useMutation } from 'react-relay';
+import type { addUsersModalMutation } from '@/__generated__/addUsersModalMutation.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { invalidateInvitationsListings } from './employees/invitations-listing';
+import { describeInviteRefusals, refusedEmailIndexes } from './employees/invite-refusals';
+
+const addUsersModalMutationNode = graphql`
+  mutation addUsersModalMutation($emails: [String!]!) {
+    inviteUsers(input: { emails: $emails }) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 type InviteRow = { email: string; role: string };
+
+/** A first pass so an obvious typo never leaves the form; the server's check is the one that counts. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ROLE_OPTIONS = [{ value: 'ADMIN', label: 'Admin' }];
 
 interface AddUsersModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInvited?: () => Promise<void> | void;
-  invite: (rows: InviteRow[]) => Promise<void>;
+  /** At least one invitation went out: the page shows them. */
+  onInvited: () => void;
+  /** The invitations listings and counts to refetch with the new invitations. */
+  listingIds: readonly string[];
 }
 
-export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersModalProps) {
+export function AddUsersModal({ isOpen, onClose, onInvited, listingIds }: AddUsersModalProps) {
   const [rows, setRows] = useState<InviteRow[]>([{ email: '', role: 'ADMIN' }]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [commit, isSubmitting] = useMutation<addUsersModalMutation>(addUsersModalMutationNode);
   const { toast } = useToast();
 
-  const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
-  const canSubmit = useMemo(() => rows.some(r => emailRegex.test(r.email.trim())), [rows, emailRegex]);
-  const roleOptions = useMemo(() => [{ value: 'ADMIN', label: 'Admin' }], []);
+  const canSubmit = rows.some(r => EMAIL_PATTERN.test(r.email.trim()));
 
   // Cleared on the close transition, during render rather than in an effect: an
   // effect leaves the old values on screen for a frame of the closing animation.
@@ -41,7 +61,6 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
     setWasOpen(isOpen);
     if (!isOpen) {
       setRows([{ email: '', role: 'ADMIN' }]);
-      setIsSubmitting(false);
     }
   }
 
@@ -52,25 +71,42 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
   const addRow = () => setRows(prev => [...prev, { email: '', role: 'ADMIN' }]);
   const removeRow = (idx: number) => setRows(prev => prev.filter((_, i) => i !== idx));
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!canSubmit) return;
-    const payload = rows.map(r => ({ email: r.email.trim(), role: r.role })).filter(r => emailRegex.test(r.email));
-    if (payload.length === 0) return;
-    setIsSubmitting(true);
-    try {
-      await invite(payload);
-      toast({ title: 'Invites sent', description: `${payload.length} user(s) invited`, variant: 'success' });
-      onClose();
-      await onInvited?.();
-    } catch (err) {
-      toast({
-        title: 'Invite failed',
-        description: err instanceof Error ? err.message : 'Failed to send invites',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    const emails = rows.map(r => r.email.trim()).filter(email => EMAIL_PATTERN.test(email));
+    if (emails.length === 0) return;
+    commit({
+      variables: { emails },
+      // A partial failure still sent the rest, so the listings refetch either way.
+      updater: store => invalidateInvitationsListings(store, listingIds),
+      onCompleted: ({ inviteUsers: { userErrors } }) => {
+        const refused = describeInviteRefusals(emails, userErrors);
+        if (!refused) {
+          toast({ title: 'Invites sent', description: `${emails.length} user(s) invited`, variant: 'success' });
+          onInvited();
+          onClose();
+          return;
+        }
+        // The sent ones leave the form, so fixing a refused row and sending again
+        // does not invite the rest a second time.
+        const refusedIndexes = refusedEmailIndexes(userErrors);
+        const sent = new Set(emails.filter((_, index) => !refusedIndexes.has(index)));
+        if (sent.size > 0) onInvited();
+        setRows(prev => prev.filter(row => !sent.has(row.email.trim())));
+        toast({
+          title: sent.size > 0 ? `${sent.size} of ${emails.length} invites sent` : 'Invite failed',
+          description: refused,
+          variant: 'destructive',
+        });
+      },
+      onError: error => {
+        toast({
+          title: 'Invite failed',
+          description: getRelayErrorMessage(error, 'Failed to send invites'),
+          variant: 'destructive',
+        });
+      },
+    });
   };
 
   return (
@@ -112,7 +148,7 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
               placeholder="Enter Email Here"
               value={row.email}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRow(idx, { email: e.target.value })}
-              invalid={row.email.length > 0 && !emailRegex.test(row.email)}
+              invalid={row.email.length > 0 && !EMAIL_PATTERN.test(row.email)}
             />
             <div className="flex items-center gap-2">
               <Select value={row.role} onValueChange={v => setRow(idx, { role: v })}>
@@ -120,7 +156,7 @@ export function AddUsersModal({ isOpen, onClose, onInvited, invite }: AddUsersMo
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roleOptions.map(opt => (
+                  {ROLE_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>

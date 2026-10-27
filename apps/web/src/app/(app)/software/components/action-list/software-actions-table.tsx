@@ -30,12 +30,12 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
-import { OpenRowButton } from '../shared/open-row-button';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
 import { SoftwareActionStatusCell } from './software-action-status-cell';

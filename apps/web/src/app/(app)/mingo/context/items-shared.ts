@@ -22,15 +22,8 @@ export interface ContextItemsProps {
   atLimit: boolean;
 }
 
-/** Case-insensitive substring match for the client-filtered (batch) sources. */
-export function matches(haystack: string | undefined, needle: string): boolean {
-  if (!needle) return true;
-  return (haystack ?? '').toLowerCase().includes(needle.toLowerCase());
-}
-
 /**
- * Client-side incremental paging over a fully-loaded list (the batch sources:
- * scripts / users / policies). Reveals `pageSize` more on each `loadMore`, and
+ * Client-side incremental paging over a fully-loaded list (the REST sources). Reveals `pageSize` more on each `loadMore`, and
  * resets when the source list changes (new search) — via the
  * adjust-state-during-render pattern so there's no flash.
  */

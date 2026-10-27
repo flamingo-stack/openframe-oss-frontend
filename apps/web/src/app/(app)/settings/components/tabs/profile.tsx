@@ -4,10 +4,9 @@ import { Button } from '@flamingo-stack/openframe-frontend-core';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { PageError, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
-import { apiClient } from '@/lib/api-client';
 import { authApiClient } from '@/lib/auth-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { EditProfileModal } from '../edit-profile-modal';
@@ -20,56 +19,13 @@ const editIcon = <PenEditIcon className="h-5 w-5" />;
 export function ProfileTab() {
   const { toast } = useToast();
   const user = useAuthStore(state => state.user);
-  const updateUser = useAuthStore(state => state.updateUser);
   const fetchFullProfile = useAuthStore(state => state.fetchFullProfile);
   // `/me`'s own answer, from the session query rather than the store (see `ProfileCard`).
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-
-  const updateProfile = useCallback(
-    async (data: { firstName: string; lastName: string }) => {
-      if (!user?.id) return;
-
-      setIsUpdating(true);
-      try {
-        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
-          `api/users/${encodeURIComponent(user.id)}`,
-          data,
-        );
-        if (!res.ok) {
-          throw new Error(res.error || 'Failed to update profile');
-        }
-
-        // A 2xx with no body means the server accepted the change without echoing
-        // it back; keep the values that were just submitted.
-        const updatedData = res.data ?? data;
-
-        // Update auth store with new data
-        updateUser({
-          firstName: updatedData.firstName,
-          lastName: updatedData.lastName,
-        });
-
-        toast({
-          title: 'Profile Updated',
-          description: 'Your profile has been updated successfully.',
-          variant: 'success',
-          duration: 3000,
-        });
-
-        setIsEditModalOpen(false);
-      } catch (error) {
-        handleApiError(error, toast, 'Failed to update profile');
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    [user, updateUser, toast],
-  );
 
   const handleResendVerification = async () => {
     setIsSendingVerification(true);
@@ -125,13 +81,7 @@ export function ProfileTab() {
 
       {user && (
         <>
-          <EditProfileModal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            user={user}
-            onSave={updateProfile}
-            isSaving={isUpdating}
-          />
+          <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} />
           <EmailVerificationModal
             open={isVerificationModalOpen}
             onOpenChange={setIsVerificationModalOpen}
