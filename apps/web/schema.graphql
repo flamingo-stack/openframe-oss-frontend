@@ -6508,8 +6508,8 @@ type DirectoryConsentIssue {
 }
 
 # ---------------------------------------------------------------------------------------------------------------
-# Directory users, groups and devices: CONTRACT v0.2 (Agreed 2026-10-28), merged by hand until the backend deploys
-# its waves. Replace with npm run fetch-schema once W1 is on an environment; anything that drifted fails to compile.
+# Directory users, groups and devices: CONTRACT v0.3 (v0.2 agreed 2026-10-28; v0.3 adds directoryAccount), merged by
+# hand until the backend deploys its waves. Replace with npm run fetch-schema once W1 is on an environment; anything that drifted fails to compile.
 # saas-api part:
 extend type Query {
   """
@@ -6529,6 +6529,13 @@ extend type Query {
   organizationId the account must be visible to that customer. Null when not found or not visible.
   """
   directoryUser(id: ID!, organizationId: ID): DirectoryPerson
+
+  """
+  One account, for the user page tabs. DirectoryAccount is not a Node and sits in the plural DirectoryPerson.accounts,
+  so a refetchable fragment over groups(first, after) starts from this query. With organizationId the account must be
+  visible to that customer. Null when not found or not visible.
+  """
+  directoryAccount(id: ID!, organizationId: ID): DirectoryAccount
 
   "W2. Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
   directoryGroups(organizationId: ID!, connectionId: ID, search: String,
@@ -6696,7 +6703,7 @@ type DirectoryAccount {
   licenses: [DirectoryUserLicense!]!
   "Live read, one provider call: select it on the user page only, never in lists."
   details: DirectoryUserLiveDetails
-  "Groups the account is a direct member of (stored membership)."
+  "Groups the account is a direct member of (stored membership). Paginate it through directoryAccount, not directoryUser."
   groups(first: Int, after: String): DirectoryGroupConnection!
   "Devices tied to the account."
   devices: DirectoryUserDevices!
