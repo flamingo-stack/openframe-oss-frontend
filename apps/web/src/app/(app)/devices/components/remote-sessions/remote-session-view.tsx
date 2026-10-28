@@ -10,6 +10,7 @@ import {
   AssignTicketModal,
   KeepRecordingModal,
   ReleaseKeepingModal,
+  type RemoteSessionEvent,
   RemoteSessionEventList,
   RemoteSessionTimelineMarkers,
   UnassignTicketModal,
@@ -112,7 +113,13 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const storage = useRecordingStorage();
   const keep = recording?.keep ?? null;
   // Read once the page has the recording: a missing one has no timeline either.
-  const events = placeSessionEvents(useSessionEvents(recording ? recordingId : null), player.timeline);
+  const sessionEvents = useSessionEvents(recording ? recordingId : null);
+  const events = placeSessionEvents(sessionEvents, player.timeline);
+  // By the server time, so an event in a file still downloading is reached once that file arrives.
+  const seekToEvent = (event: RemoteSessionEvent) => {
+    const clicked = sessionEvents.find(({ id }) => id === event.id);
+    if (clicked) player.seekToTime(clicked.atMs);
+  };
   const hasPlayback = player.state !== 'empty';
   // The recording, or its files, are still on their way: the controls strip keeps its place in its loading form.
   const awaitingPlayback = isLoading || (!!recording && recording.segments.length > 0 && !unavailable);
@@ -306,7 +313,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
                       <RemoteSessionTimelineMarkers
                         events={events}
                         durationMs={player.durationMs}
-                        onSelect={event => player.seek(event.offsetMs)}
+                        onSelect={seekToEvent}
                       />
                     )
                   }
@@ -334,7 +341,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
               events={events}
               activeEventId={activeEventId}
               // A row seeks only once there is a recording to seek in.
-              onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
+              onSelect={hasPlayback ? seekToEvent : undefined}
             />
           </div>
         )}
