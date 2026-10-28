@@ -22,13 +22,17 @@ interface Usage {
   devicesOverage: number;
 }
 
-function subscription(usage: Usage, packageQuantity: number | null): deviceAllocation_subscription$key {
+function subscription(
+  usage: Usage,
+  packageQuantity: number | null,
+  paygStatus: string | null = 'ACTIVE',
+): deviceAllocation_subscription$key {
   return {
     usage,
     products: [
       {
         name: 'MANAGED_DEVICES',
-        payAsYouGoOption: { id: 'payg' },
+        payAsYouGoOption: paygStatus == null ? null : { id: 'payg', status: paygStatus },
         packageOptions:
           packageQuantity == null
             ? []
@@ -62,6 +66,7 @@ describe('deviceAllocation', () => {
       overage: 29,
       overLimit: true,
       isPayg: false,
+      paygActive: true,
     });
   });
 
@@ -104,5 +109,32 @@ describe('deviceAllocation', () => {
     );
 
     expect(device).toMatchObject({ isPayg: true, overLimit: false, allocation: 0 });
+  });
+
+  // CU-17tkuw60p2y: a cancellation expires the device PAYG option and keeps the package.
+  const overThePackage = {
+    devicesUsed: 162,
+    devicesUsedAgainstLimit: 162,
+    devicesCommittedOverage: 0,
+    devicesLimit: 100,
+    devicesOverage: 62,
+  };
+
+  it('pay-as-you-go expired by a cancellation: still over the limit, but no longer billed as overage', () => {
+    const device = deviceAllocation(subscription(overThePackage, 100, 'EXPIRED'));
+
+    expect(device).toMatchObject({ overLimit: true, paygActive: false });
+  });
+
+  it('active pay-as-you-go on top of the package: overage is billed', () => {
+    const device = deviceAllocation(subscription(overThePackage, 100, 'ACTIVE'));
+
+    expect(device).toMatchObject({ overLimit: true, paygActive: true });
+  });
+
+  it('no pay-as-you-go option at all: nothing is billed as overage', () => {
+    const device = deviceAllocation(subscription(overThePackage, 100, null));
+
+    expect(device).toMatchObject({ overLimit: true, paygActive: false });
   });
 });
