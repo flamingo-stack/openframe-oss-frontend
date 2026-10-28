@@ -2,6 +2,7 @@
 
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  EntityImage,
   FloatingTooltip,
   SquareAvatar,
   Tag,
@@ -9,6 +10,7 @@ import {
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { EMPTY_VALUE } from '@/lib/empty-value';
 import { firstAndCount } from '../../utils/user-presentation';
 
 /**
@@ -48,7 +50,7 @@ function ProviderMarks({ providers }: { providers: readonly string[] }) {
     <span className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
       {providers.map(provider => {
         const { Logo, label } = providerMark(provider);
-        return <Logo key={provider} size={16} role="img" aria-label={label} />;
+        return <Logo key={provider} size={24} role="img" aria-label={label} />;
       })}
     </span>
   );
@@ -58,19 +60,19 @@ export function UserCell({ row }: { row: UserRow }) {
   const loading = useLoadingScope();
   const name = row.name ?? '';
   return (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
       <SquareAvatar alt={name} fallback={name} size="sm" variant="round" loading={loading} />
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
           <ProviderMarks providers={row.providers ?? []} />
-          <TruncateText className={loading ? 'w-32' : undefined} triggerClassName="min-w-24">
+          <TruncateText className={loading ? 'w-32' : undefined} triggerClassName="min-w-0 content-md:min-w-24">
             {name}
           </TruncateText>
           {row.roleTag && <Tag data-loading-optional label={row.roleTag} variant="grey" className="min-w-0" />}
           {row.service && <Tag data-loading-optional label="Service" variant="grey" className="min-w-0" />}
         </div>
         <TruncateText variant="h6" tone="secondary" className={loading ? 'w-40' : undefined}>
-          {row.email ?? ''}
+          {row.email === null ? EMPTY_VALUE : (row.email ?? '')}
         </TruncateText>
       </div>
     </div>
@@ -82,32 +84,25 @@ export function CustomerCell({ row }: { row: UserRow }) {
   const customers = row.customers ?? [];
   const { first, more } = firstAndCount(customers.map(customer => customer.name));
   const firstCustomer = customers[0];
+  // The customer's logo beside both lines (Figma 733:99095), the customers table's cell.
   return (
-    <div className="flex min-w-0 flex-col justify-center">
-      <FloatingTooltip
-        disabled={customers.length === 0}
-        triggerClassName="min-w-0"
-        content={customers.map(customer => (
-          <p key={customer.name}>{customer.claim ? `${customer.name} — ${customer.claim}` : customer.name}</p>
-        ))}
-      >
-        <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-          {firstCustomer && (
-            <SquareAvatar
-              data-loading-optional
-              src={firstCustomer.imageUrl}
-              alt={firstCustomer.name}
-              fallback={firstCustomer.name}
-              size="xs"
-              variant="square"
-            />
-          )}
-          <TruncateText loading={loading}>{first}</TruncateText>
-          {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
-        </div>
-      </FloatingTooltip>
-      <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        <ProviderMarks providers={row.tenant ? [row.tenant.provider] : []} />
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+      {(loading || firstCustomer) && (
+        <EntityImage src={firstCustomer?.imageUrl} alt={firstCustomer?.name ?? ''} sizeClassName="size-12" />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <FloatingTooltip
+          disabled={customers.length === 0}
+          triggerClassName="min-w-0"
+          content={customers.map(customer => (
+            <p key={customer.name}>{customer.claim ? `${customer.name} — ${customer.claim}` : customer.name}</p>
+          ))}
+        >
+          <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+            <TruncateText loading={loading}>{first}</TruncateText>
+            {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+          </div>
+        </FloatingTooltip>
         <TruncateText variant="h6" tone="secondary" loading={loading}>
           {row.tenant?.name ?? 'Added in OpenFrame'}
         </TruncateText>
@@ -142,13 +137,16 @@ export function LicensesCell({ row }: { row: UserRow }) {
 export function StatusCell({ row }: { row: UserRow }) {
   const loading = useLoadingScope();
   return (
-    <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
+    <div className="flex min-w-0 flex-col items-start justify-center">
       <FloatingTooltip content={row.statusTooltip} disabled={!row.statusTooltip} as="span">
         <Tag label={row.status?.label ?? ''} variant={row.status?.variant} loading={loading} />
       </FloatingTooltip>
-      <TruncateText variant="h6" tone="secondary" loading={loading}>
-        {`Last sign-in: ${row.lastSignIn ?? 'Never'}`}
-      </TruncateText>
+      {/* A phone shows the tag alone (Figma 907:31981). */}
+      <div className="hidden w-full min-w-0 content-md:block">
+        <TruncateText variant="h6" tone="secondary" loading={loading}>
+          {`Last sign-in: ${row.lastSignIn ?? 'Never'}`}
+        </TruncateText>
+      </div>
     </div>
   );
 }

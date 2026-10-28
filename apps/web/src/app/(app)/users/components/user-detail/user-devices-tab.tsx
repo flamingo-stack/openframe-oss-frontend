@@ -1,10 +1,12 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   type ColumnDef,
+  DataTable,
+  EntityImage,
   type Row,
-  SquareAvatar,
   TruncateText,
   useDataTable,
   useLoadingScope,
@@ -24,6 +26,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { firstAndCount } from '../../utils/user-presentation';
+import { UserTabHeading } from './user-tab-heading';
 
 /**
  * The selected account's devices (contract §2, S3), read whole. `managed` holds agent machines linked to its directory
@@ -77,7 +80,8 @@ type DeviceCustomers = Devices['unmanaged'][number]['directoryDevice']['customer
 const DEVICE_COLUMNS = {
   device: { id: 'device', header: 'Device', width: 'flex-[2] min-w-0' },
   os: { id: 'os', header: 'OS', width: 'flex-1 min-w-0', hideAt: 'md' },
-  customer: { id: 'customer', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'md' },
+  // A tablet keeps Device and OS (Figma 1019:608), a phone the device alone (1019:35893).
+  customer: { id: 'customer', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'lg' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 
@@ -102,7 +106,7 @@ const toCustomers = (customers: DeviceCustomers) =>
 function lastSeen(lastSeenAt: string | null | undefined): string | null {
   const at = lastSeenAt ? new Date(lastSeenAt) : null;
   return at && !Number.isNaN(at.getTime())
-    ? `Last online: ${formatDistanceToNowStrict(at, { addSuffix: true })}`
+    ? `Last Online: ${formatDistanceToNowStrict(at, { addSuffix: true })}`
     : null;
 }
 
@@ -151,20 +155,26 @@ function CustomerCell({ row }: { row: DeviceRow }) {
   const customers = row.customers ?? [];
   const { first, more } = firstAndCount(customers.map(customer => customer.name));
   const firstCustomer = customers[0];
+  // The customer's logo beside its name (Figma 1014:1709), the devices table's customer cell.
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
+      {(loading || firstCustomer) && (
+        <EntityImage src={firstCustomer?.imageUrl} alt={firstCustomer?.name ?? ''} sizeClassName="size-12" />
+      )}
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xxs)]">
+        <TruncateText loading={loading}>{first}</TruncateText>
+        {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** The OS mark and the provider's own OS string (Figma 1014:1707); a string the mark does not know keeps the text. */
+function OsCell({ row }: { row: DeviceRow }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      {firstCustomer && (
-        <SquareAvatar
-          data-loading-optional
-          src={firstCustomer.imageUrl}
-          alt={firstCustomer.name}
-          fallback={firstCustomer.name}
-          size="xs"
-          variant="square"
-        />
-      )}
-      <TruncateText loading={loading}>{first}</TruncateText>
-      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+      <OSTypeBadge osType={row.os ?? undefined} iconOnly iconSize="w-4 h-4 content-md:w-6 content-md:h-6" />
+      <TruncateText loading={row.os === undefined}>{row.os ?? '—'}</TruncateText>
     </div>
   );
 }
@@ -180,9 +190,7 @@ const COLUMNS: ColumnDef<DeviceRow>[] = [
   {
     id: DEVICE_COLUMNS.os.id,
     header: DEVICE_COLUMNS.os.header,
-    cell: ({ row }: { row: Row<DeviceRow> }) => (
-      <TruncateText loading={row.original.os === undefined}>{row.original.os ?? '—'}</TruncateText>
-    ),
+    cell: ({ row }: { row: Row<DeviceRow> }) => <OsCell row={row.original} />,
     enableSorting: false,
     meta: liveColumnMeta(DEVICE_COLUMNS.os),
   },
@@ -250,9 +258,10 @@ function DevicesSections({ devices }: { devices: Devices | null }) {
   const unmanaged = devices ? toUnmanagedRows(devices) : null;
   const none = devices !== null && managed.length === 0 && unmanaged?.length === 0;
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-      <h2 className="text-ods-text-primary text-h2">Devices</h2>
-      {none && <p className="text-ods-text-secondary text-h6">No devices are tied to this user.</p>}
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <UserTabHeading title="Devices" />
+      {/* The table's own empty state, as on the other two tabs. */}
+      {none && <DataTable.Empty {...oneLineEmptyState('No devices are tied to this user.')} />}
       {managed.length > 0 && <DeviceSection title={MANAGED} rows={managed} />}
       {(unmanaged === null || unmanaged.length > 0) && <DeviceSection title={NOT_MANAGED} rows={unmanaged} />}
     </div>

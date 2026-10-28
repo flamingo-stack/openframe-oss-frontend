@@ -2,6 +2,7 @@
 
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
 
 interface SearchToolbarProps {
   /** `useStickyToolbar`'s ref — the table's sticky header is measured off this bar. */
@@ -11,10 +12,12 @@ interface SearchToolbarProps {
   onChange: (value: string) => void;
   /** The list is not there to search yet — the bar draws as it will, locked. */
   disabled?: boolean;
+  /** Beside the input, e.g. the phone's filter button (the column funnels are hidden below `content-md`). */
+  actions?: ReactNode;
 }
 
 /** The search bar pinned above a list page's table. */
-export function SearchToolbar({ toolbarRef, placeholder, value, onChange, disabled }: SearchToolbarProps) {
+export function SearchToolbar({ toolbarRef, placeholder, value, onChange, disabled, actions }: SearchToolbarProps) {
   return (
     <div
       ref={toolbarRef}
@@ -28,6 +31,7 @@ export function SearchToolbar({ toolbarRef, placeholder, value, onChange, disabl
         className="flex-1"
         startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
       />
+      {actions}
     </div>
   );
 }

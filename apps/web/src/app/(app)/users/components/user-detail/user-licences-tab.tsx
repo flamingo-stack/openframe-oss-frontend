@@ -2,8 +2,11 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  Button,
   type ColumnDef,
+  FilterModal,
   FloatingTooltip,
   type Row,
   Tag,
@@ -21,6 +24,7 @@ import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { singleColumnFilter } from '../../../software/components/shared/column-filters';
+import { UserTabHeading } from './user-tab-heading';
 
 /** The selected account's licences, one per SKU (contract §2, S3), read whole: an account holds a handful. */
 const userLicencesTabQuery = graphql`
@@ -44,9 +48,12 @@ type Licence = NonNullable<userLicencesTabQuery$data['directoryAccount']>['licen
 const DIRECT = 'DIRECT';
 const VIA_GROUP = 'VIA_GROUP';
 
+// Figma 1014:2605: the licence takes the row, the tags a narrow column at its end, then the rows' action gutter. A
+// phone has no gutter: the tags sit at the row's end (1019:37231).
 const LICENCE_COLUMNS = {
   licence: { id: 'licence', header: 'Licence', width: 'flex-1 min-w-0' },
-  assignment: { id: 'assignment', header: 'Assignment', width: 'flex-1 min-w-0' },
+  assignment: { id: 'assignment', header: 'Assignment', width: 'w-28 shrink-0' },
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
 } satisfies Record<string, TableSkeletonColumn>;
 
 const ASSIGNMENT_OPTIONS = [
@@ -79,18 +86,18 @@ function LicenceCell({ row }: { row: LicenceRow }) {
   const mark = row.source ? providerMark(row.source) : null;
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      {mark && <mark.Logo data-loading-optional size={16} role="img" aria-label={mark.label} />}
+      {mark && <mark.Logo data-loading-optional size={24} role="img" aria-label={mark.label} />}
       <TruncateText className={loading ? 'w-40' : undefined}>{row.name ?? ''}</TruncateText>
     </div>
   );
 }
 
-/** DIRECT and VIA GROUP tags (Figma 1014:2523); the inherited one names its groups. */
+/** DIRECT and VIA GROUP tags (Figma 1014:2523); the inherited one names its groups. Both wrap in the narrow column. */
 function AssignmentCell({ row }: { row: LicenceRow }) {
   const loading = useLoadingScope();
   const assignments = row.assignments ?? [DIRECT];
   return (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-[var(--spacing-system-xxs)] content-md:justify-start">
       {assignments.includes(DIRECT) && <Tag label="Direct" variant="grey" loading={loading} />}
       {assignments.includes(VIA_GROUP) && (
         <FloatingTooltip
@@ -131,6 +138,16 @@ const COLUMNS: ColumnDef<LicenceRow>[] = [
     filterFn: assignmentFilterFn,
     meta: liveColumnMeta(LICENCE_COLUMNS.assignment, { filter: { options: ASSIGNMENT_OPTIONS } }),
   },
+  { id: LICENCE_COLUMNS.open.id, cell: () => null, enableSorting: false, meta: liveColumnMeta(LICENCE_COLUMNS.open) },
+];
+
+/** The phone's filter window (Figma 1019:37231): the Assignment funnel the column header carries from `content-md`. */
+const ASSIGNMENT_FILTER_GROUPS = [
+  {
+    id: LICENCE_COLUMNS.assignment.id,
+    title: LICENCE_COLUMNS.assignment.header,
+    options: ASSIGNMENT_OPTIONS.map(({ id, label }) => ({ id, label })),
+  },
 ];
 
 const getRowId = (row: LicenceRow) => row.id;
@@ -140,6 +157,7 @@ const LICENCES_SKELETON_ROWS = 3;
 function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
   const loading = useLoadingScope();
   const [selected, setSelected] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { columnFilters, onColumnFiltersChange } = singleColumnFilter(
     LICENCE_COLUMNS.assignment.id,
     selected,
@@ -160,8 +178,21 @@ function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
     onColumnFiltersChange,
   });
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-      <h2 className="text-ods-text-primary text-h2">Licences</h2>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <UserTabHeading
+        title="Licences"
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            className="content-md:hidden"
+            onClick={() => setFiltersOpen(true)}
+            disabled={loading}
+            aria-label="Open filters"
+            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+          />
+        }
+      />
       <LiveTable
         table={table}
         skeletonRows={LICENCES_SKELETON_ROWS}
@@ -171,6 +202,13 @@ function LicencesTable({ rows }: { rows: readonly LicenceRow[] | null }) {
         emptyState={oneLineEmptyState(
           selected.length > 0 ? 'No licences match the selected filters.' : 'This user holds no licences.',
         )}
+      />
+      <FilterModal
+        isOpen={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filterGroups={ASSIGNMENT_FILTER_GROUPS}
+        currentFilters={{ [LICENCE_COLUMNS.assignment.id]: selected }}
+        onFilterChange={filters => setSelected(filters[LICENCE_COLUMNS.assignment.id] ?? [])}
       />
     </div>
   );

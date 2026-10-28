@@ -32,6 +32,8 @@ export function UserTitle({ title, subtitle, loading }: { title: string; subtitl
       title={title}
       subtitle={subtitle}
       loading={loading}
+      // The job title's line is held while the record is read, so the tabs do not drop when it lands.
+      subtitleRow="while-loading"
       titleSkeletonLines={USER_TITLE_SKELETON_LINES}
       backButton={{ label: 'Back', onClick: handleBack }}
     />

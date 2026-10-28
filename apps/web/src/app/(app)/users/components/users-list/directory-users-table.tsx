@@ -4,6 +4,9 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import { UsersIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
+  type DataTableFilterOption,
+  type FilterGroup,
+  FilterModal,
   type Row,
   useDataTable,
   useLoadingScope,
@@ -46,7 +49,7 @@ import {
 } from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
 import { CustomerCell, DevicesCell, LicensesCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
-import { USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
+import { CUSTOMER_USER_COLUMNS, USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
 import type { UserSelections } from './users-filter';
 
 /**
@@ -201,13 +204,14 @@ function toUserRow(node: PersonNode): UserRow {
  * (733:98943) is already one customer, so it shows the licences instead and narrows by them.
  */
 function buildColumns(options: UserFilterOptions, customerScoped: boolean): ColumnDef<UserRow>[] {
+  const layout = customerScoped ? CUSTOMER_USER_COLUMNS : USER_COLUMNS;
   return [
     {
-      id: USER_COLUMNS.user.id,
-      header: USER_COLUMNS.user.header,
+      id: layout.user.id,
+      header: layout.user.header,
       cell: ({ row }: { row: Row<UserRow> }) => <UserCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(USER_COLUMNS.user),
+      meta: liveColumnMeta(layout.user),
     },
     ...(customerScoped
       ? []
@@ -222,43 +226,61 @@ function buildColumns(options: UserFilterOptions, customerScoped: boolean): Colu
           },
         ]),
     {
-      id: USER_COLUMNS.devices.id,
-      header: USER_COLUMNS.devices.header,
+      id: layout.devices.id,
+      header: layout.devices.header,
       cell: ({ row }: { row: Row<UserRow> }) => <DevicesCell row={row.original} />,
       enableSorting: false,
-      meta: liveColumnMeta(USER_COLUMNS.devices),
+      meta: liveColumnMeta(layout.devices),
     },
     {
-      id: USER_COLUMNS.status.id,
-      header: USER_COLUMNS.status.header,
+      id: layout.status.id,
+      header: layout.status.header,
       cell: ({ row }: { row: Row<UserRow> }) => <StatusCell row={row.original} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(USER_COLUMNS.status, { filter: { options: options.statuses } }),
+      meta: liveColumnMeta(layout.status, { filter: { options: options.statuses } }),
     },
     ...(customerScoped
       ? [
           {
-            id: USER_COLUMNS.license.id,
-            header: USER_COLUMNS.license.header,
+            id: CUSTOMER_USER_COLUMNS.license.id,
+            header: CUSTOMER_USER_COLUMNS.license.header,
             cell: ({ row }: { row: Row<UserRow> }) => <LicensesCell row={row.original} />,
             enableSorting: false,
             filterFn: multiSelectFilterFn,
-            meta: liveColumnMeta(USER_COLUMNS.license, { filter: { options: options.licenses } }),
+            meta: liveColumnMeta(CUSTOMER_USER_COLUMNS.license, { filter: { options: options.licenses } }),
           },
         ]
       : []),
     {
-      id: USER_COLUMNS.open.id,
+      id: layout.open.id,
       cell: ({ row }: { row: Row<UserRow> }) => {
         const { href, name } = row.original;
         if (!href) return null;
         return <OpenRowButton label={`Open ${name ?? 'user'} in new tab`} onClick={openInNewTab(href)} />;
       },
       enableSorting: false,
-      meta: liveColumnMeta(USER_COLUMNS.open),
+      meta: liveColumnMeta(layout.open),
     },
   ];
+}
+
+/** The phone's filter window (Figma 907:31981): the funnels the column headers carry from `content-md` up. */
+function filterGroups(options: UserFilterOptions, customerScoped: boolean): FilterGroup[] {
+  const group = (id: string, title: string, groupOptions: DataTableFilterOption[]): FilterGroup => ({
+    id,
+    title,
+    options: groupOptions.map(({ id: optionId, label, count }) => ({ id: optionId, label, count })),
+  });
+  return customerScoped
+    ? [
+        group(USER_COLUMNS.status.id, USER_COLUMNS.status.header, options.statuses),
+        group(CUSTOMER_USER_COLUMNS.license.id, CUSTOMER_USER_COLUMNS.license.header, options.licenses),
+      ]
+    : [
+        group(USER_COLUMNS.tenant.id, USER_COLUMNS.tenant.header, options.tenants),
+        group(USER_COLUMNS.status.id, USER_COLUMNS.status.header, options.statuses),
+      ];
 }
 
 const getRowId = (row: UserRow) => row.id;
@@ -278,6 +300,9 @@ interface DirectoryUsersTableProps {
   /** No user at all (not a search or funnel miss) — the view drops its toolbar. */
   onEmptyChange: (isEmpty: boolean) => void;
   stickyHeaderOffset: string;
+  /** The phone's filter window is open (its button sits in the view's toolbar). */
+  filtersOpen: boolean;
+  onFiltersClose: () => void;
 }
 
 const UNREAD_FILTER_OPTIONS: UserFilterOptions = { tenants: [], statuses: [], licenses: [] };
@@ -365,6 +390,8 @@ function UsersRows({
   isPending,
   onEmptyChange,
   stickyHeaderOffset,
+  filtersOpen,
+  onFiltersClose,
 }: UsersRowsProps) {
   const loading = useLoadingScope();
   const { columnFilters, onColumnFiltersChange } = multiColumnFilter(selections, onSelectionsChange);
@@ -402,21 +429,36 @@ function UsersRows({
   }
 
   return (
-    <LiveTable
-      table={table}
-      pageSize={USERS_PAGE_SIZE}
-      loadingCells={loading}
-      stickyHeaderOffset={stickyHeaderOffset}
-      itemName="result"
-      totalCount={totalCount}
-      isPending={isPending}
-      emptyState={oneLineEmptyState(
-        debouncedSearch
-          ? `No users found matching "${debouncedSearch}". Try adjusting your search.`
-          : 'No users match the selected filters. Try adjusting your filters.',
-      )}
-      rowHref={rowHref}
-      footer={rows.length > 0 ? infiniteScroll : null}
-    />
+    <>
+      <LiveTable
+        table={table}
+        pageSize={USERS_PAGE_SIZE}
+        loadingCells={loading}
+        stickyHeaderOffset={stickyHeaderOffset}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={oneLineEmptyState(
+          debouncedSearch
+            ? `No users found matching "${debouncedSearch}". Try adjusting your search.`
+            : 'No users match the selected filters. Try adjusting your filters.',
+        )}
+        rowHref={rowHref}
+        footer={rows.length > 0 ? infiniteScroll : null}
+      />
+      <FilterModal
+        isOpen={filtersOpen}
+        onClose={onFiltersClose}
+        filterGroups={filterGroups(filterOptions, !!organizationId)}
+        currentFilters={{ ...selections }}
+        onFilterChange={filters =>
+          onSelectionsChange({
+            tenant: filters.tenant ?? [],
+            status: filters.status ?? [],
+            license: filters.license ?? [],
+          })
+        }
+      />
+    </>
   );
 }

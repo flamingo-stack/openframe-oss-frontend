@@ -86,7 +86,7 @@ function UserDetailHeaderIsland({ id, loading = false }: IslandProps) {
 const USER_DETAIL_TABS: TabItem[] = [
   { id: 'details' satisfies UserDetailTab, label: 'Details', icon: FileContentIcon, component: DetailsTabBody },
   { id: 'devices' satisfies UserDetailTab, label: 'Devices', icon: MonitorIcon, component: UserDevicesTab },
-  { id: 'user-groups' satisfies UserDetailTab, label: 'User Groups', icon: UsersGroupIcon, component: UserGroupsTab },
+  { id: 'user-groups' satisfies UserDetailTab, label: 'Groups', icon: UsersGroupIcon, component: UserGroupsTab },
   { id: 'licences' satisfies UserDetailTab, label: 'Licences', icon: FileCheckIcon, component: UserLicencesTab },
 ];
 
@@ -103,8 +103,9 @@ export function UserDetailView({ id, loading = false }: IslandProps) {
   return (
     <div className="flex w-full flex-col">
       <UserDetailHeaderIsland id={id} loading={loading} />
-      {/* `TabNavigation` renders as a fragment: its bar and body grouped into one flex item. */}
-      <div className="flex flex-1 flex-col pt-[var(--spacing-system-l)]">
+      {/* `TabNavigation` renders as a fragment: its bar and body grouped into one flex item, right under the title's
+          own bottom margin (Figma 1014:1222). */}
+      <div className="flex flex-1 flex-col">
         <TabNavigation tabs={USER_DETAIL_TABS} urlSync defaultTab={USER_DETAIL_TABS[0].id}>
           {activeTab => {
             const TabBody = userTabBody(activeTab);

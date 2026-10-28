@@ -25,6 +25,7 @@ import {
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { groupFeedTag } from '../../utils/user-presentation';
+import { UserTabHeading } from './user-tab-heading';
 
 const GROUPS_PAGE_SIZE = 20;
 
@@ -68,9 +69,12 @@ type GroupNode = NonNullable<userGroupsTab_query$data['directoryAccount']>['grou
 
 const GROUP_COLUMNS = {
   // Figma 1014:2086 heads it "USER" (To Design T1): it lists groups.
-  group: { id: 'group', header: 'Group', width: 'flex-[2] min-w-0' },
-  members: { id: 'members', header: 'Members', width: 'flex-1 min-w-0' },
+  group: { id: 'group', header: 'Group', width: 'flex-1 min-w-0' },
+  // A phone keeps the group and its feed (Figma 1019:36571).
+  members: { id: 'members', header: 'Members', width: 'flex-1 min-w-0', hideAt: 'md' },
   feed: { id: 'feed', header: 'Feed', width: 'flex-1 min-w-0' },
+  // The rows open nothing until the group page (S4); the gutter keeps Figma's columns (1014:2149), a phone's row drops it.
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
 } satisfies Record<string, TableSkeletonColumn>;
 
 /** A row as its cells read it; every field but `id` is absent on a loading row. */
@@ -98,7 +102,7 @@ function GroupCell({ row }: { row: GroupRow }) {
   return (
     <div className="flex min-w-0 flex-col justify-center">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-        {mark && <mark.Logo data-loading-optional size={16} role="img" aria-label={mark.label} />}
+        {mark && <mark.Logo data-loading-optional size={24} role="img" aria-label={mark.label} />}
         <TruncateText className={loading ? 'w-32' : undefined}>{row.name ?? ''}</TruncateText>
       </div>
       <TruncateText variant="h6" tone="secondary" className={loading ? 'w-24' : undefined}>
@@ -144,6 +148,7 @@ const COLUMNS: ColumnDef<GroupRow>[] = [
     enableSorting: false,
     meta: liveColumnMeta(GROUP_COLUMNS.feed),
   },
+  { id: GROUP_COLUMNS.open.id, cell: () => null, enableSorting: false, meta: liveColumnMeta(GROUP_COLUMNS.open) },
 ];
 
 const getRowId = (row: GroupRow) => row.id;
@@ -170,8 +175,8 @@ function GroupsTable({
     enableSorting: false,
   });
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-l)] pt-[var(--spacing-system-l)]">
-      <h2 className="text-ods-text-primary text-h2">User Groups</h2>
+    <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      <UserTabHeading title="Groups" />
       <LiveTable
         table={table}
         pageSize={GROUPS_PAGE_SIZE}
@@ -186,7 +191,7 @@ function GroupsTable({
   );
 }
 
-/** User page → User Groups (Figma 1014:2086). `memo`'d: `TabNavigation` defers the body. */
+/** User page → Groups (Figma 1014:2086). `memo`'d: `TabNavigation` defers the body. */
 export const UserGroupsTab = memo(function UserGroupsTabImpl({
   id,
   loading = false,
@@ -195,7 +200,7 @@ export const UserGroupsTab = memo(function UserGroupsTabImpl({
   loading?: boolean;
 }) {
   return (
-    <LoadingSuspense live label="Loading user groups" gated={loading}>
+    <LoadingSuspense live label="Loading groups" gated={loading}>
       <UserGroupsReader id={id} />
     </LoadingSuspense>
   );
