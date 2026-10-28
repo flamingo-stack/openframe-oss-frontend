@@ -60,6 +60,13 @@ import { clientIdentityHeaders } from './client-identity';
 import { isOnline } from './connectivity';
 import { forceLogout } from './force-logout';
 import { runtimeEnv } from './runtime-config';
+import {
+  isSessionGone,
+  markSessionPaused,
+  noteGatewayResponse,
+  SESSION_GONE_MESSAGE,
+  SESSION_GONE_STATUS,
+} from './session-health';
 import { waitForSessionReady } from './session-ready';
 import { waitForSubscriptionGate } from './subscription-gate';
 import { refreshTokens } from './token-refresh-manager';
@@ -79,6 +86,32 @@ import {
 function updateRequiredResponse<T>(): ApiResponse<T> {
   return { error: UPDATE_REQUIRED_MESSAGE, status: UPGRADE_REQUIRED_STATUS, ok: false };
 }
+
+/**
+ * The 410 as every caller sees it, answered locally once the gateway has said it
+ * once: a deleted tenant answers every path the same way, so nothing is gained by
+ * asking again.
+ */
+function sessionGoneResponse<T>(): ApiResponse<T> {
+  return { error: SESSION_GONE_MESSAGE, status: SESSION_GONE_STATUS, ok: false };
+}
+
+/**
+ * Whether a request goes to the tenant gateway — the only host whose answers say
+ * anything about the session. `external()` can point anywhere.
+ */
+function isGatewayUrl(url: string): boolean {
+  if (!/^https?:\/\//.test(url)) return true;
+  try {
+    const gateway = runtimeEnv.tenantHostUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
+    return !!gateway && new URL(url).origin === new URL(gateway).origin;
+  } catch {
+    return false;
+  }
+}
+
+/** `/tools/{toolId}/*` on the gateway, relative or absolute (the Fleet client sends the latter). */
+const TOOL_PROXY_PATH = /^(?:https?:\/\/[^/]+)?\/tools\//;
 
 class ApiClient {
   /**
@@ -139,7 +172,11 @@ class ApiClient {
       ...fetchOptions
     } = options;
 
+    const url = this.buildUrl(path);
+    const toGateway = isGatewayUrl(url);
+
     if (isUpdateRequired()) return updateRequiredResponse<T>();
+    if (toGateway && isSessionGone()) return sessionGoneResponse<T>();
 
     // App data waits for the session; the bootstrap pair opts out. Retries keep
     // whatever the first attempt decided (the latch is already open by then).
@@ -151,8 +188,9 @@ class ApiClient {
       // network layer left the larger half of the requests firing into a locked
       // workspace. See `subscription-gate.ts`.
       await waitForSubscriptionGate();
-      // A 426 may have landed while this request was parked on the gates.
+      // A 426 or a 410 may have landed while this request was parked on the gates.
       if (isUpdateRequired()) return updateRequiredResponse<T>();
+      if (toGateway && isSessionGone()) return sessionGoneResponse<T>();
     }
 
     // Build headers
@@ -167,9 +205,6 @@ class ApiClient {
     if (!skipAuth) {
       Object.assign(requestHeaders, this.getAuthHeaders());
     }
-
-    // Build full URL
-    const url = this.buildUrl(path);
 
     // Captured BEFORE the request goes out: a 401 that comes back after the
     // credential has already rotated needs a retry, not another rotation.
@@ -208,6 +243,7 @@ class ApiClient {
       // Before the 401 branch on principle: a too-old bundle says nothing about
       // the session, and must never reach refresh or logout.
       if (await noteUpgradeRequired(response)) return updateRequiredResponse<T>();
+      if (toGateway && noteGatewayResponse(response)) return sessionGoneResponse<T>();
 
       // Handle 401 Unauthorized - attempt token refresh ONLY ONCE
       if (response.status === 401 && !skipAuth && !isRetry) {
@@ -243,6 +279,7 @@ class ApiClient {
         // request and leave the session alone. Mirrors `relay/environment.ts` —
         // both halves of the data layer have to agree.
         if (outcome === 'transient') {
+          markSessionPaused('transient');
           return { error: isOnline() ? 'Authentication temporarily unavailable' : 'Offline', status: 0, ok: false };
         }
 
@@ -253,6 +290,15 @@ class ApiClient {
           status: 401,
           ok: false,
         };
+      }
+
+      // A token the refresh just issued was refused: nothing in-process can fix
+      // that, so background polling stops until the session is re-validated. Not
+      // for the tool proxies: a 401 there is the tool's own answer (Fleet's
+      // "missing tenant"), past the gateway's JWT check, and says nothing about
+      // the session.
+      if (response.status === 401 && isRetry && !skipAuth && toGateway && !TOOL_PROXY_PATH.test(url)) {
+        markSessionPaused('rejected');
       }
 
       // Parse response
