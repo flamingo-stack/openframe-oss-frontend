@@ -3,7 +3,8 @@
  * fresh v4 UUID per mount that survives re-renders and selector changes,
  * rotates only when the page asks (after a copy), is never shared between two
  * mounts, and is held back on the prerender so hydration has nothing to
- * disagree about.
+ * disagree about. Also pins which optional flags ride the install and the
+ * register command.
  */
 
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -19,6 +20,9 @@ vi.mock('./use-registration-secret', () => ({
   useRegistrationSecret: () => ({ initialKey: 'secret-1', isLoading: false, error: null, refetch: vi.fn() }),
 }));
 
+const logKey = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock('./use-agent-log-key', () => ({ useAgentLogKey: () => logKey.value }));
+
 type AuthSlice = { user: { id: string } };
 vi.mock('@/stores', () => ({
   selectUser: (state: AuthSlice) => state.user,
@@ -29,6 +33,7 @@ vi.mock('@/lib/platform', () => ({ isAppShell: () => false }));
 vi.mock('@/lib/runtime-config', () => ({ runtimeEnv: { tenantHostUrl: () => '' } }));
 
 type Result = ReturnType<typeof useInstallCommand>;
+type Options = Parameters<typeof useInstallCommand>[0];
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** The header value as each shell's download line carries it. */
@@ -63,6 +68,32 @@ function mount(platform: OSPlatformId): { root: Root; container: HTMLElement } {
 function current(): Result {
   if (!latest) throw new Error('probe has not rendered');
   return latest;
+}
+
+let onceRoot: Root | undefined;
+
+/** Renders the hook once for a Windows device of org-1, plus `options`; `unmountOnce` cleans up. */
+function renderOnce(options: Partial<Options> = {}): Result {
+  let result: Result | undefined;
+  function OnceProbe() {
+    const value = useInstallCommand({ organizationId: 'org-1', platform: 'windows', ...options });
+    useEffect(() => {
+      result = value;
+    });
+    return null;
+  }
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  onceRoot = createRoot(container);
+  act(() => onceRoot?.render(<OnceProbe />));
+  if (!result) throw new Error('probe has not rendered');
+  return result;
+}
+
+function unmountOnce() {
+  if (onceRoot) act(() => onceRoot?.unmount());
+  onceRoot = undefined;
+  document.body.innerHTML = '';
 }
 
 describe('useInstallCommand machine id', () => {
@@ -135,34 +166,10 @@ describe('useInstallCommand machine id', () => {
 });
 
 describe('useInstallCommand remote access mode', () => {
-  let root: Root | undefined;
-
-  afterEach(() => {
-    if (root) act(() => root?.unmount());
-    root = undefined;
-    document.body.innerHTML = '';
-  });
+  afterEach(unmountOnce);
 
   function render(remoteAccessMode: RemoteAccessMode | null): Result {
-    let result: Result | undefined;
-    function ModeProbe() {
-      const value = useInstallCommand({
-        organizationId: 'org-1',
-        platform: 'windows',
-        tags: [{ key: 'env', values: ['prod'] }],
-        remoteAccessMode,
-      });
-      useEffect(() => {
-        result = value;
-      });
-      return null;
-    }
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    act(() => root?.render(<ModeProbe />));
-    if (!result) throw new Error('probe has not rendered');
-    return result;
+    return renderOnce({ tags: [{ key: 'env', values: ['prod'] }], remoteAccessMode });
   }
 
   it('puts an explicit mode after the tags in both the install and the register command', () => {
@@ -178,5 +185,41 @@ describe('useInstallCommand remote access mode', () => {
       expect(line).not.toContain('--remote-access-mode');
       expect(line.endsWith(`--tag "env=prod"`)).toBe(true);
     }
+  });
+});
+
+describe('useInstallCommand log key', () => {
+  afterEach(() => {
+    unmountOnce();
+    logKey.value = undefined;
+  });
+
+  it('passes the tenant log key in both the install and the register command', () => {
+    logKey.value = 'log-1';
+    const { command, registerCommand } = renderOnce();
+    for (const line of [command, registerCommand]) {
+      expect(line).toContain('--initialKey secret-1 --logKey log-1 --orgId org-1');
+    }
+  });
+
+  it('leaves both commands unchanged when the tenant has no log key', () => {
+    const { command, registerCommand } = renderOnce();
+    for (const line of [command, registerCommand]) {
+      expect(line).toContain('--initialKey secret-1 --orgId org-1');
+      expect(line).not.toContain('--logKey');
+    }
+  });
+
+  it('hands out a command before the key arrives and adds the key once it does', () => {
+    latest = undefined;
+    const { root } = mount('darwin');
+    expect(current().command).not.toContain('--logKey');
+
+    logKey.value = 'log-1';
+    act(() => root.render(<Probe platform="darwin" />));
+    expect(current().command).toContain('--initialKey secret-1 --logKey log-1 --orgId org-1');
+    expect(current().registerCommand).toContain('--initialKey secret-1 --logKey log-1 --orgId org-1');
+
+    act(() => root.unmount());
   });
 });
