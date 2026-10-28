@@ -28,6 +28,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Flamingo AI, Inc.",
+    "copyright": "Copyright © 2026 Flamingo AI, Inc.",
+    "homepage": "https://openframe.ai/",
     "createUpdaterArtifacts": true,
     "licenseFile": "installer/LICENSE.rtf",
     "icon": [
@@ -45,7 +48,8 @@
         "type": "downloadBootstrapper"
       },
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "installer/hooks.nsh"
       },
       "wix": {
         "bannerPath": "installer/wix-banner.bmp",

@@ -106,8 +106,10 @@ function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
   // A product billed per use has no committed limit to compare against, so it
   // shows the bare count — and never a warning, since there is nothing to exceed.
   const devicePerUse = device?.isPayg ?? false;
-  const devicesUsed = device?.used ?? 0;
   const deviceLimit = device?.allocation ?? 0;
+  // Against a limit, the count is the devices counted against it — what the
+  // billing page's card states too (see `deviceAllocation`).
+  const devicesUsed = (deviceLimit > 0 ? device?.usedAgainstLimit : device?.used) ?? 0;
   const devicePct = deviceLimit > 0 ? Math.round((devicesUsed / deviceLimit) * 100) : 0;
   // Only the state that has actually happened. The 90%-of-limit "approaching"
   // tier is gone here for the same reason as on the billing page: being near a

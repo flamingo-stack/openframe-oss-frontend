@@ -155,7 +155,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NatsAppProvider>
                 <BiometricLockBoundary>
                   <FeatureFlagsLoader>
-                    {/* Above the notifications provider: its popups draw the agents' marks. */}
+                    {/* Above the notifications: their popups render beside `children`,
+                        and a Mingo tile draws the agent's mark. */}
                     <AppAgentIdentityProvider>
                       <NotificationsDataProvider>
                         <RouteGuard>

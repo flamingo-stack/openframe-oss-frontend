@@ -3,20 +3,20 @@
 import { useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { cancelSubscriptionFlow_subscription$key } from '@/__generated__/cancelSubscriptionFlow_subscription.graphql';
+import { hasSubscriptionPackage } from '../shared/subscription-package';
 import { CancelOfferModal } from './cancel-offer-modal';
 import { type CancelReason, CancelSubscriptionModal } from './cancel-subscription-modal';
 import { SubscriptionCancelledModal } from './subscription-cancelled-modal';
 import { useCancelSubscription } from './use-cancel-subscription';
 
 /**
- * The date the closing dialog states. Populated once the successful cancel
- * invalidates the store and the page's query refetches; null until then, and
- * the dialog renders that as an em dash rather than borrowing another field's
- * date.
+ * What the closing dialog states. The date lands with the refetch after the cancel (an em dash until then). The
+ * terms follow the package, not the status, which is still ACTIVE until that refetch.
  */
 const cancelSubscriptionFlowFragment = graphql`
   fragment cancelSubscriptionFlow_subscription on SubscriptionDetail {
     cancellationEffectiveAt
+    ...subscriptionPackage_subscription
   }
 `;
 
@@ -85,6 +85,7 @@ export function CancelSubscriptionFlow({
       <SubscriptionCancelledModal
         isOpen={step === 'cancelled'}
         endDate={data.cancellationEffectiveAt ?? null}
+        withPackage={hasSubscriptionPackage(data)}
         onClose={onClose}
       />
     </>

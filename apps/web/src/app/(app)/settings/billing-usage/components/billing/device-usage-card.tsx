@@ -78,13 +78,17 @@ function deviceUsage(data: deviceUsageCard_subscription$data) {
   // A committed package is the only thing that gives the counter a denominator,
   // so the same condition decides the caption — the card cannot end up reading
   // "247/300" over "Pay as you go", or a bare count over "Prepaid".
-  const prepaid = !schedule.isTrial && device.allocation > 0;
+  // Metered billing has no allowance whatever a period's figures say.
+  const prepaid = !schedule.isTrial && !device.isPayg && device.allocation > 0;
 
   return {
     tone: device.overLimit ? ('warning' as const) : ('default' as const),
+    // Against the allowance, the count is the devices counted against it: the
+    // ones frozen as overage at an upgrade are billed already and sit in the
+    // overage block, not over this period's limit a second time.
     value: prepaid ? (
       <>
-        {formatCount(device.used)}
+        {formatCount(device.usedAgainstLimit)}
         <StatSuffix>/{formatCount(device.allocation)}</StatSuffix>
       </>
     ) : (

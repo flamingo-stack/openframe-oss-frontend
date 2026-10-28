@@ -53,6 +53,18 @@ export function parseLocalDate(day: string): Date | null {
   return parsed.getMonth() === month - 1 && parsed.getDate() === date ? parsed : null;
 }
 
+/**
+ * The day `days` after `day` (before it, when negative), or null when `day` is not one. Calendar arithmetic on the
+ * local day, so a daylight-saving change never moves the answer by an hour into another day.
+ */
+export function addLocalDays(day: string, days: number): LocalDate | null {
+  const parsed = parseLocalDate(day);
+  if (!parsed) return null;
+  parsed.setDate(parsed.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}` as LocalDate;
+}
+
 /** Adopts a string built elsewhere (a wall-clock instant, a stored value); throws on one `Date` cannot read. */
 export function asInstant(value: string): Instant {
   if (!isInstant(value)) throw new Error(`Not an Instant: ${value}`);

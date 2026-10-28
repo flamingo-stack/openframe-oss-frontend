@@ -31,9 +31,9 @@ builds the web app in this same repository — installs its dependencies if
 missing, runs `OPENFRAME_BUILD_TARGET=export npm run build`, and copies `dist/` to
 `www/`. The shell and the bundle always come from one commit.
 
-`release.yml` does not build the shell for now: its desktop job is commented
-out, and the shell is built and released from `openframe-saas-desktop`, whose
-releases the updater reads.
+`release.yml` builds the shell on every dispatch and attaches it, with
+`updater.json`, to the same `x.y.z` release as the web image, so a desktop
+version is always the web version it bundles. See [Releasing](../README.md#releasing).
 
 `www/` is a generated artifact. `tauri.conf.json` sets `frontendDist: "../www"`,
 and `generate_context!` embeds the directory **at compile time** — so `www/` must

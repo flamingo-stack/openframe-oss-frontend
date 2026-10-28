@@ -14,6 +14,30 @@ Supported: macOS, Windows. Linux builds, but has neither an OS-notification
 backend nor any URL-scheme registration — so notifications never arrive and the
 OAuth callback has no way back into the app, leaving sign-in unable to complete.
 
+## Install
+
+| Platform | Download |
+|---|---|
+| macOS (Apple silicon and Intel) | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=macos |
+| Windows x64 | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=windows |
+| Windows ARM64 | https://openframe.ai/v0/api/assets/download?agent=desktop&platform=windows-arm64 |
+
+These links serve the version openframe.ai runs. Every version is also on this
+repository's [releases](https://github.com/flamingo-stack/openframe-oss-frontend/releases)
+as `OpenFrame-Console_<v>_*`. Sign in with your OpenFrame account; the app finds
+your workspace from your email, and updates itself from then on.
+
+- **macOS:** open the `.dmg` and drag **OpenFrame Console** to Applications. To
+  remove it, turn off **Start at Login** in the tray menu, quit, and delete the
+  app; settings and the session stay in the paths under
+  [Configuration](#configuration).
+- **Windows:** run the setup. It installs for the current user into
+  `%LOCALAPPDATA%\OpenFrame Console` and needs no administrator rights;
+  `/S` installs silently. Remove it from **Settings → Apps**, or silently with
+  `"%LOCALAPPDATA%\OpenFrame Console\uninstall.exe" /S`. Settings and the session
+  stay in `%APPDATA%\com.openframe.console` unless **Delete the application
+  data** is ticked in the uninstaller.
+
 ## Requirements
 
 - Rust (stable) and the [Tauri 2 system prerequisites](https://tauri.app/start/prerequisites/)
@@ -66,12 +90,25 @@ against the produced artifact, which is why `tauri.conf.json` sets
 
 ## Releasing
 
-The shell is built and released from `openframe-saas-desktop` for now; the
-updater reads that repository's releases (`DEFAULT_MANIFEST_URL` in
-`src-tauri/src/updater.rs`). The `build_desktop` job and the `updater.json` step
-in `.github/workflows/release.yml` are commented out until the release moves
-here, so neither a dispatch nor a push to `main` builds the shell from this
-repository.
+A dispatch of `.github/workflows/release.yml` builds the shell from that commit
+and attaches it to the `x.y.z` GitHub release, beside the web image of the same
+version:
+
+| File | What |
+|---|---|
+| `OpenFrame-Console_<v>_universal.dmg` | macOS install, signed and notarized |
+| `OpenFrame-Console_<v>_x64-setup.exe`, `_arm64-setup.exe` | Windows install, Authenticode-signed |
+| `OpenFrame-Console.app.tar.gz`, `*.sig` | the updater's macOS payload, and the updater signatures |
+| `updater.json` | the updater manifest |
+
+A push to `main` that touches `apps/desktop/` builds the same bundles as
+workflow artifacts (version `0.0.0-dev.<run>`), with no release.
+
+Installed apps update through the tenant gateway (`update_manifest_url` under
+[Configuration](#configuration)), which serves the `updater.json` of the release
+that environment runs: an install follows its environment's frontend version,
+not every release. `openframe-saas-desktop`, where the shell was released before
+(0.0.x), is legacy.
 
 ## Configuration
 
