@@ -61,7 +61,7 @@ export function TicketsTab({ device }: TicketsTabProps) {
   // With SOURCE dropped the shared flex widths drift, so ASSIGNEE/STATUS are pinned to fixed
   // widths. Those widths live in `DEVICE_TICKET_COLUMNS`, the one declaration of this table's
   // layout.
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {
     const widthById = new Map(DEVICE_TICKET_COLUMNS.map(column => [column.id, column.width]));
