@@ -73,13 +73,25 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
         )}
       </div>
       {/* Figure over label, side by side — not the label-dash-value rows of the
-          plan blocks. These three are read together as the size of one problem,
-          and a row layout buries each number at the end of its own line. */}
+          plan blocks. These are read together as the size of one problem, and a
+          row layout buries each number at the end of its own line. */}
       <div className="flex flex-wrap gap-[var(--spacing-system-xl)] p-[var(--spacing-system-m)]">
         <OverageStat value={`${formatCount(device.overage)} Devices`} label="Device Overage" />
+        <OverageStat
+          value={`${formatCount(device.usedAgainstLimit)}/${formatCount(device.allocation)}`}
+          label="Used / Limit"
+        />
         {estimatedOverage != null && <OverageStat value={formatCurrency(estimatedOverage)} label="Overage Payment" />}
         {data.currentPeriodEnd && <OverageStat value={formatDate(data.currentPeriodEnd)} label="Next Billing" />}
       </div>
+      {/* After an in-period upgrade the overage is two parts, and the page has to
+          add up to the bill: what froze at the upgrade, and what is over the
+          allowance since. Both are the backend's figures. */}
+      {device.committedOverage > 0 && (
+        <p className="border-t border-ods-border px-[var(--spacing-system-m)] py-[var(--spacing-system-s)] text-ods-text-secondary text-h6">
+          {`${formatCount(device.overage)} devices = ${formatCount(device.committedOverage)} frozen at your package upgrade + ${formatCount(device.overage - device.committedOverage)} over the limit`}
+        </p>
+      )}
     </div>
   );
 }

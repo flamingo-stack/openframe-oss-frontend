@@ -5,17 +5,25 @@ import { activePackage } from './active-package';
 
 /**
  * The fleet against the device package: how many devices are under management,
- * how many the committed package covers, and whether the count has passed it.
+ * what this period's allowance is, and what is billed as overage.
  *
  * Read by the Device Usage card, by the overage block under it and by the
- * payment-free Usage page — the same three numbers, so one reader keeps
- * "247/300" on the card and "You're over" below it from ever disagreeing.
- * Nothing priced is selected here, which is what lets the Usage page spread it.
+ * payment-free Usage page — the same numbers, so one reader keeps "37/25" on the
+ * card and "36 Devices" below it from ever disagreeing. Nothing priced is
+ * selected here, which is what lets the Usage page spread it.
+ *
+ * Every figure is the backend's: after an in-period upgrade the bill is not
+ * "used minus the package" (the overage frozen at the upgrade stays billed, the
+ * allowance is only the part of the upgrade that was paid for).
  */
 const deviceAllocationFragment = graphql`
   fragment deviceAllocation_subscription on SubscriptionDetail @inline {
     usage {
       devicesUsed
+      devicesUsedAgainstLimit
+      devicesCommittedOverage
+      devicesLimit
+      devicesOverage
     }
     products {
       name
@@ -30,13 +38,17 @@ const deviceAllocationFragment = graphql`
 export interface DeviceAllocation {
   /** Devices under management. */
   used: number;
-  /** Devices the committed package covers; 0 without one. */
+  /** Devices counted against this period's allowance: `used` less the overage frozen at an upgrade. */
+  usedAgainstLimit: number;
+  /** This period's device allowance; 0 without a package. */
   allocation: number;
-  /** Devices past the package. */
+  /** Devices frozen as overage at in-period package upgrades; 0 without one. */
+  committedOverage: number;
+  /** Devices billed as overage this period, the frozen ones included. */
   overage: number;
   /**
-   * The one state on this page worth interrupting for: a committed package with
-   * more devices under management than it covers.
+   * The one state on this page worth interrupting for: a committed package and
+   * devices billed as overage this period.
    *
    * There used to be a second, "approaching" tier at 90% of the allocation.
    * Being near a device limit costs nothing — the bill only changes once it is
@@ -53,10 +65,15 @@ export function deviceAllocation(ref: deviceAllocation_subscription$key): Device
   const devices = products.find(p => p.name === OpenframeProduct.MANAGED_DEVICES) ?? null;
   const active = devices ? activePackage(devices) : null;
   const isPayg = devices?.payAsYouGoOption != null && active == null;
+  const overage = usage?.devicesOverage ?? 0;
 
-  const used = usage?.devicesUsed ?? 0;
-  const allocation = active?.quantity ?? 0;
-  const overage = Math.max(0, used - allocation);
-
-  return { used, allocation, overage, overLimit: !isPayg && allocation > 0 && overage > 0, isPayg };
+  return {
+    used: usage?.devicesUsed ?? 0,
+    usedAgainstLimit: usage?.devicesUsedAgainstLimit ?? 0,
+    allocation: usage?.devicesLimit ?? 0,
+    committedOverage: usage?.devicesCommittedOverage ?? 0,
+    overage,
+    overLimit: !isPayg && overage > 0,
+    isPayg,
+  };
 }
