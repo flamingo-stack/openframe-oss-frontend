@@ -38,7 +38,7 @@ interface UpdatedPlanSectionProps {
  * Either a scheduled package, or the metered billing a lapsing commitment
  * falls back to. The pay-as-you-go case has no record to read: its cycle is
  * monthly by definition, its rate is the product's metered one, and it starts
- * the day the commitment ends.
+ * the day after the commitment ends.
  */
 export function UpdatedPlanSection({ subscription, billingPlan }: UpdatedPlanSectionProps) {
   const schedule = planSchedule(useFragment(updatedPlanSectionSubscriptionFragment, subscription));
@@ -51,7 +51,6 @@ export function UpdatedPlanSection({ subscription, billingPlan }: UpdatedPlanSec
   // Metered billing has no period, so `null` asks the catalog for exactly that.
   const paygRate = schedule.paygPrice ?? catalogDeviceRate(products, null);
   const deviceRate = pending ? (pending.price ?? catalogDeviceRate(products, pending.billingPeriod)) : paygRate;
-  const startsOn = pending ? pending.startsOn : schedule.currentPlanEndsOn;
 
   return (
     <SectionBlock title="Updated Plan">
@@ -67,7 +66,9 @@ export function UpdatedPlanSection({ subscription, billingPlan }: UpdatedPlanSec
           value={<MonthlyTokens tokens={freeTokensForPlan(schedule.hasScheduledPackage)} />}
         />
       )}
-      {startsOn && <BillingRow label="Plan Starts on" warning value={<WarningDate iso={startsOn} />} />}
+      {schedule.nextPlanStartsOn && (
+        <BillingRow label="Plan Starts on" warning value={<WarningDate iso={schedule.nextPlanStartsOn} />} />
+      )}
     </SectionBlock>
   );
 }
