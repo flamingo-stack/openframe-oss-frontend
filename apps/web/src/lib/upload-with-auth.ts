@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { clientIdentityHeaders } from './client-identity';
 import { runtimeEnv } from './runtime-config';
+import { isSessionGone, noteGatewayResponse, SessionGoneError } from './session-health';
 import { getAccessTokenSync, isBearerAuthMode } from './token-store';
 import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from './version-check';
 
@@ -9,6 +10,7 @@ import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from './ve
  */
 export async function uploadWithAuth(endpoint: string, file: File, fieldName: string = 'file'): Promise<string> {
   if (isUpdateRequired()) throw new UpdateRequiredError();
+  if (isSessionGone()) throw new SessionGoneError();
 
   const formData = new FormData();
   formData.append(fieldName, file);
@@ -36,6 +38,7 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
   });
 
   if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+  if (noteGatewayResponse(response)) throw new SessionGoneError();
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
@@ -64,6 +67,7 @@ export async function uploadWithAuth(endpoint: string, file: File, fieldName: st
  */
 export async function deleteWithAuth(endpoint: string): Promise<void> {
   if (isUpdateRequired()) throw new UpdateRequiredError();
+  if (isSessionGone()) throw new SessionGoneError();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -90,6 +94,7 @@ export async function deleteWithAuth(endpoint: string): Promise<void> {
   });
 
   if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+  if (noteGatewayResponse(response)) throw new SessionGoneError();
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');

@@ -56,6 +56,7 @@ import { OnboardingProgressHydrator } from './onboarding-progress-hydrator';
 import { OnboardingV2Redirect } from './onboarding-v2-redirect';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
+import { SessionHealthWatcher } from './session-health-watcher';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
@@ -854,6 +855,7 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
           <NativePushInitializer />
           <PresenceHeartbeat />
           <BiometricEnrollPrompt />
+          <SessionHealthWatcher />
         </>
       )}
       {/* Logout confirmation modal — opened from the nav user menu, the Settings
