@@ -10,6 +10,7 @@ import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingAppro
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
+import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
 import {
   type CreateMingoDialogOptions,
   useCreateDialogMutation,
@@ -23,11 +24,14 @@ import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /** Context attached to an outgoing message: the picker selection plus the
  *  current navigation context (resolved by the caller from the context store).
- *  `openView`/`recentViews` carry the minimal `{ type, id }` wire shape. */
+ *  `openView`/`recentViews` carry the minimal `{ type, id }` wire shape;
+ *  `currentPage`/`currentList` are the page the message was sent from. */
 export interface MingoSendContext {
   contextItems?: ChatContextItem[];
   openView?: { type: string; id: string } | null;
   recentViews?: Array<{ type: string; id: string }>;
+  currentPage?: MessagePageRef;
+  currentList?: MessageListRef;
 }
 
 /**
@@ -314,6 +318,8 @@ export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat 
           contextItems: context?.contextItems?.map(i => ({ type: i.type, id: i.id })),
           currentView: context?.openView ?? undefined,
           recentViews: context?.recentViews,
+          currentPage: context?.currentPage,
+          currentList: context?.currentList,
         });
 
         return true;

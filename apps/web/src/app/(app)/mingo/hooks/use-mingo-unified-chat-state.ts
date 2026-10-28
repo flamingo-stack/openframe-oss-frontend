@@ -53,6 +53,7 @@ import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import type { DialogIntent } from '../../tickets/constants';
@@ -62,6 +63,7 @@ import {
   CONTEXT_ITEMS_MAX,
   RECENT_VIEWS_MAX,
 } from '../context/context-types';
+import { pageContextHref, resolvePageContext } from '../context/page-context';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types';
@@ -589,7 +591,11 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // navigation — it only needs the value at send time.
   const buildSendContext = useCallback((options?: UnifiedSendMessageOptions): MingoSendContext => {
     const { openView, recentViews } = useMingoContextStore.getState();
+    // The page the message is about, read from the URL now: under the sheet, the page
+    // beneath it; on the chat page, the page it was opened from.
+    const href = pageContextHref(window.location, useMingoSheetStore.getState().lastPage);
     return {
+      ...resolvePageContext(href, openView),
       // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
       // selection that slipped past the picker's `atLimit` (e.g. the @-mention
       // path) can't 400 the whole message.

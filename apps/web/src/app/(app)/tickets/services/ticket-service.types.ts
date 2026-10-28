@@ -114,6 +114,42 @@ export interface MessageContextRef {
   id: string;
 }
 
+/** The ai-agent's `PageKind`: a closed enum, so a value it does not know rejects the message. */
+export type PageKind = 'HOME' | 'LIST' | 'ENTITY' | 'CHAT_ARCHIVE' | 'NEEDS_APPROVAL' | 'SETTINGS' | 'OTHER';
+
+/** The ai-agent's `ListModule`. */
+export type ListModule =
+  | 'DEVICES'
+  | 'CUSTOMERS'
+  | 'TICKETS'
+  | 'SCRIPTS'
+  | 'SCRIPT_SCHEDULES'
+  | 'POLICIES'
+  | 'QUERIES'
+  | 'INCIDENTS'
+  | 'LOGS'
+  | 'SOFTWARE'
+  | 'VULNERABILITIES'
+  | 'KNOWLEDGE_BASE'
+  | 'CLOUD_TENANTS'
+  | 'TIME_ENTRIES';
+
+/** The page open when the message was sent (`PageViewInput`). */
+export interface MessagePageRef {
+  kind: PageKind;
+  /** The page name as the user sees it, 1-120 chars. */
+  title: string;
+  /** Its sub-view, if any (a Settings tab, an archive), up to 64 chars. */
+  section?: string;
+}
+
+/** The list page open when the message was sent (`ListViewInput`): AND across fields, OR within one. */
+export interface MessageListRef {
+  module: ListModule;
+  filters?: Array<{ field: string; values: string[] }>;
+  search?: string;
+}
+
 export interface SendMessageContext {
   /** Entity-context items the user attached via the composer (max 10). */
   contextItems?: MessageContextRef[];
@@ -121,6 +157,10 @@ export interface SendMessageContext {
   currentView?: MessageContextRef;
   /** Up to 5 previously-open entity views, most-recent-first. */
   recentViews?: MessageContextRef[];
+  /** The page the message was sent from. Admin chats only; a server without the field rejects the message. */
+  currentPage?: MessagePageRef;
+  /** The list on that page, with its filters. */
+  currentList?: MessageListRef;
 }
 
 export interface TicketService {

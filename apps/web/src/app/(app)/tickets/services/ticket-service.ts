@@ -485,7 +485,7 @@ export class TicketService implements TicketServiceInterface {
     chatType: ChatType,
     context?: SendMessageContext,
   ): Promise<void> {
-    const { contextItems, currentView, recentViews } = context ?? {};
+    const { contextItems, currentView, recentViews, currentPage, currentList } = context ?? {};
     await runCommand('sendMessage', SEND_MESSAGE_MUTATION, {
       dialogId,
       content,
@@ -493,6 +493,8 @@ export class TicketService implements TicketServiceInterface {
       ...(contextItems?.length ? { contextItems } : {}),
       ...(currentView ? { currentView } : {}),
       ...(recentViews?.length ? { recentViews } : {}),
+      ...(currentPage ? { currentPage } : {}),
+      ...(currentList ? { currentList } : {}),
     });
   }
 

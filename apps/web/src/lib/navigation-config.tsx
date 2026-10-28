@@ -239,7 +239,29 @@ const NAV_MODULES = {
   settings: { label: 'Settings', icon: Settings02Icon, path: routes.settings.root(), prefixes: ['/settings'] },
 } as const satisfies Record<string, NavModule>;
 
-type NavModuleId = keyof typeof NAV_MODULES;
+export type NavModuleId = keyof typeof NAV_MODULES;
+
+/** A module's name as the Mingo-first (grouped) sidebar shows it. */
+export function navModuleLabel(id: NavModuleId): string {
+  const entry: NavModule = NAV_MODULES[id];
+  return entry.groupedLabel ?? entry.label;
+}
+
+/** The module a page belongs to by its longest prefix, e.g. `/scripts/new` → Scripts. */
+export function navModuleOf(pathname: string): NavModuleId | null {
+  let found: NavModuleId | null = null;
+  let length = 0;
+  for (const [id, entry] of Object.entries(NAV_MODULES) as Array<[NavModuleId, NavModule]>) {
+    for (const prefix of entry.prefixes) {
+      const matches = pathname === prefix || pathname.startsWith(`${prefix}/`);
+      if (matches && prefix.length > length) {
+        found = id;
+        length = prefix.length;
+      }
+    }
+  }
+  return found;
+}
 
 /**
  * Categories the classic sidebar never counted. SOFTWARE was never wired to a row

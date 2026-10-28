@@ -299,6 +299,12 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
   goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
+- **Every message says which page it was sent from**: `currentPage` (kind, name, section) and, on a
+  list, `currentList` (module, the filters and search in its URL), resolved from the URL at send time
+  by `mingo/context/page-context.ts` (the page under the sheet; the page a chat page was opened from).
+  A new page goes into its table, or it reaches Mingo as `OTHER` under its sidebar module's name.
+  `PageKind` and `ListModule` are the ai-agent's closed enums and its input limits reject the whole
+  message, so the resolver clips to `PAGE_CONTEXT_LIMITS`.
 - **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). Every
   chat opens there first: on every page but the chat page, home included, a send, a history row
   or a notification opens the chat over the page instead of leaving it (`useComposerTarget` /
