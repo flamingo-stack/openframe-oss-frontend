@@ -2,6 +2,7 @@
 
 import { type InfiniteData, useInfiniteQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { sessionInterval, sessionPollMeta, sessionRetry } from '@/lib/session-poll';
 import { BOARD_PAGE_SIZE, type BoardColumnState } from '../hooks/use-tickets-board-query';
 import { ticketService } from '../services';
 import type { TicketsPage } from '../services/ticket-service.types';
@@ -90,9 +91,10 @@ export function BoardColumnSubscriber({ statusId, params, onUpdate, registerLoad
       lastPage.pageInfo.hasNextPage ? (lastPage.pageInfo.endCursor ?? undefined) : undefined,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
-    retry: 2,
+    retry: sessionRetry(2),
     retryDelay: 1000,
-    refetchInterval: 15_000,
+    refetchInterval: sessionInterval(15_000),
+    meta: sessionPollMeta,
   });
 
   const { data, isFetchingNextPage, isLoading, error, hasNextPage, fetchNextPage } = query;
