@@ -24,12 +24,14 @@ lockfile without its `libc` fields.
   (`OPENFRAME_BUILD_TARGET=export`) and stages it into the shell's `www/`, so a shell and its
   bundle are always one commit.
 - **Release** is one `.github/workflows/release.yml` (version from `version.yml`): a dispatch
-  publishes the web image as one `x.y.z` release; a push to `main` builds the `latest` image when
-  the web side changed. Its desktop and mobile legs are commented out: the desktop shell is built
-  and released from `openframe-saas-desktop` (the updater reads that repo's releases), and the
-  signed `.ipa`/`.aab` come from the `apps/mobile/scripts/build-*-prod.sh` lanes, uploaded to the
-  stores by hand. PR checks for web and desktop are one `test.yml`, gated per app by paths,
-  behind the required "All Checks".
+  publishes one `x.y.z` release, the web image plus the desktop installers and `updater.json`; a
+  push to `main` builds the `latest` image when the web side changed, and the desktop bundles as
+  workflow artifacts (no release) when `apps/desktop` changed. Installed desktop apps update
+  through the tenant gateway, which serves the release that environment runs;
+  `openframe-saas-desktop`, where the shell was released before, is legacy. The mobile legs are
+  commented out: the signed `.ipa`/`.aab` come from the `apps/mobile/scripts/build-*-prod.sh`
+  lanes, uploaded to the stores by hand. PR checks for web and desktop are one `test.yml`, gated
+  per app by paths, behind the required "All Checks".
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
 
