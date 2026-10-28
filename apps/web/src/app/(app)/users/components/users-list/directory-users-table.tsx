@@ -30,7 +30,7 @@ import {
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
-import { DirectoryReadability, TopAdminState } from '@/generated/schema-enums';
+import { DirectoryReadability, OrgUserSource, TopAdminState } from '@/generated/schema-enums';
 import { getFullImageUrl } from '@/lib/image-url';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
@@ -157,7 +157,8 @@ function toUserRow(node: PersonNode): UserRow {
     href: firstAccount ? routes.users.details(firstAccount.id) : null,
     name: node.displayName,
     email: node.email,
-    providers: node.providers,
+    // A mark says which console the account lives in: none for a user added in OpenFrame (brief).
+    providers: node.providers.filter(source => source !== OrgUserSource.OPENFRAME),
     roleTag: adminAccount ? topAdminRole(node.topAdmin, adminAccount.source) : null,
     service: node.serviceAccount,
     customers: orderClaims(node.customers, node.primaryCustomer?.organizationId).map(claim => ({

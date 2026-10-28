@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Tag,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useLoadingScope,
-} from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FloatingTooltip, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
@@ -114,16 +108,10 @@ function StatusValue({ account }: { account: Account | null }) {
   const loading = useLoadingScope();
   const tag = account ? userStatusTag(account.status) : null;
   const tooltip = account ? userStatusTooltip(account.statusReason, account.statusDetail) : null;
-  const element = <Tag label={tag?.label ?? ''} variant={tag?.variant} loading={loading} />;
-  return tooltip ? (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span>{element}</span>
-      </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
-    </Tooltip>
-  ) : (
-    element
+  return (
+    <FloatingTooltip content={tooltip} disabled={!tooltip} as="span">
+      <Tag label={tag?.label ?? ''} variant={tag?.variant} loading={loading} />
+    </FloatingTooltip>
   );
 }
 

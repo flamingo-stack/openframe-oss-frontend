@@ -2,12 +2,10 @@
 
 import { providerMark } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
+  FloatingTooltip,
   SquareAvatar,
   Tag,
   type TagProps,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -60,14 +58,16 @@ export function UserCell({ row }: { row: UserRow }) {
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xs)]">
       <SquareAvatar alt={name} fallback={name} size="sm" variant="round" loading={loading} />
-      <div className="flex min-w-0 flex-col justify-center">
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
         <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
           <ProviderMarks providers={row.providers ?? []} />
-          <TruncateText>{name}</TruncateText>
-          {row.roleTag && <Tag data-loading-optional label={row.roleTag} variant="grey" className="shrink-0" />}
-          {row.service && <Tag data-loading-optional label="Service" variant="grey" className="shrink-0" />}
+          <TruncateText className={loading ? 'w-32' : undefined} triggerClassName="min-w-24">
+            {name}
+          </TruncateText>
+          {row.roleTag && <Tag data-loading-optional label={row.roleTag} variant="grey" className="min-w-0" />}
+          {row.service && <Tag data-loading-optional label="Service" variant="grey" className="min-w-0" />}
         </div>
-        <TruncateText variant="h6" tone="secondary">
+        <TruncateText variant="h6" tone="secondary" className={loading ? 'w-40' : undefined}>
           {row.email ?? ''}
         </TruncateText>
       </div>
@@ -76,45 +76,37 @@ export function UserCell({ row }: { row: UserRow }) {
 }
 
 export function CustomerCell({ row }: { row: UserRow }) {
+  const loading = useLoadingScope();
   const customers = row.customers ?? [];
   const { first, more } = firstAndCount(customers.map(customer => customer.name));
-  const claims = customers.map(customer => (customer.claim ? `${customer.name} — ${customer.claim}` : customer.name));
   const firstCustomer = customers[0];
-  const name = (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      {firstCustomer && (
-        <SquareAvatar
-          data-loading-optional
-          src={firstCustomer.imageUrl}
-          alt={firstCustomer.name}
-          fallback={firstCustomer.name}
-          size="xs"
-          variant="square"
-        />
-      )}
-      <TruncateText>{first}</TruncateText>
-      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
-    </div>
-  );
   return (
     <div className="flex min-w-0 flex-col justify-center">
-      {claims.length > 0 ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="min-w-0">{name}</div>
-          </TooltipTrigger>
-          <TooltipContent>
-            {claims.map(claim => (
-              <p key={claim}>{claim}</p>
-            ))}
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        name
-      )}
+      <FloatingTooltip
+        disabled={customers.length === 0}
+        triggerClassName="min-w-0"
+        content={customers.map(customer => (
+          <p key={customer.name}>{customer.claim ? `${customer.name} — ${customer.claim}` : customer.name}</p>
+        ))}
+      >
+        <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+          {firstCustomer && (
+            <SquareAvatar
+              data-loading-optional
+              src={firstCustomer.imageUrl}
+              alt={firstCustomer.name}
+              fallback={firstCustomer.name}
+              size="xs"
+              variant="square"
+            />
+          )}
+          <TruncateText loading={loading}>{first}</TruncateText>
+          {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+        </div>
+      </FloatingTooltip>
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
         <ProviderMarks providers={row.tenant ? [row.tenant.provider] : []} />
-        <TruncateText variant="h6" tone="secondary">
+        <TruncateText variant="h6" tone="secondary" loading={loading}>
           {row.tenant?.name ?? 'Added in OpenFrame'}
         </TruncateText>
       </div>
@@ -123,10 +115,11 @@ export function CustomerCell({ row }: { row: UserRow }) {
 }
 
 export function DevicesCell({ row }: { row: UserRow }) {
+  const loading = useLoadingScope();
   const { first, more } = firstAndCount(row.devices ?? []);
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
-      <TruncateText>{row.devices ? first : ''}</TruncateText>
+      <TruncateText loading={loading}>{first}</TruncateText>
       {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
     </div>
   );
@@ -134,21 +127,13 @@ export function DevicesCell({ row }: { row: UserRow }) {
 
 export function StatusCell({ row }: { row: UserRow }) {
   const loading = useLoadingScope();
-  const tag = <Tag label={row.status?.label ?? ''} variant={row.status?.variant} loading={loading} />;
   return (
     <div className="flex min-w-0 flex-col items-start justify-center gap-[var(--spacing-system-xxs)]">
-      {row.statusTooltip ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>{tag}</span>
-          </TooltipTrigger>
-          <TooltipContent>{row.statusTooltip}</TooltipContent>
-        </Tooltip>
-      ) : (
-        tag
-      )}
-      <TruncateText variant="h6" tone="secondary">
-        {row.lastSignIn ? `Last sign-in: ${row.lastSignIn}` : ''}
+      <FloatingTooltip content={row.statusTooltip} disabled={!row.statusTooltip} as="span">
+        <Tag label={row.status?.label ?? ''} variant={row.status?.variant} loading={loading} />
+      </FloatingTooltip>
+      <TruncateText variant="h6" tone="secondary" loading={loading}>
+        {`Last sign-in: ${row.lastSignIn ?? 'Never'}`}
       </TruncateText>
     </div>
   );
