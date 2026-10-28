@@ -10,6 +10,7 @@ import {
   MonitorShieldIcon,
   ShieldCheckIcon,
   TagIcon,
+  UsersIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ComponentType } from 'react';
@@ -24,6 +25,7 @@ import { CustomerDevicesTab } from './customer-devices-tab';
 import { CustomerGuardrailsTab } from './customer-guardrails-tab';
 import { CustomerLogsTab } from './customer-logs-tab';
 import { CustomerTicketsTab } from './customer-tickets-tab';
+import { CustomerUsersTab } from './customer-users-tab';
 import { CustomerWorktimeTab } from './customer-worktime-tab';
 
 export interface CustomerTabProps {
@@ -41,6 +43,10 @@ export interface CustomerTabProps {
 
 function DevicesTab({ organizationId }: CustomerTabProps) {
   return <CustomerDevicesTab organizationId={organizationId} />;
+}
+
+function UsersTab({ organizationId }: CustomerTabProps) {
+  return <CustomerUsersTab organizationId={organizationId} />;
 }
 
 function TicketsTab({ organizationId }: CustomerTabProps) {
@@ -80,9 +86,14 @@ function ArticlesTab({ organizationId }: CustomerTabProps) {
 export const CUSTOM_AI_ASSISTANT_TAB_ID = 'custom-ai-assistant' satisfies CustomerDetailTab;
 export const CUSTOMER_GUARDRAILS_TAB_ID = 'customer-ai-guardrails' satisfies CustomerDetailTab;
 export const CUSTOMER_DEVICE_GUARDRAILS_TAB_ID = 'customer-device-guardrails' satisfies CustomerDetailTab;
+export const CUSTOMER_USERS_TAB_ID = 'users' satisfies CustomerDetailTab;
+
+const DEVICES_TAB: TabItem = { id: 'devices', label: 'Devices', icon: MonitorIcon, component: DevicesTab };
+
+// Second, after Devices (Figma 733:98943). Behind `tenant-management`, SaaS only.
+const USERS_TAB: TabItem = { id: CUSTOMER_USERS_TAB_ID, label: 'Users', icon: UsersIcon, component: UsersTab };
 
 const BASE_CUSTOMER_TABS: TabItem[] = [
-  { id: 'devices', label: 'Devices', icon: MonitorIcon, component: DevicesTab },
   { id: 'tickets', label: 'Tickets', icon: TagIcon, component: TicketsTab },
   { id: 'logs', label: 'Logs', icon: ClipboardListIcon, component: LogsTab },
   { id: 'worktime', label: 'Worktime', icon: ClockHistoryIcon, component: WorktimeTab },
@@ -119,6 +130,8 @@ const ASSIGNED_ARTICLES_TAB: TabItem = {
 
 // Superset used to resolve the active tab's component regardless of visibility.
 const ALL_CUSTOMER_TABS: TabItem[] = [
+  DEVICES_TAB,
+  USERS_TAB,
   ...BASE_CUSTOMER_TABS,
   CUSTOM_AI_ASSISTANT_TAB,
   CUSTOMER_GUARDRAILS_TAB,
@@ -127,6 +140,8 @@ const ALL_CUSTOMER_TABS: TabItem[] = [
 ];
 
 interface CustomerTabsVisibility {
+  /** The customer's directory users (saas-tenant, `tenant-management` gate). */
+  showUsers: boolean;
   /** Customer AI configuration view (saas-tenant: per-org settings live in the saas-ai-agent). */
   showCustomAiAssistant: boolean;
   /** Read-only guardrails view (saas-tenant, same reason). */
@@ -135,12 +150,15 @@ interface CustomerTabsVisibility {
   showDeviceGuardrails: boolean;
 }
 
-/** Tabs shown for a customer — base tabs, the visibility-gated AI tabs, then Assigned Articles. */
+/** Tabs shown for a customer — Devices, Users when gated in, base tabs, the gated AI tabs, then Assigned Articles. */
 export const getCustomerTabs = ({
+  showUsers,
   showCustomAiAssistant,
   showGuardrails,
   showDeviceGuardrails,
 }: CustomerTabsVisibility): TabItem[] => [
+  DEVICES_TAB,
+  ...(showUsers ? [USERS_TAB] : []),
   ...BASE_CUSTOMER_TABS,
   ...(showCustomAiAssistant ? [CUSTOM_AI_ASSISTANT_TAB] : []),
   ...(showGuardrails ? [CUSTOMER_GUARDRAILS_TAB] : []),

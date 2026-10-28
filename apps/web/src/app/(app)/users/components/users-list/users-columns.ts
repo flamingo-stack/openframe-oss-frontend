@@ -9,6 +9,8 @@ const USER_COLUMNS = {
   tenant: { id: 'tenant', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'md' },
   devices: { id: 'devices', header: 'Devices', width: 'flex-1 min-w-0', hideAt: 'lg' },
   status: { id: 'status', header: 'Status', width: 'flex-1 min-w-[7.5rem]' },
+  // A customer's Users tab only (Figma 733:98943), with its funnel.
+  license: { id: 'license', header: 'Licences', width: 'flex-[1.5] min-w-0', hideAt: 'md' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
 

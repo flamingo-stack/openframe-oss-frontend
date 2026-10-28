@@ -31,6 +31,8 @@ export interface UserRow {
   status?: { label: string; variant: TagProps['variant'] };
   statusTooltip?: string | null;
   lastSignIn?: string;
+  /** Product names, one per SKU. */
+  licenses?: readonly string[];
 }
 
 export interface UserRowCustomer {
@@ -117,6 +119,18 @@ export function CustomerCell({ row }: { row: UserRow }) {
 export function DevicesCell({ row }: { row: UserRow }) {
   const loading = useLoadingScope();
   const { first, more } = firstAndCount(row.devices ?? []);
+  return (
+    <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
+      <TruncateText loading={loading}>{first}</TruncateText>
+      {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
+    </div>
+  );
+}
+
+/** "Microsoft 365 E3 +3" (Figma 733:98943): the first licence, the rest counted. */
+export function LicensesCell({ row }: { row: UserRow }) {
+  const loading = useLoadingScope();
+  const { first, more } = firstAndCount(row.licenses ?? []);
   return (
     <div className="flex min-w-0 items-center gap-[var(--spacing-system-xxs)]">
       <TruncateText loading={loading}>{first}</TruncateText>

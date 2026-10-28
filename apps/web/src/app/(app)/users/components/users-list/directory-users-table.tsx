@@ -45,14 +45,24 @@ import {
   userStatusTooltip,
 } from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
-import { CustomerCell, DevicesCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
+import { CustomerCell, DevicesCell, LicensesCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
 import { USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
 import type { UserSelections } from './users-filter';
 
-/** Every user of every connected tenant, one row per person (contract §1, `directoryUsers` without a customer). */
+/**
+ * One row per person (contract §1): without a customer, every user of every connected tenant; with one, the people
+ * that customer's rules claim.
+ */
 const directoryUsersTableQuery = graphql`
-  query directoryUsersTableQuery($filter: DirectoryUserFilterInput, $search: String, $first: Int!, $after: String) {
-    ...directoryUsersTable_query @arguments(filter: $filter, search: $search, first: $first, after: $after)
+  query directoryUsersTableQuery(
+    $organizationId: ID
+    $filter: DirectoryUserFilterInput
+    $search: String
+    $first: Int!
+    $after: String
+  ) {
+    ...directoryUsersTable_query
+      @arguments(organizationId: $organizationId, filter: $filter, search: $search, first: $first, after: $after)
   }
 `;
 
@@ -61,12 +71,13 @@ const directoryUsersTableFragment = graphql`
   fragment directoryUsersTable_query on Query
   @refetchable(queryName: "directoryUsersTablePaginationQuery")
   @argumentDefinitions(
+    organizationId: { type: "ID" }
     filter: { type: "DirectoryUserFilterInput" }
     search: { type: "String" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    directoryUsers(filter: $filter, search: $search, first: $first, after: $after)
+    directoryUsers(organizationId: $organizationId, filter: $filter, search: $search, first: $first, after: $after)
       @connection(key: "directoryUsersTable_directoryUsers") {
       totalCount
       edges {
@@ -79,6 +90,9 @@ const directoryUsersTableFragment = graphql`
           topAdmin
           serviceAccount
           lastSignInAt
+          licenses {
+            name
+          }
           primaryCustomer {
             organizationId
           }
@@ -178,10 +192,15 @@ function toUserRow(node: PersonNode): UserRow {
     status: userStatusTag(node.status),
     statusTooltip: statusAccount ? userStatusTooltip(statusAccount.statusReason, statusAccount.statusDetail) : null,
     lastSignIn: lastSignInLabel(node.lastSignInAt, signInData, 'relative'),
+    licenses: node.licenses.map(license => license.name),
   };
 }
 
-function buildColumns(options: UserFilterOptions): ColumnDef<UserRow>[] {
+/**
+ * The columns. The global page (Figma 733:99047) names the customer and narrows by tenant; a customer's Users tab
+ * (733:98943) is already one customer, so it shows the licences instead and narrows by them.
+ */
+function buildColumns(options: UserFilterOptions, customerScoped: boolean): ColumnDef<UserRow>[] {
   return [
     {
       id: USER_COLUMNS.user.id,
@@ -190,14 +209,18 @@ function buildColumns(options: UserFilterOptions): ColumnDef<UserRow>[] {
       enableSorting: false,
       meta: liveColumnMeta(USER_COLUMNS.user),
     },
-    {
-      id: USER_COLUMNS.tenant.id,
-      header: USER_COLUMNS.tenant.header,
-      cell: ({ row }: { row: Row<UserRow> }) => <CustomerCell row={row.original} />,
-      enableSorting: false,
-      filterFn: multiSelectFilterFn,
-      meta: liveColumnMeta(USER_COLUMNS.tenant, { filter: { options: options.tenants } }),
-    },
+    ...(customerScoped
+      ? []
+      : [
+          {
+            id: USER_COLUMNS.tenant.id,
+            header: USER_COLUMNS.tenant.header,
+            cell: ({ row }: { row: Row<UserRow> }) => <CustomerCell row={row.original} />,
+            enableSorting: false,
+            filterFn: multiSelectFilterFn,
+            meta: liveColumnMeta(USER_COLUMNS.tenant, { filter: { options: options.tenants } }),
+          },
+        ]),
     {
       id: USER_COLUMNS.devices.id,
       header: USER_COLUMNS.devices.header,
@@ -213,6 +236,18 @@ function buildColumns(options: UserFilterOptions): ColumnDef<UserRow>[] {
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(USER_COLUMNS.status, { filter: { options: options.statuses } }),
     },
+    ...(customerScoped
+      ? [
+          {
+            id: USER_COLUMNS.license.id,
+            header: USER_COLUMNS.license.header,
+            cell: ({ row }: { row: Row<UserRow> }) => <LicensesCell row={row.original} />,
+            enableSorting: false,
+            filterFn: multiSelectFilterFn,
+            meta: liveColumnMeta(USER_COLUMNS.license, { filter: { options: options.licenses } }),
+          },
+        ]
+      : []),
     {
       id: USER_COLUMNS.open.id,
       cell: ({ row }: { row: Row<UserRow> }) => {
@@ -230,6 +265,8 @@ const getRowId = (row: UserRow) => row.id;
 const rowHref = (row: UserRow) => row.href ?? null;
 
 interface DirectoryUsersTableProps {
+  /** The customer whose users these are (its Users tab); absent on the global Users page. */
+  organizationId?: string;
   /** Deferred funnel selection — feeds the queries (lags the live funnels during a refetch). */
   backendFilters: DirectoryUserFilterInput | null;
   debouncedSearch: string;
@@ -243,7 +280,7 @@ interface DirectoryUsersTableProps {
   stickyHeaderOffset: string;
 }
 
-const UNREAD_FILTER_OPTIONS: UserFilterOptions = { tenants: [], statuses: [] };
+const UNREAD_FILTER_OPTIONS: UserFilterOptions = { tenants: [], statuses: [], licenses: [] };
 
 /** The Users rows, with their own boundary; in its scope the reader draws placeholder rows and does not fetch. */
 export function DirectoryUsersTable(props: DirectoryUsersTableProps) {
@@ -270,11 +307,17 @@ function DirectoryUsersTableReader(props: DirectoryUsersTableProps) {
 }
 
 function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
-  const { backendFilters, debouncedSearch } = props;
+  const { organizationId, backendFilters, debouncedSearch } = props;
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<DirectoryUsersTableQueryType>(
     directoryUsersTableQuery,
-    { filter: backendFilters, search: debouncedSearch || null, first: USERS_PAGE_SIZE, after: null },
+    {
+      organizationId: organizationId ?? null,
+      filter: backendFilters,
+      search: debouncedSearch || null,
+      first: USERS_PAGE_SIZE,
+      after: null,
+    },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -284,7 +327,7 @@ function DirectoryUsersTableQuery(props: DirectoryUsersTableProps) {
 
   const { edges, totalCount } = data.directoryUsers;
   const rows = useMemo(() => edges.map(edge => toUserRow(edge.node)), [edges]);
-  const filterOptions = useUserFilters(debouncedSearch, backendFilters);
+  const filterOptions = useUserFilters(organizationId, debouncedSearch, backendFilters);
 
   const fetchNextPage = () => {
     if (hasNext && !isLoadingNext) loadNext(USERS_PAGE_SIZE);
@@ -314,6 +357,7 @@ function UsersRows({
   totalCount,
   filterOptions,
   infiniteScroll,
+  organizationId,
   backendFilters,
   debouncedSearch,
   selections,
@@ -328,7 +372,7 @@ function UsersRows({
 
   const table = useDataTable<UserRow>({
     data: placeholderRows ?? (rows as UserRow[]),
-    columns: buildColumns(filterOptions),
+    columns: buildColumns(filterOptions, !!organizationId),
     getRowId,
     enableSorting: false,
     state: { columnFilters },
@@ -347,7 +391,12 @@ function UsersRows({
       <EmptyState
         icon={<UsersIcon />}
         title="No users yet"
-        description="Users of your connected Microsoft 365 and Google Workspace tenants will be listed here."
+        description={
+          organizationId
+            ? // Figma 733:98943's empty frame.
+              'This customer’s users will appear here.'
+            : 'Users of your connected Microsoft 365 and Google Workspace tenants will be listed here.'
+        }
       />
     );
   }

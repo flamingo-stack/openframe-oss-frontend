@@ -18,6 +18,7 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
+import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remote-access-approval-gate';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { getFullImageUrl } from '@/lib/image-url';
@@ -33,6 +34,7 @@ import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
   CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
   CUSTOMER_GUARDRAILS_TAB_ID,
+  CUSTOMER_USERS_TAB_ID,
   getCustomerTabComponent,
   getCustomerTabs,
 } from './details-tabs/customer-tabs';
@@ -81,14 +83,20 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const deviceGuardrailsGate = useRemoteAccessApprovalGate();
   const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
   const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
+  // Directory users: the same tri-state treatment, and SaaS only — the flag is never on for an OSS tenant, which
+  // must not see the tab while the flag reads.
+  const usersGate = useTenantManagementGate();
+  const usersGateLoading = usersGate === 'loading';
+  const showUsers = isSaasTenant && usersGate !== 'off';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
+        showUsers,
         showCustomAiAssistant: isSaasTenant,
         showGuardrails: isSaasTenant,
         showDeviceGuardrails,
       }),
-    [isSaasTenant, showDeviceGuardrails],
+    [showUsers, isSaasTenant, showDeviceGuardrails],
   );
   const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
 
@@ -236,7 +244,12 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
         >
           <TabNavigation tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
             {tab => (
-              <LoadingWhen loading={tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading}>
+              <LoadingWhen
+                loading={
+                  (tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading) ||
+                  (tab === CUSTOMER_USERS_TAB_ID && usersGateLoading)
+                }
+              >
                 <TabContent
                   activeTab={tab}
                   TabComponent={getCustomerTabComponent(tab)}
