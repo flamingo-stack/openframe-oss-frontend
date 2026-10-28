@@ -5,11 +5,11 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
+import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { FLEET_SEARCH_DEBOUNCE_MS } from './fleet-list-paging';
-import { SoftwareSearchToolbar } from './software-search-toolbar';
 import { type ServerSortInput, useServerSort } from './use-server-sort';
 
 /** Every funnel's selection, keyed by its column id. */
@@ -169,7 +169,7 @@ export function SoftwareListFrame({
   return (
     <div className={cn('flex flex-col', className)} style={containerStyle}>
       {!isEmpty && (
-        <SoftwareSearchToolbar
+        <SearchToolbar
           toolbarRef={toolbarRef}
           placeholder={placeholder}
           value={searchInput}

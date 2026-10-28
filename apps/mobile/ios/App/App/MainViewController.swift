@@ -7,10 +7,19 @@ import WebKit
 class MainViewController: CAPBridgeViewController {
     /// Held for the controller's lifetime — see `restoreContentInsetAfterFullscreen`.
     private var fullscreenObservation: NSKeyValueObservation?
+    /// The web view's `uiDelegate` is weak; this keeps the router alive.
+    private var newWindowRouter: NewWindowRouter?
 
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(NativeAuthPlugin())
         bridge?.registerPluginInstance(NativeFilesPlugin())
+        let externalLinks = ExternalLinksPlugin()
+        bridge?.registerPluginInstance(externalLinks)
+        if let webView, let capacitorUIDelegate = webView.uiDelegate {
+            let router = NewWindowRouter(forwardingTo: capacitorUIDelegate, externalLinks: externalLinks)
+            webView.uiDelegate = router
+            newWindowRouter = router
+        }
         // The notification delegate lives in AppDelegate; from here on it can hand
         // taps to the Firebase plugin (and drains any it buffered meanwhile).
         if let bridge {

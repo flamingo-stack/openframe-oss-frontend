@@ -3,11 +3,11 @@
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useState } from 'react';
+import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
-import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
 import { SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilitiesTable } from './software-vulnerabilities-table';
@@ -66,7 +66,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
   return (
     <div className="flex flex-col pt-[var(--spacing-system-l)]" style={containerStyle}>
       {!isEmpty && (
-        <SoftwareSearchToolbar
+        <SearchToolbar
           toolbarRef={toolbarRef}
           placeholder="Search for Vulnerability"
           value={searchInput}

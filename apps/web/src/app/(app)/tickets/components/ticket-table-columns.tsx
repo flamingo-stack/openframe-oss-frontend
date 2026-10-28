@@ -316,7 +316,7 @@ export function TicketTableBody(props: TicketTableBodyProps) {
   } = props;
   // A paged list draws its page size, a list read whole its typical count (`LiveTableRows`).
   const rows = props.skeletonRows === undefined ? { pageSize: props.pageSize } : { skeletonRows: props.skeletonRows };
-  const { isUserDeleted } = useUserStatusMap();
+  const { isUserDeleted } = useUserStatusMap(tickets.map(ticket => ticket.assignedTo));
   const sortable = !!onSortChange;
 
   const columns = useMemo<ColumnDef<Dialog>[]>(() => {

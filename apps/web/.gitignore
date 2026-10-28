@@ -37,3 +37,6 @@ src/generated/
 
 # Claude
 **/.claude/
+
+# eslint --cache (npm run lint)
+.eslintcache

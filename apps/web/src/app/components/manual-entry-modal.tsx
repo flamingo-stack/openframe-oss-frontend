@@ -18,7 +18,8 @@ import { z } from 'zod';
 import type { createTimeEntryMutation as CreateTimeEntryMutationType } from '@/__generated__/createTimeEntryMutation.graphql';
 import type { updateTimeEntryMutation as UpdateTimeEntryMutationType } from '@/__generated__/updateTimeEntryMutation.graphql';
 import { avatarStartAdornment, renderAvatarOption } from '@/app/(app)/tickets/components/avatar-autocomplete';
-import { type AvatarOption, useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
+import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
+import type { AvatarOption } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useTicketCustomerSelection } from '@/app/components/use-ticket-customer-selection';
 import { createTimeEntryMutation } from '@/graphql/time-tracker/create-time-entry-mutation';
@@ -71,7 +72,7 @@ function AssignedUserField({
   // The pre-selected user (create default or edited entry's user)
   seedOption?: AvatarOption;
 }) {
-  const { options, isLoading } = useAssigneeOptions();
+  const { options, isLoading, onSearchChange } = useAssigneeOptions({ selectedIds: [value] });
   const mergedOptions = useMemo(() => {
     if (!seedOption || options.some(option => option.value === seedOption.value)) return options;
     return [seedOption, ...options];
@@ -85,7 +86,9 @@ function AssignedUserField({
         value={selected ? value : null}
         onChange={onChange}
         options={mergedOptions}
+        onInputChange={onSearchChange}
         loading={isLoading}
+        disableClientFilter
         startAdornment={avatarStartAdornment(selected, 'round')}
         renderOption={renderUserOption}
       />

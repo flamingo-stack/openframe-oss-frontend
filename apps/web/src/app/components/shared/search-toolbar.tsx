@@ -3,7 +3,7 @@
 import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
 
-interface SoftwareSearchToolbarProps {
+interface SearchToolbarProps {
   /** `useStickyToolbar`'s ref — the table's sticky header is measured off this bar. */
   toolbarRef: (node: HTMLDivElement | null) => void;
   placeholder: string;
@@ -13,14 +13,8 @@ interface SoftwareSearchToolbarProps {
   disabled?: boolean;
 }
 
-/** The search bar pinned above a Software table. */
-export function SoftwareSearchToolbar({
-  toolbarRef,
-  placeholder,
-  value,
-  onChange,
-  disabled,
-}: SoftwareSearchToolbarProps) {
+/** The search bar pinned above a list page's table. */
+export function SearchToolbar({ toolbarRef, placeholder, value, onChange, disabled }: SearchToolbarProps) {
   return (
     <div
       ref={toolbarRef}
