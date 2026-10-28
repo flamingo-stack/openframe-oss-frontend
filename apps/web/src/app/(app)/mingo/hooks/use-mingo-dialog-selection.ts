@@ -16,6 +16,7 @@ import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
 import { featureFlags } from '@/lib/feature-flags';
+import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import type { ApprovalStatus } from '../../tickets/constants';
 import { APPROVAL_STATUS, ASSISTANT_CONFIG, CHAT_TYPE, MESSAGE_TYPE } from '../../tickets/constants';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
@@ -216,7 +217,8 @@ export function useMingoDialogSelection() {
     enabled: !!activeDialogId,
     // A missing dialog is settled; retrying it only delays the message by the length
     // of the backoff (~8s), during which the panel looks like an ordinary empty chat.
-    retry: (failureCount, error) => error.message !== MINGO_DIALOG_NOT_FOUND && failureCount < 3,
+    retry: sessionRetry((failureCount, error) => error.message !== MINGO_DIALOG_NOT_FOUND && failureCount < 3),
+    meta: sessionPollMeta,
     staleTime: 30 * 1000,
     // The only source of `streamState` (no chunk carries it), so polled while
     // STREAMING; off while idle. Also polls while the composer is busy WITHOUT
@@ -225,6 +227,7 @@ export function useMingoDialogSelection() {
     // Additionally polls a fresh title-less dialog until the async-generated
     // title lands (see isAwaitingGeneratedTitle).
     refetchInterval: query => {
+      if (!sessionPollsAllowed()) return false;
       if (query.state.data?.streamState === 'STREAMING' || suspiciousBusyRef.current) return 15_000;
       if (query.state.data && isAwaitingGeneratedTitle(query.state.data)) return TITLE_POLL_INTERVAL_MS;
       return false;
