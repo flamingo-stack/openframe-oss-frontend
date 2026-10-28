@@ -155,8 +155,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NatsAppProvider>
                 <BiometricLockBoundary>
                   <FeatureFlagsLoader>
-                    <NotificationsDataProvider>
-                      <AgentIdentities>
+                    {/* Above the notifications: their popups render beside `children`,
+                        and a Mingo tile draws the agent's mark. */}
+                    <AgentIdentities>
+                      <NotificationsDataProvider>
                         <RouteGuard>
                           {/* No app-wide Suspense boundary around `children` — the one
                             that used to be here drew `AppShellSkeleton`, and with the
@@ -169,8 +171,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                             <div className="relative flex min-h-screen flex-col">{children}</div>
                           </DevicesViewConfig>
                         </RouteGuard>
-                      </AgentIdentities>
-                    </NotificationsDataProvider>
+                      </NotificationsDataProvider>
+                    </AgentIdentities>
                   </FeatureFlagsLoader>
                 </BiometricLockBoundary>
               </NatsAppProvider>
