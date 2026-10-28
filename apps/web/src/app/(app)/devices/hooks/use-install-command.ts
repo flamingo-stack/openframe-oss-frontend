@@ -12,6 +12,7 @@ import {
   buildRemoteAccessModeArgs,
   newDownloadMachineId,
 } from '../utils/device-command-utils';
+import { useAgentLogKey } from './use-agent-log-key';
 import { useRegistrationSecret } from './use-registration-secret';
 
 interface UseInstallCommandOptions {
@@ -110,6 +111,9 @@ export function useInstallCommand({
   remoteAccessMode = null,
 }: UseInstallCommandOptions) {
   const { initialKey } = useRegistrationSecret();
+  // Unlike the install key, nothing waits for it: a command copied before it
+  // arrives still enrolls the device (see useAgentLogKey).
+  const logKey = useAgentLogKey();
   // Installing user, so registration can associate the device with whoever ran
   // the command. Populated from /api/me by useAuthSession; optional in the
   // command because the store hydrates a beat after mount.
@@ -143,13 +147,25 @@ export function useInstallCommand({
         platform,
         serverUrl,
         initialKey,
+        logKey,
         orgId: organizationId,
         downloadBaseUrl,
         machineId: hydrated ? machineId : '',
         userId,
         additionalArgs,
       }),
-    [initialKey, additionalArgs, platform, organizationId, serverUrl, downloadBaseUrl, hydrated, machineId, userId],
+    [
+      initialKey,
+      logKey,
+      additionalArgs,
+      platform,
+      organizationId,
+      serverUrl,
+      downloadBaseUrl,
+      hydrated,
+      machineId,
+      userId,
+    ],
   );
 
   // Step 2 of the package-manager install flow (step 1 installs the binary, so
@@ -160,11 +176,12 @@ export function useInstallCommand({
         platform,
         serverUrl,
         initialKey,
+        logKey,
         orgId: organizationId,
         userId,
         additionalArgs,
       }),
-    [initialKey, additionalArgs, platform, organizationId, serverUrl, userId],
+    [initialKey, logKey, additionalArgs, platform, organizationId, serverUrl, userId],
   );
 
   return { command, registerCommand, initialKey, rotateMachineId };
