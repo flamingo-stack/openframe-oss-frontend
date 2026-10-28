@@ -68,13 +68,17 @@ windows = { version = "0.61", features = [
 windows-core = "0.61"
 winreg = "0.52"
 
+# clock_gettime for tokens::boot_secs — the clock that counts suspend
+# (CLOCK_MONOTONIC on macOS, CLOCK_BOOTTIME on Linux) — and, on macOS, statfs(2)
+# to tell a read-only mount (App Translocation, a disk image) apart.
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+libc = "0.2"
+
 # UNUserNotificationCenter backend (clicks survive the process, unlike the
 # deprecated NSUserNotificationCenter path), plus the NSWorkspace wake
 # notification the token refresh hangs off.
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
-# statfs(2), to tell a read-only mount (App Translocation, a disk image) apart.
-libc = "0.2"
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSWorkspace"] }
 objc2-foundation = { version = "0.3.2", features = [

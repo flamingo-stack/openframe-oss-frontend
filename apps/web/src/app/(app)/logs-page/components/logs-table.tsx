@@ -15,6 +15,7 @@ import {
 import {
   type DateFilterResult,
   type DateRange,
+  LoadError,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -37,6 +38,7 @@ import type {
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
 import {
+  ContentErrorBoundary,
   DateColumnHeader,
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
@@ -54,6 +56,7 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { LOGS_PAGE_SIZE } from '../hooks/use-logs';
 import { LogCopyButton } from './log-copy-button';
@@ -192,6 +195,8 @@ interface LogsTableContentProps {
 }
 
 const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
+
+const LOAD_ERROR_MESSAGE = "Couldn't load logs.";
 
 const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
 
@@ -340,6 +345,10 @@ function LogsTableContentLive({
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     onRefreshRef.current = resetToFirstPage;
+    // A failed query unmounts this reader under the error boundary: leave no refetch behind for a refresh to call.
+    return () => {
+      onRefreshRef.current = null;
+    };
   });
 
   const transformedLogs: LogRow[] = useMemo(() => {
@@ -566,34 +575,60 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
   // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: it draws its own loading rows.
   const scoped = useLoadingScope();
 
+  const className = embedded ? EMBEDDED_PAGE_OFFSET : undefined;
+
+  // The boundary is here, not at each call site: the device Overview and customer Logs tabs embed this table with
+  // nothing around it, so a failed query used to reach the route boundary and take the whole details page down.
+  // A different query (the device, a filter restored from history) clears it.
+  const queryKey = JSON.stringify([backendFilters, sort, debouncedSearch]);
+
   return (
-    <LogsPageView
-      onRefresh={handleRefresh}
-      showHeader={showHeader}
-      className={embedded ? EMBEDDED_PAGE_OFFSET : undefined}
-      // The search toolbar sits outside the Suspense boundary so it keeps focus
-      // across re-queries, and hides while the empty state is shown.
-      search={searchInput}
-      onSearchChange={setSearchInput}
-      hideSearch={isEmpty}
-      onOpenFilters={() => setMobileFilterOpen(true)}
+    <ContentErrorBoundary
+      label="LogsTable"
+      resetKey={queryKey}
+      // The failed state keeps the header, with Refresh as the retry, and drops the search toolbar: its filter button
+      // would open the table's modal, which went down with the table.
+      fallback={(retry, { isOffline }) => (
+        <LogsPageView
+          onRefresh={retry}
+          showHeader={showHeader}
+          className={className}
+          search={searchInput}
+          onSearchChange={setSearchInput}
+          hideSearch
+        >
+          <LoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, retry)} />
+        </LogsPageView>
+      )}
     >
-      <LogsTableContent
-        scoped={scoped}
-        deviceScoped={deviceScoped}
-        organizationLocked={Boolean(organizationId)}
-        backendFilters={backendFilters}
-        sort={sort}
-        dateFilter={dateFilter}
-        debouncedSearch={debouncedSearch}
-        tableFilters={tableFilters}
-        onFilterChange={handleFilterChange}
-        onRefreshRef={refreshRef}
-        onEmptyChange={setIsEmpty}
-        mobileFilterOpen={mobileFilterOpen}
-        onMobileFilterClose={() => setMobileFilterOpen(false)}
-      />
-    </LogsPageView>
+      <LogsPageView
+        onRefresh={handleRefresh}
+        showHeader={showHeader}
+        className={className}
+        // The search toolbar sits outside the Suspense boundary so it keeps focus
+        // across re-queries, and hides while the empty state is shown.
+        search={searchInput}
+        onSearchChange={setSearchInput}
+        hideSearch={isEmpty}
+        onOpenFilters={() => setMobileFilterOpen(true)}
+      >
+        <LogsTableContent
+          scoped={scoped}
+          deviceScoped={deviceScoped}
+          organizationLocked={Boolean(organizationId)}
+          backendFilters={backendFilters}
+          sort={sort}
+          dateFilter={dateFilter}
+          debouncedSearch={debouncedSearch}
+          tableFilters={tableFilters}
+          onFilterChange={handleFilterChange}
+          onRefreshRef={refreshRef}
+          onEmptyChange={setIsEmpty}
+          mobileFilterOpen={mobileFilterOpen}
+          onMobileFilterClose={() => setMobileFilterOpen(false)}
+        />
+      </LogsPageView>
+    </ContentErrorBoundary>
   );
 });
 LogsTable.displayName = 'LogsTable';
