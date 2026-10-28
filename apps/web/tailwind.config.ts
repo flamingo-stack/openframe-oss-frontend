@@ -1,5 +1,5 @@
-import openframeCorePreset from '@flamingo-stack/openframe-frontend-core/tailwind.config.ts';
 import { appStyleSources } from '@flamingo-stack/openframe-frontend-core/style-sources';
+import openframeCorePreset from '@flamingo-stack/openframe-frontend-core/tailwind.config.ts';
 import type { Config } from 'tailwindcss';
 import tailwindcssAnimate from 'tailwindcss-animate';
 
