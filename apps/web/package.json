@@ -34,7 +34,8 @@
     "lint:types": "NODE_OPTIONS=--max-old-space-size=8192 eslint . --config eslint.types.mjs --no-cache --max-warnings 0",
     "lint:cycles": "eslint . --config eslint.cycles.mjs --no-cache --max-warnings 0",
     "lint:ci": "eslint . --no-cache --config eslint.ci.mjs --max-warnings 0",
-    "check:loading": "node scripts/check-page-skeletons.mjs"
+    "check:loading": "node scripts/check-page-skeletons.mjs",
+    "css:budget:check": "node node_modules/@flamingo-stack/openframe-frontend-core/dist/build/next-styles.cjs budget --input src/app/globals.css --config tailwind.config.ts --budget 35000 --name web"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

@@ -1036,6 +1036,13 @@ from the installed package. Edit the rules in the core lib, not here:
 
 **Tailwind preset:** ODS colors/utilities are provided via the core library's Tailwind preset (see `tailwind.config.ts`).
 
+**The stylesheet is inside each page's HTML, and small** (the lib's `style-sources` and `next-styles`, shared with
+the hub). Tailwind's `content` is what the routes import (`appStyleSources`), never a directory or the lib's
+`dist`. `next.config.mjs` wraps the config in `withInlineStyles`, so a page paints without a second request for its
+stylesheet (production builds and the static export; `next dev` keeps links). Every page then carries the sheet,
+so `npm run css:budget:check` (CI, Unit Test job) fails over its brotli budget: over budget means a route imports
+something it does not render; raise the budget in `package.json` only with the reason.
+
 ### Content Area Breakpoints (page content follows its own width)
 
 With flag `mingo-v2` Mingo is docked into `AppLayout` as a resizable right column (`sidePanel`,
