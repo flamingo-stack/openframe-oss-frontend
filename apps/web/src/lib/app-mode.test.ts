@@ -79,13 +79,13 @@ describe('the mode allowlist in saas-shared mode', () => {
   });
 });
 
-/** Where `/` lands: a SaaS tenant's home is Mingo's, an OSS tenant's the dashboard. */
+/** Where `/` lands: the dashboard, the Mingo-first shell's on a SaaS tenant. */
 describe('the default landing page', () => {
   afterEach(() => setEnv('NEXT_PUBLIC_APP_MODE', undefined));
 
-  it("is Mingo's home on a SaaS tenant", () => {
+  it('is the dashboard on a SaaS tenant', () => {
     setEnv('NEXT_PUBLIC_APP_MODE', 'saas-tenant');
-    expect(getDefaultRedirectPath(true)).toBe('/mingo');
+    expect(getDefaultRedirectPath(true)).toBe('/dashboard');
   });
 
   it('is the dashboard on an OSS tenant, once signed in', () => {

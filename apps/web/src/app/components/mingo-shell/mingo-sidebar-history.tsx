@@ -156,6 +156,8 @@ export function MingoSidebarHistory() {
         isLoadingMore={loading && state.dialogs.length > 0}
         isLoadingHistory={loading && state.dialogs.length === 0}
         onLoadMore={() => void loadMoreDialogs()}
+        // A page (20) at a time, on "Show more" at the end of the list.
+        loadMore="button"
         loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
         onRetry={state.reloadDialogs}
       />

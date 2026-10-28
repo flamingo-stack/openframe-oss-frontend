@@ -306,8 +306,8 @@ interface NavGroup {
 
 /**
  * The Mingo-first sidebar (Figma `navigation-sidebar`, node 3741:24946): four groups,
- * then Knowledge Base as the last primary row. No Dashboard — the Mingo home replaces
- * it — and no bottom block: Help Center and Settings live in the account menu
+ * then Knowledge Base as the last primary row. No Dashboard — it is one of the Mingo
+ * rows above the tree (`MingoSidebarRows`) — and no bottom block: Help Center and Settings live in the account menu
  * (`MingoAccountPopover`), so the chat history below the tree gets the height (PLAN
  * §3.6, revised after the browser pass).
  */

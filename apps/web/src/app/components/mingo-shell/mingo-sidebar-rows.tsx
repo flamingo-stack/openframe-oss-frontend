@@ -1,6 +1,10 @@
 'use client';
 
-import { PlusCircleIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  ChartDonutIcon,
+  PlusCircleIcon,
+  ShieldCheckIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { NavigationSidebarActionRow } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { usePathname } from 'next/navigation';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
@@ -17,18 +21,18 @@ interface MingoSidebarRowsProps {
 
 /**
  * The Mingo rows on top of the Mingo-first sidebar (`topSlot`), above the module tree:
- * "New chat" and "Needs approval", as the lib's sidebar action rows (the nav row's
- * geometry, active pill and 99+ count pill; a dot in the rail). Not nav entries — New
+ * "New chat", "Dashboard" and "Needs approval", as the lib's sidebar action rows (the nav
+ * row's geometry, active pill and 99+ count pill; a dot in the rail). Not nav entries — New
  * chat is an action — so they live in the slot rather than in `items`, and render in the
  * phone drawer too, where acting on one closes it (the layout closes it on a navigation,
- * which New chat on home and Needs approval on its own page are not).
+ * which New chat on home and a row on its own page are not).
  */
 export function MingoSidebarRows({ minimized, disabled }: MingoSidebarRowsProps) {
   const pathname = usePathname();
   const pendingApprovals = usePendingApprovalCount();
-  const onApprovals = pathname === routes.approvals || (pathname?.startsWith(`${routes.approvals}/`) ?? false);
+  const on = (path: string) => pathname === path || (pathname?.startsWith(`${path}/`) ?? false);
 
-  // "New chat": Mingo's home with a new, empty chat. Through the dock, which goes home
+  // "New chat": Mingo's home, a new, empty chat. Through the dock, which goes home
   // first and resets the chat there: reset here, the chat page still on screen would
   // draw the empty new chat until the navigation lands.
   const startNewChat = () => {
@@ -47,10 +51,19 @@ export function MingoSidebarRows({ minimized, disabled }: MingoSidebarRowsProps)
         disabled={disabled}
       />
       <NavigationSidebarActionRow
+        icon={<ChartDonutIcon />}
+        label="Dashboard"
+        href={routes.dashboard}
+        active={on(routes.dashboard)}
+        minimized={minimized}
+        onClick={closeMobileMenu}
+        disabled={disabled}
+      />
+      <NavigationSidebarActionRow
         icon={<ShieldCheckIcon />}
         label="Needs approval"
         href={routes.approvals}
-        active={onApprovals}
+        active={on(routes.approvals)}
         count={pendingApprovals}
         minimized={minimized}
         onClick={closeMobileMenu}

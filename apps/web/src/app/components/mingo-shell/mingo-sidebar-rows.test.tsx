@@ -1,7 +1,8 @@
 /**
  * The Mingo rows on top of the Mingo-first sidebar are the lib's action rows: "New chat"
- * (outline) asks the dock for a new chat on home, "Needs approval" links to its page with
- * the pending count and the active pill there. Both close the phone drawer they may sit in.
+ * (outline) asks the dock for a new chat on home, "Dashboard" links to the dashboard,
+ * "Needs approval" to its page with the pending count, each with the active pill on its
+ * page. All close the phone drawer they may sit in.
  */
 
 import type { NavigationSidebarActionRowProps } from '@flamingo-stack/openframe-frontend-core/components/navigation';
@@ -38,7 +39,7 @@ function render(props: { minimized?: boolean; disabled?: boolean } = {}) {
     if (!row) throw new Error(`no "${label}" row`);
     return row;
   };
-  return { newChat: byLabel('New chat'), approvals: byLabel('Needs approval') };
+  return { newChat: byLabel('New chat'), dashboard: byLabel('Dashboard'), approvals: byLabel('Needs approval') };
 }
 
 beforeEach(() => {
@@ -72,6 +73,15 @@ describe('MingoSidebarRows', () => {
     expect(render().approvals.active).toBe(true);
   });
 
+  it('puts Dashboard between New chat and Needs approval, lit on the dashboard', () => {
+    nav.pathname = '/dashboard/';
+    const { dashboard } = render();
+
+    expect(rows.map(row => row.label)).toEqual(['New chat', 'Dashboard', 'Needs approval']);
+    expect(dashboard).toMatchObject({ href: routes.dashboard, active: true });
+    expect(render().approvals.active).toBe(false);
+  });
+
   it('asks the dock for a new chat (it goes home first) and closes the phone drawer', () => {
     nav.pathname = routes.mingo.chat('d-1');
     const { newChat } = render();
@@ -92,9 +102,10 @@ describe('MingoSidebarRows', () => {
     expect(useMobileMenuStore.getState().open).toBe(false);
   });
 
-  it('disables both rows behind the lock', () => {
-    const { newChat, approvals } = render({ disabled: true });
+  it('disables every row behind the lock', () => {
+    const { newChat, dashboard, approvals } = render({ disabled: true });
     expect(newChat.disabled).toBe(true);
+    expect(dashboard.disabled).toBe(true);
     expect(approvals.disabled).toBe(true);
   });
 });

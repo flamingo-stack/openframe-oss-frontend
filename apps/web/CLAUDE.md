@@ -256,7 +256,7 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). An OSS tenant's home; a SaaS tenant forwards both to `/mingo`, whose home carries the same sections
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where a login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: greeting, Needs you, the same sections) and `/onboarding` forwards to `/mingo`
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
 - **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`, Schedules under `/scripts/schedules/*` (not feature-flagged)
@@ -275,7 +275,9 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 
 ### Mingo-first Shell (SaaS tenants)
 
-A SaaS tenant opens on Mingo (`/mingo`), chats are pages, and the composer is docked under every page.
+A SaaS tenant lands on its dashboard (`/dashboard`), "New chat" opens Mingo's home (`/mingo`: the greeting
+over the composer, its quick actions and "What to ask Mingo?"), chats are pages, and the composer is docked under
+every page.
 An OSS tenant has no Mingo and keeps the dashboard shell (flat sidebar, desktop header, onboarding).
 There is no switch between the two: `AppShell` picks by `isSaasTenantMode()`, known before the first
 paint, so nothing waits for a flag and no page shows a loader on the way.
@@ -332,10 +334,10 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   tour's conversation and follows it. The dock runs `useMingoTour` UNDER
   `useComposerTarget`: its Getting Started block stays above the composer on every page
   while the tour's chat is open, and a step chip opens its section with Mingo's answer in the
-  sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; Mingo's home shows the intro
-  banner above its sections, as the dashboard does.
+  sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; the dashboard shows the intro
+  banner above its sections.
 - **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
-  history, account popover); Mingo's home in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`
+  history, account popover); Mingo's home and the dashboard in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`
   and `components/approvals/`.
 
 ### Project Structure

@@ -2,58 +2,38 @@
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { NotificationTile } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ShieldCheckIcon, TagIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { type ApprovalCard, composeApprovalInbox } from '@/app/components/approvals/approval-inbox';
 import { useApprovalDecider } from '@/app/components/approvals/use-approval-decider';
 import { type SourceStatus, useApprovalSources } from '@/app/components/approvals/use-approval-sources';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
-import { routes } from '@/lib/routes';
 import { ApprovalRequestCard } from './approval-request-card';
 
 const TITLE = 'Needs approval';
 const SUBTITLE =
   'Actions Mingo prepared and tickets handed to a technician. Nothing runs on a device until someone approves it.';
 const LIST_LABEL = 'Approval requests';
+const TICKETS_LABEL = 'Tickets waiting for a technician';
 const EMPTY_TITLE = 'Nothing needs approval';
 const EMPTY_TEXT =
   'When Mingo prepares an action on a device, in a chat or a ticket, it waits here for someone to approve it.';
 
 /**
- * Needs approval (`/approvals`), a page of the Mingo-first shell: one list of the approval
- * requests the user can decide, whatever raised them — a Mingo chat or a ticket — loading
- * its next page as it scrolls. Composition and dedupe: `approval-inbox.ts`; the decision
- * and how it reaches the drawer, the chat and the board: `use-approval-decider.ts`.
+ * Needs approval (`/approvals`), a page of the Mingo-first shell: the approval requests the
+ * user can decide, in two sections — the ones Mingo raised in a chat, then the tickets
+ * handed to a technician (Tech Required) that wait on one — loading the next page as it
+ * scrolls. Composition and dedupe: `approval-inbox.ts`; the decision and how it reaches
+ * the drawer, the chat and the board: `use-approval-decider.ts`.
  */
 export function ApprovalsView() {
-  const { sources, status, techRequiredStatusId } = useApprovalSources();
+  const { sources, status } = useApprovalSources();
   const { kept, decide, complete } = useApprovalDecider();
   const inbox = composeApprovalInbox(sources, kept);
 
-  // The tickets waiting on a technician, on the board (SaaS: OSS has no tickets).
-  const boardHref = techRequiredStatusId
-    ? routes.tickets.filtered({ status: [techRequiredStatusId], viewMode: 'board' })
-    : null;
-
   return (
-    <PageLayout
-      title={TITLE}
-      subtitle={SUBTITLE}
-      actions={
-        boardHref
-          ? [
-              {
-                label: 'Open board',
-                href: boardHref,
-                variant: 'outline',
-                icon: <TagIcon className="h-5 w-5 text-ods-text-secondary" />,
-              },
-            ]
-          : undefined
-      }
-      className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
-    >
+    <PageLayout title={TITLE} subtitle={SUBTITLE} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
       <ApprovalList cards={inbox.cards} status={status} onDecide={decide} onComplete={complete} />
     </PageLayout>
   );
@@ -88,15 +68,18 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
   return (
     <div className="flex flex-col gap-[var(--spacing-system-sf)]">
       {status.error && <SectionLoadError message={status.error.message} onRetry={status.error.onRetry} />}
-      {cards.length > 0 && (
-        <ul aria-label={LIST_LABEL} className="flex flex-col gap-[var(--spacing-system-sf)]">
-          {cards.map(card => (
-            <li key={card.approvalRequestId}>
-              <ApprovalRequestCard card={card} onDecide={onDecide} onComplete={onComplete} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <ApprovalSection
+        label={LIST_LABEL}
+        cards={cards.filter(card => card.ticketId === null)}
+        onDecide={onDecide}
+        onComplete={onComplete}
+      />
+      <ApprovalSection
+        label={TICKETS_LABEL}
+        cards={cards.filter(card => card.ticketId !== null)}
+        onDecide={onDecide}
+        onComplete={onComplete}
+      />
       {(searching || status.isLoadingMore) && (
         <div className="flex flex-col gap-[var(--spacing-system-sf)]" aria-busy aria-label={`Loading ${LIST_LABEL}`}>
           <NotificationTile loading variant="approval" />
@@ -109,5 +92,31 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
       )}
       {status.hasMore && <div ref={sentinelRef} className="h-px" aria-hidden />}
     </div>
+  );
+}
+
+interface ApprovalSectionProps {
+  label: string;
+  cards: ApprovalCard[];
+  onDecide: (card: ApprovalCard, approve: boolean) => Promise<void>;
+  onComplete: (card: ApprovalCard) => void;
+}
+
+/** One kind of request under its name and count; nothing while it has none. */
+function ApprovalSection({ label, cards, onDecide, onComplete }: ApprovalSectionProps) {
+  if (cards.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-[var(--spacing-system-xsf)]">
+      <h2 className="text-ods-text-secondary text-h5">
+        {label} · {cards.length}
+      </h2>
+      <ul aria-label={label} className="flex flex-col gap-[var(--spacing-system-sf)]">
+        {cards.map(card => (
+          <li key={card.approvalRequestId}>
+            <ApprovalRequestCard card={card} onDecide={onDecide} onComplete={onComplete} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

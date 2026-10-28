@@ -1,12 +1,7 @@
 'use client';
 
 import { ChatContextChipStrip } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import {
-  BoxArchiveIcon,
-  IdCardIcon,
-  PlusIcon,
-  ShieldCheckIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { BoxArchiveIcon, PlusIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
@@ -23,7 +18,6 @@ const ASK_HINT = 'Ask Mingo about this page';
 
 /** Mingo's own pages have no sidebar module to take an icon from. */
 const NAMED_PAGE_ICONS: Record<string, ReactNode> = {
-  [routes.mingo.home]: <IdCardIcon />,
   [routes.mingo.archive]: <BoxArchiveIcon />,
   [routes.approvals]: <ShieldCheckIcon />,
 };
@@ -50,9 +44,10 @@ interface PageChipActions {
  * "SETTINGS", and on an entity's page the entity the page shows ("CUSTOMER: DEFAULT",
  * the `openView` every message carries as `currentView`). A click asks Mingo for an
  * overview of the page. The entity's × takes it out of Mingo's context, as the memory
- * strip's dropdown does; the page itself is always sent, so its chip has none. Home
- * adds "+ Add context", the composer's picker. Not on the chat page: its messages are
- * about the page it was opened from, which is not on screen.
+ * strip's dropdown does; the page itself is always sent, so its chip has none. Mingo's
+ * home, a new chat, is no page to ask about: it has "+ Add context" (the composer's
+ * picker) alone. Not on the chat page: its messages are about the page it was opened
+ * from, which is not on screen.
  */
 export function usePageChip(route: ComposerRoute, { onAsk, onAddContext }: PageChipActions): ReactNode {
   const pathname = usePathname();
@@ -62,11 +57,21 @@ export function usePageChip(route: ComposerRoute, { onAsk, onAddContext }: PageC
   const entityTypes = useMingoContextEntityTypes();
 
   if (!canShowSheet(route) || pathname === null) return null;
+  if (route === 'home') {
+    return (
+      <ChatContextChipStrip
+        items={[{ type: 'ADD_CONTEXT', id: 'add-context', label: 'Add context' }]}
+        resolveIcon={() => <PlusIcon />}
+        onSelect={onAddContext}
+        className="shrink-0"
+      />
+    );
+  }
   const ask = () => onAsk(PAGE_OVERVIEW_PROMPT);
 
   // A kind behind a module flag that is off is not one Mingo is offered: the page's own chip.
   const kind = openView ? entityTypes.find(type => type.type === openView.type) : undefined;
-  if (openView && kind && route !== 'home') {
+  if (openView && kind) {
     return (
       <ChatContextChipStrip
         items={[{ type: openView.type, id: openView.id, label: `${kind.label}: ${openView.label}` }]}
@@ -82,22 +87,12 @@ export function usePageChip(route: ComposerRoute, { onAsk, onAddContext }: PageC
   const href = search ? `${pathname}?${search}` : pathname;
   const { currentPage } = resolvePageContext(href, null);
   return (
-    <>
-      <ChatContextChipStrip
-        items={[{ type: 'PAGE', id: pathname, label: currentPage.title }]}
-        resolveIcon={() => pageIcon(pathname)}
-        onSelect={ask}
-        selectHint={ASK_HINT}
-        className="min-w-0 shrink"
-      />
-      {route === 'home' && (
-        <ChatContextChipStrip
-          items={[{ type: 'ADD_CONTEXT', id: 'add-context', label: 'Add context' }]}
-          resolveIcon={() => <PlusIcon />}
-          onSelect={onAddContext}
-          className="shrink-0"
-        />
-      )}
-    </>
+    <ChatContextChipStrip
+      items={[{ type: 'PAGE', id: pathname, label: currentPage.title }]}
+      resolveIcon={() => pageIcon(pathname)}
+      onSelect={ask}
+      selectHint={ASK_HINT}
+      className="min-w-0 shrink"
+    />
   );
 }

@@ -9,7 +9,8 @@ const MACBOOK = { type: 'DEVICE' as const, id: 'm-1', label: 'MacBook' };
 
 describe('resolvePageContext', () => {
   it("names Mingo's own pages", () => {
-    expect(resolvePageContext('/mingo/', null)).toEqual({ currentPage: { kind: 'HOME', title: 'Home' } });
+    expect(resolvePageContext('/dashboard/', null)).toEqual({ currentPage: { kind: 'HOME', title: 'Dashboard' } });
+    expect(resolvePageContext('/mingo/', null)).toEqual({ currentPage: { kind: 'HOME', title: 'New chat' } });
     expect(resolvePageContext('/mingo/archive/', null).currentPage).toEqual({
       kind: 'CHAT_ARCHIVE',
       title: 'Chat Archive',

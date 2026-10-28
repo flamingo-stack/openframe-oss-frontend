@@ -90,6 +90,8 @@ describe('usePageChip', () => {
     expect(container.textContent).toBe('Needs approval|');
     render('page', '/mingo/archive/');
     expect(container.textContent).toBe('Chat Archive|');
+    render('page', '/dashboard/');
+    expect(container.textContent).toBe('Dashboard|');
   });
 
   it('asks Mingo for an overview of the page on a click', () => {
@@ -103,9 +105,10 @@ describe('usePageChip', () => {
     expect(lastStrip()?.onRemove).toBeUndefined();
   });
 
-  it('adds "Add context" on home, which opens the picker', () => {
+  it('has only "Add context" on a new chat, which opens the picker', () => {
+    useMingoContextStore.setState({ openView: { type: 'DEVICE', id: 'd-1', label: 'MacBook' } });
     render('home', '/mingo/');
-    expect(container.textContent).toBe('Home|Add context|');
+    expect(container.textContent).toBe('Add context|');
     act(() => clickChip());
     expect(onAddContext).toHaveBeenCalled();
     expect(onAsk).not.toHaveBeenCalled();

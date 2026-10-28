@@ -261,7 +261,7 @@ const buttonIn = (element: Element | null, label: string) =>
   [...(element?.querySelectorAll('button') ?? [])].find(button => button.textContent === label) ?? null;
 
 describe('ApprovalsView', () => {
-  it('lists every request once, the tickets still waiting on a technician among them, without tabs', async () => {
+  it("lists every request once, in two sections: Mingo's, then the tickets waiting on a technician", async () => {
     server.dialogs = [
       mingoChat('d-1', 'ar-1', '2026-10-16T10:00:00Z'),
       mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z'),
@@ -278,11 +278,22 @@ describe('ApprovalsView', () => {
     // The badge is the server's count of waiting chats and waiting tickets.
     expect(badge()).toBe(4);
 
-    const boardLink = [...container.querySelectorAll('a')].find(link => link.textContent === 'Open board');
-    expect(boardLink?.getAttribute('href')).toBe(routes.tickets.filtered({ status: ['s-tech'], viewMode: 'board' }));
+    // Mingo's requests, then the tickets waiting for a technician, each under its count.
+    const sections = [...container.querySelectorAll('section')].map(section => ({
+      heading: section.querySelector('h2')?.textContent,
+      cards: section.querySelectorAll('ul[aria-label] > li').length,
+    }));
+    expect(sections).toEqual([
+      { heading: 'Approval requests · 2', cards: 2 },
+      { heading: 'Tickets waiting for a technician · 1', cards: 1 },
+    ]);
+    expect(cardTitled('LAPTOP-7 · Acme')?.closest('section')?.querySelector('h2')?.textContent).toBe(
+      'Tickets waiting for a technician · 1',
+    );
+    expect([...container.querySelectorAll('a')].some(link => link.textContent === 'Open board')).toBe(false);
   });
 
-  it('has no tickets and no board, and asks the chat service nothing, outside SaaS', async () => {
+  it('has no tickets, and asks the chat service nothing, outside SaaS', async () => {
     server.saas = false;
     server.dialogs = [mingoChat('d-2', 'ar-2', '2026-10-16T09:00:00Z')];
     server.tickets = [techTicket('t-5', 'ar-t5')];
@@ -291,7 +302,7 @@ describe('ApprovalsView', () => {
     await renderPage([approvalNotification]);
 
     expect(cards()).toHaveLength(1);
-    expect([...container.querySelectorAll('a')].some(link => link.textContent === 'Open board')).toBe(false);
+    expect(container.textContent).not.toContain('Tickets waiting for a technician');
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(badge()).toBe(0);
   });

@@ -65,9 +65,9 @@ export function isBareChromeRoute(pathname: string | null): boolean {
 }
 
 /**
- * Where a login lands - the dashboard, and Mingo's home, which takes its place in
- * the Mingo-first shell (`/dashboard` forwards there). The pages the onboarding
- * redirect moves away from; nothing deeper.
+ * Where a session starts - the dashboard (where a login lands), and Mingo's home (a new
+ * chat, where the Mingo-first shell's setup ends). The pages the onboarding redirect
+ * moves away from; nothing deeper.
  */
 export function isLandingRoute(pathname: string | null): boolean {
   return pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/mingo' || pathname === '/mingo/';

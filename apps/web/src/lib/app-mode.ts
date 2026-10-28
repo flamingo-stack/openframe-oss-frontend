@@ -185,8 +185,8 @@ export function getDefaultRedirectPath(isAuthenticated: boolean): string {
     if (isAppShell() && !isAuthenticated) {
       return '/auth';
     }
-    // App-only: send users to the app landing (no auth pages) — Mingo's home.
-    return routes.mingo.home;
+    // App-only: send users to the app landing (no auth pages) — the Mingo-first dashboard.
+    return routes.dashboard;
   }
 
   // oss-tenant: auth + app

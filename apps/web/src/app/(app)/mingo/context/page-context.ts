@@ -82,7 +82,9 @@ const ENTITY_PAGES: Record<string, ContextEntityKind> = {
 
 /** Pages that are neither a list nor an entity, by the name their page shows. */
 const NAMED_PAGES: Record<string, MessagePageRef> = {
-  [routes.mingo.home]: { kind: 'HOME', title: 'Home' },
+  [routes.dashboard]: { kind: 'HOME', title: 'Dashboard' },
+  // A new chat: about the whole workspace, as the dashboard is.
+  [routes.mingo.home]: { kind: 'HOME', title: 'New chat' },
   [routes.mingo.archive]: { kind: 'CHAT_ARCHIVE', title: 'Chat Archive' },
   [routes.approvals]: { kind: 'NEEDS_APPROVAL', title: 'Needs approval' },
   [routes.notifications()]: { kind: 'OTHER', title: 'Notifications' },

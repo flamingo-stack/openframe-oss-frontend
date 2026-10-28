@@ -12,6 +12,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
+import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
 import { useSetupPending } from '@/app/(app)/setup/hooks/use-setup-pending';
@@ -248,7 +249,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // The wizard renders without the chrome - unless the workspace is locked, in
   // which case the lock screen takes `<main>` inside the usual (disabled) chrome.
   const bareChrome = onboardingV2 === 'on' && !showLockContent && isBareChromeRoute(pathname);
-  // The landing page (the dashboard, or Mingo's home) waits for the same answer the
+  // The landing pages (the dashboard, Mingo's home) wait for the same answer the
   // redirect acts on, so a session bound for `/setup` never sees a frame of it.
   // Bounded like the chrome's own wait: a progress request that never settles
   // releases the page, and the redirect still fires if the answer lands later.
@@ -656,9 +657,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       {showLockContent ? (
         <SubscriptionLockContent />
       ) : dashboardHeld ? (
-        <LoadingFallback label="Loading dashboard">
-          <DashboardOverviews />
-        </LoadingFallback>
+        composerRouteOf(pathname) === 'home' ? (
+          // A new chat: its greeting, nothing that loads.
+          <MingoNewChat />
+        ) : (
+          <LoadingFallback label="Loading dashboard">
+            <DashboardOverviews />
+          </LoadingFallback>
+        )
       ) : (
         children
       )}

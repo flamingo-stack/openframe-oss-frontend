@@ -1,7 +1,8 @@
 /**
  * The routes that exist in one app mode resolve themselves in the other: a SaaS
- * tenant's home is Mingo's (the dashboard and the tour forward to it), and an OSS
- * tenant has no Mingo (its pages forward to the dashboard, approvals to notifications).
+ * tenant's dashboard is the Mingo-first shell's (the tour forwards to Mingo's home, a new
+ * chat), and an OSS tenant has no Mingo (its pages forward to the dashboard, approvals to
+ * notifications).
  * App mode is synchronous, so nothing waits and nothing draws a loader.
  */
 
@@ -31,7 +32,8 @@ vi.mock('@/lib/app-mode', async importOriginal => ({
 }));
 vi.mock('@/app/(app)/dashboard/components/dashboard-content', () => ({ default: () => <p>dashboard</p> }));
 vi.mock('@/app/(app)/onboarding/components/onboarding-content', () => ({ OnboardingContent: () => <p>tour</p> }));
-vi.mock('@/app/(app)/mingo/home/mingo-home', () => ({ MingoHome: () => <p>mingo home</p> }));
+vi.mock('@/app/(app)/mingo/home/mingo-new-chat', () => ({ MingoNewChat: () => <p>new chat</p> }));
+vi.mock('@/app/(app)/mingo/home/mingo-dashboard', () => ({ MingoDashboard: () => <p>mingo dashboard</p> }));
 vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
   MingoChatView: ({ dialogId }: { dialogId: string }) => <p>chat {dialogId}</p>,
 }));
@@ -67,7 +69,7 @@ function renderAt(url: string, Page: ComponentType, saas: boolean) {
 describe('a SaaS tenant', () => {
   it('renders the Mingo pages', () => {
     renderAt('/mingo', MingoHomePage, true);
-    expect(container.textContent).toBe('mingo home');
+    expect(container.textContent).toBe('new chat');
     renderAt(`/mingo/chat?id=${RAW}`, MingoChatPage, true);
     expect(container.textContent).toBe(`chat ${RAW}`);
     renderAt('/mingo/archive', MingoArchivePage, true);
@@ -77,10 +79,10 @@ describe('a SaaS tenant', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it('forwards the dashboard to Mingo home, query and fragment kept, drawing nothing', () => {
-    renderAt('/dashboard?mingoDialog=d-1#top', Dashboard, true);
-    expect(container.textContent).toBe('');
-    expect(replace).toHaveBeenCalledWith('/mingo?mingoDialog=d-1#top');
+  it("renders the Mingo-first shell's dashboard, where a login lands", () => {
+    renderAt('/dashboard', Dashboard, true);
+    expect(container.textContent).toBe('mingo dashboard');
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('forwards the tour to Mingo home', () => {

@@ -1,5 +1,5 @@
 /**
- * Mingo's home: what it renders (greeting, "Needs you", the dashboard's sections — Tickets
+ * The Mingo-first dashboard: what it renders (greeting, "Needs you", the dashboard's sections — Tickets
  * on SaaS only, with filtered links, Incidents between Tickets and Customers). The quick
  * actions are the dock's (`mingo-dock-quick-actions.test.tsx`).
  */
@@ -7,7 +7,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MingoHome } from './mingo-home';
+import { MingoDashboard } from './mingo-dashboard';
 
 const { isSaas, setup } = vi.hoisted(() => ({ isSaas: { value: true }, setup: { active: false } }));
 
@@ -68,11 +68,11 @@ afterEach(() => {
 
 async function renderHome() {
   await act(async () => {
-    root.render(<MingoHome />);
+    root.render(<MingoDashboard />);
   });
 }
 
-describe('MingoHome', () => {
+describe('MingoDashboard', () => {
   it('greets by first name and part of the day', async () => {
     await renderHome();
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
@@ -105,7 +105,7 @@ describe('MingoHome', () => {
     expect(container.textContent).toContain('devices section');
   });
 
-  it('carries no quick actions or "What to ask Mingo?" of its own: the dock holds the chips', async () => {
+  it('carries no quick actions or "What to ask Mingo?": they are the new chat\'s', async () => {
     await renderHome();
     expect(container.querySelector('[aria-label="Quick actions"]')).toBeNull();
     expect(container.textContent).not.toContain('What to ask Mingo?');

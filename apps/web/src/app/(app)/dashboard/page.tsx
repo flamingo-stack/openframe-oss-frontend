@@ -1,18 +1,11 @@
 'use client';
 
-import { useAppModeRedirect } from '@/app/hooks/use-app-mode-redirect';
+import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
 import { isSaasTenantMode } from '@/lib/app-mode';
-import { routes } from '@/lib/routes';
 import DashboardContent from './components/dashboard-content';
 
-/**
- * An OSS tenant's home. A SaaS tenant's home is Mingo's, with the same sections, so
- * there this forwards to it, query and fragment kept (old links land here).
- */
+/** Where a login lands: an OSS tenant's dashboard, or the Mingo-first shell's on a SaaS tenant. */
 export default function Dashboard() {
-  const mingoHome = isSaasTenantMode();
-  useAppModeRedirect(mingoHome ? routes.mingo.home : null, { carryLocation: true });
-
-  if (mingoHome) return null;
+  if (isSaasTenantMode()) return <MingoDashboard />;
   return <DashboardContent />;
 }
