@@ -7,6 +7,7 @@ import type { deviceOverageBlock_subscription$key } from '@/__generated__/device
 import { formatCurrency } from '@/lib/format-currency';
 import { formatDate } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
+import { BillingRow } from '../shared/billing-section';
 import { deviceAllocation } from '../shared/device-allocation';
 
 const deviceOverageBlockFragment = graphql`
@@ -28,16 +29,6 @@ interface DeviceOverageBlockProps {
   subscription: deviceOverageBlock_subscription$key;
   /** Opens the plan change; `null` on a build that changes nothing. */
   onUpgrade: (() => void) | null;
-}
-
-/** One figure of an overage, stated above what it counts. */
-function OverageStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="flex flex-col">
-      <p className="text-ods-text-primary text-h4">{value}</p>
-      <p className="text-ods-text-secondary text-h6">{label}</p>
-    </div>
-  );
 }
 
 /**
@@ -86,17 +77,12 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
           </Button>
         )}
       </div>
-      {/* Figure over label, side by side — not the label-dash-value rows of the
-          plan blocks. These are read together as the size of one problem, and a
-          row layout buries each number at the end of its own line. */}
-      <div className="flex flex-wrap gap-[var(--spacing-system-xl)] p-[var(--spacing-system-m)]">
-        <OverageStat value={`${formatCount(device.overage)} Devices`} label="Device Overage" />
-        <OverageStat
-          value={`${formatCount(device.usedAgainstLimit)}/${formatCount(device.allocation)}`}
-          label="Used / Limit"
-        />
-        {estimatedOverage != null && <OverageStat value={formatCurrency(estimatedOverage)} label="Overage Payment" />}
-        {nextBilling && <OverageStat value={formatDate(nextBilling)} label="Next Billing" />}
+      {/* The plan blocks' rows, as the design has them. Used / Limit is the
+          Device Usage card's, right above. */}
+      <div className="flex flex-col gap-[var(--spacing-system-sf)] p-[var(--spacing-system-m)]">
+        <BillingRow label="Device Overage" value={formatCount(device.overage)} />
+        {estimatedOverage != null && <BillingRow label="Overage Payment" value={formatCurrency(estimatedOverage)} />}
+        {nextBilling && <BillingRow label="Next Billing" value={formatDate(nextBilling)} />}
       </div>
       {/* After an in-period upgrade the overage is two parts, and the page has to
           add up to the bill: what froze at the upgrade, and what is over the

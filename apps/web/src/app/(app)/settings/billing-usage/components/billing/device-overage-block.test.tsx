@@ -90,8 +90,8 @@ describe('DeviceOverageBlock', () => {
     const text = render(subscription(OVER, 'ACTIVE'));
 
     expect(text).toContain('billed at pay-as-you-go rates');
-    expect(text).toContain(`${formatCurrency(62)}Overage Payment`);
-    expect(text).toContain(`${formatDate(PERIOD_END)}Next Billing`);
+    expect(text).toContain(`Overage Payment${formatCurrency(62)}`);
+    expect(text).toContain(`Next Billing${formatDate(PERIOD_END)}`);
     expect(upgradeButton()).toBeDefined();
   });
 
@@ -114,8 +114,8 @@ describe('DeviceOverageBlock', () => {
     );
 
     expect(text).toContain(OFF_TEXT);
-    expect(text).toContain(`${formatCurrency(31)}Overage Payment`);
-    expect(text).toContain(`${formatDate(PERIOD_END)}Next Billing`);
+    expect(text).toContain(`Overage Payment${formatCurrency(31)}`);
+    expect(text).toContain(`Next Billing${formatDate(PERIOD_END)}`);
     expect(upgradeButton()).toBeUndefined();
   });
 
