@@ -73,6 +73,14 @@ describe('cloudTenantManagement', () => {
   });
 });
 
+describe('users', () => {
+  it('builds the list and puts the account id in `?id=` on the user page', () => {
+    expect(routes.users.list).toBe('/users');
+    expect(routes.users.details('acc-1')).toBe('/users/details?id=acc-1');
+    expect(routes.users.details('acc-1', { tab: 'details' })).toBe('/users/details?id=acc-1&tab=details');
+  });
+});
+
 describe('auth.error', () => {
   it('carries the reference as `ref` and nothing else', () => {
     // The page resolves `ref` through the auth server; there is no `error=<text>` form any more.

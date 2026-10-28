@@ -543,6 +543,10 @@ input DeviceFilterInput {
   organizationIds: [String!]
   tagKeys: [String!]
   tagValues: [String!]
+
+  # CONTRACT v0.2
+  knownTo: [DirectoryKnownTo!]
+  userLinks: [DirectoryUserLink!]
 }
 
 type DeviceFilterOption {
@@ -5950,6 +5954,10 @@ input UpdateDirectoryConnectionInput {
   any URL already issued: follow with startDirectoryConsent to mint a new one.
   """
   domain: String
+
+  # CONTRACT v0.2
+  "Turn the write opt-in on or off. true without write consent is a userError."
+  writeEnabled: Boolean
 }
 
 input UpdateInsightNoteInput {
@@ -6497,4 +6505,552 @@ type DirectoryConsentIssue {
 
   """What happened and what to do, in plain words."""
   message: String!
+}
+
+# ---------------------------------------------------------------------------------------------------------------
+# Directory users, groups and devices: CONTRACT v0.2 (Agreed 2026-10-28), merged by hand until the backend deploys
+# its waves. Replace with npm run fetch-schema once W1 is on an environment; anything that drifted fails to compile.
+# saas-api part:
+extend type Query {
+  """
+  One row per person (accounts merged by lower-cased primary email). Without organizationId: every user of every
+  connection of the MSP plus OpenFrame users, unattributed users included (global Users page). With it: the
+  people that customer's rules claim. Deprovisioned accounts are left out unless filter.statuses names DEPROVISIONED.
+  Default order NAME ascending.
+  """
+  directoryUsers(organizationId: ID, search: String, filter: DirectoryUserFilterInput,
+                 orderBy: DirectoryUserOrderInput, first: Int, after: String): DirectoryPersonConnection!
+
+  "Facet counts for the Users filter menus, counted in persons; same scope, search and filter semantics as directoryUsers."
+  directoryUserFilters(organizationId: ID, search: String, filter: DirectoryUserFilterInput): DirectoryUserFilters!
+
+  """
+  The person that owns this account (an account id, as in DirectoryAccount.id), with that account selected. With
+  organizationId the account must be visible to that customer. Null when not found or not visible.
+  """
+  directoryUser(id: ID!, organizationId: ID): DirectoryPerson
+
+  "W2. Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
+  directoryGroups(organizationId: ID!, connectionId: ID, search: String,
+                  orderBy: DirectoryGroupOrderInput, first: Int, after: String): DirectoryGroupConnection!
+
+  "W2. One group. With organizationId the group must touch that customer. Null when not found or not visible."
+  directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
+
+  "W3. Directory data of one agent machine: linked users and one card per linked directory record."
+  deviceDirectory(machineId: ID!): DeviceDirectory!
+
+  "W3. Devices only a directory knows (no agent machine linked), for the customer or for the whole MSP."
+  directoryUnmanagedDeviceCount(organizationId: ID): Int!
+}
+
+extend type Mutation {
+  "W2. Edit one account: provider fields (only those in editableFields) and local fields."
+  updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
+  "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
+  setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
+  "W3. Link a directory record to the machine it suggested by hostname. Records who and when."
+  confirmDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
+  "W3. Drop the hostname suggestion; that machine is never suggested for the record again."
+  rejectDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
+}
+
+# ---------- Users ----------
+
+input DirectoryUserFilterInput {
+  "Tenant block: connections to include."
+  connectionIds: [ID!]
+  "Tenant block: include OpenFrame (manually created) users."
+  includeOpenFrame: Boolean
+  "Default: every status but DEPROVISIONED."
+  statuses: [OrgUserStatus!]
+  topAdmin: [TopAdminState!]
+  lastSignIn: [LastSignInBucket!]
+  "SKU ids, the same ids as DirectoryLicense.id."
+  skuIds: [String!]
+  "Holds no license."
+  noLicense: Boolean
+  secondFactor: [SecondFactorState!]
+  "The 'Unused licenses' preset: holds a license and no sign-in for 45+ days, on accounts whose sign-in data is READ."
+  unusedLicenses: Boolean
+}
+
+input DirectoryUserOrderInput { field: DirectoryUserSortField!, direction: SortDirection! }
+enum DirectoryUserSortField { NAME LAST_SIGN_IN STATUS }
+
+type DirectoryUserFilters {
+  "Connections, plus value OPENFRAME for OpenFrame users."
+  tenants: [DirectoryFilterOption!]!
+  statuses: [DirectoryFilterOption!]!
+  topAdmin: [DirectoryFilterOption!]!
+  lastSignIn: [DirectoryFilterOption!]!
+  "One option per SKU (value = SKU id, label = product name) plus value NO_LICENSE."
+  licenses: [DirectoryFilterOption!]!
+  secondFactor: [DirectoryFilterOption!]!
+  "Persons the Unused licenses preset matches under the current search and filters."
+  unusedLicenses: Int!
+  "Persons left out of the preset because their tenant returns no sign-in data (Needs Entra ID P1). Provisional (P9)."
+  unusedLicensesNotReadable: Int!
+}
+
+"Shape identical to DirectoryConnectionFilterOption (#4233), which stays as it is."
+type DirectoryFilterOption {
+  "The value to send back in the matching filter input."
+  value: String!
+  label: String!
+  "Rows this option matches under the current search and the other filters."
+  count: Int!
+}
+
+type DirectoryPersonConnection {
+  edges: [DirectoryPersonEdge!]!
+  pageInfo: CursorPageInfo!
+  "Persons, not accounts."
+  totalCount: Int!
+}
+
+type DirectoryPersonEdge { cursor: String!, node: DirectoryPerson! }
+
+"""
+One person: every account sharing a primary email (OpenFrame, Microsoft 365, Google Workspace). Row-level values are
+merged over the accounts; each account keeps its own under accounts.
+"""
+type DirectoryPerson {
+  "Stable key of the person: the lower-cased primary email, or the account id when the account has no email."
+  personKey: ID!
+  "From the first account in the order OPENFRAME, MICROSOFT_365, GOOGLE_WORKSPACE."
+  displayName: String!
+  email: String
+  "Provider marks under the name."
+  providers: [OrgUserSource!]!
+  "The most active over the accounts: ACTIVE > PROVISIONED > SUSPENDED > DEPROVISIONED."
+  status: OrgUserStatus!
+  "Every customer that claims any account, each with the rule that brought it in, in rule order. Empty when unattributed."
+  customers: [DirectoryCustomerClaim!]!
+  "Provisional (P2). The stored choice when several customers claim the person; null while undecided."
+  primaryCustomer: Organization
+  primaryCustomerState: PrimaryCustomerState!
+  "YES when any account holds the top admin role."
+  topAdmin: TopAdminState!
+  "ENROLLED when any account is enrolled."
+  secondFactor: SecondFactorState!
+  "The latest over the accounts."
+  lastSignInAt: Instant
+  "Union over the accounts, one entry per SKU."
+  licenses: [DirectoryUserLicense!]!
+  "Set when the person has an account with SERVICE set. Provisional (P6)."
+  serviceAccount: Boolean!
+  "Every account of the person. directoryUser puts the requested account first."
+  accounts: [DirectoryAccount!]!
+}
+
+type DirectoryCustomerClaim {
+  organization: Organization!
+  """
+  The rule of that customer that claims the account (the first one, in rule order). Null for an OpenFrame account:
+  it belongs to its customer directly.
+  """
+  rule: DirectoryConnectionRule
+  "Display name of the matched value: the group name, the domain or the org-unit path; null for ALL and for OpenFrame accounts."
+  via: String
+}
+
+enum PrimaryCustomerState { SINGLE CHOSEN UNDECIDED }
+
+"""
+One account of one person in one source. A new type rather than OrgUser, so OrgUser keeps its non-null
+organizationId (the global Users page has no organization to report).
+"""
+type DirectoryAccount {
+  "The org_users id; the same id as OrgUser.id."
+  id: ID!
+  source: OrgUserSource!
+  "Provider object id (Graph user id / Google user id); a generated id for OPENFRAME accounts."
+  sourceId: String
+  "Null for OPENFRAME accounts."
+  connection: DirectoryConnection
+  email: String
+  displayName: String!
+  firstName: String
+  lastName: String
+  status: OrgUserStatus!
+  statusReason: OrgUserStatusReason
+  "Raw provider value for the status tooltip (e.g. Google's suspensionReason)."
+  statusDetail: String
+  "Null when never signed in or not readable; signInData says which."
+  lastSignInAt: Instant
+  signInData: DirectoryReadability!
+  secondFactor: SecondFactorState!
+  topAdmin: TopAdminState!
+  "Customers that claim this account."
+  customers: [DirectoryCustomerClaim!]!
+  "Null when the provider does not say."
+  directoryCreatedAt: Instant
+  "Provisional (P6): set by a technician, not detected."
+  serviceAccount: Boolean!
+  notes: String
+  tags: [String!]
+  "Local phone (OpenFrame field); the provider phones are in details."
+  phone: String
+  "One entry per SKU. Empty when the account holds none."
+  licenses: [DirectoryUserLicense!]!
+  "Live read, one provider call: select it on the user page only, never in lists."
+  details: DirectoryUserLiveDetails
+  "Groups the account is a direct member of (stored membership)."
+  groups(first: Int, after: String): DirectoryGroupConnection!
+  "Devices tied to the account."
+  devices: DirectoryUserDevices!
+  "W2. Empty = writable. The first reason disables Suspend and the provider fields of Edit user."
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  "W2. Provider fields this provider and connection accept in updateDirectoryUser."
+  editableFields: [DirectoryUserField!]!
+  "True when the live read failed; details is then null and everything else is the stored value."
+  liveDataUnavailable: Boolean!
+}
+
+type DirectoryUserLiveDetails {
+  "Microsoft proxyAddresses + otherMails; Google aliases + nonEditableAliases."
+  aliases: [String!]!
+  jobTitle: String
+  department: String
+  manager: DirectoryUserRef
+  businessPhones: [String!]!
+  mobilePhone: String
+  officeLocation: String
+  "Microsoft only; null for Google."
+  usageLocation: String
+  "Held admin roles other than the top admin; null when the roles are not readable (consent missing)."
+  otherAdminRoles: [String!]
+}
+
+"A person referenced by the provider (a manager). accountId is null when that person is not a synced account here."
+type DirectoryUserRef { accountId: ID, displayName: String, email: String }
+
+type DirectoryUserLicense {
+  "SKU id, the same id as DirectoryLicense.id."
+  skuId: String!
+  "Product name; the SKU id when the provider gives none."
+  name: String!
+  "Assigned to the user directly. A SKU can be both direct and inherited."
+  assignedDirectly: Boolean!
+  "Groups the SKU is inherited from; empty when only direct. Always empty for Google."
+  viaGroups: [DirectoryGroupRef!]!
+  "Microsoft only, live on the user page: the assignment state / error; null in lists and for Google."
+  state: String
+}
+
+"A group named without loading it (license inheritance, rules)."
+type DirectoryGroupRef { id: ID!, name: String }
+
+type DirectoryUserDevices {
+  "Agent machines linked to the account's directory devices. Always [] until W3."
+  managed: [DirectoryUserDevice!]!
+  "The account's directory devices with no agent machine linked."
+  unmanaged: [DirectoryUserDevice!]!
+}
+
+type DirectoryUserDevice {
+  "How the device is tied to the account: a declared owner first, then a seen user."
+  link: DirectoryDeviceUserLink!
+  "The directory record."
+  directoryDevice: OrgDevice!
+  "W3. Set for managed devices."
+  machine: Machine
+}
+
+enum DirectoryDeviceUserLink { DECLARED SEEN }
+
+enum OrgUserStatus { ACTIVE PROVISIONED SUSPENDED DEPROVISIONED }
+
+enum OrgUserStatusReason {
+  SIGN_IN_BLOCKED SUSPENDED_BY_ADMIN SUSPENDED_BY_PROVIDER ARCHIVED DISABLED INVITATION_PENDING NEVER_SIGNED_IN
+}
+
+enum DirectoryReadability { READ NEEDS_ENTRA_P1 NOT_CONSENTED }
+enum TopAdminState { YES NO NOT_READABLE }
+enum SecondFactorState { ENROLLED NOT_ENROLLED NOT_READABLE }
+enum LastSignInBucket { LAST_7_DAYS LAST_30_DAYS OVER_45_DAYS NEVER NOT_READABLE }
+
+enum DirectoryReadOnlyReason {
+  WRITE_NOT_ENABLED WRITE_NOT_CONSENTED PAUSED DISCONNECTED MASTERED_ON_PREMISES DEPROVISIONED
+  DYNAMIC_MEMBERSHIP EXCHANGE_MANAGED
+}
+
+enum DirectoryUserField {
+  DISPLAY_NAME FIRST_NAME LAST_NAME JOB_TITLE DEPARTMENT OFFICE_LOCATION USAGE_LOCATION MANAGER
+  BUSINESS_PHONES MOBILE_PHONE
+}
+
+# ---------- Connection (W1) ----------
+
+extend type DirectoryConnection {
+  "The write opt-in. True only when write consent is present too; see access.state."
+  writeEnabled: Boolean!
+  "W3. Intune availability for Microsoft 365; null for Google Workspace."
+  intune: DirectoryIntuneState
+}
+
+
+enum DirectoryIntuneState { NOT_LICENSED NOT_CONSENTED AVAILABLE }
+
+# ---------- Writes (W2) ----------
+
+input UpdateDirectoryUserInput {
+  "Account id (DirectoryAccount.id)."
+  id: ID!
+  "The customer the edit is made for; the account must be visible to it."
+  organizationId: ID!
+  "Provider fields: each optional, absent = unchanged; only the fields in editableFields are accepted."
+  displayName: String
+  firstName: String
+  lastName: String
+  jobTitle: String
+  department: String
+  officeLocation: String
+  usageLocation: String
+  "Account id of the manager; null clears it."
+  managerId: ID
+  businessPhones: [String!]
+  mobilePhone: String
+  "Local fields, always editable, kept across syncs."
+  notes: String
+  tags: [String!]
+  phone: String
+  "Provisional (P6)."
+  serviceAccount: Boolean
+  "Provisional (P2). Must be one of the customers that claim the account."
+  primaryCustomerId: ID
+}
+
+input SetDirectoryUserSuspendedInput { id: ID!, organizationId: ID!, suspended: Boolean! }
+
+type DirectoryUserPayload {
+  "The person, read back after the write."
+  person: DirectoryPerson
+  "Microsoft only: blocking sign-in does not end open sessions."
+  sessionsStillOpen: Boolean
+  userErrors: [UserError!]!
+}
+
+# ---------- Groups (W2) ----------
+
+input DirectoryGroupOrderInput { field: DirectoryGroupSortField!, direction: SortDirection! }
+enum DirectoryGroupSortField { NAME MEMBERS }
+
+type DirectoryGroupConnection {
+  edges: [DirectoryGroupEdge!]!
+  pageInfo: CursorPageInfo!
+  totalCount: Int!
+}
+
+type DirectoryGroupEdge { cursor: String!, node: DirectoryGroup! }
+
+"An external group: OpenFrame reads it, never edits it from these pages."
+type DirectoryGroup {
+  id: ID!
+  provider: DirectoryProvider!
+  "Provider object id (Graph group id / Google group id)."
+  sourceId: String!
+  connection: DirectoryConnection!
+  name: String!
+  email: String
+  description: String
+  kind: DirectoryGroupKind!
+  "Always true in this phase."
+  external: Boolean!
+  "Direct members, stored. Microsoft counts users and devices; Google counts every member type."
+  memberCount: Int!
+  "Customers whose GROUP rules name this group."
+  customers: [DirectoryCustomerClaim!]!
+  "Customers whose visible users are direct members."
+  memberCustomers: [Organization!]!
+  "True when the direct members span more than one customer."
+  shared: Boolean!
+  "The rules that name this group: a deleted group silently stops claiming users."
+  dependedOnBy: [DirectoryGroupDependency!]!
+  "Per connection, the same for every group of a connection."
+  feed: DirectoryFeed!
+  settings: DirectoryGroupSettings!
+  "Always DIRECT: a GROUP rule claims direct members only."
+  membershipScopeOfRules: DirectoryMembershipScope!
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  """
+  DIRECT: stored membership. NESTED: a live read (transitive members), select it on the group page only. On a
+  customer's tab, members outside that customer's view are counted in hiddenMemberCount and not listed.
+  """
+  members(scope: DirectoryMembershipScope = DIRECT, first: Int, after: String): DirectoryGroupMemberConnection!
+}
+
+type DirectoryGroupDependency { organization: Organization!, rule: DirectoryConnectionRule! }
+
+type DirectoryGroupSettings {
+  "Microsoft: dynamic membership."
+  dynamic: Boolean
+  "Microsoft: the dynamic membership rule text."
+  membershipRule: String
+  "Microsoft: dynamic rule processing is paused."
+  membershipPaused: Boolean
+  "Microsoft: synced from on-premises AD."
+  onPremisesSynced: Boolean
+  "Microsoft: PUBLIC, PRIVATE, HIDDEN_MEMBERSHIP; null for Google."
+  visibility: DirectoryGroupVisibility
+  "Google: created by an admin (not a user)."
+  adminCreated: Boolean
+  "Google: the provider's own direct member count."
+  directMembersCount: Int
+}
+
+enum DirectoryGroupKind { MICROSOFT_365 SECURITY MAIL_ENABLED_SECURITY DISTRIBUTION GOOGLE_GROUP }
+enum DirectoryGroupVisibility { PUBLIC PRIVATE HIDDEN_MEMBERSHIP }
+"PUSH: Microsoft subscription live. AUDIT_STREAM: Google activities watch live (UI: 'No push', grey). POLLING: neither."
+enum DirectoryFeed { PUSH AUDIT_STREAM POLLING }
+enum DirectoryMembershipScope { DIRECT NESTED }
+
+type DirectoryGroupMemberConnection {
+  edges: [DirectoryGroupMemberEdge!]!
+  pageInfo: CursorPageInfo!
+  "Listed members."
+  totalCount: Int!
+  "Members outside the customer's view: counted, not listed. 0 without organizationId."
+  hiddenMemberCount: Int!
+  "NESTED only: true when the live read failed; the connection is then empty."
+  liveDataUnavailable: Boolean!
+}
+
+type DirectoryGroupMemberEdge { cursor: String!, node: DirectoryGroupMember! }
+
+type DirectoryGroupMember {
+  "NESTED only: the group the member comes through, when the provider says it."
+  viaGroup: DirectoryGroupRef
+  member: DirectoryGroupMemberSubject!
+}
+
+union DirectoryGroupMemberSubject = DirectoryAccount | DirectoryGroup | OrgDevice
+
+# ---------- Devices (W3) ----------
+
+type DeviceDirectory {
+  machineId: ID!
+  "Directory users tied to the machine through its linked records, declared owners first."
+  users: [DirectoryDeviceUser!]!
+  "One card per linked directory record."
+  cards: [DirectoryDeviceCard!]!
+  "Why there is no Intune card on a Microsoft machine; null when there is one or no Microsoft record."
+  intuneUnavailable: IntuneUnavailableReason
+}
+
+type DirectoryDeviceUser {
+  account: DirectoryAccount!
+  link: DirectoryDeviceUserLink!
+  "The record kind that ties them (Entra owner, Intune primary user, Chromebook user, mobile owner)."
+  via: OrgDeviceKind!
+  "Strings to match against the machine's local OS accounts (UPN prefix, email local part, on-prem sAMAccountName)."
+  localAccountHints: [String!]!
+}
+
+type DirectoryDeviceCard {
+  record: OrgDevice!
+  "Exactly one of these is set, matching record.kind."
+  entra: EntraDeviceCard
+  intune: IntuneDeviceCard
+  chromeOs: ChromeOsDeviceCard
+  mobile: MobileDeviceCard
+  "True when the live part of the card could not be read; stored values only."
+  liveDataUnavailable: Boolean!
+}
+
+type EntraDeviceCard {
+  joinType: EntraJoinType
+  managed: Boolean
+  compliant: Boolean
+  approximateLastSignInAt: Instant
+  registeredAt: Instant
+  owners: [DirectoryAccount!]!
+}
+
+enum EntraJoinType { ENTRA_JOINED HYBRID_JOINED REGISTERED }
+
+type IntuneDeviceCard {
+  primaryUser: DirectoryAccount
+  complianceState: IntuneComplianceState!
+  encrypted: Boolean
+  ownerType: IntuneOwnerType!
+  enrolledAt: Instant
+  lastSyncAt: Instant
+  operatingSystem: String
+  osVersion: String
+}
+
+enum IntuneComplianceState { COMPLIANT NONCOMPLIANT IN_GRACE_PERIOD CONFIG_MANAGER CONFLICT ERROR UNKNOWN }
+enum IntuneOwnerType { COMPANY PERSONAL UNKNOWN }
+enum IntuneUnavailableReason { NOT_LICENSED NOT_CONSENTED NOT_ENROLLED }
+
+type ChromeOsDeviceCard {
+  serialNumber: String
+  orgUnitPath: String
+  "Provider value as given (a date string)."
+  autoUpdateThrough: String
+  assignedUser: DirectoryAccount
+  recentUsers: [DirectoryAccount!]!
+}
+
+type MobileDeviceCard {
+  owners: [DirectoryAccount!]!
+  "Provider wording, e.g. Encrypted / Not encrypted."
+  encryptionStatus: String
+  "Provider wording, e.g. No compromise detected."
+  compromisedStatus: String
+}
+
+extend type OrgDevice {
+  "The connection behind connectionId."
+  connection: DirectoryConnection
+  kind: OrgDeviceKind!
+  "Null when the provider gives none (Entra records never carry one)."
+  serialNumber: String
+  userLink: DirectoryUserLink!
+  "Set when the record is linked to an agent machine."
+  machineLink: DirectoryMachineLink
+  "A machine with the same hostname, waiting for a technician to confirm or reject."
+  suggestedMachine: Machine
+  "Customers that see the device (they claim its declared owner)."
+  customers: [Organization!]!
+}
+
+enum OrgDeviceKind { ENTRA INTUNE CHROMEOS MOBILE }
+
+type DirectoryMachineLink {
+  machine: Machine!
+  via: DirectoryMachineLinkVia!
+  "HOSTNAME_CONFIRMED only."
+  confirmedBy: User
+  confirmedAt: Instant
+}
+
+enum DirectoryMachineLinkVia { SERIAL HOSTNAME_CONFIRMED }
+
+input DirectoryDeviceLinkInput { orgDeviceId: ID!, machineId: ID! }
+
+type DirectoryDeviceLinkPayload { device: OrgDevice, userErrors: [UserError!]! }
+
+# oss-lib part (device.graphqls):
+"Who the device is tied to. DECLARED: one declared owner. SEEN: no declared owner, one seen user. SHARED: several users, no single declared owner. NONE: nobody."
+enum DirectoryUserLink { DECLARED SEEN SHARED NONE }
+
+enum DirectoryKnownTo { ENTRA INTUNE GOOGLE }
+
+extend type Machine {
+  "Directories that know this machine besides the agent; [] when none."
+  directoryKnownTo: [DirectoryKnownTo!]!
+  directoryUserLink: DirectoryUserLink!
+  "Account ids (DirectoryAccount.id) of the tied users, declared owners first."
+  directoryUserIds: [String!]!
+  "Display name of the single user for DECLARED / SEEN; null otherwise."
+  directoryUserName: String
+}
+
+
+extend type DeviceFilters {
+  knownTo: [DeviceFilterOption!]!
+  userLinks: [DeviceFilterOption!]!
 }
