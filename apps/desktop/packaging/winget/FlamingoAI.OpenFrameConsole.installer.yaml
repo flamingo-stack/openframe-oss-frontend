@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
 
 PackageIdentifier: FlamingoAI.OpenFrameConsole
 PackageVersion: 1.0.196
@@ -23,4 +23,4 @@ Installers:
   InstallerUrl: https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.0.196/OpenFrame-Console_1.0.196_arm64-setup.exe
   InstallerSha256: EB0555BC05D146B8FC9809838CFB3AF8FC84967FA95C92285E7D7176029F71EF
 ManifestType: installer
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
