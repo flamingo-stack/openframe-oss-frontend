@@ -544,7 +544,7 @@ input DeviceFilterInput {
   tagKeys: [String!]
   tagValues: [String!]
 
-  # CONTRACT v0.2
+  # CONTRACT v0.3
   knownTo: [DirectoryKnownTo!]
   userLinks: [DirectoryUserLink!]
 }
@@ -562,6 +562,10 @@ type DeviceFilters {
   organizationIds: [DeviceFilterOption!]!
   tagKeys: [TagFilterOption!]!
   filteredCount: Int!
+
+  # CONTRACT v0.3
+  knownTo: [DeviceFilterOption!]!
+  userLinks: [DeviceFilterOption!]!
 }
 
 type DeviceLogConnection {
@@ -766,6 +770,12 @@ type DirectoryConnection {
   never reach OpenFrame (Google's "Access blocked" screen) are not recorded.
   """
   lastConsentInfo: DirectoryConsentInfo
+
+  # CONTRACT v0.3
+  "The write opt-in. True only when write consent is present too; see access.state."
+  writeEnabled: Boolean!
+  "W3. Intune availability for Microsoft 365; null for Google Workspace."
+  intune: DirectoryIntuneState
 }
 
 """
@@ -1877,6 +1887,15 @@ type Machine implements Node & AssignableTarget {
   Package managers as last reported by the device agent. Null until the first report.
   """
   packageManagers: MachinePackageManagers
+
+  # CONTRACT v0.3
+  "Directories that know this machine besides the agent; [] when none."
+  directoryKnownTo: [DirectoryKnownTo!]!
+  directoryUserLink: DirectoryUserLink!
+  "Account ids (DirectoryAccount.id) of the tied users, declared owners first."
+  directoryUserIds: [String!]!
+  "Display name of the single user for DECLARED / SEEN; null otherwise."
+  directoryUserName: String
 }
 
 type Mutation {
@@ -2520,6 +2539,16 @@ type Mutation {
   Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
   """
   transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
+
+  # CONTRACT v0.3
+  "W2. Edit one account: provider fields (only those in editableFields) and local fields."
+  updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
+  "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
+  setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
+  "W3. Link a directory record to the machine it suggested by hostname. Records who and when."
+  confirmDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
+  "W3. Drop the hostname suggestion; that machine is never suggested for the record again."
+  rejectDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
 }
 
 input MutationDeleteInput {
@@ -2708,6 +2737,20 @@ type OrgDevice {
 
   " True when the live Microsoft 365 Graph read for this row failed; operatingSystem/\n operatingSystemVersion/manufacturer/model/active/lastSeenAt are the Mongo spine only\n (possibly null) for MICROSOFT_365 rows. Always false/null for other sources."
   liveDataUnavailable: Boolean
+
+  # CONTRACT v0.3
+  "The connection behind connectionId."
+  connection: DirectoryConnection
+  kind: OrgDeviceKind!
+  "Null when the provider gives none (Entra records never carry one)."
+  serialNumber: String
+  userLink: DirectoryUserLink!
+  "Set when the record is linked to an agent machine."
+  machineLink: DirectoryMachineLink
+  "A machine with the same hostname, waiting for a technician to confirm or reject."
+  suggestedMachine: Machine
+  "Customers that see the device (they claim its declared owner)."
+  customers: [Organization!]!
 }
 
 type OrgUser {
@@ -3663,6 +3706,45 @@ type Query {
 
   """The open invitations list's funnels, counted the way userFilters counts."""
   invitationFilters(filter: InvitationFilterInput, search: String): InvitationFilters!
+
+  # CONTRACT v0.3
+  """
+  One row per person (accounts merged by lower-cased primary email). Without organizationId: every user of every
+  connection of the MSP plus OpenFrame users, unattributed users included (global Users page). With it: the
+  people that customer's rules claim. Deprovisioned accounts are left out unless filter.statuses names DEPROVISIONED.
+  Default order NAME ascending.
+  """
+  directoryUsers(organizationId: ID, search: String, filter: DirectoryUserFilterInput,
+                 orderBy: DirectoryUserOrderInput, first: Int, after: String): DirectoryPersonConnection!
+
+  "Facet counts for the Users filter menus, counted in persons; same scope, search and filter semantics as directoryUsers."
+  directoryUserFilters(organizationId: ID, search: String, filter: DirectoryUserFilterInput): DirectoryUserFilters!
+
+  """
+  The person that owns this account (an account id, as in DirectoryAccount.id), with that account selected. With
+  organizationId the account must be visible to that customer. Null when not found or not visible.
+  """
+  directoryUser(id: ID!, organizationId: ID): DirectoryPerson
+
+  """
+  One account, for the user page tabs. DirectoryAccount is not a Node and sits in the plural DirectoryPerson.accounts,
+  so a refetchable fragment over groups(first, after) starts from this query. With organizationId the account must be
+  visible to that customer. Null when not found or not visible.
+  """
+  directoryAccount(id: ID!, organizationId: ID): DirectoryAccount
+
+  "W2. Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
+  directoryGroups(organizationId: ID!, connectionId: ID, search: String,
+                  orderBy: DirectoryGroupOrderInput, first: Int, after: String): DirectoryGroupConnection!
+
+  "W2. One group. With organizationId the group must touch that customer. Null when not found or not visible."
+  directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
+
+  "W3. Directory data of one agent machine: linked users and one card per linked directory record."
+  deviceDirectory(machineId: ID!): DeviceDirectory!
+
+  "W3. Devices only a directory knows (no agent machine linked), for the customer or for the whole MSP."
+  directoryUnmanagedDeviceCount(organizationId: ID): Int!
 }
 
 """
@@ -5955,7 +6037,7 @@ input UpdateDirectoryConnectionInput {
   """
   domain: String
 
-  # CONTRACT v0.2
+  # CONTRACT v0.3
   "Turn the write opt-in on or off. true without write consent is a userError."
   writeEnabled: Boolean
 }
@@ -6511,56 +6593,7 @@ type DirectoryConsentIssue {
 # Directory users, groups and devices: CONTRACT v0.3 (v0.2 agreed 2026-10-28; v0.3 adds directoryAccount), merged by
 # hand until the backend deploys its waves. Replace with npm run fetch-schema once W1 is on an environment; anything that drifted fails to compile.
 # saas-api part:
-extend type Query {
-  """
-  One row per person (accounts merged by lower-cased primary email). Without organizationId: every user of every
-  connection of the MSP plus OpenFrame users, unattributed users included (global Users page). With it: the
-  people that customer's rules claim. Deprovisioned accounts are left out unless filter.statuses names DEPROVISIONED.
-  Default order NAME ascending.
-  """
-  directoryUsers(organizationId: ID, search: String, filter: DirectoryUserFilterInput,
-                 orderBy: DirectoryUserOrderInput, first: Int, after: String): DirectoryPersonConnection!
 
-  "Facet counts for the Users filter menus, counted in persons; same scope, search and filter semantics as directoryUsers."
-  directoryUserFilters(organizationId: ID, search: String, filter: DirectoryUserFilterInput): DirectoryUserFilters!
-
-  """
-  The person that owns this account (an account id, as in DirectoryAccount.id), with that account selected. With
-  organizationId the account must be visible to that customer. Null when not found or not visible.
-  """
-  directoryUser(id: ID!, organizationId: ID): DirectoryPerson
-
-  """
-  One account, for the user page tabs. DirectoryAccount is not a Node and sits in the plural DirectoryPerson.accounts,
-  so a refetchable fragment over groups(first, after) starts from this query. With organizationId the account must be
-  visible to that customer. Null when not found or not visible.
-  """
-  directoryAccount(id: ID!, organizationId: ID): DirectoryAccount
-
-  "W2. Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
-  directoryGroups(organizationId: ID!, connectionId: ID, search: String,
-                  orderBy: DirectoryGroupOrderInput, first: Int, after: String): DirectoryGroupConnection!
-
-  "W2. One group. With organizationId the group must touch that customer. Null when not found or not visible."
-  directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
-
-  "W3. Directory data of one agent machine: linked users and one card per linked directory record."
-  deviceDirectory(machineId: ID!): DeviceDirectory!
-
-  "W3. Devices only a directory knows (no agent machine linked), for the customer or for the whole MSP."
-  directoryUnmanagedDeviceCount(organizationId: ID): Int!
-}
-
-extend type Mutation {
-  "W2. Edit one account: provider fields (only those in editableFields) and local fields."
-  updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
-  "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
-  setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
-  "W3. Link a directory record to the machine it suggested by hostname. Records who and when."
-  confirmDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
-  "W3. Drop the hostname suggestion; that machine is never suggested for the record again."
-  rejectDirectoryDeviceLink(input: DirectoryDeviceLinkInput!): DirectoryDeviceLinkPayload!
-}
 
 # ---------- Users ----------
 
@@ -6790,12 +6823,6 @@ enum DirectoryUserField {
 
 # ---------- Connection (W1) ----------
 
-extend type DirectoryConnection {
-  "The write opt-in. True only when write consent is present too; see access.state."
-  writeEnabled: Boolean!
-  "W3. Intune availability for Microsoft 365; null for Google Workspace."
-  intune: DirectoryIntuneState
-}
 
 
 enum DirectoryIntuneState { NOT_LICENSED NOT_CONSENTED AVAILABLE }
@@ -7009,20 +7036,6 @@ type MobileDeviceCard {
   compromisedStatus: String
 }
 
-extend type OrgDevice {
-  "The connection behind connectionId."
-  connection: DirectoryConnection
-  kind: OrgDeviceKind!
-  "Null when the provider gives none (Entra records never carry one)."
-  serialNumber: String
-  userLink: DirectoryUserLink!
-  "Set when the record is linked to an agent machine."
-  machineLink: DirectoryMachineLink
-  "A machine with the same hostname, waiting for a technician to confirm or reject."
-  suggestedMachine: Machine
-  "Customers that see the device (they claim its declared owner)."
-  customers: [Organization!]!
-}
 
 enum OrgDeviceKind { ENTRA INTUNE CHROMEOS MOBILE }
 
@@ -7046,18 +7059,5 @@ enum DirectoryUserLink { DECLARED SEEN SHARED NONE }
 
 enum DirectoryKnownTo { ENTRA INTUNE GOOGLE }
 
-extend type Machine {
-  "Directories that know this machine besides the agent; [] when none."
-  directoryKnownTo: [DirectoryKnownTo!]!
-  directoryUserLink: DirectoryUserLink!
-  "Account ids (DirectoryAccount.id) of the tied users, declared owners first."
-  directoryUserIds: [String!]!
-  "Display name of the single user for DECLARED / SEEN; null otherwise."
-  directoryUserName: String
-}
 
 
-extend type DeviceFilters {
-  knownTo: [DeviceFilterOption!]!
-  userLinks: [DeviceFilterOption!]!
-}
