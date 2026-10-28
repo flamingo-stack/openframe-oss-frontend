@@ -12,6 +12,7 @@ import { deviceAllocation } from '../shared/device-allocation';
 const deviceOverageBlockFragment = graphql`
   fragment deviceOverageBlock_subscription on SubscriptionDetail {
     currentPeriodEnd
+    cancellationEffectiveAt
     # What the metered surplus has cost so far this period, straight from
     # Stripe's own forecast, in cents. NOT overage times the device rate: that
     # multiplication assumes which rate the surplus is billed at, and the plan's
@@ -54,7 +55,10 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
 
   if (!device.overLimit) return null;
 
-  const estimatedOverage = data.currentInvoice != null ? data.currentInvoice.estimatedOverage / 100 : null;
+  // Without pay-as-you-go nothing over the package is billed: there is no
+  // overage payment to state and nothing to upgrade out of.
+  const billed = device.paygActive;
+  const estimatedOverage = billed && data.currentInvoice != null ? data.currentInvoice.estimatedOverage / 100 : null;
 
   return (
     <div className="flex flex-col overflow-hidden rounded-md border border-ods-warning bg-ods-card">
@@ -63,10 +67,15 @@ export function DeviceOverageBlock({ subscription, onUpgrade }: DeviceOverageBlo
         <div className="flex min-w-[16rem] flex-1 flex-col">
           <p className="font-bold text-ods-text-primary text-h3">You're over your device package limit</p>
           <p className="text-ods-text-secondary text-h4">
-            Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.
+            {billed
+              ? 'Extra devices will be billed at pay-as-you-go rates, charged separately from your plan.'
+              : "Pay-as-you-go is off, so devices over your package aren't billed. Access is restricted until you're back within the limit."}
+            {!billed &&
+              data.cancellationEffectiveAt &&
+              ` Your subscription ends on ${formatDate(data.cancellationEffectiveAt)}.`}
           </p>
         </div>
-        {onUpgrade && (
+        {billed && onUpgrade && (
           <Button variant="accent" onClick={onUpgrade}>
             Upgrade Plan
           </Button>
