@@ -5541,6 +5541,26 @@ type SubscriptionUsage {
   """Total managed devices (active + inactive)."""
   devicesUsed: Int!
 
+  """
+  Devices used against devicesLimit: devicesUsed - devicesCommittedOverage.
+  """
+  devicesUsedAgainstLimit: Int!
+
+  """
+  Devices frozen as overage at in-period package upgrades this billing period.
+  """
+  devicesCommittedOverage: Int!
+
+  """
+  Device allowance this billing period: the package at period start plus what each in-period upgrade paid for.
+  """
+  devicesLimit: Int!
+
+  """
+  Devices billed as overage this period: devicesCommittedOverage + max(0, devicesUsedAgainstLimit - devicesLimit).
+  """
+  devicesOverage: Int!
+
   """Devices currently online."""
   activeDevices: Int!
 

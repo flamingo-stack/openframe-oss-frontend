@@ -1,6 +1,6 @@
 'use client';
 
-import { DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { type DeviceFilters, DeviceSelector } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
@@ -9,7 +9,9 @@ import type {
 } from '@/__generated__/scheduleDevicePickerRelay_available.graphql';
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
-import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
+import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
+import { useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
+import { ContentErrorBoundary } from '@/app/components/shared/content-error-boundary';
 import { DEVICE_PICKER_PAGE_SIZE, toDevices } from '@/app/components/shared/device-selector/picker-narrowing';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
@@ -77,7 +79,15 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
     if (preview.hasNext && !preview.isLoadingNext) preview.loadNext(DEVICE_PICKER_PAGE_SIZE);
   }, [preview]);
 
-  const filterOptions = useDeviceFilters(UNFILTERED);
+  const epoch = useDeviceEpoch();
+  const fields = (deviceFilters: DeviceFilters | null) => (
+    <ScheduleCriteriaFields
+      criteria={criteria}
+      onChange={onCriteriaChange}
+      deviceFilters={deviceFilters}
+      disabled={busy}
+    />
+  );
 
   return (
     <DeviceSelector
@@ -96,12 +106,11 @@ export function ScheduleCriteriaPicker({ scheduleId, criteria, onCriteriaChange,
         skeletonRows: DEVICE_PICKER_PAGE_SIZE,
       }}
       criteriaContent={
-        <ScheduleCriteriaFields
-          criteria={criteria}
-          onChange={onCriteriaChange}
-          deviceFilters={filterOptions}
-          disabled={busy}
-        />
+        // The OS options are fleet facets: a failed facet read costs those options, not the rule editor and its
+        // preview (see `DeviceFacets`). A device mutation asks again.
+        <ContentErrorBoundary label="DeviceFilters" resetKey={String(epoch)} fallback={() => fields(null)}>
+          <DeviceFacets filters={UNFILTERED}>{fields}</DeviceFacets>
+        </ContentErrorBoundary>
       }
     />
   );

@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   buildDevicePanelActions,
   type DeviceFilterInput,
+  type DeviceFilters,
   DevicesPanelView,
   getDeviceActionsColumn,
   getDeviceFilterColumns,
@@ -22,14 +23,14 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
-import { useDeviceFilters } from '@/app/(app)/devices/hooks/use-device-filters';
-import { useDevices } from '@/app/(app)/devices/hooks/use-devices';
+import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
+import { type UseDevicesResult, useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
 import { DEVICES_PAGE_SIZE } from '@/app/(app)/devices/queries/devices-api';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { bumpDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
+import { bumpDeviceEpoch, useDeviceEpoch } from '@/app/(app)/devices/utils/device-refresh';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -112,41 +113,10 @@ export interface DevicesPanelProps {
   readOnlyRows?: boolean;
 }
 
-function DevicesPanelContent({
-  title = 'Devices',
-  backButton,
-  addDeviceHref = routes.devices.new(),
-  showAddDevice = true,
-  archiveHref,
-  lockedFilters,
-  hideColumns,
-  hideFilters,
-  emptyMessage = 'No devices found. Try adjusting your search or filters.',
-  defaultStatuses,
-  className = '',
-  embedded = false,
-  emptyState,
-  noOrganizations = false,
-  isCheckingOrganizations = false,
-  readOnlyRows = false,
-}: DevicesPanelProps) {
-  const router = useRouter();
-
-  const {
-    params,
-    setParam,
-    setParams,
-    localSearch,
-    setLocalSearch,
-    debouncedSearch,
-    filters: urlFilters,
-    tableFilters,
-    tagOptions,
-    handleFilterChange,
-    handleTagRemove,
-    handleClearAll,
-    handleTagSubmit,
-  } = useDevicesUrlParams({ defaultStatuses });
+function DevicesPanelContent(props: DevicesPanelProps) {
+  const { lockedFilters, defaultStatuses } = props;
+  const urlParams = useDevicesUrlParams({ defaultStatuses });
+  const { filters: urlFilters, debouncedSearch } = urlParams;
 
   const filters = useMemo<DeviceFilterInput>(() => ({ ...urlFilters, ...lockedFilters }), [urlFilters, lockedFilters]);
 
@@ -157,12 +127,77 @@ function DevicesPanelContent({
   // themselves still read the live `params`, so a checkbox ticks immediately.
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
-  const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = useDevices(
-    deferredFilters,
-    deferredSearch,
+  const list = useDevices(deferredFilters, deferredSearch);
+  const epoch = useDeviceEpoch();
+
+  const renderPanel = (deviceFilters: DeviceFilters | null) => (
+    <DevicesPanelLoaded
+      panel={props}
+      urlParams={urlParams}
+      list={list}
+      isNarrowing={isNarrowing}
+      deviceFilters={deviceFilters}
+    />
   );
 
-  const deviceFilters = useDeviceFilters(deferredFilters);
+  // The facets load with the rows (one Suspense boundary) but fail apart from them: a failed facet query used to
+  // take the whole panel down while the list had answered. Now it costs only the filters, and the panel is drawn
+  // without them. A different narrowing or a device mutation asks again.
+  return (
+    <ContentErrorBoundary
+      label="DeviceFilters"
+      resetKey={JSON.stringify([deferredFilters, epoch])}
+      fallback={() => renderPanel(null)}
+    >
+      <DeviceFacets filters={deferredFilters}>{renderPanel}</DeviceFacets>
+    </ContentErrorBoundary>
+  );
+}
+
+interface DevicesPanelLoadedProps {
+  panel: DevicesPanelProps;
+  urlParams: ReturnType<typeof useDevicesUrlParams>;
+  list: UseDevicesResult;
+  isNarrowing: boolean;
+  /** `null` when the facet query failed: no options, so no funnels, no grid filter row, an empty filter modal. */
+  deviceFilters: DeviceFilters | null;
+}
+
+function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters }: DevicesPanelLoadedProps) {
+  const {
+    title = 'Devices',
+    backButton,
+    addDeviceHref = routes.devices.new(),
+    showAddDevice = true,
+    archiveHref,
+    hideColumns,
+    hideFilters,
+    emptyMessage = 'No devices found. Try adjusting your search or filters.',
+    className = '',
+    embedded = false,
+    emptyState,
+    noOrganizations = false,
+    isCheckingOrganizations = false,
+    readOnlyRows = false,
+  } = panel;
+  const router = useRouter();
+
+  const {
+    params,
+    setParam,
+    setParams,
+    localSearch,
+    setLocalSearch,
+    debouncedSearch,
+    tableFilters,
+    tagOptions,
+    handleFilterChange,
+    handleTagRemove,
+    handleClearAll,
+    handleTagSubmit,
+  } = urlParams;
+
+  const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = list;
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
@@ -284,7 +319,7 @@ function DevicesPanelContent({
       devices={devices}
       totalCount={filteredCount}
       // The facet query suspends alongside the list, so by the time this renders
-      // the facets are already in hand: nothing is pending on the loaded panel.
+      // the facets are already in hand, or failed: nothing is pending on the loaded panel.
       deviceFilters={deviceFilters}
       filterColumns={filterColumns}
       toolbar={{
