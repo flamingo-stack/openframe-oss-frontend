@@ -91,10 +91,22 @@ export function buildRemoteAccessModeArgs(mode: RemoteAccessMode | null | undefi
   return mode ? [`--remote-access-mode ${REMOTE_ACCESS_MODE_ARG[mode]}`] : [];
 }
 
+/**
+ * The install key, then the logs-stream key when the tenant has one. No key,
+ * no flag: the device then streams logs with the install key until it fetches
+ * the log key itself after registering.
+ */
+function buildKeyArgs(initialKey: string, logKey: string | undefined): string {
+  const logKeyArg = logKey ? ` --logKey ${logKey}` : '';
+  return `--initialKey ${initialKey}${logKeyArg}`;
+}
+
 export interface InstallCommandOptions {
   platform: OSPlatformId;
   serverUrl: string;
   initialKey: string;
+  /** Key for the device's logs stream; see `useAgentLogKey`. */
+  logKey?: string;
   orgId: string;
   downloadBaseUrl: string;
   /** Value of the download's machine-id header; see `newDownloadMachineId`. */
@@ -107,10 +119,20 @@ export interface InstallCommandOptions {
  * Build the device installation command
  */
 export function buildInstallCommand(options: InstallCommandOptions): string {
-  const { platform, serverUrl, initialKey, orgId, downloadBaseUrl, machineId, userId, additionalArgs = [] } = options;
+  const {
+    platform,
+    serverUrl,
+    initialKey,
+    logKey,
+    orgId,
+    downloadBaseUrl,
+    machineId,
+    userId,
+    additionalArgs = [],
+  } = options;
 
   const userArg = userId ? ` --userId ${userId}` : '';
-  const baseArgs = `install --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}`;
+  const baseArgs = `install --serverUrl ${serverUrl} ${buildKeyArgs(initialKey, logKey)} --orgId ${orgId}${userArg}`;
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
   const download = buildDownloadStep(platform, downloadBaseUrl, machineId);
 
@@ -178,6 +200,8 @@ export interface RegisterCommandOptions {
   platform: OSPlatformId;
   serverUrl: string;
   initialKey: string;
+  /** Key for the device's logs stream; see `useAgentLogKey`. */
+  logKey?: string;
   orgId: string;
   userId?: string;
   additionalArgs?: string[];
@@ -185,11 +209,11 @@ export interface RegisterCommandOptions {
 
 /** Step 2 after a package-manager install: enroll the already-installed agent. */
 export function buildRegisterCommand(options: RegisterCommandOptions): string {
-  const { platform, serverUrl, initialKey, orgId, userId, additionalArgs = [] } = options;
+  const { platform, serverUrl, initialKey, logKey, orgId, userId, additionalArgs = [] } = options;
 
   const userArg = userId ? ` --userId ${userId}` : '';
   const extras = additionalArgs.length ? ' ' + additionalArgs.join(' ') : '';
-  const command = `openframe-client auth --serverUrl ${serverUrl} --initialKey ${initialKey} --orgId ${orgId}${userArg}${extras}`;
+  const command = `openframe-client auth --serverUrl ${serverUrl} ${buildKeyArgs(initialKey, logKey)} --orgId ${orgId}${userArg}${extras}`;
   return platform === 'windows' ? command : `sudo ${command}`;
 }
 
