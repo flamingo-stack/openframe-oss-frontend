@@ -4,11 +4,12 @@ import { graphql, useFragment } from 'react-relay';
 import type { updatedPlanSection_billingPlan$key } from '@/__generated__/updatedPlanSection_billingPlan.graphql';
 import type { updatedPlanSection_subscription$key } from '@/__generated__/updatedPlanSection_subscription.graphql';
 import { BillingPeriod } from '@/generated/schema-enums';
+import { formatDate } from '@/lib/format-date';
 import { freeTokensForPlan } from '../shared/ai-free-tokens';
 import { BillingRow, SectionBlock } from '../shared/billing-section';
 import { catalogDeviceRate } from '../shared/catalog-device-rate';
 import { planSchedule } from '../shared/plan-schedule';
-import { MonthlyRate, MonthlyTokens, WarningDate } from '../shared/plan-values';
+import { MonthlyRate, MonthlyTokens } from '../shared/plan-values';
 
 const updatedPlanSectionSubscriptionFragment = graphql`
   fragment updatedPlanSection_subscription on SubscriptionDetail {
@@ -67,7 +68,7 @@ export function UpdatedPlanSection({ subscription, billingPlan }: UpdatedPlanSec
         />
       )}
       {schedule.nextPlanStartsOn && (
-        <BillingRow label="Plan Starts on" warning value={<WarningDate iso={schedule.nextPlanStartsOn} />} />
+        <BillingRow label="Plan Starts on" warning value={formatDate(schedule.nextPlanStartsOn)} />
       )}
     </SectionBlock>
   );

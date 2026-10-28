@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/format-date';
 import { BillingRow, SectionBlock } from '../shared/billing-section';
 import { catalogDeviceRate } from '../shared/catalog-device-rate';
 import { planSchedule } from '../shared/plan-schedule';
-import { MonthlyRate, MonthlyTokens, WarningDate } from '../shared/plan-values';
+import { MonthlyRate, MonthlyTokens } from '../shared/plan-values';
 
 const currentPlanSectionSubscriptionFragment = graphql`
   fragment currentPlanSection_subscription on SubscriptionDetail {
@@ -126,7 +126,7 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
         loading={loading}
         label="Plan ends on"
         warning={planEndsOn != null}
-        value={planEndsOn ? <WarningDate iso={planEndsOn} /> : <EmptyValue />}
+        value={planEndsOn ? formatDate(planEndsOn) : <EmptyValue />}
       />
     </SectionBlock>
   );
