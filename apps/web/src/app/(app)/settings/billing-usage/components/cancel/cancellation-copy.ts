@@ -1,12 +1,17 @@
 /**
  * What cancelling does, for both dialogs of the flow. With a package the subscription runs to the end of the paid
- * term (PENDING_CANCELLATION); pay-as-you-go only ends at once (see `hasSubscriptionPackage`).
+ * term (PENDING_CANCELLATION) and keeps token purchases and auto top-up, only pay-as-you-go overage stops; pay-as-you-go
+ * only ends at once and switches auto top-up off (see `hasSubscriptionPackage`).
  */
 export const PACKAGE_CANCELLATION_TERMS =
-  'Until then your devices, monthly free AI tokens, token purchases and auto top-up stay active, and usage above your device package is blocked instead of billed. Purchased tokens stay on your account.';
+  'Pay-as-you-go usage above your device package is disabled immediately. Token purchases and auto top-up stay available until then.';
+
+export const PACKAGE_CANCELLED_OVERAGE = 'Pay-as-you-go usage above your device package is now disabled.';
+
+export const PACKAGE_CANCELLED_PURCHASES = 'Token purchases and auto top-up stay available until then.';
 
 export const PAYG_CANCELLATION_TERMS =
-  'A pay-as-you-go subscription ends as soon as you confirm: access stops immediately, auto top-up is switched off, and the usage accrued so far is invoiced right away.';
+  'Your subscription ends as soon as you confirm. Auto top-up is turned off, and any usage already accrued is invoiced right away.';
 
 export const PAYG_CANCELLED_TERMS =
-  'Your subscription has ended. Auto top-up is switched off, and the usage accrued so far will be invoiced shortly.';
+  'Your subscription has ended. Auto top-up is now disabled, and any usage already accrued will be invoiced shortly.';

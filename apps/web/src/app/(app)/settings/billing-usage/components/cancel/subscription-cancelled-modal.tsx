@@ -3,7 +3,7 @@
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { formatDate } from '@/lib/format-date';
-import { PACKAGE_CANCELLATION_TERMS, PAYG_CANCELLED_TERMS } from './cancellation-copy';
+import { PACKAGE_CANCELLED_OVERAGE, PACKAGE_CANCELLED_PURCHASES, PAYG_CANCELLED_TERMS } from './cancellation-copy';
 
 interface SubscriptionCancelledModalProps {
   isOpen: boolean;
@@ -31,9 +31,9 @@ export function SubscriptionCancelledModal({ isOpen, endDate, withPackage, onClo
     >
       {withPackage ? (
         <p className="text-ods-text-primary text-h4">
-          {`Your subscription will end on `}
+          {`${PACKAGE_CANCELLED_OVERAGE} Your existing devices and included tokens remain active until `}
           <span className="text-ods-warning">{formatDate(endDate)}</span>
-          {`. ${PACKAGE_CANCELLATION_TERMS}`}
+          {`, after which this data will no longer be accessible. ${PACKAGE_CANCELLED_PURCHASES}`}
         </p>
       ) : (
         <p className="text-ods-text-primary text-h4">{PAYG_CANCELLED_TERMS}</p>
