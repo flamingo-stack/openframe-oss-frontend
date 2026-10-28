@@ -74,6 +74,7 @@ import { clientIdentityHeaders } from '@/lib/client-identity';
  * the content hub.
  */
 import { runtimeEnv } from '@/lib/runtime-config';
+import { isSessionGone, noteGatewayResponse, SessionGoneError } from '@/lib/session-health';
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
@@ -163,12 +164,15 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   // Mobile force-update, as `apiClient`, Relay and the upload helpers do it:
   // once this bundle is refused nothing goes out, and a 426 flips the app into
   // the "Update required" screen ahead of the 401 → `refresh` path, never
-  // retried. Both are no-ops off the mobile shell.
+  // retried. Both are no-ops off the mobile shell. A 410 (deleted tenant) is
+  // refused the same way, on every shell (`session-health.ts`).
   beforeRequest: () => {
     if (isUpdateRequired()) throw new UpdateRequiredError();
+    if (isSessionGone()) throw new SessionGoneError();
   },
   onResponse: async response => {
     if (await noteUpgradeRequired(response)) throw new UpdateRequiredError();
+    if (noteGatewayResponse(response)) throw new SessionGoneError();
   },
   // The one origin the bearer belongs to, in bearer mode only (see
   // `bearerGatewayOrigins`). Empty on the cookie-auth web, where the
@@ -176,7 +180,8 @@ const CHAT_AUTH_ADAPTER: EmbedAuthAdapter = {
   allowedOrigins: bearerGatewayOrigins(),
   // Epoch-gated, per `EmbedAuthAdapter.subscribe`'s "real change only"
   // contract: `adoptNativeTokens` also emits when the shell hands back the SAME
-  // token (a refresh it could not run). Native-only: the web branch never emits.
+  // token (a shell re-emitting the pair on resume), and the web branch of
+  // `setTokens` emits on every write.
   subscribe: listener => {
     let seenEpoch = getTokenEpoch();
     return subscribeToTokenChange(() => {
