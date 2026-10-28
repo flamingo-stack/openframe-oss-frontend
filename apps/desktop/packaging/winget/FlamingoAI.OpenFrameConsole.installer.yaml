@@ -1,26 +1,26 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 
 PackageIdentifier: FlamingoAI.OpenFrameConsole
-PackageVersion: 1.0.190
+PackageVersion: 1.0.196
 InstallerType: nullsoft
 Scope: user
 UpgradeBehavior: install
 Protocols:
 - openframe-console
 ProductCode: OpenFrame Console
-ReleaseDate: 2026-10-26
+ReleaseDate: 2026-10-28
 AppsAndFeaturesEntries:
 - DisplayName: OpenFrame Console
-  Publisher: openframe
+  Publisher: Flamingo AI, Inc.
   ProductCode: OpenFrame Console
 InstallationMetadata:
   DefaultInstallLocation: '%LocalAppData%\OpenFrame Console'
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.0.190/OpenFrame-Console_1.0.190_x64-setup.exe
-  InstallerSha256: 39DF0DE646E5A6B601CA2D5F2F3DC5C558AC80AB7AF27540890A70EDCAF066AF
+  InstallerUrl: https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.0.196/OpenFrame-Console_1.0.196_x64-setup.exe
+  InstallerSha256: 07807C023270A12470596BD4E9283743CFA2DFA7EA826FF900709095A6458146
 - Architecture: arm64
-  InstallerUrl: https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.0.190/OpenFrame-Console_1.0.190_arm64-setup.exe
-  InstallerSha256: 7D9EDED1B25AAB75EE9FE70A595AC68369125FDB390BFBAF7B4020BBE694388B
+  InstallerUrl: https://github.com/flamingo-stack/openframe-oss-frontend/releases/download/1.0.196/OpenFrame-Console_1.0.196_arm64-setup.exe
+  InstallerSha256: EB0555BC05D146B8FC9809838CFB3AF8FC84967FA95C92285E7D7176029F71EF
 ManifestType: installer
 ManifestVersion: 1.12.0
