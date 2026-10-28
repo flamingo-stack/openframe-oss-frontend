@@ -60,9 +60,8 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     );
   }
 
-  // Drawn while loading, left out once there is no invoice: a paying workspace (the typical one on this page) has a
-  // history, and the section is the page's last, so a trial's missing history moves nothing above it.
-  if (!loading && invoices.length === 0) return null;
+  // Drawn for every workspace, a trial's included: no invoice yet is the table's own empty state, not a missing section.
+  const hasInvoices = loading || invoices.length > 0;
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -102,7 +101,11 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
           loading={loading}
           loadingCells={loading}
           skeletonRows={INVOICES_SKELETON_ROWS}
-          emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
+          emptyState={
+            hasInvoices
+              ? { title: 'No invoices found', description: 'Try adjusting your search or filters.' }
+              : { title: 'No invoices yet', description: 'Invoices appear here once the workspace is billed.' }
+          }
         />
       </DataTable>
 
