@@ -33,17 +33,22 @@ const deviceUsageCardFragment = graphql`
  * is billed.
  *
  * A trial is neither — its count has no allocation to sit against (which is why
- * the figure above is bare), so the line answers the question a trial actually
- * raises: when it runs out. Without a `trialExpirationDate` from the server
- * there is nothing to date it with, and nothing here invents one; the line falls
- * back to stating the trial, not to another date.
+ * the figure above is bare) and nothing is billed for it, so the lines answer the
+ * questions a trial actually raises: what the devices cost, and when that runs
+ * out. Without a `trialExpirationDate` from the server there is nothing to date
+ * it with, and nothing here invents one; the date line is left out, not swapped
+ * for another date.
  */
 function caption(isTrial: boolean, trialEndsOn: string | null, prepaid: boolean, isAnnual: boolean): ReactNode {
   if (isTrial) {
-    if (!trialEndsOn) return 'Included in trial';
     return (
       <>
-        Trial Period ends <StatEmphasis>{formatDate(trialEndsOn)}</StatEmphasis>
+        <span className="block truncate">Free Device Usage period.</span>
+        {trialEndsOn && (
+          <span className="block truncate">
+            Trial Period ends <StatEmphasis>{formatDate(trialEndsOn)}</StatEmphasis>
+          </span>
+        )}
       </>
     );
   }
