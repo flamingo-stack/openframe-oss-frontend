@@ -151,7 +151,7 @@ vi.mock('../dev-onboarding-shortcuts', () => ({
   useDevOnboardingMenuItems: () => [],
 }));
 // The chip has tests of its own (its sources import Relay queries); none here.
-vi.mock('./use-open-view-chip', () => ({ useOpenViewChip: () => null }));
+vi.mock('./use-page-chip', () => ({ usePageChip: () => null }));
 // The props builder has tests of its own; here: what the dock asks of it.
 vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {

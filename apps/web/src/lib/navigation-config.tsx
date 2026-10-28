@@ -247,6 +247,12 @@ export function navModuleLabel(id: NavModuleId): string {
   return entry.groupedLabel ?? entry.label;
 }
 
+/** A module's sidebar icon. */
+export function navModuleIcon(id: NavModuleId): ComponentType<{ size?: number }> {
+  const entry: NavModule = NAV_MODULES[id];
+  return entry.icon;
+}
+
 /** The module a page belongs to by its longest prefix, e.g. `/scripts/new` → Scripts. */
 export function navModuleOf(pathname: string): NavModuleId | null {
   let found: NavModuleId | null = null;

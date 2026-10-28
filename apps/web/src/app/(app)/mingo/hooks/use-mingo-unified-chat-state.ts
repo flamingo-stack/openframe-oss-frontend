@@ -302,6 +302,30 @@ export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean
   return commands.some(supportsDisplay);
 }
 
+/**
+ * What a Mingo message carries besides its text, as it stands when it is sent: the page
+ * (read from the URL: under the sheet, the page beneath it; on the chat page, the page it
+ * was opened from), the open view and recent views from the navigation store, and the
+ * picker's selection from the lib's send options. Read imperatively (`getState`) so a
+ * send callback doesn't re-create on every navigation.
+ */
+export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoSendContext {
+  const { openView, recentViews } = useMingoContextStore.getState();
+  const href = pageContextHref(window.location, useMingoSheetStore.getState().lastPage);
+  return {
+    ...resolvePageContext(href, openView),
+    // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
+    // selection that slipped past the picker's `atLimit` (e.g. the @-mention
+    // path) can't 400 the whole message.
+    contextItems: options?.contextItems?.slice(0, CONTEXT_ITEMS_MAX),
+    openView: openView ? { type: openView.type, id: openView.id } : undefined,
+    // Defense-in-depth: hard-cap at the backend's recentViews limit (5),
+    // mirroring the contextItems cap above — a corrupted persisted store blob
+    // with >5 entries must not 400 the whole message.
+    recentViews: recentViews.slice(0, RECENT_VIEWS_MAX).map(r => ({ type: r.type, id: r.id })),
+  };
+}
+
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
@@ -520,6 +544,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     async (text: string, context?: MingoSendContext) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      // A launcher's prompt (a page chip, a quick action) is about the page it was sent from too.
+      const sendContext = context ?? snapshotSendContext();
 
       // A chat whose first message references an incident is listed under it.
       // Read off the message itself, so nothing else's first send — a
@@ -529,7 +555,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // prefilled mention reached the send as text with `contextItems` absent
       // (observed), and the token is what the server resolves anyway.
       const insightId =
-        context?.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
+        sendContext.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
         INSIGHT_MENTION.exec(trimmed)?.[1];
       const newId = await createDialog({ insightId });
       if (!newId) return;
@@ -549,7 +575,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // dashboard-activity event (relayed to HubSpot by the backend). This
       // covers every new-dialog send — draft composer, launcher prompts, and
       // quick-action chips — so the embeddable chat matches the page 1:1.
-      const sent = await sendMingoMessage(trimmed, newId, context);
+      const sent = await sendMingoMessage(trimmed, newId, sendContext);
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
     },
     [createDialog, addMessage, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut, sendMingoMessage],
@@ -585,32 +611,9 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [createDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 
-  // Snapshot the live navigation context (open view + recent views) from the
-  // store and fold in the picker selection from the lib's send options. Read
-  // imperatively (`getState`) so `sendMessage` doesn't re-create on every
-  // navigation — it only needs the value at send time.
-  const buildSendContext = useCallback((options?: UnifiedSendMessageOptions): MingoSendContext => {
-    const { openView, recentViews } = useMingoContextStore.getState();
-    // The page the message is about, read from the URL now: under the sheet, the page
-    // beneath it; on the chat page, the page it was opened from.
-    const href = pageContextHref(window.location, useMingoSheetStore.getState().lastPage);
-    return {
-      ...resolvePageContext(href, openView),
-      // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
-      // selection that slipped past the picker's `atLimit` (e.g. the @-mention
-      // path) can't 400 the whole message.
-      contextItems: options?.contextItems?.slice(0, CONTEXT_ITEMS_MAX),
-      openView: openView ? { type: openView.type, id: openView.id } : undefined,
-      // Defense-in-depth: hard-cap at the backend's recentViews limit (5),
-      // mirroring the contextItems cap above — a corrupted persisted store blob
-      // with >5 entries must not 400 the whole message.
-      recentViews: recentViews.slice(0, RECENT_VIEWS_MAX).map(r => ({ type: r.type, id: r.id })),
-    };
-  }, []);
-
   // ─── Send: create-on-first-send when no dialog is active (draft) ──────────
   // `options.contextItems` carries the composer's picker selection; the open
-  // view + recent views come from the navigation store via `buildSendContext`.
+  // view + recent views come from the navigation store via `snapshotSendContext`.
   // Resolves to whether the message went out, for programmatic senders (the
   // onboarding tour's chips): false when the chat refused it (busy) or the
   // send failed. The composer ignores the result.
@@ -619,7 +622,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       const trimmed = text.trim();
       if (!trimmed) return false;
 
-      const context = buildSendContext(options);
+      const context = snapshotSendContext(options);
 
       if (!activeDialogId) {
         // The draft branch delegates to `sendInNewDialog`, which already fires
@@ -634,7 +637,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
       return sent;
     },
-    [activeDialogId, sendInNewDialog, sendMingoMessage, buildSendContext],
+    [activeDialogId, sendInNewDialog, sendMingoMessage],
   );
 
   const stopMessage = useCallback(() => {
