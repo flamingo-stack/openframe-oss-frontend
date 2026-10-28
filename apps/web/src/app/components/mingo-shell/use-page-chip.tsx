@@ -1,7 +1,11 @@
 'use client';
 
-import { ChatContextChipStrip } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { BoxArchiveIcon, PlusIcon, ShieldCheckIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  BoxArchiveIcon,
+  ShieldCheckIcon,
+  XmarkIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
@@ -31,68 +35,77 @@ function pageIcon(pathname: string): ReactNode {
   return <Icon />;
 }
 
-interface PageChipActions {
-  /** Asks Mingo about the page (`PAGE_OVERVIEW_PROMPT` in a new chat). */
-  onAsk: (prompt: string) => void;
-  /** Opens the composer's context picker. */
-  onAddContext: () => void;
+/** A chip's name, cut short in the strip; its tooltip holds the whole of it. */
+function ChipLabel({ children }: { children: string }) {
+  return <span className="max-w-[220px] truncate">{children}</span>;
 }
 
 /**
- * The page the composer sits on, at the start of its context strip: the page Mingo is
- * told about with every message (`currentPage`), named as it is told — "DEVICES",
- * "SETTINGS", and on an entity's page the entity the page shows ("CUSTOMER: DEFAULT",
- * the `openView` every message carries as `currentView`). A click asks Mingo for an
- * overview of the page. The entity's × takes it out of Mingo's context, as the memory
- * strip's dropdown does; the page itself is always sent, so its chip has none. Mingo's
- * home, a new chat, is no page to ask about: it has "+ Add context" (the composer's
- * picker) alone. Not on the chat page: its messages are about the page it was opened
- * from, which is not on screen.
+ * The page the composer sits on, at the start of its context strip, drawn as the
+ * "Continue …" chip beside it is: the page Mingo is told about with every message
+ * (`currentPage`), named as it is told — "Devices", "Settings", and on an entity's page
+ * the entity the page shows ("Customer: Default", the `openView` every message carries
+ * as `currentView`). A click asks Mingo for an overview of the page. The entity's × takes
+ * it out of Mingo's context, as the memory strip's dropdown does; the page itself is
+ * always sent, so its chip has none. Not on Mingo's home, a new chat (no page to ask
+ * about), nor on the chat page: its messages are about the page it was opened from, which
+ * is not on screen. `onAsk` sends `PAGE_OVERVIEW_PROMPT` in a new chat.
  */
-export function usePageChip(route: ComposerRoute, { onAsk, onAddContext }: PageChipActions): ReactNode {
+export function usePageChip(route: ComposerRoute, onAsk: (prompt: string) => void): ReactNode {
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const openView = useMingoContextStore(s => s.openView);
   const removeView = useMingoContextStore(s => s.removeView);
   const entityTypes = useMingoContextEntityTypes();
 
-  if (!canShowSheet(route) || pathname === null) return null;
-  if (route === 'home') {
-    return (
-      <ChatContextChipStrip
-        items={[{ type: 'ADD_CONTEXT', id: 'add-context', label: 'Add context' }]}
-        resolveIcon={() => <PlusIcon />}
-        onSelect={onAddContext}
-        className="shrink-0"
-      />
-    );
-  }
+  if (!canShowSheet(route) || route === 'home' || pathname === null) return null;
   const ask = () => onAsk(PAGE_OVERVIEW_PROMPT);
 
   // A kind behind a module flag that is off is not one Mingo is offered: the page's own chip.
   const kind = openView ? entityTypes.find(type => type.type === openView.type) : undefined;
   if (openView && kind) {
+    const label = `${kind.label}: ${openView.label}`;
     return (
-      <ChatContextChipStrip
-        items={[{ type: openView.type, id: openView.id, label: `${kind.label}: ${openView.label}` }]}
-        resolveIcon={() => kind.icon}
-        onSelect={ask}
-        selectHint={ASK_HINT}
-        onRemove={() => removeView({ type: openView.type, id: openView.id })}
-        className="min-w-0 shrink"
-      />
+      <div role="group" aria-label={`Context ${label}`} className="flex shrink-0">
+        <Button
+          variant="outline"
+          size="compact"
+          attach="start"
+          leftIcon={kind.icon}
+          onClick={ask}
+          title={`${ASK_HINT}: ${label}`}
+          aria-label={`${ASK_HINT}: ${label}`}
+        >
+          <ChipLabel>{label}</ChipLabel>
+        </Button>
+        <Button
+          variant="outline"
+          size="compact"
+          attach="end"
+          onClick={() => removeView({ type: openView.type, id: openView.id })}
+          aria-label={`Remove ${label}`}
+          title={`Remove ${label}`}
+          className="shrink-0 px-[var(--spacing-system-xsf)]"
+        >
+          <XmarkIcon />
+        </Button>
+      </div>
     );
   }
 
   const href = search ? `${pathname}?${search}` : pathname;
   const { currentPage } = resolvePageContext(href, null);
   return (
-    <ChatContextChipStrip
-      items={[{ type: 'PAGE', id: pathname, label: currentPage.title }]}
-      resolveIcon={() => pageIcon(pathname)}
-      onSelect={ask}
-      selectHint={ASK_HINT}
-      className="min-w-0 shrink"
-    />
+    <Button
+      variant="outline"
+      size="compact"
+      leftIcon={pageIcon(pathname)}
+      onClick={ask}
+      title={`${ASK_HINT}: ${currentPage.title}`}
+      aria-label={`${ASK_HINT}: ${currentPage.title}`}
+      className="shrink-0"
+    >
+      <ChipLabel>{currentPage.title}</ChipLabel>
+    </Button>
   );
 }

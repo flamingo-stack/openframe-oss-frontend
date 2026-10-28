@@ -2,8 +2,7 @@
 
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion, LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { type PageActionButton, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { mingoHomeIncidentsQuery as MingoHomeIncidentsQueryType } from '@/__generated__/mingoHomeIncidentsQuery.graphql';
 import { IncidentSeverityTag } from '@/app/(app)/incidents/components/incident-tags';
@@ -15,6 +14,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatCount } from '@/lib/format-number';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { sectionListAction } from '../../dashboard/components/section-list-action';
 
 /**
  * The unresolved incidents by severity: one facet query, counted under NEW + ACKNOWLEDGED
@@ -50,16 +50,7 @@ const SEVERITIES = [InsightSeverity.CRITICAL, InsightSeverity.HIGH, InsightSever
 
 const TITLE = 'Incidents';
 
-// With an icon: a single header action collapses to its icon below `content-md`.
-const LIST_ACTION: PageActionButton[] = [
-  {
-    label: 'Incidents',
-    ariaLabel: 'Open Incidents',
-    href: routes.incidents.list,
-    variant: 'outline',
-    icon: <Chevron02RightIcon className="h-5 w-5 text-ods-text-secondary" />,
-  },
-];
+const LIST_ACTION = sectionListAction('Incidents', routes.incidents.list);
 
 const CARD_GRID = 'grid grid-cols-2 gap-[var(--spacing-system-mf)] content-lg:grid-cols-4';
 

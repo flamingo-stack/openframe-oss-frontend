@@ -11,6 +11,7 @@ import { routes } from '@/lib/routes';
 import { useTicketStatusesQuery } from '../../tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '../../tickets/utils/ticket-statistics';
 import { useTicketsOverview } from '../hooks/use-dashboard-stats';
+import { sectionListAction } from './section-list-action';
 
 type TicketsOverviewData = ReturnType<typeof useTicketsOverview>;
 
@@ -82,7 +83,7 @@ export function TicketsOverview({
 
   return (
     <LoadingRegion label="Loading tickets overview" announce={loading}>
-      <TitleBlock title="Tickets Overview" />
+      <TitleBlock title="Tickets Overview" actions={sectionListAction('Tickets', routes.tickets.list)} />
 
       {!loading && tickets && (tickets.error || tickets.isOffline) && (
         <SectionLoadError

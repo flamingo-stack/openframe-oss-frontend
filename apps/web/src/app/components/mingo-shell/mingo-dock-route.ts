@@ -77,7 +77,8 @@ export interface DockView {
   showContextMemory: boolean;
   /**
    * The dock lies over the page's end (`AppLayout`'s `composerDockFloats`): the page runs
-   * on under it and fades out. Not on the chat page (one surface with the thread) nor on
+   * on under it and fades out. Not on a new chat (its greeting is centred above the dock),
+   * the chat page (one surface with the thread) nor on
    * full-width pages (a remote screen or an editor must not lose its bottom edge).
    */
   floats: boolean;
@@ -96,11 +97,12 @@ export const SHEET_WIDTH_CLASS_NAME =
   'w-[calc(100%-2*var(--spacing-system-m))] max-w-[calc(880px-2*var(--spacing-system-m))]';
 
 const DOCK_VIEWS: Record<ComposerRoute, DockView> = {
+  // A new chat: the greeting sits in the middle of what is left above the composer.
   home: {
     widthClassName: PAGE_WIDTH,
     placeholder: 'Ask Mingo or describe a task…',
     showContextMemory: true,
-    floats: true,
+    floats: false,
   },
   chat: {
     widthClassName: CHAT_WIDTH,

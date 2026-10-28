@@ -33,7 +33,12 @@ export function ApprovalsView() {
   const inbox = composeApprovalInbox(sources, kept);
 
   return (
-    <PageLayout title={TITLE} subtitle={SUBTITLE} className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
+    // `min-h-full`: the page fills the content area, so an empty one has its message in the middle.
+    <PageLayout
+      title={TITLE}
+      subtitle={SUBTITLE}
+      className="min-h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+    >
       <ApprovalList cards={inbox.cards} status={status} onDecide={decide} onComplete={complete} />
     </PageLayout>
   );
@@ -66,7 +71,7 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
   }
 
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-sf)]">
+    <div className="flex flex-1 flex-col gap-[var(--spacing-system-sf)]">
       {status.error && <SectionLoadError message={status.error.message} onRetry={status.error.onRetry} />}
       <ApprovalSection
         label={LIST_LABEL}
@@ -88,7 +93,7 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
         </div>
       )}
       {cards.length === 0 && status.canClaimEmpty && !status.hasMore && (
-        <NoData icon={<ShieldCheckIcon />} title={EMPTY_TITLE} description={EMPTY_TEXT} />
+        <NoData icon={<ShieldCheckIcon />} title={EMPTY_TITLE} description={EMPTY_TEXT} className="flex-1" />
       )}
       {status.hasMore && <div ref={sentinelRef} className="h-px" aria-hidden />}
     </div>

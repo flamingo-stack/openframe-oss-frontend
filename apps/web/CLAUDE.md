@@ -308,7 +308,8 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   `PageKind` and `ListModule` are the ai-agent's closed enums and its input limits reject the whole
   message, so the resolver clips to `PAGE_CONTEXT_LIMITS`. The page is also the first chip of the
   composer's context strip (`mingo-shell/use-page-chip.tsx`), named as Mingo is told it (the entity on
-  its page): a click asks for an overview of it in the sheet, and home adds "+ Add context" (the picker).
+  its page) and drawn as the "Continue …" chip is, in one row that scrolls sideways: a click asks for an
+  overview of it in the sheet. A new chat has none.
 - **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). Every
   chat opens there first: on every page but the chat page, home included, a send, a history row
   or a notification opens the chat over the page instead of leaving it (`useComposerTarget` /

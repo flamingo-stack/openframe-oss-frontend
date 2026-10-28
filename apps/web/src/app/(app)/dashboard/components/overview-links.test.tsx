@@ -3,7 +3,7 @@
  * open the list with their status (the product's PENDING, not "pending deletion"),
  * Archived the archive page. Tickets open the bare list on the dashboard, as they
  * always have, and — with `filterLinks` (Mingo's home) — the list narrowed to the
- * tenant's status ids behind each card's kind.
+ * tenant's status ids behind each card's kind. Each section's header opens its list.
  */
 
 import { act } from 'react';
@@ -71,7 +71,22 @@ afterEach(() => {
   container.remove();
 });
 
-const hrefs = () => Array.from(container.querySelectorAll('a')).map(a => a.getAttribute('href'));
+/**
+ * The header's "> {list}" action: drawn twice, labelled and (below `content-md`) as its
+ * icon named by `aria-label`. Every other link is a card's.
+ */
+const isHeaderLink = (a: Element) => {
+  const name = a.getAttribute('aria-label') ?? a.textContent?.trim();
+  return name === 'Devices' || name === 'Tickets';
+};
+const headerLinks = () =>
+  Array.from(container.querySelectorAll('a'))
+    .filter(isHeaderLink)
+    .map(a => a.getAttribute('href'));
+const hrefs = () =>
+  Array.from(container.querySelectorAll('a'))
+    .filter(a => !isHeaderLink(a))
+    .map(a => a.getAttribute('href'));
 
 describe('DevicesOverviewSection', () => {
   it('opens the list filtered by each status, and the archive', () => {
@@ -83,6 +98,11 @@ describe('DevicesOverviewSection', () => {
       routes.devices.archive,
     ]);
     expect(container.textContent).toContain('Pending Devices');
+  });
+
+  it('opens the Devices list from its header', () => {
+    act(() => root.render(<DevicesOverviewSection />));
+    expect(headerLinks()).toEqual([routes.devices.list, routes.devices.list]);
   });
 });
 
@@ -102,5 +122,10 @@ describe('TicketsOverviewSection', () => {
       routes.tickets.filtered({ status: ['s-waiting', 's-vendor'] }),
     ]);
     expect(hrefs()[3]).toBe('/tickets?status=s-waiting&status=s-vendor');
+  });
+
+  it('opens the Tickets list from its header', () => {
+    act(() => root.render(<TicketsOverviewSection filterLinks />));
+    expect(headerLinks()).toEqual([routes.tickets.list, routes.tickets.list]);
   });
 });
