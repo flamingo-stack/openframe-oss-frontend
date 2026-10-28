@@ -475,6 +475,14 @@ input CreateSoftwareScheduleInput {
 
   """SPECIFIC target device ids (Machine global ids)."""
   machineIds: [ID!]
+
+  """
+  UPDATE only, rejected for INSTALL. Null: wait & notify, a countdown 7 days after the first try, 5 minutes long.
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """UPDATE only, rejected for INSTALL. Null: no auto-update."""
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 input CreateTimeEntryInput {
@@ -4990,6 +4998,14 @@ type SoftwareBundle implements Node {
   """Empty while PENDING; set by submit."""
   packages: [SoftwareBundlePackage!]!
 
+  """
+  How the update behaves on a device. Null for INSTALL and while PENDING.
+  """
+  updateSettings: PackageUpdateSettings
+
+  """Keep it auto-updated. Null for INSTALL and while PENDING."""
+  autoUpdate: SoftwareAutoUpdate
+
   """Number of assigned devices."""
   deviceCount: Int!
 
@@ -5180,6 +5196,12 @@ type SoftwareSchedule implements Node {
   """The packages this schedule installs/updates."""
   packages: [SoftwareSchedulePackage!]!
 
+  """How the update behaves on a device. Null for INSTALL."""
+  updateSettings: PackageUpdateSettings
+
+  """Keep it auto-updated. Null for INSTALL."""
+  autoUpdate: SoftwareAutoUpdate
+
   """
   How this schedule targets devices: SPECIFIC (an explicit machine set) or CRITERIA (a live rule;
   devices registered later that match are included automatically). Never null — legacy schedules read as SPECIFIC.
@@ -5352,6 +5374,14 @@ input SubmitSoftwareBundleInput {
 
   """Null: run now (Device-Online). Set: create a software schedule."""
   schedule: SoftwareBundleScheduleInput
+
+  """
+  UPDATE only, rejected for INSTALL. Null: wait & notify, a countdown 7 days after the first try, 5 minutes long.
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """UPDATE only, rejected for INSTALL. Null: no auto-update."""
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 """ --- Subscription (full, standalone) ---"""
@@ -6000,6 +6030,16 @@ input UpdateSoftwareScheduleInput {
   Full replacement of the assigned device set (Machine global ids). Null leaves the assignment untouched.
   """
   machineIds: [ID!]
+
+  """
+  UPDATE only, rejected for INSTALL. Full replacement: null resets to the defaults (wait & notify, 7 days, 5 minutes).
+  """
+  updateSettings: PackageUpdateSettingsInput
+
+  """
+  UPDATE only, rejected for INSTALL. Full replacement: null turns auto-update off.
+  """
+  autoUpdate: SoftwareAutoUpdateInput
 }
 
 input UpdateSubscriptionInput {
@@ -6437,4 +6477,67 @@ type DirectoryConsentIssue {
 
   """What happened and what to do, in plain words."""
   message: String!
+}
+
+"""What an update does on a device where the app is running."""
+enum PackageUpdateMode {
+  """
+  Wait & notify: the user gets Update now or Ask later; once they close the app, it updates.
+  """
+  WAIT
+
+  """
+  Force install: the user gets a short countdown, then the app closes and updates.
+  """
+  FORCE
+}
+
+"""
+How an update behaves on a device where the app is running. UPDATE only.
+"""
+type PackageUpdateSettings {
+  mode: PackageUpdateMode!
+
+  """
+  WAIT only: seconds after the first try before the countdown starts. Null = no deadline, the update waits.
+  """
+  deadlineSeconds: Long
+
+  """
+  Seconds of countdown before the app is closed: after the deadline (WAIT) or right away (FORCE).
+  """
+  countdownSeconds: Int!
+}
+
+input PackageUpdateSettingsInput {
+  mode: PackageUpdateMode!
+
+  """
+  WAIT only, up to 2592000 (30 days); ignored for FORCE. Null = no deadline ("Countdown after the deadline" off).
+  """
+  deadlineSeconds: Long
+
+  """Up to 3600 (1 hour)."""
+  countdownSeconds: Int!
+}
+
+"""
+Keep it auto-updated: after this update, every new version is installed on the same devices. UPDATE only.
+"""
+type SoftwareAutoUpdate {
+  enabled: Boolean!
+
+  """
+  The settings the auto-updates run with. Null = the update's own ("Same settings for auto-update").
+  """
+  settings: PackageUpdateSettings
+}
+
+input SoftwareAutoUpdateInput {
+  enabled: Boolean!
+
+  """
+  Null = the update's own settings ("Same settings for auto-update"). Ignored while enabled is false.
+  """
+  settings: PackageUpdateSettingsInput
 }
