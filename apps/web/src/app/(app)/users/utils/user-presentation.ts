@@ -1,6 +1,7 @@
 import type { TagProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { isSameDay } from 'date-fns';
 import {
+  DirectoryFeed,
   DirectoryReadability,
   OrgUserSource,
   OrgUserStatus,
@@ -124,4 +125,16 @@ export function orderClaims<T extends { readonly organization: { readonly organi
       Number(b.organization.organizationId === primaryOrganizationId) -
       Number(a.organization.organizationId === primaryOrganizationId),
   );
+}
+
+const FEED_TAGS = {
+  [DirectoryFeed.PUSH]: { label: 'Live', variant: 'success' },
+  // D8: no live feed is not an error, so not red.
+  [DirectoryFeed.AUDIT_STREAM]: { label: 'No push', variant: 'grey' },
+  [DirectoryFeed.POLLING]: { label: 'Polling', variant: 'grey' },
+} satisfies Record<DirectoryFeed, { label: string; variant: TagVariant }>;
+
+/** How a group's changes reach OpenFrame (per connection, contract §3). */
+export function groupFeedTag(feed: string): { label: string; variant: TagVariant } {
+  return presentationFor(FEED_TAGS, feed) ?? { label: feed, variant: 'grey' };
 }

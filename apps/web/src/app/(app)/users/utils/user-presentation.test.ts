@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  DirectoryFeed,
   DirectoryReadability,
   OrgUserSource,
   OrgUserStatus,
@@ -13,6 +14,7 @@ import {
 import { asInstant } from '@/lib/graphql-scalars';
 import {
   firstAndCount,
+  groupFeedTag,
   lastSignInLabel,
   orderClaims,
   secondFactorValue,
@@ -105,4 +107,12 @@ describe('orderClaims', () => {
     expect(orderClaims(claims, 'b').map(claim => claim.organization.organizationId)).toEqual(['b', 'a']);
     expect(orderClaims(claims, null).map(claim => claim.organization.organizationId)).toEqual(['a', 'b']);
   });
+});
+
+it('tags every feed, and a missing live feed is grey, not an error (D8)', () => {
+  for (const feed of Object.values(DirectoryFeed)) {
+    expect(groupFeedTag(feed).label).not.toBe(feed);
+  }
+  expect(groupFeedTag(DirectoryFeed.PUSH)).toEqual({ label: 'Live', variant: 'success' });
+  expect(groupFeedTag(DirectoryFeed.AUDIT_STREAM)).toEqual({ label: 'No push', variant: 'grey' });
 });

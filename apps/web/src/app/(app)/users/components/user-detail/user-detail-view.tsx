@@ -1,7 +1,12 @@
 'use client';
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
-import { FileContentIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  FileCheckIcon,
+  FileContentIcon,
+  MonitorIcon,
+  UsersGroupIcon,
+} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { type ComponentType, memo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -10,6 +15,9 @@ import { useRetryKey } from '@/app/components/shared';
 import type { UserDetailTab } from '@/lib/routes';
 import { USER_DETAIL_TITLE, UserDetailHeader, UserTitle } from './user-detail-header';
 import { UserDetailsTab } from './user-details-tab';
+import { UserDevicesTab } from './user-devices-tab';
+import { UserGroupsTab } from './user-groups-tab';
+import { UserLicencesTab } from './user-licences-tab';
 
 /**
  * The user page's record: the person who owns the account in `?id=`, that account first in `accounts` (contract
@@ -77,6 +85,9 @@ function UserDetailHeaderIsland({ id, loading = false }: IslandProps) {
 /** The user page's tabs (Figma 1014:1222). Each body reads by account id on its own. */
 const USER_DETAIL_TABS: TabItem[] = [
   { id: 'details' satisfies UserDetailTab, label: 'Details', icon: FileContentIcon, component: DetailsTabBody },
+  { id: 'devices' satisfies UserDetailTab, label: 'Devices', icon: MonitorIcon, component: UserDevicesTab },
+  { id: 'user-groups' satisfies UserDetailTab, label: 'User Groups', icon: UsersGroupIcon, component: UserGroupsTab },
+  { id: 'licences' satisfies UserDetailTab, label: 'Licences', icon: FileCheckIcon, component: UserLicencesTab },
 ];
 
 function userTabBody(tabId: string): ComponentType<IslandProps> {

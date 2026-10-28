@@ -70,7 +70,7 @@ export const TAB_IDS = {
   notifications: ['history'],
   incidents: ['current', 'snoozed', 'archived'],
   /** A directory user's page (`/users/details`). */
-  userDetails: ['details'],
+  userDetails: ['details', 'devices', 'user-groups', 'licences'],
 } as const;
 
 export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
