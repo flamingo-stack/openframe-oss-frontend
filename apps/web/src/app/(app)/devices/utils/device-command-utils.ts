@@ -151,8 +151,8 @@ interface PackageManagerMethod {
   label: string;
   /** Title above the step-1 command block */
   commandTitle: string;
-  /** Step 1: install the agent through the package manager */
-  installCommand: string;
+  /** Step 1: install the agent through the package manager. Read on use: Brew's comes from the runtime env. */
+  installCommand: () => string;
 }
 
 /** Package names/commands come from DevOps packaging and may change before release. */
@@ -160,17 +160,18 @@ export const PACKAGE_MANAGER_METHODS: Record<Exclude<InstallMethod, 'script'>, P
   winget: {
     label: 'Winget',
     commandTitle: 'Winget Install Command',
-    installCommand: 'winget install openframe',
+    installCommand: () => 'winget install openframe',
   },
   chocolatey: {
     label: 'Chocolatey',
     commandTitle: 'Chocolatey Install Command',
-    installCommand: 'choco install openframe-client -y',
+    installCommand: () => 'choco install openframe-client -y',
   },
   brew: {
     label: 'Brew',
     commandTitle: 'Brew Install Command',
-    installCommand: 'brew install --cask flamingo-stack/openframe/openframe-client',
+    // One cask per environment in the tap, so a dev/stage device installs its own build
+    installCommand: () => `brew install --cask flamingo-stack/openframe/${runtimeEnv.brewCask()}`,
   },
 };
 

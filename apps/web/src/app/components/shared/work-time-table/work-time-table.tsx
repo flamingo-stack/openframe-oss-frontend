@@ -36,7 +36,8 @@ import type { employeeWorkTimeRelay_query$key } from '@/__generated__/employeeWo
 import type { employeeWorkTimeRelayPaginationQuery } from '@/__generated__/employeeWorkTimeRelayPaginationQuery.graphql';
 import type { employeeWorkTimeRelayQuery as EmployeeWorkTimeRelayQueryType } from '@/__generated__/employeeWorkTimeRelayQuery.graphql';
 import { customerContactEmail } from '@/app/(app)/customers/utils/customer-contact-email';
-import { useAssigneeOptions, useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
+import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
+import { useOrganizationOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import { DeletedUserAvatar, isDeletedUserStatus, isSelfDeletedUserStatus } from '@/app/components/shared/deleted-user';
@@ -352,8 +353,24 @@ interface WorkTimeTableDataProps {
   richEmptyState: boolean;
 }
 
+/** The entries and the stats, with their own boundary: in its scope the reader draws the table pending. */
+function WorkTimeTableData(props: WorkTimeTableDataProps) {
+  return (
+    <LoadingSuspense label="Loading work time">
+      <WorkTimeTableDataReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function WorkTimeTableDataReader(props: WorkTimeTableDataProps) {
+  if (useLoadingScope()) {
+    return <WorkTimeTableViewPending showEmployee={props.showEmployee} showCustomer={props.showCustomer} />;
+  }
+  return <WorkTimeTableDataLive {...props} />;
+}
+
 /** The query container: reads the entries and the stats, and renders {@link WorkTimeTableView} with them. */
-function WorkTimeTableData({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
+function WorkTimeTableDataLive({ vars, fetchKey, ...viewProps }: WorkTimeTableDataProps) {
   const queryData = useLazyLoadQuery<EmployeeWorkTimeRelayQueryType>(employeeWorkTimeRelayQuery, vars, {
     fetchPolicy: 'store-and-network',
     fetchKey,
@@ -647,7 +664,13 @@ function LiveWorkTimeTable({
   const employeeFilterIds = params.employeeIds;
   const customerFilterIds = params.organizationIds;
 
-  const { options: employeeOptionsRaw } = useAssigneeOptions(showEmployee);
+  // The header filter has no search box: the filtered-by employees are asked for by id, so a selection past
+  // the first page keeps its row.
+  const { options: employeeOptionsRaw } = useAssigneeOptions({
+    enabled: showEmployee,
+    selectedIds: employeeFilterIds,
+    pageSize: ASSIGNEE_FILTER_PAGE_SIZE,
+  });
   const { options: customerOptionsRaw } = useOrganizationOptions('', showCustomer);
 
   const employeeFilterOptions = useMemo<DataTableFilterOption[]>(
@@ -751,24 +774,19 @@ function LiveWorkTimeTable({
           <LoadError message="Couldn't load work time entries." onRetry={() => setRetryNonce(nonce => nonce + 1)} />
         }
       >
-        <LoadingSuspense
-          label="Loading work time"
-          fallback={<WorkTimeTableViewPending showEmployee={showEmployee} showCustomer={showCustomer} />}
-        >
-          <WorkTimeTableData
-            showEmployee={showEmployee}
-            showCustomer={showCustomer}
-            vars={vars}
-            fetchKey={fetchKey}
-            onEdit={setEditTarget}
-            onDelete={setDeleteTarget}
-            employeeFilterOptions={employeeFilterOptions}
-            customerFilterOptions={customerFilterOptions}
-            columnFilters={columnFilters}
-            onColumnFiltersChange={onColumnFiltersChange}
-            richEmptyState={richEmptyState}
-          />
-        </LoadingSuspense>
+        <WorkTimeTableData
+          showEmployee={showEmployee}
+          showCustomer={showCustomer}
+          vars={vars}
+          fetchKey={fetchKey}
+          onEdit={setEditTarget}
+          onDelete={setDeleteTarget}
+          employeeFilterOptions={employeeFilterOptions}
+          customerFilterOptions={customerFilterOptions}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={onColumnFiltersChange}
+          richEmptyState={richEmptyState}
+        />
       </ErrorBoundary>
 
       {onAddWorkTimeOpenChange && (

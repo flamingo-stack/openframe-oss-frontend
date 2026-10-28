@@ -2,6 +2,7 @@
 'use no memo';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { CommandBox } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { AutocompleteOption } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { DEFAULT_OS_PLATFORM, type OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -22,7 +24,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
-import { OrgAvatar } from '@/app/components/shared';
+import { NO_ITEMS, OrgAvatar } from '@/app/components/shared';
 import { OsPlatformSelector } from '@/app/components/shared/os-platform-selector';
 import { isValidTag, type TagEntryWithId, TagsEditor } from '@/app/components/shared/tags';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
@@ -62,10 +64,29 @@ const newDeviceSchema = z.object({
 type NewDeviceFormValues = z.infer<typeof newDeviceSchema>;
 
 /**
+ * The page's one form, with its own boundary: it waits whole (its organization field seeds its state), and in its
+ * scope the reader draws the form with no customers.
+ */
+export function NewDeviceContent() {
+  return (
+    <LoadingSuspense label="Loading device setup">
+      <NewDeviceContentReader />
+    </LoadingSuspense>
+  );
+}
+
+function NewDeviceContentReader() {
+  // In a loading scope (its boundary's fallback) it reads nothing: the form over no customers, every field its own
+  // loading state.
+  if (useLoadingScope()) return <NewDeviceForm orgs={NO_ITEMS} preselectedOrgId={null} />;
+  return <NewDeviceContentLive />;
+}
+
+/**
  * The page's data: the customers (suspends until they answer) and the customer passed by "Add Device" launched
  * from a customer's section (`/devices/new?organizationId=<id>`), used to pre-select the dropdown.
  */
-export function NewDeviceContent() {
+function NewDeviceContentLive() {
   const preselectedOrgId = useSearchParams().get('organizationId');
   // Organizations for the customer dropdown (GraphQL via TanStack Query).
   const orgs = useDeviceOrganizations(100);
@@ -78,10 +99,10 @@ interface NewDeviceFormProps {
 }
 
 /**
- * The form over the customers it is handed. The page's Suspense fallback draws it in a loading scope with none
- * (every field its own loading state), so loading and loaded are one layout.
+ * The form over the customers it is handed. In a loading scope it is drawn with none (every field its own loading
+ * state), so loading and loaded are one layout.
  */
-export function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
+function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
   const handleBack = useSafeBack(routes.devices.list);
   const { toast } = useToast();
   // The remote access permission selector belongs to the next remote access
@@ -202,7 +223,7 @@ export function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
     // admin warning points users at has no '&&'. macOS keeps '&&' so
     // registration only runs after a successful install.
     const separator = platform === 'windows' ? '; ' : ' && ';
-    doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand}${separator}${registerCommand}`);
+    doCopy(`${PACKAGE_MANAGER_METHODS[installMethod].installCommand()}${separator}${registerCommand}`);
   }, [command, registerCommand, installMethod, platform, doCopy, validateBeforeAction, rotateMachineId]);
 
   // Corner copy buttons take their own clipboard hook so the main button's
@@ -344,8 +365,8 @@ export function NewDeviceForm({ orgs, preselectedOrgId }: NewDeviceFormProps) {
             <>
               <CommandBox
                 title={PACKAGE_MANAGER_METHODS[installMethod].commandTitle}
-                command={PACKAGE_MANAGER_METHODS[installMethod].installCommand}
-                onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand)}
+                command={PACKAGE_MANAGER_METHODS[installMethod].installCommand()}
+                onCopy={() => copyBoxCommand(PACKAGE_MANAGER_METHODS[installMethod].installCommand())}
                 copyAriaLabel="Copy install command"
                 commandClassName="text-ods-accent"
               />

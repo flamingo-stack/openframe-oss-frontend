@@ -169,8 +169,9 @@ install (`npm ci`); the exact pins make `package.json` say the same thing, so an
 `npm update` on a laptop cannot move a version no PR asked for. The Dockerfile base image is pinned
 to a full version tag for the same reason.
 
-- **To bump:** change the version, run `npm install`, and check the `Scan Code` job — Trivy over
-  `package-lock.json` and the Dockerfile's base images, failing on any HIGH/CRITICAL that has a fix.
+- **To bump:** change the version, run `npm install`, and check the Trivy rows of the pull request's
+  `Flamingo Code Review / tests and checks` check: Trivy over `package-lock.json`, the Dockerfile's base
+  images and the image the change builds, reporting any HIGH/CRITICAL that has a fix.
 - **A transitive finding** is fixed with `npm update <pkg>` when the parent's range allows the
   patched version, and with `overrides` only when it does not.
 - **`overrides` → `next-runtime-env`:** the package declares `next@^14` and `react@^18` as hard
@@ -543,6 +544,14 @@ The gateway answers a mobile bundle below the policy's `minBundleVersion` with *
 header handles it (`src/lib/version-check.ts`): bail out with `UpdateRequiredError` while `isUpdateRequired()`, and run
 `noteUpgradeRequired(response)` *before* any 401 → refresh → logout branch. That flips the app into the blocking
 "Update required" screen (`AppUpdateGate` in the root layout) and keeps the request off every retry path.
+The same places feed **session health** (`src/lib/session-health.ts`), right after the 426 check: bail out with
+`SessionGoneError` while `isSessionGone()`, and run `noteGatewayResponse(response)` on tenant-gateway answers only. A
+`text/html` 410 is the shared gateway's deleted-tenant page and shows the "Workspace deleted" screen; a JSON 410 is a
+service's own answer and goes back to the caller. A 401 that survives a successful refresh pauses the session, except
+on the tool proxies (`/tools/*`), where a 401 is the tool's own answer.
+**A query that polls the gateway** uses `sessionRetry` + a gated `refetchInterval` (`sessionInterval`, or
+`sessionPollsAllowed()` first in an interval function) **and** `meta: sessionPollMeta` (`src/lib/session-poll.ts`):
+without the meta it stops on a pause and never restarts.
 
 **Every request goes out BELOW `SubscriptionGuard`.** The guard (`src/app/components/subscription-lock/subscription-guard.tsx`) wraps the whole app tree in `app-layout.tsx`, and the network gate it feeds (`src/lib/subscription-gate.ts`) holds app *queries* until the subscription answers and while it locks. **Mutations bypass that gate by design** — they are user actions, and the paywall's own are what a locked workspace needs (`useMutation` takes no `cacheConfig`, so there is no per-call opt-out either). So a mutation fired by a timer/effect rather than by a click goes straight out on a locked workspace and fails on every interval — which `recordPresence` did, once every ten seconds behind the lock screen.
 
@@ -578,7 +587,10 @@ export const myFileNameQuery = graphql`
   }
 `;
 
-// In a component (wrap in <Suspense> — useLazyLoadQuery suspends):
+// In a component. useLazyLoadQuery suspends: wrap ONLY this component in the lib's LoadingSuspense (the one
+// boundary: `live` keeps plain controls usable through the wait, `gated` holds the query behind a page gate), never a
+// raw <Suspense> and never the whole page. The rules are the lib engine's header (RAW_SUSPENSE, PAGE_BOUNDARY),
+// checked by `npm run check:loading`.
 const data = useLazyLoadQuery<MyFileNameQueryType>(myFileNameQuery, { first: 30 }, { fetchPolicy: 'store-and-network' });
 ```
 - Prefer fragments + `usePaginationFragment` for connections; use `@connection` + `ConnectionHandler` updaters to keep lists consistent after mutations

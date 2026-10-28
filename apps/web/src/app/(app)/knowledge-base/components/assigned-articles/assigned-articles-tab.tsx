@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Filter02Icon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, TagSearchInput } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
@@ -131,8 +130,8 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
             </div>
           )}
 
-          {/* The rows before they answer: the table itself, in a loading scope, where it draws its own loading state. */}
-          <LoadingSuspense label="Loading articles">{rows}</LoadingSuspense>
+          {/* The rows: the table places its own boundary and, before they answer, draws its own loading state. */}
+          {rows}
         </div>
 
         {/* Beside the toolbar, not inside it: the bar is a stacking context (`sticky` + `z-20`),
@@ -140,7 +139,7 @@ export function AssignedArticlesTab({ target }: AssignedArticlesTabProps) {
         {/* The dialogs act on the target: mounted once it is known. */}
         {target && (
           <>
-            <LoadingSuspense label="Loading tags">{tagsModal}</LoadingSuspense>
+            {tagsModal}
             <AssignArticleModal
               target={target}
               isOpen={isAssignOpen}

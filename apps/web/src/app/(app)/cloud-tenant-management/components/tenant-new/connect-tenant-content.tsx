@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { NotFoundError, PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { graphql, useLazyLoadQuery } from 'react-relay';
@@ -22,11 +23,20 @@ const connectTenantContentQuery = graphql`
   }
 `;
 
-/**
- * The record the connect step edits — suspends on the query, so it lives under the view's `<Suspense>`. In a
- * loading scope (that boundary's fallback, or the module's flag window) it draws the form's own loading state.
- */
+/** The record the connect step edits, with its own boundary: in its scope the reader draws its own loading form. */
 export function ConnectTenantContent({ id }: { id: string }) {
+  return (
+    <LoadingSuspense live label="Loading tenant form">
+      <ConnectTenantContentReader id={id} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (its boundary's fallback, or the module's flag window) it draws the form's own loading state;
+ * otherwise it runs the query, which suspends.
+ */
+function ConnectTenantContentReader({ id }: { id: string }) {
   if (useLoadingScope()) {
     return <ConnectTenantForm record={null} />;
   }

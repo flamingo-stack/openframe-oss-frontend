@@ -38,6 +38,7 @@ export default function FileManagerPage() {
           label: getDeviceName(deviceDetails) || deviceId,
         }
       : null,
+    { loading: isLoading },
   );
 
   if (!isLoading && error) {

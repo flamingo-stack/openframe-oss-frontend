@@ -19,7 +19,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { useLazyLoadQuery, useMutation } from 'react-relay';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import type { unarchiveScriptMutation as UnarchiveScriptMutationType } from '@/__generated__/unarchiveScriptMutation.graphql';
-import { LiveSuspense, NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
+import { NO_ITEMS, useRetryKey, ValueText } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScriptStatus } from '@/generated/schema-enums';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -46,8 +46,25 @@ interface ScriptDetailsViewProps {
  *
  * A missing script keeps the Back button and drops the actions: the way out has
  * to survive a bad id, and the summary below reports the miss once.
+ *
+ * It carries its own boundary; in its scope the reader draws the header with no
+ * record.
  */
 function ScriptHeader({ scriptId }: ScriptDetailsViewProps) {
+  return (
+    <LoadingSuspense live label="Loading the script">
+      <ScriptHeaderReader scriptId={scriptId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScriptHeaderReader({ scriptId }: ScriptDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptHeaderView scriptId={scriptId} />;
+  return <ScriptHeaderLive scriptId={scriptId} />;
+}
+
+function ScriptHeaderLive({ scriptId }: ScriptDetailsViewProps) {
   const retryKey = useRetryKey();
   const data = useLazyLoadQuery<ScriptDetailQueryType>(
     scriptDetailRelayQuery,
@@ -88,6 +105,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
     !loading && script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    { loading: loading },
   );
 
   const handleUnarchive = useCallback(() => {
@@ -189,6 +207,20 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
  * says it once.
  */
 function ScriptSummary({ scriptId }: ScriptDetailsViewProps) {
+  return (
+    <LoadingSuspense label="Loading script details">
+      <ScriptSummaryReader scriptId={scriptId} />
+    </LoadingSuspense>
+  );
+}
+
+function ScriptSummaryReader({ scriptId }: ScriptDetailsViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScriptSummaryView />;
+  return <ScriptSummaryLive scriptId={scriptId} />;
+}
+
+function ScriptSummaryLive({ scriptId }: ScriptDetailsViewProps) {
   // Shares the header's key deliberately. NOT for network dedupe — that is keyed
   // on `operation.request.identifier` (`loadQuery.js`), which does not contain
   // `fetchKey`, so mismatched keys still share one in-flight request. The reason
@@ -274,14 +306,10 @@ export const ScriptDetailsView = memo(function ScriptDetailsViewImpl({ scriptId 
     // sections — composing `TitleBlock` by hand changes which parts wait for
     // data, never the spacing.
     <div className="flex w-full flex-col px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]">
-      <LiveSuspense label="Loading the script" view={<ScriptHeaderView scriptId={scriptId} />}>
-        <ScriptHeader scriptId={scriptId} />
-      </LiveSuspense>
+      <ScriptHeader scriptId={scriptId} />
 
       <div className="flex flex-1 flex-col gap-[var(--spacing-system-l)]">
-        <LoadingSuspense label="Loading script details" fallback={<ScriptSummaryView />}>
-          <ScriptSummary scriptId={scriptId} />
-        </LoadingSuspense>
+        <ScriptSummary scriptId={scriptId} />
 
         {/* `TabNavigation` renders as a fragment, so its bar and its body are
             siblings — left as direct children of the column above they would be

@@ -8,10 +8,16 @@ import type {
   ProductCheckoutInput,
   useCreateCheckoutSessionMutation as UseCreateCheckoutSessionMutationType,
 } from '@/__generated__/useCreateCheckoutSessionMutation.graphql';
-import { getRelayErrorMessage } from '@/lib/handle-api-error';
+import { getRelayErrorCodes, getRelayErrorMessage } from '@/lib/handle-api-error';
 import { openDeferredTab } from '../shared/stripe-window';
 
 export type { CheckoutInput, ProductCheckoutInput };
+
+/**
+ * The tenant's cancelled pay-as-you-go subscription is still being closed in
+ * Stripe, and a new one would share its usage meter. Gone within minutes.
+ */
+const PREVIOUS_SUBSCRIPTION_FINALIZING = 'PREVIOUS_SUBSCRIPTION_FINALIZING';
 
 const createCheckoutSessionMutation = graphql`
   mutation useCreateCheckoutSessionMutation($input: CheckoutInput!) {
@@ -60,6 +66,14 @@ export function useCreateCheckoutSession() {
         },
         onError: err => {
           tab.cancel();
+          if (getRelayErrorCodes(err).includes(PREVIOUS_SUBSCRIPTION_FINALIZING)) {
+            toast({
+              title: 'Previous subscription is closing',
+              description: 'Your previous subscription is still being finalized. Please try again in a few minutes.',
+              variant: 'destructive',
+            });
+            return;
+          }
           toast({
             title: 'Checkout Failed',
             description: getRelayErrorMessage(err, 'Failed to start checkout'),

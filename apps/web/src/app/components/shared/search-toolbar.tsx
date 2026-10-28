@@ -1,0 +1,33 @@
+'use client';
+
+import { SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+
+interface SearchToolbarProps {
+  /** `useStickyToolbar`'s ref — the table's sticky header is measured off this bar. */
+  toolbarRef: (node: HTMLDivElement | null) => void;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  /** The list is not there to search yet — the bar draws as it will, locked. */
+  disabled?: boolean;
+}
+
+/** The search bar pinned above a list page's table. */
+export function SearchToolbar({ toolbarRef, placeholder, value, onChange, disabled }: SearchToolbarProps) {
+  return (
+    <div
+      ref={toolbarRef}
+      className="sticky top-0 z-20 -mx-[var(--spacing-system-l)] -mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] bg-ods-bg p-[var(--spacing-system-l)]"
+    >
+      <Input
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        disabled={disabled}
+        className="flex-1"
+        startAdornment={<SearchIcon className="h-4 w-4 content-md:h-6 content-md:w-6" />}
+      />
+    </div>
+  );
+}

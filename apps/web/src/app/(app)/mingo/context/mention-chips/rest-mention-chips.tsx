@@ -1,5 +1,4 @@
 'use client';
-import { useSuspenseQuery } from '@tanstack/react-query';
 /**
  * Self-fetching mention chips for the REST / ai-agent-GraphQL entity types. One
  * generic component (`RestMentionChip`) backed by a per-marker async resolver,
@@ -7,10 +6,9 @@ import { useSuspenseQuery } from '@tanstack/react-query';
  * the Relay chips. Resolvers never throw — they degrade to `{ label: id }` on a
  * failed response — so the chip always renders (id when the name can't load).
  *
- * id semantics + routes (per the picker in `rest-items.tsx` / `batch-items.tsx`):
+ * id semantics + routes (per the picker in `rest-items.tsx` / `relay-items.tsx`):
  *   - policy → fleet `getPolicy(policyId)`        → /monitoring/policy/{id}
  *   - query  → fleet `getQuery(queryId)`          → /monitoring/query/{id}
- *   - user   → REST `/api/users/{userId}`         → (no detail route)
  *   - script → tactical `getScript(id)`           → /scripts/details/{id}
  *   - ticket → ai-agent `ticket(id:)` GraphQL      → /tickets/dialog?id={id}
  *
@@ -18,12 +16,15 @@ import { useSuspenseQuery } from '@tanstack/react-query';
  * via the Relay `GraphqlMentionChip`; `render-mention.tsx` dispatches by id shape
  * (24-char ObjectId → new, numeric → this Tactical resolver) so BOTH resolve.
  */
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { formatTicketRef } from '@/app/(app)/tickets/utils/ticket-ref';
 import { apiClient } from '@/lib/api-client';
 import { fleetApiClient } from '@/lib/fleet-api-client';
 import { routes } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
+import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 interface Resolved {
   label: string;
@@ -42,15 +43,6 @@ async function resolveQuery(id: string): Promise<Resolved> {
   // always undefined → chip would show the bare id). See `use-query-details.ts`.
   const name = res.ok ? (res.data as unknown as { query?: { name?: string } }).query?.name : undefined;
   return { label: name || id, href: routes.monitoring.query(id) };
-}
-
-async function resolveUser(id: string): Promise<Resolved> {
-  const res = await apiClient.get<{ firstName?: string; lastName?: string; email?: string }>(
-    `/api/users/${encodeURIComponent(id)}`,
-  );
-  const u = res.ok ? res.data : undefined;
-  const fullName = u ? [u.firstName, u.lastName].filter(Boolean).join(' ') : '';
-  return { label: fullName || u?.email || id };
 }
 
 async function resolveScript(id: string): Promise<Resolved> {
@@ -79,7 +71,6 @@ async function resolveTicket(id: string): Promise<Resolved> {
 const RESOLVERS: Record<string, (id: string) => Promise<Resolved>> = {
   policy: resolvePolicy,
   query: resolveQuery,
-  user: resolveUser,
   script: resolveScript,
   ticket: resolveTicket,
 };
@@ -91,6 +82,26 @@ interface RestMentionChipProps {
   /** Known display name (e.g. a context item's picked label). Shown instead of
    *  the bare `id` when the live resolve can't find the entity. */
   fallbackLabel?: string;
+}
+
+/**
+ * The chip's boundary: while its entity is fetched, the reader draws the chip itself (no label yet) in a loading
+ * scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the chip
+ * lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
+ */
+function RestLoader(props: RestMentionChipProps) {
+  return (
+    <LoadingSuspense as="span" className="contents" status={false}>
+      <RestReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function RestReader(props: RestMentionChipProps) {
+  // In a loading scope it draws the chip with no label and runs no read.
+  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  return <RestInner {...props} />;
 }
 
 function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
@@ -108,9 +119,7 @@ function RestInner({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
 export function RestMentionChip({ marker, id, icon, fallbackLabel }: RestMentionChipProps) {
   return (
     <MentionErrorBoundary fallback={<MentionTag icon={icon} label={fallbackLabel || id} />}>
-      <MentionSuspense icon={icon}>
-        <RestInner marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
-      </MentionSuspense>
+      <RestLoader marker={marker} id={id} icon={icon} fallbackLabel={fallbackLabel} />
     </MentionErrorBoundary>
   );
 }

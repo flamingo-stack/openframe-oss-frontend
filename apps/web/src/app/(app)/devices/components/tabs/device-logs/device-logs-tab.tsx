@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
@@ -37,26 +36,6 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
   // Kept here, above the list: the list remounts per filter, and an open drawer should not close with it.
   const [selected, setSelected] = useState<{ key: string; entry: DeviceLogEntry } | null>(null);
 
-  // The deferred list trails the live one by the debounce: right after the device answers it still holds the empty
-  // machine id the loading state was built with. The list stays in its loading form (and asks for nothing) until the
-  // deferred list carries the real one.
-  const logsList = (
-    <LoadingWhen loading={!deferredList.machineIds[0]}>
-      <DeviceLogsList
-        key={deferredList.key}
-        machineIds={deferredList.machineIds}
-        filter={deferredList.filter}
-        deviceHostname={device?.hostname}
-        isPending={isPending}
-        autoUpdate={autoUpdate && !filters.rangeClosed}
-        hasFilters={filters.hasFilters}
-        onResetFilters={filters.resetFilters}
-        selectedKey={selected?.key ?? null}
-        onSelect={(key, entry) => setSelected({ key, entry })}
-      />
-    </LoadingWhen>
-  );
-
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <DeviceLogsToolbar
@@ -78,7 +57,23 @@ export function DeviceLogsTab({ device }: DeviceLogsTabProps) {
       />
       {/* The deferred key: the live one would remount a failed list and re-send it. */}
       <ContentErrorBoundary label="DeviceLogsTab" message="Couldn't load device logs." resetKey={deferredList.key}>
-        <LoadingSuspense label="Loading logs">{logsList}</LoadingSuspense>
+        {/* The deferred list trails the live one by the debounce: right after the device answers it still holds the
+            empty machine id the loading state was built with. The list stays in its loading form (and asks for
+            nothing) until the deferred list carries the real one. */}
+        <LoadingWhen loading={!deferredList.machineIds[0]}>
+          <DeviceLogsList
+            listKey={deferredList.key}
+            machineIds={deferredList.machineIds}
+            filter={deferredList.filter}
+            deviceHostname={device?.hostname}
+            isPending={isPending}
+            autoUpdate={autoUpdate && !filters.rangeClosed}
+            hasFilters={filters.hasFilters}
+            onResetFilters={filters.resetFilters}
+            selectedKey={selected?.key ?? null}
+            onSelect={(key, entry) => setSelected({ key, entry })}
+          />
+        </LoadingWhen>
       </ContentErrorBoundary>
       {device && (
         <DeviceLogDrawer entry={selected?.entry ?? null} onClose={() => setSelected(null)} deviceId={machineId} />

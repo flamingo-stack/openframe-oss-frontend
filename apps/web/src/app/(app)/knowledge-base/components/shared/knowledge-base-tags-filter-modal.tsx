@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { FilterModal, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { NO_ITEMS, type SelectableTag } from '@/app/components/shared';
 import type { AssignedArticlesTarget } from '../assigned-articles/assigned-articles-target';
@@ -29,6 +30,15 @@ interface KnowledgeBaseTagsFilterModalProps {
  * Suspense fallback) the modal draws its own loading state and reads nothing.
  */
 export function KnowledgeBaseTagsFilterModal(props: KnowledgeBaseTagsFilterModalProps) {
+  return (
+    <LoadingSuspense label="Loading tags">
+      <KnowledgeBaseTagsFilterModalReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function KnowledgeBaseTagsFilterModalReader(props: KnowledgeBaseTagsFilterModalProps) {
   if (useLoadingScope()) {
     return <TagsFilterModalView {...props} tags={NO_ITEMS} loading />;
   }
@@ -41,9 +51,24 @@ function KnowledgeBaseTagsFilterModalQuery(props: KnowledgeBaseTagsFilterModalPr
   return <TagsFilterModalView {...props} tags={tags} loading={false} />;
 }
 
+/** Whose articles had no tags to offer, for the modal's empty state. */
+function noTagsDescription({
+  parentId,
+  archived,
+  assignedTo,
+}: Pick<KnowledgeBaseTagsFilterModalProps, 'parentId' | 'archived' | 'assignedTo'>): string {
+  if (assignedTo) return 'No assigned article has tags.';
+  if (archived) return 'No archived article has tags.';
+  if (parentId) return 'No article in this folder has tags.';
+  return 'No article in the knowledge base has tags.';
+}
+
 function TagsFilterModalView({
   isOpen,
   onClose,
+  parentId,
+  archived,
+  assignedTo,
   selectedIds,
   onApply,
   tags,
@@ -60,6 +85,9 @@ function TagsFilterModalView({
       onClose={onClose}
       title="Filter by Tags"
       filterGroups={[{ id: TAGS_GROUP_ID, title: 'Tags', options: tags.map(tag => ({ id: tag.id, label: tag.key })) }]}
+      // With no tags the group has no options, and `FilterModal` draws this empty state instead.
+      emptyStateTitle="No tags to filter by"
+      emptyStateDescription={noTagsDescription({ parentId, archived, assignedTo })}
       // `FilterModal` re-seeds its checkboxes from this each time it opens.
       currentFilters={{ [TAGS_GROUP_ID]: [...selectedIds] }}
       onFilterChange={handleFilterChange}

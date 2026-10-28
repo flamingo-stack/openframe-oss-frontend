@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -30,9 +31,11 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { useRowDialog } from '@/app/components/shared/use-row-dialog';
 import { ROOT_FOLDER } from '../shared/folder-tree';
 import { KNOWLEDGE_BASE_ITEM_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { knowledgeBaseItemHref } from '../shared/knowledge-base-item-href';
@@ -43,7 +46,6 @@ import {
   knowledgeBaseListingArgs,
 } from '../shared/knowledge-base-listings';
 import { useKnowledgeBaseLoadMore } from '../shared/knowledge-base-table';
-import { useRowDialog } from '../shared/use-row-dialog';
 import { type ItemDialogKind, KnowledgeBaseItemActionsCell } from './knowledge-base-item-actions-cell';
 import { KnowledgeBaseItemCreatedCell } from './knowledge-base-item-created-cell';
 import { KnowledgeBaseItemDialogs } from './knowledge-base-item-dialogs';
@@ -161,6 +163,15 @@ interface KnowledgeBaseItemsTableProps {
  * suspends, so it lives under the view's `<Suspense>`.
  */
 export function KnowledgeBaseItemsTable(props: KnowledgeBaseItemsTableProps) {
+  return (
+    <LoadingSuspense label="Loading articles">
+      <KnowledgeBaseItemsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function KnowledgeBaseItemsTableReader(props: KnowledgeBaseItemsTableProps) {
   if (useLoadingScope()) {
     return (
       <KnowledgeBaseItemsRows
@@ -279,11 +290,11 @@ function KnowledgeBaseItemsRows({
           loadingCells={loading}
           totalCount={totalCount}
           itemName="item"
-          emptyState={{
-            title: listing.search
+          emptyState={oneLineEmptyState(
+            listing.search
               ? `No articles or folders found matching "${listing.search}". Try adjusting your search.`
               : 'No articles match the selected tags. Try adjusting your filters.',
-          }}
+          )}
           rowHref={rowHref}
           footer={rows.length > 0 ? infiniteScroll : null}
           isPending={isPending}

@@ -1,14 +1,13 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { memo, useState } from 'react';
+import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
-import { SoftwareSearchToolbar } from '../../shared/software-search-toolbar';
 import { useServerSort } from '../../shared/use-server-sort';
 import { SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilitiesTable } from './software-vulnerabilities-table';
@@ -67,7 +66,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
   return (
     <div className="flex flex-col pt-[var(--spacing-system-l)]" style={containerStyle}>
       {!isEmpty && (
-        <SoftwareSearchToolbar
+        <SearchToolbar
           toolbarRef={toolbarRef}
           placeholder="Search for Vulnerability"
           value={searchInput}
@@ -76,11 +75,9 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
         />
       )}
 
-      {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
-          itself, in a loading scope, where it draws its own loading state and does not fetch. */}
-      <LoadingWhen loading={loading}>
-        <LoadingSuspense label="Loading vulnerabilities">{rows}</LoadingSuspense>
-      </LoadingWhen>
+      {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's own
+          window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+      <LoadingWhen loading={loading}>{rows}</LoadingWhen>
     </div>
   );
 });

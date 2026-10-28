@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { MonitorIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -30,11 +31,11 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { singleColumnFilter } from '../../shared/column-filters';
-import { OpenRowButton } from '../../shared/open-row-button';
 import { SoftwareDeviceCell } from './software-device-cell';
 import { SoftwareDeviceVersionCell } from './software-device-version-cell';
 import { SOFTWARE_DEVICE_COLUMNS, SOFTWARE_DEVICES_PAGE_SIZE } from './software-devices-columns';
@@ -179,11 +180,19 @@ interface SoftwareDevicesTableProps {
 }
 
 /**
- * The tab's rows. In a loading scope (the tab's Suspense fallback, or the module's flag window) it draws the table
- * over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it lives
- * under the tab's `<Suspense>`.
+ * The tab's rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's flag window)
+ * the reader draws the table over one page of placeholder rows with their real cells, each in its own loading form;
+ * otherwise it runs the query, which suspends under that boundary.
  */
 export function SoftwareDevicesTable(props: SoftwareDevicesTableProps) {
+  return (
+    <LoadingSuspense label="Loading devices">
+      <SoftwareDevicesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareDevicesTableReader(props: SoftwareDevicesTableProps) {
   if (useLoadingScope()) {
     return <SoftwareDevicesTableRows {...props} rows={NO_ITEMS} totalCount={0} infiniteScroll={NO_NEXT_PAGE} />;
   }

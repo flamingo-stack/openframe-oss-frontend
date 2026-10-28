@@ -33,14 +33,29 @@ what must survive idle:
   temp-file rename so a concurrent reader never sees a half-written file. A torn
   read would deserialize as "no session" and tear down the notification
   subscription.
-- **Freshness.** The access token's JWT `exp` is decoded without signature
-  verification — it is a scheduling hint about our own token, nothing more. A
+- **Freshness.** The access token's JWT claims are decoded without signature
+  verification — they are scheduling hints about our own token, nothing more. A
   refresh is due when a refresh token exists and the access token is missing or
-  expires within 120 seconds. That margin is squeezed from both sides: it must
-  span several poll ticks (App Nap coalesces a hidden app's timers, and a margin
-  the poll can skip entirely lets the access token die), yet stay a small
-  fraction of the token's 900-second life, because every rotation is a chance to
-  lose the session — see the hazard note below.
+  within 120 seconds of the end of its life. The life is the token's own
+  `exp - iat` (two readings of the gateway's clock), counted from the moment the
+  token arrived — recorded by a rotation, and by the webview's `setTokens` when
+  the access token is new — on a clock that keeps counting through sleep
+  (`CLOCK_MONOTONIC` on macOS, `CLOCK_BOOTTIME` on Linux, `Instant` on
+  Windows). The device's wall clock is not consulted, so a machine whose clock
+  is wrong rotates on the same cadence as one whose clock is right: judging
+  `exp` against a wall clock that ran behind kept presenting a token the gateway
+  had already expired. After a
+  restart there is no receipt; the token is judged by `exp` against the wall
+  clock instead, plus one guard — an `iat` ahead of the device's now proves the
+  clock is behind and rotates once. (The device agent refreshes once at start;
+  the shell does not, because each launch would then spend a rotation, and the
+  residual — a clock behind by less than the token's age — is recovered by the
+  first 401, which the rejected-token handoff below keeps to one rotation.) The
+  120-second margin is squeezed from both sides: it must span several poll ticks
+  (App Nap coalesces a hidden app's timers, and a margin the poll can skip
+  entirely lets the access token die), yet stay a small fraction of the token's
+  900-second life, because every rotation is a chance to lose the session — see
+  the hazard note below.
 - **Refresh.** `POST {base}/oauth/refresh` with the `Refresh-Token` header;
   rotated tokens come back on the `Access-Token`/`Refresh-Token` response
   headers. `tenantId` is omitted — the gateway resolves the tenant from the token.
@@ -56,22 +71,46 @@ what must survive idle:
   on the first answer, since re-presenting the same token cannot change it; and
   *unknown* (a broken or timed-out response, a 5xx, a 200 with no token headers)
   is never retried, because a retry can only turn "maybe rotated" into a
-  rejection.
+  rejection. A fourth, *gone* (410), is settled by the gateway's routing filter
+  before anything can rotate, so it is neither a rejection nor an unknown — see
+  **Tenant gone**.
 - **Outcome contract**, consumed by the frontend's delegation: rotated → tokens;
   session over (rejected, or a rotation that could not be written to disk) →
   tokens cleared, empty set returned; unreached/unknown → error, stored tokens
-  kept. The `refreshTokens` command softens the last case before the webview sees
-  it: it resolves with the stored tokens instead of rejecting, because the
-  frontend maps every refresh that yields no access token to `forceLogout`, and
-  that deletes a refresh token which is good for days. Deciding a session is over
-  stays here, where custody is.
+  kept. The `refreshTokens` command takes the access token the webview says the
+  gateway refused (`rejectedAccessToken`) and dampens against that, not against
+  the stored token: if the store already holds a different one, a rotation
+  already happened and the stored tokens are the answer, without a request. A
+  failure *rejects*, which the frontend's `executeRefresh` maps to `transient`
+  (fail the one request, keep the session); only a resolve with no access token
+  is `terminal` and reaches `forceLogout`, which deletes a refresh token that is
+  good for days. (It used to resolve with the stored tokens, which the frontend
+  reads as `refreshed`: the retry carried the same rejected bearer and rotated
+  again.) Deciding a session is over stays here, where custody is.
+- **Tenant gone.** The shared gateway answers every path of a deleted tenant
+  with a 410 and its HTML error page; a tenant service's own 410 is JSON and is
+  not the tenant being deleted (the web app draws the same line). Nothing a
+  retry does changes that page, so the shell stops: the page in answer to a
+  refresh (possible only on the tenant-host fallback — the shared host looks the
+  tenant up through the authorization record, which offboarding deletes, and so
+  answers 401) or to a plain-HTTP probe marks the tenant gone. While gone, no
+  rotation is attempted (the poll, `refresh_soon` and the delegated refresh all
+  stand down), NATS redials no sooner than every five minutes and its auth
+  callback parks, and a probe on the device agent's schedule (60s doubling to
+  30 min) looks for the tenant to answer again — any routed answer, not only a
+  2xx, since a stale bearer cannot earn one. The NATS fork reports a refused
+  upgrade as a plain IO failure with the status only in its error text, so the
+  connector's failed-dial count (five in a row, which only non-auth failures
+  accumulate) is what triggers the first probe. Cleared by a sign-out, a new
+  session's tokens, a tenant change, or a probe that finds the gateway routing.
+  The webview detects 410 on its own requests; no bridge event carries this.
 - **Background loop.** A 30-second freshness poll rather than a scheduled timer.
   It backs off while refreshes keep failing, up to 16× the interval. Note that it
   does *not* self-heal across sleep, contrary to what this file used to say:
   `tokio::time::sleep` runs on `Instant`, which is `CLOCK_UPTIME_RAW` on macOS
   and stops while the machine is out, so on a laptop cycling through maintenance
   DarkWake a single tick can take over an hour of wall clock. Freshness itself is
-  decided on the wall clock, so a late tick still refreshes correctly.
+  decided on a clock that counts sleep, so a late tick still refreshes correctly.
 - **Wake and window-show.** macOS `NSWorkspaceDidWakeNotification`
   (`macos_wake.rs`) and showing the main window both nudge a refresh. A machine
   that slept through the access token's whole life comes back with every overdue
@@ -142,13 +181,22 @@ The bridge is shell-agnostic; the frontend feature-detects each method.
 |---|---|
 | `start` / `exchangeTicket` | OAuth in the user's default browser, then a native token exchange — the response headers carrying tokens are invisible to a cross-origin webview fetch. |
 | `get` / `set` / `clearTokens` | `set` merges per field: a rotation response may carry one token or both. |
-| `refreshTokens` | Optional. Its presence means "the shell owns refresh", and the webview stops calling the refresh endpoint entirely. Rejects only when there is genuinely nothing to refresh with — a rejection is a logout on the frontend side. |
+| `refreshTokens` | Optional. Its presence means "the shell owns refresh", and the webview stops calling the refresh endpoint entirely. Takes `{ rejectedAccessToken }`, the bearer the gateway refused. Resolves with the tokens (empty = session over, the webview logs out); rejects on any transient failure, which the webview treats as "keep the session, fail this request". |
 | `setTenantHost` | Persists the login-learned tenant origin shell-side, so shell networking has a gateway without depending on webview storage. |
 
 ### Where the login ends
 
-The login runs in the user's **default browser** and comes back on this app's own
-scheme, `openframe-console://auth`.
+The login runs in the user's **default browser**, finishes on a hand-off page of
+the web app on the shared host (`/auth/desktop-return/`), and comes back on this
+app's own scheme, `openframe-console://auth`.
+
+The page exists because a redirect straight to the scheme commits no document: the
+tab kept the last page it had, for OpenFrame SSO the credential form, which read as
+a failed login. The page shows the outcome ("You're signed in. You can close this
+tab.") and launches the scheme with it. The gateway's outcome rides in the page's
+fragment, so it is never sent to a server (`apps/web/src/lib/desktop-auth-return.ts`).
+It does reach the browser's history, as the URL the tab landed on before the page
+strips it; the ticket's single use and short life (below) are what bound that.
 
 The browser is the whole point. A window of ours is a fresh cookie jar, so an
 identity provider the user is already signed into on this machine cannot see that
@@ -164,15 +212,18 @@ Three gateway behaviours have to line up, and a native login needs all three:
   shell used to log in with `authMobile=false`, so against prod the callback
   carried no ticket and the app sat on the sign-in screen. Non-prod hid it: dev
   tickets are on there, so any callback carried one.
-- **The callback must be allow-listed verbatim.** The SaaS gateway's
+- **The redirect must be allow-listed verbatim.** The SaaS gateway's
   `TenantDomainRedirectResolver` replaces a requested `redirectTo` with the
   tenant's own domain unless it matches an entry of
-  `openframe.gateway.redirect.allowed-uris` by exact string equality. So
-  `openframe-console://auth` has to be in that list —
-  `openframe-saas-shared/configs/base/openframe-saas-gateway.yml`, inherited by
-  every environment — alongside mobile's `com.openframe.app://auth`. The OSS
-  gateway binds `DefaultRedirectTargetResolver` instead, which honours any
-  requested redirect, so it needs no configuration.
+  `openframe.gateway.redirect.allowed-uris` by exact string equality. So the
+  hand-off page's exact URL, `https://<shared host>/auth/desktop-return/#`, has
+  to be in that list alongside mobile's `com.openframe.app://auth`, in every
+  environment that serves a build with the hand-off page (`allowed-uris` in
+  `openframe-saas-shared/configs`).
+  `openframe-console://auth` stays listed for installed builds whose bundled
+  frontend still redirects straight to it. The OSS gateway binds
+  `DefaultRedirectTargetResolver` instead, which honours any requested redirect,
+  so it needs no configuration.
 - **`mobile-auth-enabled` gates the exchange.** `/oauth/dev-exchange` is refused
   when both it and `dev-ticket-enabled` are off.
 
@@ -199,16 +250,23 @@ Registration is per-platform, and both halves are ours to keep in sync with
   forwarded by the single-instance plugin when the app is running, in our own
   argv when the callback cold-starts it.
 
-The scheme string reaches the frontend as `NEXT_PUBLIC_MOBILE_APP_SCHEME` in the
-injected `window.__ENV`, which is what makes `runtimeEnv.appScheme()` build
-`openframe-console://auth` as the `redirectTo`. The frontend needs no
-desktop-specific code for this; the two uses must not drift, so `start` rejects a
-`callbackScheme` that is not the registered one rather than opening a browser
-whose callback could only ever time out.
+The frontend names the scheme as `DESKTOP_APP_SCHEME`
+(`apps/web/src/lib/desktop-auth-return.ts`): the hand-off page launches it, and
+`nativeLogin` passes it to `start` as the `callbackScheme`. Web tests read
+`URI_SCHEME`, `AUTH_CALLBACK_HOST`, `LOGIN_TIMEOUT` and the `*_ERROR` rejection
+codes out of `src/lib.rs` and fail when one side changes without the other. They
+run with the web unit tests, which CI does not start for a desktop-only change.
+`start` still rejects a `callbackScheme` that is not the registered one rather
+than opening a browser whose callback could only ever time out.
 
-A callback **without** a ticket ends the login as a failure: the gateway appends
-one to every `authMobile` callback, so its absence means the flow never reached
-the BFF callback.
+A callback carries one of `devTicket` (the session), `signupTicket` (an identity
+with no account yet; the app finishes the signup on its own screen) or `error`
+(`USER_CANCELED` or `SESSION_EXPIRED` from a page left mid-flow; the frontend
+reads any other code as an auth-server reference), and the shell
+hands any of them to the frontend. A callback with **none** ends the login as a
+failure: the gateway puts one on every `authMobile` callback, so its absence means
+the flow never reached the BFF callback. The hand-off page sends exactly that bare
+callback when it is landed on with nothing, so the app stops waiting at once.
 
 > **What the browser flow gave up.** The old login window also accepted *any*
 > URL carrying a ticket, which covered a gateway that dropped the requested
@@ -219,9 +277,11 @@ the BFF callback.
 > minutes) and logs which URI never arrived.
 >
 > **Cancellation is weaker too.** Closing the window used to reject the pending
-> login immediately. A browser tab the user abandons signals nothing, so the
-> timeout is the only end. A stale callback arriving after it resolves nothing
-> and says so in the log.
+> login immediately. A browser tab the user abandons signals nothing, so the end
+> has to come from the app: its waiting screen's Cancel calls `native_auth_cancel`,
+> which resolves the pending login with `USER_CANCELED`, and otherwise the timeout
+> ends it. A stale callback arriving after either resolves nothing and says so in
+> the log.
 
 > **Two things the callback does not do, and mobile does not either.** It carries
 > no CSRF nonce — the allow-list matches the redirect by exact string equality,
@@ -229,6 +289,10 @@ the BFF callback.
 > scheme claim is not exclusive on any desktop OS. A dev ticket is a one-time
 > UUID with a 120s TTL, which bounds but does not close either gap. Both are
 > worth revisiting if the allow-list ever learns to match ignoring the query.
+> The hand-off page widens the first gap: it launches whatever ticket its fragment
+> holds, so a crafted `…/auth/desktop-return/#?devTicket=…` link gets the launch
+> from OpenFrame's own origin, which a browser told to always allow it opens
+> without asking — a login CSRF against a sign-in that is waiting.
 
 > **The gateway also sets auth cookies on the callback response**
 > (`buildFoundWithCookiesAndClearState`), so the user's real browser keeps the
@@ -270,12 +334,22 @@ dials with a fresh bearer.
   polling the client's command channel, so dropping the `Client` is unobserved.
   Blocking in the callback suspends the task that actually needs suspending, and
   resuming is just returning a URL — so sign-in needs no separate wake-up.
+- While the tenant is gone (see **Tenant gone** above) the delay callback returns
+  five minutes plus jitter and the auth callback parks, so a deleted tenant costs a
+  handful of dials an hour instead of one per capped backoff (~160/h).
 - On every `Connected` the subscription is re-established, because the subject
   changes when the signed-in user does.
 - Sign-in on the same tenant re-subscribes on the live connection; a tenant switch
   tears the connection down and re-dials, since the connection itself is then
   wrong. A single-runner guard prevents overlapping switches from starting two
   dial loops.
+- Tearing down cannot stop a connection that is between connections (above), so
+  each one is dialled under a generation number its callbacks carry, and a switch
+  bumps it. A superseded connector parks at its next delay or auth callback,
+  after at most the dial already under way. Without that it dialled the previous
+  tenant every 15–30s until restart, which is a deleted tenant's gateway after
+  its sign-out and the next sign-in, and counted those failures toward the new
+  tenant's gone detection.
 
 ### Subscription and dispatch (`src-tauri/src/notifications.rs`)
 

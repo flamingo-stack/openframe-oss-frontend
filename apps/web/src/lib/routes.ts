@@ -63,6 +63,8 @@ export const TAB_IDS = {
   /** Query detail page (`/monitoring/query?id=`) — the panel under its tab bar. */
   queryDetails: ['results', 'devices'],
   settings: ['ai-settings', 'architecture', 'company-and-users', 'api-keys', 'sso-configuration', 'profile'],
+  /** Settings → Employees (`/settings/employees`). */
+  employees: ['users', 'invitations'],
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
   incidents: ['current', 'snoozed', 'archived'],
@@ -79,6 +81,7 @@ export type ScheduleDetailTab = (typeof TAB_IDS.scheduleDetails)[number];
 export type MonitoringTab = (typeof TAB_IDS.monitoring)[number];
 export type QueryDetailTab = (typeof TAB_IDS.queryDetails)[number];
 export type SettingsTab = (typeof TAB_IDS.settings)[number];
+export type EmployeesTab = (typeof TAB_IDS.employees)[number];
 export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 
 /**
@@ -263,12 +266,23 @@ export const routes = {
      */
     noAccount: '/auth/no-account',
     /**
+     * "Send me download link": the page the marketing site's button opens for a visitor who cannot
+     * install here (a phone, a system with no installer). The backend emails the installer links.
+     */
+    downloadLink: '/auth/download-link',
+    /**
      * "One Last Step": where the auth server parks an SSO flow that is about to CREATE a user - a new
      * member accepting an invitation, or a first login through a shared domain
      * (`openframe.sso.join-confirm-url`). The page confirms the identity + organization from the SAS
      * session and takes the Terms consent; nothing travels in the URL.
      */
     ssoJoin: '/auth/sso-join',
+    /**
+     * The browser end of a desktop sign-in, on the shared host: the gateway sends the outcome here in
+     * the fragment, and the page shows it and hands it to the app's scheme. Its absolute address is
+     * built by `desktopAuthReturnTarget`, which must match the gateway allow-list entry exactly.
+     */
+    desktopReturn: '/auth/desktop-return',
   },
 
   customers: {

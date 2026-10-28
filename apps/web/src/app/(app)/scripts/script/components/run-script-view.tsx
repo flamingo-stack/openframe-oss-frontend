@@ -2,6 +2,7 @@
 'use no memo';
 
 import { NotFoundError, PageLayout, ScriptArguments } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   CheckboxBlock,
   Input,
@@ -20,7 +21,6 @@ import { z } from 'zod';
 import type { batchRunScriptMutation as BatchRunScriptMutationType } from '@/__generated__/batchRunScriptMutation.graphql';
 import type { scriptDetailRelayQuery as ScriptDetailQueryType } from '@/__generated__/scriptDetailRelayQuery.graphql';
 import { DeviceListPicker } from '@/app/components/shared/device-selector';
-import { LiveSuspense } from '@/app/components/shared/live-suspense';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { batchRunScriptMutation } from '@/graphql/scripts/batch-run-script-mutation';
 import { scriptDetailRelayQuery } from '@/graphql/scripts/script-detail-relay';
@@ -68,8 +68,11 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const handleBack = useSafeBack(routes.scripts.details(scriptId));
+  // The script is being read (the form's loading scope): Mingo's context strip draws its loading row meanwhile. A
+  // script that is never found never reaches this form (the page draws "Script not found" in its place).
+  const readingScript = useLoadingScope();
   // Without the script the run config is not seeded yet: its fields are locked and show no value.
-  const loading = useLoadingScope() || !script;
+  const loading = readingScript || !script;
 
   // Keep this script as the Mingo "open view" while on the run surface (the detail
   // page unmounted on navigation). Raw db id — the route's `scriptId` is the Relay
@@ -77,6 +80,7 @@ function RunScriptForm({ scriptId, script }: RunScriptFormProps) {
   const scriptDbId = useMemo(() => decodeGlobalId(scriptId)?.rawId ?? scriptId, [scriptId]);
   useTrackOpenView(
     script ? { type: CONTEXT_ENTITY_KIND.SCRIPT, id: scriptDbId, label: script.name || scriptDbId } : null,
+    { loading: readingScript },
   );
 
   const supportedPlatforms = useMemo(() => platformsToIds(script?.supportedPlatforms), [script?.supportedPlatforms]);
@@ -354,10 +358,16 @@ function RunScriptContent({ scriptId }: RunScriptViewProps) {
  */
 export function RunScriptView({ scriptId }: RunScriptViewProps) {
   return (
-    <LiveSuspense label="Loading script" view={<RunScriptForm scriptId={scriptId} />}>
-      <RunScriptContent scriptId={scriptId} />
-    </LiveSuspense>
+    <LoadingSuspense live label="Loading script">
+      <RunScriptReader scriptId={scriptId} />
+    </LoadingSuspense>
   );
+}
+
+function RunScriptReader({ scriptId }: RunScriptViewProps) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <RunScriptForm scriptId={scriptId} />;
+  return <RunScriptContent scriptId={scriptId} />;
 }
 
 export default RunScriptView;

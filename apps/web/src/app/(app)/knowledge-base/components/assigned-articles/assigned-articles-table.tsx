@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { OpenInNewTabCell } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { BookBookmarkIcon, Link01BreakIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
@@ -28,6 +29,7 @@ import {
   NO_ITEMS,
   NO_NEXT_PAGE,
   noop,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
@@ -169,6 +171,15 @@ interface AssignedArticlesTableProps {
  * which suspends, so it lives under the tab's `<Suspense>`.
  */
 export function AssignedArticlesTable(props: AssignedArticlesTableProps) {
+  return (
+    <LoadingSuspense label="Loading articles">
+      <AssignedArticlesTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read. */
+function AssignedArticlesTableReader(props: AssignedArticlesTableProps) {
   const { target } = props;
   if (useLoadingScope() || target == null) {
     return (
@@ -318,11 +329,11 @@ function AssignedArticlesRows({
       loadingCells={loading}
       totalCount={totalCount}
       itemName="article"
-      emptyState={{
-        title: listing.search
+      emptyState={oneLineEmptyState(
+        listing.search
           ? `No articles found matching "${listing.search}". Try adjusting your search.`
           : 'No articles match the selected tags. Try adjusting your filters.',
-      }}
+      )}
       rowHref={rowHref}
       footer={rows.length > 0 ? infiniteScroll : null}
       isPending={isPending}

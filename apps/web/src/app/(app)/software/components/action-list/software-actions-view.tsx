@@ -1,17 +1,16 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { SOFTWARE_ACTION_COPY } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { PlusCircleIcon, Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
 import type { SoftwareActionFilterInput } from '@/__generated__/softwareActionsTableQuery.graphql';
+import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
-import { SoftwareSearchToolbar } from '../shared/software-search-toolbar';
 import { SOFTWARE_SECTIONS } from '../shared/software-sections';
 import { type SoftwareActionSelections, SoftwareActionsTable } from './software-actions-table';
 
@@ -99,7 +98,7 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
     <PageLayout title={SOFTWARE_SECTIONS.actions.label} actions={PAGE_ACTIONS}>
       <div className="flex flex-col" style={containerStyle}>
         {!isEmpty && (
-          <SoftwareSearchToolbar
+          <SearchToolbar
             toolbarRef={toolbarRef}
             placeholder="Search for Update"
             value={searchInput}
@@ -108,11 +107,9 @@ export function SoftwareActionsView({ loading = false }: { loading?: boolean }) 
           />
         )}
 
-        {/* The rows before they answer, the same for a query in flight and for the flag's own window: the table
-            itself, in a loading scope, where it draws its own loading state and does not fetch. */}
-        <LoadingWhen loading={loading}>
-          <LoadingSuspense label="Loading software actions">{rows}</LoadingSuspense>
-        </LoadingWhen>
+        {/* The rows before they answer, the same for a query in flight (the table's own boundary) and for the flag's
+            own window: the table itself, in a loading scope, where it draws its own loading state and does not fetch. */}
+        <LoadingWhen loading={loading}>{rows}</LoadingWhen>
       </div>
     </PageLayout>
   );

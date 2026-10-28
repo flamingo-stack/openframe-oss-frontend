@@ -73,8 +73,17 @@ function PickerLoadingPage() {
   );
 }
 
-/** The scripts to pick from. In a loading scope (the Suspense fallback) it draws its first page and runs no query. */
+/** The scripts to pick from, with their own boundary: in its scope the reader draws its own loading form. */
 function PickerList(props: PickerListProps) {
+  return (
+    <LoadingSuspense label="Loading scripts">
+      <PickerListReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** In a loading scope (its boundary's fallback) it draws its first page and runs no query. */
+function PickerListReader(props: PickerListProps) {
   if (useLoadingScope()) {
     return <PickerLoadingPage />;
   }
@@ -153,9 +162,7 @@ export function RunScriptSelectStep({ onSelect }: RunScriptSelectStepProps) {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto rounded-[6px] border border-ods-border">
-        <LoadingSuspense label="Loading scripts">
-          <PickerList search={debouncedSearch} tagIds={tagIds} onSelect={onSelect} />
-        </LoadingSuspense>
+        <PickerList search={debouncedSearch} tagIds={tagIds} onSelect={onSelect} />
       </div>
     </div>
   );

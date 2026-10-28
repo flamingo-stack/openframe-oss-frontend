@@ -7,7 +7,9 @@
  * `openView` + `recentViews` carried on every Mingo message.
  *
  * Pass `null`/`undefined` (e.g. while the entity is still loading) to skip
- * tracking until the data resolves.
+ * tracking until the data resolves. Pass `{ loading: true }` while the entity
+ * is being read, so Mingo's context strip draws its loading form instead of
+ * appearing (and moving the chat) when the entity lands.
  *
  * @example
  *   useTrackOpenView(device ? { type: 'DEVICE', id: device.id, label: getDeviceName(device) || device.id } : null);
@@ -24,9 +26,21 @@ export interface TrackOpenViewInput {
   description?: string;
 }
 
-export function useTrackOpenView(ref: TrackOpenViewInput | null | undefined): void {
+export function useTrackOpenView(
+  ref: TrackOpenViewInput | null | undefined,
+  { loading = false }: { loading?: boolean } = {},
+): void {
   const setOpenView = useMingoContextStore(s => s.setOpenView);
   const clearOpenView = useMingoContextStore(s => s.clearOpenView);
+  const setOpenViewPending = useMingoContextStore(s => s.setOpenViewPending);
+
+  // Pending while this page reads its entity; cleared when it lands or the page leaves.
+  const pending = loading && !ref;
+  useEffect(() => {
+    if (!pending) return undefined;
+    setOpenViewPending(true);
+    return () => setOpenViewPending(false);
+  }, [pending, setOpenViewPending]);
 
   // Depend on the primitive fields (not the object identity) so a fresh ref
   // object each render doesn't re-fire. Label/description changes update in

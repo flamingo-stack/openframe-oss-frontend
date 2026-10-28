@@ -1,5 +1,7 @@
 'use client';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 /**
  * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
@@ -16,9 +18,9 @@ import type { ReactNode } from 'react';
  *
  * Three fetch paths, because the backend `node(id:)` resolver only knows the
  * types in its `NodeType` enum:
- *   - device + organization → `node(id:)` (Machine / Organization ARE in the
- *     enum). Detail-page href uses the RAW id (the route segment those pages
- *     expect).
+ *   - device, organization, user → `node(id:)` (Machine / Organization / User
+ *     ARE in the enum). Detail-page href uses the RAW id (the route segment those
+ *     pages expect).
  *   - kb article + folder   → `knowledgeBaseItem(id:)` (KnowledgeBaseItem is NOT
  *     in `NodeType` → `node(id:)` throws "Unknown Node type"). This query takes a
  *     GLOBAL id (server decodes it), and the KB detail + folder routes ALSO key on
@@ -40,13 +42,14 @@ import type { relayMentionChipsNodeQuery } from '@/__generated__/relayMentionChi
 import type { relayMentionChipsScheduleQuery } from '@/__generated__/relayMentionChipsScheduleQuery.graphql';
 import type { relayMentionChipsScriptQuery } from '@/__generated__/relayMentionChipsScriptQuery.graphql';
 import type { relayMentionChipsSoftwareQuery } from '@/__generated__/relayMentionChipsSoftwareQuery.graphql';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { ensureGlobalIdForType } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { CONTEXT_ENTITY_KIND, CONTEXT_RELAY_TYPENAME, type ContextEntityKind } from '../context-types';
-import { MentionErrorBoundary, MentionTag, MentionSuspense } from './mention-tag';
+import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 interface GraphqlMentionChipProps {
-  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | KB_ARTICLE | KB_FOLDER |
+  /** GraphQL-resolvable kind — DEVICE | ORGANIZATION | USER | KB_ARTICLE | KB_FOLDER |
    *  SCRIPT | SCHEDULED_SCRIPT | INSIGHT | SOFTWARE. */
   kind: ContextEntityKind;
   /** RAW db id (machineId / organizationId / kb id / script id / schedule id /
@@ -58,7 +61,7 @@ interface GraphqlMentionChipProps {
   fallbackLabel?: string;
 }
 
-/** device + organization — both are in the backend `NodeType` enum.
+/** device, organization and user — all in the backend `NodeType` enum.
  *  The Machine selection is exactly what `getDeviceName` reads, so a chip shows
  *  the same name as the device page (nickname → displayName → hostname). */
 const NODE_QUERY = graphql`
@@ -72,6 +75,9 @@ const NODE_QUERY = graphql`
       }
       ... on Organization {
         name
+      }
+      ... on User {
+        ...userSummaryFields_user
       }
     }
   }
@@ -138,6 +144,8 @@ function hrefFor(kind: ContextEntityKind, rawId: string, globalId: string): stri
       return routes.customers.details(rawId);
     case CONTEXT_ENTITY_KIND.SOFTWARE:
       return routes.software.details(rawId);
+    case CONTEXT_ENTITY_KIND.USER:
+      return routes.settings.employeeDetails(rawId);
     case CONTEXT_ENTITY_KIND.KB_ARTICLE:
       return routes.knowledgeBase.details(globalId);
     case CONTEXT_ENTITY_KIND.KB_FOLDER:
@@ -172,6 +180,9 @@ function NodeInner({ kind, id, icon, globalId, fallbackLabel }: InnerProps) {
         break;
       case 'Organization':
         label = node.name || label;
+        break;
+      case 'User':
+        label = toUserSummary(node).name || label;
         break;
     }
   }
@@ -267,14 +278,32 @@ export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMen
   // no typename (software) is one whose stored id already IS what its query
   // takes, so it goes through as is.
   const globalId = typename ? ensureGlobalIdForType(typename, id) : id;
-  const Inner = innerFor(kind);
   return (
     <MentionErrorBoundary
       fallback={<MentionTag icon={icon} label={fallbackLabel || id} href={hrefFor(kind, id, globalId)} />}
     >
-      <MentionSuspense icon={icon}>
-        <Inner kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
-      </MentionSuspense>
+      <GraphqlMentionLoader kind={kind} id={id} icon={icon} globalId={globalId} fallbackLabel={fallbackLabel} />
     </MentionErrorBoundary>
   );
+}
+
+/**
+ * The chip's boundary: while its entity is fetched, the reader draws the chip itself (no label yet) in a loading
+ * scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the chip
+ * lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
+ */
+function GraphqlMentionLoader(props: InnerProps) {
+  return (
+    <LoadingSuspense as="span" className="contents" status={false}>
+      <GraphqlMentionReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function GraphqlMentionReader(props: InnerProps) {
+  // In a loading scope it draws the chip with no label and runs no read.
+  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  const Inner = innerFor(props.kind);
+  return <Inner {...props} />;
 }

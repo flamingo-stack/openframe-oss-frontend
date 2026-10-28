@@ -5,8 +5,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
-import { AppleRegistrationRequiredError, nativeLogin, SsoRegistrationRequiredError } from '@/lib/native-login';
+import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
+import {
+  AppleRegistrationRequiredError,
+  nativeLogin,
+  NativeLoginError,
+  SsoRegistrationRequiredError,
+} from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isAppShell, isMobileShell } from '@/lib/platform';
 import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
 import { collectRegistrationAttribution } from '@/lib/registration-attribution';
@@ -63,9 +70,14 @@ interface RegisterRequest {
  */
 function isUserCanceled(error: unknown): boolean {
   return (
-    (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
-    (error instanceof Error && error.message === 'USER_CANCELED')
+    nativeErrorCode(error) === MOBILE_AUTH_ERROR.USER_CANCELED ||
+    (error instanceof Error && error.message === MOBILE_AUTH_ERROR.USER_CANCELED)
   );
+}
+
+/** A browser sign-in that never finished gets `NativeLoginError`'s title instead of the generic one. */
+function loginFailureTitle(error: unknown): string {
+  return error instanceof NativeLoginError ? error.title : 'Login Failed';
 }
 
 /**
@@ -160,6 +172,10 @@ export function useAuth() {
 
       return data;
     } catch (error) {
+      // A failed lookup for an abandoned address must not toast over, or reset, the current one.
+      if (latestDiscovery.current !== userEmail) {
+        return null;
+      }
       toast({
         title: 'Discovery Failed',
         description: error instanceof Error ? error.message : 'Unable to check for existing accounts',
@@ -273,6 +289,7 @@ export function useAuth() {
             provider: 'openframe',
             // 'localhost' is the request's stand-in for "no domain" (see above), not a host.
             tenantDomain: tenant.domain && tenant.domain !== 'localhost' ? tenant.domain : undefined,
+            email: data.email,
           });
         } catch (error) {
           if (isUserCanceled(error)) {
@@ -281,7 +298,7 @@ export function useAuth() {
             return;
           }
           toast({
-            title: 'Login Failed',
+            title: loginFailureTitle(error),
             description: error instanceof Error ? error.message : 'Unable to sign in',
             variant: 'destructive',
           });
@@ -323,7 +340,9 @@ export function useAuth() {
         // Without a tenant the authorization server runs the flow against its onboarding pseudo-tenant
         // and resolves the real one from the identity the provider asserts. That deliberately does NOT
         // honour a tenant's own SSO credentials — those cannot be looked up before the tenant is known.
-        await nativeLoginToDashboard({ ...tenant, provider });
+        // The email on screen is the one discovery resolved this tenant from; without a tenant
+        // nothing was typed that names the account.
+        await nativeLoginToDashboard({ ...tenant, provider, email: tenant ? email : undefined });
         return;
       }
 
@@ -347,7 +366,7 @@ export function useAuth() {
       }
       if (!isUserCanceled(error)) {
         toast({
-          title: 'Login Failed',
+          title: loginFailureTitle(error),
           description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
           variant: 'destructive',
         });

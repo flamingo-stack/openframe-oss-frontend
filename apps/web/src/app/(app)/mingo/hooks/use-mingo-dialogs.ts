@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
+import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
 import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
@@ -129,10 +130,13 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     // realtime subscription, and mutation invalidations (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
+    retry: sessionRetry(3),
+    meta: sessionPollMeta,
     // Titles are generated asynchronously on the backend with no realtime
     // event — while the list holds a fresh title-less dialog ("New Chat"),
     // poll faster so the generated title replaces it promptly.
     refetchInterval: liveQuery => {
+      if (!sessionPollsAllowed()) return false;
       const pages = liveQuery.state.data?.pages;
       const awaitingTitle = pages?.some(page => page.dialogs.some(dialog => isAwaitingGeneratedTitle(dialog)));
       return awaitingTitle ? 10 * 1000 : 60 * 1000;

@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { Refresh02HrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   type ColumnDef,
@@ -25,15 +26,16 @@ import {
   liveColumnMeta,
   NO_ITEMS,
   NO_NEXT_PAGE,
+  oneLineEmptyState,
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { SoftwareActionStatus } from '@/generated/schema-enums';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { multiColumnFilter } from '../shared/column-filters';
-import { OpenRowButton } from '../shared/open-row-button';
 import { SoftwareActionEngineCell } from './software-action-engine-cell';
 import { SoftwareActionProcessedCell } from './software-action-processed-cell';
 import { SoftwareActionStatusCell } from './software-action-status-cell';
@@ -185,11 +187,19 @@ interface SoftwareActionsTableProps {
 const UNREAD_FILTER_OPTIONS: SoftwareActionFilterOptions = { actions: [], engines: [], statuses: [] };
 
 /**
- * The Software Actions rows. In a loading scope (the view's Suspense fallback, or the module's flag window) it draws
- * the table over one page of placeholder rows with their real cells, each in its own loading form; otherwise it runs the query, which suspends, so it
- * lives under the view's `<Suspense>`.
+ * The Software Actions rows, with their own boundary. In a loading scope (the boundary's fallback, or the module's flag
+ * window) the reader draws the table over one page of placeholder rows with their real cells, each in its own loading
+ * form; otherwise it runs the query, which suspends under that boundary.
  */
 export function SoftwareActionsTable(props: SoftwareActionsTableProps) {
+  return (
+    <LoadingSuspense label="Loading software actions">
+      <SoftwareActionsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function SoftwareActionsTableReader(props: SoftwareActionsTableProps) {
   if (useLoadingScope()) {
     return (
       <SoftwareActionsRows
@@ -306,11 +316,11 @@ function SoftwareActionsRows({
       itemName="result"
       totalCount={totalCount}
       isPending={isPending}
-      emptyState={{
-        title: debouncedSearch
+      emptyState={oneLineEmptyState(
+        debouncedSearch
           ? `No software actions found matching "${debouncedSearch}". Try adjusting your search.`
           : 'No software actions match the selected filters. Try adjusting your filters.',
-      }}
+      )}
       rowHref={detailsHref}
       // Zero rows plus a next page: see vulnerability-table.tsx.
       footer={rows.length > 0 ? infiniteScroll : null}

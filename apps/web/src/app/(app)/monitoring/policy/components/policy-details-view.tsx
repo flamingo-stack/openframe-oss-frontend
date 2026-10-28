@@ -58,6 +58,7 @@ export function PolicyDetailsView({ policyId }: PolicyDetailsViewProps) {
   // gets the user's working context on the next message; cleared → recent views.
   useTrackOpenView(
     policyDetails ? { type: CONTEXT_ENTITY_KIND.POLICY, id: policyId, label: policyDetails.name } : null,
+    { loading: isLoading },
   );
 
   const handleBack = useSafeBack(routes.monitoring.root({ tab: 'policies' }));

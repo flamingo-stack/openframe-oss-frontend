@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { NO_ITEMS } from '@/app/components/shared';
@@ -77,13 +76,8 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
     >
-      {isEdit && (
-        // The record's island renders nothing; while it loads, its fallback is the one "Loading article" announcement,
-        // its region `contents` so it takes no slot (and no gap) in the page's column.
-        <LoadingSuspense label="Loading article" className="contents">
-          <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
-        </LoadingSuspense>
-      )}
+      {/* The record's island renders nothing; its own boundary announces "Loading article" while it loads. */}
+      {isEdit && <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />}
       {/* Until the article and its assignments have seeded the form, the fields draw their own loading states. */}
       <LoadingWhen loading={!isLoaded}>
         <ArticleFormFields
