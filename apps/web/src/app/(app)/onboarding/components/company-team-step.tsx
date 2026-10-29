@@ -164,7 +164,7 @@ export function CompanyTeamStep({
             size="small"
             className="self-start"
             onClick={addRow}
-            leftIcon={<PlusCircleIcon size={24} className="text-ods-text-primary" />}
+            leftIcon={<PlusCircleIcon size={24} />}
           >
             Add More Users
           </Button>
