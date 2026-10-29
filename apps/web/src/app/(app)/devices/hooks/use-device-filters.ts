@@ -4,6 +4,7 @@ import type { DeviceFilterInput, DeviceFilters } from '@flamingo-stack/openframe
 import { useMemo } from 'react';
 import { useLazyLoadQuery } from 'react-relay';
 import type { deviceFiltersRelayQuery as DeviceFiltersRelayQueryType } from '@/__generated__/deviceFiltersRelayQuery.graphql';
+import { useRetryKey } from '@/app/components/shared/content-error-boundary';
 import { deviceFiltersRelayQuery } from '@/graphql/devices/device-filters-relay';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { useDeviceEpoch } from '../utils/device-refresh';
@@ -11,14 +12,17 @@ import { useDeviceEpoch } from '../utils/device-refresh';
 /**
  * Filter facets (status / device type / OS / customer / tags) with counts.
  *
- * **Suspends.** Render inside the same boundary as the device list it narrows —
- * the toolbar and the table are one unit, and showing facet counts that don't
- * match the rows below them is worse than showing neither.
+ * **Suspends.** Render inside the same Suspense boundary as the device list it
+ * narrows: the toolbar and the table load as one unit, and showing facet counts
+ * that don't match the rows below them is worse than showing neither. Failing is
+ * different: give it an error boundary of its own, so a failed facet query costs
+ * the filters and not the rows (see `DevicesPanel`).
  */
 export function useDeviceFilters(filters?: DeviceFilterInput): DeviceFilters {
-  // Refetches this query when a device mutation bumps the epoch — the only
-  // way to refresh a Relay query that is already mounted.
-  const fetchKey = useDeviceEpoch();
+  // Refetches this query when a device mutation bumps the epoch (the only
+  // way to refresh a Relay query that is already mounted), and when the error
+  // boundary above it retries.
+  const fetchKey = `${useDeviceEpoch()}-${useRetryKey()}`;
 
   const data = useLazyLoadQuery<DeviceFiltersRelayQueryType>(
     deviceFiltersRelayQuery,

@@ -19,6 +19,13 @@ export type { CheckoutInput, ProductCheckoutInput };
  */
 const PREVIOUS_SUBSCRIPTION_FINALIZING = 'PREVIOUS_SUBSCRIPTION_FINALIZING';
 
+/**
+ * An invoice of the tenant's is past its due date, and the backend starts no
+ * new subscription over it. The paywall lists that invoice with its payment
+ * link (`OutstandingInvoicesNotice`), so the toast points there.
+ */
+const OVERDUE_INVOICES_EXIST = 'OVERDUE_INVOICES_EXIST';
+
 const createCheckoutSessionMutation = graphql`
   mutation useCreateCheckoutSessionMutation($input: CheckoutInput!) {
     createCheckoutSession(input: $input) {
@@ -66,7 +73,16 @@ export function useCreateCheckoutSession() {
         },
         onError: err => {
           tab.cancel();
-          if (getRelayErrorCodes(err).includes(PREVIOUS_SUBSCRIPTION_FINALIZING)) {
+          const codes = getRelayErrorCodes(err);
+          if (codes.includes(OVERDUE_INVOICES_EXIST)) {
+            toast({
+              title: 'Unpaid invoice',
+              description: 'Pay the overdue invoice shown above, then choose your plan again.',
+              variant: 'destructive',
+            });
+            return;
+          }
+          if (codes.includes(PREVIOUS_SUBSCRIPTION_FINALIZING)) {
             toast({
               title: 'Previous subscription is closing',
               description: 'Your previous subscription is still being finalized. Please try again in a few minutes.',

@@ -18,7 +18,7 @@ import {
   KnowledgeBaseItemName,
   type KnowledgeBaseItemNameProps,
 } from '@/app/(app)/knowledge-base/components/shared/knowledge-base-item-name';
-import { liveColumnMeta } from '@/app/components/shared';
+import { liveColumnMeta, oneLineEmptyState } from '@/app/components/shared';
 import { routes } from '@/lib/routes';
 import { ASSIGNED_ITEMS_SKELETON_ROWS } from '../use-assigned-items';
 
@@ -105,7 +105,7 @@ export function KnowledgeBaseAssignedTable({ articles, isLoading }: KnowledgeBas
         <DataTable.Body
           loading={isLoading}
           skeletonRows={ASSIGNED_ITEMS_SKELETON_ROWS}
-          emptyState={{ title: 'No articles assigned.' }}
+          emptyState={oneLineEmptyState('No articles assigned.')}
           rowHref={rowHref}
         />
       </DataTable>

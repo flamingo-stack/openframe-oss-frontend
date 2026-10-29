@@ -31,9 +31,9 @@ import {
   useRetryKey,
 } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
+import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
-import { OpenRowButton } from '../../shared/open-row-button';
 import { SOFTWARE_VULNERABILITIES_PAGE_SIZE, SOFTWARE_VULNERABILITY_COLUMNS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilityDiscoveredCell } from './software-vulnerability-discovered-cell';
 import { SoftwareVulnerabilityVersionCell } from './software-vulnerability-version-cell';

@@ -1,6 +1,8 @@
 'use client';
 
 import { networkPlugin } from './native-shell';
+import { isAppShell } from './platform';
+import { runtimeEnv } from './runtime-config';
 
 /**
  * The app's connectivity signal for react-query and the offline banner.
@@ -36,6 +38,17 @@ import { networkPlugin } from './native-shell';
  * Note this is reachability, NOT reachability of our gateway: a captive portal
  * reports connected. Request outcomes remain the source of truth for whether the
  * API works; this only answers "is there a link, and did it just come back".
+ *
+ * ## "Down" is verified before it is believed
+ *
+ * The platform can also be WRONG the other way: `navigator.onLine` has read
+ * `false` on a machine whose network worked fine, and stayed there. Believing it
+ * is a deadlock, not a delay — `onlineManager` pauses every query and Relay gives
+ * up with `OfflineError` before sending, so no request ever succeeds, and nothing
+ * but the platform's own `online` event (which may never come) can lift it. So a
+ * "down" report is checked with one opaque request to the gateway first, and
+ * re-checked every {@link REPROBE_INTERVAL_MS} while it stands; an answer of any
+ * kind keeps the store online. "Up" is published as reported.
  *
  * ## Shape
  *
@@ -73,9 +86,19 @@ let sawNativeEvent = false;
 let nativePublished = false;
 let webSourceStarted = false;
 
+/** Past this the probe counts as unanswered: a dropped link can hang rather than fail. */
+const PROBE_TIMEOUT_MS = 5_000;
+/** How often a standing "down" is re-checked, so a false one lifts by itself. */
+const REPROBE_INTERVAL_MS = 10_000;
+
+/** Bumped by every platform report, so a probe for a superseded "down" is dropped. */
+let reportGeneration = 0;
+let reprobeTimer: ReturnType<typeof setTimeout> | undefined;
+
 function publish(next: boolean): void {
   if (online === next) return;
   online = next;
+  console.info(`[Connectivity] ${next ? 'online' : 'offline'} (navigator.onLine=${navigator.onLine})`);
   // Snapshot: listeners unsubscribe from inside this loop (`waitForOnline` in
   // `lib/relay/environment.ts` does exactly that), and one that subscribes here
   // would otherwise be delivered the value twice — `subscribeConnectivity` calls
@@ -83,18 +106,81 @@ function publish(next: boolean): void {
   for (const listener of [...listeners]) listener(next);
 }
 
+/**
+ * The gateway origin, or null when there is none to ask. The shells serve the
+ * bundle from their own scheme, which always answers, so before a login has
+ * stored a tenant host the probe would prove nothing — the platform is trusted.
+ */
+function probeOrigin(): string | null {
+  const host = runtimeEnv.tenantHostUrl();
+  if (host) return host;
+  return isAppShell() ? null : window.location.origin;
+}
+
+/**
+ * Whether the gateway answers at all. `no-cors` because only the transport
+ * outcome matters: an opaque response is still an answer, and it needs no CORS
+ * grant from the gateway. Not an API call, so no client-identity header.
+ */
+async function gatewayAnswers(origin: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    await fetch(`${origin}/`, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function verifyDown(generation: number): Promise<void> {
+  const origin = probeOrigin();
+  if (!origin) {
+    publish(false);
+    return;
+  }
+  const answered = await gatewayAnswers(origin);
+  if (generation !== reportGeneration) return;
+  if (answered) {
+    if (!online) console.warn('[Connectivity] platform still reports offline, but the gateway answered');
+    publish(true);
+  } else {
+    publish(false);
+  }
+  reprobeTimer = setTimeout(() => void verifyDown(generation), REPROBE_INTERVAL_MS);
+}
+
+/** A platform source's reading — see "Down is verified before it is believed" above. */
+function report(next: boolean): void {
+  reportGeneration += 1;
+  clearTimeout(reprobeTimer);
+  if (next) {
+    publish(true);
+    return;
+  }
+  void verifyDown(reportGeneration);
+}
+
 function startWebSource(): void {
   if (webSourceStarted) return;
   webSourceStarted = true;
-  window.addEventListener('online', () => publish(true));
-  window.addEventListener('offline', () => publish(false));
+  window.addEventListener('online', () => report(true));
+  window.addEventListener('offline', () => report(false));
   // Only seed from `navigator.onLine` if nothing better has been heard. After a
   // native `connected:false` this would otherwise flip the store back to `true`
   // — WKWebView's value is the stale one this module exists to bypass — and the
   // real reconnect edge would then be swallowed by `publish`'s equality guard,
   // so subscribers would never be told the link came back.
   if (nativePublished) return;
-  publish(navigator.onLine);
+  report(navigator.onLine);
 }
 
 /**
@@ -123,7 +209,7 @@ function startSource(): void {
       net.addListener('networkStatusChange', status => {
         sawNativeEvent = true;
         nativePublished = true;
-        publish(!!status?.connected);
+        report(!!status?.connected);
       }),
     ).catch((error: unknown) => {
       // No listener means the store would be frozen at the one `getStatus` read
@@ -137,7 +223,7 @@ function startSource(): void {
       .then(status => {
         if (sawNativeEvent) return;
         nativePublished = true;
-        publish(!!status?.connected);
+        report(!!status?.connected);
       })
       .catch((error: unknown) => {
         // `networkStatusChange` only fires on CHANGE, so without this an app
@@ -145,7 +231,7 @@ function startSource(): void {
         // Skipped once a real event has landed — see `startWebSource`.
         console.error('[Connectivity] getStatus failed:', error);
         if (sawNativeEvent) return;
-        publish(navigator.onLine);
+        report(navigator.onLine);
       });
   } catch (error) {
     console.error('[Connectivity] Network plugin attach threw:', error);

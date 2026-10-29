@@ -10,7 +10,7 @@
 // handler still runs `ensure_subscription` on every connect so a change of
 // signed-in user swaps the subject.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -37,6 +37,23 @@ const PING_INTERVAL: Duration = Duration::from_secs(10);
 /// How often a parked reconnect loop looks for credentials. Matches `run`'s own
 /// credential wait, so signing in costs the same wherever the connector is.
 const PARK_POLL: Duration = Duration::from_secs(5);
+/// Floor of the reconnect delay while the tenant is gone, plus up to
+/// [`GONE_DELAY_JITTER_MS`]. The device agent waits the same five minutes: long
+/// enough that a deleted tenant costs a handful of dials an hour instead of the
+/// hundred and sixty the 30s cap produced, short enough that a restored one is
+/// picked up without a restart.
+const GONE_DELAY_MS: u64 = 5 * 60 * 1000;
+const GONE_DELAY_JITTER_MS: u64 = 60_000;
+/// The delay a superseded connection's connector sleeps before its next dial.
+/// tokio clamps the overflowing deadline to the far future, so it never dials.
+const SUPERSEDED_DELAY: Duration = Duration::MAX;
+
+/// The fast retries alone must never reach the tenant probe, and the gone delay
+/// has to sit above the ordinary cap or it is no change at all.
+const _: () = {
+    assert!(tokens::DIALS_BEFORE_PROBE > FAST_RETRIES);
+    assert!(MAX_DELAY_MS < GONE_DELAY_MS);
+};
 
 struct Connector {
     app: AppHandle,
@@ -57,6 +74,11 @@ struct Connector {
     /// Connected would then see a matching subject and skip subscribing —
     /// silence until restart.
     session: tokio::sync::Mutex<()>,
+    /// Bumped whenever the stored connection is abandoned for a new one. Each
+    /// connection's callbacks carry the generation it was dialled under, so a
+    /// connector that outlived its `Client` can tell it was superseded — see
+    /// [`park_superseded`].
+    generation: AtomicU64,
 }
 
 /// Tenant gateway to dial — the notification subject is per-user on the
@@ -98,6 +120,7 @@ pub(crate) fn spawn(app: AppHandle) {
         auth_failures: AtomicU32::new(0),
         dialing: AtomicBool::new(false),
         session: tokio::sync::Mutex::new(()),
+        generation: AtomicU64::new(0),
     });
     app.manage(connector.clone());
     tauri::async_runtime::spawn(async move { run(connector).await });
@@ -133,6 +156,7 @@ pub(crate) fn reconnect(app: &AppHandle) {
             return;
         };
         log::info!("[nats] tenant changed — dropping the connection and re-dialling");
+        tokens::clear_tenant_gone(&app, "the tenant changed");
         {
             let _session = connector.session.lock().await;
             // Order matters: a live Subscriber holds a clone of the client's
@@ -140,6 +164,7 @@ pub(crate) fn reconnect(app: &AppHandle) {
             // is gone. It also has to vacate the slot, or the new connection's
             // Connected would see a matching subject and skip subscribing.
             notifications::drop_subscription(&app, "tenant changed").await;
+            connector.generation.fetch_add(1, Ordering::AcqRel);
             *connector.connection.write().await = None;
             connector.auth_failures.store(0, Ordering::Relaxed);
         }
@@ -188,6 +213,8 @@ async fn run(connector: Arc<Connector>) {
             mask_token(&token)
         );
 
+        let generation = connector.generation.load(Ordering::Acquire);
+        let delay_connector = connector.clone();
         let event_connector = connector.clone();
         let auth_connector = connector.clone();
 
@@ -195,12 +222,14 @@ async fn run(connector: Arc<Connector>) {
             .name(CLIENT_NAME)
             .user_and_password(NATS_USER.into(), NATS_PASS.into())
             .retry_on_initial_connect()
-            .reconnect_delay_callback(reconnect_delay)
+            .reconnect_delay_callback(move |attempt| {
+                attempt_delay(&delay_connector, generation, attempt)
+            })
             .ping_interval(PING_INTERVAL)
             .event_callback(move |event| {
                 let connector = event_connector.clone();
                 async move {
-                    handle_event(event, &connector).await;
+                    handle_event(event, &connector, generation).await;
                 }
             })
             .auth_url_callback(move |()| {
@@ -209,7 +238,10 @@ async fn run(connector: Arc<Connector>) {
                     // async-nats requires this future to be Sync; ours isn't
                     // (the token refresh runs an HTTP request). Hop through a
                     // spawned task — awaiting a JoinHandle is Sync.
-                    let handle = tokio::spawn(async move { rebuild_connect_url(&connector).await });
+                    let handle =
+                        tokio::spawn(
+                            async move { rebuild_connect_url(&connector, generation).await },
+                        );
                     handle.await.unwrap_or_else(|join_err| {
                         Err(async_nats::AuthError::new(format!(
                             "auth refresh task failed: {join_err}"
@@ -233,6 +265,9 @@ async fn run(connector: Arc<Connector>) {
                 }
                 log::info!("[nats] tenant changed while dialling — re-dialling");
                 notifications::drop_subscription(&app, "tenant changed while dialling").await;
+                // With retry_on_initial_connect the client comes back before it
+                // has connected, so its connector may still be dialling.
+                connector.generation.fetch_add(1, Ordering::AcqRel);
                 *connector.connection.write().await = None;
             }
             Err(err) => {
@@ -252,23 +287,42 @@ async fn run(connector: Arc<Connector>) {
 /// consecutive one on we back off: a revoked token must not re-dial with full
 /// TLS+WS handshakes every ~200ms forever. Asks for the token at the moment
 /// async-nats needs it, so the reconnect uses the freshest rotation.
-async fn rebuild_connect_url(connector: &Arc<Connector>) -> Result<String, async_nats::AuthError> {
+async fn rebuild_connect_url(
+    connector: &Arc<Connector>,
+    generation: u64,
+) -> Result<String, async_nats::AuthError> {
+    // Before the failure count: it is shared with the connection that replaced
+    // this one.
+    if superseded(&connector.generation, generation) {
+        return park_superseded().await;
+    }
+    // A 401 on a tenant that is gone is a stale race (the gateway answers 410
+    // ahead of any token check), and a fresh bearer would only be spent on a
+    // dial that cannot succeed. Parked rather than failed, for the reason given
+    // on [`park_until_credentials`].
+    park_while_gone(connector).await;
     let failures = connector.auth_failures.fetch_add(1, Ordering::Relaxed);
     if failures > 0 {
         let delay_ms = backoff_ms(failures);
         log::warn!("[nats] {failures} consecutive auth failures — delaying reconnect {delay_ms}ms");
         tokio::time::sleep(Duration::from_millis(delay_ms)).await;
     }
-    match credentials(&connector.app).await {
+    let url = match credentials(&connector.app).await {
         (Some(url), Some(token)) => {
             log::info!(
                 "[nats] auth_url_callback: supplying token for (re)connect ({})",
                 mask_token(&token)
             );
-            Ok(build_connect_url(&url, &token))
+            build_connect_url(&url, &token)
         }
-        _ => Ok(park_until_credentials(connector).await),
+        _ => park_until_credentials(connector, generation).await,
+    };
+    // The parks above end on a tenant switch or a sign-in, and the URL is the
+    // new tenant's: handing it over would open a second connection to it.
+    if superseded(&connector.generation, generation) {
+        return park_superseded().await;
     }
+    Ok(url)
 }
 
 /// Hold the reconnect loop until someone is signed in again, and hand it a URL
@@ -286,10 +340,13 @@ async fn rebuild_connect_url(connector: &Arc<Connector>) -> Result<String, async
 /// callback with no timeout, and it is the task that needs stopping, so parking
 /// in place needs no new state and cannot race the teardown paths. Resuming is
 /// just returning, so sign-in needs no separate trigger.
-async fn park_until_credentials(connector: &Arc<Connector>) -> String {
+async fn park_until_credentials(connector: &Arc<Connector>, generation: u64) -> String {
     log::info!("[nats] no credentials — parking the reconnect loop until sign-in");
     loop {
         tokio::time::sleep(PARK_POLL).await;
+        if superseded(&connector.generation, generation) {
+            return park_superseded().await;
+        }
         if let (Some(url), Some(token)) = credentials(&connector.app).await {
             log::info!("[nats] credentials are back — resuming the reconnect loop");
             connector.auth_failures.store(0, Ordering::Relaxed);
@@ -298,7 +355,39 @@ async fn park_until_credentials(connector: &Arc<Connector>) -> String {
     }
 }
 
-async fn handle_event(event: Event, connector: &Arc<Connector>) {
+/// Hold the reconnect loop for as long as the tenant is gone. Resuming is just
+/// returning, so a probe that finds the tenant back needs no separate trigger.
+async fn park_while_gone(connector: &Arc<Connector>) {
+    if !tokens::tenant_gone(&connector.app) {
+        return;
+    }
+    log::info!("[nats] tenant is gone — parking the reconnect loop");
+    while tokens::tenant_gone(&connector.app) {
+        tokio::time::sleep(PARK_POLL).await;
+    }
+    log::info!("[nats] tenant answers again — resuming the reconnect loop");
+}
+
+fn superseded(current: &AtomicU64, generation: u64) -> bool {
+    current.load(Ordering::Acquire) != generation
+}
+
+/// Hold a superseded connection's reconnect loop for good. Its `Client` is gone,
+/// but while it is between connections that goes unobserved (see
+/// [`park_until_credentials`]), so it would keep dialling the previous tenant —
+/// after a deleted tenant's sign-out and the next sign-in, every 15–30s until the
+/// app restarts — and count those failures toward the new tenant's gone
+/// detection. One parked task per tenant switch that interrupted a reconnect.
+async fn park_superseded<T>() -> T {
+    log::info!("[nats] a replaced connection asked for a new bearer — parking it for good");
+    std::future::pending().await
+}
+
+async fn handle_event(event: Event, connector: &Arc<Connector>, generation: u64) {
+    if superseded(&connector.generation, generation) {
+        log::debug!("[nats] ignoring an event from a replaced connection: {event:?}");
+        return;
+    }
     match event {
         Event::Connected => {
             log::info!("[nats] connected");
@@ -335,6 +424,29 @@ fn backoff_ms(exp: u32) -> u64 {
     BASE_DELAY_MS
         .saturating_mul(2u64.saturating_pow(exp.min(20)))
         .min(MAX_DELAY_MS)
+}
+
+/// The connector's delay callback: reports the attempt count to the tenant-gone
+/// detector, then picks the delay. Neither can stop the loop (see
+/// [`park_until_credentials`]), so a long delay is how a gone tenant is left
+/// alone, and an endless one how a superseded connection is — before it reports
+/// anything, since its dials are the previous tenant's.
+fn attempt_delay(connector: &Connector, generation: u64, attempt: usize) -> Duration {
+    if superseded(&connector.generation, generation) {
+        log::info!("[nats] a replaced connection is still redialling — parking it for good");
+        return SUPERSEDED_DELAY;
+    }
+    tokens::note_failed_dials(&connector.app, attempt);
+    if tokens::tenant_gone(&connector.app) {
+        return gone_delay();
+    }
+    reconnect_delay(attempt)
+}
+
+fn gone_delay() -> Duration {
+    Duration::from_millis(
+        GONE_DELAY_MS + (rand::random::<f64>() * GONE_DELAY_JITTER_MS as f64) as u64,
+    )
 }
 
 /// `attempt` is 1-based — async-nats increments before invoking us, and the
@@ -381,5 +493,91 @@ fn mask_connect_url(url: &str) -> String {
     match url.split_once("authorization=") {
         Some((base, token)) => format!("{base}authorization={}", mask_token(token)),
         None => url.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The point of the gone state on the NATS side: a deleted tenant is dialled
+    /// a handful of times an hour, not once per capped backoff.
+    #[test]
+    fn a_gone_tenant_is_redialled_no_sooner_than_five_minutes() {
+        for _ in 0..100 {
+            let delay = gone_delay();
+            assert!(delay >= Duration::from_millis(GONE_DELAY_MS));
+            assert!(delay < Duration::from_millis(GONE_DELAY_MS + GONE_DELAY_JITTER_MS));
+        }
+    }
+
+    #[test]
+    fn the_ordinary_backoff_never_exceeds_its_cap() {
+        for attempt in 1..200 {
+            assert!(reconnect_delay(attempt) <= Duration::from_millis(MAX_DELAY_MS));
+        }
+    }
+
+    #[test]
+    fn a_new_generation_supersedes_every_earlier_connection() {
+        let current = AtomicU64::new(0);
+        assert!(!superseded(&current, 0));
+        current.fetch_add(1, Ordering::AcqRel);
+        assert!(superseded(&current, 0));
+        assert!(!superseded(&current, 1));
+    }
+
+    /// Against the fork's real connector and a gateway that refuses every
+    /// upgrade: dropping the `Client` of a connection that never came up leaves
+    /// it dialling (the premise), and the superseded delay parks it (the fix).
+    #[tokio::test]
+    async fn a_superseded_connection_stops_dialling_its_gateway() {
+        use std::io::Write;
+        use std::sync::atomic::AtomicUsize;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let dials = Arc::new(AtomicUsize::new(0));
+        let gateway_dials = dials.clone();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                gateway_dials.fetch_add(1, Ordering::SeqCst);
+                let _ = stream.write_all(b"HTTP/1.1 410 Gone\r\ncontent-length: 0\r\n\r\n");
+            }
+        });
+        let dials_after = |ms| {
+            let dials = dials.clone();
+            async move {
+                tokio::time::sleep(Duration::from_millis(ms)).await;
+                dials.load(Ordering::SeqCst)
+            }
+        };
+
+        let current = Arc::new(AtomicU64::new(0));
+        let delay_current = current.clone();
+        let client = async_nats::ConnectOptions::new()
+            .retry_on_initial_connect()
+            .reconnect_delay_callback(move |_| {
+                if superseded(&delay_current, 0) {
+                    SUPERSEDED_DELAY
+                } else {
+                    Duration::from_millis(10)
+                }
+            })
+            .connect(format!("ws://127.0.0.1:{port}{WS_PATH}"))
+            .await
+            .unwrap();
+
+        drop(client);
+        let dropped = dials_after(200).await;
+        assert!(
+            dials_after(300).await > dropped + 3,
+            "a dropped client stopped dialling"
+        );
+
+        current.fetch_add(1, Ordering::AcqRel);
+        // The dial already past its delay may still land.
+        let parked = dials_after(100).await;
+        assert_eq!(dials_after(500).await, parked);
     }
 }

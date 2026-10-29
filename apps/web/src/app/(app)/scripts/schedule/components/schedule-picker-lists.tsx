@@ -2,6 +2,7 @@
 
 import type {
   DeviceFilterInput,
+  DeviceFilters,
   DeviceSelectorNarrowing,
   SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
@@ -19,8 +20,10 @@ import type { scheduleDevicePickerRelayAssignedQuery as AssignedQueryType } from
 import type { scheduleDevicePickerRelayPaginationQuery as AvailablePaginationQueryType } from '@/__generated__/scheduleDevicePickerRelayPaginationQuery.graphql';
 import type { scheduleDevicePickerRelayQuery as AvailableQueryType } from '@/__generated__/scheduleDevicePickerRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { ContentErrorBoundary } from '@/app/components/shared/content-error-boundary';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
 import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
+import { EMPTY_DEVICE_FILTERS } from '@/graphql/devices/device-facets-fields';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import {
   scheduleDevicePickerRelayAssignedFragment,
@@ -28,7 +31,7 @@ import {
   scheduleDevicePickerRelayFragment,
   scheduleDevicePickerRelayQuery,
 } from '@/graphql/scripts/schedule-device-picker-relay';
-import { useScheduleDeviceFilters } from '../hooks/use-schedule-device-filters';
+import { ScheduleDeviceFacets } from './schedule-device-facets';
 
 /**
  * The info bar and the mode radio are rendered by the PAGE, above the subtree
@@ -118,15 +121,10 @@ export function SchedulePickerLists({
   // narrowing would drop the whole picker — search box, tab state and all — to
   // its loading form on every funnel click. Facets that lag the rows by
   // one transition are consistent with them; facets that blank the picker are not.
-  const filterOptions = useScheduleDeviceFilters(
-    scheduleId,
-    activeTab === 'selected' ? 'assigned' : 'available',
-    // Both halves in one read: the tab then stays out of the query variables,
-    // so switching it costs nothing — see the query.
-    { prefetchOtherHalf: true },
-  );
-
-  return (
+  //
+  // Read under a boundary of their own: a failed facet read draws the same lists
+  // without funnels instead of taking the picker down (see `ScheduleDeviceFacets`).
+  const lists = (filterOptions: DeviceFilters) => (
     <ServerDevicePickerLists
       available={{
         connection: (available.data as AvailableFragmentData | null)?.availableDevices,
@@ -156,5 +154,19 @@ export function SchedulePickerLists({
       onAddAll={onAddAll}
       onRemoveAll={onRemoveAll}
     />
+  );
+
+  return (
+    <ContentErrorBoundary label="DeviceFilters" resetKey={scheduleId} fallback={() => lists(EMPTY_DEVICE_FILTERS)}>
+      <ScheduleDeviceFacets
+        scheduleId={scheduleId}
+        half={activeTab === 'selected' ? 'assigned' : 'available'}
+        // Both halves in one read: the tab then stays out of the query variables,
+        // so switching it costs nothing (see the query).
+        prefetchOtherHalf
+      >
+        {lists}
+      </ScheduleDeviceFacets>
+    </ContentErrorBoundary>
   );
 }

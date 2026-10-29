@@ -6,10 +6,9 @@
  * the Relay chips. Resolvers never throw — they degrade to `{ label: id }` on a
  * failed response — so the chip always renders (id when the name can't load).
  *
- * id semantics + routes (per the picker in `rest-items.tsx` / `batch-items.tsx`):
+ * id semantics + routes (per the picker in `rest-items.tsx` / `relay-items.tsx`):
  *   - policy → fleet `getPolicy(policyId)`        → /monitoring/policy/{id}
  *   - query  → fleet `getQuery(queryId)`          → /monitoring/query/{id}
- *   - user   → REST `/api/users/{userId}`         → (no detail route)
  *   - script → tactical `getScript(id)`           → /scripts/details/{id}
  *   - ticket → ai-agent `ticket(id:)` GraphQL      → /tickets/dialog?id={id}
  *
@@ -46,15 +45,6 @@ async function resolveQuery(id: string): Promise<Resolved> {
   return { label: name || id, href: routes.monitoring.query(id) };
 }
 
-async function resolveUser(id: string): Promise<Resolved> {
-  const res = await apiClient.get<{ firstName?: string; lastName?: string; email?: string }>(
-    `/api/users/${encodeURIComponent(id)}`,
-  );
-  const u = res.ok ? res.data : undefined;
-  const fullName = u ? [u.firstName, u.lastName].filter(Boolean).join(' ') : '';
-  return { label: fullName || u?.email || id };
-}
-
 async function resolveScript(id: string): Promise<Resolved> {
   // TODO(openframe-rmm): Tactical RMM removed — the legacy single-script endpoint is gone.
   // Numeric (legacy) script ids can no longer resolve a name, so degrade to the id + link
@@ -81,7 +71,6 @@ async function resolveTicket(id: string): Promise<Resolved> {
 const RESOLVERS: Record<string, (id: string) => Promise<Resolved>> = {
   policy: resolvePolicy,
   query: resolveQuery,
-  user: resolveUser,
   script: resolveScript,
   ticket: resolveTicket,
 };
