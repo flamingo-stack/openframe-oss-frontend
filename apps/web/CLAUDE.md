@@ -150,7 +150,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
 | Validation | zod | 4.3 |
 | State Management | Zustand + immer | 5.0.8 + 10.1 |
-| Styling | Tailwind CSS + tailwindcss-animate | 3.4 |
+| Styling | Tailwind CSS (theme and plugins from the core library preset) | 3.4 |
 | Terminal | @xterm/xterm + @xterm/addon-fit | 6.0 + 0.11 |
 | Code Editor | @monaco-editor/react | 4.7 |
 | GraphQL | graphql | 16.12 |
