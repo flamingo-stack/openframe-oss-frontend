@@ -66,7 +66,9 @@ interface IncidentHeaderViewProps {
   transitions?: IncidentTransitionTable;
 }
 
-const MINGO_ICON = <AgentMark agent="mingo" className="size-5" />;
+// Both muted, as every outline action's icon is. The mark's glyph names its own color (the theme's text) unless told
+// to take `currentColor`, which is what drew it white beside the grey tag.
+const MINGO_ICON = <AgentMark agent="mingo" className="size-5 text-ods-text-secondary" color="currentColor" />;
 const CREATE_TICKET_ICON = <TagIcon className="text-ods-text-secondary" />;
 
 /** What the header settles into, inert while the record loads: Fix with Mingo, Create Ticket, the status button. */
