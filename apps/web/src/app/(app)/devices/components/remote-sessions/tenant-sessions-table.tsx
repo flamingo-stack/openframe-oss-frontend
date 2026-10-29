@@ -35,12 +35,13 @@ import {
   tenantRemoteSessionsRelayQuery,
 } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
-import { routes } from '@/lib/routes';
+import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
 import { useDeleteRemoteSession } from '../../hooks/use-session-recordings';
 import { useTenantSessionFilterOptions } from '../../hooks/use-tenant-session-filter-options';
 import { emptyDescription } from '../tabs/remote-sessions-tab';
 import { DeleteSessionDialog } from './delete-session-dialog';
-import { canOpenSession, EXPIRES_FILTER_OPTIONS } from './session-status';
+import { liveSessionRowClass } from './remote-session-columns';
+import { EXPIRES_FILTER_OPTIONS, sessionHref } from './session-status';
 import {
   keepLastPick,
   TENANT_SESSION_COLUMNS,
@@ -57,11 +58,6 @@ type FilterKey = 'device' | 'customer' | 'expires';
 const FILTER_KEYS: FilterKey[] = ['device', 'customer', 'expires'];
 /** The server takes one of these at a time; devices are a list. */
 const SINGLE_VALUE_FILTERS: ReadonlySet<FilterKey> = new Set(['customer', 'expires']);
-
-/** The page a row opens: the session's recording, when it has one to play. */
-function recordingHref(row: TenantSessionRow): string | null {
-  return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
-}
 
 const NO_SESSIONS: NoDataProps = {
   icon: <ComputerMouseIcon />,
@@ -120,6 +116,7 @@ function TenantSessionsTable({
   const router = useRouter();
   // The "Expires in N hours" countdown keeps moving while the page is open.
   const now = useNow(60_000);
+  const liveRows = useLiveRows();
   const {
     deviceOptions,
     customerOptions,
@@ -139,13 +136,14 @@ function TenantSessionsTable({
         customerOptions,
         optionsPending,
         now,
+        liveRows,
         onOpen: row => {
-          const href = recordingHref(row);
+          const href = sessionHref(row, liveRows);
           if (href) router.push(href);
         },
         onDelete: setDeleteTarget,
       }),
-    [dateFilter, deviceOptions, customerOptions, optionsPending, now, router],
+    [dateFilter, deviceOptions, customerOptions, optionsPending, now, liveRows, router],
   );
 
   // The funnels' selection lives in the URL: every column's picks in, all of
@@ -202,7 +200,8 @@ function TenantSessionsTable({
         totalCount={totalCount}
         isPending={isPending}
         emptyState={emptyState}
-        rowHref={recordingHref}
+        rowHref={row => sessionHref(row, liveRows)}
+        rowClassName={row => liveSessionRowClass(row, liveRows)}
         footer={rows.length > 0 ? infiniteScroll : null}
         loadingCells={loading}
       />

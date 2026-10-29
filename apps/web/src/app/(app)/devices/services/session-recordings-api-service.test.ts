@@ -48,6 +48,7 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
     recordingExpiresAt: '2026-12-24T10:49:27Z',
     recordingHold: null,
     dialogId: 'dialog-1',
+    technicianId: 'tech-roman',
     technician: { name: 'Roman Smith', avatarUrl: null },
     organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
     recordings: [
@@ -118,6 +119,7 @@ describe('fromWireSession', () => {
       kept: false,
       expiresAt: '2026-12-24T10:49:27Z',
       recordingId: 'rec-1',
+      technicianId: 'tech-roman',
       employee: { name: 'Roman Smith' },
     });
   });

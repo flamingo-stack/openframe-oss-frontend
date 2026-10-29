@@ -1,7 +1,7 @@
 'use client';
 
-import { Tag } from '@flamingo-stack/openframe-frontend-core';
 import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { RemoteSessionStatusTag } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { ArrowRightUpIcon, LockIcon, TrashIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -23,11 +23,13 @@ import { keepReasonText } from './recording-keep';
 import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import {
   canDeleteSession,
-  canOpenSession,
   EXPIRES_FILTER_OPTIONS,
   expiresFilterValue,
   expiresSoonLabel,
+  isLiveRow,
   isRecordingGone,
+  type LiveRows,
+  sessionHref,
 } from './session-status';
 
 interface FilterOption {
@@ -43,6 +45,8 @@ export interface RemoteSessionColumnsOptions<T extends RecordingSummary = Record
   employeeOptions: FilterOption[];
   /** The clock the "Expires in N hours" countdown reads; ticks in the caller. */
   now: number;
+  /** Set while Watch live is on: running sessions read LIVE, and the signed-in technician's own opens Remote Control. */
+  liveRows: LiveRows | null;
   onOpen: (row: T) => void;
   onDelete: (row: T) => void;
 }
@@ -56,16 +60,26 @@ function employeeInitials(name: string): string {
     .join('');
 }
 
-const STATE_TAGS: Partial<Record<RecordingSummary['recordingState'], { label: string; variant: 'warning' | 'error' }>> =
-  {
-    processing: { label: 'PROCESSING', variant: 'warning' },
-    failed: { label: 'FAILED', variant: 'error' },
-  };
+/** The tag beside the session date: LIVE while Watch live shows the session running, else the recording's state. */
+function sessionTag(row: RecordingSummary, liveRows: LiveRows | null): 'live' | 'processing' | 'failed' | null {
+  if (isLiveRow(row, liveRows)) return 'live';
+  if (row.recordingState === 'processing' || row.recordingState === 'failed') return row.recordingState;
+  return null;
+}
 
-/** The EXPIRES cell per Figma 1644-6911: kept (by whom, why), the expiry date (with a countdown on the last day), or expired. */
-function ExpiresCell({ row, now }: { row: RecordingSummary; now: number }) {
+/** A LIVE row's frame, in the error colour like its tag. Merged over the row's own border colour. */
+export function liveSessionRowClass(row: RecordingSummary, liveRows: LiveRows | null): string {
+  return isLiveRow(row, liveRows) ? 'border-ods-error' : '';
+}
+
+/**
+ * The EXPIRES cell per Figma 1644-6911: kept (by whom, why), the expiry date (with a countdown on the last day), or
+ * expired. A LIVE row has none yet: a running session may already have a file listed, and more may follow.
+ */
+function ExpiresCell({ row, now, liveRows }: { row: RecordingSummary; now: number; liveRows: LiveRows | null }) {
   // A row still being read: the expiry date's line as a bar (the typical row is a ready recording).
   if (useLoadingScope()) return <TextLineSkeleton type="h4" as="span" className="w-32 max-w-full" />;
+  if (isLiveRow(row, liveRows)) return <ValueText value={null} />;
   if (row.kept) {
     return (
       <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
@@ -100,10 +114,10 @@ function ExpiresCell({ row, now }: { row: RecordingSummary; now: number }) {
 }
 
 /**
- * The SESSION cell: the start date (with the PROCESSING / FAILED tag) over its time. On a loading row (a loading scope,
- * every field absent) both lines are bars.
+ * The SESSION cell: the start date (with the LIVE / PROCESSING / FAILED tag) over its time. On a loading row (a loading
+ * scope, every field absent) both lines are bars.
  */
-function SessionCell({ row }: { row: RecordingSummary }) {
+function SessionCell({ row, liveRows }: { row: RecordingSummary; liveRows: LiveRows | null }) {
   if (useLoadingScope()) {
     return (
       <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
@@ -112,12 +126,12 @@ function SessionCell({ row }: { row: RecordingSummary }) {
       </div>
     );
   }
-  const tag = STATE_TAGS[row.recordingState];
+  const tag = sessionTag(row, liveRows);
   return (
     <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
       <div className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
         <TruncateText tone={isRecordingGone(row) ? 'secondary' : 'primary'}>{formatDate(row.startedAt)}</TruncateText>
-        {tag && <Tag label={tag.label} variant={tag.variant} className="shrink-0" />}
+        {tag && <RemoteSessionStatusTag status={tag} />}
       </div>
       <TruncateText variant="h6" tone="secondary">
         {formatTime(row.startedAt)}
@@ -179,20 +193,24 @@ function DurationCell({ row }: { row: RecordingSummary }) {
 }
 
 /**
- * Delete / Open, each enabled only where the row's recording allows it. Static chrome: on a loading row both are drawn
- * real and inert (a placeholder would otherwise read as deletable).
+ * Delete / Open, each enabled only where the row allows it: Delete by its recording, Open where it has a page to open
+ * (`sessionHref`). Static chrome: on a loading row both are drawn real and inert (a placeholder would otherwise read as
+ * deletable).
  */
 function SessionActions<T extends RecordingSummary>({
   row,
+  liveRows,
   onOpen,
   onDelete,
 }: {
   row: T;
+  liveRows: LiveRows | null;
   onOpen: (row: T) => void;
   onDelete: (row: T) => void;
 }) {
   const loading = useLoadingScope();
   const deletable = !loading && canDeleteSession(row);
+  const live = isLiveRow(row, liveRows);
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]">
       <Button
@@ -212,8 +230,8 @@ function SessionActions<T extends RecordingSummary>({
         variant="outline"
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-        aria-label="Open session recording"
-        disabled={loading || !canOpenSession(row)}
+        aria-label={live ? 'Open Remote Control' : 'Open session recording'}
+        disabled={loading || sessionHref(row, liveRows) === null}
         className="bg-ods-card"
       />
     </div>
@@ -222,8 +240,8 @@ function SessionActions<T extends RecordingSummary>({
 
 /**
  * The Remote Sessions table's columns (Figma 1644-6911): SESSION with the
- * PROCESSING / FAILED tag, EMPLOYEE, DURATION with the size, EXPIRES, and the
- * Delete / Open actions, each enabled only where the row's recording allows it.
+ * LIVE / PROCESSING / FAILED tag, EMPLOYEE, DURATION with the size, EXPIRES, and
+ * the Delete / Open actions, each enabled only where the row allows it.
  * A row whose recording is gone reads greyed out. The tenant-wide sessions page
  * builds on the same columns, adding its device and customer columns.
  */
@@ -231,6 +249,7 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
   dateFilter,
   employeeOptions,
   now,
+  liveRows,
   onOpen,
   onDelete,
 }: RemoteSessionColumnsOptions<T>): ColumnDef<T>[] {
@@ -240,7 +259,7 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       header: () => <DateColumnHeader label={REMOTE_SESSION_COLUMNS.session.header} filter={dateFilter} />,
       // ISO timestamps sort correctly as strings.
       accessorFn: (row: T) => row.startedAt,
-      cell: ({ row }: { row: Row<T> }) => <SessionCell row={row.original} />,
+      cell: ({ row }: { row: Row<T> }) => <SessionCell row={row.original} liveRows={liveRows} />,
       enableSorting: true,
       meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.session),
     },
@@ -266,14 +285,16 @@ export function remoteSessionColumns<T extends RecordingSummary = RecordingSumma
       id: REMOTE_SESSION_COLUMNS.expires.id,
       header: REMOTE_SESSION_COLUMNS.expires.header,
       accessorFn: (row: T) => expiresFilterValue(row, now),
-      cell: ({ row }: { row: Row<T> }) => <ExpiresCell row={row.original} now={now} />,
+      cell: ({ row }: { row: Row<T> }) => <ExpiresCell row={row.original} now={now} liveRows={liveRows} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.expires, { filter: { options: EXPIRES_FILTER_OPTIONS } }),
     },
     {
       id: REMOTE_SESSION_COLUMNS.actions.id,
-      cell: ({ row }: { row: Row<T> }) => <SessionActions row={row.original} onOpen={onOpen} onDelete={onDelete} />,
+      cell: ({ row }: { row: Row<T> }) => (
+        <SessionActions row={row.original} liveRows={liveRows} onOpen={onOpen} onDelete={onDelete} />
+      ),
       enableSorting: false,
       meta: liveColumnMeta(REMOTE_SESSION_COLUMNS.actions),
     },

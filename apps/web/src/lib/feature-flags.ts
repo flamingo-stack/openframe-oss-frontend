@@ -38,6 +38,11 @@ export const FEATURE_FLAG_NAMES = [
   // environment. On for dev / qa, absent elsewhere. Today: the "Remote Access
   // Permission" selector on the New Device page.
   'remote-access-v2',
+  // Watch live: following another technician's running session view-only (the
+  // LIVE row, the live session page, viewers in the Remote Control header), on
+  // top of `session-recordings`. The backend reads the same key. On for dev /
+  // qa, absent elsewhere, which reads as off.
+  'remote-session-watch',
   // The Incidents module (`/incidents`) over saas-api's `insights` API.
   'insights',
   // Cloud Tenant Management (`/cloud-tenant-management/*`, the sidebar's
