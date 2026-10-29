@@ -42,7 +42,7 @@ your workspace from your email, and updates itself from then on.
 
 - Rust (stable) and the [Tauri 2 system prerequisites](https://tauri.app/start/prerequisites/)
   for your platform
-- Node.js 24 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
+- Node.js 26 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
   web app's Node
 
 ## Quick start
