@@ -1,10 +1,8 @@
-/* All @import statements must come first */
+/* All @import statements must come first. The library's styles carry `@tailwind base/components/utilities`
+   and are built with this app's Tailwind config: never repeat the directives here, or the app ships a
+   second full Tailwind stylesheet (each imported file is its own chunk, and every page carries both). */
 @import '@flamingo-stack/openframe-frontend-core/styles';
 @import '@xterm/xterm/css/xterm.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 /* Hide number input arrows (spinners) across browsers */
 input[type='number']::-webkit-outer-spin-button,

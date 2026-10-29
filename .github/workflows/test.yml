@@ -179,6 +179,12 @@ jobs:
         working-directory: apps/web
         run: npm test
 
+      # Every page carries the stylesheet inside its HTML (next.config.mjs, the lib's withInlineStyles),
+      # so its brotli size has a budget. The scan behind it reads the generated code above.
+      - name: Stylesheet budget
+        working-directory: apps/web
+        run: npm run css:budget:check
+
   build_image:
     name: 'Test Frontend'
     runs-on: ubuntu-latest

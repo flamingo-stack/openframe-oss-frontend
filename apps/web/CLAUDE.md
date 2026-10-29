@@ -150,7 +150,7 @@ modal** on the billing page (`billing-usage/components/upgrade-plan-modal.tsx`),
 | Forms | react-hook-form + @hookform/resolvers | 7.71 + 5.2 |
 | Validation | zod | 4.3 |
 | State Management | Zustand + immer | 5.0.8 + 10.1 |
-| Styling | Tailwind CSS + tailwindcss-animate | 3.4 |
+| Styling | Tailwind CSS (theme and plugins from the core library preset) | 3.4 |
 | Terminal | @xterm/xterm + @xterm/addon-fit | 6.0 + 0.11 |
 | Code Editor | @monaco-editor/react | 4.7 |
 | GraphQL | graphql | 16.12 |
@@ -1122,6 +1122,13 @@ from the installed package. Edit the rules in the core lib, not here:
 @./node_modules/@flamingo-stack/openframe-frontend-core/src/ODS_TOKEN_RULES.md
 
 **Tailwind preset:** ODS colors/utilities are provided via the core library's Tailwind preset (see `tailwind.config.ts`).
+
+**The stylesheet is inside each page's HTML, and small** (the lib's `style-sources` and `next-styles`, shared with
+the hub). Tailwind's `content` is what the routes import (`appStyleSources`), never a directory or the lib's
+`dist`. `next.config.mjs` wraps the config in `withInlineStyles`, so a page paints without a second request for its
+stylesheet (production builds and the static export; `next dev` keeps links). Every page then carries the sheet,
+so `npm run css:budget:check` (CI, Unit Test job) fails over its brotli budget: over budget means a route imports
+something it does not render; raise the budget in `package.json` only with the reason.
 
 ### Content Area Breakpoints (page content follows its own width)
 
