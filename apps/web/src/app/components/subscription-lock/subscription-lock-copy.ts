@@ -23,6 +23,13 @@ export interface PaywallCopy {
    * one screen that must render on a locked workspace. The count went with it.
    */
   description: string;
+  /**
+   * Said beside "Proceed to Payment" when paying changes something the user
+   * would not expect: on a running trial, checkout ends the trial there and
+   * then — the plan starts and is billed from that day, not from the date the
+   * trial would have run out.
+   */
+  checkoutNote?: string;
 }
 
 /**
@@ -42,6 +49,7 @@ const PAYWALL_COPY: Partial<Record<SubscriptionStatus, PaywallCopy>> = {
   [SubscriptionStatus.TRIAL]: {
     title: 'Activate your subscription',
     description: 'Pick a plan now and keep everything running when the trial ends.',
+    checkoutNote: 'Proceeding to payment ends your free trial today. Your plan and its billing start right away.',
   },
 };
 
