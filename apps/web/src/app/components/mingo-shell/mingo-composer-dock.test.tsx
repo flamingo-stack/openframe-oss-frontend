@@ -702,12 +702,32 @@ describe('MingoComposerDock', () => {
       expect(section()?.className).not.toContain('max-md:hidden');
     });
 
-    it('raises a draft over the page, where it has no composer of its own', () => {
+    it('takes a draft to a new chat, where it has no composer of its own', () => {
       viewport.mdUp = false;
       render('/incidents/');
       act(() => useMingoLauncherStore.getState().draftToMingo({ text: 'Fix the disk space incident' }));
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.home);
+      expect(panel.prefillDraft).not.toHaveBeenCalled();
+      render('/mingo/');
       expect(panel.prefillDraft).toHaveBeenCalledTimes(1);
-      expect(useMingoSheetStore.getState().open).toBe(true);
+      expect(useMingoSheetStore.getState().open).toBe(false);
+    });
+
+    it('opens a chat on its page, never over the page', () => {
+      viewport.mdUp = false;
+      render('/devices/');
+      act(() => useMingoLauncherStore.getState().openDialog('d-7'));
+      expect(nav.push).toHaveBeenCalledWith(routes.mingo.chat('d-7'));
+      expect(selectDialog).not.toHaveBeenCalled();
+      expect(useMingoSheetStore.getState().open).toBe(false);
+    });
+
+    it("draws no actions in the chat header: the top bar's Mingo button is its ×", () => {
+      viewport.mdUp = false;
+      setSurface({ activeDialogId: 'a' });
+      useMingoSheetStore.setState({ lastPage: '/devices/' });
+      render('/mingo/chat/');
+      expect(props().threadHeaderActions).toBeUndefined();
     });
   });
 

@@ -6,6 +6,9 @@ const HEIGHT_KEY = 'of.mingo-sheet-height';
 /** Per tab: the page a chat page collapses back to survives a reload, a new tab starts without one. */
 const LAST_PAGE_KEY = 'of.mingo-last-page';
 
+/** Per tab: the last page outside Mingo, where a phone's × in the top bar leaves Mingo for. */
+const OUTSIDE_PAGE_KEY = 'of.mingo-outside-page';
+
 function readHeight(): number | null {
   try {
     const raw = typeof window === 'undefined' ? null : window.localStorage.getItem(HEIGHT_KEY);
@@ -32,19 +35,19 @@ function writeHeight(height: number): void {
   }
 }
 
-function readLastPage(): string | null {
+function readPage(key: string): string | null {
   try {
-    return typeof window === 'undefined' ? null : window.sessionStorage.getItem(LAST_PAGE_KEY);
+    return typeof window === 'undefined' ? null : window.sessionStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function writeLastPage(href: string): void {
+function writePage(key: string, href: string): void {
   try {
-    window.sessionStorage.setItem(LAST_PAGE_KEY, href);
+    window.sessionStorage.setItem(key, href);
   } catch {
-    // Blocked storage: after a reload the chat page collapses to Mingo's home.
+    // Blocked storage: after a reload the way back is the default one.
   }
 }
 
@@ -70,6 +73,12 @@ function trimSlash(pathname: string): string {
  *   query: where every chat page collapses back to ("Back to page"), the chat raised
  *   over it in the sheet; Mingo's home when there is none (a link opened in a new tab).
  *   Kept in `sessionStorage`, so a reload of the chat page still has its way back.
+ * - `listOpen` — a phone's chat list over the page (the top bar's Mingo button): "Start
+ *   New Chat", My / All Chats and the chats, as the classic drawer opened. Never with
+ *   `open`; any navigation closes it.
+ * - `outsidePage` — the last page outside Mingo (not its home, a chat page or the
+ *   sheet's routes' own), where a phone's × in the top bar leaves Mingo for. Kept in
+ *   `sessionStorage` as `lastPage` is.
  */
 interface MingoSheetStore {
   open: boolean;
@@ -78,8 +87,13 @@ interface MingoSheetStore {
   height: number | null;
   node: HTMLElement | null;
   lastPage: string | null;
+  listOpen: boolean;
+  outsidePage: string | null;
   show: () => void;
   hide: () => void;
+  /** A phone's chat list over the page. */
+  showList: () => void;
+  hideList: () => void;
   showAfterNavigation: () => void;
   /** The location changed: the sheet closes, unless it was asked to open there. */
   navigated: () => void;
@@ -91,6 +105,8 @@ interface MingoSheetStore {
   openFull: () => void;
   /** A page other than the chat page is on screen: the one the chat page collapses back to. */
   rememberPage: (href: string) => void;
+  /** A page outside Mingo is on screen: the one a phone's × leaves Mingo for. */
+  rememberOutsidePage: (href: string) => void;
 }
 
 export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
@@ -99,16 +115,21 @@ export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
   askedFrom: null,
   height: readHeight(),
   node: null,
-  lastPage: readLastPage(),
-  show: () => set({ open: true, openAfterNavigation: false, askedFrom: null }),
-  hide: () => set({ open: false, openAfterNavigation: false, askedFrom: null }),
+  lastPage: readPage(LAST_PAGE_KEY),
+  listOpen: false,
+  outsidePage: readPage(OUTSIDE_PAGE_KEY),
+  show: () => set({ open: true, listOpen: false, openAfterNavigation: false, askedFrom: null }),
+  hide: () => set({ open: false, listOpen: false, openAfterNavigation: false, askedFrom: null }),
+  showList: () => set({ open: false, listOpen: true, openAfterNavigation: false, askedFrom: null }),
+  hideList: () => set({ listOpen: false }),
   showAfterNavigation: () =>
     set({
       open: false,
       openAfterNavigation: true,
       askedFrom: typeof window === 'undefined' ? null : trimSlash(window.location.pathname),
     }),
-  navigated: () => set({ open: get().openAfterNavigation, openAfterNavigation: false, askedFrom: null }),
+  navigated: () =>
+    set({ open: get().openAfterNavigation, listOpen: false, openAfterNavigation: false, askedFrom: null }),
   setHeight: height => {
     writeHeight(height);
     set({ height });
@@ -123,8 +144,13 @@ export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
   openFull: () => set({ openAfterNavigation: false, askedFrom: null }),
   rememberPage: href => {
     if (get().lastPage === href) return;
-    writeLastPage(href);
+    writePage(LAST_PAGE_KEY, href);
     set({ lastPage: href });
+  },
+  rememberOutsidePage: href => {
+    if (get().outsidePage === href) return;
+    writePage(OUTSIDE_PAGE_KEY, href);
+    set({ outsidePage: href });
   },
 }));
 

@@ -6,7 +6,8 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { useNativeBackDismissible } from '@/lib/native-back';
-import { canShowSheet, composerRouteOf, SHEET_WIDTH_CLASS_NAME } from './mingo-dock-route';
+import { canShowSheet, composerRouteOf, isSheetRoute, SHEET_WIDTH_CLASS_NAME } from './mingo-dock-route';
+import { MingoPhoneChatList } from './mingo-phone-chat-list';
 import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 
 /**
@@ -42,12 +43,13 @@ function escapeIsTaken(): boolean {
  * It closes with its ×, the scrim, Esc (unless a menu or a draft takes it) and
  * Android back, and on any navigation — the next page is a different context;
  * "Continue" brings it back. On every page but the chat page, which is the thread
- * itself: over Mingo's home only for a chat collapsed back from its page. It also tells the store which page the chat page
- * collapses back to (`lastPage`). On a phone it takes the screen, the whole layer
- * and no resize tab: the chat is asked for there from the top bar's Mingo button and
- * the drawer, with no composer under the page. Elsewhere the composer card's width (its
- * edges meet the composer's), `SHEET_DEFAULT_HEIGHT` tall until dragged, the dragged
- * height after that.
+ * itself: over Mingo's home only for a chat collapsed back from its page. It also tells
+ * the store which page the chat page collapses back to (`lastPage`), and the last page
+ * outside Mingo (`outsidePage`). On a phone it takes the screen, the whole layer and no
+ * resize tab, and holds the chat list (`listOpen`, the top bar's Mingo button: a chat
+ * there opens on its page, as every chat does on a phone). Elsewhere the composer
+ * card's width (its edges meet the composer's), `SHEET_DEFAULT_HEIGHT` tall until
+ * dragged, the dragged height after that.
  */
 export function MingoComposerSheet() {
   const pathname = usePathname();
@@ -62,8 +64,13 @@ export function MingoComposerSheet() {
   const setNode = useMingoSheetStore(s => s.setNode);
   const navigated = useMingoSheetStore(s => s.navigated);
   const rememberPage = useMingoSheetStore(s => s.rememberPage);
+  const rememberOutsidePage = useMingoSheetStore(s => s.rememberOutsidePage);
   const phone = useMdUp() === false;
   const shown = up && canShowSheet(route);
+  // A phone's chat list, over a page; the chat itself is never in it at once (`showList`).
+  const listShown = useMingoSheetStore(s => s.listOpen) && phone && !shown;
+  const hideList = useMingoSheetStore(s => s.hideList);
+  const dismiss = listShown ? hideList : hide;
 
   // Every location change closes it, or opens it there when that was asked for. A
   // query change on the same page is not one: filters do not close the chat.
@@ -73,25 +80,27 @@ export function MingoComposerSheet() {
 
   // The page a chat page collapses back to: the last one on screen, with its query.
   useEffect(() => {
-    if (route !== 'chat') rememberPage(search ? `${pathname}?${search}` : pathname);
-  }, [pathname, search, route, rememberPage]);
+    const href = search ? `${pathname}?${search}` : pathname;
+    if (route !== 'chat') rememberPage(href);
+    if (isSheetRoute(route)) rememberOutsidePage(href);
+  }, [pathname, search, route, rememberPage, rememberOutsidePage]);
 
-  useNativeBackDismissible(shown, hide);
+  useNativeBackDismissible(shown || listShown, dismiss);
 
   useEffect(() => {
-    if (!shown) return undefined;
+    if (!shown && !listShown) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || escapeIsTaken()) return;
-      hide();
+      dismiss();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [shown, hide]);
+  }, [shown, listShown, dismiss]);
 
   return (
     <ComposerSheet
-      open={shown}
-      onDismiss={hide}
+      open={shown || listShown}
+      onDismiss={dismiss}
       height={phone ? null : (height ?? SHEET_DEFAULT_HEIGHT)}
       onHeightChange={setHeight}
       onResetHeight={resetHeight}
@@ -100,7 +109,13 @@ export function MingoComposerSheet() {
       className={phone ? undefined : SHEET_WIDTH_CLASS_NAME}
       aria-label="Mingo chat"
     >
-      <div ref={setNode} className="flex min-h-0 flex-1 flex-col" />
+      {listShown ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <MingoPhoneChatList />
+        </div>
+      ) : (
+        <div ref={setNode} className="flex min-h-0 flex-1 flex-col" />
+      )}
       {shown && <SheetThreadOnScreen />}
     </ComposerSheet>
   );

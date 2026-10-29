@@ -33,7 +33,7 @@ interface ComposerLauncherDrainOptions {
   openSheet: () => void;
   /** The chat page is "What to ask Mingo?" (`routes.mingo.whatToAsk`). */
   whatToAskPage: boolean;
-  /** A phone: no composer under its pages, so a draft there raises the chat to show it. */
+  /** A phone: no composer under its pages, and a chat takes the screen there (its page). */
   phone: boolean;
   navigate: (href: string) => void;
 }
@@ -47,14 +47,14 @@ interface ComposerLauncherDrainOptions {
  *    home is a new chat, and the chat page re-selects its `?id=` (it would take the new
  *    chat back before it is left, and draw the empty new chat on its way out). The
  *    request waits until the dock is there; the way home does not wait for the chat
- *    module to load. A phone has no composer under its pages: there the new chat
- *    rises over the page, the draft in its composer;
+ *    module to load. A phone has no composer under its pages: there a draft goes home,
+ *    a new chat that takes the screen;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
  *    which then opens over the page, home included (`useComposerTarget`);
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
  *    Mingo greets in it, nothing is sent — and opens it as a prompt does;
  *  - an existing chat (a notification, "Open Mingo Session", the sidebar's history) opens
- *    over the page, home included; from the chat page, on its own page;
+ *    over the page, home included; from the chat page, and on a phone, on its own page;
  *  - "What to ask Mingo?" goes to its own page, the full chat (`routes.mingo.whatToAsk`),
  *    which shows the suggestions in a new chat each time it is arrived at (a reload
  *    included); asked for there, it shows a fresh set in place. The pick creates the
@@ -85,7 +85,7 @@ export function useComposerLauncherDrain({
     }
     if (dockRequest.kind === 'open') {
       consumeDockRequest();
-      if (route !== 'chat') {
+      if (route !== 'chat' && !phone) {
         selectDialog(dockRequest.dialogId);
         openSheet();
       } else {
@@ -100,7 +100,7 @@ export function useComposerLauncherDrain({
       dockRequest.kind === 'prompt' ||
       dockRequest.kind === 'intent' ||
       dockRequest.kind === 'whatToAsk' ||
-      (dockRequest.kind === 'draft' && isSheetRoute(route));
+      (dockRequest.kind === 'draft' && isSheetRoute(route) && !phone);
     if (!inPlace && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
         sentHomeRef.current = dockRequest;
@@ -113,10 +113,8 @@ export function useComposerLauncherDrain({
     if (!request) return;
     if (request.kind === 'prompt') void sendInNewDialog(request.prompt);
     else if (request.kind === 'intent') void createIntentDialog(request.intent);
-    else if (request.kind === 'draft') {
-      handle.prefillDraft(request.draft);
-      if (phone && isSheetRoute(route)) openSheet();
-    } else if (request.kind === 'newChat') handle.startNewChat();
+    else if (request.kind === 'draft') handle.prefillDraft(request.draft);
+    else if (request.kind === 'newChat') handle.startNewChat();
     else if (request.kind === 'whatToAsk') handle.showWhatToAsk();
   }, [
     dockRequest,

@@ -327,11 +327,14 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
   `localStorage` convenience.
 - **A phone (below md) has no composer under its pages**: the dock hides there in CSS (`max-md:hidden`),
-  still mounted, except on Mingo's home and the chat page, which are the chat already. The chat is asked for
-  from the top bar's Mingo button (on a page; its × closes it), the drawer's history and New chat, or a
-  notification, and always takes the screen: the sheet with no resize tab over the whole layer, the composer
-  under it. A draft raised on a page opens it too, so it lands where it can be seen. The sheet hides the
-  page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
+  still mounted, except on Mingo's home and the chat page, which are the chat already. A chat there is always
+  its page (`/mingo/chat?id=`), never the sheet: a history row, a notification, a send from home and a launcher
+  all go there (`useComposerTarget` / `useComposerLauncherDrain` with `phone`), and a draft goes home. The top
+  bar's Mingo button is on every page: with Mingo closed it opens the chat list over the page in the sheet
+  (`MingoPhoneChatList`, the lib's `MingoHistoryRail`: Start New Chat, My / All Chats, the chats, as the classic
+  drawer opened; `listOpen`), and with Mingo open (the list, home, a chat page) it is the ×, back to the last page
+  outside Mingo (`outsidePage`) or the dashboard. So a chat's own header draws no actions there. The sheet hides
+  the page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
   entry. A session that owes its setup lands on the bare `/setup` wizard instead of
   `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a

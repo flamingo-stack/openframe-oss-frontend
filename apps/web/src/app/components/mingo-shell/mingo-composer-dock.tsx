@@ -206,7 +206,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   // The chat page holding "What to ask Mingo?": a chat not created yet, on its page.
   const query = useSearchParams();
   const whatToAskPage = route === 'chat' && isMingoWhatToAsk(query);
-  // No composer under a phone's pages: what lands in it there raises the chat to show it.
+  // A phone has no composer under its pages, and a chat there takes the screen: its page.
   const phone = useMdUp() === false;
   // State, not a ref: the chat module loads lazily, and the launcher drain waits for it.
   const [handle, setHandle] = useState<EmbeddableChatHandle | null>(null);
@@ -247,6 +247,7 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     navigate,
     openSheet: showSheet,
     sheetOpen,
+    phone,
   });
   useComposerLauncherDrain({
     handle,
@@ -279,7 +280,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   const collapseTo =
     route === 'chat' && (openDialogId !== null || whatToAskPage) ? (lastPage ?? routes.mingo.home) : null;
   let threadHeaderActions;
-  if (sheetOpen) {
+  // A phone: none. The top bar's Mingo button is the chat's × there, and a chat has no
+  // smaller form to go to.
+  if (phone) threadHeaderActions = undefined;
+  else if (sheetOpen) {
     // A chat not created yet (the suggestions of "What to ask Mingo?") has no page of its own.
     threadHeaderActions = [
       ...(openDialogId

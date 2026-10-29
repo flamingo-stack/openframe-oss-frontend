@@ -27,6 +27,8 @@ import type { ComposerRoute } from './mingo-dock-route';
  *   its page**, `routes.mingo.chat(id)`: the Getting Started tour's, which it creates itself.
  * - **Sends on the chat page stay put.** A chat created there is the page's to
  *   follow (`use-chat-page-selection.ts`).
+ * - **A phone opens the chat on its page** wherever the sheet would rise: there a chat
+ *   takes the screen, and only its page is the full chat.
  *
  * `EmbeddableChat.onDialogCreated` is not used: it reports only the panel's own
  * sends, and the host-side ones (home chips, launcher prompts) need this
@@ -44,6 +46,8 @@ interface ComposerTargetOptions {
   openSheet: () => void;
   /** The sheet is up on this route (`isSheetUp` and `canShowSheet`). */
   sheetOpen: boolean;
+  /** A phone: the chat opens on its page instead of in the sheet. */
+  phone?: boolean;
 }
 
 interface ComposerTarget {
@@ -53,6 +57,15 @@ interface ComposerTarget {
   sendInNewDialog: (text: string) => Promise<void>;
   /** `createIntentDialog` that follows the chat it creates. */
   createIntentDialog: (intent: DialogIntent) => Promise<string | null>;
+}
+
+/** Shows a chat a send went to: over the page, or on a phone on the chat's own page. */
+function openChat(
+  dialogId: string,
+  { phone, navigate, openSheet }: Pick<ComposerTargetOptions, 'phone' | 'navigate' | 'openSheet'>,
+): void {
+  if (phone) navigate(routes.mingo.chat(dialogId));
+  else openSheet();
 }
 
 /** A send that will create a chat; `from` is the chat open when it started. */
@@ -68,6 +81,7 @@ export function useComposerTarget({
   navigate,
   openSheet,
   sheetOpen,
+  phone = false,
 }: ComposerTargetOptions): ComposerTarget {
   const activeDialogId = state.activeDialogId ?? null;
   const { selectDialog } = state;
@@ -97,9 +111,9 @@ export function useComposerTarget({
     if (created) followRef.current = null;
     // The chat page follows its selection itself (`use-chat-page-selection.ts`).
     if (route === 'chat') return;
-    if (created) openSheet();
+    if (created) openChat(activeDialogId, { phone, navigate, openSheet });
     else if (route === 'home' && !sheetOpen) navigate(routes.mingo.chat(activeDialogId));
-  }, [activeDialogId, route, sheetOpen, navigate, openSheet]);
+  }, [activeDialogId, route, sheetOpen, phone, navigate, openSheet]);
 
   // Wraps a send that may create a chat. A send that ends with no new chat (the
   // create failed) disarms, so a later selection is not taken for its chat. One
@@ -131,7 +145,7 @@ export function useComposerTarget({
       const open = state.activeDialogId;
       if (!open) return following(() => state.sendMessage(text, options));
       // The reply streams into the thread: over the page, or on the chat's own page.
-      if (route !== 'chat') openSheet();
+      if (route !== 'chat') openChat(open, { phone, navigate, openSheet });
       return state.sendMessage(text, options);
     },
   };

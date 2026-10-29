@@ -39,9 +39,13 @@ import { navigatesCurrentWindow } from '@/lib/link-click';
 //   - `[&_svg]:size-4`       → 16px lead icon, matching the context chips.
 //   - `[&_svg]:text-ods-text-secondary` → grey lead icon (label stays primary),
 //     matching the context chips' muted glyph.
+//   - `max-w-[min(16rem,100%)]` → never wider than what holds it: a table cell
+//     narrower than 16rem (a phone) truncates the label (Tag's tooltip then shows it
+//     whole) instead of letting the chip run out of the cell.
 // NB: no `cursor-pointer` here — the link cursor comes from the `<a>` wrapper, so
 // a chip WITHOUT an href (e.g. user — no detail page) doesn't look clickable.
-const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-text-secondary hover:border-ods-border';
+const CHIP_CLASS =
+  'max-w-[min(16rem,100%)] align-middle [&_svg]:size-4 [&_svg]:text-ods-text-secondary hover:border-ods-border';
 
 // The two segments of a chip that can also open a tab: one chip outline, the
 // main segment's right border is the seam between them, and each segment
@@ -97,10 +101,13 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   );
   if (!offersNewTab) return main;
 
-  // The new-tab segment is a plain link the browser opens itself.
+  // The new-tab segment is a plain link the browser opens itself. The pair fits what
+  // holds it too: the main segment gives up its width first.
   return (
-    <span className="inline-flex align-middle">
-      {main}
+    <span className="inline-flex max-w-full align-middle">
+      <a href={href} onClick={handleClick} className="flex min-w-0 no-underline">
+        {chip}
+      </a>
       <FloatingTooltip content="Open in new tab" side="top" as="span">
         <a href={href} target="_blank" rel="noopener noreferrer" aria-label="Open in new tab" className="no-underline">
           <Tag as="span" variant="badge" label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />

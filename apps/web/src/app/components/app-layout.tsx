@@ -53,7 +53,7 @@ import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
-import { composerRouteOf, dockViewOf, isSheetRoute } from './mingo-shell/mingo-dock-route';
+import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
 import { isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
@@ -565,13 +565,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
-  // The phone top bar's Mingo button, on a page: a phone has no composer under its
-  // pages, so this is where the chat is asked for. It raises the chat over the page
-  // (the sheet, which takes the screen there) and closes it again. Not on Mingo's home
-  // nor the chat page: they are the chat already.
-  const mingoButton = mingoShell && chatEnabled && !dashboardHeld && isSheetRoute(composerRouteOf(pathname));
+  // The phone top bar's Mingo button, on every page: a phone has no composer under its
+  // pages, so this is where Mingo is asked for. With Mingo closed it opens the chat list
+  // over the page (the classic drawer's first screen: Start New Chat, My / All Chats, the
+  // chats); with Mingo open (that list, a chat over the page, Mingo's home or a chat page)
+  // it is the ×: back to the last page outside Mingo, the dashboard when there is none.
+  // The chats themselves draw no close of their own on a phone.
+  const mingoButton = mingoShell && chatEnabled && !dashboardHeld;
+  const onMingoPage = ['home', 'chat'].includes(composerRouteOf(pathname));
   const sheetUp = useMingoSheetStore(state => isSheetUp(state, pathname));
-  const showSheet = useMingoSheetStore(state => state.show);
+  const listOpen = useMingoSheetStore(state => state.listOpen);
+  const outsidePage = useMingoSheetStore(state => state.outsidePage);
+  const showList = useMingoSheetStore(state => state.showList);
+  const hideList = useMingoSheetStore(state => state.hideList);
   const hideSheet = useMingoSheetStore(state => state.hide);
 
   const headerProps = useMemo(
@@ -598,18 +604,23 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       // The Mingo-first shell draws this header below md only (`desktopHeader`): the
-      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts,
-      // and on a page Mingo. Chat history opens the drawer, where the history section
-      // lives (the active chats, not only the archive); Mingo raises the chat over the
-      // page, and its × closes it. (`showMingoAI` / `onMingoAI` / `isMingoAIActive` /
+      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts
+      // and Mingo. Chat history opens the drawer, where the history section lives (the
+      // active chats, not only the archive); Mingo opens the chat list, and its × leaves
+      // Mingo (above). (`showMingoAI` / `onMingoAI` / `isMingoAIActive` /
       // `mingoAICloseWhenActive` are core `AppHeader` prop names — external API, not ours.)
       ...(mingoShell && {
         loadingActionCells: mingoHeaderLoadingCells(mingoButton),
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
         showMingoAI: mingoButton,
-        onMingoAI: sheetUp ? hideSheet : showSheet,
-        isMingoAIActive: sheetUp,
+        onMingoAI: () => {
+          if (listOpen) hideList();
+          else if (sheetUp) hideSheet();
+          else if (onMingoPage) router.push(outsidePage ?? routes.dashboard);
+          else showList();
+        },
+        isMingoAIActive: listOpen || sheetUp || onMingoPage,
         mingoAICloseWhenActive: true,
         customCells: chatEnabled
           ? [
@@ -633,9 +644,14 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       isMdUp,
       setMobileMenuOpen,
       mingoButton,
+      onMingoPage,
       sheetUp,
-      showSheet,
+      listOpen,
+      outsidePage,
+      showList,
+      hideList,
       hideSheet,
+      router,
     ],
   );
 

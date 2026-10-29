@@ -94,3 +94,18 @@ describe('MentionTag click', () => {
     expect(push).toHaveBeenCalledWith(href);
   });
 });
+
+describe('MentionTag width', () => {
+  // jsdom lays nothing out: the class is the contract. A table cell on a phone is
+  // narrower than the chip's 16rem, and the chip must not run out of it.
+  it('is never wider than what holds it, in one segment or two', () => {
+    renderChip('/devices/details?id=m-1');
+    expect(container.querySelector('a')?.firstElementChild?.className).toContain('max-w-[min(16rem,100%)]');
+
+    sameWindow = false;
+    renderChip('/devices/details?id=m-1');
+    const pair = container.firstElementChild;
+    expect(pair?.className).toContain('max-w-full');
+    expect(pair?.querySelector('a')?.className).toContain('min-w-0');
+  });
+});

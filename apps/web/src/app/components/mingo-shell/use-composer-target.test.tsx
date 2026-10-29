@@ -31,7 +31,7 @@ const target = () => {
   return probe.target;
 };
 
-function Harness({ route, sheetOpen }: { route: ComposerRoute; sheetOpen: boolean }) {
+function Harness({ route, sheetOpen, phone }: { route: ComposerRoute; sheetOpen: boolean; phone: boolean }) {
   const active = selection(s => s.active);
   const state = { activeDialogId: active, selectDialog, sendMessage } as unknown as UnifiedChatState;
   const result = useComposerTarget({
@@ -42,6 +42,7 @@ function Harness({ route, sheetOpen }: { route: ComposerRoute; sheetOpen: boolea
     navigate,
     openSheet,
     sheetOpen,
+    phone,
   });
   useEffect(() => {
     probe.target = result;
@@ -64,9 +65,12 @@ function deferredCreate(newId: string | null) {
 let container: HTMLDivElement;
 let root: Root;
 
-function render(route: ComposerRoute, { sheetOpen = false }: { sheetOpen?: boolean } = {}) {
+function render(
+  route: ComposerRoute,
+  { sheetOpen = false, phone = false }: { sheetOpen?: boolean; phone?: boolean } = {},
+) {
   act(() => {
-    root.render(<Harness route={route} sheetOpen={sheetOpen} />);
+    root.render(<Harness route={route} sheetOpen={sheetOpen} phone={phone} />);
   });
 }
 
@@ -151,6 +155,39 @@ describe('useComposerTarget', () => {
       await sending;
     });
     expect(openSheet).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the chat a send creates on its page on a phone, from home or a page', async () => {
+    for (const route of ['home', 'page'] as const) {
+      navigate.mockClear();
+      select(null);
+      render(route, { phone: true });
+      const { send, releaseCreate, finish } = deferredCreate(`new-${route}`);
+      sendMessage.mockImplementation(send);
+
+      let sending: Promise<unknown> = Promise.resolve();
+      act(() => {
+        sending = target().mingoState.sendMessage('Why is it offline?');
+      });
+      await act(async () => releaseCreate());
+      expect(navigate).toHaveBeenCalledWith(routes.mingo.chat(`new-${route}`));
+      expect(openSheet).not.toHaveBeenCalled();
+      await act(async () => {
+        finish();
+        await sending;
+      });
+    }
+  });
+
+  it('opens the open chat on its page for a reply on a phone', async () => {
+    sendMessage.mockResolvedValue(undefined);
+    select('a');
+    render('page', { phone: true });
+    await act(async () => {
+      await target().mingoState.sendMessage('and the other one?');
+    });
+    expect(navigate).toHaveBeenCalledWith(routes.mingo.chat('a'));
+    expect(openSheet).not.toHaveBeenCalled();
   });
 
   it('opens the open chat over the page for a reply sent from any other page, and stays on it', async () => {
