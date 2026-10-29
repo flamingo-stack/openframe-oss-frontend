@@ -142,7 +142,8 @@ vi.mock('../dev-onboarding-shortcuts', () => ({
   useDevOnboardingMenuItems: () => [],
 }));
 // The chip has tests of its own (its sources import Relay queries); none here.
-vi.mock('./use-page-chip', () => ({ usePageChip: () => null }));
+const pageChip = vi.hoisted(() => ({ node: null as ReactNode }));
+vi.mock('./use-page-chip', () => ({ usePageChip: () => pageChip.node }));
 // The props builder has tests of its own; here: what the dock asks of it.
 vi.mock('./use-openframe-chat-props', () => ({
   useOpenframeChatProps: (options: Record<string, unknown>) => {
@@ -245,6 +246,7 @@ describe('MingoComposerDock', () => {
     panel.mounts = 0;
     panel.loaded = true;
     panel.loading = null;
+    pageChip.node = null;
     builder.lastOptions = null;
     shell.mobile = false;
     identity.enabled = null;
@@ -739,6 +741,26 @@ describe('MingoComposerDock', () => {
       expect(panel.props).toBeNull();
       expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo about this page…' } });
       expect(container.textContent).toBe('locked composer');
+    });
+
+    it("heads the locked composer with the page's chip, as the chat will: the dock does not grow when it lands", () => {
+      setSurface({ enabled: false });
+      pageChip.node = <span>Devices</span>;
+      render('/devices/');
+      const node = document.createElement('div');
+      container.appendChild(node);
+      const leadingRoot = createRoot(node);
+      leadingRoots.push(leadingRoot);
+      act(() => leadingRoot.render(panel.loading?.contextLeading as ReactNode));
+      expect(node.textContent).toBe('Devices');
+    });
+
+    it('is its loading form while the landing page is held, with no chat running', () => {
+      nav.pathname = '/mingo/';
+      nav.search = '';
+      act(() => root.render(<MingoComposerDock held />));
+      expect(panel.props).toBeNull();
+      expect(panel.loading).toMatchObject({ lock: { placeholder: 'Ask Mingo or describe a task…' } });
     });
 
     it('keeps it until the chat module has loaded, then hands over — and tells the chat page', () => {

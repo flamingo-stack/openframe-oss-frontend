@@ -51,7 +51,7 @@ import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useLayoutEffect, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useState } from 'react';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import {
   type MingoChat,
@@ -95,17 +95,32 @@ const noop = () => {};
 /** The locked composer takes no input; its `+` menu needs a picker to draw the card it sits in. */
 const LOADING_PICKER = { entityTypes: [], renderItems: () => null };
 
+/** The context strip's chips, one row that scrolls sideways: the live composer's and its loading form's. */
+function ContextChipRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="scrollbar-hide flex min-w-0 shrink items-center gap-[var(--spacing-system-xs)] overflow-x-auto">
+      {children}
+    </div>
+  );
+}
+
 /**
  * The composer's place while the chat is not up: the real composer, locked, with the
  * route's prompt where the input will be, the context memory (a local store, known at
  * once) and the row under it, the model as a skeleton. The same card and rows the chat
  * draws, so nothing moves when it lands.
  */
-function DockComposerLoading({ route }: { route: ComposerRoute }) {
+function DockComposerLoading({ route, quickActions = false }: { route: ComposerRoute; quickActions?: boolean }) {
   const view = dockViewOf(route);
   const memory = useMingoContextMemory();
+  // The page's chip, known from the URL at once: the strip it heads is drawn from the first
+  // frame, as the live composer draws it, so the dock does not grow when the chat lands.
+  const pageChip = usePageChip(route, noop);
   return (
     <LoadingRegion label="Loading Mingo">
+      {/* The home's quick actions in their loading form (the scope), so the dock is its
+          loaded height from the first frame and the greeting centred above it stays put. */}
+      {quickActions && <MingoDockQuickActions onSend={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
         inputRef={null}
@@ -115,6 +130,7 @@ function DockComposerLoading({ route }: { route: ComposerRoute }) {
         placeholder={view.placeholder}
         contextPicker={LOADING_PICKER}
         contextMemoryItems={view.showContextMemory ? memory.items : undefined}
+        contextLeading={pageChip ? <ContextChipRow>{pageChip}</ContextChipRow> : undefined}
         safeAreaBottom={false}
       />
       {/* The row under the input, as the live composer lays it out (its own footer slot
@@ -134,7 +150,11 @@ function DockComposerLoading({ route }: { route: ComposerRoute }) {
   );
 }
 
-export function MingoComposerDock() {
+/**
+ * `held`: the landing page waits for the onboarding answer (`holdsDashboard`): the dock is
+ * its loading form, with no chat state running, until the session is known to stay.
+ */
+export function MingoComposerDock({ held = false }: { held?: boolean }) {
   const pathname = usePathname();
   const route = composerRouteOf(pathname);
   usePublishComposerDock();
@@ -160,18 +180,24 @@ export function MingoComposerDock() {
       )}
     >
       <MingoDockErrorBoundary>
-        <DockSurface route={route} />
+        {held ? (
+          <DockComposerLoading route={route} quickActions={route === 'home'} />
+        ) : (
+          <DockSurface route={route} homeQuickActions={route === 'home' && !sheetUp} />
+        )}
       </MingoDockErrorBoundary>
     </section>
   );
 }
 
-function DockSurface({ route }: { route: ComposerRoute }) {
+function DockSurface({ route, homeQuickActions }: { route: ComposerRoute; homeQuickActions: boolean }) {
   // A surface for the whole session: the chat state runs while the dock is mounted.
   const { chat, error, enabled, identityEnabled, compactDialog, copyDialogLink } = useMingoChatSurface();
   if (error) throw error;
   // Disabled = no session yet (the paywall unmounts the dock): the composer's place, locked.
-  if (!enabled || !chat) return <DockComposerLoading route={route} />;
+  // On the home the quick actions' place too, so the dock is its loaded height from the first
+  // frame and the greeting centred above it does not move.
+  if (!enabled || !chat) return <DockComposerLoading route={route} quickActions={homeQuickActions} />;
   return (
     // Its own identity provider: the dock sits outside `<main>`, and the provider
     // must not wrap the page (see `MingoChatProvider`). The thread portalled into the
@@ -408,10 +434,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // that scrolls sideways when the strip is too narrow for all of them.
         composerContextLeading={
           continueChip || pageChip ? (
-            <div className="scrollbar-hide flex min-w-0 shrink items-center gap-[var(--spacing-system-xs)] overflow-x-auto">
+            <ContextChipRow>
               {continueChip}
               {pageChip}
-            </div>
+            </ContextChipRow>
           ) : undefined
         }
         rail="none"

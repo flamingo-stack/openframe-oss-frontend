@@ -1,6 +1,7 @@
 'use client';
 
 import { MingoQuickActionWall } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useEffect, useRef } from 'react';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
@@ -22,7 +23,9 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   const showPreview = useComposerPreviewStore(s => s.show);
   const hidePreview = useComposerPreviewStore(s => s.hide);
   const clearPreview = useComposerPreviewStore(s => s.clear);
-  const chips = useMingoQuickActionChips(instructions => {
+  // In a loading scope (the dock's own loading form) the wall is its loading form too.
+  const inScope = useLoadingScope();
+  const { chips, loading: chipsLoading } = useMingoQuickActionChips(instructions => {
     clearPreview();
     onSend(instructions);
   });
@@ -33,13 +36,17 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   // included) must not leave it in the composer.
   useEffect(() => clearPreview, [clearPreview]);
 
-  if (chips.length === 0) return null;
+  const loading = chipsLoading || inScope;
+  if (chips.length === 0 && !loading) return null;
   return (
     // Inset like the composer card under it (`spacing-system-m`), so the two line up,
     // and the wall's distance to it as in the chat's empty state.
     <section aria-label="Quick actions" className="mb-[var(--spacing-system-mf)] px-[var(--spacing-system-m)]">
       <MingoQuickActionWall
         quickActions={chips}
+        // While the actions are read the wall holds its rows, so the dock keeps its height and
+        // the home's greeting, centred above it, does not move when they land.
+        loading={loading}
         onQuickActionHover={action => {
           previewedRef.current = action.prompt ?? action.label;
           showPreview(previewedRef.current);

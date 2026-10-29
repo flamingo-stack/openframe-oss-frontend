@@ -28,7 +28,10 @@ vi.mock('@/app/(app)/mingo/context/mention-chips/render-mention', () => ({
 vi.mock('@/app/(app)/mingo/context/render-context-items', () => ({ renderMingoContextItems: () => null }));
 vi.mock('@/app/(app)/mingo/context/use-context-memory', () => ({ useMingoContextMemory: () => undefined }));
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({
-  useMingoQuickActions: () => [{ id: 'qa-1', name: 'Disk cleanup', instructions: 'Free up disk space' }],
+  useMingoQuickActions: () => ({
+    actions: [{ id: 'qa-1', name: 'Disk cleanup', instructions: 'Free up disk space' }],
+    loading: false,
+  }),
 }));
 vi.mock('@/app/(app)/mingo/hooks/use-mingo-what-to-ask', () => ({ useMingoWhatToAsk: () => whatToAsk }));
 vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({

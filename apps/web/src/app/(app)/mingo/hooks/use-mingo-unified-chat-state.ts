@@ -55,6 +55,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import type { DialogIntent } from '../../tickets/constants';
 import {
@@ -311,7 +312,9 @@ export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean
  */
 export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoSendContext {
   const { openView, recentViews } = useMingoContextStore.getState();
-  const href = pageContextHref(window.location, useMingoSheetStore.getState().lastPage);
+  const { lastPage, outsidePage } = useMingoSheetStore.getState();
+  // On a phone the home and a chat started there are about the page the chat list was opened over.
+  const href = pageContextHref(window.location, lastPage, isMobileViewportNow() ? { outsidePage } : undefined);
   return {
     ...resolvePageContext(href, openView),
     // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a

@@ -109,7 +109,7 @@ export function useOpenframeChatProps({
   // Admin-configured Mingo quick actions become starter chips in the empty state.
   // Clicking one opens a new dialog seeded with the action's instructions — same path
   // the launcher prompt uses.
-  const mingoQuickActions = useMingoQuickActionChips(sendInNewDialog);
+  const { chips: mingoQuickActions } = useMingoQuickActionChips(sendInNewDialog);
 
   return {
     dialogStatusOf,

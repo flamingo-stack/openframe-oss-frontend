@@ -303,7 +303,11 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   the dock portals the header and thread into it: `threadContainer` is that node or `null`, **never
   `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
   and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
-  goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`).
+  goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`). On a plain page the
+  dock lies over the page's end (`dockViewOf(route).floats`): the page scrolls on under it and fades out to
+  transparent over its height (the lib's shared preview fade, `previewFadeMask`, `FadePreview`'s mask), seen
+  beside the composer. A page that fills `<main>`'s height runs on under it by `--composer-dock-inset` and
+  keeps its own scroll ends clear of it (the tickets board: `laneEndInset`).
 - **Every message says which page it was sent from**: `currentPage` (kind, name, section) and, on a
   list, `currentList` (module, the filters and search in its URL), resolved from the URL at send time
   by `mingo/context/page-context.ts` (the page under the sheet; the page a chat page was opened from).
@@ -312,7 +316,7 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   message, so the resolver clips to `PAGE_CONTEXT_LIMITS`. The page is also the first chip of the
   composer's context strip (`mingo-shell/use-page-chip.tsx`), named as Mingo is told it (the entity on
   its page) and drawn as the "Continue …" chip is, in one row that scrolls sideways: a click asks for an
-  overview of it in the sheet. A new chat has none.
+  overview of it in the sheet. A chat page's chip is the page it was opened from; a desktop's new chat has none.
 - **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). Every
   chat opens there first: on every page but the chat page, home included, a send, a history row
   or a notification opens the chat over the page instead of leaving it (`useComposerTarget` /
@@ -333,7 +337,9 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   bar's Mingo button is on every page: with Mingo closed it opens the chat list over the page in the sheet
   (`MingoPhoneChatList`, the lib's `MingoHistoryRail`: Start New Chat, My / All Chats, the chats, as the classic
   drawer opened; `listOpen`), and with Mingo open (the list, home, a chat page) it is the ×, back to the last page
-  outside Mingo (`outsidePage`) or the dashboard. So a chat's own header draws no actions there. The sheet hides
+  outside Mingo (`outsidePage`) or the dashboard. So a chat's own header draws no actions there. A new chat
+  opened from the list (Mingo's home) and a chat started there are about that page (`pageContextHref` with
+  `outsidePage`: its chip, what is sent), and the home offers "Back" to it. The sheet hides
   the page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
   entry. A session that owes its setup lands on the bare `/setup` wizard instead of

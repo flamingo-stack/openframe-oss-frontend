@@ -308,6 +308,23 @@ describe('snapshotSendContext', () => {
     expect(snapshotSendContext().currentPage).toEqual({ kind: 'SETTINGS', title: 'Settings', section: 'api-keys' });
   });
 
+  it("on a phone, carries from Mingo's home the page the chat list was opened over", () => {
+    const matchMedia = window.matchMedia;
+    // Narrower than md: no query matches.
+    window.matchMedia = ((query: string) => ({ matches: false, media: query })) as typeof window.matchMedia;
+    try {
+      window.history.replaceState(null, '', '/mingo/');
+      useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/devices/?statuses=OFFLINE' });
+      expect(snapshotSendContext()).toMatchObject({
+        currentPage: { kind: 'LIST', title: 'Devices' },
+        currentList: { module: 'DEVICES', filters: [{ field: 'statuses', values: ['OFFLINE'] }] },
+      });
+    } finally {
+      window.matchMedia = matchMedia;
+      useMingoSheetStore.setState({ outsidePage: null });
+    }
+  });
+
   it("names an entity's page after the open view and carries the picker's selection", () => {
     window.history.replaceState(null, '', '/devices/details/?id=m-1');
     useMingoContextStore.setState({ openView: { type: 'DEVICE', id: 'm-1', label: 'MacBook' } });

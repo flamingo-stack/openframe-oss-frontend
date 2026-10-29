@@ -592,9 +592,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       showNotifications: true,
       showTimeTracker: true,
       // No user cell in the header. Profile and Log Out stay reachable from the
-      // Settings hub (its pinned "Log Out" button) and, on mobile, from the burger
-      // menu — which is why the user props below are gone rather than kept unused:
-      // the core header only reads them under `showUser`.
+      // Settings hub (its pinned "Log Out" button, an OSS tenant's) and, on mobile, from
+      // the burger menu; the Mingo-first shell's account menu has both — which is why the
+      // user props below are gone rather than kept unused: the core header only reads
+      // them under `showUser`.
       showUser: false,
       // Support-ticket alerts cell — Help Center unread indication.
       // Attention-only: renders nothing unless <TicketLiveProvider> is
@@ -659,15 +660,17 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   // An OSS tenant has no slot; behind the paywall it is kept, empty. Held with the
   // landing page: the composer is part of what a session bound for the wizard must
-  // not see first.
+  // not see first. Mingo's home is the exception: its greeting is up while held, centred
+  // over the dock, so the dock holds its place in its loading form (`held`) rather than
+  // arriving under the greeting and moving it.
   let composerDock: React.ReactNode;
   // Wrapped so the floating walkthrough card can rise above it (`COMPOSER_DOCK_ATTRIBUTE`
   // in walkthrough-video.tsx).
   if (mingoShell) {
     composerDock =
-      chatEnabled && !dashboardHeld ? (
+      chatEnabled && (!dashboardHeld || composerRouteOf(pathname) === 'home') ? (
         <div data-composer-dock="">
-          <MingoComposerDock />
+          <MingoComposerDock held={dashboardHeld} />
         </div>
       ) : null;
   }
@@ -911,7 +914,7 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
         </>
       )}
       {/* Logout confirmation modal — opened from the nav user menu, the Settings
-          "Log Out" button, and the lock screen's, all via `useLogoutConfirmStore`.
+          "Log Out" button (an OSS tenant's), and the lock screen's, all via `useLogoutConfirmStore`.
           Kept ABOVE the shell rather than inside it: all three callers are on the
           same side of the lock swap now, but a modal that outlives the content it
           was opened from is the safer place for it. */}

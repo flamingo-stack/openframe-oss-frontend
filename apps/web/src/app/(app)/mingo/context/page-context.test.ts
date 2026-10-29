@@ -3,7 +3,7 @@
  * a list, the list and the filters in its URL.
  */
 import { describe, expect, it } from 'vitest';
-import { PAGE_CONTEXT_LIMITS, pageContextHref, resolvePageContext } from './page-context';
+import { isMingoHomeHref, PAGE_CONTEXT_LIMITS, pageContextHref, resolvePageContext } from './page-context';
 
 const MACBOOK = { type: 'DEVICE' as const, id: 'm-1', label: 'MacBook' };
 
@@ -137,5 +137,28 @@ describe('pageContextHref', () => {
       '/devices/?statuses=OFFLINE',
     );
     expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, null)).toBe('/mingo');
+    // A desktop's home is a new chat with no page, wherever the tab was before it.
+    expect(pageContextHref({ pathname: '/mingo/', search: '' }, '/devices/')).toBe('/mingo/');
+    expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/mingo/')).toBe('/mingo/');
+  });
+
+  it('on a phone, is the page the chat list was opened over, for the home and a chat started there', () => {
+    const phone = { outsidePage: '/devices/?statuses=OFFLINE' };
+    expect(pageContextHref({ pathname: '/mingo/', search: '' }, '/devices/', phone)).toBe('/devices/?statuses=OFFLINE');
+    expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/mingo/', phone)).toBe(
+      '/devices/?statuses=OFFLINE',
+    );
+    // A chat opened from a page keeps that page.
+    expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/tickets/', phone)).toBe('/tickets/');
+    // Pages are about themselves; no page behind the list, the home.
+    expect(pageContextHref({ pathname: '/logs-page/', search: '' }, null, phone)).toBe('/logs-page/');
+    expect(pageContextHref({ pathname: '/mingo/', search: '' }, null, { outsidePage: null })).toBe('/mingo');
+  });
+
+  it("tells Mingo's home from a page", () => {
+    expect(isMingoHomeHref('/mingo/')).toBe(true);
+    expect(isMingoHomeHref('/mingo')).toBe(true);
+    expect(isMingoHomeHref('/mingo/chat/?id=d-1')).toBe(false);
+    expect(isMingoHomeHref('/devices/?statuses=OFFLINE')).toBe(false);
   });
 });

@@ -5,6 +5,7 @@
  * nothing is drawn.
  */
 
+import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,8 +13,10 @@ import type { AiQuickAction } from '@/app/(app)/settings/ai-settings/types/ai-se
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
 
-const { quickActions } = vi.hoisted(() => ({ quickActions: { value: [] as AiQuickAction[] } }));
-vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({ useMingoQuickActions: () => quickActions.value }));
+const { quickActions } = vi.hoisted(() => ({ quickActions: { value: [] as AiQuickAction[], loading: false } }));
+vi.mock('@/app/(app)/mingo/hooks/use-mingo-quick-actions', () => ({
+  useMingoQuickActions: () => ({ actions: quickActions.value, loading: quickActions.loading }),
+}));
 
 // The row measures how many chips fit; jsdom has no ResizeObserver (and no layout: all fit).
 globalThis.ResizeObserver ??= class {
@@ -42,6 +45,7 @@ let root: Root;
 beforeEach(() => {
   onSend.mockClear();
   quickActions.value = [];
+  quickActions.loading = false;
   useComposerPreviewStore.setState({ text: null });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -111,5 +115,27 @@ describe('MingoDockQuickActions', () => {
   it('draws nothing with no actions', () => {
     render();
     expect(container.innerHTML).toBe('');
+  });
+
+  it("holds the wall's place while the actions are read, with no chip to press", () => {
+    quickActions.loading = true;
+    render();
+    const section = container.querySelector('[aria-label="Quick actions"]');
+    expect(section?.innerHTML).toContain('data-loading-item');
+    expect(section?.querySelectorAll('button[aria-label]')).toHaveLength(0);
+  });
+
+  it("draws its loading form in a loading scope: the dock's first frame, before its chat has loaded", () => {
+    quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
+    act(() =>
+      root.render(
+        <LoadingRegion label="Loading Mingo">
+          <MingoDockQuickActions onSend={onSend} />
+        </LoadingRegion>,
+      ),
+    );
+    const section = container.querySelector('[aria-label="Quick actions"]');
+    expect(section?.className).toContain('mb-[var(--spacing-system-mf)]');
+    expect(section?.innerHTML).toContain('data-loading-item');
   });
 });

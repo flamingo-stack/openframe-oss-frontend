@@ -198,8 +198,27 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
  * Which page a message is about: the one on screen, the page under the sheet
  * included. The chat page is the chat itself, so it is about the page it was opened
  * from (`lastPage`, where "Back to page" leads), and Mingo's home when there is none.
+ *
+ * A phone (`phone`) opens a chat from the chat list over a page, and a new one starts on
+ * Mingo's home: there the home, and a chat page whose last page is the home, are about
+ * the page the list was opened over (`outsidePage`), the page Mingo's × leads back to.
  */
-export function pageContextHref(location: { pathname: string; search: string }, lastPage: string | null): string {
-  if (trimSlash(location.pathname) === CHAT_PATH) return lastPage ?? routes.mingo.home;
+export function pageContextHref(
+  location: { pathname: string; search: string },
+  lastPage: string | null,
+  phone?: { outsidePage: string | null },
+): string {
+  const path = trimSlash(location.pathname);
+  const home = routes.mingo.home;
+  if (path === CHAT_PATH) {
+    const opener = lastPage !== null && trimSlash(lastPage.split('?')[0]) !== home ? lastPage : null;
+    return opener ?? phone?.outsidePage ?? lastPage ?? home;
+  }
+  if (path === home && phone) return phone.outsidePage ?? home;
   return `${location.pathname}${location.search}`;
+}
+
+/** Whether `href` is Mingo's home: no page to tell Mingo about. */
+export function isMingoHomeHref(href: string): boolean {
+  return trimSlash(href.split('?')[0]) === routes.mingo.home;
 }

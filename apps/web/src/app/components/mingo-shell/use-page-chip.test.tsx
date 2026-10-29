@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMingoContextStore } from '@/app/(app)/mingo/stores/mingo-context-store';
 import type { ComposerRoute } from './mingo-dock-route';
+import { useMingoSheetStore } from './mingo-sheet-store';
 import { PAGE_OVERVIEW_PROMPT, usePageChip } from './use-page-chip';
 
 // The picker's kinds, as far as the chip reads them; INSIGHT stands for a kind whose module is off.
@@ -47,6 +48,7 @@ describe('usePageChip', () => {
   beforeEach(() => {
     onAsk.mockReset();
     useMingoContextStore.setState({ openView: null, recentViews: [] });
+    useMingoSheetStore.setState({ lastPage: null, outsidePage: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -89,8 +91,9 @@ describe('usePageChip', () => {
     expect(buttons()).toHaveLength(1);
   });
 
-  it('shows nothing on a new chat: no page to ask about', () => {
+  it("shows nothing on a desktop's new chat: no page to ask about, wherever the tab was", () => {
     useMingoContextStore.setState({ openView: { type: 'DEVICE', id: 'd-1', label: 'MacBook' } });
+    useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/devices/' });
     render('home', '/mingo/');
     expect(probe.node).toBeNull();
   });
@@ -120,8 +123,48 @@ describe('usePageChip', () => {
     expect(container.textContent).toBe('Device');
   });
 
-  it('shows nothing on the chat page either', () => {
+  it('names on the chat page the page it was opened from, which its messages are about', () => {
+    useMingoSheetStore.setState({ lastPage: '/devices/?statuses=OFFLINE' });
+    render('chat', '/mingo/chat/', 'id=d-1');
+    expect(container.textContent).toBe('Devices');
+    click(named('Ask Mingo about this page: Devices'));
+    expect(onAsk).toHaveBeenCalledWith(PAGE_OVERVIEW_PROMPT);
+  });
+
+  it('shows nothing on a chat page opened from no page, or from the home', () => {
     render('chat', '/mingo/chat/', 'id=d-1');
     expect(probe.node).toBeNull();
+    useMingoSheetStore.setState({ lastPage: '/mingo/' });
+    render('chat', '/mingo/chat/', 'id=d-1');
+    expect(probe.node).toBeNull();
+  });
+
+  describe('on a phone', () => {
+    const matchMedia = window.matchMedia;
+    beforeEach(() => {
+      // Narrower than md: no query matches.
+      window.matchMedia = ((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })) as unknown as typeof window.matchMedia;
+    });
+    afterEach(() => {
+      window.matchMedia = matchMedia;
+    });
+
+    it('names on the home, and on a chat started there, the page the chat list was opened over', () => {
+      useMingoSheetStore.setState({ lastPage: '/mingo/', outsidePage: '/devices/' });
+      render('home', '/mingo/');
+      expect(container.textContent).toBe('Devices');
+      render('chat', '/mingo/chat/', 'id=d-1');
+      expect(container.textContent).toBe('Devices');
+    });
+
+    it('shows nothing on the home when the list was opened over no page', () => {
+      render('home', '/mingo/');
+      expect(probe.node).toBeNull();
+    });
   });
 });
