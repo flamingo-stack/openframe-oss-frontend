@@ -111,6 +111,9 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
       <TenantDetailTitle title={connection.name} actions={actions} />
       <div className={BODY_CLASS}>
         <TenantSummaryCard connection={connection} />
+        {/* Parts only some tenants have (`data-loading-optional`), read right under the summary they qualify. */}
+        <TenantConsentAlert connection={connection} />
+        <TenantConsentIssues connection={connection} />
         {isReadable(connection.access.state) ? (
           // Its own boundary: a failed live read from the provider loses this section, not the page.
           <ContentErrorBoundary
@@ -128,9 +131,6 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
             onCheck={check}
           />
         )}
-        {/* Parts only some tenants have, below the section they would otherwise push (`data-loading-optional`). */}
-        <TenantConsentAlert connection={connection} />
-        <TenantConsentIssues connection={connection} />
       </div>
     </>
   );

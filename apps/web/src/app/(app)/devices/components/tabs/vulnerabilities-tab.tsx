@@ -92,6 +92,9 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
+      {/* The last matching run predates the current software inventory — e.g. a patched CVE may still show as
+          active until the hourly run catches up. A status line, so it heads the tab. */}
+      {!scoped && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
       <SoftwareListFrame paramPrefix="cve" placeholder={SEARCH_PLACEHOLDER} loading={loading}>
         {list => (
           <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
@@ -106,9 +109,6 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
           </ContentErrorBoundary>
         )}
       </SoftwareListFrame>
-      {/* The last matching run predates the current software inventory — e.g. a patched CVE may still show as
-          active until the hourly run catches up. Below the list: drawn above it, its arrival would move the rows. */}
-      {!scoped && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
     </div>
   );
 }
