@@ -5,7 +5,15 @@ import {
   holdsDashboard,
   isBareChromeRoute,
   isLandingRoute,
+  mingoHeaderLoadingCells,
 } from './app-shell-chrome';
+
+describe('mingoHeaderLoadingCells', () => {
+  it('reserves the time tracker, notifications and Mingo: the phone top bar has no Chat history cell', () => {
+    expect(mingoHeaderLoadingCells(true)).toEqual(['icon', 'icon', 'icon']);
+    expect(mingoHeaderLoadingCells(false)).toEqual(['icon', 'icon']);
+  });
+});
 
 describe('getMainClassNameOverride', () => {
   it('drops the bottom padding on the pages that fill <main>, the Mingo chat and archive included', () => {

@@ -21,13 +21,12 @@ export function headerLoadingCells(): HeaderLoadingCell[] {
 
 /**
  * The same for the Mingo-first shell, whose header is the phone top bar only
- * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
- * `'icon-max-md'` like every phone-only cell), then the time tracker and
- * notifications, and on a page the Mingo button at the end (an icon on a phone):
- * a phone has no composer under its pages. Mingo's home and the chat page have none.
+ * (`desktopHeader: false`): the time tracker and notifications, then the Mingo button
+ * at the end (an icon on a phone) wherever the chat is on: a phone has no composer
+ * under its pages.
  */
 export function mingoHeaderLoadingCells(withMingo: boolean): HeaderLoadingCell[] {
-  return withMingo ? ['icon-max-md', 'icon', 'icon', 'icon'] : ['icon-max-md', 'icon', 'icon'];
+  return withMingo ? ['icon', 'icon', 'icon'] : ['icon', 'icon'];
 }
 
 /**

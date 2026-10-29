@@ -3,7 +3,6 @@
 import { useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingFallback } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ChatsIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { AppLayout as CoreAppLayout } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { TicketLiveProvider } from '@flamingo-stack/openframe-frontend-core/components/tickets';
 import { TabNavigationVariantProvider } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -413,7 +412,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   // `collapsed` cannot open while the desktop preference is already "expanded".
   const [revealSignal, setRevealSignal] = useState(0);
   // Mingo-first only: the phone drawer is the shell's too (`AppLayout` `mobileMenuOpen`),
-  // so the top bar's Chat history cell and ⌘K can open it and its slots can close it.
+  // so ⌘K can open it and its slots can close it.
   const mobileMenuOpen = useMobileMenuStore(state => state.open);
   const setMobileMenuOpen = useMobileMenuStore(state => state.setOpen);
   const setHistorySearchOpen = useHistorySearchStore(state => state.setOpen);
@@ -604,10 +603,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       // The Mingo-first shell draws this header below md only (`desktopHeader`): the
-      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts
-      // and Mingo. Chat history opens the drawer, where the history section lives (the
-      // active chats, not only the archive); Mingo opens the chat list, and its × leaves
-      // Mingo (above). (`showMingoAI` / `onMingoAI` / `isMingoAIActive` /
+      // phone top bar — burger, logo, time tracker, bell, ticket alerts and Mingo. Mingo
+      // opens the chat list, and its × leaves Mingo (above); the burger's drawer has the
+      // history too. (`showMingoAI` / `onMingoAI` / `isMingoAIActive` /
       // `mingoAICloseWhenActive` are core `AppHeader` prop names — external API, not ours.)
       ...(mingoShell && {
         loadingActionCells: mingoHeaderLoadingCells(mingoButton),
@@ -622,27 +620,13 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
         },
         isMingoAIActive: listOpen || sheetUp || onMingoPage,
         mingoAICloseWhenActive: true,
-        customCells: chatEnabled
-          ? [
-              {
-                id: 'chat-history',
-                // Not the clock: the time tracker beside it is one.
-                icon: <ChatsIcon className="h-6 w-6" />,
-                label: 'Chat history',
-                onClick: () => setMobileMenuOpen(true),
-                mobileOnly: true,
-              },
-            ]
-          : [],
       }),
     }),
     [
       chromeLoading,
-      chatEnabled,
       openHelpCenterTickets,
       mingoShell,
       isMdUp,
-      setMobileMenuOpen,
       mingoButton,
       onMingoPage,
       sheetUp,
