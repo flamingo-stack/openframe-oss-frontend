@@ -228,13 +228,14 @@ export function DeviceDetailsView({ deviceId }: DeviceDetailsViewProps) {
           <div data-loading-optional>
             <WarningBlock
               title="Device is still connecting — some data and features aren't available yet."
-              className="mb-[var(--spacing-system-l)] border-0 bg-transparent p-0"
+              className="border-0 bg-transparent p-0"
             />
           </div>
         )}
 
-        {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. */}
-        <RecordingStorageBanner data-loading-optional className="mb-[var(--spacing-system-l)]" />
+        {/* Tenant-wide, so it shows whichever tab is open; nothing while storage has room. The page's own gap spaces
+          both banners from the tabs. */}
+        <RecordingStorageBanner data-loading-optional />
 
         {/* Tab Navigation */}
         <TabNavigation tabs={deviceTabs} activeTab={activeTab} onTabChange={handleTabChange} staticLabels>
