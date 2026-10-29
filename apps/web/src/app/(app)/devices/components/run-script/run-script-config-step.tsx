@@ -216,6 +216,7 @@ function RunScriptConfigStepView({
                 valuePlaceholder="Enter Value (empty=flag)"
                 addButtonLabel="Add Script Argument"
                 titleLabel="Script Arguments"
+                labelVariant="large"
               />
             )}
           />
@@ -231,6 +232,7 @@ function RunScriptConfigStepView({
                 addButtonLabel="Add Variable"
                 addSecretButtonLabel="Add Secret"
                 titleLabel="Environment Vars"
+                labelVariant="large"
               />
             )}
           />

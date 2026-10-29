@@ -40,12 +40,12 @@ interface BillingSectionsProps {
   onClockChanged: () => void;
   /** The paid-tokens card with its auto top-up mark; without it, the card without the mark. */
   paidAiCard?: ReactNode;
-  /** What sits after the invoices (the AI balance alert, the auto top-up notice, the device overage), each optional. */
+  /** What sits under the counters (the AI balance alert, the auto top-up notice, the device overage), each optional. */
   notices?: ReactNode;
 }
 
 /**
- * The billing page's body, in order: the counters, the plan, the invoices and the notices. One module for the page
+ * The billing page's body, in order: the test-mode banner, the counters, the notices, the plan and the invoices. One module for the page
  * (`BillingUsageScreen`) and the wait for its code (`billing-usage-view.tsx`'s dynamic fallback), which renders it with no data in a
  * loading scope, so the two can never draw different pages.
  */
@@ -68,6 +68,8 @@ export function BillingSections({
           scope it draws itself without its query. */}
       <TestClockPanel onClockChanged={onClockChanged} />
 
+      <TestModeBanner />
+
       {/* Two AI counters, because AI runs on two figures: what the period gives
           away, and the balance it draws from once that is spent. */}
       {/* One column below md; three (devices and the AI pair) or one (devices alone) from md. */}
@@ -86,15 +88,14 @@ export function BillingSections({
         )}
       </div>
 
+      {/* Under the counters they explain, as the design has them. Each is a part only some accounts have
+          (`data-loading-optional`), so the wait draws none, and one that appears with the answer moves the plan and
+          the invoices down once. */}
+      {notices}
+
       <PlanSections subscription={subscription} billingPlan={billingPlan} />
 
       <InvoicesHistory subscription={subscription} />
-
-      {/* Below the first screen: each notice (and the test-mode banner) is a part only some accounts have
-          (`data-loading-optional`), so one appearing never moves the counters, the plan or the invoices. */}
-      {notices}
-
-      <TestModeBanner />
     </>
   );
 }

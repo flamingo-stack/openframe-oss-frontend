@@ -1,3 +1,4 @@
+import { routes } from '@/lib/routes';
 import type { RecordingSummary } from '../../types/session-recording';
 
 // What a Remote Sessions row may do and how it reads, from its recording's
@@ -5,6 +6,41 @@ import type { RecordingSummary } from '../../types/session-recording';
 // two lists never disagree about which rows open or delete.
 
 type SessionRow = Pick<RecordingSummary, 'recordingState' | 'live' | 'kept' | 'expiresAt' | 'recordingId'>;
+
+/** Watch live is on for the lists: a running session reads LIVE. */
+export interface LiveRows {
+  /** The signed-in technician: their own running session's row leads back into it. */
+  userId: string | null;
+  /** Remote Control can open here; the mobile shell has none. */
+  remoteControl: boolean;
+}
+
+/** The row reads LIVE: Watch live is on (`liveRows` set) and the session is still running. */
+export function isLiveRow(row: Pick<RecordingSummary, 'live'>, liveRows: LiveRows | null): liveRows is LiveRows {
+  return liveRows !== null && row.live;
+}
+
+/** The signed-in technician runs this session themselves. */
+export function isOwnSession(row: Pick<RecordingSummary, 'technicianId'>, liveRows: LiveRows): boolean {
+  return liveRows.userId !== null && row.technicianId === liveRows.userId;
+}
+
+/**
+ * The page a row opens. A finished session opens its recording, when it has one
+ * to play. A LIVE row of the signed-in technician opens Remote Control on its
+ * device, where the backend hands them back their own session; a colleague's
+ * opens the live session page.
+ */
+export function sessionHref(
+  row: SessionRow & Pick<RecordingSummary, 'id' | 'deviceId' | 'technicianId'>,
+  liveRows: LiveRows | null,
+): string | null {
+  if (isLiveRow(row, liveRows)) {
+    if (!isOwnSession(row, liveRows)) return routes.devices.liveSession(row.id);
+    return liveRows.remoteControl ? routes.devices.remoteDesktop(row.deviceId) : null;
+  }
+  return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
+}
 
 /** The EXPIRES column's filter values (Figma 1695-88210). */
 export type ExpiresFilterValue = 'kept' | 'expiring' | 'expired';
@@ -32,6 +68,20 @@ export function expiresFilterValue(row: SessionRow, now: number): ExpiresFilterV
     return 'expiring';
   }
   return null;
+}
+
+/**
+ * An ended session whose recording is on its way: no file to open yet, and the server still expects one (processing,
+ * or a state that already counts a file the list does not show yet).
+ */
+export function isAwaitingRecording(
+  session: Pick<RecordingSummary, 'live' | 'recordingState' | 'recordingId'>,
+): boolean {
+  return (
+    !session.live &&
+    session.recordingId === null &&
+    (session.recordingState === 'processing' || session.recordingState === 'ready')
+  );
 }
 
 /** Only a session with something left to play opens the recording page. */

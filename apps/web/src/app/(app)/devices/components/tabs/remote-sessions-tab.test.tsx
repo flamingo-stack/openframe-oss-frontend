@@ -2,6 +2,7 @@
  * Pins what each row of the Remote Sessions tab offers per its recording's
  * state (Figma 1644-6911): the PROCESSING / FAILED tags, the EXPIRES cell,
  * and which rows can be deleted or opened. A delete goes out by session id.
+ * With Watch live on, a running session reads LIVE and the list is polled.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -9,16 +10,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatDate } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
+import type { LiveRows } from '../remote-sessions/session-status';
 import { emptyDescription, RemoteSessionsTab } from './remote-sessions-tab';
 
 const NOW = Date.parse('2026-10-08T12:00:00Z');
 
-const hooks = vi.hoisted(() => ({ rows: [] as RecordingSummary[], mutate: vi.fn() }));
+const hooks = vi.hoisted(() => ({
+  rows: [] as RecordingSummary[],
+  mutate: vi.fn(),
+  liveRows: null as LiveRows | null,
+  listOptions: vi.fn(),
+}));
 
 vi.mock('../../hooks/use-session-recordings', () => ({
-  useSessionRecordings: () => ({ data: hooks.rows, isLoading: false }),
+  useSessionRecordings: (_deviceId: string | null, options?: { poll?: boolean }) => {
+    hooks.listOptions(options);
+    return { data: hooks.rows, isLoading: false };
+  },
   useDeleteRemoteSession: () => ({ mutate: hooks.mutate, isPending: false }),
 }));
+vi.mock('../../hooks/use-remote-session-watch-gate', () => ({ useLiveRows: () => hooks.liveRows }));
 vi.mock('@/app/hooks/use-now', () => ({ useNow: () => NOW }));
 vi.mock('@/app/hooks/use-sticky-toolbar', () => ({
   useStickyToolbar: () => ({ toolbarRef: { current: null }, containerStyle: {}, stickyHeaderOffset: 0 }),
@@ -61,6 +72,7 @@ const session = (id: string, startedAt: string, overrides: Partial<RecordingSumm
   expiresAt: null,
   recordingId: `${id}-file`,
   employee: { name: 'Roman Smith' },
+  technicianId: 'tech-roman',
   ...overrides,
 });
 
@@ -116,6 +128,7 @@ const button = (row: RecordingSummary, label: string) =>
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   hooks.rows = ROWS;
+  hooks.liveRows = null;
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -130,9 +143,10 @@ afterEach(() => {
 
 describe('RemoteSessionsTab rows', () => {
   it('tags processing and failed sessions', () => {
-    expect(rowOf(PROCESSING).textContent).toContain('PROCESSING');
-    expect(rowOf(FAILED).textContent).toContain('FAILED');
-    expect(rowOf(READY).textContent).not.toMatch(/PROCESSING|FAILED/);
+    // The tag's own style uppercases the label.
+    expect(rowOf(PROCESSING).textContent).toMatch(/processing/i);
+    expect(rowOf(FAILED).textContent).toMatch(/failed/i);
+    expect(rowOf(READY).textContent).not.toMatch(/processing|failed/i);
   });
 
   it('shows the expiry, the last-day countdown, Kept and Expired', () => {
@@ -173,6 +187,76 @@ describe('RemoteSessionsTab rows', () => {
 
   it('keeps a session deleted before as a greyed "Deleted" row', () => {
     expect(rowOf(LEGACY_DELETED).textContent).toContain('Deleted');
+  });
+
+  it('reads a running session by its recording and does not poll while Watch live is off', () => {
+    expect(rowOf(LIVE).textContent).not.toMatch(/live/i);
+    expect(button(LIVE, 'Open session recording')?.disabled).toBe(true);
+    expect(hooks.listOptions).toHaveBeenLastCalledWith({ poll: false });
+  });
+});
+
+describe('RemoteSessionsTab with Watch live on', () => {
+  const COLLEAGUE_LIVE = session('colleague-live', '2026-10-06T08:00:00Z', {
+    recordingState: 'processing',
+    live: true,
+    durationMs: null,
+    sizeBytes: null,
+    recordingId: null,
+    technicianId: 'tech-dana',
+  });
+  const frame = (row: RecordingSummary) => rowOf(row).closest<HTMLElement>('[class*="bg-ods-card"]');
+
+  beforeEach(() => {
+    hooks.rows = [...ROWS, COLLEAGUE_LIVE];
+    hooks.liveRows = { userId: 'tech-roman', remoteControl: true };
+    act(() => root.render(<RemoteSessionsTab device={DEVICE} />));
+  });
+
+  it('tags running sessions LIVE, frames them, and leaves the other rows as they were', () => {
+    expect(rowOf(LIVE).textContent).toMatch(/live/i);
+    expect(rowOf(COLLEAGUE_LIVE).textContent).toMatch(/live/i);
+    expect(rowOf(COLLEAGUE_LIVE).textContent).not.toMatch(/processing/i);
+    expect(frame(LIVE)?.className).toContain('border-ods-error');
+    expect(frame(READY)?.className).not.toContain('border-ods-error');
+    expect(rowOf(PROCESSING).textContent).toMatch(/processing/i);
+  });
+
+  it("opens Remote Control from the signed-in technician's own running session, the live page from a colleague's", () => {
+    expect(button(LIVE, 'Open Remote Control')?.disabled).toBe(false);
+    expect(rowOf(LIVE).closest('a')?.getAttribute('href')).toBe('/devices/details/remote-desktop?id=machine-1');
+    expect(button(COLLEAGUE_LIVE, 'Open live session')?.disabled).toBe(false);
+    expect(rowOf(COLLEAGUE_LIVE).closest('a')?.getAttribute('href')).toBe(
+      '/devices/details/live-session?id=colleague-live',
+    );
+    expect(button(READY, 'Open session recording')?.disabled).toBe(false);
+  });
+
+  it('shows no expiry on a running session, even one with a file already listed', () => {
+    hooks.rows = [
+      session('live-with-file', '2026-10-05T08:00:00Z', {
+        live: true,
+        durationMs: null,
+        expiresAt: '2027-01-06T08:00:00Z',
+      }),
+    ];
+    act(() => root.render(<RemoteSessionsTab device={DEVICE} />));
+    expect(document.body.textContent).not.toContain(formatDate('2027-01-06T08:00:00Z'));
+  });
+
+  it('keeps Delete off for running sessions', () => {
+    expect(button(LIVE, 'Delete session')?.disabled).toBe(true);
+    expect(button(COLLEAGUE_LIVE, 'Delete session')?.disabled).toBe(true);
+  });
+
+  it('opens nothing from a running session where Remote Control is unavailable', () => {
+    hooks.liveRows = { userId: 'tech-roman', remoteControl: false };
+    act(() => root.render(<RemoteSessionsTab device={DEVICE} />));
+    expect(button(LIVE, 'Open Remote Control')?.disabled).toBe(true);
+  });
+
+  it('polls the list', () => {
+    expect(hooks.listOptions).toHaveBeenLastCalledWith({ poll: true });
   });
 });
 
