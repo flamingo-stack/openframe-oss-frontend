@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Presentational shell every per-type mention chip renders into — the real lib
- * `Tag` (variant `badge`: ods-card + ods-border, mono-uppercase), rendered as a
- * `<span>` via `as="span"` and shrunk to inline height.
+ * Presentational shell every per-type mention chip renders into — the lib's
+ * `InlineChip` (its `Tag` badge as an inline `<span>`), the box the chat also
+ * draws for a link to a screen of the app.
  *
  * Why `as="span"`: these chips are emitted INLINE inside markdown text, which
  * react-markdown wraps in a `<p>`. The default `<Tag>` root is a `<div>`, and a
@@ -22,8 +22,9 @@
  * throws (never crashes the message).
  */
 
+import { InlineChip } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { FloatingTooltip, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FloatingTooltip } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { Component, type MouseEvent, type ReactNode } from 'react';
@@ -34,30 +35,16 @@ import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { navigatesCurrentWindow } from '@/lib/link-click';
 import { withMingoDialog } from '@/lib/routes';
 
-// Tweaks on top of Tag's `badge` skin so the mention matches the canonical
-// context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
-// 32px) and padding — only adjust for inline flow + a neutral hover:
-//   - `align-middle`         → vertically center the chip in the text line.
-//   - `hover:border-ods-border` → kill the badge variant's default
-//     `hover:border-ods-accent` (bright yellow border) which the context chips
-//     don't have (last hover:border utility wins via tailwind-merge).
-//   - `[&_svg]:size-4`       → 16px lead icon, matching the context chips.
-//   - `[&_svg]:text-ods-text-secondary` → grey lead icon (label stays primary),
-//     matching the context chips' muted glyph.
-// NB: no `cursor-pointer` here — the link cursor comes from the `<a>` wrapper, so
-// a chip WITHOUT an href (e.g. user — no detail page) doesn't look clickable.
-const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-text-secondary hover:border-ods-border';
+// The box is the lib's `InlineChip`: the same box the chat draws for a link to a screen of the app, so a mention and
+// an app link read alike. No `cursor-pointer` here: the link cursor comes from the `<a>` wrapper, so a chip WITHOUT an
+// href (a user has no detail page) does not look clickable.
 
 // The two segments of a chip that can also open a tab: one chip outline, the
 // main segment's right border is the seam between them, and each segment
 // lights up on its own hover so the two targets read as two.
 const SEGMENT_HOVER_CLASS = 'hover:bg-ods-bg-hover';
-const MAIN_SEGMENT_CLASS = cn(CHIP_CLASS, SEGMENT_HOVER_CLASS, 'rounded-r-none');
-const NEW_TAB_SEGMENT_CLASS = cn(
-  CHIP_CLASS,
-  SEGMENT_HOVER_CLASS,
-  'rounded-l-none border-l-0 hover:[&_svg]:text-ods-text-primary',
-);
+const MAIN_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-r-none');
+const NEW_TAB_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-l-none border-l-0 hover:[&_svg]:text-ods-text-primary');
 
 interface MentionTagProps {
   icon?: ReactNode;
@@ -87,13 +74,7 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   // the full entity name only when the chip's max-w actually clips it, on a span
   // trigger that stays valid inside the markdown `<p>`.
   const chip = (
-    <Tag
-      as="span"
-      variant="badge"
-      icon={icon}
-      label={label}
-      className={href && offersNewTab ? MAIN_SEGMENT_CLASS : CHIP_CLASS}
-    />
+    <InlineChip icon={icon} label={label} className={href && offersNewTab ? MAIN_SEGMENT_CLASS : undefined} />
   );
   if (!href) return chip;
 
@@ -157,7 +138,7 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
           aria-label="Open in new tab"
           className="no-underline"
         >
-          <Tag as="span" variant="badge" label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
+          <InlineChip label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
         </a>
       </FloatingTooltip>
     </span>
