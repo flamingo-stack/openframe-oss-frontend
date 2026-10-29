@@ -7,6 +7,7 @@ import {
   expiresFilterValue,
   EXPIRING_WINDOW_MS,
   expiresSoonLabel,
+  isAwaitingRecording,
   isLiveRow,
   isRecordingGone,
   sessionHref,
@@ -84,6 +85,7 @@ describe('session row target', () => {
   const OWN = { userId: 'tech-roman', remoteControl: true };
   const target = (overrides: Partial<RecordingSummary> = {}) => ({
     ...row(),
+    id: 'session-1',
     deviceId: 'machine-1',
     technicianId: 'tech-roman',
     ...overrides,
@@ -102,11 +104,32 @@ describe('session row target', () => {
     expect(sessionHref(target({ recordingState: 'failed' }), OWN)).toBeNull();
   });
 
-  it("opens Remote Control from the technician's own running session, and nothing from anyone else's", () => {
+  it("opens Remote Control from the technician's own running session, and the live page from anyone else's", () => {
     expect(sessionHref(target(running), OWN)).toBe('/devices/details/remote-desktop?id=machine-1');
-    expect(sessionHref(target({ ...running, technicianId: 'tech-dana' }), OWN)).toBeNull();
-    expect(sessionHref(target(running), { userId: null, remoteControl: true })).toBeNull();
     expect(sessionHref(target(running), { ...OWN, remoteControl: false })).toBeNull();
+    expect(sessionHref(target({ ...running, technicianId: 'tech-dana' }), OWN)).toBe(
+      '/devices/details/live-session?id=session-1',
+    );
+    // A signed-in user the store has not read yet owns nothing.
+    expect(sessionHref(target(running), { userId: null, remoteControl: true })).toBe(
+      '/devices/details/live-session?id=session-1',
+    );
+  });
+
+  it('waits for the recording of an ended session only while a file is still expected', () => {
+    const ended = (overrides: Partial<Pick<RecordingSummary, 'recordingState' | 'recordingId'>>) => ({
+      live: false,
+      recordingId: null,
+      recordingState: 'none' as const,
+      ...overrides,
+    });
+    expect(isAwaitingRecording(ended({ recordingState: 'processing' }))).toBe(true);
+    expect(isAwaitingRecording(ended({ recordingState: 'ready' }))).toBe(true);
+    expect(isAwaitingRecording(ended({ recordingState: 'ready', recordingId: 'rec-1' }))).toBe(false);
+    for (const recordingState of ['none', 'failed', 'expired', 'deleted'] as const) {
+      expect(isAwaitingRecording(ended({ recordingState }))).toBe(false);
+    }
+    expect(isAwaitingRecording({ live: true, recordingId: null, recordingState: 'processing' })).toBe(false);
   });
 
   it('opens nothing from a running session while Watch live is off', () => {

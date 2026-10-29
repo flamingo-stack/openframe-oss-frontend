@@ -222,11 +222,13 @@ describe('RemoteSessionsTab with Watch live on', () => {
     expect(rowOf(PROCESSING).textContent).toMatch(/processing/i);
   });
 
-  it("opens Remote Control from the signed-in technician's own running session only", () => {
+  it("opens Remote Control from the signed-in technician's own running session, the live page from a colleague's", () => {
     expect(button(LIVE, 'Open Remote Control')?.disabled).toBe(false);
     expect(rowOf(LIVE).closest('a')?.getAttribute('href')).toBe('/devices/details/remote-desktop?id=machine-1');
-    expect(button(COLLEAGUE_LIVE, 'Open Remote Control')?.disabled).toBe(true);
-    expect(rowOf(COLLEAGUE_LIVE).closest('a')).toBeNull();
+    expect(button(COLLEAGUE_LIVE, 'Open live session')?.disabled).toBe(false);
+    expect(rowOf(COLLEAGUE_LIVE).closest('a')?.getAttribute('href')).toBe(
+      '/devices/details/live-session?id=colleague-live',
+    );
     expect(button(READY, 'Open session recording')?.disabled).toBe(false);
   });
 

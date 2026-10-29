@@ -4,9 +4,10 @@ import type { KeepRecordingSelection } from '@flamingo-stack/openframe-frontend-
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { handleApiError } from '@/lib/handle-api-error';
+import { isAwaitingRecording } from '../components/remote-sessions/session-status';
 import { sessionRecordingsApiService as service } from '../services/session-recordings-api-service';
-import { RecordingNotFoundError } from '../services/session-recordings-service';
-import type { RecordingSummary } from '../types/session-recording';
+import { RecordingNotFoundError, SessionNotFoundError } from '../services/session-recordings-service';
+import type { LiveSessionDetail, RecordingSummary } from '../types/session-recording';
 import { deviceQueryKeys } from '../utils/query-keys';
 import { useSessionRecordingsGate } from './use-session-recordings-gate';
 
@@ -32,6 +33,24 @@ export function useSessionRecording(recordingId: string | null) {
     queryFn: recordingId ? () => service.get(recordingId) : skipToken,
     retry: (failureCount, error) => !(error instanceof RecordingNotFoundError) && failureCount < 3,
   });
+}
+
+/**
+ * One session for the live session page, read again every 10 s while there is something to wait for: the end, the
+ * chat opening, or the file the page hands over to once the session ended. An ended session whose recording failed or
+ * was never made has nothing more to come. A session the server does not show is an answer, not a failure to retry.
+ */
+export function useLiveSession(sessionId: string | null) {
+  return useQuery({
+    queryKey: deviceQueryKeys.liveSession(sessionId ?? ''),
+    queryFn: sessionId ? () => service.live(sessionId) : skipToken,
+    refetchInterval: query => (isSettledSession(query.state.data) ? false : LIVE_POLL_MS),
+    retry: (failureCount, error) => !(error instanceof SessionNotFoundError) && failureCount < 3,
+  });
+}
+
+function isSettledSession(session: LiveSessionDetail | undefined): boolean {
+  return !!session && !session.live && !isAwaitingRecording(session);
 }
 
 /**

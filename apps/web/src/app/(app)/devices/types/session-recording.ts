@@ -92,6 +92,17 @@ export interface RecordingDetail extends RecordingSummary {
   chat: RecordingChatMessage[];
 }
 
+/** A session the live session page follows: its row, plus the page's meta card, banner and chat. */
+export interface LiveSessionDetail extends RecordingSummary {
+  /** Unknown while the device lookup has not answered or the device is gone. */
+  hostname?: string;
+  organization: RecordingDetail['organization'];
+  /** Started without recording although the policy asked for it: the recording storage was full. */
+  notRecorded: boolean;
+  /** The session chat so far; empty until the technician running it opens the chat. */
+  chat: RecordingChatMessage[];
+}
+
 /** The tenant's recording storage. `full` means the pool of recordings that are not kept is used up. */
 export interface RecordingStorage {
   usedBytes: number;
