@@ -33,6 +33,9 @@ const env = {
   // App Review rejected both under 3.1.1/3.1.3 on 2026-09-11) or `legacy` to
   // bring them back. The frontend also treats a missing value as login-only.
   NEXT_PUBLIC_MOBILE_AUTH_UI: process.env.NEXT_PUBLIC_MOBILE_AUTH_UI || 'login-only',
+  // Error reporting: empty unless a lane passes a DSN, and the bundle then never loads the SDK.
+  NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || '',
+  NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || '',
 };
 
 if (!env.NEXT_PUBLIC_SHARED_HOST_URL) {

@@ -25,9 +25,13 @@ COPY . .
 # Declared here, not above: every RUN after an ARG is keyed on it, and a value
 # that changes per build would otherwise bust the `npm ci` layer too.
 ARG OPENFRAME_BUNDLE_VERSION
+# Source-map upload (scripts/sentry-sourcemaps.mjs); skipped when no token secret is passed.
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
 
 RUN --mount=type=cache,target=/app/dist/cache \
-    npm run build && \
+    --mount=type=secret,id=sentry_auth_token \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" npm run build && \
     if node -p "require('./dist/required-server-files.json').config.images.unoptimized" | grep -q true; then \
       rm -rf dist/standalone/node_modules/@img dist/standalone/node_modules/sharp; \
     fi

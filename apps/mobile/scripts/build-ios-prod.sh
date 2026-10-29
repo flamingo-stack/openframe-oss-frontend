@@ -11,6 +11,7 @@
 #                            into the web bundle AND Info.plist (native token
 #                            refresher), so it is needed with SKIP_WEB=1 too.
 # Optional:  BUILD_NUMBER  — CURRENT_PROJECT_VERSION for this archive (App Store
+#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps and dSYMs.
 #                            Connect requires it to increase per upload).
 #            SKIP_WEB=1    — reuse the already-staged www/ bundle (must have been
 #                            built by this lane, or the baked env won't match).
@@ -40,6 +41,7 @@ if [ "${SKIP_WEB:-0}" != "1" ]; then
   # Prod identity: saas-tenant mode + the prod callback scheme (matches the
   # Release configuration's OPENFRAME_URL_SCHEME build setting).
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
+  export NEXT_PUBLIC_SENTRY_ENVIRONMENT="production"
   export NEXT_PUBLIC_MOBILE_APP_SCHEME="com.openframe.app"
   "$HERE/scripts/build-web.sh"
 fi
@@ -78,9 +80,12 @@ xcodebuild archive \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
   OPENFRAME_SHARED_HOST_URL="$NEXT_PUBLIC_SHARED_HOST_URL" \
+  OPENFRAME_SENTRY_DSN="${NEXT_PUBLIC_SENTRY_DSN:-}" \
   ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER} \
   ${VERSION_NAME:+MARKETING_VERSION=$VERSION_NAME} \
   ${ASC_KEY_PATH:+-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"}
+
+"$HERE/scripts/upload-dsyms.sh" "$ARCHIVE"
 
 echo "▸ Exporting .ipa for App Store Connect…"
 rm -rf "$EXPORT_DIR"

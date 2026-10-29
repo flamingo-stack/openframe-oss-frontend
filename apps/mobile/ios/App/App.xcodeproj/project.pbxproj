@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
+		5E5E00000000000000000001 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5E5E00000000000000000002 /* Sentry */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -60,6 +61,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				5E5E00000000000000000001 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -129,6 +131,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				5E5E00000000000000000002 /* Sentry */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -161,6 +164,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				5E5E00000000000000000003 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -375,6 +379,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = OpenFrame;
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = production;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
@@ -403,6 +409,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = OpenFrame;
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = production;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.openframe.mobile;
@@ -540,6 +548,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = "OF Stage";
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = stage;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app.stage;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
@@ -568,6 +578,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = "OF Stage";
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = stage;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app.stage;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.openframe.mobile.stage;
@@ -705,6 +717,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = "OF Dev";
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = dev;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app.dev;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
@@ -733,6 +747,8 @@
 				);
 				MARKETING_VERSION = 1.0.1;
 				OPENFRAME_DISPLAY_NAME = "OF Dev";
+				OPENFRAME_SENTRY_DSN = "";
+				OPENFRAME_SENTRY_ENVIRONMENT = dev;
 				OPENFRAME_SHARED_HOST_URL = "";
 				OPENFRAME_URL_SCHEME = com.openframe.app.dev;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.openframe.mobile.dev;
@@ -781,11 +797,27 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		5E5E00000000000000000003 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = exactVersion;
+				version = 9.30.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+		5E5E00000000000000000002 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E5E00000000000000000003 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

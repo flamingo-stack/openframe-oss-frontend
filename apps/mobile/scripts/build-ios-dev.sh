@@ -11,6 +11,7 @@
 #                            into the web bundle AND Info.plist (native token
 #                            refresher), so it is needed with SKIP_WEB=1 too.
 # Optional:  BUILD_NUMBER  — CURRENT_PROJECT_VERSION for this archive
+#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps and dSYMs.
 #                            (TestFlight requires it to increase per upload).
 #            SKIP_WEB=1    — reuse the already-staged www/ bundle (must have
 #                            been built by this lane, or the env baked into it
@@ -43,6 +44,7 @@ if [ "${SKIP_WEB:-0}" != "1" ]; then
   # session-internally, so it need not match OPENFRAME_URL_SCHEME — and the
   # gateway is known to accept this scheme in redirectTo.
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
+  export NEXT_PUBLIC_SENTRY_ENVIRONMENT="dev"
   export NEXT_PUBLIC_MOBILE_APP_SCHEME="com.openframe.app"
   # Dev is the one lane that opts into the dev-ticket observer (default is off).
   export NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER="${NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER:-true}"
@@ -75,7 +77,10 @@ xcodebuild archive \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
   OPENFRAME_SHARED_HOST_URL="$NEXT_PUBLIC_SHARED_HOST_URL" \
+  OPENFRAME_SENTRY_DSN="${NEXT_PUBLIC_SENTRY_DSN:-}" \
   ${BUILD_NUMBER:+CURRENT_PROJECT_VERSION=$BUILD_NUMBER}
+
+"$HERE/scripts/upload-dsyms.sh" "$ARCHIVE"
 
 echo "▸ Exporting .ipa for App Store Connect…"
 xcodebuild -exportArchive \

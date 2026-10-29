@@ -126,6 +126,30 @@ const LOGIN_INCOMPLETE_ERROR: &str = "LOGIN_INCOMPLETE";
 /// gateway without a rebuild.
 const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL");
 
+/// Sentry DSN baked in by the release build (`OPENFRAME_SENTRY_DSN`). Unset in
+/// local and OSS builds, which then report nothing — neither the shell nor the
+/// bundle, which gets it through `window.__ENV`.
+const SENTRY_DSN: &str = match option_env!("OPENFRAME_SENTRY_DSN") {
+    Some(dsn) => dsn,
+    None => "",
+};
+const SENTRY_ENVIRONMENT: &str = if cfg!(debug_assertions) {
+    "development"
+} else {
+    "production"
+};
+
+fn init_error_reporting() -> Option<sentry::ClientInitGuard> {
+    if SENTRY_DSN.is_empty() {
+        return None;
+    }
+    let version = option_env!("OPENFRAME_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"));
+    let mut options = sentry::ClientOptions::default();
+    options.release = Some(format!("openframe-console@{version}").into());
+    options.environment = Some(SENTRY_ENVIRONMENT.into());
+    Some(sentry::init((SENTRY_DSN, options)))
+}
+
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Emitted to the main window each time it comes back in front of the user
@@ -525,6 +549,8 @@ fn env_init_script(app: &AppHandle) -> String {
         "NEXT_PUBLIC_SHARED_HOST_URL": shared_host(&load_config(app)).unwrap_or_default(),
         "NEXT_PUBLIC_APP_MODE": "saas-tenant",
         "NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER": "true",
+        "NEXT_PUBLIC_SENTRY_DSN": SENTRY_DSN,
+        "NEXT_PUBLIC_SENTRY_ENVIRONMENT": SENTRY_ENVIRONMENT,
     });
     format!(
         r#"window.__ENV = {env};
@@ -1463,6 +1489,8 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Held for the whole run: dropping it stops the client.
+    let _error_reporting = init_error_reporting();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // A browser handing back the OAuth callback, a toast click, or an

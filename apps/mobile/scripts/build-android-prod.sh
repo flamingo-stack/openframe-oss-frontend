@@ -14,6 +14,7 @@
 #            ANDROID_UPLOAD_* — the upload keystore (never committed; see
 #                          android/app/src/README.md). Play rejects unsigned AABs.
 # Optional:  SKIP_WEB=1     — reuse the already-staged www/ bundle.
+#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps.
 #            WEB_ONLY=1     — stage web bundle + cap sync, then stop.
 #            VERSION_CODE=n — overrides versionCode (Play requires it to increase
 #                             per upload; build.gradle's default is 1).
@@ -34,6 +35,7 @@ AAB="$HERE/android/app/build/outputs/bundle/prodRelease/app-prod-release.aab"
 : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the prod shared auth host}"
 if [ "${SKIP_WEB:-0}" != "1" ]; then
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
+  export NEXT_PUBLIC_SENTRY_ENVIRONMENT="production"
   # On Android the baked scheme MUST match the intent-filter scheme
   # (@string/custom_url_scheme), which prod leaves at the shared default.
   export NEXT_PUBLIC_MOBILE_APP_SCHEME="com.openframe.app"
@@ -77,7 +79,7 @@ fi
 
 echo "▸ Building bundleProdRelease…"
 ( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew bundleProdRelease \
-    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" \
+    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" -PofSentryDsn="${NEXT_PUBLIC_SENTRY_DSN:-}" \
     ${VERSION_CODE:+-PofVersionCode=$VERSION_CODE} \
     ${VERSION_NAME:+-PofVersionName=$VERSION_NAME} )
 

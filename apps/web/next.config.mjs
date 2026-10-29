@@ -50,6 +50,8 @@ const nextConfig = {
   // build uses the canonical `/dashboard/` form the webview can serve.
   ...(isStaticExport ? {} : { skipTrailingSlashRedirect: true }),
   distDir: 'dist',
+  // Only for the upload in scripts/sentry-sourcemaps.mjs, which deletes them afterwards.
+  productionBrowserSourceMaps: Boolean(process.env.SENTRY_AUTH_TOKEN),
   env: {
     OPENFRAME_BUNDLE_VERSION: resolveBundleVersion(),
   },

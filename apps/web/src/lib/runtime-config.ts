@@ -68,6 +68,13 @@ export const runtimeEnv = {
   gtmContainerId(): string | undefined {
     return getEnvVar('NEXT_PUBLIC_GTM_CONTAINER_ID');
   },
+  /** Set only by SaaS deployments and the shells' release lanes; see `error-reporting.ts`. */
+  sentryDsn(): string {
+    return getEnvVar('NEXT_PUBLIC_SENTRY_DSN') || '';
+  },
+  sentryEnvironment(): string | undefined {
+    return getEnvVar('NEXT_PUBLIC_SENTRY_ENVIRONMENT');
+  },
   appMode(): string {
     const mode = getEnvVar('NEXT_PUBLIC_APP_MODE');
     return mode || 'oss-tenant';

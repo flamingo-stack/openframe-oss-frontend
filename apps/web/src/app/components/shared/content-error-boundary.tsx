@@ -3,6 +3,7 @@
 import { LoadError, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { Component, createContext, type ReactNode, useContext } from 'react';
 import { isOnline, subscribeConnectivity } from '@/lib/connectivity';
+import { reportError } from '@/lib/error-reporting';
 import { isOfflineError, loadErrorProps } from '@/lib/query-state';
 
 /**
@@ -221,7 +222,9 @@ export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, C
 
   componentDidCatch(error: unknown) {
     if (isControlFlowError(error)) return;
-    console.error(`[${this.props.label ?? 'ContentErrorBoundary'}]`, error);
+    const label = this.props.label ?? 'ContentErrorBoundary';
+    console.error(`[${label}]`, error);
+    reportError(error, label);
   }
 
   private retry = () => {

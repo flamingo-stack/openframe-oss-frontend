@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import Sentry
 import UserNotifications
 
 /// The window, URL opens and user activities belong to SceneDelegate: under the
@@ -8,6 +9,7 @@ import UserNotifications
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        startErrorReporting()
         // Notification permission is requested by the web layer after login
         // (openframe-frontend src/lib/native-push.ts) — not at launch.
         // Note for `npm run push:demo`: banners display only after that in-app
@@ -19,6 +21,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // router stays out of the way (`ios.handleApplicationNotifications: false`).
         NotificationActions.shared.install()
         return true
+    }
+
+    private func startErrorReporting() {
+        guard let dsn = Bundle.main.object(forInfoDictionaryKey: "OpenFrameSentryDSN") as? String, !dsn.isEmpty else { return }
+        SentrySDK.start { options in
+            options.dsn = dsn
+            options.environment = Bundle.main.object(forInfoDictionaryKey: "OpenFrameSentryEnvironment") as? String ?? "production"
+        }
     }
 
     // @capacitor-firebase/messaging receives APNs callbacks via these

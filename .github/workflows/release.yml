@@ -102,6 +102,7 @@ jobs:
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         with:
           max_attempts: 3
           retry_wait_seconds: 5
@@ -111,7 +112,10 @@ jobs:
             args=(--platform linux/amd64,linux/arm64 --push --provenance=false --sbom=true
                   --build-arg GITHUB_ACTOR=${{ github.actor }}
                   --build-arg OPENFRAME_BUNDLE_VERSION="${RELEASE_VERSION:-main-${GITHUB_SHA::7}}"
+                  --build-arg SENTRY_ORG=${{ vars.SENTRY_ORG }}
+                  --build-arg SENTRY_PROJECT=openframe-web
                   -f ./apps/web/Dockerfile)
+            [ -n "$SENTRY_AUTH_TOKEN" ] && args+=(--secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN)
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" ./apps/web
 
@@ -185,6 +189,10 @@ jobs:
           BUNDLES: ${{ matrix.bundles }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
           OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          OPENFRAME_SENTRY_DSN: ${{ secrets.SENTRY_DESKTOP_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: openframe-desktop
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # macOS signing + notarization, performed by tauri during the build.

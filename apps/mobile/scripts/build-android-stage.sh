@@ -8,6 +8,7 @@
 #
 # Required:  NEXT_PUBLIC_SHARED_HOST_URL — the STAGE shared auth host.
 # Optional:  SKIP_WEB=1         — reuse the already-staged www/ bundle.
+#            NEXT_PUBLIC_SENTRY_DSN — error reporting for the bundle and the app; with SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT the lane also uploads source maps.
 #            WEB_ONLY=1         — stage web bundle + cap sync, then stop.
 #            SKIP_DISTRIBUTE=1  — build the APK, skip the App Distribution upload.
 #            RELEASE=1          — assembleStageRelease instead of Debug (needs the
@@ -29,6 +30,7 @@ JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 : "${NEXT_PUBLIC_SHARED_HOST_URL:?set NEXT_PUBLIC_SHARED_HOST_URL to the stage shared auth host}"
 if [ "${SKIP_WEB:-0}" != "1" ]; then
   export NEXT_PUBLIC_APP_MODE="${NEXT_PUBLIC_APP_MODE:-saas-tenant}"
+  export NEXT_PUBLIC_SENTRY_ENVIRONMENT="stage"
   # Scheme stays the shared default (com.openframe.app) until the gateway
   # accepts per-env schemes — on Android this means an app CHOOSER appears at
   # login when prod is installed alongside; testers pick "OF Stage".
@@ -62,7 +64,7 @@ fi
 
 echo "▸ Building ${VARIANT_TASK}…"
 ( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew "$VARIANT_TASK" \
-    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" )
+    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" -PofSentryDsn="${NEXT_PUBLIC_SENTRY_DSN:-}" )
 
 if [ ! -f "$APK" ]; then
   echo "✗ expected APK not found: $APK" >&2
