@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withInlineStyles } from '@flamingo-stack/openframe-frontend-core/next-styles';
 import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
@@ -105,7 +106,9 @@ const configForPhase = phase => {
     phase === 'phase-development-server'
       ? { ...nextConfig, experimental: { turbopackMemoryLimit: 8 * 1024 * 1024 * 1024 } }
       : nextConfig;
-  return withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(config);
+  // Every route's stylesheet goes inside its HTML, so a page paints without a second request (the lib's
+  // next-styles); `npm run css:budget:check` holds its size.
+  return withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(withInlineStyles(config));
 };
 
 export default configForPhase;

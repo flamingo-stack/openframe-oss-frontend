@@ -31,9 +31,12 @@ async function loadSessionHealth() {
 
 const UPGRADE_BODY = { code: 'CLIENT_UPGRADE_REQUIRED', minBundleVersion: '1.0.120', storeUrl: 'itms-apps://x' };
 
+// One after the other: two imports racing in a freshly reset registry can each evaluate their own
+// copy of `version-check`, and the test would then read a store the client never wrote to.
 async function load() {
   vi.resetModules();
-  const [{ apiClient }, versionCheck] = await Promise.all([import('./api-client'), import('./version-check')]);
+  const { apiClient } = await import('./api-client');
+  const versionCheck = await import('./version-check');
   return { apiClient, versionCheck };
 }
 

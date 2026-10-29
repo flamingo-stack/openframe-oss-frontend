@@ -57,7 +57,7 @@ Key pieces of the stack you just installed, straight from `apps/web/package.json
 | State | `zustand`, `immer` |
 | Code/editor widgets | `@codemirror/*` packages |
 | Terminal UI | `@xterm/xterm`, `@xterm/addon-fit` |
-| Styling | `tailwindcss`, `tailwindcss-animate`, `postcss`, `autoprefixer` |
+| Styling | `tailwindcss` (theme and plugins from the core library preset), `postcss`, `autoprefixer` |
 
 Dev tooling includes `eslint`, `prettier`, `vitest`, `typescript`, and `relay-compiler` (devDependencies in the same file).
 
