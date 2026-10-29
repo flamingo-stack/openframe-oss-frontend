@@ -6,7 +6,8 @@
  * form starts on the small default, which is how the policy and ticket forms ended up a size below the script forms
  * next to them. The fix is mechanical, so the rule fixes it.
  *
- * - A lib field control with a `label` (or `ScriptArguments` with a `titleLabel`) needs `labelVariant="large"`.
+ * - A lib field control with a `label` (`ScriptArguments`: `titleLabel`; `ImageUploader` / `FileUpload`:
+ *   `fieldLabel`) needs `labelVariant="large"`.
  * - A lib `<Label>` needs `variant="large"` unless it is a click surface (`variant="surface"`) or its `className`
  *   already states `text-h4`. A `className` stating another `text-h*` would win over the variant, so it is reported
  *   and left for a person.
@@ -18,6 +19,8 @@ const LIB_SOURCE = /^@flamingo-stack\/openframe-frontend-core(\/|$)/;
 const LIB_FIELD_CONTROLS = new Map([
   ['Autocomplete', 'label'],
   ['FieldWrapper', 'label'],
+  ['FileUpload', 'fieldLabel'],
+  ['ImageUploader', 'fieldLabel'],
   ['Input', 'label'],
   ['ScriptArguments', 'titleLabel'],
   ['SearchableSelect', 'label'],

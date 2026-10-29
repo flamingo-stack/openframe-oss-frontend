@@ -168,6 +168,7 @@ function CustomerAiAssistantEditor({
         <div className="w-full shrink-0 content-md:w-[274px]">
           <ImageUploader
             fieldLabel="Assistant Avatar"
+            labelVariant="large"
             value={avatarUrl}
             onChange={onAvatarChange}
             onRemove={onAvatarRemove}

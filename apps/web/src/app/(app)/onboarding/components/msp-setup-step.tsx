@@ -89,6 +89,7 @@ export function MspSetupStep({
         <div className="w-full min-w-0 flex-1 self-stretch">
           <ImageUploader
             fieldLabel="Organization Logo"
+            labelVariant="large"
             value={displayImageUrl}
             onChange={logo.upload}
             onRemove={logo.remove}

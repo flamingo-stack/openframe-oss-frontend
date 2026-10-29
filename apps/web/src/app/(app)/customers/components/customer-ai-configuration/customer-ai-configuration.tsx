@@ -309,6 +309,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                 <div className="w-full shrink-0 content-md:w-[274px]">
                   <ImageUploader
                     fieldLabel="Assistant Avatar"
+                    labelVariant="large"
                     value={avatarUrl}
                     onChange={handleAvatarChange}
                     onRemove={handleAvatarRemove}

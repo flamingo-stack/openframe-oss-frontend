@@ -152,6 +152,7 @@ export function CustomerSetupStep({
             objectFit="contain"
             maxSize={5 * 1024 * 1024}
             fieldLabel="Customer Logo"
+            labelVariant="large"
             label="Upload customer logo"
             description="Click to upload or drag and drop"
             alt={name || 'Customer logo'}
