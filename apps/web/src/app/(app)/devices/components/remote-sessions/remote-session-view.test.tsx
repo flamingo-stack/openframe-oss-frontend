@@ -156,6 +156,7 @@ const RECORDING: RecordingDetail = {
   expiresAt: null,
   recordingId: 'rec-1',
   employee: { name: 'Roman Smith' },
+  technicianId: 'tech-roman',
   organization: { name: 'Acme' },
   segments: [],
   chat: [],

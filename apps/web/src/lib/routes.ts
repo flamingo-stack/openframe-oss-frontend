@@ -305,6 +305,8 @@ export const routes = {
     remoteDesktop: (id: string | number) => withQuery('/devices/details/remote-desktop', { id }),
     fileManager: (id: string | number) => withQuery('/devices/details/file-manager', { id }),
     remoteSessionRecording: (id: string | number) => withQuery('/devices/details/remote-session', { id }),
+    /** A running session, followed view-only; keyed by the session id (the recording route keys on a file). */
+    liveSession: (id: string | number) => withQuery('/devices/details/live-session', { id }),
   },
 
   scripts: {

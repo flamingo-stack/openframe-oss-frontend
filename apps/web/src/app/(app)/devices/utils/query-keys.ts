@@ -34,6 +34,8 @@ export const deviceQueryKeys = {
   /** One recording's detail (the player page). */
   sessionRecording: (recordingId: string) =>
     [...deviceQueryKeys.all, 'session-recordings', 'detail', recordingId] as const,
+  /** One session the live session page follows. */
+  liveSession: (sessionId: string) => [...deviceQueryKeys.all, 'session-recordings', 'live', sessionId] as const,
   /** The session timeline a recording page lists (the Session Events list and the track markers). */
   sessionEvents: (recordingId: string) =>
     [...deviceQueryKeys.all, 'session-recordings', 'events', recordingId] as const,
