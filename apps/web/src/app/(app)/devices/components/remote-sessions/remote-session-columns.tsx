@@ -27,6 +27,7 @@ import {
   expiresFilterValue,
   expiresSoonLabel,
   isLiveRow,
+  isOwnSession,
   isRecordingGone,
   type LiveRows,
   sessionHref,
@@ -210,7 +211,11 @@ function SessionActions<T extends RecordingSummary>({
 }) {
   const loading = useLoadingScope();
   const deletable = !loading && canDeleteSession(row);
-  const live = isLiveRow(row, liveRows);
+  const openLabel = !isLiveRow(row, liveRows)
+    ? 'Open session recording'
+    : isOwnSession(row, liveRows)
+      ? 'Open Remote Control'
+      : 'Open live session';
   return (
     <div data-no-row-click className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-mf)]">
       <Button
@@ -230,7 +235,7 @@ function SessionActions<T extends RecordingSummary>({
         variant="outline"
         size="icon"
         leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-        aria-label={live ? 'Open Remote Control' : 'Open session recording'}
+        aria-label={openLabel}
         disabled={loading || sessionHref(row, liveRows) === null}
         className="bg-ods-card"
       />

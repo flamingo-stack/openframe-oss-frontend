@@ -1,5 +1,11 @@
 import type { KeepRecordingSelection } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { RecordingDetail, RecordingSegment, RecordingStorage, RecordingSummary } from '../types/session-recording';
+import type {
+  LiveSessionDetail,
+  RecordingDetail,
+  RecordingSegment,
+  RecordingStorage,
+  RecordingSummary,
+} from '../types/session-recording';
 
 /**
  * Thrown by `downloadSegment` when a file's bytes cannot be fetched - it has
@@ -26,6 +32,17 @@ export class RecordingNotFoundError extends Error {
 }
 
 /**
+ * Thrown by `live` when the server has no such session to show: the id is unknown, the session was deleted, or it is
+ * not visible to the caller. The live session page renders its 404 for it.
+ */
+export class SessionNotFoundError extends Error {
+  constructor(message = 'Session not found') {
+    super(message);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
+/**
  * Session-recordings backend surface, implemented by the openframe-saas-api
  * client (session-recordings-api-service.ts).
  */
@@ -36,6 +53,8 @@ export interface ISessionRecordingsService {
   list(deviceId: string): Promise<RecordingSummary[]>;
   /** Throws {@link RecordingNotFoundError} when the server has no such recording to show. */
   get(recordingId: string): Promise<RecordingDetail>;
+  /** One session by its id, for the live session page. Throws {@link SessionNotFoundError}. */
+  live(sessionId: string): Promise<LiveSessionDetail>;
   /** Fetch one file's raw `.mcrec` bytes. Throws {@link RecordingUnavailableError}. */
   downloadSegment(segment: RecordingSegment): Promise<ArrayBuffer>;
   /**

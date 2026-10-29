@@ -13,6 +13,7 @@ import type { sessionRecordingsApiServiceDetailQuery as DetailQuery } from '@/__
 import type { sessionRecordingsApiServiceDeviceQuery as DeviceQuery } from '@/__generated__/sessionRecordingsApiServiceDeviceQuery.graphql';
 import type { sessionRecordingsApiServiceKeepMutation as KeepMutation } from '@/__generated__/sessionRecordingsApiServiceKeepMutation.graphql';
 import type { sessionRecordingsApiServiceListQuery as ListQuery } from '@/__generated__/sessionRecordingsApiServiceListQuery.graphql';
+import type { sessionRecordingsApiServiceLiveQuery as LiveQuery } from '@/__generated__/sessionRecordingsApiServiceLiveQuery.graphql';
 import type { sessionRecordingsApiServiceReleaseMutation as ReleaseMutation } from '@/__generated__/sessionRecordingsApiServiceReleaseMutation.graphql';
 import type { sessionRecordingsApiServiceStorageQuery as StorageQuery } from '@/__generated__/sessionRecordingsApiServiceStorageQuery.graphql';
 import {
@@ -27,6 +28,7 @@ import { commitMutationPromise } from '@/lib/relay/commit-mutation';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { getAccessTokenSync, isBearerAuthMode } from '@/lib/token-store';
 import type {
+  LiveSessionDetail,
   RecordingChatMessage,
   RecordingDetail,
   RecordingKeep,
@@ -40,6 +42,7 @@ import {
   type ISessionRecordingsService,
   RecordingNotFoundError,
   RecordingUnavailableError,
+  SessionNotFoundError,
 } from './session-recordings-service';
 
 /**
@@ -112,6 +115,15 @@ const detailQuery = graphql`
       session {
         ...sessionRecordingsApiService_session
       }
+    }
+  }
+`;
+
+const liveQuery = graphql`
+  query sessionRecordingsApiServiceLiveQuery($sessionId: String!) {
+    remoteSession(sessionId: $sessionId) {
+      ...sessionRecordingsApiService_session
+      recordingSuppressed
     }
   }
 `;
@@ -218,6 +230,15 @@ function fromWireHold(hold: NonNullable<WireSession['recordingHold']>): Recordin
     note: hold.note ?? null,
     dueAt: hold.dueAt != null ? String(hold.dueAt) : null,
     expiresAtOnRelease: hold.expiresAtOnRelease != null ? String(hold.expiresAtOnRelease) : null,
+  };
+}
+
+/** The meta card's customer, from the wire session. */
+function fromWireOrganization(session: WireSession): RecordingDetail['organization'] {
+  return {
+    id: session.organization?.organizationId ?? undefined,
+    name: session.organization?.name ?? '',
+    logoUrl: session.organization?.logoUrl ?? undefined,
   };
 }
 
@@ -376,16 +397,38 @@ export class SessionRecordingsApiService implements ISessionRecordingsService {
       // The file the page was opened on; it plays the whole session regardless.
       recordingId: data.remoteSessionRecording.recordingId,
       hostname,
-      organization: {
-        id: session.organization?.organizationId ?? undefined,
-        name: session.organization?.name ?? '',
-        logoUrl: session.organization?.logoUrl ?? undefined,
-      },
+      organization: fromWireOrganization(session),
       segments: session.recordings.map((file): RecordingSegment => ({
         id: file.recordingId,
         downloadUrl: file.downloadUrl ?? undefined,
         sizeBytes: file.sizeBytes != null ? Number(file.sizeBytes) : null,
       })),
+      chat,
+    };
+  }
+
+  async live(sessionId: string): Promise<LiveSessionDetail> {
+    let data: LiveQuery['response'] | undefined;
+    try {
+      data = await fetchQuery<LiveQuery>(
+        getRelayEnvironment(),
+        liveQuery,
+        { sessionId },
+        { fetchPolicy: 'network-only' },
+      ).toPromise();
+    } catch (error) {
+      if (getRelayErrorCodes(error).some(code => NOT_FOUND_CODES.has(code))) throw new SessionNotFoundError();
+      throw error;
+    }
+    if (!data?.remoteSession) throw new SessionNotFoundError();
+    const { remoteSession } = data;
+    const session = readSession(remoteSession);
+    const [hostname, chat] = await Promise.all([readHostname(session.deviceId), readTranscript(session.dialogId)]);
+    return {
+      ...fromWireSession(session),
+      hostname,
+      organization: fromWireOrganization(session),
+      notRecorded: remoteSession.recordingSuppressed != null,
       chat,
     };
   }
