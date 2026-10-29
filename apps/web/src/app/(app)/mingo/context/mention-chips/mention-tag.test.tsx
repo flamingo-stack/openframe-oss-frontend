@@ -19,9 +19,10 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }), usePathname: ()
 
 /** The chat runtime the chip navigates through (the app's own is `OpenframeChatRuntimeProvider`). */
 const navigate = vi.fn(() => true);
+const openExternal = vi.fn();
 const runtime = {
   endpoints: {},
-  navigation: { mode: 'host', navigate, decideNewTab: () => false },
+  navigation: { mode: 'host', navigate, openExternal, decideNewTab: () => false },
   source: 'openframe',
 } as unknown as ChatRuntime;
 
@@ -45,6 +46,7 @@ let root: Root;
 beforeEach(() => {
   push.mockReset();
   navigate.mockClear();
+  openExternal.mockClear();
   useMingoMessagesStore.setState({ activeDialogId: 'd-1' });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -127,12 +129,15 @@ describe('MentionTag new-tab segment', () => {
     const segment = newTabSegment();
     if (!segment) throw new Error('no new-tab segment');
     expect(segment.getAttribute('href')).toBe('/devices/details?id=m-1&mingoDialog=d-1');
-    expect(segment.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(segment.getAttribute('target')).toBe('_blank');
+    // A path of this site keeps the Referer (the lib's one referrer rule).
+    expect(segment.getAttribute('rel')).toBe('noopener');
     expect(segment.getAttribute('aria-label')).toBe('Open in new tab');
 
-    const event = primaryClick(segment);
+    primaryClick(segment);
 
-    expect(event.defaultPrevented).toBe(false);
+    // The lib's executor opens the tab through the runtime's `openExternal`; this window does not move.
+    expect(openExternal).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
     expect(navigate).not.toHaveBeenCalled();
   });
 

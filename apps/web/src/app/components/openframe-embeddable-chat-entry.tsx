@@ -378,6 +378,9 @@ export function OpenframeEmbeddableChatEntry({
         open={open}
         onOpenChange={onOpenChange}
         closable={closable}
+        // No loading source strip under an answer being written: Mingo's answers rarely cite sources, so a strip
+        // drawn while it writes would appear and then go away.
+        sourceSkeletonCount={0}
         // Signed-in user's name for the header sub-line under the chat title.
         // Fallback for the lib's server identity when the tenant identity route
         // returns no name — sourced from the host auth store.

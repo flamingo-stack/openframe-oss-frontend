@@ -84,21 +84,20 @@ export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
   );
   if (!offersNewTab) return main;
 
-  // The new-tab segment is a plain link the browser opens itself; the page there
-  // opens this conversation from `?mingoDialog=`.
+  // The new-tab segment is the same chat link, asked for a new tab (`openIn`); the page there opens this
+  // conversation from `?mingoDialog=`.
   return (
     <span className="inline-flex align-middle">
       {main}
       <FloatingTooltip content="Open in new tab" side="top" as="span">
-        <a
+        <NavLinkAnchorViaRuntime
           href={withMingoDialog(href, activeDialogId)}
-          target="_blank"
-          rel="noopener noreferrer"
+          openIn="new-tab"
           aria-label="Open in new tab"
           className="no-underline"
         >
           <InlineChip label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
-        </a>
+        </NavLinkAnchorViaRuntime>
       </FloatingTooltip>
     </span>
   );
