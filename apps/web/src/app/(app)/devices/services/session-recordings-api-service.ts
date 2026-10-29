@@ -69,6 +69,7 @@ const sessionFragment = graphql`
       expiresAtOnRelease
     }
     dialogId
+    technicianId
     technician {
       name
       avatarUrl
@@ -245,6 +246,7 @@ export function fromWireSession(session: WireSession): RecordingSummary {
       name: session.technician.name,
       avatarUrl: session.technician.avatarUrl ?? undefined,
     },
+    technicianId: session.technicianId,
   };
 }
 

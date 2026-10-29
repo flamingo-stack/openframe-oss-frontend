@@ -58,6 +58,8 @@ export interface RecordingSummary {
   recordingId: string | null;
   /** The technician who ran the session. */
   employee: RecordingEmployee;
+  /** That technician's user id: their own running session's row leads back into it. */
+  technicianId: string;
 }
 
 export interface RecordingChatMessage {

@@ -7,7 +7,9 @@ import {
   expiresFilterValue,
   EXPIRING_WINDOW_MS,
   expiresSoonLabel,
+  isLiveRow,
   isRecordingGone,
+  sessionHref,
 } from './session-status';
 
 type Row = Pick<RecordingSummary, 'recordingState' | 'live' | 'kept' | 'expiresAt' | 'recordingId'>;
@@ -75,5 +77,39 @@ describe('session row status', () => {
     expect(expiresSoonLabel('2026-12-23T15:00:00Z', now)).toBe('Expires in 1 hour');
     expect(expiresSoonLabel('2026-12-24T16:00:00Z', now)).toBeNull();
     expect(expiresSoonLabel('not a date', now)).toBeNull();
+  });
+});
+
+describe('session row target', () => {
+  const OWN = { userId: 'tech-roman', remoteControl: true };
+  const target = (overrides: Partial<RecordingSummary> = {}) => ({
+    ...row(),
+    deviceId: 'machine-1',
+    technicianId: 'tech-roman',
+    ...overrides,
+  });
+  const running = { live: true, recordingState: 'processing', recordingId: null } as const;
+
+  it('reads a running session LIVE only while Watch live is on', () => {
+    expect(isLiveRow({ live: true }, OWN)).toBe(true);
+    expect(isLiveRow({ live: true }, null)).toBe(false);
+    expect(isLiveRow({ live: false }, OWN)).toBe(false);
+  });
+
+  it('opens a finished session on its recording, whatever Watch live says', () => {
+    expect(sessionHref(target(), null)).toBe('/devices/details/remote-session?id=rec-1');
+    expect(sessionHref(target(), OWN)).toBe('/devices/details/remote-session?id=rec-1');
+    expect(sessionHref(target({ recordingState: 'failed' }), OWN)).toBeNull();
+  });
+
+  it("opens Remote Control from the technician's own running session, and nothing from anyone else's", () => {
+    expect(sessionHref(target(running), OWN)).toBe('/devices/details/remote-desktop?id=machine-1');
+    expect(sessionHref(target({ ...running, technicianId: 'tech-dana' }), OWN)).toBeNull();
+    expect(sessionHref(target(running), { userId: null, remoteControl: true })).toBeNull();
+    expect(sessionHref(target(running), { ...OWN, remoteControl: false })).toBeNull();
+  });
+
+  it('opens nothing from a running session while Watch live is off', () => {
+    expect(sessionHref(target(running), null)).toBeNull();
   });
 });
