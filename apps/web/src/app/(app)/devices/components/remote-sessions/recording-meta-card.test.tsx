@@ -31,6 +31,7 @@ const RECORDING: RecordingDetail = {
   expiresAt: '2027-01-06T17:32:00Z',
   recordingId: 'rec-1',
   employee: { name: 'Roman Smith' },
+  technicianId: 'tech-roman',
   hostname: 'oleksandrd',
   organization: { name: 'Acme' },
   segments: [],

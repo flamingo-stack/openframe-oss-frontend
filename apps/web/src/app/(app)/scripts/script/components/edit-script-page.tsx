@@ -72,6 +72,7 @@ function ScriptFields({ form, showErrors, disabled = false, initialTags = NO_ITE
               selectedIds={field.value}
               onChange={field.onChange}
               initialTags={initialTags}
+              labelVariant="large"
               deletable
               disabled={disabled}
               entityLabel="script"

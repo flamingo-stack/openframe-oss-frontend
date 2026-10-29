@@ -66,11 +66,14 @@ interface IncidentHeaderViewProps {
   transitions?: IncidentTransitionTable;
 }
 
-/** Three label-width placeholders: the header settles into Fix with Mingo, Create Ticket and the status button. */
+const MINGO_ICON = <AgentMark agent="mingo" className="size-5" />;
+const CREATE_TICKET_ICON = <TagIcon className="text-ods-text-secondary" />;
+
+/** What the header settles into, inert while the record loads: Fix with Mingo, Create Ticket, the status button. */
 const LOADING_ACTIONS: PageActionButton[] = [
-  { label: 'Fix with Mingo' },
-  { label: 'Create Ticket' },
-  { label: 'Resolve' },
+  { label: 'Fix with Mingo', variant: 'outline', icon: MINGO_ICON },
+  { label: 'Create Ticket', variant: 'outline', icon: CREATE_TICKET_ICON },
+  { label: 'Resolve', variant: 'outline' },
 ];
 
 /**
@@ -114,11 +117,10 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
   // A deleted assignee is not offered by the ticket picker — the ticket starts unassigned.
   const ticketAssignee = incident.assignee && !incident.assignee.deleted ? incident.assignee : undefined;
 
-  const mingoIcon = <AgentMark agent="mingo" className="size-5" />;
   const mingoAction: PageActionButton = {
     ...mingoActionFor(incident, mingoSession, mingoControls),
     variant: 'outline',
-    icon: mingoIcon,
+    icon: MINGO_ICON,
   };
 
   const actions: PageActionButton[] = [
@@ -126,7 +128,7 @@ function IncidentHeaderLoaded({ incident, transitions }: Required<IncidentHeader
     {
       label: 'Create Ticket',
       variant: 'outline',
-      icon: <TagIcon className="text-ods-text-secondary" />,
+      icon: CREATE_TICKET_ICON,
       href: routes.tickets.new({
         title: incident.title,
         description: incident.description?.slice(0, TICKET_PREFILL_DESCRIPTION_MAX),
