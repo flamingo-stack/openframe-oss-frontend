@@ -104,6 +104,7 @@ export function CustomerStep({
           <Input
             id="setup-customer-name"
             label="Customer Name"
+            labelVariant="large"
             placeholder="TechFlow Solutions"
             value={name}
             onChange={event => setName(event.target.value)}
@@ -112,6 +113,7 @@ export function CustomerStep({
           <Input
             id="setup-customer-website"
             label="Website URL"
+            labelVariant="large"
             placeholder="https://www.techflow.com"
             value={website}
             onChange={event => setWebsite(event.target.value)}

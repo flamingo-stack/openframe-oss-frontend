@@ -241,6 +241,7 @@ export function TicketFormFields({
             return (
               <Autocomplete
                 label="Customer"
+                labelVariant="large"
                 options={organizationOptionsList}
                 value={field.value ?? null}
                 onChange={val => {
@@ -272,6 +273,7 @@ export function TicketFormFields({
           render={({ field, fieldState }) => (
             <Autocomplete
               label="Device"
+              labelVariant="large"
               options={deviceOptionsList}
               value={field.value ?? null}
               onChange={val => {
@@ -297,6 +299,7 @@ export function TicketFormFields({
             return (
               <Autocomplete
                 label="Assigned"
+                labelVariant="large"
                 options={assigneeOptionsList}
                 value={field.value ?? null}
                 onChange={field.onChange}
@@ -320,6 +323,7 @@ export function TicketFormFields({
             const statusField = (
               <Autocomplete
                 label="Status"
+                labelVariant="large"
                 options={statusOptions}
                 value={field.value ?? null}
                 onChange={val => field.onChange(val)}

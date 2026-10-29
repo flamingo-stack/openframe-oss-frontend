@@ -75,7 +75,7 @@ export function DeleteStatusDialog({
       </p>
 
       <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-        <Label>Reassign tickets to</Label>
+        <Label variant="large">Reassign tickets to</Label>
         <Select value={replacementId} onValueChange={setReplacementId}>
           <SelectTrigger>
             <SelectValue placeholder="Select a status" />

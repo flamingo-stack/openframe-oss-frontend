@@ -69,6 +69,7 @@ export function MspSetupStep({
           <Input
             id="msp-org-name"
             label="Organization Name"
+            labelVariant="large"
             value={name}
             onChange={e => setName(e.target.value)}
             disabled={isSaving}
@@ -77,6 +78,7 @@ export function MspSetupStep({
           <Input
             id="msp-org-website"
             label="Organization Website"
+            labelVariant="large"
             value={website}
             onChange={e => setWebsite(e.target.value)}
             disabled={isSaving}

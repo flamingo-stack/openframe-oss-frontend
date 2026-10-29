@@ -294,7 +294,7 @@ export const CustomerAiConfiguration = forwardRef<CustomerAiConfigurationHandle,
                     name="assistantName"
                     control={form.control}
                     render={({ field, fieldState }) => (
-                      <Input {...field} label="Assistant Name" error={fieldState.error?.message} />
+                      <Input {...field} label="Assistant Name" labelVariant="large" error={fieldState.error?.message} />
                     )}
                   />
 
