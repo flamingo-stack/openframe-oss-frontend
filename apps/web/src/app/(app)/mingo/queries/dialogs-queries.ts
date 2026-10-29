@@ -339,6 +339,14 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
                 requiresApproval
                 approvalType
                 toolCallArguments
+                commandReview {
+                  operationCodes
+                  matchedRules {
+                    code
+                    label
+                  }
+                  reason
+                }
               }
             }
 

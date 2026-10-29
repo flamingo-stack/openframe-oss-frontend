@@ -34,6 +34,7 @@ import type { Message as ChatMessage } from '@flamingo-stack/openframe-frontend-
 import { type ChatStreamEvent, decodeNatsChunk } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import { useCallback, useEffect, useRef } from 'react';
 import type { BoundMirror } from '@/lib/chat-stream-thread';
+import { annotateApprovalChunk } from '@/lib/command-review';
 import { featureFlags } from '@/lib/feature-flags';
 
 export type { ChatModelMetadata } from '@/lib/chat-stream-thread';
@@ -122,7 +123,7 @@ export function useChatChunkProcessor({
   }, [messages, boundMirror, evictionEpoch]);
 
   return useCallback((chunk: unknown) => {
-    const event = decodeNatsChunk(chunk);
+    const event = decodeNatsChunk(annotateApprovalChunk(chunk));
     // The decode seam is the only place both halves are visible at once. The
     // raw-chunk log upstream shows what the backend sent; this one shows what
     // it BECAME — and, crucially, what it did not: a chunk the decoder returns

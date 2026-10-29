@@ -15,6 +15,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { apiClient } from '@/lib/api-client';
 import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
+import { annotateMessageData } from '@/lib/command-review';
 import { featureFlags } from '@/lib/feature-flags';
 import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import type { ApprovalStatus } from '../../tickets/constants';
@@ -463,7 +464,7 @@ export function useMingoDialogSelection() {
       chatType: msg.chatType,
       createdAt: msg.createdAt,
       owner: msg.owner,
-      messageData: msg.messageData,
+      messageData: annotateMessageData(msg.messageData),
       // Feed the merge's per-role seq coverage so a post-reload live synthetic
       // isn't dropped by an unrelated row's seq (message-loss on stop/reload).
       lastChunkStreamSeq: msg.lastChunkStreamSeq,

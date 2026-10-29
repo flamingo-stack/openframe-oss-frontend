@@ -129,6 +129,14 @@ export const GET_DIALOG_MESSAGES_QUERY = `
                 requiresApproval
                 approvalType
                 toolCallArguments
+                commandReview {
+                  operationCodes
+                  matchedRules {
+                    code
+                    label
+                  }
+                  reason
+                }
               }
             }
 
