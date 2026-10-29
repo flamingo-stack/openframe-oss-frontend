@@ -2,6 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ModalV2Content, ModalV2Footer, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
@@ -122,6 +123,13 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
       <ModalV2Content className="flex flex-col gap-[var(--spacing-system-l)]">
         <PaywallDescription copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
         <PlanCheckoutCards query={data} form={form} />
+        {/* Right above the button it is about: a trial ends the moment it is paid for. */}
+        {copy.checkoutNote && (
+          <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+            <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+            <p className="text-ods-text-secondary text-h4">{copy.checkoutNote}</p>
+          </div>
+        )}
       </ModalV2Content>
       <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
         <PlanTotalSummary
