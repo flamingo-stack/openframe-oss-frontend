@@ -11,7 +11,7 @@ import { formatDate } from '@/lib/format-date';
 import { BillingRow, SectionBlock } from '../shared/billing-section';
 import { catalogDeviceRate } from '../shared/catalog-device-rate';
 import { planSchedule } from '../shared/plan-schedule';
-import { MonthlyRate, MonthlyTokens, WarningDate } from '../shared/plan-values';
+import { MonthlyRate, MonthlyTokens } from '../shared/plan-values';
 
 const currentPlanSectionSubscriptionFragment = graphql`
   fragment currentPlanSection_subscription on SubscriptionDetail {
@@ -76,13 +76,13 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
    */
   const deviceRate = !schedule
     ? null
-    : schedule.deviceIsPayg || schedule.isTrial
+    : schedule.deviceIsPayg
       ? (schedule.paygPrice ?? catalogDeviceRate(products, null))
       : (schedule.active?.price ?? catalogDeviceRate(products, schedule.active?.billingPeriod ?? null));
   // A committed yearly package is the only thing that makes the cycle annual;
-  // pay-as-you-go and every monthly package bill each month. A trial states itself.
+  // pay-as-you-go and every monthly package bill each month.
   const isAnnual = schedule?.active?.billingPeriod === BillingPeriod.YEARLY;
-  const cycle = schedule?.isTrial ? 'Free trial' : isAnnual ? 'Annual' : 'Monthly';
+  const cycle = isAnnual ? 'Annual' : 'Monthly';
   // Always stated: nothing to bill reads "$0.00", so the row is there in every form.
   const nextPayment = data?.nextPayment ?? 0;
   // GraphQL `Long` arrives as a string or a number depending on its size.
@@ -126,7 +126,7 @@ export function CurrentPlanSection({ subscription, billingPlan }: CurrentPlanSec
         loading={loading}
         label="Plan ends on"
         warning={planEndsOn != null}
-        value={planEndsOn ? <WarningDate iso={planEndsOn} /> : <EmptyValue />}
+        value={planEndsOn ? formatDate(planEndsOn) : <EmptyValue />}
       />
     </SectionBlock>
   );

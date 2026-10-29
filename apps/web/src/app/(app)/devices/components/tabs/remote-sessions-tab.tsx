@@ -16,6 +16,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import type { TableDateFilter } from '@/app/components/shared/date-column-header';
@@ -24,14 +25,14 @@ import { useNow } from '@/app/hooks/use-now';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeToInstantBounds } from '@/lib/date-filter-params';
 import { formatDateTime } from '@/lib/format-date';
-import { routes } from '@/lib/routes';
+import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
 import { useDeleteRemoteSession, useSessionRecordings } from '../../hooks/use-session-recordings';
 import type { Device } from '../../types/device.types';
 import type { RecordingSummary } from '../../types/session-recording';
 import { DeleteSessionDialog } from '../remote-sessions/delete-session-dialog';
 import { REMOTE_SESSION_COLUMNS } from '../remote-sessions/remote-session-column-layout';
-import { remoteSessionColumns } from '../remote-sessions/remote-session-columns';
-import { canOpenSession, EXPIRES_FILTER_OPTIONS } from '../remote-sessions/session-status';
+import { liveSessionRowClass, remoteSessionColumns } from '../remote-sessions/remote-session-columns';
+import { EXPIRES_FILTER_OPTIONS, sessionHref } from '../remote-sessions/session-status';
 import { TabEmptyState } from './tab-empty-state';
 
 interface RemoteSessionsTabProps {
@@ -49,11 +50,6 @@ const REMOTE_SESSIONS_SKELETON_ROWS = 10;
 
 /** Newest session first, like every history list on the device page. */
 const DEFAULT_SORTING: SortingState = [{ id: REMOTE_SESSION_COLUMNS.session.id, desc: true }];
-
-/** The page a row opens: the session's recording, when it has one to play. */
-function recordingHref(row: RecordingSummary): string | null {
-  return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
-}
 
 /**
  * The empty table's line, by what narrowed it: the search, the session date
@@ -85,7 +81,11 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
   // The device or the recordings gate has not answered (a loading scope): nothing is asked for until both have, so a
   // tenant without recordings never calls the recordings API.
   const scoped = useLoadingScope();
-  const { data, isLoading: isQueryLoading } = useSessionRecordings(scoped ? null : deviceId);
+  const liveRows = useLiveRows();
+  // With Watch live on the list is polled, so a session that starts or ends on the device shows without a reload.
+  const { data, isLoading: isQueryLoading } = useSessionRecordings(scoped ? null : deviceId, {
+    poll: liveRows !== null,
+  });
   // The device has not answered (the page's loading scope), or this device's sessions have not.
   const isLoading = scoped || isQueryLoading;
   const deleteSession = useDeleteRemoteSession(deviceId ?? '');
@@ -192,14 +192,17 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
         dateFilter,
         employeeOptions,
         now,
+        liveRows,
         onOpen: row => {
-          const href = recordingHref(row);
+          const href = sessionHref(row, liveRows);
           if (href) router.push(href);
         },
         onDelete: setDeleteTarget,
       }),
-    [dateFilter, employeeOptions, now, router],
+    [dateFilter, employeeOptions, now, liveRows, router],
   );
+  const rowHref = (row: RecordingSummary) => sessionHref(row, liveRows);
+  const rowClassName = (row: RecordingSummary) => cn(LIVE_ROW_GAP_CLASS, liveSessionRowClass(row, liveRows));
 
   // While the sessions are read the table holds placeholder rows, drawn with their real cells (`loadingCells`): each
   // cell draws its own loading form.
@@ -307,8 +310,8 @@ export function RemoteSessionsTab({ device }: RemoteSessionsTabProps) {
           loading={isLoading}
           loadingCells={isLoading}
           skeletonRows={REMOTE_SESSIONS_SKELETON_ROWS}
-          rowClassName={LIVE_ROW_GAP_CLASS}
-          rowHref={recordingHref}
+          rowClassName={rowClassName}
+          rowHref={rowHref}
           emptyState={{
             icon: <ComputerMouseIcon />,
             title: 'No remote sessions found',

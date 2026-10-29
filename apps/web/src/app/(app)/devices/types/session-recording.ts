@@ -58,6 +58,8 @@ export interface RecordingSummary {
   recordingId: string | null;
   /** The technician who ran the session. */
   employee: RecordingEmployee;
+  /** That technician's user id: their own running session's row leads back into it. */
+  technicianId: string;
 }
 
 export interface RecordingChatMessage {
@@ -87,6 +89,17 @@ export interface RecordingDetail extends RecordingSummary {
   resolution?: string;
   /** Every file of the session, oldest first; the player joins them into one timeline. */
   segments: RecordingSegment[];
+  chat: RecordingChatMessage[];
+}
+
+/** A session the live session page follows: its row, plus the page's meta card, banner and chat. */
+export interface LiveSessionDetail extends RecordingSummary {
+  /** Unknown while the device lookup has not answered or the device is gone. */
+  hostname?: string;
+  organization: RecordingDetail['organization'];
+  /** Started without recording although the policy asked for it: the recording storage was full. */
+  notRecorded: boolean;
+  /** The session chat so far; empty until the technician running it opens the chat. */
   chat: RecordingChatMessage[];
 }
 

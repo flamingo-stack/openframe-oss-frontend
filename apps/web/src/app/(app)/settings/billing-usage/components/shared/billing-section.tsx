@@ -3,8 +3,7 @@ import { LeaderRow, useLoadingScope } from '@flamingo-stack/openframe-frontend-c
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 
 // The "Test mode" banner, until `billing-live-mode` is on. Nothing until the flag answers: a live account must never
-// flash "no real charges". Only test accounts have it, so it sits below the page's sections and is marked
-// `data-loading-optional`: appearing never moves them.
+// flash "no real charges". Only test accounts have it, so it is marked `data-loading-optional`: the wait leaves it out.
 export function TestModeBanner() {
   const gate = useFeatureFlagGate('billing-live-mode');
   if (gate !== 'off') return null;
@@ -59,6 +58,7 @@ export function BillingRow({
   /** Unread while loading. */
   value?: React.ReactNode;
   muted?: boolean;
+  /** A value the user should notice: warning-toned, with the warning mark in the row's status slot. */
   warning?: boolean;
   /** Its value has not answered: the row draws its own skeleton (as it does in a loading scope). */
   loading?: boolean;
@@ -71,6 +71,8 @@ export function BillingRow({
       value={value}
       labelTone="primary"
       valueTone={warning ? 'warning' : muted ? 'secondary' : 'primary'}
+      // Its own slot, not inside the value: the value truncates, and an icon there wraps under the text.
+      status={warning ? <AlertTriangleIcon className="size-4 text-ods-warning" /> : undefined}
       // Every row's value is read data: in a page's loading scope it is a bar even where a value was passed.
       loading={useLoadingScope() || loading}
       data-loading-optional={optional || undefined}

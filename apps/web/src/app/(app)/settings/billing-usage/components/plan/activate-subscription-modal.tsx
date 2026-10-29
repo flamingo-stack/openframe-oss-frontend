@@ -2,6 +2,7 @@
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { ModalV2Content, ModalV2Footer, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
@@ -123,24 +124,34 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
         <PaywallDescription copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
         <PlanCheckoutCards query={data} form={form} />
       </ModalV2Content>
-      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
-        <PlanTotalSummary
-          total={form.selectionTotal}
-          topUpUsd={form.tokenAmountUsd}
-          showAiNote={form.showAiCard}
-          loading={form.loading}
-          className="flex-1"
-        />
-        <SubscriptionSubmitButton
-          needsCheckout
-          packageUpdates={form.packageUpdates}
-          checkoutProducts={form.checkoutProducts}
-          hasInvalidCustom={form.hasInvalidCustom}
-          tokenAmountUsd={form.tokenAmountUsd}
-          autoTopUpEnabled={form.autoTopUp}
-          validateTopUp={form.topUp.validate}
-          className="shrink-0"
-        />
+      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-sf)]">
+        {/* In the footer, not at the end of the content: the content scrolls and the footer does not, so the
+            consequence of the click is on screen whenever the button is. A trial ends the moment it is paid for. */}
+        {copy.checkoutNote && (
+          <div role="note" className="flex items-center gap-[var(--spacing-system-xsf)]">
+            <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+            <p className="text-ods-text-secondary text-h4">{copy.checkoutNote}</p>
+          </div>
+        )}
+        <div className="flex flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
+          <PlanTotalSummary
+            total={form.selectionTotal}
+            topUpUsd={form.tokenAmountUsd}
+            showAiNote={form.showAiCard}
+            loading={form.loading}
+            className="flex-1"
+          />
+          <SubscriptionSubmitButton
+            needsCheckout
+            packageUpdates={form.packageUpdates}
+            checkoutProducts={form.checkoutProducts}
+            hasInvalidCustom={form.hasInvalidCustom}
+            tokenAmountUsd={form.tokenAmountUsd}
+            autoTopUpEnabled={form.autoTopUp}
+            validateTopUp={form.topUp.validate}
+            className="shrink-0"
+          />
+        </div>
       </ModalV2Footer>
     </>
   );

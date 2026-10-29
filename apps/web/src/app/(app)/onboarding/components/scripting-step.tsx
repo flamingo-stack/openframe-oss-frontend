@@ -168,8 +168,6 @@ export function ScriptingStep({
                 checked={field.value}
                 onCheckedChange={checked => field.onChange(checked)}
                 label="Run as User"
-                // Match the SelectButton card height (h-11 content-md:h-16).
-                className="[&>label]:h-11 [&>label]:min-h-0 content-md:[&>label]:h-16"
               />
             )}
           />

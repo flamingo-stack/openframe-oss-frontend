@@ -1,7 +1,13 @@
 'use client';
 
-import { Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, DataTable, Input, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FileDollarIcon, Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
+  DataTable,
+  Input,
+  NoData,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { invoicesHistory_subscription$key } from '@/__generated__/invoicesHistory_subscription.graphql';
@@ -60,9 +66,22 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     );
   }
 
-  // Drawn while loading, left out once there is no invoice: a paying workspace (the typical one on this page) has a
-  // history, and the section is the page's last, so a trial's missing history moves nothing above it.
-  if (!loading && invoices.length === 0) return null;
+  // Drawn for every workspace, a trial's included. No invoice at all is the app's empty state under the section's title,
+  // as every other list without records says it: nothing to search, filter or sort, so no toolbar and no column titles.
+  // In the section, not filling the page (`EmptyState`) — the page goes on above it.
+  if (!loading && invoices.length === 0) {
+    return (
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
+        <NoData
+          icon={<FileDollarIcon />}
+          title="No invoices yet"
+          description="Invoices appear here once the workspace is billed."
+          className="py-[var(--spacing-system-xxl)]"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">

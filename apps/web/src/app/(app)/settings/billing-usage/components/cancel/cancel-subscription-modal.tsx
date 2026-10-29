@@ -16,20 +16,20 @@ import { graphql } from 'react-relay';
 import type { cancelSubscriptionModalQuery as CancelSubscriptionModalQueryType } from '@/__generated__/cancelSubscriptionModalQuery.graphql';
 import { ContentErrorBoundary, QueryIsland } from '@/app/components/shared';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
-import { CancellationEffectiveDate } from './cancellation-effective-date';
+import { CancellationTerms } from './cancellation-terms';
 import { DataLossBox } from './data-loss-box';
 import { DataLossCoreRows } from './data-loss-core-rows';
 
 /**
- * Two parts of the dialog read the server — the date the subscription runs to,
- * and what the workspace loses — with a fixed sentence between them. Each part
+ * Two parts of the dialog read the server — when access ends and what keeps
+ * working until then, and what the workspace loses. Each part
  * is its own island over this one query, so they paint as they resolve and
  * Relay makes one fetch of it. Flagged modules count on their own queries
  * (`DataLossModuleRows`).
  */
 const cancelSubscriptionModalQuery = graphql`
   query cancelSubscriptionModalQuery {
-    ...cancellationEffectiveDate_query
+    ...cancellationTerms_query
     ...dataLossCoreRows_query
   }
 `;
@@ -104,13 +104,9 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
     >
       {/* The facts are context, not a gate: a failed read drops them and the
           cancellation can still be confirmed. */}
-      <ContentErrorBoundary label="CancellationEffectiveDate" fallback={() => <></>}>
-        <CancellationEffectiveDateIsland />
+      <ContentErrorBoundary label="CancellationTerms" fallback={() => <></>}>
+        <CancellationTermsIsland />
       </ContentErrorBoundary>
-      <p className="text-ods-text-primary text-h4">
-        Pay-as-you-go top-ups are disabled immediately. Any usage already accrued will be charged at the end of the
-        billing period.
-      </p>
 
       <DataLossBox>
         <ContentErrorBoundary label="DataLossCoreRows" fallback={() => <></>}>
@@ -154,25 +150,25 @@ function CancelSubscriptionForm({ isPending, onClose, onConfirm }: Omit<CancelSu
   );
 }
 
-/** The date the subscription runs to, with its own boundary: in its scope the reader draws its own loading form. */
-function CancellationEffectiveDateIsland() {
+/** When access ends and what keeps working, with its own boundary: in its scope the reader draws its own loading form. */
+function CancellationTermsIsland() {
   return (
-    <LoadingSuspense label="Loading the end date">
-      <CancellationEffectiveDateReader />
+    <LoadingSuspense label="Loading the cancellation terms">
+      <CancellationTermsReader />
     </LoadingSuspense>
   );
 }
 
-function CancellationEffectiveDateReader() {
-  // In a loading scope (its boundary's fallback) it draws the date with no data and runs no read.
-  if (useLoadingScope()) return <CancellationEffectiveDate query={null} />;
+function CancellationTermsReader() {
+  // In a loading scope (its boundary's fallback) it draws the terms with no data and runs no read.
+  if (useLoadingScope()) return <CancellationTerms query={null} />;
   return (
     <QueryIsland<CancelSubscriptionModalQueryType>
       query={cancelSubscriptionModalQuery}
       variables={{}}
       fetchPolicy="store-or-network"
     >
-      {data => <CancellationEffectiveDate query={data} />}
+      {data => <CancellationTerms query={data} />}
     </QueryIsland>
   );
 }

@@ -47,9 +47,6 @@ interface TenantDetailContentProps {
   loading?: boolean;
 }
 
-/** The two entries the header settles into — the placeholders are sized off them. */
-const LOADING_ACTIONS: PageActionButton[] = [{ label: 'Reconnect' }, { label: 'Edit Integration' }];
-
 const BODY_CLASS = 'flex flex-1 flex-col gap-[var(--spacing-system-l)]';
 
 /**
@@ -69,14 +66,14 @@ export function TenantDetailContent({ loading = false, ...props }: TenantDetailC
  * both states share, and does not fetch. Under the card it draws the integration section of a connected tenant (the
  * typical record); a tenant still to connect replaces it with the consent hand-off on arrival.
  *
- * The actions are placeholders: Reconnect and Edit are links to a record the query has not confirmed yet — an
- * unknown id settles into "Tenant not found" with no actions.
+ * The actions are the page's own, inert: Reconnect and Edit are links to a record the query has not confirmed yet —
+ * an unknown id settles into "Tenant not found" with no actions.
  */
 function TenantDetailContentReader(props: TenantDetailContentProps) {
   if (useLoadingScope()) {
     return (
       <>
-        <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={LOADING_ACTIONS} loadingActions />
+        <TenantDetailTitle title={TENANT_DETAIL_TITLE} loading actions={props.actions} loadingActions />
         <LoadingScope className={BODY_CLASS}>
           <TenantSummaryCard connection={null} />
           {/* The connected tenant's section: most records on this page are connected. */}
