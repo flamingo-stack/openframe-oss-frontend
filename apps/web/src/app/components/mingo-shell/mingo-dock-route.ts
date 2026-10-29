@@ -59,10 +59,8 @@ export function isSheetRoute(route: ComposerRoute): boolean {
 }
 
 /**
- * Where the sheet may be up: every sheet route, and home — "What to ask Mingo?" shows its
- * suggestions there in a chat not created yet, which has no chat page to go to (the pick
- * that creates it then follows it there), and a chat page collapses back to home when
- * it has no other page to go to. A send from home itself never opens it.
+ * Where the sheet may be up: every sheet route, and home — a chat page collapses back to
+ * home when it has no other page to go to. A send from home itself never opens it.
  */
 export function canShowSheet(route: ComposerRoute): boolean {
   return isSheetRoute(route) || route === 'home';

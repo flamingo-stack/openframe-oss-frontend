@@ -256,7 +256,7 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where a login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: greeting, Needs you, the same sections) and `/onboarding` forwards to `/mingo`
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where an OSS login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: Needs you, the same sections), the sidebar's Dashboard, and `/onboarding` forwards to `/mingo`
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
 - **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`, Schedules under `/scripts/schedules/*` (not feature-flagged)
@@ -275,9 +275,10 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 
 ### Mingo-first Shell (SaaS tenants)
 
-A SaaS tenant lands on its dashboard (`/dashboard`), "New chat" opens Mingo's home (`/mingo`: the greeting
-over the composer, its quick actions and "What to ask Mingo?"), chats are pages, and the composer is docked under
-every page.
+A SaaS tenant lands on Mingo's home, a new chat (`getLandingPath()` in `lib/app-mode.ts`: `/`, a login, an
+authenticated `/auth`; the dashboard is the sidebar's), which "New chat" (at the head of the sidebar's chat history) also
+opens (`/mingo`: the greeting and a "What to ask Mingo?" button over the composer and its quick
+actions; the history's ⋯ has it too), chats are pages, and the composer is docked under every page (not on a phone, below).
 An OSS tenant has no Mingo and keeps the dashboard shell (flat sidebar, desktop header, onboarding).
 There is no switch between the two: `AppShell` picks by `isSaasTenantMode()`, known before the first
 paint, so nothing waits for a flag and no page shows a loader on the way.
@@ -289,7 +290,9 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   read, no URL changes), else on its chat page; a link to one is `mingoDialogLink(id)`. "Start
   a new chat", a prompt, a draft or an open goes through the launcher store
   (`mingo-launcher-store.ts`), which the dock drains; a draft fills the composer of the page it
-  was raised on.
+  was raised on. "What to ask Mingo?" is the full chat at once (`routes.mingo.whatToAsk`,
+  `/mingo/chat?view=what-to-ask`): its suggestions in a new chat on the chat page, shown on every
+  arrival (a reload included), and the page becomes `?id=` of the chat a pick creates.
 - **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
   `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
   watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is
@@ -323,11 +326,12 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   until the sheet closes; its × ("Close chat") goes to that page without the sheet, the chat left behind it. The chat behind the pages survives a
   reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
   `localStorage` convenience.
-- **Under a page's action bar (a phone or a tablet)** the composer folds into a draggable button
-  (`MingoDockWidget`, `mingo-dock-widget.tsx`) while the page draws `PageActions`' window-pinned bar
-  (`useMobileActionBarHeight()` from the lib): two bottom bars took a third of the screen. A tap opens the
-  composer under the bar; its ×, a tap outside the chat or another page folds it back. The sheet over the
-  page hides the bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by the bar's height.
+- **A phone (below md) has no composer under its pages**: the dock hides there in CSS (`max-md:hidden`),
+  still mounted, except on Mingo's home and the chat page, which are the chat already. The chat is asked for
+  from the top bar's Mingo button (on a page; its × closes it), the drawer's history and New chat, or a
+  notification, and always takes the screen: the sheet with no resize tab over the whole layer, the composer
+  under it. A draft raised on a page opens it too, so it lands where it can be seen. The sheet hides the
+  page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
   entry. A session that owes its setup lands on the bare `/setup` wizard instead of
   `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a

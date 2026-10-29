@@ -32,8 +32,11 @@ export type ChatPageStatus = 'starting' | 'ready' | 'not-found' | 'failed';
  *   before this page.
  * - **Not found** is latched while rendering: the session toasts it and drops the
  *   selection right after, so the error is visible for a single state.
+ * - **No id** (`null`, "What to ask Mingo?"): a chat not created yet. Nothing is written
+ *   (the dock opens the new chat); it has landed once nothing is selected, and the chat
+ *   a pick creates then becomes the page's `?id`.
  */
-export function useChatPageSelection(dialogId: string, chat: MingoChatState | null): ChatPageStatus {
+export function useChatPageSelection(dialogId: string | null, chat: MingoChatState | null): ChatPageStatus {
   const router = useRouter();
   const selectDialog = chat?.state.selectDialog;
   // `undefined`: no running state to read a selection from.
@@ -41,19 +44,25 @@ export function useChatPageSelection(dialogId: string, chat: MingoChatState | nu
   const dialogError = chat?.dialogError ?? null;
 
   const [notFoundId, setNotFoundId] = useState<string | null>(null);
-  if (dialogError === MINGO_DIALOG_NOT_FOUND && activeDialogId === dialogId && notFoundId !== dialogId) {
+  if (
+    dialogId !== null &&
+    dialogError === MINGO_DIALOG_NOT_FOUND &&
+    activeDialogId === dialogId &&
+    notFoundId !== dialogId
+  ) {
     setNotFoundId(dialogId);
   }
-  const notFound = notFoundId === dialogId;
+  const notFound = dialogId !== null && notFoundId === dialogId;
 
   const appliedIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectDialog || appliedIdRef.current === dialogId) return;
+    if (dialogId === null || !selectDialog || appliedIdRef.current === dialogId) return;
     appliedIdRef.current = dialogId;
     selectDialog(dialogId);
   }, [dialogId, selectDialog]);
 
-  const landedIdRef = useRef<string | null>(null);
+  // `undefined`: nothing has landed yet (`null` is the new chat's landing).
+  const landedIdRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (activeDialogId === undefined) return;
     if (activeDialogId === dialogId) {
@@ -67,5 +76,5 @@ export function useChatPageSelection(dialogId: string, chat: MingoChatState | nu
 
   if (notFound) return 'not-found';
   if (activeDialogId !== dialogId) return 'starting';
-  return dialogError ? 'failed' : 'ready';
+  return dialogError && dialogId !== null ? 'failed' : 'ready';
 }

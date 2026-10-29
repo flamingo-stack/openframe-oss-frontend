@@ -115,8 +115,8 @@ export function useOpenframeChatProps({
     dialogStatusOf,
     // One page of the dialog list: the conversation lists' loading state draws this many rows.
     historyPageSize: MINGO_DIALOGS_PAGE_SIZE,
-    // "What to ask Mingo?" answers in the chat (the open one, else a new one) with
-    // prompts that go into the composer, naming online devices.
+    // "What to ask Mingo?" answers in a new chat with prompts that go into the
+    // composer, naming online devices.
     whatToAsk: loadWhatToAsk,
     // Signed-in user's name for the header sub-line under the chat title.
     // Fallback for the lib's server identity when the tenant identity route

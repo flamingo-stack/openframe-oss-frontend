@@ -10,6 +10,7 @@ vi.mock('./platform', async importOriginal => ({
 
 import {
   getDefaultRedirectPath,
+  getLandingPath,
   isLoginOnlyMobileShell,
   isMobileAuthLoginOnly,
   isRouteAllowedInCurrentMode,
@@ -79,18 +80,20 @@ describe('the mode allowlist in saas-shared mode', () => {
   });
 });
 
-/** Where `/` lands: the dashboard, the Mingo-first shell's on a SaaS tenant. */
+/** Where `/` and a login land: Mingo's new chat on a SaaS tenant, the dashboard on an OSS one. */
 describe('the default landing page', () => {
   afterEach(() => setEnv('NEXT_PUBLIC_APP_MODE', undefined));
 
-  it('is the dashboard on a SaaS tenant', () => {
+  it("is Mingo's new chat on a SaaS tenant", () => {
     setEnv('NEXT_PUBLIC_APP_MODE', 'saas-tenant');
-    expect(getDefaultRedirectPath(true)).toBe('/dashboard');
+    expect(getDefaultRedirectPath(true)).toBe('/mingo');
+    expect(getLandingPath()).toBe('/mingo');
   });
 
   it('is the dashboard on an OSS tenant, once signed in', () => {
     setEnv('NEXT_PUBLIC_APP_MODE', 'oss-tenant');
     expect(getDefaultRedirectPath(true)).toBe('/dashboard');
+    expect(getLandingPath()).toBe('/dashboard');
     expect(getDefaultRedirectPath(false)).toBe('/auth');
   });
 });

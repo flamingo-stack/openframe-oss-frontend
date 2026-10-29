@@ -25,8 +25,8 @@ export type MingoDockRequest =
  *     AI" on a create button): the server greets in it, nothing is sent;
  *   - `openDialog(id)` — an existing chat, over the page it was asked from (a notification,
  *     "Open Mingo Session"), as the classic shell's drawer opened it;
- *   - `showWhatToAsk()` — "What to ask Mingo?" (home's quick actions, the chat history's ⋯):
- *     the suggestions in the open chat, or a new one, over the page.
+ *   - `showWhatToAsk()` — "What to ask Mingo?" (the chat history's ⋯): the suggestions in
+ *     a new chat, on its own page, the full chat (`routes.mingo.whatToAsk`).
  *
  * Each queues ONE `dockRequest`, replacing a pending one, and the dock drains it
  * (`useComposerLauncherDrain`). A request raised before the dock mounts waits for it.

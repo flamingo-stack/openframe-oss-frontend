@@ -19,7 +19,7 @@ vi.mock('../hooks/use-mingo-dialog-selection', () => ({ MINGO_DIALOG_NOT_FOUND: 
 
 const selectDialog = vi.fn<(id: string | null) => void>();
 
-function Page({ dialogId, chat }: { dialogId: string; chat: MingoChatState | null }) {
+function Page({ dialogId, chat }: { dialogId: string | null; chat: MingoChatState | null }) {
   return <p>{useChatPageSelection(dialogId, chat)}</p>;
 }
 
@@ -108,6 +108,36 @@ describe('useChatPageSelection', () => {
     render(<Page dialogId="d-gone" chat={chatWith(null)} />);
     expect(status()).toBe('not-found');
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  describe('with no id ("What to ask Mingo?", a chat not created yet)', () => {
+    it('writes no selection, and is ready once nothing is selected', () => {
+      render(<Page dialogId={null} chat={chatWith('d-before')} />);
+      expect(status()).toBe('starting');
+      render(<Page dialogId={null} chat={chatWith(null)} />);
+      expect(status()).toBe('ready');
+      expect(selectDialog).not.toHaveBeenCalled();
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it('does not follow the chat open before it, nor send the new chat home', () => {
+      render(<Page dialogId="d-1" chat={chatWith('d-1')} />);
+      // "What to ask Mingo?" from that chat page: the same page, its id gone.
+      render(<Page dialogId={null} chat={chatWith('d-1')} />);
+      render(<Page dialogId={null} chat={chatWith(null)} />);
+      expect(replace).not.toHaveBeenCalled();
+    });
+
+    it('becomes the page of the chat a pick creates', () => {
+      render(<Page dialogId={null} chat={chatWith(null)} />);
+      render(<Page dialogId={null} chat={chatWith('d-new')} />);
+      expect(replace).toHaveBeenCalledWith(routes.mingo.chat('d-new'));
+    });
+
+    it('is ready whatever error the session holds for the chat before it', () => {
+      render(<Page dialogId={null} chat={chatWith(null, 'Network error')} />);
+      expect(status()).toBe('ready');
+    });
   });
 
   it('keeps the selection of a dialog that failed to load, for a retry', () => {

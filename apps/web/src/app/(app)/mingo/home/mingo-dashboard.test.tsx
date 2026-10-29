@@ -1,5 +1,5 @@
 /**
- * The Mingo-first dashboard: what it renders (greeting, "Needs you", the dashboard's sections — Tickets
+ * The Mingo-first dashboard: what it renders ("Needs you", the dashboard's sections — Tickets
  * on SaaS only, with filtered links, Incidents between Tickets and Customers). The quick
  * actions are the dock's (`mingo-dock-quick-actions.test.tsx`).
  */
@@ -15,12 +15,6 @@ vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<object>()),
   isSaasTenantMode: () => isSaas.value,
 }));
-vi.mock('@/app/(auth)/auth/stores/auth-store', () => ({
-  useAuthStore: (selector: (state: { user: { firstName: string } }) => unknown) =>
-    selector({ user: { firstName: 'Ann' } }),
-}));
-// 09:30 local time.
-vi.mock('@/app/hooks/use-now', () => ({ useNow: () => new Date(2026, 9, 16, 9, 30).getTime() }));
 vi.mock('@/app/(app)/onboarding/components/initial-setup-card', () => ({
   InitialSetupCard: () => <p>setup card</p>,
   InitialSetupSkeleton: () => null,
@@ -73,9 +67,10 @@ async function renderHome() {
 }
 
 describe('MingoDashboard', () => {
-  it('greets by first name and part of the day', async () => {
+  it("has no greeting: that is the new chat's, where a session starts", async () => {
     await renderHome();
-    expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
+    expect(container.querySelector('h1')).toBeNull();
+    expect(container.textContent).not.toContain('Morning');
   });
 
   it("renders the dashboard's sections, tickets with filtered links, and no Initial Setup card", async () => {
@@ -87,12 +82,11 @@ describe('MingoDashboard', () => {
     expect(text).toContain('customers section');
   });
 
-  it('puts Needs you under the greeting, and Incidents between Tickets and Customers', async () => {
+  it('puts Needs you first, and Incidents between Tickets and Customers', async () => {
     await renderHome();
     const blocks = Array.from(container.querySelectorAll('h1, p')).map(node => node.textContent);
     const at = (label: string) => blocks.findIndex(text => text?.startsWith(label));
-    expect(at('Morning, Ann')).toBe(0);
-    expect(at('needs you card')).toBe(1);
+    expect(at('needs you card')).toBe(0);
     expect(at('devices section')).toBeGreaterThan(at('needs you card'));
     expect(at('tickets section')).toBeLessThan(at('incidents section'));
     expect(at('incidents section')).toBeLessThan(at('customers section'));

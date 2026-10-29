@@ -11,6 +11,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
+import { routes } from '@/lib/routes';
 import ApprovalsPage from './approvals/page';
 import Dashboard from './dashboard/page';
 import MingoArchivePage from './mingo/archive/page';
@@ -35,7 +36,7 @@ vi.mock('@/app/(app)/onboarding/components/onboarding-content', () => ({ Onboard
 vi.mock('@/app/(app)/mingo/home/mingo-new-chat', () => ({ MingoNewChat: () => <p>new chat</p> }));
 vi.mock('@/app/(app)/mingo/home/mingo-dashboard', () => ({ MingoDashboard: () => <p>mingo dashboard</p> }));
 vi.mock('@/app/(app)/mingo/chat/mingo-chat-view', () => ({
-  MingoChatView: ({ dialogId }: { dialogId: string }) => <p>chat {dialogId}</p>,
+  MingoChatView: ({ dialogId }: { dialogId: string | null }) => <p>chat {dialogId ?? 'new'}</p>,
 }));
 vi.mock('@/app/(app)/mingo/archive/mingo-archive-view', () => ({
   MingoArchiveView: () => <p>archive</p>,
@@ -79,7 +80,7 @@ describe('a SaaS tenant', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it("renders the Mingo-first shell's dashboard, where a login lands", () => {
+  it("renders the Mingo-first shell's dashboard (the sidebar's; a login lands on Mingo's home)", () => {
     renderAt('/dashboard', Dashboard, true);
     expect(container.textContent).toBe('mingo dashboard');
     expect(replace).not.toHaveBeenCalled();
@@ -100,6 +101,12 @@ describe('a SaaS tenant', () => {
   it('sends a chat link without an id to Mingo home', () => {
     renderAt('/mingo/chat', MingoChatPage, true);
     expect(replace).toHaveBeenCalledWith('/mingo');
+  });
+
+  it('draws "What to ask Mingo?" as a new chat on the chat page', () => {
+    renderAt(routes.mingo.whatToAsk, MingoChatPage, true);
+    expect(container.textContent).toBe('chat new');
+    expect(replace).not.toHaveBeenCalled();
   });
 });
 

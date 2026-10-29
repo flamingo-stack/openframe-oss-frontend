@@ -23,11 +23,11 @@ export function headerLoadingCells(): HeaderLoadingCell[] {
  * The same for the Mingo-first shell, whose header is the phone top bar only
  * (`desktopHeader: false`): the Chat history cell first (a `start` custom cell,
  * `'icon-max-md'` like every phone-only cell), then the time tracker and
- * notifications. No Mingo launcher: the composer is docked under every page, and
- * Mingo's home is the drawer's "New chat".
+ * notifications, and on a page the Mingo button at the end (an icon on a phone):
+ * a phone has no composer under its pages. Mingo's home and the chat page have none.
  */
-export function mingoHeaderLoadingCells(): HeaderLoadingCell[] {
-  return ['icon-max-md', 'icon', 'icon'];
+export function mingoHeaderLoadingCells(withMingo: boolean): HeaderLoadingCell[] {
+  return withMingo ? ['icon-max-md', 'icon', 'icon', 'icon'] : ['icon-max-md', 'icon', 'icon'];
 }
 
 /**
@@ -65,9 +65,10 @@ export function isBareChromeRoute(pathname: string | null): boolean {
 }
 
 /**
- * Where a session starts - the dashboard (where a login lands), and Mingo's home (a new
- * chat, where the Mingo-first shell's setup ends). The pages the onboarding redirect
- * moves away from; nothing deeper.
+ * Where a session starts (`getLandingPath`) - Mingo's home on a SaaS tenant (a new chat,
+ * where a login lands and the Mingo-first shell's setup ends), the dashboard on an OSS one -
+ * and the SaaS dashboard beside it. The pages the onboarding redirect moves away from;
+ * nothing deeper.
  */
 export function isLandingRoute(pathname: string | null): boolean {
   return pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/mingo' || pathname === '/mingo/';

@@ -8,6 +8,7 @@ interface SheetProps {
   open: boolean;
   height: number | null;
   defaultShare?: number;
+  resizable?: boolean;
 }
 const sheet = { props: null as SheetProps | null };
 const viewport = { mdUp: true as boolean | undefined };
@@ -60,11 +61,13 @@ describe('MingoComposerSheet height', () => {
     expect(sheet.props?.height).toBe(640);
   });
 
-  it('opens at a share of the screen on a phone', () => {
+  it('takes the whole screen on a phone, with no resize tab, whatever height was dragged', () => {
     viewport.mdUp = false;
+    useMingoSheetStore.setState({ height: 640 });
     render();
     expect(sheet.props?.height).toBeNull();
-    expect(sheet.props?.defaultShare).toBe(0.88);
+    expect(sheet.props?.defaultShare).toBe(1);
+    expect(sheet.props?.resizable).toBe(false);
   });
 });
 

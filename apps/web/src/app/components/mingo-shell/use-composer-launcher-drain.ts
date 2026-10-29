@@ -31,6 +31,10 @@ interface ComposerLauncherDrainOptions {
   selectDialog: (dialogId: string) => void;
   /** Raise the chat over the page (`useMingoSheetStore.show`). */
   openSheet: () => void;
+  /** The chat page is "What to ask Mingo?" (`routes.mingo.whatToAsk`). */
+  whatToAskPage: boolean;
+  /** A phone: no composer under its pages, so a draft there raises the chat to show it. */
+  phone: boolean;
   navigate: (href: string) => void;
 }
 
@@ -43,16 +47,18 @@ interface ComposerLauncherDrainOptions {
  *    home is a new chat, and the chat page re-selects its `?id=` (it would take the new
  *    chat back before it is left, and draw the empty new chat on its way out). The
  *    request waits until the dock is there; the way home does not wait for the chat
- *    module to load;
+ *    module to load. A phone has no composer under its pages: there the new chat
+ *    rises over the page, the draft in its composer;
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
  *    which then opens over the page, home included (`useComposerTarget`);
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
  *    Mingo greets in it, nothing is sent — and opens it as a prompt does;
  *  - an existing chat (a notification, "Open Mingo Session", the sidebar's history) opens
  *    over the page, home included; from the chat page, on its own page;
- *  - "What to ask Mingo?" puts the suggestions in the open chat, or a new one, and shows
- *    it: over the page or home (the sheet), in place on the chat page. The suggestions
- *    are local until one is picked, so home cannot send them to a chat page of their own.
+ *  - "What to ask Mingo?" goes to its own page, the full chat (`routes.mingo.whatToAsk`),
+ *    which shows the suggestions in a new chat each time it is arrived at (a reload
+ *    included); asked for there, it shows a fresh set in place. The pick creates the
+ *    chat, and the page becomes its page.
  */
 export function useComposerLauncherDrain({
   handle,
@@ -61,6 +67,8 @@ export function useComposerLauncherDrain({
   createIntentDialog,
   selectDialog,
   openSheet,
+  whatToAskPage,
+  phone,
   navigate,
 }: ComposerLauncherDrainOptions): void {
   const dockRequest = useMingoLauncherStore(s => s.dockRequest);
@@ -70,6 +78,11 @@ export function useComposerLauncherDrain({
 
   useEffect(() => {
     if (!dockRequest) return;
+    if (dockRequest.kind === 'whatToAsk' && !whatToAskPage) {
+      consumeDockRequest();
+      navigate(routes.mingo.whatToAsk);
+      return;
+    }
     if (dockRequest.kind === 'open') {
       consumeDockRequest();
       if (route !== 'chat') {
@@ -81,8 +94,8 @@ export function useComposerLauncherDrain({
       return;
     }
     // A prompt and an intent create their chat at once, from wherever they were raised;
-    // a draft fills the composer of the page it was raised on; the suggestions show where
-    // they were asked for.
+    // a draft fills the composer of the page it was raised on; the suggestions show on
+    // their page, which this is by now.
     const inPlace =
       dockRequest.kind === 'prompt' ||
       dockRequest.kind === 'intent' ||
@@ -100,12 +113,11 @@ export function useComposerLauncherDrain({
     if (!request) return;
     if (request.kind === 'prompt') void sendInNewDialog(request.prompt);
     else if (request.kind === 'intent') void createIntentDialog(request.intent);
-    else if (request.kind === 'draft') handle.prefillDraft(request.draft);
-    else if (request.kind === 'newChat') handle.startNewChat();
-    else if (request.kind === 'whatToAsk') {
-      handle.showWhatToAsk();
-      if (route !== 'chat') openSheet();
-    }
+    else if (request.kind === 'draft') {
+      handle.prefillDraft(request.draft);
+      if (phone && isSheetRoute(route)) openSheet();
+    } else if (request.kind === 'newChat') handle.startNewChat();
+    else if (request.kind === 'whatToAsk') handle.showWhatToAsk();
   }, [
     dockRequest,
     handle,
@@ -114,7 +126,22 @@ export function useComposerLauncherDrain({
     createIntentDialog,
     selectDialog,
     openSheet,
+    whatToAskPage,
+    phone,
     route,
     navigate,
   ]);
+
+  // Arriving at "What to ask Mingo?" shows its suggestions, once per visit: the way there
+  // from a launcher, a reload, a link. Its own requests there are served above.
+  const whatToAskShownRef = useRef(false);
+  useEffect(() => {
+    if (!whatToAskPage) {
+      whatToAskShownRef.current = false;
+      return;
+    }
+    if (!handle || whatToAskShownRef.current) return;
+    whatToAskShownRef.current = true;
+    handle.showWhatToAsk();
+  }, [whatToAskPage, handle]);
 }

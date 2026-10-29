@@ -12,7 +12,7 @@ import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 /**
  * Where the sheet opens on a desktop until the user drags it elsewhere: tall enough for a
  * few turns of the chat, short enough to leave the page's top in view. Clamped to the room
- * there is. A phone opens it at a share of the screen instead.
+ * there is. A phone gives it the whole screen instead.
  */
 export const SHEET_DEFAULT_HEIGHT = 500;
 
@@ -42,11 +42,12 @@ function escapeIsTaken(): boolean {
  * It closes with its ×, the scrim, Esc (unless a menu or a draft takes it) and
  * Android back, and on any navigation — the next page is a different context;
  * "Continue" brings it back. On every page but the chat page, which is the thread
- * itself: over Mingo's home only when asked there ("What to ask Mingo?", a chat
- * collapsed back from its page). It also tells the store which page the chat page
- * collapses back to (`lastPage`). Full width on a phone, the composer card's
- * width elsewhere (its edges meet the composer's); `SHEET_DEFAULT_HEIGHT` tall on a desktop until dragged, the
- * dragged height after that.
+ * itself: over Mingo's home only for a chat collapsed back from its page. It also tells the store which page the chat page
+ * collapses back to (`lastPage`). On a phone it takes the screen, the whole layer
+ * and no resize tab: the chat is asked for there from the top bar's Mingo button and
+ * the drawer, with no composer under the page. Elsewhere the composer card's width (its
+ * edges meet the composer's), `SHEET_DEFAULT_HEIGHT` tall until dragged, the dragged
+ * height after that.
  */
 export function MingoComposerSheet() {
   const pathname = usePathname();
@@ -91,10 +92,11 @@ export function MingoComposerSheet() {
     <ComposerSheet
       open={shown}
       onDismiss={hide}
-      height={height ?? (phone ? null : SHEET_DEFAULT_HEIGHT)}
+      height={phone ? null : (height ?? SHEET_DEFAULT_HEIGHT)}
       onHeightChange={setHeight}
       onResetHeight={resetHeight}
-      defaultShare={0.88}
+      defaultShare={1}
+      resizable={!phone}
       className={phone ? undefined : SHEET_WIDTH_CLASS_NAME}
       aria-label="Mingo chat"
     >

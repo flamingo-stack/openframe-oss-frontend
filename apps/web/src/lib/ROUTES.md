@@ -62,9 +62,9 @@ path constant. Each builder writes only params its page already reads from the U
 
 **App-mode routes.** `routes.mingo.*` and `routes.approvals` exist on a SaaS tenant
 (Mingo-first shell); an OSS tenant has no Mingo, and its pages redirect — `/mingo/*`
-→ `/dashboard`, `/approvals` → `/notifications`. On a SaaS tenant `/dashboard` is the
-Mingo-first shell's dashboard (where a login lands), `/mingo` a new chat, and `/onboarding`
-forwards to `/mingo`. App mode is synchronous, so nothing waits.
+→ `/dashboard`, `/approvals` → `/notifications`. On a SaaS tenant `/mingo` is a new chat and
+where a session starts (`getLandingPath`), `/dashboard` the Mingo-first shell's dashboard (the
+sidebar's Dashboard), and `/onboarding` forwards to `/mingo`. App mode is synchronous, so nothing waits.
 
 Usage at call sites:
 

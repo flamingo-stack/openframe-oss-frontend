@@ -27,8 +27,9 @@ import { useChatPageSelection } from './use-chat-page-selection';
  * it (popups and auto-read for that chat), and owns the states the chat cannot show
  * itself: a dialog that does not exist, one that failed to load, a crashed session.
  * An archived chat opens read-only — the chat does that from the dialog's record.
+ * `null`: a chat not created yet ("What to ask Mingo?"), the page of the one it creates next.
  */
-export function MingoChatView({ dialogId }: { dialogId: string }) {
+export function MingoChatView({ dialogId }: { dialogId: string | null }) {
   // A surface: the page shows the chat, so the session runs while it is up even
   // before the dock registers.
   const { chat, error, retry: restartChat } = useMingoChatSurface();
@@ -65,7 +66,7 @@ export function MingoChatView({ dialogId }: { dialogId: string }) {
     );
   }
 
-  if (status === 'failed') {
+  if (status === 'failed' && dialogId !== null) {
     const retry = () => {
       void queryClient.refetchQueries({ queryKey: mingoDialogQueryKeys.detail(dialogId) });
       void queryClient.refetchQueries({ queryKey: mingoDialogQueryKeys.messages(dialogId) });

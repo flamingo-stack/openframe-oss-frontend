@@ -1,15 +1,14 @@
 /**
- * The Mingo rows on top of the Mingo-first sidebar are the lib's action rows: "New chat"
- * (outline) asks the dock for a new chat on home, "Dashboard" links to the dashboard,
- * "Needs approval" to its page with the pending count, each with the active pill on its
- * page. All close the phone drawer they may sit in.
+ * The Mingo rows on top of the Mingo-first sidebar are the lib's action rows: "Dashboard"
+ * links to the dashboard, "Needs approval" to its page with the pending count, each with
+ * the active pill on its page. Both close the phone drawer they may sit in. "New chat"
+ * is not one of them: it heads the chat history (`MingoNewChatRow`).
  */
 
 import type { NavigationSidebarActionRowProps } from '@flamingo-stack/openframe-frontend-core/components/navigation';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { routes } from '@/lib/routes';
 import { MingoSidebarRows } from './mingo-sidebar-rows';
 import { useMobileMenuStore } from './mobile-menu-store';
@@ -39,7 +38,7 @@ function render(props: { minimized?: boolean; disabled?: boolean } = {}) {
     if (!row) throw new Error(`no "${label}" row`);
     return row;
   };
-  return { newChat: byLabel('New chat'), dashboard: byLabel('Dashboard'), approvals: byLabel('Needs approval') };
+  return { dashboard: byLabel('Dashboard'), approvals: byLabel('Needs approval') };
 }
 
 beforeEach(() => {
@@ -47,7 +46,6 @@ beforeEach(() => {
   nav.pathname = '/devices';
   nav.pending = 0;
   useMobileMenuStore.setState({ open: false });
-  useMingoLauncherStore.setState({ dockRequest: null });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -59,12 +57,10 @@ afterEach(() => {
 });
 
 describe('MingoSidebarRows', () => {
-  it('draws New chat as the outline action and Needs approval as a link with its count', () => {
+  it('draws Needs approval as a link with its count', () => {
     nav.pending = 3;
-    const { newChat, approvals } = render({ minimized: true });
+    const { approvals } = render({ minimized: true });
 
-    expect(newChat).toMatchObject({ variant: 'outline', minimized: true, disabled: false });
-    expect(newChat.href).toBeUndefined();
     expect(approvals).toMatchObject({ href: routes.approvals, count: 3, active: false, minimized: true });
   });
 
@@ -73,24 +69,13 @@ describe('MingoSidebarRows', () => {
     expect(render().approvals.active).toBe(true);
   });
 
-  it('puts Dashboard between New chat and Needs approval, lit on the dashboard', () => {
+  it('draws Dashboard then Needs approval, with no New chat, Dashboard lit on the dashboard', () => {
     nav.pathname = '/dashboard/';
     const { dashboard } = render();
 
-    expect(rows.map(row => row.label)).toEqual(['New chat', 'Dashboard', 'Needs approval']);
+    expect(rows.map(row => row.label)).toEqual(['Dashboard', 'Needs approval']);
     expect(dashboard).toMatchObject({ href: routes.dashboard, active: true });
     expect(render().approvals.active).toBe(false);
-  });
-
-  it('asks the dock for a new chat (it goes home first) and closes the phone drawer', () => {
-    nav.pathname = routes.mingo.chat('d-1');
-    const { newChat } = render();
-    useMobileMenuStore.setState({ open: true });
-
-    act(() => newChat.onClick?.({} as never));
-
-    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'newChat' });
-    expect(useMobileMenuStore.getState().open).toBe(false);
   });
 
   it('closes the phone drawer from Needs approval, also on its own page', () => {
@@ -103,8 +88,7 @@ describe('MingoSidebarRows', () => {
   });
 
   it('disables every row behind the lock', () => {
-    const { newChat, dashboard, approvals } = render({ disabled: true });
-    expect(newChat.disabled).toBe(true);
+    const { dashboard, approvals } = render({ disabled: true });
     expect(dashboard.disabled).toBe(true);
     expect(approvals.disabled).toBe(true);
   });

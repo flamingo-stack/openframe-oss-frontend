@@ -338,6 +338,21 @@ describe('MingoHistorySearch', () => {
 });
 
 describe('MingoSidebarHistorySlot', () => {
+  it('heads the chats with New chat, which asks the dock for a new chat and closes the phone drawer', () => {
+    seen.mingo = session();
+    useMobileMenuStore.setState({ open: true });
+    act(() => root.render(<MingoSidebarHistorySlot minimized={false} />));
+
+    const buttons = Array.from(container.querySelectorAll('button'));
+    const newChat = container.querySelector<HTMLButtonElement>('button[aria-label="New chat"]');
+    // Before the rail's Chats row and the section: the first thing in the slot.
+    expect(buttons[0]).toBe(newChat);
+
+    act(() => newChat?.click());
+    expect(useMingoLauncherStore.getState().dockRequest).toEqual({ kind: 'newChat' });
+    expect(useMobileMenuStore.getState().open).toBe(false);
+  });
+
   it('stands a Chats row in for the section in the rail, which opens the chat search', () => {
     seen.mingo = session();
     act(() => root.render(<MingoSidebarHistorySlot minimized />));

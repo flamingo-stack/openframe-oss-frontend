@@ -1,13 +1,17 @@
 'use client';
 
 import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
+import { MingoLogoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { routes } from '@/lib/routes';
 import { useGreeting } from './mingo-home-greeting';
 
 /**
- * Mingo's home (`/mingo`), what "New chat" opens: the greeting in the middle of the page,
- * and under the page the shell's docked composer with Mingo's quick actions and "What to
- * ask Mingo?" over it (`MingoDockQuickActions`), always on a new chat. The fleet overview
- * is the dashboard's (`MingoDashboard`).
+ * Mingo's home (`/mingo`), what "New chat" opens: the greeting in the middle of the page
+ * and "What to ask Mingo?" under it (the full chat with its suggestions), and under the
+ * page the shell's docked composer with Mingo's quick actions over it
+ * (`MingoDockQuickActions`), always on a new chat. The fleet overview is the dashboard's
+ * (`MingoDashboard`).
  */
 export function MingoNewChat() {
   const greeting = useGreeting();
@@ -24,6 +28,14 @@ export function MingoNewChat() {
       <p className="mt-[var(--spacing-system-xs)] max-w-[560px] text-ods-text-secondary text-h6">
         Start with a quick action, or tell Mingo what needs to happen across your devices.
       </p>
+      <Button
+        variant="outline"
+        href={routes.mingo.whatToAsk}
+        leftIcon={<MingoLogoIcon />}
+        className="mt-[var(--spacing-system-l)]"
+      >
+        What to ask Mingo?
+      </Button>
     </div>
   );
 }

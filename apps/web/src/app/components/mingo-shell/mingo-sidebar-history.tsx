@@ -21,6 +21,7 @@ import { openMingoDialog } from '../notifications/open-mingo-dialog';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
 import { useHistorySearchStore } from './history-search-store';
+import { MingoNewChatRow } from './mingo-new-chat-row';
 import { closeMobileMenu } from './mobile-menu-store';
 
 const NO_DIALOGS: DialogItem[] = [];
@@ -130,7 +131,7 @@ export function MingoSidebarHistory() {
         onRequestCopyLink={dialog => void copyDialogLink(dialog)}
         onRequestArchive={setArchiveTarget}
         onOpenArchive={() => open(routes.mingo.archive)}
-        // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, over the page.
+        // The design's "What to ask Mingo?" in the history's ⋯: the suggestions, as the full chat.
         onWhatToAsk={() => useMingoLauncherStore.getState().showWhatToAsk()}
         moreMenuItems={
           canResetOnboarding
@@ -221,17 +222,20 @@ function SidebarHistoryModals({
 }
 
 /**
- * The history's place in the sidebar (`sectionSlot`): the section from 140px of width
- * up, and in the 56px rail a "Chats" row that opens the chat search — the whole
- * history by day, and its search. Both stay mounted and the width decides, as for every
- * row; a function slot, so the sidebar leaves the rail to it. The row is lit while a
- * chat page is up (it publishes its node), the one place the rail has nothing else lit.
+ * The chats' place in the sidebar (`sectionSlot`): "New chat" at their head, then the
+ * history section from 140px of width up, and in the 56px rail a "Chats" row that
+ * opens the chat search — the whole history by day, and its search. Both stay mounted
+ * and the width decides, as for every row; a function slot, so the sidebar leaves the
+ * rail to it. The row is lit while a chat page is up (it publishes its node), the one
+ * place the rail has nothing else lit.
  */
 export function MingoSidebarHistorySlot({ minimized }: { minimized: boolean }) {
   const onChatPage = useChatPageNodeStore(s => s.node !== null);
   const setSearchOpen = useHistorySearchStore(s => s.setOpen);
   return (
-    <>
+    // Rows apart as in the tree; the section's caption a step further from New chat.
+    <div className="flex flex-col gap-[var(--spacing-system-xxs)] @[140px]/of-nav-sidebar:gap-[var(--spacing-system-sf)]">
+      <MingoNewChatRow minimized={minimized} />
       <div className="flex flex-col @[140px]/of-nav-sidebar:hidden">
         <NavigationSidebarActionRow
           icon={<ChatsIcon />}
@@ -244,7 +248,7 @@ export function MingoSidebarHistorySlot({ minimized }: { minimized: boolean }) {
       <div className="hidden flex-col duration-300 animate-in fade-in @[140px]/of-nav-sidebar:flex motion-reduce:animate-none">
         <MingoSidebarHistory />
       </div>
-    </>
+    </div>
   );
 }
 

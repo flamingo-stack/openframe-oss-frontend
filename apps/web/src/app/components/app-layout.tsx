@@ -53,7 +53,8 @@ import { useHistorySearchStore } from './mingo-shell/history-search-store';
 import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
-import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
+import { composerRouteOf, dockViewOf, isSheetRoute } from './mingo-shell/mingo-dock-route';
+import { isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
@@ -564,6 +565,15 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
+  // The phone top bar's Mingo button, on a page: a phone has no composer under its
+  // pages, so this is where the chat is asked for. It raises the chat over the page
+  // (the sheet, which takes the screen there) and closes it again. Not on Mingo's home
+  // nor the chat page: they are the chat already.
+  const mingoButton = mingoShell && chatEnabled && !dashboardHeld && isSheetRoute(composerRouteOf(pathname));
+  const sheetUp = useMingoSheetStore(state => isSheetUp(state, pathname));
+  const showSheet = useMingoSheetStore(state => state.show);
+  const hideSheet = useMingoSheetStore(state => state.hide);
+
   const headerProps = useMemo(
     () => ({
       // Placeholder cells until the flags answer — and, as a side effect, until the
@@ -588,14 +598,19 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       ticketAlertsHref: routes.helpCenter.tickets,
       onTicketAlerts: openHelpCenterTickets,
       // The Mingo-first shell draws this header below md only (`desktopHeader`): the
-      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts.
-      // Chat history opens the drawer, where the history section lives (the active
-      // chats, not only the archive). No Mingo button: the composer is docked under
-      // every page, and the drawer's "New chat" goes to Mingo's home.
+      // phone top bar — burger, logo, Chat history, time tracker, bell, ticket alerts,
+      // and on a page Mingo. Chat history opens the drawer, where the history section
+      // lives (the active chats, not only the archive); Mingo raises the chat over the
+      // page, and its × closes it. (`showMingoAI` / `onMingoAI` / `isMingoAIActive` /
+      // `mingoAICloseWhenActive` are core `AppHeader` prop names — external API, not ours.)
       ...(mingoShell && {
-        loadingActionCells: mingoHeaderLoadingCells(),
+        loadingActionCells: mingoHeaderLoadingCells(mingoButton),
         showTimeTracker: isMdUp === false,
         showTicketAlerts: isMdUp === false,
+        showMingoAI: mingoButton,
+        onMingoAI: sheetUp ? hideSheet : showSheet,
+        isMingoAIActive: sheetUp,
+        mingoAICloseWhenActive: true,
         customCells: chatEnabled
           ? [
               {
@@ -610,7 +625,18 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           : [],
       }),
     }),
-    [chromeLoading, chatEnabled, openHelpCenterTickets, mingoShell, isMdUp, setMobileMenuOpen],
+    [
+      chromeLoading,
+      chatEnabled,
+      openHelpCenterTickets,
+      mingoShell,
+      isMdUp,
+      setMobileMenuOpen,
+      mingoButton,
+      sheetUp,
+      showSheet,
+      hideSheet,
+    ],
   );
 
   const mobileBurgerMenuProps = useMemo(

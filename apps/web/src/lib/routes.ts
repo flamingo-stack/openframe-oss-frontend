@@ -193,6 +193,17 @@ export function withMingoDialog(url: string, dialogId: string | null): string {
   return `${path}${serialized ? `?${serialized}` : ''}${hash}`;
 }
 
+/** The chat page's `?view=` for "What to ask Mingo?" ({@link routes.mingo.whatToAsk}). */
+const MINGO_WHAT_TO_ASK_VIEW = 'what-to-ask';
+
+/**
+ * Whether a chat page's query is "What to ask Mingo?" ({@link routes.mingo.whatToAsk}):
+ * the view, and no `?id=` yet — the pick that creates the chat gives it one.
+ */
+export function isMingoWhatToAsk(query: Pick<URLSearchParams, 'get'>): boolean {
+  return query.get('view') === MINGO_WHAT_TO_ASK_VIEW && !query.get('id');
+}
+
 // --------------------------------------------------------------------------
 // The route registry
 // --------------------------------------------------------------------------
@@ -213,7 +224,7 @@ export const routes = {
 
   /** Mingo — a SaaS tenant's (an OSS tenant's pages redirect to `/dashboard`). */
   mingo: {
-    /** Mingo's home — a SaaS tenant's landing page (`/dashboard` redirects here). */
+    /** Mingo's home, a new chat — a SaaS tenant's landing page (`getLandingPath`). */
     home: '/mingo',
     /**
      * One conversation as a page. The dialog id rides `?id=` like every detail page
@@ -221,6 +232,11 @@ export const routes = {
      * is {@link mingoDialogLink}, which builds this.
      */
     chat: (id: string | number) => withQuery('/mingo/chat', { id }),
+    /**
+     * "What to ask Mingo?": its suggestions in a new chat on the chat page, which becomes
+     * that chat's own page ({@link routes.mingo.chat}) once a pick creates it.
+     */
+    whatToAsk: withQuery('/mingo/chat', { view: MINGO_WHAT_TO_ASK_VIEW }),
     /** Archived chats. */
     archive: '/mingo/archive',
   },
