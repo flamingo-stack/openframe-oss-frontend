@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import withBundleAnalyzer from '@next/bundle-analyzer';
 import { withInlineStyles } from '@flamingo-stack/openframe-frontend-core/next-styles';
+import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
