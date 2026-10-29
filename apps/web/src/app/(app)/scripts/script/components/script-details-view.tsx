@@ -77,17 +77,8 @@ function ScriptHeaderLive({ scriptId }: ScriptDetailsViewProps) {
 type ScriptRecord = ScriptDetailQueryType['response']['script'];
 
 /**
- * The header's action placeholders: the square "…" menu trigger an active
- * script carries (its Edit Script entry; most scripts are active), then one
- * label-width slot, which is what the header settles into either way: an
- * active script offers "Run Script", an archived one a single "Unarchive".
- * WHICH is the record's answer, so the slot is a neutral bar.
- */
-const LOADING_ACTIONS: PageActionButton[] = [{ label: '' }, { label: 'Script action' }];
-
-/**
  * The header over the record (`null`: not found). Before it (`script` undefined, or in a loading scope) the same
- * header draws itself: the static title real, Back working, the action slots placeholders.
+ * header draws itself: the static title real, Back working, an active script's actions inert.
  */
 function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { script?: ScriptRecord }) {
   const loading = useLoadingScope() || script === undefined;
@@ -134,10 +125,11 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
   const runHref = routes.scripts.run(scriptId);
 
   // An archived script can't be run or meaningfully edited — the one thing worth
-  // offering is putting it back (design node 1:24107).
+  // offering is putting it back (design node 1:24107). While the record loads the
+  // header draws an active script's set (most scripts are active) and
+  // `loadingActions` keeps it inert until the record answers.
   const actions = useMemo<PageActionButton[]>(() => {
-    if (loading) return LOADING_ACTIONS;
-    if (!script) return [];
+    if (!loading && !script) return [];
     return isArchived
       ? [
           {
@@ -167,7 +159,7 @@ function ScriptHeaderView({ scriptId, script }: ScriptDetailsViewProps & { scrip
 
   const menuActions = useMemo<ActionsMenuGroup[]>(
     () =>
-      loading || !script || isArchived
+      (!loading && !script) || isArchived
         ? []
         : [
             {
