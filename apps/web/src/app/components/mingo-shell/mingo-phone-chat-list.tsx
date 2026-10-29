@@ -41,6 +41,9 @@ export function MingoPhoneChatList() {
       isLoadingMore={loading && state.dialogs.length > 0}
       isLoadingHistory={loading && state.dialogs.length === 0}
       onLoadMore={() => void loadMoreDialogs()}
+      // A page (20) at a time, on "Show more", as the sidebar's history: the list is the
+      // session's, and pages a scroll chained in showed everywhere.
+      loadMore="button"
       pageSize={MINGO_DIALOGS_PAGE_SIZE}
       loadError={chat.dialogsLoadFailed && state.dialogs.length === 0}
       onRetry={state.reloadDialogs}
