@@ -733,7 +733,10 @@ export function TicketsBoard({
         menuActions={menuActions.length > 0 ? menuActions : undefined}
         actionsVariant="menu-primary"
         selector={selector}
-        className="h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
+        // The board runs on under a floating composer dock (`--composer-dock-inset`, the
+        // layout's), its lanes seen beside the composer: `<main>`'s padding by the dock's
+        // height is taken back, and each lane keeps its last card clear of it instead.
+        className="-mb-[var(--composer-dock-inset,0px)] h-[calc(100%+var(--composer-dock-inset,0px))] px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
         contentClassName="flex min-h-0 flex-col"
       >
         {/* Default rich empty state (no data, no query): search + filters are hidden per the
@@ -825,6 +828,7 @@ export function TicketsBoard({
               onApprove={handleApprove}
               onReject={handleReject}
               collapseStorageKey="tickets-board"
+              laneEndInset="var(--composer-dock-inset,0px)"
               className="h-full px-[var(--spacing-system-l)]"
             />
           </div>
