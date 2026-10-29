@@ -40,13 +40,7 @@ import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
 import { ruleKindLabel } from '../../../cloud-tenant-management/utils/tenant-presentation';
 import { multiColumnFilter } from '../../../software/components/shared/column-filters';
-import {
-  lastSignInLabel,
-  orderClaims,
-  topAdminRole,
-  userStatusTag,
-  userStatusTooltip,
-} from '../../utils/user-presentation';
+import { lastSignInLabel, topAdminRole, userStatusTag, userStatusTooltip } from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
 import { CustomerCell, DevicesCell, LicensesCell, StatusCell, UserCell, type UserRow } from './user-row-cells';
 import { CUSTOMER_USER_COLUMNS, USER_COLUMNS, USERS_PAGE_SIZE } from './users-columns';
@@ -96,9 +90,6 @@ const directoryUsersTableFragment = graphql`
           licenses {
             name
           }
-          primaryCustomer {
-            organizationId
-          }
           customers {
             organization {
               organizationId
@@ -127,9 +118,8 @@ const directoryUsersTableFragment = graphql`
             }
             devices {
               managed {
-                machine {
+                directoryDevice {
                   displayName
-                  hostname
                 }
               }
               unmanaged {
@@ -178,7 +168,7 @@ function toUserRow(node: PersonNode): UserRow {
     providers: node.providers.filter(source => source !== OrgUserSource.OPENFRAME),
     roleTag: adminAccount ? topAdminRole(node.topAdmin, adminAccount.source) : null,
     service: node.serviceAccount,
-    customers: orderClaims(node.customers, node.primaryCustomer?.organizationId).map(claim => ({
+    customers: node.customers.map(claim => ({
       name: claim.organization.name,
       imageUrl: getFullImageUrl(claim.organization.image?.imageUrl, claim.organization.image?.hash),
       claim: claimLabel(claim),
@@ -186,12 +176,9 @@ function toUserRow(node: PersonNode): UserRow {
     tenant: firstAccount?.connection
       ? { name: firstAccount.connection.name, provider: firstAccount.connection.provider }
       : null,
-    devices: node.accounts.flatMap(account => [
-      ...account.devices.managed.flatMap(device =>
-        device.machine ? [device.machine.displayName ?? device.machine.hostname ?? ''] : [],
-      ),
-      ...account.devices.unmanaged.map(device => device.directoryDevice.displayName),
-    ]),
+    devices: node.accounts.flatMap(account =>
+      [...account.devices.managed, ...account.devices.unmanaged].map(device => device.directoryDevice.displayName),
+    ),
     status: userStatusTag(node.status),
     statusTooltip: statusAccount ? userStatusTooltip(statusAccount.statusReason, statusAccount.statusDetail) : null,
     lastSignIn: lastSignInLabel(node.lastSignInAt, signInData, 'relative'),

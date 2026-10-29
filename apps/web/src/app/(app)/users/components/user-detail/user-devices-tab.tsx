@@ -5,7 +5,6 @@ import { OSTypeBadge } from '@flamingo-stack/openframe-frontend-core/components/
 import {
   type ColumnDef,
   DataTable,
-  EntityImage,
   type Row,
   TruncateText,
   useDataTable,
@@ -20,38 +19,24 @@ import type {
 } from '@/__generated__/userDevicesTabQuery.graphql';
 import { liveColumnMeta, oneLineEmptyState, useRetryKey } from '@/app/components/shared';
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
-import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import type { TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
-import { getFullImageUrl } from '@/lib/image-url';
-import { openInNewTab } from '@/lib/open-in-new-tab';
-import { routes } from '@/lib/routes';
-import { firstAndCount } from '../../utils/user-presentation';
 import { UserTabHeading } from './user-tab-heading';
 
 /**
- * The selected account's devices (contract §2, S3), read whole. `managed` holds agent machines linked to its directory
- * devices and stays empty until wave W3; `unmanaged` holds the directory devices no agent runs on.
+ * The selected account's devices (S3), read whole. `managed` holds the directory devices an agent machine is linked
+ * to and stays empty until wave W3; `unmanaged` holds the ones no agent runs on. W1 serves neither the machine nor the
+ * device's customers, so both sections show the directory record alone.
  */
 const userDevicesTabQuery = graphql`
   query userDevicesTabQuery($id: ID!) {
     directoryAccount(id: $id) {
       devices {
         managed {
-          machine {
-            machineId
-            displayName
-            hostname
-          }
           directoryDevice {
             id
+            displayName
             operatingSystem
-            customers {
-              name
-              image {
-                imageUrl
-                hash
-              }
-            }
+            lastSeenAt
           }
         }
         unmanaged {
@@ -60,13 +45,6 @@ const userDevicesTabQuery = graphql`
             displayName
             operatingSystem
             lastSeenAt
-            customers {
-              name
-              image {
-                imageUrl
-                hash
-              }
-            }
           }
         }
       }
@@ -75,33 +53,23 @@ const userDevicesTabQuery = graphql`
 `;
 
 type Devices = NonNullable<userDevicesTabQuery$data['directoryAccount']>['devices'];
-type DeviceCustomers = Devices['unmanaged'][number]['directoryDevice']['customers'];
 
 const DEVICE_COLUMNS = {
   device: { id: 'device', header: 'Device', width: 'flex-[2] min-w-0' },
-  os: { id: 'os', header: 'OS', width: 'flex-1 min-w-0', hideAt: 'md' },
   // A tablet keeps Device and OS (Figma 1019:608), a phone the device alone (1019:35893).
-  customer: { id: 'customer', header: 'Customer', width: 'flex-[2] min-w-0', hideAt: 'lg' },
-  open: { id: 'open', width: 'w-12 shrink-0 flex-none', align: 'right' },
+  os: { id: 'os', header: 'OS', width: 'flex-1 min-w-0', hideAt: 'md' },
+  // The rows open nothing until W3 links a machine; the gutter keeps Figma's columns (1014:1660), a phone's row drops it.
+  open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md' },
 } satisfies Record<string, TableSkeletonColumn>;
 
 /** A row as its cells read it; every field but `id` is absent on a loading row. */
 interface DeviceRow {
   id: string;
   name?: string;
-  /** The hostname of a managed machine; when a directory-only device was last seen. */
+  /** When the device was last seen. */
   detail?: string | null;
   os?: string | null;
-  customers?: { name: string; imageUrl?: string }[];
-  /** The device page — managed machines only: a directory-only device has none. */
-  href?: string | null;
 }
-
-const toCustomers = (customers: DeviceCustomers) =>
-  customers.map(customer => ({
-    name: customer.name,
-    imageUrl: getFullImageUrl(customer.image?.imageUrl, customer.image?.hash),
-  }));
 
 function lastSeen(lastSeenAt: string | null | undefined): string | null {
   const at = lastSeenAt ? new Date(lastSeenAt) : null;
@@ -110,31 +78,12 @@ function lastSeen(lastSeenAt: string | null | undefined): string | null {
     : null;
 }
 
-function toManagedRows(devices: Devices): DeviceRow[] {
-  return devices.managed.flatMap(({ machine, directoryDevice }) =>
-    machine
-      ? [
-          {
-            id: directoryDevice.id,
-            name: machine.displayName ?? machine.hostname ?? machine.machineId,
-            detail: machine.hostname,
-            os: directoryDevice.operatingSystem,
-            customers: toCustomers(directoryDevice.customers),
-            href: routes.devices.details(machine.machineId),
-          },
-        ]
-      : [],
-  );
-}
-
-function toUnmanagedRows(devices: Devices): DeviceRow[] {
-  return devices.unmanaged.map(({ directoryDevice }) => ({
+function toRows(devices: Devices['unmanaged']): DeviceRow[] {
+  return devices.map(({ directoryDevice }) => ({
     id: directoryDevice.id,
     name: directoryDevice.displayName,
     detail: lastSeen(directoryDevice.lastSeenAt),
     os: directoryDevice.operatingSystem,
-    customers: toCustomers(directoryDevice.customers),
-    href: null,
   }));
 }
 
@@ -146,25 +95,6 @@ function DeviceCell({ row }: { row: DeviceRow }) {
       <TruncateText variant="h6" tone="secondary" className={loading ? 'w-24' : undefined}>
         {row.detail ?? ''}
       </TruncateText>
-    </div>
-  );
-}
-
-function CustomerCell({ row }: { row: DeviceRow }) {
-  const loading = useLoadingScope();
-  const customers = row.customers ?? [];
-  const { first, more } = firstAndCount(customers.map(customer => customer.name));
-  const firstCustomer = customers[0];
-  // The customer's logo beside its name (Figma 1014:1709), the devices table's customer cell.
-  return (
-    <div className="flex min-w-0 items-center gap-[var(--spacing-system-mf)]">
-      {(loading || firstCustomer) && (
-        <EntityImage src={firstCustomer?.imageUrl} alt={firstCustomer?.name ?? ''} sizeClassName="size-12" />
-      )}
-      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xxs)]">
-        <TruncateText loading={loading}>{first}</TruncateText>
-        {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
-      </div>
     </div>
   );
 }
@@ -194,27 +124,10 @@ const COLUMNS: ColumnDef<DeviceRow>[] = [
     enableSorting: false,
     meta: liveColumnMeta(DEVICE_COLUMNS.os),
   },
-  {
-    id: DEVICE_COLUMNS.customer.id,
-    header: DEVICE_COLUMNS.customer.header,
-    cell: ({ row }: { row: Row<DeviceRow> }) => <CustomerCell row={row.original} />,
-    enableSorting: false,
-    meta: liveColumnMeta(DEVICE_COLUMNS.customer),
-  },
-  {
-    id: DEVICE_COLUMNS.open.id,
-    cell: ({ row }: { row: Row<DeviceRow> }) => {
-      const { href, name } = row.original;
-      if (!href) return null;
-      return <OpenRowButton label={`Open ${name ?? 'device'} in new tab`} onClick={openInNewTab(href)} />;
-    },
-    enableSorting: false,
-    meta: liveColumnMeta(DEVICE_COLUMNS.open),
-  },
+  { id: DEVICE_COLUMNS.open.id, cell: () => null, enableSorting: false, meta: liveColumnMeta(DEVICE_COLUMNS.open) },
 ];
 
 const getRowId = (row: DeviceRow) => row.id;
-const rowHref = (row: DeviceRow) => row.href ?? null;
 const DEVICES_SKELETON_ROWS = 2;
 
 /** One section's table, from the rows it is handed (`null` while they are read). */
@@ -239,7 +152,6 @@ function DeviceSection({ title, rows }: { title: string; rows: readonly DeviceRo
         loadingCells={loading}
         stickyHeader={false}
         itemName="result"
-        rowHref={rowHref}
         emptyState={oneLineEmptyState('No devices.')}
       />
     </section>
@@ -250,12 +162,12 @@ const MANAGED = 'Managed by OpenFrame';
 const NOT_MANAGED = 'Not managed by OpenFrame';
 
 /**
- * The heading and the two sections (contract §2, D5): agent machines, then the devices only the directory knows. A
- * section with nothing in it is left out; with no device at all, one line says so.
+ * The heading and the two sections (D5): agent machines, then the devices only the directory knows. A section with
+ * nothing in it is left out; with no device at all, one line says so.
  */
 function DevicesSections({ devices }: { devices: Devices | null }) {
-  const managed = devices ? toManagedRows(devices) : [];
-  const unmanaged = devices ? toUnmanagedRows(devices) : null;
+  const managed = devices ? toRows(devices.managed) : [];
+  const unmanaged = devices ? toRows(devices.unmanaged) : null;
   const none = devices !== null && managed.length === 0 && unmanaged?.length === 0;
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">

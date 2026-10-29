@@ -2,6 +2,7 @@
 
 import { FloatingTooltip, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type {
@@ -10,13 +11,12 @@ import type {
 } from '@/__generated__/userDetailsTab_person.graphql';
 import { CustomerInfoCell } from '@/app/components/shared';
 import { InfoCell } from '@/app/components/shared/info-cell';
-import { PrimaryCustomerState } from '@/generated/schema-enums';
 import { formatDate } from '@/lib/format-date';
 import { parseInstant } from '@/lib/graphql-scalars';
 import { getFullImageUrl } from '@/lib/image-url';
+import { routes } from '@/lib/routes';
 import {
   lastSignInLabel,
-  orderClaims,
   secondFactorValue,
   topAdminValue,
   userStatusTag,
@@ -26,10 +26,6 @@ import { UserTabHeading } from './user-tab-heading';
 
 const userDetailsTabFragment = graphql`
   fragment userDetailsTab_person on DirectoryPerson {
-    primaryCustomer {
-      organizationId
-    }
-    primaryCustomerState
     customers {
       organization {
         organizationId
@@ -132,26 +128,40 @@ function StatusValue({ account }: { account: Account | null }) {
 }
 
 /**
- * The customer the user belongs to: the primary one when several claim the user and one is chosen, "Not decided"
- * while none is (P2), the only one otherwise; the empty mark for a user no customer claims.
+ * The customers that claim the user, read-only from the rules (P2 closed: no primary customer). One is the logo and its
+ * linked name; several are all of them, in rule order; none is the empty mark.
  */
 function CustomerValue({ person }: { person: userDetailsTab_person$data | null }) {
-  if (person && person.primaryCustomerState === PrimaryCustomerState.UNDECIDED) {
-    return <InfoCell label="Customer" value="Not decided" />;
+  const claims = person?.customers ?? [];
+  if (claims.length > 1) {
+    return (
+      <InfoCell
+        label="Customer"
+        value={claims.map(({ organization }, index) => (
+          <span key={organization.organizationId}>
+            {index > 0 && ', '}
+            <Link
+              href={routes.customers.details(organization.organizationId)}
+              className="text-ods-accent underline hover:opacity-80"
+            >
+              {organization.name}
+            </Link>
+          </span>
+        ))}
+      />
+    );
   }
-  const claim = person ? orderClaims(person.customers, person.primaryCustomer?.organizationId)[0] : null;
+  const [claim] = claims;
   return (
     <CustomerInfoCell
       label="Customer"
       customer={
-        person
-          ? claim
-            ? {
-                id: claim.organization.organizationId,
-                name: claim.organization.name,
-                logoUrl: getFullImageUrl(claim.organization.image?.imageUrl, claim.organization.image?.hash),
-              }
-            : null
+        claim
+          ? {
+              id: claim.organization.organizationId,
+              name: claim.organization.name,
+              logoUrl: getFullImageUrl(claim.organization.image?.imageUrl, claim.organization.image?.hash),
+            }
           : null
       }
     />

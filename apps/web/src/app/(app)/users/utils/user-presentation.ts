@@ -114,19 +114,6 @@ export function firstAndCount(names: readonly string[]): { first: string; more: 
   return names.length === 0 ? { first: EMPTY_VALUE, more: 0 } : { first: names[0], more: names.length - 1 };
 }
 
-/** The claims in the order a cell shows them: the primary customer first when one is chosen, the rest in rule order. */
-export function orderClaims<T extends { readonly organization: { readonly organizationId: string } }>(
-  claims: readonly T[],
-  primaryOrganizationId: string | null | undefined,
-): T[] {
-  if (!primaryOrganizationId) return [...claims];
-  return [...claims].sort(
-    (a, b) =>
-      Number(b.organization.organizationId === primaryOrganizationId) -
-      Number(a.organization.organizationId === primaryOrganizationId),
-  );
-}
-
 const FEED_TAGS = {
   [DirectoryFeed.PUSH]: { label: 'Live', variant: 'success' },
   // D8: no live feed is not an error, so not red.

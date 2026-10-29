@@ -16,7 +16,6 @@ import {
   firstAndCount,
   groupFeedTag,
   lastSignInLabel,
-  orderClaims,
   secondFactorValue,
   topAdminRole,
   topAdminValue,
@@ -98,15 +97,6 @@ it('labels every second-factor state', () => {
 it('names the first of several and counts the rest', () => {
   expect(firstAndCount([])).toEqual({ first: '—', more: 0 });
   expect(firstAndCount(['a', 'b', 'c'])).toEqual({ first: 'a', more: 2 });
-});
-
-describe('orderClaims', () => {
-  const claims = [{ organization: { organizationId: 'a' } }, { organization: { organizationId: 'b' } }];
-
-  it('puts the chosen primary customer first and keeps rule order otherwise', () => {
-    expect(orderClaims(claims, 'b').map(claim => claim.organization.organizationId)).toEqual(['b', 'a']);
-    expect(orderClaims(claims, null).map(claim => claim.organization.organizationId)).toEqual(['a', 'b']);
-  });
 });
 
 it('tags every feed, and a missing live feed is grey, not an error (D8)', () => {
