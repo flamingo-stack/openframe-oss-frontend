@@ -36,7 +36,7 @@ function AnnouncementAlert(props: OptionalMarkProps) {
 /**
  * Most workspaces have no notice (it shows only after a release asks for permissions the connected tenants have not
  * granted), so while the query is in flight (a loading scope) nothing is drawn and nothing is read: a placeholder
- * would be a box that most often vanishes. It sits under the list, so its arrival moves nothing above it.
+ * would be a box that most often vanishes. It heads the list, so a workspace that has it reads it first.
  */
 function AnnouncementAlertReader(props: OptionalMarkProps) {
   if (useLoadingScope()) return null;
@@ -63,7 +63,7 @@ function AnnouncementAlertQuery(props: OptionalMarkProps) {
       {...props}
       variant="warning"
       role="status"
-      className="mt-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-s)]"
+      className="mb-[var(--spacing-system-l)] flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-s)]"
     >
       <span className="shrink-0">
         <CloudIcon size={24} />
@@ -83,8 +83,7 @@ function AnnouncementAlertQuery(props: OptionalMarkProps) {
 }
 
 /**
- * The tenant-wide re-consent notice under the tenant list (below the first screen, so a notice that lands late moves
- * nothing): a release started asking for permissions
+ * The tenant-wide re-consent notice over the tenant list: a release started asking for permissions
  * the connected tenants have not granted (`directoryConsentAnnouncement`). One banner for both
  * providers; each connection re-authorizes through its own Reconnect. Owners and admins only — the
  * query refuses everyone else — and a failure here is a strip, never the page.
