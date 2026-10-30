@@ -43,7 +43,7 @@ export function usePurchaseTokens() {
 
   const mutate = useCallback(
     (amountUsd: number, options?: PurchaseTokensOptions) => {
-      const tab = openDeferredTab();
+      const tab = openDeferredTab('Preparing your invoice...');
 
       commit({
         variables: { amountUsd },
