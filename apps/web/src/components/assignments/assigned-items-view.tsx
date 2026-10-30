@@ -23,8 +23,7 @@ export interface AssignedItemsViewProps {
 
 /**
  * The kind of assignment an item usually carries, drawn while its assignments are read and before it is known
- * which kinds it has, and when it has none (its table's empty state): an incident's tickets, a ticket's devices,
- * an article's customers.
+ * which kinds it has: an incident's tickets, a ticket's devices, an article's customers.
  */
 const TYPICAL_TARGET_TYPE: Record<AssignmentItemType, ServerAssignmentTargetType> = {
   INSIGHT: 'TICKET',
@@ -78,8 +77,9 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     }
   };
 
-  // With no assignments (or none known yet) the section keeps its frame over the item's typical kind, whose table
-  // draws its own loading or empty state: nothing vanishes when the read answers empty.
+  // An item with no assignments has no section. The section closes its page, so nothing moves when it goes.
+  if (!isLoading && activeTypes.length === 0) return null;
+
   // While nothing is read the view is the typical item: assignments of ONE kind, so no tab bar. An item whose
   // assignments span several kinds gains the tab bar above its rows once read; that is the accepted cost of drawing
   // the common case (the kinds are only known from the read).

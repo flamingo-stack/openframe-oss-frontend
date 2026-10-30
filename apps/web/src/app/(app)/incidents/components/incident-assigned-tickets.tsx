@@ -13,7 +13,7 @@ export function IncidentAssignedTickets({ incidentId }: { incidentId: string }) 
   const { tickets } = useAssignedItems({ itemId: incidentId, itemType: 'INSIGHT' });
   if (!tickets?.length) return null;
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-m)]">
+    <section data-loading-optional className="flex flex-col gap-[var(--spacing-system-m)]">
       <h2 className="text-ods-text-primary text-h2">Assigned Ticket</h2>
       <AssignedItemsView itemId={incidentId} itemType="INSIGHT" showTitle={false} />
     </section>

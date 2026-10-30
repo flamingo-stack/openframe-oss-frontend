@@ -4,7 +4,7 @@ import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/co
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
 import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -27,8 +27,12 @@ function Row({ children }: { children: ReactNode }) {
 }
 
 /** A cell of the strip. */
-function Cell({ children }: { children: ReactNode }) {
-  return <div className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>{children}</div>;
+function Cell({ children, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div {...props} className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>
+      {children}
+    </div>
+  );
 }
 
 /** How many lines the detecting query's description typically runs to (a sentence or two at the card's width). */
@@ -52,7 +56,8 @@ interface IncidentSummaryCardProps {
  * In a loading scope (or without the incident) it draws itself: the same cells
  * and labels, the values bars (`InfoCell`), the tags tag-shaped bars, the
  * device icon and customer logo their own placeholders. Every cell is drawn in
- * both forms ("Until" reads the empty mark unless the incident is snoozed).
+ * both forms but "Until": only a snoozed incident has it, an optional part, so
+ * the two strips keep their four columns.
  */
 export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryCardProps) {
   const loading = useLoadingScope() || !incident;
@@ -137,10 +142,11 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
         <Cell>
           <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
         </Cell>
-        {/* Always drawn, so the strip keeps its cells: the empty mark unless the incident is snoozed. */}
-        <Cell>
-          <InfoCell loading={loading} value={snoozedUntil ? formatDateTime(snoozedUntil) : EMPTY_VALUE} label="Until" />
-        </Cell>
+        {snoozedUntil && (
+          <Cell data-loading-optional>
+            <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
+          </Cell>
+        )}
       </Row>
     </div>
   );
