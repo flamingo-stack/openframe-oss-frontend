@@ -131,18 +131,6 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     setParams({ tags: [], search: '' });
   }, [setParams, setLocalSearch]);
 
-  const handleTagSubmit = useCallback(
-    (value: string) => {
-      const trimmed = value.trim();
-      if (trimmed && !params.tags.includes(trimmed)) {
-        setParam('tags', [...params.tags, trimmed]);
-        setLocalSearch('');
-        setParam('search', '');
-      }
-    },
-    [params.tags, setParam, setLocalSearch],
-  );
-
   return {
     params: normalizedParams,
     setParam,
@@ -156,6 +144,5 @@ export function useDevicesUrlParams(options: UseDevicesUrlParamsOptions = {}) {
     handleFilterChange,
     handleTagRemove,
     handleClearAll,
-    handleTagSubmit,
   };
 }
