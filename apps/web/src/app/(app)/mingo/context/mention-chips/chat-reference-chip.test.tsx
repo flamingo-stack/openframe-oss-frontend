@@ -10,6 +10,7 @@
  * the dialog on its own.
  */
 
+import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -26,7 +27,14 @@ const spies = vi.hoisted(() => ({
   post: vi.fn<(url: string, body?: { query?: string; variables?: unknown }) => Promise<ApiResponse>>(),
 }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }), usePathname: () => '/dashboard' }));
+
+/** The chat runtime every chat link, this chip included, navigates through. */
+const runtime = {
+  endpoints: {},
+  navigation: { mode: 'host', navigate: () => true, decideNewTab: () => false },
+  source: 'openframe',
+} as unknown as ChatRuntime;
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: spies.post }, REQUEST_TIMEOUT_MS: 30_000 }));
 // Desktop web: an entity chip would open a NEW TAB here. The chat chip must not.
 vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => false }));
@@ -69,9 +77,11 @@ async function renderChip() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     root.render(
-      <QueryClientProvider client={client}>
-        <ChatReferenceChip id={DIALOG_ID} />
-      </QueryClientProvider>,
+      <ChatRuntimeContext.Provider value={runtime}>
+        <QueryClientProvider client={client}>
+          <ChatReferenceChip id={DIALOG_ID} />
+        </QueryClientProvider>
+      </ChatRuntimeContext.Provider>,
     );
   });
   // The chip suspends on its lookup; settle it (the skeleton has no text). A

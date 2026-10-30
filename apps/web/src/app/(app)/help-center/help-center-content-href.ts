@@ -51,7 +51,7 @@ const HC = HELP_CENTER_BASE.replace(/^\//, '');
  *  then rewrites that into this app's query-param detail route. The list-filter
  *  types (roadmap, delivery) are NOT here — they have no detail route and use
  *  `overrides` instead. */
-const HOSTED_TYPES = new Set(['onboarding_guide', 'product_release']);
+const HOSTED_TYPES = new Set(['onboarding_guide', 'product_release', 'markdown']);
 
 /** List path the lib composes into → this app's detail-route builder for that
  *  type. Keyed on the composed href rather than the content type because the lib
@@ -104,6 +104,8 @@ const composeLibContentUrl = makeComposeContentUrl({
     ...DEFAULT_CONTENT_SUFFIXES,
     onboarding_guide: `${HC}/onboarding-guides`,
     product_release: `${HC}/releases`,
+    // A product doc (its tree path arrives as the slug) opens in this app's knowledge base.
+    markdown: `${HC}/knowledge-base`,
   },
   contentOrigin: CONTENT_HUB_ORIGIN,
   // List-filter types deep-link into their EXISTING in-app list route with the

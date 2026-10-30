@@ -519,16 +519,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     [userFirstName, userLastName],
   );
 
-  // Receives the FULL href computed by TicketAlertsButton
-  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
-  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
-  const openHelpCenterTickets = useCallback(
-    (href: string) => {
-      router.push(href);
-    },
-    [router],
-  );
-
   const avatarUrl = useMemo(() => getFullImageUrl(userImageUrl, userImageHash), [userImageUrl, userImageHash]);
 
   const headerProps = useMemo(
@@ -555,12 +545,11 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // enabled (below), the viewer is authed, AND there are unread replies.
       showTicketAlerts: true,
       ticketAlertsHref: routes.helpCenter.tickets,
-      onTicketAlerts: openHelpCenterTickets,
       showMingoAI: chatEnabled,
       onMingoAI: toggleChat,
       isMingoAIActive: chatOpen,
     }),
-    [chromeLoading, chatEnabled, toggleChat, chatOpen, openHelpCenterTickets],
+    [chromeLoading, chatEnabled, toggleChat, chatOpen],
   );
 
   const mobileBurgerMenuProps = useMemo(
