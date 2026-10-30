@@ -101,6 +101,17 @@ export const GET_DIALOG_MESSAGES_QUERY = `
               requiresApproval
               approvalStatus
               toolExecutionRequestId
+              commandReview {
+                decision
+                approvalLevel
+                policyLevel
+                operationCodes
+                matchedRules {
+                  code
+                  label
+                }
+                reason
+              }
             }
 
             ... on ExecutedToolData {
@@ -129,6 +140,17 @@ export const GET_DIALOG_MESSAGES_QUERY = `
                 requiresApproval
                 approvalType
                 toolCallArguments
+                commandReview {
+                  decision
+                  approvalLevel
+                  policyLevel
+                  operationCodes
+                  matchedRules {
+                    code
+                    label
+                  }
+                  reason
+                }
               }
             }
 
