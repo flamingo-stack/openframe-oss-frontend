@@ -37,7 +37,6 @@ const ADD_MORE_PLACEHOLDER = 'Add more...';
 
 interface PickerFieldProps {
   label: string;
-  labelVariant?: 'default' | 'large';
   emptyPlaceholder: string;
   options: Array<{ label: string; value: string }>;
   selectedIds: string[];
@@ -59,6 +58,7 @@ function PickerField({ selectedIds, emptyPlaceholder, creatable, ...props }: Pic
   return (
     <Autocomplete
       {...props}
+      labelVariant="large"
       multiple
       creatable={creatable}
       freeSolo={creatable}
@@ -83,8 +83,6 @@ interface EntityTagPickerProps {
   initialTags?: ReadonlyArray<EntityTag>;
   disabled?: boolean;
   label?: string;
-  /** The label's scale: 'large' (`text-h4`) in a form whose other fields are titled at that scale. */
-  labelVariant?: 'default' | 'large';
   /** Placeholder shown when nothing is selected yet. */
   emptyPlaceholder?: string;
   /** Max length for a freshly-typed tag name (`undefined` → no explicit cap). */
@@ -125,7 +123,6 @@ function EntityTagPickerReader(props: EntityTagPickerProps) {
         <PickerField
           disabled
           label={props.label ?? DEFAULT_LABEL}
-          labelVariant={props.labelVariant}
           emptyPlaceholder={props.emptyPlaceholder ?? DEFAULT_EMPTY_PLACEHOLDER}
           options={initialTags.map(tag => ({ label: tag.key, value: tag.id }))}
           selectedIds={selectedIds.filter(id => initialTags.some(tag => tag.id === id))}
@@ -144,7 +141,6 @@ function LiveEntityTagPicker({
   initialTags = [],
   disabled,
   label = DEFAULT_LABEL,
-  labelVariant,
   emptyPlaceholder = DEFAULT_EMPTY_PLACEHOLDER,
   maxCreateLength,
   deletable = false,
@@ -265,7 +261,6 @@ function LiveEntityTagPicker({
       <PickerField
         creatable
         label={label}
-        labelVariant={labelVariant}
         emptyPlaceholder={emptyPlaceholder}
         options={options}
         selectedIds={selectedIds}

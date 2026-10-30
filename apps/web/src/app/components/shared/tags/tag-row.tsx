@@ -92,7 +92,6 @@ function TagValuesReader({ tagKey, values, onChange, error, label, className, fo
         onChange={onChange}
         error={error}
         label={label}
-        labelVariant="large"
         className={className}
       />
     </div>

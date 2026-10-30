@@ -4,15 +4,23 @@ import { breakpoints } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useSyncExternalStore } from 'react';
 
 function subscribe(onChange: () => void): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
   const media = window.matchMedia(breakpoints.md);
   media.addEventListener('change', onChange);
   return () => media.removeEventListener('change', onChange);
 }
 
-function getSnapshot(): boolean {
-  return typeof window !== 'undefined' && !window.matchMedia(breakpoints.md).matches;
+/**
+ * The viewport is narrower than `md` right now: for code that runs at an event (a send)
+ * rather than in render. `false` where there is no viewport to ask.
+ */
+export function isMobileViewportNow(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? !window.matchMedia(breakpoints.md).matches
+    : false;
 }
+
+const getSnapshot = isMobileViewportNow;
 
 /** A server has no viewport, and hydration replays this — so: not known yet. */
 function getServerSnapshot(): undefined {

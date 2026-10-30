@@ -2,9 +2,9 @@ import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
+import { getLandingPath } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { markDevTicketSettled } from '@/lib/dev-ticket-pending';
-import { routes } from '@/lib/routes';
 import { authSessionQueryKey } from './use-auth-session';
 import { useTokenStorage } from './use-token-storage';
 
@@ -43,7 +43,7 @@ export function useDevTicketExchange() {
 
           // replace, not push: don't leave the dev-ticket landing/auth screen in
           // the back stack after a successful login.
-          router.replace(routes.dashboard);
+          router.replace(getLandingPath());
         }
 
         return {

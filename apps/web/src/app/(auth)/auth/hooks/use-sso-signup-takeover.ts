@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
-import { isLoginOnlyMobileShell } from '@/lib/app-mode';
+import { getLandingPath, isLoginOnlyMobileShell } from '@/lib/app-mode';
 import {
   AppleRegistrationRequiredError,
   type PendingSsoSignup,
@@ -66,7 +66,7 @@ export function useSsoSignupTakeover(): SsoSignupTakeover {
 
   const onRegistered = useCallback(() => {
     // Same landing as a completed native login — the shell has already stored the tokens.
-    window.location.replace(routes.dashboard);
+    window.location.replace(getLandingPath());
   }, []);
 
   const onExit = useCallback(() => setPending(null), []);

@@ -257,14 +257,15 @@ table, `pathname.startsWith()` active-state checks, external/API URLs):
 Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query params** (`/x/details?id=`), not dynamic segments (static-export constraint; read via `useRequiredIdParam`). URL strings themselves come from the route registry above.
 
 - **Authentication** (`/auth`) — Multi-provider SSO, signup, login, password reset, invite
-- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour)
+- **Dashboard** (`/dashboard`) — Overview stats + the tenant Initial Setup card; standalone `/onboarding` (user Get Started tour). Where an OSS login lands. On a SaaS tenant it is the Mingo-first shell's dashboard (`mingo/home/mingo-dashboard.tsx`: Needs you, the same sections), the sidebar's Dashboard, and `/onboarding` forwards to `/mingo`
 - **Devices** (`/devices`) — Fleet MDM, detail pages, MeshCentral remote shell/desktop/file manager
 - **Logs** (`/logs-page`, `/log-details`) — Streaming, search, filtering
-- **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`. Schedules (`/scripts/schedules/*`) are gated by flag `script-schedules`
+- **Scripts** (`/scripts`) — fully Relay; thin route wrappers over the implementation in `src/app/(app)/scripts/{script,schedule,shared}/`, Schedules under `/scripts/schedules/*` (not feature-flagged)
 - **Customers** (`/customers`) — Customer/organization CRM (route renamed from `/organizations`; sidebar item id is still `organizations`)
 - **Monitoring** (`/monitoring`) — Fleet osquery queries + policies (not feature-flagged)
 - **Tickets** (`/tickets`) — Ticket board + AI chat dialogs (saas-tenant only; talks to `/chat/graphql`)
-- **Mingo** (`/mingo`) — Admin AI assistant chat (saas-tenant only; legacy page, superseded by the in-layout drawer when flag `mingo-sidebar` is on)
+- **Mingo** (`/mingo` home, `/mingo/chat?id=`, `/mingo/archive`) — Admin AI assistant chat (saas-tenant only) — see Mingo-first Shell below
+- **Needs approval** (`/approvals`) — saas-tenant only: pending Mingo and ticket approval requests
 - **Knowledge Base** (`/knowledge-base`) — Articles/folders (fully Relay)
 - **Help Center** (`/help-center/*`) — Content pages via core-lib `help-center-pages`
 - **Worktime** (`/worktime`) — Time entries
@@ -272,6 +273,88 @@ Routes live under the `(app)` / `(auth)` route groups. **Detail pages use query 
 - **Notifications** (`/notifications`) — Relay reference implementation
 - **Settings** (`/settings/*`) — ai-settings, api-keys, architecture (OSS-only), billing-usage (flag `billings`), employees, sso
 - **Checkout** (`/checkout/success|cancel`) — Stripe checkout result pages
+
+### Mingo-first Shell (SaaS tenants)
+
+A SaaS tenant lands on Mingo's home, a new chat (`getLandingPath()` in `lib/app-mode.ts`: `/`, a login, an
+authenticated `/auth`; the dashboard is the sidebar's), which "New chat" (at the head of the sidebar's chat history) also
+opens (`/mingo`: the greeting and a "What to ask Mingo?" button over the composer and its quick
+actions; the history's ⋯ has it too), chats are pages, and the composer is docked under every page (not on a phone, below).
+An OSS tenant has no Mingo and keeps the dashboard shell (flat sidebar, desktop header, onboarding).
+There is no switch between the two: `AppShell` picks by `isSaasTenantMode()`, known before the first
+paint, so nothing waits for a flag and no page shows a loader on the way.
+
+- **Routes**: `/mingo`, `/mingo/chat?id=`, `/mingo/archive`, `/approvals`; on an OSS tenant each
+  redirects (`useAppModeRedirect`, ROUTES.md "App-mode routes"). Open a chat only through
+  `openMingoDialog(id)` (`components/notifications/open-mingo-dialog.ts`): over the page in the
+  sheet while the dock is mounted (as the classic drawer did; the caller marks the notification
+  read, no URL changes), else on its chat page; a link to one is `mingoDialogLink(id)`. "Start
+  a new chat", a prompt, a draft or an open goes through the launcher store
+  (`mingo-launcher-store.ts`), which the dock drains; a draft fills the composer of the page it
+  was raised on. "What to ask Mingo?" is the full chat at once (`routes.mingo.whatToAsk`,
+  `/mingo/chat?view=what-to-ask`): its suggestions in a new chat on the chat page, shown on every
+  arrival (a reload included), and the page becomes `?id=` of the chat a pick creates.
+- **One chat state per session: `MingoChatProvider`** (`(app)/mingo/providers/`, mounted by
+  `AppShell`) runs the dialog list, the open dialog, its live tail and the compaction
+  watchers. A component that shows the chat calls `useMingoChatSurface()` (the state runs while one is
+  mounted); a reader beside it calls `useMingoChat()`. Nothing else calls `useMingoUnifiedChatState()`:
+  a second call is a second poll and a second live tail applying every chunk twice.
+- **One `EmbeddableChat`: `MingoComposerDock`**, under `<main>` for the whole session, so the draft,
+  context and uploads survive navigation. The chat page publishes a node (`useChatPageNodeStore`) and
+  the dock portals the header and thread into it: `threadContainer` is that node or `null`, **never
+  `undefined`** — that switches the chat back to its in-place layout and remounts the composer, draft
+  and all. Nothing above the dock may clip or transform it (its menus open upwards). A chat capability
+  goes into `useOpenframeChatProps()` (`mingo-shell/use-openframe-chat-props.ts`). On a plain page the
+  dock lies over the page's end (`dockViewOf(route).floats`): the page scrolls on under it and fades out to
+  transparent over its height (the lib's shared preview fade, `previewFadeMask`, `FadePreview`'s mask), seen
+  beside the composer. A page that fills `<main>`'s height runs on under it by `--composer-dock-inset` and
+  keeps its own scroll ends clear of it (the tickets board: `laneEndInset`).
+- **Every message says which page it was sent from**: `currentPage` (kind, name, section) and, on a
+  list, `currentList` (module, the filters and search in its URL), resolved from the URL at send time
+  by `mingo/context/page-context.ts` (the page under the sheet; the page a chat page was opened from).
+  A new page goes into its table, or it reaches Mingo as `OTHER` under its sidebar module's name.
+  `PageKind` and `ListModule` are the ai-agent's closed enums and its input limits reject the whole
+  message, so the resolver clips to `PAGE_CONTEXT_LIMITS`. The page is also the first chip of the
+  composer's context strip (`mingo-shell/use-page-chip.tsx`), named as Mingo is told it (the entity on
+  its page) and drawn as the "Continue …" chip is, in one row that scrolls sideways: a click asks for an
+  overview of it in the sheet. A chat page's chip is the page it was opened from; a desktop's new chat has none.
+- **A chat over the page: the sheet** (`MingoComposerSheet`, `AppLayout`'s `composerSheet`). Every
+  chat opens there first: on every page but the chat page, home included, a send, a history row
+  or a notification opens the chat over the page instead of leaving it (`useComposerTarget` /
+  `useComposerLauncherDrain` → `useMingoSheetStore.show`); only the Getting Started tour's chat
+  goes to its page. The dock portals the thread into the sheet's node. Closing it on home
+  makes home a new chat again. It closes on its ×, the scrim, Esc and any navigation, leaving a "Continue …"
+  chip at the start of the composer's context strip; the chip's × lets the chat go
+  (`startNewChat`), so the next send from the page starts a new one. "Open as full chat" goes to the chat page,
+  and every chat page's header offers "Back to page": the chat in the sheet over the last other page this
+  tab was on (`lastPage`, `sessionStorage`), or over home when there is none, where its sends continue it
+  until the sheet closes; its × ("Close chat") goes to that page without the sheet, the chat left behind it. The chat behind the pages survives a
+  reload of the tab (`useChatBehindPage`, `sessionStorage`); the sheet's height is a per-viewer
+  `localStorage` convenience.
+- **A phone (below md) has no composer under its pages**: the dock hides there in CSS (`max-md:hidden`),
+  still mounted, except on Mingo's home and the chat page, which are the chat already. A chat there is always
+  its page (`/mingo/chat?id=`), never the sheet: a history row, a notification, a send from home and a launcher
+  all go there (`useComposerTarget` / `useComposerLauncherDrain` with `phone`), and a draft goes home. The top
+  bar's Mingo button is on every page: with Mingo closed it opens the chat list over the page in the sheet
+  (`MingoPhoneChatList`, the lib's `MingoHistoryRail`: Start New Chat, My / All Chats, the chats, as the classic
+  drawer opened; `listOpen`), and with Mingo open (the list, home, a chat page) it is the ×, back to the last page
+  outside Mingo (`outsidePage`) or the dashboard. So a chat's own header draws no actions there. A new chat
+  opened from the list (Mingo's home) and a chat started there are about that page (`pageContextHref` with
+  `outsidePage`: its chip, what is sent), and the home offers "Back" to it, with the list open over it again
+  (`showListAfterNavigation`). The sheet hides
+  the page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
+- **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`
+  entry. A session that owes its setup lands on the bare `/setup` wizard instead of
+  `/mingo` (`OnboardingV2Redirect`, `holdsDashboard` keeps the home and the dock on a
+  skeleton until the answer); "Start with Mingo" goes home, where the dock creates the
+  tour's conversation and follows it. The dock runs `useMingoTour` UNDER
+  `useComposerTarget`: its Getting Started block stays above the composer on every page
+  while the tour's chat is open, and a step chip opens its section with Mingo's answer in the
+  sheet over it (`onStepOpened`). "Reset Onboarding" is in the chat's ⋯; the dashboard shows the intro
+  banner above its sections.
+- **New shell UI lives in `src/app/components/mingo-shell/`** (chrome, dock, sidebar rows and
+  history, account popover); Mingo's home and the dashboard in `(app)/mingo/home/`, Needs approval in `(app)/approvals/`
+  and `components/approvals/`.
 
 ### Project Structure
 ```
@@ -282,10 +365,13 @@ src/
 │   ├── (app)/             # All app pages, wrapped by AppLayout in (app)/layout.tsx
 │   │   ├── dashboard/  onboarding/  devices/  logs-page/  log-details/
 │   │   ├── scripts/       # route wrappers + {script,schedule,shared}/{components,hooks,types,utils}
-│   │   ├── customers/  monitoring/  tickets/  mingo/  knowledge-base/
+│   │   ├── customers/  monitoring/  tickets/  knowledge-base/
+│   │   ├── mingo/         # chat state (providers/, hooks/, stores/) + Mingo-first home/, chat/, archive/
+│   │   ├── approvals/     # Mingo-first Needs approval page
 │   │   ├── help-center/  worktime/  notifications/  settings/  checkout/
-│   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, …)
-│   └── components/        # Shared components (notifications provider, subscription-lock, shared tables)
+│   ├── hooks/             # Shared hooks (use-feature-flags-query, use-required-id-param, use-app-mode-redirect, …)
+│   └── components/        # Shared components (notifications provider, subscription-lock, shared tables,
+│                          #   app-layout.tsx = AppShell, mingo-shell/ = Mingo-first shell UI)
 ├── components/            # Root-level shared (route-guard, feature-flags-loader, assignments/)
 ├── stores/                # Zustand stores (feature-flags-store, devices-store [mostly unused])
 ├── graphql/               # Relay operations by domain (notifications/, scripts/, time-tracker/)
@@ -869,7 +955,7 @@ Two rules the shared config deliberately omits, and this repo does not add back:
 frontends use it as a logging channel) and `@typescript-eslint/naming-convention` (Biome's
 `useNamingConvention` equivalent, never actually enforced).
 
-**The one remaining backlog: `relay/unused-fields` (543).** Everything else is at zero.
+**The one remaining backlog: `relay/unused-fields` (541).** Everything else is at zero.
 
 The migration surfaced ~1 130 errors, because the old `eslint.config.mjs` declared no `files:`
 patterns, matched no `.ts`/`.tsx` file at all, and `npm run lint` therefore linted **nothing**. All
@@ -931,13 +1017,15 @@ The root layout (`src/app/layout.tsx`) establishes the global provider hierarchy
         <NatsAppProvider>            <!-- NATS live updates -->
           <BiometricLockBoundary>    <!-- Native-shell biometric cold-start lock -->
             <FeatureFlagsLoader>     <!-- Runs the flags query; does NOT gate render -->
-              <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
-                <RouteGuard>         <!-- App mode route filtering -->
-                  <DevicesViewConfig>  <!-- device href / image URL / mobile shell for the core lib's device views -->
-                    {children}       <!-- Page content -->
-                  </DevicesViewConfig>
-                </RouteGuard>
-              </NotificationsDataProvider>
+              <AppAgentIdentityProvider>  <!-- AI agents' marks (Mingo, Fae), above the popups that draw them -->
+                <NotificationsDataProvider>  <!-- Notifications drawer/popups (Relay) -->
+                  <RouteGuard>         <!-- App mode route filtering -->
+                    <DevicesViewConfig>  <!-- device href / image URL / mobile shell for the core lib's device views -->
+                      {children}       <!-- Page content -->
+                    </DevicesViewConfig>
+                  </RouteGuard>
+                </NotificationsDataProvider>
+              </AppAgentIdentityProvider>
             </FeatureFlagsLoader>
           </BiometricLockBoundary>
         </NatsAppProvider>
@@ -1046,13 +1134,12 @@ something it does not render; raise the budget in `package.json` only with the r
 
 ### Content Area Breakpoints (page content follows its own width)
 
-With flag `mingo-v2` Mingo is docked into `AppLayout` as a resizable right column (`sidePanel`,
-`src/app/components/mingo-side-panel.tsx`): the window stays wide while the page gets narrow. Page
-content therefore lays out by the width of `<main>`, not the window. The full rule is "Content area
-breakpoints" in the ODS rules above; what it means here:
+The Mingo-first shell's composer dock makes `<main>` a content area: page content lays out by the
+width of `<main>`, not the window. The full rule is "Content area breakpoints" in the ODS rules
+above; what it means here:
 
 - **Page content uses `content-md:` / `content-lg:`** (720 / 1024px of content; also `content-sm/xl/2xl`,
-  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (flag off, overlays portalled to
+  `content-max-md/lg`), never `md:` / `lg:`. Outside the content area (an OSS tenant, overlays portalled to
   `<body>`) they fall back to the viewport's 800 / 1280px, so they are always safe in page content.
 - **Window chrome keeps `md:` / `lg:`**: header, navigation, modals, sheets, drawers, dropdowns,
   toasts, fixed bars. Never mix `md:` and `content-md:` on one property of one element.

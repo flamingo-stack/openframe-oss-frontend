@@ -126,7 +126,7 @@ function isControlFlowError(error: unknown): boolean {
  * `react-error-boundary` (itself a class behind a hook-shaped API) is not a
  * dependency. Next's `error.tsx` files look like function components only
  * because Next wraps them in its own class boundary. Every other boundary here
- * is a class for the same reason — `chat-drawer-error-boundary.tsx`,
+ * is a class for the same reason — `mingo-dock-error-boundary.tsx`,
  * `log-drawer-details.tsx`, `mention-tag.tsx`.
  */
 export class ContentErrorBoundary extends Component<ContentErrorBoundaryProps, ContentErrorBoundaryState> {

@@ -1,17 +1,16 @@
 /**
  * Pins how a chip click behaves. The chip is a chat link like any other: a plain
  * click goes through the chat runtime's navigation (`NavLinkAnchorViaRuntime` →
- * `runtime.navigation.navigate`, which owns the drawer and `?mingoDialog=`), a
- * chip that opens something in the drawer (`onOpen`) claims the click itself, a
- * modifier click stays the browser's, and the new-tab segment is a plain `_blank`
- * link carrying the conversation, offered only where a tab is.
+ * `runtime.navigation.navigate`), a modifier click stays the browser's, and the
+ * new-tab segment is a plain `_blank` link to the page alone (a `?mingoDialog=`
+ * would send that tab to the chat page), offered only where a tab is. Also that
+ * the chip fits what holds it, a table cell on a phone.
  */
 
 import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
 import { MentionTag } from './mention-tag';
 
 const push = vi.fn();
@@ -47,7 +46,6 @@ beforeEach(() => {
   push.mockReset();
   navigate.mockClear();
   openExternal.mockClear();
-  useMingoMessagesStore.setState({ activeDialogId: 'd-1' });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -58,11 +56,11 @@ afterEach(() => {
   container.remove();
 });
 
-function renderChip(href: string, onOpen?: () => void) {
+function renderChip(href: string) {
   act(() => {
     root.render(
       <ChatRuntimeContext.Provider value={runtime}>
-        <MentionTag label="app-server-03" href={href} onOpen={onOpen} />
+        <MentionTag label="app-server-03" href={href} />
       </ChatRuntimeContext.Provider>,
     );
   });
@@ -96,19 +94,6 @@ describe('MentionTag click', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('hands a primary click to onOpen instead of navigating, no new tab', () => {
-    sameWindow = false;
-    const onOpen = vi.fn();
-    const anchor = renderChip('/dashboard?mingoDialog=d-1', onOpen);
-    expect(newTabSegment()).toBeNull();
-
-    const event = primaryClick(anchor);
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
   it('lets a modifier click hand the href to the browser', () => {
     sameWindow = true;
     const anchor = renderChip(HREF);
@@ -123,12 +108,12 @@ describe('MentionTag click', () => {
 });
 
 describe('MentionTag new-tab segment', () => {
-  it('opens the page in a new tab with the conversation, leaving this window alone', () => {
+  it('opens the page alone in a new tab, leaving this window alone', () => {
     sameWindow = false;
     renderChip(HREF);
     const segment = newTabSegment();
     if (!segment) throw new Error('no new-tab segment');
-    expect(segment.getAttribute('href')).toBe('/devices/details?id=m-1&mingoDialog=d-1');
+    expect(segment.getAttribute('href')).toBe(HREF);
     expect(segment.getAttribute('target')).toBe('_blank');
     // A path of this site keeps the Referer (the lib's one referrer rule).
     expect(segment.getAttribute('rel')).toBe('noopener');
@@ -137,7 +122,7 @@ describe('MentionTag new-tab segment', () => {
     primaryClick(segment);
 
     // The lib's executor opens the tab through the runtime's `openExternal`; this window does not move.
-    expect(openExternal).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
+    expect(openExternal).toHaveBeenCalledWith(HREF);
     expect(navigate).not.toHaveBeenCalled();
   });
 
@@ -146,6 +131,15 @@ describe('MentionTag new-tab segment', () => {
     renderChip(HREF);
     expect(newTabSegment()).toBeNull();
     expect(container.querySelectorAll('a')).toHaveLength(1);
+  });
+
+  it('fits what holds it: the pair never wider than its cell, the main segment giving up its width first', () => {
+    sameWindow = false;
+    renderChip(HREF);
+    const pair = container.firstElementChild;
+    expect(pair?.className).toContain('max-w-full');
+    expect(pair?.querySelector('a')?.className).toContain('min-w-0');
+    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-[min(16rem,100%)]');
   });
 
   it('is not offered on a chip with no page to open', () => {

@@ -8,7 +8,13 @@ vi.mock('./platform', async importOriginal => ({
   isMobileShell: () => shell.kind === 'mobile',
 }));
 
-import { isLoginOnlyMobileShell, isMobileAuthLoginOnly, isRouteAllowedInCurrentMode } from './app-mode';
+import {
+  getDefaultRedirectPath,
+  getLandingPath,
+  isLoginOnlyMobileShell,
+  isMobileAuthLoginOnly,
+  isRouteAllowedInCurrentMode,
+} from './app-mode';
 
 /**
  * `window.__ENV` is what next-runtime-env's `env()` reads in the browser. Replaces the
@@ -71,5 +77,23 @@ describe('the mode allowlist in saas-shared mode', () => {
     expect(isRouteAllowedInCurrentMode('/auth')).toBe(true);
     expect(isRouteAllowedInCurrentMode('/mobile')).toBe(false);
     expect(isRouteAllowedInCurrentMode('/mobile-onboarding')).toBe(false);
+  });
+});
+
+/** Where `/` and a login land: Mingo's new chat on a SaaS tenant, the dashboard on an OSS one. */
+describe('the default landing page', () => {
+  afterEach(() => setEnv('NEXT_PUBLIC_APP_MODE', undefined));
+
+  it("is Mingo's new chat on a SaaS tenant", () => {
+    setEnv('NEXT_PUBLIC_APP_MODE', 'saas-tenant');
+    expect(getDefaultRedirectPath(true)).toBe('/mingo');
+    expect(getLandingPath()).toBe('/mingo');
+  });
+
+  it('is the dashboard on an OSS tenant, once signed in', () => {
+    setEnv('NEXT_PUBLIC_APP_MODE', 'oss-tenant');
+    expect(getDefaultRedirectPath(true)).toBe('/dashboard');
+    expect(getLandingPath()).toBe('/dashboard');
+    expect(getDefaultRedirectPath(false)).toBe('/auth');
   });
 });

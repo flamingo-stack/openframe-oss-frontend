@@ -46,6 +46,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
               render={({ field, fieldState: { error } }) => (
                 <Input
                   label="Customer Name"
+                  labelVariant="large"
                   placeholder="Customer Name"
                   value={field.value}
                   onChange={field.onChange}
@@ -63,6 +64,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
               render={({ field, fieldState: { error } }) => (
                 <Input
                   label="Website URL"
+                  labelVariant="large"
                   placeholder="https://www.website.com"
                   value={field.value}
                   onChange={field.onChange}
@@ -84,6 +86,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
         render={({ field }) => (
           <Textarea
             label="Notes"
+            labelVariant="large"
             rows={4}
             placeholder="Your notes here..."
             value={field.value}
@@ -105,6 +108,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
             render={({ field }) => (
               <Input
                 label="Physical Address"
+                labelVariant="large"
                 placeholder={ADDRESS_PLACEHOLDER}
                 value={field.value}
                 onChange={event => {
@@ -147,6 +151,7 @@ export function CustomerFormFields({ form, disabled, showErrors, logoSlot }: Cus
         render={({ field }) => (
           <Input
             label="Mailing Address"
+            labelVariant="large"
             placeholder={ADDRESS_PLACEHOLDER}
             value={field.value}
             onChange={field.onChange}

@@ -69,8 +69,13 @@ function maybeNewTabAction(ctx: DeviceMenuItemContext, href: string, label: stri
   return ctx.withNewTabAction ? { iconAction: newTabIconAction(href, label, disabled) } : {};
 }
 
-function iconClass(ctx: DeviceMenuItemContext): string {
-  return cn(ctx.iconSize, 'text-ods-text-secondary');
+// The muted tone is the menu row's to need: its icon cell sets no color, so an enabled
+// row's glyph would inherit the primary label. A disabled item sets none, so it takes
+// its host's disabled tone: the row's dimmed text, or the outline header button's
+// disabled slot (`text-ods-text-disabled`, the label's). A fixed secondary there drew
+// the glyph lighter than the label beside it.
+function iconClass(ctx: DeviceMenuItemContext, disabled?: boolean): string {
+  return cn(ctx.iconSize, !disabled && 'text-ods-text-secondary');
 }
 
 const WINDOWS_SHELLS = [
@@ -87,7 +92,7 @@ const WINDOWS_SHELLS = [
 function buildRemoteShellItem(ctx: DeviceMenuItemContext): ActionsMenuItem {
   const baseHref = routes.devices.remoteShell(ctx.deviceId);
   const disabled = !ctx.availability?.remoteShellEnabled;
-  const icon = <TerminalIcon className={iconClass(ctx)} />;
+  const icon = <TerminalIcon className={iconClass(ctx, disabled)} />;
 
   if (ctx.isWindows === true) {
     return {
@@ -149,7 +154,7 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
     remoteControl: {
       id: 'remote-control',
       label: 'Remote Control',
-      icon: <ComputerMouseIcon className={iconClass(ctx)} />,
+      icon: <ComputerMouseIcon className={iconClass(ctx, remoteControlDisabled)} />,
       href: remoteControlHref,
       disabled: remoteControlDisabled,
       ...maybeNewTabAction(ctx, remoteControlHref, 'Remote Control', remoteControlDisabled),
@@ -157,7 +162,7 @@ export function buildDeviceMenuItems(ctx: DeviceMenuItemContext): DeviceMenuItem
     manageFiles: {
       id: 'manage-files',
       label: 'Manage Files',
-      icon: <FolderIcon className={iconClass(ctx)} />,
+      icon: <FolderIcon className={iconClass(ctx, manageFilesDisabled)} />,
       href: manageFilesHref,
       disabled: manageFilesDisabled,
       ...maybeNewTabAction(ctx, manageFilesHref, 'Manage Files', manageFilesDisabled),

@@ -19,9 +19,10 @@ import {
   PageLayout,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo } from 'react';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { type UseDevicesResult, useDevices } from '@/app/(app)/devices/hooks/use-devices';
@@ -37,6 +38,7 @@ import { routes } from '@/lib/routes';
 import { ContentErrorBoundary } from '../content-error-boundary';
 import { EMBEDDED_PAGE_OFFSET } from '../embedded-page';
 import { NO_ITEMS } from '../no-next-page';
+import { devicesViewMode } from './devices-view-mode';
 
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
 const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
@@ -198,6 +200,8 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   } = urlParams;
 
   const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = list;
+  // The grid where its switch is drawn, the table on a narrower page (`devicesViewMode`).
+  const viewMode = devicesViewMode(params.viewMode, useContentMdUp());
 
   const hasActiveDeviceFilters =
     params.statuses.length > 0 ||
@@ -221,7 +225,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   // Post-action list refresh is handled centrally: useDeviceActions invalidates
   // the device query roots, so no per-row refetch callback is needed.
   // The row menus disable Remote Control on DENY_ACCESS; only the table has them.
-  useRowRemoteAccessPolicies(readOnlyRows || params.viewMode !== 'table' ? [] : devices);
+  useRowRemoteAccessPolicies(readOnlyRows || viewMode !== 'table' ? [] : devices);
 
   // The status column reflects only the user's explicit selection — the default
   // statuses are a query-side fallback and must not render as checked filters.
@@ -266,19 +270,6 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     setParams,
   });
 
-  // Grid layout is desktop-only — force-collapse to table on mobile so the
-  // user always gets a usable list at narrow widths.
-  //
-  // `=== false`, NOT `!isMdUp`: the hook answers `undefined` until an effect has run,
-  // so `!isMdUp` was true on the first pass at every width — on a desktop load with
-  // `viewMode=grid` persisted, this wrote `viewMode=table` into the URL and silently
-  // destroyed the user's grid preference on every visit.
-  useEffect(() => {
-    if (isMdUp === false && params.viewMode === 'grid') {
-      setParam('viewMode', 'table');
-    }
-  }, [isMdUp, params.viewMode, setParam]);
-
   // Built from the declaration the Suspense fallback also reads, so the loading
   // header and the loaded one can't drift apart (see `devices-panel-header`).
   const actions = useMemo<PageActionButton[]>(
@@ -298,7 +289,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
   const handleLoadMore = useCallback(() => fetchNextPage(), [fetchNextPage]);
 
   const gridSentinelRef = useGridInfiniteScroll({
-    enabled: params.viewMode === 'grid',
+    enabled: viewMode === 'grid',
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
@@ -310,7 +301,7 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
       title={title}
       backButton={backButton}
       className={cn(embedded && EMBEDDED_PAGE_OFFSET, className)}
-      viewMode={params.viewMode === 'table' ? 'table' : 'grid'}
+      viewMode={viewMode}
       onViewModeChange={mode => setParam('viewMode', mode)}
       actions={actions}
       noOrganizations={noOrganizations}
@@ -380,9 +371,8 @@ export function DevicesPanel(props: DevicesPanelProps) {
 
   // Read straight off the URL rather than through `useDevicesUrlParams`: this
   // component sits OUTSIDE the boundary, and the fallback only needs to know
-  // which of the two shapes to draw. Anything but 'grid' is the 'table' default
-  // the params hook applies.
-  const viewMode = searchParams.get('viewMode') === 'grid' ? 'grid' : 'table';
+  // which of the two shapes to draw, by the rule the loaded list follows.
+  const viewMode = devicesViewMode(searchParams.get('viewMode'), useContentMdUp());
 
   return (
     <ContentErrorBoundary

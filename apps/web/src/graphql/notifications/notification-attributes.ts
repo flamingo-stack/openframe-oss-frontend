@@ -137,7 +137,12 @@ export function isApprovalResolved(resolution: unknown): boolean {
   return typeof resolution === 'string' && TERMINAL_APPROVAL_RESOLUTIONS.has(resolution.toUpperCase());
 }
 
-function normalizeToolCall(raw: unknown): ApprovalToolCallMeta {
+/**
+ * One tool call of an approval, read defensively into the lib's shape: from a
+ * notification's `toolCalls` attribute, or from a `PendingApproval.toolCalls` the chat
+ * service returns (the Needs approval page draws both through the same tile).
+ */
+export function normalizeToolCall(raw: unknown): ApprovalToolCallMeta {
   const call = (raw ?? {}) as Record<string, unknown>;
   return {
     toolExecutionRequestId: typeof call.toolExecutionRequestId === 'string' ? call.toolExecutionRequestId : null,
