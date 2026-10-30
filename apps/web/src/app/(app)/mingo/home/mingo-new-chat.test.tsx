@@ -1,7 +1,7 @@
 /**
  * Mingo's home, a new chat: the greeting, and "What to ask Mingo?" under it, which leads
  * to the full chat with the suggestions (`routes.mingo.whatToAsk`), both in Mingo's colours.
- * On a phone reached from a page, "Back" leads back to it.
+ * On a phone reached from a page, "Back" leads back to it, the chat list open over it as it was left.
  */
 
 import { act } from 'react';
@@ -42,7 +42,7 @@ beforeEach(() => {
   router.back.mockClear();
   router.push.mockClear();
   viewport.mdUp = true;
-  useMingoSheetStore.setState({ outsidePage: null });
+  useMingoSheetStore.setState({ outsidePage: null, listOpen: false, listAfterNavigation: false });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -72,7 +72,7 @@ describe('MingoNewChat', () => {
     expect(container.querySelectorAll('svg')).toHaveLength(0);
   });
 
-  it('leads a phone back to the page it came from', () => {
+  it('leads a phone back to the page it came from, with the chat list it was opened from over it', () => {
     viewport.mdUp = false;
     useMingoSheetStore.setState({ outsidePage: '/devices' });
     act(() => root.render(<MingoNewChat />));
@@ -81,6 +81,10 @@ describe('MingoNewChat', () => {
     // No history entry to go back to in jsdom: the page it came from.
     act(() => back?.click());
     expect(router.push).toHaveBeenCalledWith('/devices');
+    // The list opens once that page is on screen: "Start New Chat" and the chats, as it was left.
+    expect(useMingoSheetStore.getState().listAfterNavigation).toBe(true);
+    useMingoSheetStore.getState().navigated();
+    expect(useMingoSheetStore.getState().listOpen).toBe(true);
   });
 
   it('has no "Back" on a desktop, nor on a phone that came from no page', () => {

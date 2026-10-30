@@ -8,7 +8,7 @@ import { useMingoChatThreadOnScreen } from '@/app/(app)/mingo/providers/mingo-ch
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { canShowSheet, composerRouteOf, isSheetRoute, SHEET_WIDTH_CLASS_NAME } from './mingo-dock-route';
 import { MingoPhoneChatList } from './mingo-phone-chat-list';
-import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
+import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 
 /**
  * Where the sheet opens on a desktop until the user drags it elsewhere: tall enough for a
@@ -67,16 +67,17 @@ export function MingoComposerSheet() {
   const rememberOutsidePage = useMingoSheetStore(s => s.rememberOutsidePage);
   const phone = useMdUp() === false;
   const shown = up && canShowSheet(route);
-  // A phone's chat list, over a page; the chat itself is never in it at once (`showList`).
-  const listShown = useMingoSheetStore(s => s.listOpen) && phone && !shown;
+  // A phone's chat list, over a page (not Mingo's own); the chat itself is never in it at
+  // once (`showList`). Up on the first frame of a page it was asked to open on, as the sheet.
+  const listShown = useMingoSheetStore(s => isListUp(s, pathname)) && phone && !shown && isSheetRoute(route);
   const hideList = useMingoSheetStore(s => s.hideList);
   const dismiss = listShown ? hideList : hide;
 
   // Every location change closes it, or opens it there when that was asked for. A
   // query change on the same page is not one: filters do not close the chat.
   useEffect(() => {
-    navigated();
-  }, [pathname, navigated]);
+    navigated(isSheetRoute(route));
+  }, [pathname, route, navigated]);
 
   // The page a chat page collapses back to: the last one on screen, with its query.
   useEffect(() => {

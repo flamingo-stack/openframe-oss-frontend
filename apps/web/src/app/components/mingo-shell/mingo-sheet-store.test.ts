@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
+import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 
 const store = () => useMingoSheetStore.getState();
 
@@ -12,6 +12,8 @@ describe('mingo sheet store', () => {
       height: null,
       node: null,
       lastPage: null,
+      listOpen: false,
+      listAfterNavigation: false,
     });
     window.sessionStorage.clear();
   });
@@ -45,6 +47,39 @@ describe('mingo sheet store', () => {
     expect(isSheetUp(store(), '/devices/')).toBe(true);
     store().navigated();
     expect(isSheetUp(store(), '/devices/')).toBe(true);
+    window.history.replaceState(null, '', '/');
+  });
+
+  it("opens a phone's chat list on the page the next navigation lands on, once", () => {
+    store().showListAfterNavigation();
+    expect(store().listOpen).toBe(false);
+    store().navigated();
+    expect(store().listOpen).toBe(true);
+    expect(store().open).toBe(false);
+    store().navigated();
+    expect(store().listOpen).toBe(false);
+  });
+
+  it('opens no chat list where it cannot show, nor once it was hidden or another surface shown', () => {
+    store().showListAfterNavigation();
+    store().navigated(false);
+    expect(store().listOpen).toBe(false);
+
+    for (const first of [() => store().hideList(), () => store().hide(), () => store().showAfterNavigation()]) {
+      store().showListAfterNavigation();
+      first();
+      store().navigated();
+      expect(store().listOpen).toBe(false);
+    }
+  });
+
+  it('has the chat list up on the first frame of another page, not on the one it was asked on', () => {
+    window.history.replaceState(null, '', '/mingo/');
+    store().showListAfterNavigation();
+    expect(isListUp(store(), '/mingo')).toBe(false);
+    expect(isListUp(store(), '/devices/')).toBe(true);
+    store().navigated();
+    expect(isListUp(store(), '/devices/')).toBe(true);
     window.history.replaceState(null, '', '/');
   });
 

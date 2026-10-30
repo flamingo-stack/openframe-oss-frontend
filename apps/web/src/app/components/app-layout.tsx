@@ -53,7 +53,7 @@ import { MingoAccountPopover } from './mingo-shell/mingo-account-popover';
 import { MingoComposerDock } from './mingo-shell/mingo-composer-dock';
 import { MingoComposerSheet } from './mingo-shell/mingo-composer-sheet';
 import { composerRouteOf, dockViewOf } from './mingo-shell/mingo-dock-route';
-import { isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
+import { isListUp, isSheetUp, useMingoSheetStore } from './mingo-shell/mingo-sheet-store';
 import { MingoSidebarControls } from './mingo-shell/mingo-sidebar-controls';
 import { MingoHistorySearch, MingoSidebarHistorySlot } from './mingo-shell/mingo-sidebar-history';
 import { MingoSidebarRows } from './mingo-shell/mingo-sidebar-rows';
@@ -573,7 +573,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   const mingoButton = mingoShell && chatEnabled && !dashboardHeld;
   const onMingoPage = ['home', 'chat'].includes(composerRouteOf(pathname));
   const sheetUp = useMingoSheetStore(state => isSheetUp(state, pathname));
-  const listOpen = useMingoSheetStore(state => state.listOpen);
+  const listOpen = useMingoSheetStore(state => isListUp(state, pathname));
   const outsidePage = useMingoSheetStore(state => state.outsidePage);
   const showList = useMingoSheetStore(state => state.showList);
   const hideList = useMingoSheetStore(state => state.hideList);

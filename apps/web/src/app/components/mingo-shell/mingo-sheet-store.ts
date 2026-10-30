@@ -56,6 +56,11 @@ function trimSlash(pathname: string): string {
   return pathname.replace(/\/+$/, '') || '/';
 }
 
+/** The path a pending open was asked on (`askedFrom`). */
+function currentPath(): string | null {
+  return typeof window === 'undefined' ? null : trimSlash(window.location.pathname);
+}
+
 /**
  * The conversation sheet over a page in the Mingo-first shell (`MingoComposerSheet`):
  * the open chat, raised from the docked composer, with the page left beneath it.
@@ -76,6 +81,9 @@ function trimSlash(pathname: string): string {
  * - `listOpen` — a phone's chat list over the page (the top bar's Mingo button): "Start
  *   New Chat", My / All Chats and the chats, as the classic drawer opened. Never with
  *   `open`; any navigation closes it.
+ * - `listAfterNavigation` — open the list on the page the next navigation lands on, once,
+ *   as `openAfterNavigation` does the sheet: "Back" from the new chat its "Start New
+ *   Chat" opened. Up from that page's first frame (`isListUp`, the same `askedFrom`).
  * - `outsidePage` — the last page outside Mingo (not its home, a chat page or the
  *   sheet's routes' own), where a phone's × in the top bar leaves Mingo for. Kept in
  *   `sessionStorage` as `lastPage` is.
@@ -88,15 +96,21 @@ interface MingoSheetStore {
   node: HTMLElement | null;
   lastPage: string | null;
   listOpen: boolean;
+  listAfterNavigation: boolean;
   outsidePage: string | null;
   show: () => void;
   hide: () => void;
   /** A phone's chat list over the page. */
   showList: () => void;
   hideList: () => void;
+  /** A phone's chat list on the page the next navigation lands on. */
+  showListAfterNavigation: () => void;
   showAfterNavigation: () => void;
-  /** The location changed: the sheet closes, unless it was asked to open there. */
-  navigated: () => void;
+  /**
+   * The location changed: the sheet and the list close, unless one was asked to open
+   * there. `listCanShow` is false on a page the list does not go over (Mingo's own).
+   */
+  navigated: (listCanShow?: boolean) => void;
   setHeight: (height: number) => void;
   /** Back to the default height (the resize tab's double click): the dragged one is forgotten. */
   resetHeight: () => void;
@@ -117,19 +131,38 @@ export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
   node: null,
   lastPage: readPage(LAST_PAGE_KEY),
   listOpen: false,
+  listAfterNavigation: false,
   outsidePage: readPage(OUTSIDE_PAGE_KEY),
-  show: () => set({ open: true, listOpen: false, openAfterNavigation: false, askedFrom: null }),
-  hide: () => set({ open: false, listOpen: false, openAfterNavigation: false, askedFrom: null }),
-  showList: () => set({ open: false, listOpen: true, openAfterNavigation: false, askedFrom: null }),
-  hideList: () => set({ listOpen: false }),
+  show: () =>
+    set({ open: true, listOpen: false, openAfterNavigation: false, listAfterNavigation: false, askedFrom: null }),
+  hide: () =>
+    set({ open: false, listOpen: false, openAfterNavigation: false, listAfterNavigation: false, askedFrom: null }),
+  showList: () =>
+    set({ open: false, listOpen: true, openAfterNavigation: false, listAfterNavigation: false, askedFrom: null }),
+  hideList: () => set({ listOpen: false, listAfterNavigation: false }),
+  showListAfterNavigation: () =>
+    set({
+      open: false,
+      listOpen: false,
+      openAfterNavigation: false,
+      listAfterNavigation: true,
+      askedFrom: currentPath(),
+    }),
   showAfterNavigation: () =>
     set({
       open: false,
       openAfterNavigation: true,
-      askedFrom: typeof window === 'undefined' ? null : trimSlash(window.location.pathname),
+      listAfterNavigation: false,
+      askedFrom: currentPath(),
     }),
-  navigated: () =>
-    set({ open: get().openAfterNavigation, listOpen: false, openAfterNavigation: false, askedFrom: null }),
+  navigated: (listCanShow = true) =>
+    set({
+      open: get().openAfterNavigation,
+      listOpen: get().listAfterNavigation && listCanShow,
+      openAfterNavigation: false,
+      listAfterNavigation: false,
+      askedFrom: null,
+    }),
   setHeight: height => {
     writeHeight(height);
     set({ height });
@@ -166,4 +199,17 @@ export function isSheetUp(
 ): boolean {
   if (state.open) return true;
   return state.openAfterNavigation && state.askedFrom !== trimSlash(pathname);
+}
+
+/**
+ * Whether a phone's chat list is up on `pathname`: open, or asked to open on the page a
+ * navigation lands on and this is a page other than the one it was asked on, as
+ * `isSheetUp`. Pages the list does not go over are the caller's to rule out.
+ */
+export function isListUp(
+  state: Pick<MingoSheetStore, 'listOpen' | 'listAfterNavigation' | 'askedFrom'>,
+  pathname: string,
+): boolean {
+  if (state.listOpen) return true;
+  return state.listAfterNavigation && state.askedFrom !== trimSlash(pathname);
 }

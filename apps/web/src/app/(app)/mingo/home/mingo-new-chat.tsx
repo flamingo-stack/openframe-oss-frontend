@@ -20,13 +20,20 @@ import { useGreeting } from './mingo-home-greeting';
  * land both keep their mark's box, so nothing moves when it is drawn.
  *
  * On a phone, reached from the chat list over a page (`outsidePage`), "Back" leads back
- * there, as a desktop page's back button does; out of the flow, so the greeting stays put.
+ * there with the list open over it again, the screen "Start New Chat" was pressed on, as a
+ * desktop page's back button returns to the page before; out of the flow, so the greeting
+ * stays put.
  */
 export function MingoNewChat() {
   const greeting = useGreeting();
   const phone = useMdUp() === false;
   const outsidePage = useMingoSheetStore(s => s.outsidePage);
-  const back = useSafeBack(outsidePage ?? routes.dashboard);
+  const showListAfterNavigation = useMingoSheetStore(s => s.showListAfterNavigation);
+  const toPage = useSafeBack(outsidePage ?? routes.dashboard);
+  const back = () => {
+    showListAfterNavigation();
+    toPage();
+  };
 
   return (
     <div className="relative flex min-h-full flex-col items-center justify-center px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)] text-center">
