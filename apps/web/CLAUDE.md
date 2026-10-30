@@ -170,8 +170,9 @@ install (`npm ci`); the exact pins make `package.json` say the same thing, so an
 to a full version tag for the same reason.
 
 - **To bump:** change the version, run `npm install`, and check the Trivy rows of the pull request's
-  `Flamingo Code Review / tests and checks` check: Trivy over `package-lock.json`, the Dockerfile's base
-  images and the image the change builds, reporting any HIGH/CRITICAL that has a fix.
+  `Flamingo Code Review / tests and checks` check: Trivy over `package-lock.json` and the Dockerfile's
+  base images, reporting any HIGH/CRITICAL that has a fix. The `Test Frontend` job scans the image the
+  change builds and fails on such a finding.
 - **A transitive finding** is fixed with `npm update <pkg>` when the parent's range allows the
   patched version, and with `overrides` only when it does not.
 - **`overrides` → `next-runtime-env`:** the package declares `next@^14` and `react@^18` as hard

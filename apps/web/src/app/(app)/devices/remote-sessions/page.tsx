@@ -29,14 +29,13 @@ export default function RemoteSessionsPage() {
         title={REMOTE_SESSIONS_PAGE_TITLE}
         className="px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       >
+        {/* Shown only while the tenant's recording storage is full, which is rare, and only once its own read answers. */}
+        {!loading && <RecordingStorageBanner data-loading-optional />}
         <ContentErrorBoundary title="Remote Sessions" message="Couldn't load remote sessions.">
           <LoadingWhen loading={loading}>
             <TenantSessionsShell />
           </LoadingWhen>
         </ContentErrorBoundary>
-        {/* Shown only while the tenant's recording storage is full, which is rare, and only once its own read answers:
-            it sits below the list so nothing the page has drawn moves when it appears. */}
-        {!loading && <RecordingStorageBanner data-loading-optional />}
       </PageLayout>
     </div>
   );

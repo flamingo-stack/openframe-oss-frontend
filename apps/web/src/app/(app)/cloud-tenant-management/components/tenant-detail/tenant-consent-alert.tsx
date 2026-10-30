@@ -35,7 +35,7 @@ export function TenantConsentAlert({ connection }: { connection: tenantConsentAl
   if (!alert) return null;
 
   return (
-    // Only some tenants have one: it sits below the integration section and is left out while loading.
+    // Only some tenants have one: it sits under the summary card and is left out while loading.
     <Alert
       data-loading-optional
       variant={alert.variant}

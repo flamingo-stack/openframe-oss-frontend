@@ -138,7 +138,7 @@ export function TenantConsentIssues({ connection }: { connection: tenantConsentI
   const { occurredAt, issues } = lastConsentInfo;
 
   return (
-    // Only some tenants have any: it sits below the integration section and is left out while loading.
+    // Only some tenants have any: it sits under the summary card and is left out while loading.
     <section
       data-loading-optional
       className="flex flex-col gap-[var(--spacing-system-xxs)]"

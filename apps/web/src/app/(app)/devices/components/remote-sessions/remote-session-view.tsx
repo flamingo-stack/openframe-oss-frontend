@@ -10,6 +10,7 @@ import {
   AssignTicketModal,
   KeepRecordingModal,
   ReleaseKeepingModal,
+  type RemoteSessionEvent,
   RemoteSessionEventList,
   RemoteSessionTimelineMarkers,
   UnassignTicketModal,
@@ -112,7 +113,13 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const storage = useRecordingStorage();
   const keep = recording?.keep ?? null;
   // Read once the page has the recording: a missing one has no timeline either.
-  const events = placeSessionEvents(useSessionEvents(recording ? recordingId : null), player.timeline);
+  const sessionEvents = useSessionEvents(recording ? recordingId : null);
+  const events = placeSessionEvents(sessionEvents, player.timeline);
+  // By the server time, so an event in a file still downloading is reached once that file arrives.
+  const seekToEvent = (event: RemoteSessionEvent) => {
+    const clicked = sessionEvents.find(({ id }) => id === event.id);
+    if (clicked) player.seekToTime(clicked.atMs);
+  };
   const hasPlayback = player.state !== 'empty';
   // The recording, or its files, are still on their way: the controls strip keeps its place in its loading form.
   const awaitingPlayback = isLoading || (!!recording && recording.segments.length > 0 && !unavailable);
@@ -127,8 +134,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
   const ticketOptions = ticketSearchResults.options.filter(option => !assignedTicketIds.has(option.value));
 
   // A session has a chat only when the technician and the employee wrote to each other during it, which most
-  // sessions do not: the transcript sits below the player, so the player spans the page in every form and a recording
-  // with a chat adds its transcript under it without moving anything above.
+  // sessions do not: with one, the transcript is a column beside the player on desktop.
   const showChat = !isFullscreen && !!recording && recording.chat.length > 0;
   const unavailableNote = unavailable ? 'The video is still being processed, check back in a moment' : null;
   // Delete lives in the "..." menu, for a session the server would let go (ended, not processing, not kept).
@@ -276,57 +282,68 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
             <RecordingMetaCard recording={recording ?? null} />
           </LoadingWhen>
         )}
-        {/* The player is ONE element per the mockup: the playback screen and
-            the controls strip share a single bordered container. */}
+        {/* With a chat the player and the transcript are two columns on desktop, each under its own label; without
+            one the player spans the page. */}
         <div
           className={cn(
-            'flex flex-col',
-            isFullscreen ? 'min-h-0 flex-1' : 'overflow-hidden rounded-[6px] border border-ods-border',
+            showChat ? 'grid gap-[var(--spacing-system-l)] content-lg:grid-cols-[minmax(0,1fr)_400px]' : 'contents',
           )}
         >
-          <RecordingPlayer
-            player={player}
-            unavailableNote={unavailableNote}
-            className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
-          />
-          {/* While the recording and its files are read the strip draws its loading form; the
-          unavailable/processing screen (Figma 775-50606) has no controls - it is just the
-          empty state on black. */}
-          {(player.state !== 'empty' || awaitingPlayback) && (
-            <div className="bg-ods-card px-[var(--spacing-system-sf)] pb-[var(--spacing-system-xs)] pt-[var(--spacing-system-s)]">
-              <LoadingWhen loading={player.state === 'empty'}>
-                <PlayerControls
-                  state={player.state}
-                  currentMs={player.currentMs}
-                  durationMs={player.durationMs}
-                  speed={player.speed}
-                  isFullscreen={isFullscreen}
-                  markers={
-                    events.length > 0 && (
-                      <RemoteSessionTimelineMarkers
-                        events={events}
-                        durationMs={player.durationMs}
-                        onSelect={event => player.seek(event.offsetMs)}
-                      />
-                    )
-                  }
-                  onTogglePlay={player.togglePlay}
-                  onSeek={player.seek}
-                  onStepBack={player.stepBack}
-                  onStepForward={player.stepForward}
-                  onSetSpeed={player.setSpeed}
-                  onToggleFullscreen={() => void toggleFullscreen()}
-                />
-              </LoadingWhen>
+          <div className={cn(showChat ? 'flex min-w-0 flex-col gap-[var(--spacing-system-xxs)]' : 'contents')}>
+            {showChat && <span className="text-ods-text-secondary text-h5">Video Session Recording</span>}
+            {/* The player is ONE element per the mockup: the playback screen and
+                the controls strip share a single bordered container. */}
+            <div
+              className={cn(
+                'flex flex-col',
+                isFullscreen ? 'min-h-0 flex-1' : 'overflow-hidden rounded-[6px] border border-ods-border',
+              )}
+            >
+              <RecordingPlayer
+                player={player}
+                unavailableNote={unavailableNote}
+                className={isFullscreen ? 'min-h-0 flex-1' : 'aspect-video'}
+              />
+              {/* While the recording and its files are read the strip draws its loading form; the
+              unavailable/processing screen (Figma 775-50606) has no controls - it is just the
+              empty state on black. */}
+              {(player.state !== 'empty' || awaitingPlayback) && (
+                <div className="bg-ods-card px-[var(--spacing-system-sf)] pb-[var(--spacing-system-xs)] pt-[var(--spacing-system-s)]">
+                  <LoadingWhen loading={player.state === 'empty'}>
+                    <PlayerControls
+                      state={player.state}
+                      currentMs={player.currentMs}
+                      durationMs={player.durationMs}
+                      speed={player.speed}
+                      isFullscreen={isFullscreen}
+                      markers={
+                        events.length > 0 && (
+                          <RemoteSessionTimelineMarkers
+                            events={events}
+                            durationMs={player.durationMs}
+                            onSelect={seekToEvent}
+                          />
+                        )
+                      }
+                      onTogglePlay={player.togglePlay}
+                      onSeek={player.seek}
+                      onStepBack={player.stepBack}
+                      onStepForward={player.stepForward}
+                      onSetSpeed={player.setSpeed}
+                      onToggleFullscreen={() => void toggleFullscreen()}
+                    />
+                  </LoadingWhen>
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Only some sessions have a chat: its column is drawn once the recording answers. */}
+          {showChat && (
+            <div data-loading-optional className="flex min-w-0 flex-col">
+              <SessionChat messages={recording.chat} employee={recording.employee} className="flex-1" />
             </div>
           )}
         </div>
-        {/* Only some sessions have a chat: its transcript is drawn under the player once the recording answers. */}
-        {showChat && (
-          <div data-loading-optional>
-            <SessionChat messages={recording.chat} employee={recording.employee} />
-          </div>
-        )}
         {/* Events and tickets: only some sessions have them, so neither is drawn while the recording is read. */}
         {!isFullscreen && events.length > 0 && (
           <div data-loading-optional>
@@ -334,7 +351,7 @@ export function RemoteSessionView({ recordingId }: RemoteSessionViewProps) {
               events={events}
               activeEventId={activeEventId}
               // A row seeks only once there is a recording to seek in.
-              onSelect={hasPlayback ? event => player.seek(event.offsetMs) : undefined}
+              onSelect={hasPlayback ? seekToEvent : undefined}
             />
           </div>
         )}
