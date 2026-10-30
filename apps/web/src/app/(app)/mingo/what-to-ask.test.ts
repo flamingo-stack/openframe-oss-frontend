@@ -4,9 +4,10 @@
 // that the chip shows the name the device list shows while the message carries
 // the device's `@device:<id>` mention (hostnames repeat across a fleet); and a
 // prompt without a name when nothing fits. Also that every prompt is one Mingo's
-// tools can answer (no "offline since when", no "update software").
+// tools can answer (no "offline since when", no "update software"), and that every chip
+// is drawn as Mingo's quick actions are: its icon in Mingo's accent.
 
-import type { SuggestionPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { getAgentAccent, type SuggestionPrompt } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { describe, expect, it } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
 import { buildMingoWhatToAsk, type WhatToAskDevice } from './what-to-ask';
@@ -75,14 +76,14 @@ describe('buildMingoWhatToAsk', () => {
   it('asks without a name, and sends the text as shown, when no device fits', () => {
     expect(find([], 'Which devices are slow')).toEqual({
       label: 'Which devices are slow right now? Check CPU, memory and disk',
-      icon: { name: 'laptop' },
+      icon: { name: 'laptop', accent: getAgentAccent('mingo') },
     });
     expect(find([], 'Pull error logs')?.label).toBe(
       'Pull error logs from my servers for the last hour and tell me what failed',
     );
     expect(find([LAPTOP], 'Clear the print spooler')).toEqual({
       label: 'Clear the print spooler on a Windows device',
-      icon: { name: 'wrench' },
+      icon: { name: 'wrench', accent: getAgentAccent('mingo') },
     });
     expect(find([], 'Flush the DNS cache')?.label).toBe('Flush the DNS cache on a device that cannot load websites');
   });
@@ -102,5 +103,13 @@ describe('buildMingoWhatToAsk', () => {
       ['Check', 4],
       ['Fix', 4],
     ]);
+  });
+
+  it("draws every chip as Mingo's quick actions: its icon in Mingo's accent", () => {
+    const all = prompts([LAPTOP, SERVER, WINDOWS_DESKTOP]);
+    expect(all.length).toBeGreaterThan(0);
+    for (const prompt of all) {
+      expect(prompt.icon).toMatchObject({ accent: getAgentAccent('mingo') });
+    }
   });
 });

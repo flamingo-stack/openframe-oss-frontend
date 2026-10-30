@@ -58,9 +58,13 @@ export function useMingoDialogRowStatus({
     );
   }, [queryClient, activeDialogId, liveStreaming, liveAwaiting, liveRequestId]);
 
-  return dialog => {
-    if (live && dialog.id === activeDialogId) return dialogRowStatus(live);
-    const node = nodes.find(row => row.dialogId === dialog.id);
-    return node ? dialogRowStatus(serverRowState(node)) : undefined;
-  };
+  // What the returned function closes over decides when the list re-renders, so it is
+  // the open row's status, a string, never `live`: that object is new with every
+  // streamed chunk, and a function keyed on it re-rendered every history row (in the
+  // sidebar and the phone drawer) once per chunk. The other rows are looked up once
+  // per list, not searched per row.
+  const openRowStatus = live ? dialogRowStatus(live) : undefined;
+  const openRowIsLive = live !== null;
+  const statusByDialogId = new Map(nodes.map(row => [row.dialogId, dialogRowStatus(serverRowState(row))]));
+  return dialog => (openRowIsLive && dialog.id === activeDialogId ? openRowStatus : statusByDialogId.get(dialog.id));
 }

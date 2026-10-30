@@ -11,11 +11,14 @@ import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings
  * defaults fetched from the Product Hub (`agent-mingo` public config via the
  * gateway's `/chat/content/**` proxy); off → the org's customized actions from
  * the tenant BE — the same record the AI Settings "Mingo AI Chat" tab edits.
+ * `loading` while the config, or the defaults it falls back to, are still read.
  */
-export function useMingoQuickActions(): AiQuickAction[] {
-  const { config } = useAdminAiConfig();
+export function useMingoQuickActions(): { actions: AiQuickAction[]; loading: boolean } {
+  const { config, isLoading } = useAdminAiConfig();
   const isDefault = config?.quickActionsIsDefault ?? true;
   const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: isDefault });
 
-  return isDefault ? hubDefaults.actions : (config?.quickActions ?? []);
+  return isDefault
+    ? { actions: hubDefaults.actions, loading: isLoading || hubDefaults.loading }
+    : { actions: config?.quickActions ?? [], loading: false };
 }
