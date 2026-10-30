@@ -75,7 +75,23 @@ export interface RecordingSpan {
   shiftMs: number;
 }
 
-export type RecordingPlayerState = 'empty' | 'ready' | 'playing' | 'paused' | 'seeking' | 'ended';
+/** One JPEG tile of the desktop stream and where it lands on the screen. */
+export interface SeekTile {
+  x: number;
+  y: number;
+  /** A view into the recording, never a copy. */
+  jpeg: Uint8Array;
+}
+
+/** The desktop screen at a seek target: its size and the tiles still visible on it, in stream order. */
+export interface SeekFrame {
+  width: number;
+  height: number;
+  tiles: SeekTile[];
+}
+
+/** `waiting`: held at the end of the loaded part until the file holding a seek target arrives. */
+export type RecordingPlayerState = 'empty' | 'ready' | 'playing' | 'paused' | 'seeking' | 'waiting' | 'ended';
 
 export type RecordingPlaybackSpeed = 0.5 | 1 | 2 | 4;
 
@@ -89,5 +105,7 @@ export interface RecordingRenderer {
   reset(): void | Promise<void>;
   feed(data: Uint8Array): void;
   waitForIdle(): Promise<void>;
+  /** Fast seek: starts over like `reset()` and draws the frame in one pass; rejects when it cannot draw all of it. */
+  paint?(frame: SeekFrame): Promise<void>;
   dispose(): void;
 }
