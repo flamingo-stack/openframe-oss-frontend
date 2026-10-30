@@ -7,6 +7,7 @@ import {
   formatDateTimeOnDevice,
   formatTime,
   formatTimeZone,
+  formatUtcDay,
   toDateTimeLocalValue,
   viewerLocale,
   viewerTimeZone,
@@ -14,6 +15,17 @@ import {
 
 const SUMMER = '2026-06-26T11:22:00Z';
 const WINTER = '2026-01-15T11:22:00Z';
+
+describe('formatUtcDay', () => {
+  it('dates an instant on the UTC calendar, whatever the viewer zone', () => {
+    expect(formatUtcDay('2026-10-28T23:30:00Z')).toBe('2026-10-28');
+    expect(formatUtcDay('2026-10-28T23:30:00+00:00')).toBe('2026-10-28');
+  });
+
+  it('renders the empty mark when there is no instant', () => {
+    expect(formatUtcDay(null)).toBe(EMPTY_VALUE);
+  });
+});
 
 describe('formatTimeZone', () => {
   it('labels a zone with the offset it had at that moment, not a fixed one', () => {
