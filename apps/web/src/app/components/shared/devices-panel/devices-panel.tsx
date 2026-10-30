@@ -196,7 +196,6 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     handleFilterChange,
     handleTagRemove,
     handleClearAll,
-    handleTagSubmit,
   } = urlParams;
 
   const { devices, isFetchingNextPage, hasNextPage, fetchNextPage, filteredCount } = list;
@@ -319,7 +318,6 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
         tags: tagOptions,
         onTagRemove: handleTagRemove,
         onClearAll: handleClearAll,
-        onSubmit: handleTagSubmit,
         onOpenFilterModal: openFilterModal,
         isFilterModalOpen: filterModalOpen,
         onCloseFilterModal: closeFilterModal,
