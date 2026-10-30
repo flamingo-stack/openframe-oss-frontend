@@ -43,8 +43,11 @@ export function moveToTenantOrigin(capture: PostHogCapture): PostHogCapture {
   try {
     const bundle = window.location;
     const web = new URL(webOrigin());
-    const moveUrl = (url: string) =>
-      url.startsWith(bundle.origin) ? web.origin + url.slice(bundle.origin.length) : url;
+    const moveUrl = (url: string) => {
+      const rest = url.slice(bundle.origin.length);
+      // A clicked link's host can start with the bundle's: `http://tauri.localhost.example`.
+      return url.startsWith(bundle.origin) && /^([/?#]|$)/.test(rest) ? web.origin + rest : url;
+    };
 
     const event = capture.properties;
     for (const properties of [event, capture.$set, capture.$set_once]) {

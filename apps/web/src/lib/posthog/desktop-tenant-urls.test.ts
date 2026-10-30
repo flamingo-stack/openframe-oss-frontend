@@ -53,6 +53,13 @@ describe.each([
     });
   });
 
+  it('moves the bare origin, and one followed directly by a query or hash', () => {
+    const { properties } = moveToTenantOrigin({
+      properties: { $referrer: bundle, query: `${bundle}?id=1`, hash: `${bundle}#files` },
+    });
+    expect(properties).toEqual({ $referrer: TENANT, query: `${TENANT}?id=1`, hash: `${TENANT}#files` });
+  });
+
   it('moves the copies the SDK derives, on the event and on the person', () => {
     const capture = moveToTenantOrigin({
       properties: {
@@ -132,9 +139,12 @@ describe.each([
   });
 
   it('touches nothing that is not the app itself', () => {
+    // The origin of `embedded` is as long as the bundle's, so a boundary follows it too.
+    const embedded = `https://${'x'.repeat(bundle.length - 'https://'.length)}/?next=${bundle}/devices/`;
     const properties = {
       $current_url: 'https://elsewhere.example/page',
-      $external_click_url: `https://elsewhere.example/?next=${bundle}/devices/`,
+      $external_click_url: `${bundle}.elsewhere.example/page`,
+      $initial_referrer: embedded,
       $lib_custom_api_host: 'https://us.i.posthog.com',
       $referrer: '$direct',
       device_name: bundleHost,
