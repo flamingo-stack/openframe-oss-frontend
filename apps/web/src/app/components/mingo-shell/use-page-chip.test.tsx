@@ -48,7 +48,7 @@ describe('usePageChip', () => {
   beforeEach(() => {
     onAsk.mockReset();
     useMingoContextStore.setState({ openView: null, recentViews: [] });
-    useMingoSheetStore.setState({ lastPage: null, outsidePage: null });
+    useMingoSheetStore.setState({ lastPage: null, outsidePage: null, newChatPage: null });
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -93,7 +93,7 @@ describe('usePageChip', () => {
 
   it("shows nothing on a desktop's new chat: no page to ask about, wherever the tab was", () => {
     useMingoContextStore.setState({ openView: { type: 'DEVICE', id: 'd-1', label: 'MacBook' } });
-    useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/devices/' });
+    useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/devices/', newChatPage: '/devices/' });
     render('home', '/mingo/');
     expect(probe.node).toBeNull();
   });
@@ -154,8 +154,8 @@ describe('usePageChip', () => {
       window.matchMedia = matchMedia;
     });
 
-    it('names on the home, and on a chat started there, the page the chat list was opened over', () => {
-      useMingoSheetStore.setState({ lastPage: '/mingo/', outsidePage: '/devices/' });
+    it('names on the home, and on a chat started there, the page a new chat was started over', () => {
+      useMingoSheetStore.setState({ lastPage: '/mingo/', outsidePage: '/devices/', newChatPage: '/devices/' });
       render('home', '/mingo/');
       expect(container.textContent).toBe('Devices');
       render('chat', '/mingo/chat/', 'id=d-1');
@@ -164,6 +164,15 @@ describe('usePageChip', () => {
 
     it('shows nothing on the home when the list was opened over no page', () => {
       render('home', '/mingo/');
+      expect(probe.node).toBeNull();
+    });
+
+    it('shows no chip of the previous page on a home reached another way, nor on a chat started there', () => {
+      useMingoSheetStore.setState({ lastPage: '/settings/', outsidePage: '/settings/' });
+      render('home', '/mingo/');
+      expect(probe.node).toBeNull();
+      useMingoSheetStore.setState({ lastPage: '/mingo/' });
+      render('chat', '/mingo/chat/', 'id=d-1');
       expect(probe.node).toBeNull();
     });
   });

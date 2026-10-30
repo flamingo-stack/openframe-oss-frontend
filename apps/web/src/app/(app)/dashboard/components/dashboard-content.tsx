@@ -47,17 +47,22 @@ function InitialSetupSection() {
 }
 
 /**
- * Onboarding v2's welcome ("OpenFrame isn't your typical RMM") above the overview,
- * until the user closes it — the dashboard's and Mingo's home's. The same wrapper as
- * the setup card, so a dismissed banner collapses the gap. Nothing while the flag is
- * unanswered or off.
+ * Onboarding v2's welcome ("OpenFrame isn't your typical RMM"), until the user closes it.
+ * Nothing with the flag off. While it is unanswered a SaaS tenant, which is where the flag
+ * is on, keeps the banner's place in its loading form; an OSS tenant, where it reads as
+ * off, keeps nothing.
  */
-export function IntroBannerSection() {
+export function IntroBanner() {
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
-  if (onboardingV2 !== 'on') return null;
+  const shows = isSaasTenantMode() ? onboardingV2 !== 'off' : onboardingV2 === 'on';
+  return shows ? <MingoIntroBanner loading={onboardingV2 === 'loading'} /> : null;
+}
+
+/** The banner above the classic overview: the setup card's wrapper, so a dismissed banner collapses the gap. */
+function IntroBannerSection() {
   return (
     <div className={BANNER_WRAPPER_CLASS}>
-      <MingoIntroBanner />
+      <IntroBanner />
     </div>
   );
 }

@@ -9,6 +9,9 @@ const LAST_PAGE_KEY = 'of.mingo-last-page';
 /** Per tab: the last page outside Mingo, where a phone's × in the top bar leaves Mingo for. */
 const OUTSIDE_PAGE_KEY = 'of.mingo-outside-page';
 
+/** Per tab: the page a phone's new chat was started over, what it stays about across a reload. */
+const NEW_CHAT_PAGE_KEY = 'of.mingo-new-chat-page';
+
 function readHeight(): number | null {
   try {
     const raw = typeof window === 'undefined' ? null : window.localStorage.getItem(HEIGHT_KEY);
@@ -51,6 +54,14 @@ function writePage(key: string, href: string): void {
   }
 }
 
+function forgetPage(key: string): void {
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Blocked storage: nothing was kept.
+  }
+}
+
 /** `trailingSlash: true` puts a slash after every path; compare without it. */
 function trimSlash(pathname: string): string {
   return pathname.replace(/\/+$/, '') || '/';
@@ -87,6 +98,11 @@ function currentPath(): string | null {
  * - `outsidePage` — the last page outside Mingo (not its home, a chat page or the
  *   sheet's routes' own), where a phone's × in the top bar leaves Mingo for. Kept in
  *   `sessionStorage` as `lastPage` is.
+ * - `newChatPage` — the page a phone's new chat was started over ("Start New Chat" in the
+ *   chat list, a launcher sent home from a page): what that chat is about, and where the
+ *   home's "Back" leads. Not `outsidePage`, which any visit writes: the home reached any
+ *   other way is a new chat with no page, as a desktop's. Gone once a page outside Mingo
+ *   is on screen again. Kept in `sessionStorage` as `lastPage` is.
  */
 interface MingoSheetStore {
   open: boolean;
@@ -98,6 +114,7 @@ interface MingoSheetStore {
   listOpen: boolean;
   listAfterNavigation: boolean;
   outsidePage: string | null;
+  newChatPage: string | null;
   show: () => void;
   hide: () => void;
   /** A phone's chat list over the page. */
@@ -121,6 +138,8 @@ interface MingoSheetStore {
   rememberPage: (href: string) => void;
   /** A page outside Mingo is on screen: the one a phone's × leaves Mingo for. */
   rememberOutsidePage: (href: string) => void;
+  /** A new chat starts over the page on screen (`outsidePage`): the page it is about. */
+  rememberNewChatPage: () => void;
 }
 
 export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
@@ -133,6 +152,7 @@ export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
   listOpen: false,
   listAfterNavigation: false,
   outsidePage: readPage(OUTSIDE_PAGE_KEY),
+  newChatPage: readPage(NEW_CHAT_PAGE_KEY),
   show: () =>
     set({ open: true, listOpen: false, openAfterNavigation: false, listAfterNavigation: false, askedFrom: null }),
   hide: () =>
@@ -181,9 +201,19 @@ export const useMingoSheetStore = create<MingoSheetStore>()((set, get) => ({
     set({ lastPage: href });
   },
   rememberOutsidePage: href => {
+    if (get().newChatPage !== null) {
+      forgetPage(NEW_CHAT_PAGE_KEY);
+      set({ newChatPage: null });
+    }
     if (get().outsidePage === href) return;
     writePage(OUTSIDE_PAGE_KEY, href);
     set({ outsidePage: href });
+  },
+  rememberNewChatPage: () => {
+    const { outsidePage } = get();
+    if (outsidePage === null) return;
+    writePage(NEW_CHAT_PAGE_KEY, outsidePage);
+    set({ newChatPage: outsidePage });
   },
 }));
 

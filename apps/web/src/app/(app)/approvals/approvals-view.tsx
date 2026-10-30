@@ -7,7 +7,11 @@ import { NoData } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { type ApprovalCard, composeApprovalInbox } from '@/app/components/approvals/approval-inbox';
 import { useApprovalDecider } from '@/app/components/approvals/use-approval-decider';
-import { type SourceStatus, useApprovalSources } from '@/app/components/approvals/use-approval-sources';
+import {
+  type ApprovalTotals,
+  type SourceStatus,
+  useApprovalSources,
+} from '@/app/components/approvals/use-approval-sources';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
 import { ApprovalRequestCard } from './approval-request-card';
 
@@ -28,7 +32,7 @@ const EMPTY_TEXT =
  * the drawer, the chat and the board: `use-approval-decider.ts`.
  */
 export function ApprovalsView() {
-  const { sources, status } = useApprovalSources();
+  const { sources, status, totals } = useApprovalSources();
   const { kept, decide, complete } = useApprovalDecider();
   const inbox = composeApprovalInbox(sources, kept);
 
@@ -39,7 +43,7 @@ export function ApprovalsView() {
       subtitle={SUBTITLE}
       className="min-h-full px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
     >
-      <ApprovalList cards={inbox.cards} status={status} onDecide={decide} onComplete={complete} />
+      <ApprovalList cards={inbox.cards} status={status} totals={totals} onDecide={decide} onComplete={complete} />
     </PageLayout>
   );
 }
@@ -47,6 +51,7 @@ export function ApprovalsView() {
 interface ApprovalListProps {
   cards: ApprovalCard[];
   status: SourceStatus;
+  totals: ApprovalTotals;
   onDecide: (card: ApprovalCard, approve: boolean) => Promise<void>;
   onComplete: (card: ApprovalCard) => void;
 }
@@ -57,7 +62,7 @@ interface ApprovalListProps {
  * requests are already on screen (a chat's and its notification's) adds nothing, and the
  * next one loads on its own until something shows or the sources end.
  */
-function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps) {
+function ApprovalList({ cards, status, totals, onDecide, onComplete }: ApprovalListProps) {
   const sentinelRef = useGridInfiniteScroll({
     enabled: !status.error,
     hasNextPage: status.hasMore,
@@ -76,12 +81,14 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
       <ApprovalSection
         label={LIST_LABEL}
         cards={cards.filter(card => card.ticketId === null)}
+        total={totals.requests}
         onDecide={onDecide}
         onComplete={onComplete}
       />
       <ApprovalSection
         label={TICKETS_LABEL}
         cards={cards.filter(card => card.ticketId !== null)}
+        total={totals.tickets}
         onDecide={onDecide}
         onComplete={onComplete}
       />
@@ -103,17 +110,25 @@ function ApprovalList({ cards, status, onDecide, onComplete }: ApprovalListProps
 interface ApprovalSectionProps {
   label: string;
   cards: ApprovalCard[];
+  /** The server's count of the section while pages of it are not loaded yet. */
+  total: number | null;
   onDecide: (card: ApprovalCard, approve: boolean) => Promise<void>;
   onComplete: (card: ApprovalCard) => void;
 }
 
-/** One kind of request under its name and count; nothing while it has none. */
-function ApprovalSection({ label, cards, onDecide, onComplete }: ApprovalSectionProps) {
+/**
+ * One kind of request under its name and count; nothing while it has none. The count is the
+ * requests waiting, not the ones loaded: the server's while pages are left, never under
+ * what is on screen (a notification can show one its chat or lane does not count). A card
+ * kept after its decision no longer waits.
+ */
+function ApprovalSection({ label, cards, total, onDecide, onComplete }: ApprovalSectionProps) {
   if (cards.length === 0) return null;
+  const count = Math.max(total ?? 0, cards.filter(card => card.pending).length);
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xsf)]">
       <h2 className="text-ods-text-secondary text-h5">
-        {label} · {cards.length}
+        {label} · {count}
       </h2>
       <ul aria-label={label} className="flex flex-col gap-[var(--spacing-system-sf)]">
         {cards.map(card => (

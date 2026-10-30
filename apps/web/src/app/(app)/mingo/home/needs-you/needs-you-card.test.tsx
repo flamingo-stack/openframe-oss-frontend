@@ -10,8 +10,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
-import { NeedsYouCard } from './needs-you-card';
-import type { NeedsYouRow, NeedsYouSource, ReportSource, SourceReport } from './needs-you-rows';
+import { NeedsYouCard, NeedsYouPanel } from './needs-you-card';
+import {
+  NEEDS_YOU_SKELETON_ROWS,
+  type NeedsYouRow,
+  type NeedsYouSource,
+  type ReportSource,
+  type SourceReport,
+} from './needs-you-rows';
 
 const env = vi.hoisted(() => ({
   saas: true,
@@ -177,6 +183,33 @@ describe('NeedsYouCard gating', () => {
     env.reports.approvals = ready(row('approvals', '1', routes.tickets.dialog('t-1')));
     await render();
     expect(isLoading()).toBe(true);
+  });
+});
+
+describe('NeedsYouCard loading', () => {
+  const loadingRows = () => container.querySelectorAll('[data-loading-item]');
+
+  it('draws the set number of rows however many sources are open, under its real caption', async () => {
+    delete env.reports.software;
+    await render();
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
+    expect(caption()).toBeDefined();
+
+    setFlags('unanswered');
+    act(() => root.unmount());
+    root = createRoot(container);
+    await render();
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
+  });
+
+  it('is the panel itself, which the shell can hold with no source behind it', async () => {
+    await act(async () => {
+      root.render(<NeedsYouPanel loading />);
+    });
+    expect(env.mounted.size).toBe(0);
+    expect(isLoading()).toBe(true);
+    expect(caption()).toBeDefined();
+    expect(loadingRows()).toHaveLength(NEEDS_YOU_SKELETON_ROWS);
   });
 });
 

@@ -19,7 +19,7 @@ import { useGreeting } from './mingo-home-greeting';
  * Mingo icon does: one icon, set on the server, the same everywhere. Until the identities
  * land both keep their mark's box, so nothing moves when it is drawn.
  *
- * On a phone, reached from the chat list over a page (`outsidePage`), "Back" leads back
+ * On a phone, reached from the chat list over a page (`newChatPage`), "Back" leads back
  * there with the list open over it again, the screen "Start New Chat" was pressed on, as a
  * desktop page's back button returns to the page before; out of the flow, so the greeting
  * stays put.
@@ -27,9 +27,9 @@ import { useGreeting } from './mingo-home-greeting';
 export function MingoNewChat() {
   const greeting = useGreeting();
   const phone = useMdUp() === false;
-  const outsidePage = useMingoSheetStore(s => s.outsidePage);
+  const newChatPage = useMingoSheetStore(s => s.newChatPage);
   const showListAfterNavigation = useMingoSheetStore(s => s.showListAfterNavigation);
-  const toPage = useSafeBack(outsidePage ?? routes.dashboard);
+  const toPage = useSafeBack(newChatPage ?? routes.dashboard);
   const back = () => {
     showListAfterNavigation();
     toPage();
@@ -37,7 +37,7 @@ export function MingoNewChat() {
 
   return (
     <div className="relative flex min-h-full flex-col items-center justify-center px-[var(--spacing-system-l)] py-[var(--spacing-system-xl)] text-center">
-      {phone && outsidePage && (
+      {phone && newChatPage && (
         <BackButton onClick={back} className="absolute left-[var(--spacing-system-l)] top-[var(--spacing-system-xs)]" />
       )}
       <div className="flex items-center justify-center gap-[var(--spacing-system-m)]">

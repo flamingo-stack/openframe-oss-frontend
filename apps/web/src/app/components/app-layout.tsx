@@ -11,6 +11,7 @@ import type { NavigationSidebarConfig } from '@flamingo-stack/openframe-frontend
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DashboardOverviews } from '@/app/(app)/dashboard/components/dashboard-content';
+import { MingoDashboard } from '@/app/(app)/mingo/home/mingo-dashboard';
 import { MingoNewChat } from '@/app/(app)/mingo/home/mingo-new-chat';
 import { MingoChatProvider } from '@/app/(app)/mingo/providers/mingo-chat-provider';
 import { countCompleted, USER_ONBOARDING_STEPS } from '@/app/(app)/onboarding/onboarding-steps';
@@ -684,7 +685,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
           <MingoNewChat />
         ) : (
           <LoadingFallback label="Loading dashboard">
-            <DashboardOverviews />
+            {isSaasTenantMode() ? <MingoDashboard live={false} /> : <DashboardOverviews />}
           </LoadingFallback>
         )
       ) : (

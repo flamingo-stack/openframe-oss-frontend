@@ -312,9 +312,9 @@ export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean
  */
 export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoSendContext {
   const { openView, recentViews } = useMingoContextStore.getState();
-  const { lastPage, outsidePage } = useMingoSheetStore.getState();
-  // On a phone the home and a chat started there are about the page the chat list was opened over.
-  const href = pageContextHref(window.location, lastPage, isMobileViewportNow() ? { outsidePage } : undefined);
+  const { lastPage, newChatPage } = useMingoSheetStore.getState();
+  // On a phone the home and a chat started there are about the page the new chat was started over.
+  const href = pageContextHref(window.location, lastPage, isMobileViewportNow() ? { newChatPage } : undefined);
   return {
     ...resolvePageContext(href, openView),
     // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
