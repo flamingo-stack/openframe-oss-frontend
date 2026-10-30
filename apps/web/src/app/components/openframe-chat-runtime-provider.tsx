@@ -458,8 +458,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
     <ChatRuntimeContext.Provider value={runtime}>
       <AssistantRuntimeContext.Provider value={assistant}>
         {/* This app's route to topic map: the lib reads every page's topic from its address through it (the FAQ
-            blocks, their ask cards, the chat's quick actions). */}
-        <PageTopicsProvider topics={PAGE_TOPICS}>{children}</PageTopicsProvider>
+            blocks, their ask cards, the chat's quick actions). `showTopic`: each of them prints the topic as a faint
+            stamp, so whoever edits FAQs and quick actions on the hub sees which topic a page asks for. */}
+        <PageTopicsProvider topics={PAGE_TOPICS} showTopic>
+          {children}
+        </PageTopicsProvider>
       </AssistantRuntimeContext.Provider>
     </ChatRuntimeContext.Provider>
   );
