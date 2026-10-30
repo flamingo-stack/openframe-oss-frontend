@@ -70,7 +70,8 @@ function fakeNativeAuth() {
       }
       return { callbackUrl: handoff.appUrl };
     },
-    exchangeTicket: async () => ({ accessToken: 'access-1', refreshToken: 'refresh-1' }),
+    // The access token alone: the shell keeps the refresh token (PageTokens in tokens.rs).
+    exchangeTicket: async () => ({ accessToken: 'access-1' }),
     getTokens: async () => ({}),
     setTokens: async tokens => {
       storedTokens = tokens;
@@ -172,7 +173,7 @@ test('desktop login without a shared host fails before opening the browser', asy
 test('saas-shared desktop login exchanges the ticket and keeps the boot host', async () => {
   const result = await nativeLogin({ tenantId: 'tenant-1' });
 
-  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: 'refresh-1' });
+  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: undefined });
   assert.equal(result.tenantHostChanged, false, 'the scheme callback leaves the discovered host standing');
 });
 
@@ -191,7 +192,7 @@ test('an https landing still carries the login when the gateway drops the reques
 
   const result = await nativeLogin({ tenantId: 'tenant-1' });
 
-  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: 'refresh-1' });
+  assert.deepEqual(storedTokens, { accessToken: 'access-1', refreshToken: undefined });
   assert.equal(result.tenantHostChanged, false);
 });
 

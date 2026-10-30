@@ -38,6 +38,7 @@ import { getFullImageUrl } from '@/lib/image-url';
 import { useNativeBackDismissible } from '@/lib/native-back';
 import { isAppShell } from '@/lib/platform';
 import { MANAGE_AI_BALANCE_ACTION, routes } from '@/lib/routes';
+import { useSessionHealthStore } from '@/lib/session-health';
 import { dismissTrialBar, isTrialBarDismissed } from '@/lib/trial-bar-dismissal';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { isAuthOnlyMode, isOssTenantMode, isSaasTenantMode } from '../../lib/app-mode';
@@ -57,6 +58,7 @@ import { OnboardingV2Redirect } from './onboarding-v2-redirect';
 import { OpenframeEmbeddableChatEntry } from './openframe-embeddable-chat-entry';
 import { PresenceHeartbeat } from './presence-heartbeat';
 import { SessionHealthWatcher } from './session-health-watcher';
+import { SessionUnavailableScreen } from './session-unavailable-screen';
 import { SubscriptionGuard, useSubscriptionLock } from './subscription-lock/subscription-guard';
 import { SubscriptionLockContent } from './subscription-lock/subscription-lock-content';
 import { isRouteOpenWhileLocked } from './subscription-lock/subscription-status';
@@ -811,6 +813,7 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
 
 function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode; mainClassName?: string }) {
   const { isReady, isAuthenticated } = useAuthSession();
+  const sessionUnavailable = useSessionHealthStore(s => s.health === 'paused' && s.pauseReason === 'transient');
   const router = useRouter();
   const pathname = usePathname();
 
@@ -834,6 +837,16 @@ function AppLayoutInner({ children, mainClassName }: { children: React.ReactNode
     // OSS mode: the effect above is redirecting to /auth. Fall through so the
     // shell stays mounted with the page's own loading state in its content area
     // rather than swapping the whole chrome for a placeholder on the way out.
+  }
+
+  // Auth could not be re-established and the credential is not known to be
+  // dead (`session-health.ts`): without this the page sat in its skeletons
+  // behind the refresh loop, with no way out but closing the tab. The screen
+  // owns the paced retry and the exit, and replaces the tree so a recovery
+  // remounts every query fresh. After the signed-out check on purpose: a
+  // session that has resolved as signed out is answered, not unavailable.
+  if (sessionUnavailable) {
+    return <SessionUnavailableScreen />;
   }
 
   // The guard wraps EVERYTHING, and that placement is the rule, not a detail.
