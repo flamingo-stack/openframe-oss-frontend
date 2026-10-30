@@ -1,7 +1,8 @@
 'use client';
 
 import { OnboardingGuidesCatalogPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
-import { EP, HELP_CENTER_BASE, pageFaq } from '../endpoints';
+import { EP, HELP_CENTER_BASE } from '../endpoints';
+import { usePageFaq } from '../page-topic';
 
 /**
  * Onboarding catalog — one-line mount of the lib's ready-made
@@ -11,6 +12,7 @@ import { EP, HELP_CENTER_BASE, pageFaq } from '../endpoints';
  * route; `basePath` is the fallback prefix.
  */
 export default function OnboardingGuidesCatalogRoute() {
+  const faq = usePageFaq('onboarding-guides');
   return (
     <OnboardingGuidesCatalogPage
       shell={false}
@@ -18,7 +20,7 @@ export default function OnboardingGuidesCatalogRoute() {
       sectionsEndpoint={EP.onboardingSections}
       basePath={`${HELP_CENTER_BASE}/onboarding-guides`}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
-      faq={pageFaq('onboarding-guides')}
+      faq={faq}
     />
   );
 }

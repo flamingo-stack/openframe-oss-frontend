@@ -2,6 +2,7 @@
 
 import { FaqDocumentPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
 import { CONTENT_BASE, HELP_CENTER_BASE } from '../endpoints';
+import { useStatePageTopic } from '../page-topic';
 
 /**
  * FAQs — one-line mount of the lib's ready-made `<FaqDocumentPage>`. It routes
@@ -14,6 +15,7 @@ import { CONTENT_BASE, HELP_CENTER_BASE } from '../endpoints';
 const FAQS_ASK = { topic: 'faqs' } as const;
 
 export default function FaqsRoute() {
+  useStatePageTopic(FAQS_ASK.topic);
   return (
     <FaqDocumentPage
       shell={false}

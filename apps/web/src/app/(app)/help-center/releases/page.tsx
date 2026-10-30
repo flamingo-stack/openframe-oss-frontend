@@ -1,7 +1,8 @@
 'use client';
 
 import { ProductReleasesListPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
-import { EP, HELP_CENTER_BASE, pageFaq } from '../endpoints';
+import { EP, HELP_CENTER_BASE } from '../endpoints';
+import { usePageFaq } from '../page-topic';
 
 /**
  * Releases LIST — one-line mount of the lib's ready-made `<ProductReleasesListPage>`.
@@ -10,13 +11,14 @@ import { EP, HELP_CENTER_BASE, pageFaq } from '../endpoints';
  * route; `basePath` is the fallback prefix.
  */
 export default function ReleasesRoute() {
+  const faq = usePageFaq('releases');
   return (
     <ProductReleasesListPage
       shell={false}
       releasesEndpoint={EP.productReleases}
       basePath={`${HELP_CENTER_BASE}/releases`}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
-      faq={pageFaq('releases')}
+      faq={faq}
     />
   );
 }

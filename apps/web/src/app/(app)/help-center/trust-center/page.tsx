@@ -2,6 +2,7 @@
 
 import { TrustCenterPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
 import { EP, HELP_CENTER_BASE } from '../endpoints';
+import { useStatePageTopic } from '../page-topic';
 
 /**
  * Trust Center — one-line mount of the lib's ready-made `<TrustCenterPage>`
@@ -18,6 +19,7 @@ import { EP, HELP_CENTER_BASE } from '../endpoints';
 const TRUST_CENTER_ASK = { topic: 'trust-center' } as const;
 
 export default function TrustCenterRoute() {
+  useStatePageTopic(TRUST_CENTER_ASK.topic);
   return (
     <TrustCenterPage
       shell={false}
