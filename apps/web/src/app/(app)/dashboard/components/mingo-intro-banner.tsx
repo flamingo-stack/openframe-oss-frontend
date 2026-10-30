@@ -1,7 +1,7 @@
 'use client';
 
 import { CalendarBookmarkIcon, XmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState, useSyncExternalStore } from 'react';
 import { BookCallWalkthroughVideo } from '@/app/(app)/onboarding/components/book-call/book-call-walkthrough-video';
@@ -58,9 +58,10 @@ function useDismissed(key: string): [boolean, () => void] {
  * overview. Stacked while the content is narrow (Mingo docked beside it), the
  * clip beside the copy from `content-lg`. Closed for good with the X, per user
  * on this device. Nothing to offer - no clip and no bookable call - means no
- * banner.
+ * banner. `loading`: whether it shows at all is not known yet, so it draws its
+ * loading form, the clip's slot and the button locked, as it does for its own reads.
  */
-export function MingoIntroBanner() {
+export function MingoIntroBanner({ loading = false }: { loading?: boolean }) {
   const userId = useAuthStore(state => state.user?.id);
   const [dismissed, dismiss] = useDismissed(`${DISMISSED_KEY_PREFIX}${userId ?? 'anonymous'}`);
   const { link, isLoading: linkLoading } = useOnboardingMeetingLink();
@@ -68,8 +69,8 @@ export function MingoIntroBanner() {
   const [booking, setBooking] = useState(false);
 
   if (dismissed) return null;
-  const hasVideo = videoLoading || Boolean(video?.mainVideoUrl || video?.youtubeUrl);
-  const hasCall = linkLoading || Boolean(link);
+  const hasVideo = loading || videoLoading || Boolean(video?.mainVideoUrl || video?.youtubeUrl);
+  const hasCall = loading || linkLoading || Boolean(link);
   if (!hasVideo && !hasCall) return null;
 
   const title = (
@@ -99,7 +100,9 @@ export function MingoIntroBanner() {
           and the title row moves into the copy column. */}
       <div className="content-lg:hidden">{title}</div>
       {hasVideo && (
-        <BookCallWalkthroughVideo className="w-full content-lg:w-[216px] content-lg:shrink-0 content-lg:self-start" />
+        <LoadingWhen loading={loading}>
+          <BookCallWalkthroughVideo className="w-full content-lg:w-[216px] content-lg:shrink-0 content-lg:self-start" />
+        </LoadingWhen>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xs)]">
         <div className="hidden content-lg:block">{title}</div>
@@ -112,7 +115,7 @@ export function MingoIntroBanner() {
             variant="accent"
             leftIcon={<CalendarBookmarkIcon className="size-5" />}
             onClick={() => setBooking(true)}
-            disabled={!link}
+            disabled={loading || !link}
             className="mt-[var(--spacing-system-xs)] w-auto self-start"
           >
             Book a Call

@@ -1,6 +1,5 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/components/features';
 import {
   AlertTriangleIcon,
@@ -10,6 +9,7 @@ import {
   TicketIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
+  LoadingWhen,
   type PanelRow,
   StackedRowsPanel,
   Tag,
@@ -23,6 +23,7 @@ import { loadErrorProps } from '@/lib/query-state';
 import { NeedsYouApprovalsSource } from './needs-you-approvals-source';
 import { NeedsYouInsightsSource } from './needs-you-insights-source';
 import {
+  NEEDS_YOU_SKELETON_ROWS,
   type NeedsYouEntity,
   type NeedsYouFailure,
   needsYouFooter,
@@ -77,6 +78,7 @@ export function NeedsYouCard() {
   const view = resolveNeedsYou(gates, { ...reports, tickets }, ticketsOn && ticketStats.isLoading);
   // The page's loading state draws the card's own, as its unanswered sources do.
   const loading = useLoadingScope() || view.status === 'loading';
+  const ready = view.status === 'ready' ? view : null;
   const footer = needsYouFooter({
     aiHandled: ticketsOn ? ticketStats.aiAssistance : null,
     needTechnician: ticketsOn ? ticketStats.techRequired : null,
@@ -107,11 +109,9 @@ export function NeedsYouCard() {
         </NeedsYouSourceBoundary>
       )}
 
-      {loading ? (
-        <NeedsYouSkeleton />
-      ) : view.status === 'ready' ? (
-        <NeedsYouPanel rows={view.rows} failures={view.failures} footer={footer} />
-      ) : null}
+      {(loading || ready) && (
+        <NeedsYouPanel loading={loading} rows={ready?.rows} failures={ready?.failures} footer={footer} />
+      )}
     </>
   );
 }
@@ -161,12 +161,15 @@ function toPanelRow(row: NeedsYouRow): PanelRow {
 }
 
 interface NeedsYouPanelProps {
-  rows: readonly NeedsYouRow[];
-  failures: readonly NeedsYouFailure[];
-  footer: string | null;
+  rows?: readonly NeedsYouRow[];
+  failures?: readonly NeedsYouFailure[];
+  footer?: string | null;
+  /** Still being read: `NEEDS_YOU_SKELETON_ROWS` rows of bars under the real caption. */
+  loading?: boolean;
 }
 
-function NeedsYouPanel({ rows, failures, footer }: NeedsYouPanelProps) {
+/** The card itself, without its sources: what the shell holds in the page's slot (`loading`) needs no request. */
+export function NeedsYouPanel({ rows = [], failures = [], footer = null, loading = false }: NeedsYouPanelProps) {
   const panelRows = rows.map(toPanelRow);
 
   if (failures.length > 0) {
@@ -194,29 +197,16 @@ function NeedsYouPanel({ rows, failures, footer }: NeedsYouPanelProps) {
 
   return (
     <section aria-label={CAPTION}>
-      <StackedRowsPanel title={CAPTION} rows={panelRows} />
+      <LoadingWhen loading={loading} label="Loading what needs you">
+        <StackedRowsPanel
+          title={CAPTION}
+          rows={panelRows}
+          loading={loading}
+          loadingRows={NEEDS_YOU_SKELETON_ROWS}
+          skeleton={{ columns: 2 }}
+          listItems
+        />
+      </LoadingWhen>
     </section>
-  );
-}
-
-const SKELETON_ROWS: PanelRow[] = ['row-1', 'row-2'].map(id => ({
-  id,
-  columns: [
-    {
-      key: 'entity',
-      leadingIcon: <UnifiedSkeleton className="size-6" />,
-      value: <UnifiedSkeleton as="span" className="inline-block h-5 w-56 max-w-full" />,
-      label: <UnifiedSkeleton as="span" className="inline-block h-4 w-40 max-w-full" />,
-    },
-    { key: 'reason', content: <UnifiedSkeleton className="h-8 w-28" />, width: 'shrink-0', align: 'right' },
-  ],
-}));
-
-/** The card while it loads: its real caption over two rows of bars (what they hold is unknown yet). */
-function NeedsYouSkeleton() {
-  return (
-    <LoadingRegion label="Loading what needs you">
-      <StackedRowsPanel title={CAPTION} rows={SKELETON_ROWS} />
-    </LoadingRegion>
   );
 }

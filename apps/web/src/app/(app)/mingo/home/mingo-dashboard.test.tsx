@@ -1,12 +1,14 @@
 /**
- * The Mingo-first dashboard: what it renders ("Needs you", the dashboard's sections — Tickets
- * on SaaS only, with filtered links, Incidents between Tickets and Customers). The quick
- * actions are the dock's (`mingo-dock-quick-actions.test.tsx`).
+ * The Mingo-first dashboard: what it renders (the call to book, "Needs you", the dashboard's
+ * sections — Tickets on SaaS only, with filtered links, Incidents between Tickets and
+ * Customers), and what the shell holds in the page's slot. The quick actions are the dock's
+ * (`mingo-dock-quick-actions.test.tsx`).
  */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { MingoDashboard } from './mingo-dashboard';
 
 const { isSaas, setup } = vi.hoisted(() => ({ isSaas: { value: true }, setup: { active: false } }));
@@ -24,17 +26,26 @@ vi.mock('@/app/(app)/onboarding/hooks/use-initial-setup-active', () => ({
 }));
 vi.mock('@/app/(app)/dashboard/components/devices-overview', () => ({
   DevicesOverviewSection: () => <p>devices section</p>,
+  DevicesOverview: () => <p>devices section (held)</p>,
 }));
 vi.mock('@/app/(app)/dashboard/components/tickets-overview', () => ({
   TicketsOverviewSection: ({ filterLinks }: { filterLinks?: boolean }) => (
     <p>{`tickets section${filterLinks ? ' (filtered links)' : ''}`}</p>
   ),
+  TicketsOverview: () => <p>tickets section (held)</p>,
 }));
 vi.mock('@/app/(app)/dashboard/components/customers-overview', () => ({
   CustomersOverviewSection: () => <p>customers section</p>,
+  CustomersOverview: () => <p>customers section (held)</p>,
 }));
 // Both run Relay queries (`graphql` needs the compiler's transform); they have tests of their own.
-vi.mock('./needs-you/needs-you-card', () => ({ NeedsYouCard: () => <p>needs you card</p> }));
+vi.mock('./needs-you/needs-you-card', () => ({
+  NeedsYouCard: () => <p>needs you card</p>,
+  NeedsYouPanel: ({ loading }: { loading?: boolean }) => <p>{`needs you panel${loading ? ' (loading)' : ''}`}</p>,
+}));
+vi.mock('@/app/(app)/dashboard/components/mingo-intro-banner', () => ({
+  MingoIntroBanner: ({ loading }: { loading?: boolean }) => <p>{`intro banner${loading ? ' (loading)' : ''}`}</p>,
+}));
 vi.mock('./mingo-home-incidents', () => ({ MingoHomeIncidents: () => <p>incidents section</p> }));
 
 // The lib's truncation-aware labels measure themselves; jsdom has no ResizeObserver.
@@ -50,6 +61,7 @@ let root: Root;
 beforeEach(() => {
   isSaas.value = true;
   setup.active = false;
+  useFeatureFlagsStore.setState({ flags: { 'onboarding-v2': true }, isLoaded: true });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -82,14 +94,34 @@ describe('MingoDashboard', () => {
     expect(text).toContain('customers section');
   });
 
-  it('puts Needs you first, and Incidents between Tickets and Customers', async () => {
+  it('puts the call to book first, then Needs you, and Incidents between Tickets and Customers', async () => {
     await renderHome();
     const blocks = Array.from(container.querySelectorAll('h1, p')).map(node => node.textContent);
     const at = (label: string) => blocks.findIndex(text => text?.startsWith(label));
-    expect(at('needs you card')).toBe(0);
+    expect(at('intro banner')).toBe(0);
+    expect(at('needs you card')).toBe(1);
     expect(at('devices section')).toBeGreaterThan(at('needs you card'));
     expect(at('tickets section')).toBeLessThan(at('incidents section'));
     expect(at('incidents section')).toBeLessThan(at('customers section'));
+  });
+
+  it('keeps the call to book in its loading form while the flag is unanswered, and drops it when off', async () => {
+    useFeatureFlagsStore.setState({ flags: {}, isLoaded: false });
+    await renderHome();
+    expect(container.textContent).toContain('intro banner (loading)');
+
+    useFeatureFlagsStore.setState({ flags: { 'onboarding-v2': false }, isLoaded: true });
+    await renderHome();
+    expect(container.textContent).not.toContain('intro banner');
+  });
+
+  it('draws Needs you in its loading form, reading nothing, when the shell holds the page', async () => {
+    await act(async () => {
+      root.render(<MingoDashboard live={false} />);
+    });
+    expect(container.textContent).toContain('needs you panel (loading)');
+    expect(container.textContent).not.toContain('needs you card');
+    expect(container.textContent).toContain('devices section (held)');
   });
 
   it('hides Tickets outside SaaS', async () => {
