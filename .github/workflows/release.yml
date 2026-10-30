@@ -185,6 +185,8 @@ jobs:
           BUNDLES: ${{ matrix.bundles }}
           RELEASE_VERSION: ${{ needs.version.outputs.version }}
           OPENFRAME_SHARED_HOST_URL: ${{ secrets.OPENFRAME_SHARED_HOST_URL }}
+          # The desktop-only container, not the web one. Unset: no GTM, no analytics.
+          OPENFRAME_GTM_CONTAINER_ID: ${{ vars.OPENFRAME_GTM_CONTAINER_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # macOS signing + notarization, performed by tauri during the build.

@@ -126,6 +126,12 @@ const LOGIN_INCOMPLETE_ERROR: &str = "LOGIN_INCOMPLETE";
 /// gateway without a rebuild.
 const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL");
 
+/// GTM container, set at compile time like the shared host. GTM is what loads
+/// PostHog (the web app bundles no SDK), so a build without it sends no analytics.
+/// Must be the desktop-only container, not the web one: every tag runs in the page
+/// and can call this shell's commands, so it holds the PostHog tags and nothing else.
+const GTM_CONTAINER_ID: Option<&str> = option_env!("OPENFRAME_GTM_CONTAINER_ID");
+
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Emitted to the main window each time it comes back in front of the user
@@ -525,6 +531,7 @@ fn env_init_script(app: &AppHandle) -> String {
         "NEXT_PUBLIC_SHARED_HOST_URL": shared_host(&load_config(app)).unwrap_or_default(),
         "NEXT_PUBLIC_APP_MODE": "saas-tenant",
         "NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER": "true",
+        "NEXT_PUBLIC_GTM_CONTAINER_ID": GTM_CONTAINER_ID.unwrap_or_default(),
     });
     format!(
         r#"window.__ENV = {env};
