@@ -7,11 +7,12 @@ import { AssignedItemsContent, useAssignedItems } from '@/components/assignments
  * the link as an assignment owned by the insight (item INSIGHT → target TICKET)
  * when a ticket is created with `insightId`, so this is the ticket page's
  * Assigned Items view pointed at the incident. Nothing while loading or empty —
- * a section that appears with its rows, not a slot the page reserves.
+ * a section that appears with its rows, not a slot the page reserves. A read
+ * that did not answer draws the section with the reason.
  */
 export function IncidentAssignedTickets({ incidentId }: { incidentId: string }) {
   const assigned = useAssignedItems({ itemId: incidentId, itemType: 'INSIGHT' });
-  if (!assigned.tickets?.length) return null;
+  if (!assigned.tickets?.length && !assigned.loadFailed) return null;
   return (
     <section data-loading-optional className="flex flex-col gap-[var(--spacing-system-m)]">
       <h2 className="text-ods-text-primary text-h2">Assigned Ticket</h2>

@@ -6,6 +6,7 @@ import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
+import { queryState } from '@/lib/query-state';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
@@ -290,18 +291,23 @@ export interface AssignedItemsResult {
   isReady: boolean;
   /** A read is paused on a lost connection: `isLoading` is false with nothing read. */
   isOffline: boolean;
+  /** A read failed or waits for the connection: an empty list here is not "nothing assigned". */
+  loadFailed: boolean;
   /** Reads the kinds that failed again. */
   retry: () => void;
 }
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
+  const states = results.map(result => queryState(result));
+  const isOffline = states.some(state => state.isOffline);
   const out: AssignedItemsResult = {
     value,
     isLoading: false,
     loadingTypes: {},
     isReady: true,
-    isOffline: results.some(result => result.fetchStatus === 'paused'),
+    isOffline,
+    loadFailed: isOffline || states.some(state => state.error !== null),
     retry: () => {
       for (const result of results) if (result.isError) void result.refetch();
     },

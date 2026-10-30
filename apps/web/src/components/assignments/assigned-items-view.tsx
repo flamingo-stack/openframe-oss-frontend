@@ -96,7 +96,7 @@ export function AssignedItemsContent({ assigned, itemType, className, showTitle 
   // An item with no assignments has no section. The section closes its page, so nothing moves when it goes. A read
   // that did not answer says so: nothing read is not nothing assigned.
   if (!isLoading && activeTypes.length === 0) {
-    if (assigned.isReady) return null;
+    if (!assigned.loadFailed) return null;
     return (
       <section className={className}>
         {title}
