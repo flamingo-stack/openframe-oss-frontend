@@ -3029,6 +3029,24 @@ type ProductOption {
   status: SubscriptionProductStatus
 }
 
+"""One purchase of prepaid AI tokens and what is left of it."""
+type PurchasedTokenPack {
+  """When the pack was credited."""
+  purchasedAt: Instant!
+  tokensPurchased: Long!
+  tokensRemaining: Long!
+
+  """
+  The first instant the pack can no longer be spent; null when it never expires.
+  """
+  expiresAt: Instant
+
+  """
+  The last day the pack can be spent, the date printed on the invoice; null when it never expires.
+  """
+  validUntil: Date
+}
+
 enum PushPlatform {
   IOS
   ANDROID
@@ -5556,6 +5574,12 @@ type SubscriptionUsage {
   is settled by the next purchase and is not reported here.
   """
   purchasedTokensRemaining: Long!
+
+  """
+  Every purchased pack that can still be spent, oldest first (the order tokens are used in), with when it
+  expires. Packs past their expiry are not listed. Remaining is per pack, before any debt is settled.
+  """
+  purchasedTokenPacks: [PurchasedTokenPack!]!
 }
 
 """ Tag key definition (shared across all entity types)"""

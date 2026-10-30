@@ -57,7 +57,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
+import { CONTENT_ORIGIN, IMAGE_PROXY_SKIP_DOMAINS } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -373,6 +373,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // never showed. `/api/auth/identity` is the lib's documented hub default.
         identityUrl: content('/api/auth/identity'),
         imageProxyUrlPrefix: content('/api/image-proxy'),
+        imageProxySkipDomains: IMAGE_PROXY_SKIP_DOMAINS,
         // Native `<track>` VTT endpoint behind every video surface (help-center
         // release / onboarding-guide players, chat video cards, the floating
         // walkthrough card). The lib builds caption URLs off the relative hub

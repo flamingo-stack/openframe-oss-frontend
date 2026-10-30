@@ -45,6 +45,13 @@ const format = (input: DateInput | null | undefined, fmt: Intl.DateTimeFormat): 
 
 export const formatDate = (input: DateInput | null | undefined): string => format(input, dateFmt);
 
+/**
+ * An instant's UTC day as `yyyy-MM-dd`, for a date read beside a `Date` scalar printed as it came: a token pack's
+ * purchase next to its `validUntil`, both on the UTC calendar billing dates them on.
+ */
+export const formatUtcDay = (input: DateInput | null | undefined): string =>
+  toValidDate(input)?.toISOString().slice(0, 10) ?? EMPTY_VALUE;
+
 export const formatTime = (input: DateInput | null | undefined): string => format(input, timeFmt);
 
 export const formatTimeWithSeconds = (input: DateInput | null | undefined): string => format(input, timeWithSecondsFmt);

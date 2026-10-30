@@ -49,6 +49,14 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 export const CONTENT_BASE = `${CONTENT_ORIGIN}/content`;
 const CONTENT = `${CONTENT_BASE}/api`;
 
+const SUPABASE_HOST = process.env.NEXT_PUBLIC_SUPABASE_HOST;
+
+/**
+ * Our own Supabase storage loads directly, as on the hub: the WAF answers a proxied `?url=https://…`
+ * with a 502. The exact project host, never `supabase.co`: other projects stay on the proxy.
+ */
+export const IMAGE_PROXY_SKIP_DOMAINS = SUPABASE_HOST ? [SUPABASE_HOST] : [];
+
 /**
  * A Help Center page's own FAQ block: the lib's shared pages take it as their
  * `faq` prop. The topic is what the page is about, written by the page (the
