@@ -34,10 +34,9 @@ function pushDataLayer(payload: Record<string, unknown>): void {
 }
 
 /**
- * Tags every event from the desktop app with `app_platform: desktop` and puts it on the tenant's
- * origin. Call before GTM loads: the GTM PostHog tag's snippet adopts an existing `window.posthog`
- * array as its call queue, and the SDK replays that queue before the first `$pageview`, which calls
- * made after load would miss.
+ * Queues the desktop app's `before_send` hook and `app_platform` tag. Call before GTM loads: the GTM
+ * PostHog tag's snippet adopts an existing `window.posthog` array as its call queue, and the SDK
+ * replays that queue before the first `$pageview`, which calls made after load would miss.
  */
 export function queueDesktopPostHogSetup(): void {
   if (!isDesktopShell()) return;
