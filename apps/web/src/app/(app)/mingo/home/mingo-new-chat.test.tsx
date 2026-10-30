@@ -16,6 +16,13 @@ const { router, viewport } = vi.hoisted(() => ({
   viewport: { mdUp: true as boolean | undefined },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => router }));
+// The agent's mark, as the identity draws it: which agent, and where.
+vi.mock('@flamingo-stack/openframe-frontend-core/components', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  AgentMark: ({ agent, className }: { agent: string; className?: string }) => (
+    <span data-agent-mark={agent} className={className} />
+  ),
+}));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
   ...(await importOriginal<object>()),
   useMdUp: () => viewport.mdUp,
@@ -47,24 +54,22 @@ afterEach(() => {
 });
 
 describe('MingoNewChat', () => {
-  it('greets, and leads to "What to ask Mingo?" as the full chat, with the coloured mark', () => {
+  it('greets, and leads to "What to ask Mingo?" as the full chat', () => {
     act(() => root.render(<MingoNewChat />));
     expect(container.querySelector('h1')?.textContent).toBe('Morning, Ann');
 
     const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
     expect(link?.getAttribute('href')).toBe(routes.mingo.whatToAsk);
-    // The two-colour mark: its frame in the text colour, its eyes and corner in Mingo's cyan.
-    const fills = [...(link?.querySelectorAll('svg [fill]') ?? [])].map(part => part.getAttribute('fill'));
-    expect(fills).toContain('var(--color-text-primary)');
-    expect(fills).toContain('var(--ods-flamingo-cyan-base)');
   });
 
-  it('marks the greeting with the same coloured mark, drawn from the first frame', () => {
+  it("marks the greeting and the button with Mingo's identity, as every Mingo icon", () => {
     act(() => root.render(<MingoNewChat />));
     const heading = container.querySelector('h1')?.parentElement;
-    const fills = [...(heading?.querySelectorAll('svg [fill]') ?? [])].map(part => part.getAttribute('fill'));
-    expect(fills).toContain('var(--color-text-primary)');
-    expect(fills).toContain('var(--ods-flamingo-cyan-base)');
+    const link = [...container.querySelectorAll('a')].find(a => a.textContent === 'What to ask Mingo?');
+    expect(heading?.querySelector('[data-agent-mark="mingo"]')).not.toBeNull();
+    expect(link?.querySelector('[data-agent-mark="mingo"]')).not.toBeNull();
+    // No glyph of its own: the identity is the one icon.
+    expect(container.querySelectorAll('svg')).toHaveLength(0);
   });
 
   it('leads a phone back to the page it came from', () => {

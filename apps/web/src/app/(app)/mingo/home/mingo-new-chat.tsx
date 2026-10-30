@@ -1,6 +1,6 @@
 'use client';
 
-import { MingoLogoIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { AgentMark } from '@flamingo-stack/openframe-frontend-core/components';
 import { BackButton, Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
@@ -15,9 +15,9 @@ import { useGreeting } from './mingo-home-greeting';
  * (`MingoDockQuickActions`), always on a new chat. The fleet overview is the dashboard's
  * (`MingoDashboard`).
  *
- * The greeting and the button carry the same two-colour Mingo mark, a glyph of the
- * library's, so both are drawn from the first frame (the agent's identity icon, read from
- * the server, left the greeting's box empty until it came).
+ * The greeting and the button carry Mingo's mark from its identity (`AgentMark`), as every
+ * Mingo icon does: one icon, set on the server, the same everywhere. Until the identities
+ * land both keep their mark's box, so nothing moves when it is drawn.
  *
  * On a phone, reached from the chat list over a page (`outsidePage`), "Back" leads back
  * there, as a desktop page's back button does; out of the flow, so the greeting stays put.
@@ -34,7 +34,7 @@ export function MingoNewChat() {
         <BackButton onClick={back} className="absolute left-[var(--spacing-system-l)] top-[var(--spacing-system-xs)]" />
       )}
       <div className="flex items-center justify-center gap-[var(--spacing-system-m)]">
-        <MingoLogoIcon className="size-8 shrink-0 content-md:size-10" aria-hidden="true" />
+        <AgentMark agent="mingo" className="size-8 shrink-0 content-md:size-10" />
         <h1 className="min-w-0 break-words text-ods-text-primary text-h2">{greeting}</h1>
       </div>
       <p className="mt-[var(--spacing-system-m)] text-ods-text-primary text-h4">
@@ -46,7 +46,7 @@ export function MingoNewChat() {
       <Button
         variant="outline"
         href={routes.mingo.whatToAsk}
-        leftIcon={<MingoLogoIcon />}
+        leftIcon={<AgentMark agent="mingo" className="size-5" />}
         className="mt-[var(--spacing-system-l)]"
       >
         What to ask Mingo?
