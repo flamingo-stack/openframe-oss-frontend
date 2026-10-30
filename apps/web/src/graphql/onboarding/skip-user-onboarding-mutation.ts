@@ -9,6 +9,7 @@ export const skipUserOnboardingMutation = graphql`
       skipped
       skippedAt
       tourDialogId
+      setupSeen
     }
   }
 `;

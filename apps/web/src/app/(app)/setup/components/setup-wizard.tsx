@@ -50,8 +50,10 @@ function SetupWelcomeFrame() {
  * a workspace already set up opens on "Everything is set up"; otherwise the
  * welcome screen leads to the first step not yet done, each step persists
  * itself through the onboarding mutations and the walk ends on "You are ready
- * to go". "Start with Mingo" marks the tenant setup complete, records that the
- * tour has started and leaves for the dashboard with a fresh Mingo chat.
+ * to go". Either last screen, once it shows, is recorded on the server as seen
+ * by this admin, so no other browser or device opens on it again. "Start with
+ * Mingo" marks the tenant setup complete, records that the tour has started and
+ * leaves for the dashboard with a fresh Mingo chat.
  *
  * With its own boundary: in its scope the reader draws the welcome screen. The boundary is the one element between
  * the bare shell's column and the frame: it has to be a filling column too, or the frame's `flex-1` has nothing to
@@ -75,7 +77,8 @@ function SetupWizardLive() {
   const tenant = useOnboardingStore(state => state.tenant);
   const userId = useAuthStore(state => state.user?.id);
   const completedByData = useTenantOnboardingAutoDetect();
-  const { completeTenantStep, completeTenantInBackground } = useOnboardingMutations();
+  const setupUnseen = useOnboardingStore(state => state.user !== null && !state.user.setupSeen);
+  const { completeTenantStep, completeTenantInBackground, markSetupSeenInBackground } = useOnboardingMutations();
 
   const [step, setStep] = useState<SetupStep>(() => (tenant?.completed ? 'all-set' : 'welcome'));
   const [persisting, setPersisting] = useState(false);
@@ -142,6 +145,16 @@ function SetupWizardLive() {
     const timer = setTimeout(leave, START_FAIL_OPEN_MS);
     return () => clearTimeout(timer);
   }, [starting, leave]);
+
+  // The last screen is on: tell the server this admin has seen it, so no other
+  // browser or device opens on it again (`useSetupPending`). On display rather
+  // than on "Start with Mingo": an admin who leaves the screen another way has
+  // seen it too. Idempotent on the server; a mark that fails waits for the next
+  // visit instead of retrying in a loop.
+  const onLastScreen = step === 'ready' || step === 'all-set';
+  useEffect(() => {
+    if (onLastScreen && setupUnseen) markSetupSeenInBackground();
+  }, [onLastScreen, setupUnseen, markSetupSeenInBackground]);
 
   const handleEnrolled = useCallback(
     (enrolled: FirstDevice) => {

@@ -41,6 +41,7 @@ const SKIPPED = {
       skipped: true,
       skippedAt: '2026-10-23T12:00:00Z',
       tourDialogId: null,
+      setupSeen: false,
     },
   },
 };

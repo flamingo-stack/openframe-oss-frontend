@@ -6,14 +6,16 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
  * Whether there is a Get Started tour to replay: progress has loaded and the
- * user completed or skipped it, or started it (its conversation is recorded).
+ * user completed or skipped it, started it (its conversation is recorded), or
+ * has been through the wizard's last screen without starting it - the reset
+ * clears that record too, and the wizard offers "Start with Mingo" once more.
  * A tour in progress is offered too: its conversation is an ordinary chat that
  * can be archived out of sight, and this is the way back from there.
  */
 export function useCanResetOnboarding(): boolean {
   const progress = useOnboardingStore(state => state.user);
   const loaded = useOnboardingStore(state => state.isLoaded);
-  return loaded && !!(progress?.completed || progress?.skipped || progress?.tourDialogId);
+  return loaded && !!(progress?.completed || progress?.skipped || progress?.tourDialogId || progress?.setupSeen);
 }
 
 interface ResetOnboardingDialogProps {

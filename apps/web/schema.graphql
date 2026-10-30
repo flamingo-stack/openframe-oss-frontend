@@ -2033,15 +2033,22 @@ type Mutation {
   skipUserOnboarding: UserOnboardingProgress!
 
   """
-  Reset personal onboarding to a clean state (no steps, not skipped, not completed).
+  Reset personal onboarding to a clean state (no steps, not skipped, not completed, setup wizard not seen).
   """
   resetUserOnboarding: UserOnboardingProgress!
 
-  """Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it."""
+  """
+  Remember the Mingo conversation the Get Started tour lives in; a repeat overwrites it. Also marks the setup wizard seen.
+  """
   setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
 
   """
-  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
+  The setup wizard showed its last screen to this user. Idempotent: the first call sets setupSeen = true and stamps setupSeenAt, later calls return the record unchanged. Independent of the tenant Initial Setup.
+  """
+  markUserOnboardingSetupSeen: UserOnboardingProgress!
+
+  """
+  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped with the setup wizard seen, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
   """
   skipOnboarding: OnboardingSkipResult!
 
@@ -6273,6 +6280,14 @@ type UserOnboardingProgress {
 
   """The Mingo conversation the Get Started tour lives in; null until "Start with Mingo"."""
   tourDialogId: String
+
+  """
+  True once the user has seen the setup wizard's last screen ("You are ready to go" / "Everything is set up"). Set by markUserOnboardingSetupSeen and by setUserOnboardingTourDialog; cleared by resetUserOnboarding.
+  """
+  setupSeen: Boolean!
+
+  """When setupSeen was set; null while not seen."""
+  setupSeenAt: Instant
 }
 
 enum UserOnboardingStep {

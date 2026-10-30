@@ -9,13 +9,18 @@ import { useTourStarted } from '../lib/tour-state';
  *
  * - `unknown` - the flag or the progress has not answered; nothing moves yet.
  * - `setup`   - the workspace still owes its Initial Setup, or it is done and
- *               this user has not yet started the Mingo tour from the wizard's
- *               last screen: the server knows no tour conversation and this
- *               device has not just pressed "Start with Mingo".
- * - `none`    - the wizard is not for this session: flag off, setup and handoff
- *               both behind it, the tour finished or skipped, or no progress
- *               record at all (a failed fetch must not trap the user in a
- *               wizard that cannot save).
+ *               this user has not yet been through the wizard's last screen:
+ *               the server has not recorded it as seen and knows no tour
+ *               conversation, and this device has not just pressed "Start with
+ *               Mingo".
+ * - `none`    - the wizard is not for this session: flag off, setup done and
+ *               its last screen seen (or the tour started, finished or
+ *               skipped), or no progress record at all (a failed fetch must
+ *               not trap the user in a wizard that cannot save).
+ *
+ * The server's `setupSeen` is the lasting record: the local handoff marker only
+ * bridges the moment after "Start with Mingo", before the server has answered,
+ * and `tourDialogId` covers the records from before the flag existed.
  */
 export type SetupPending = 'unknown' | 'setup' | 'none';
 
@@ -29,6 +34,8 @@ export function useSetupPending(): SetupPending {
   if (gate === 'loading' || !isLoaded) return 'unknown';
   if (gate === 'off' || !tenant) return 'none';
   if (!tenant.completed) return 'setup';
-  if (user && !user.completed && !user.skipped && user.tourDialogId === null && !tourStarted) return 'setup';
+  if (user && !user.completed && !user.skipped && !user.setupSeen && user.tourDialogId === null && !tourStarted) {
+    return 'setup';
+  }
   return 'none';
 }

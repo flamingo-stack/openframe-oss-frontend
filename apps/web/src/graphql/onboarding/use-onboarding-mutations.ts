@@ -8,6 +8,7 @@ import type { completeTenantOnboardingMutation as CompleteTenantType } from '@/_
 import type { completeTenantOnboardingStepMutation as CompleteTenantStepType } from '@/__generated__/completeTenantOnboardingStepMutation.graphql';
 import type { completeUserOnboardingMutation as CompleteUserType } from '@/__generated__/completeUserOnboardingMutation.graphql';
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
+import type { markUserOnboardingSetupSeenMutation as MarkSetupSeenType } from '@/__generated__/markUserOnboardingSetupSeenMutation.graphql';
 import type { resetTenantOnboardingMutation as ResetTenantType } from '@/__generated__/resetTenantOnboardingMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { setUserOnboardingTourDialogMutation as SetTourDialogType } from '@/__generated__/setUserOnboardingTourDialogMutation.graphql';
@@ -28,6 +29,7 @@ import { completeTenantOnboardingMutation } from './complete-tenant-onboarding-m
 import { completeTenantOnboardingStepMutation } from './complete-tenant-onboarding-step-mutation';
 import { completeUserOnboardingMutation } from './complete-user-onboarding-mutation';
 import { completeUserOnboardingStepMutation } from './complete-user-onboarding-step-mutation';
+import { markUserOnboardingSetupSeenMutation } from './mark-user-onboarding-setup-seen-mutation';
 import { resetTenantOnboardingMutation } from './reset-tenant-onboarding-mutation';
 import { resetUserOnboardingMutation } from './reset-user-onboarding-mutation';
 import { setUserOnboardingTourDialogMutation } from './set-user-onboarding-tour-dialog-mutation';
@@ -35,7 +37,12 @@ import { skipOnboardingMutation } from './skip-onboarding-mutation';
 import { skipUserOnboardingMutation } from './skip-user-onboarding-mutation';
 
 type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt?: Instant | null };
-type UserPayload = TenantPayload & { skipped: boolean; skippedAt?: Instant | null; tourDialogId?: string | null };
+type UserPayload = TenantPayload & {
+  skipped: boolean;
+  skippedAt?: Instant | null;
+  tourDialogId?: string | null;
+  setupSeen: boolean;
+};
 
 function toTenant(payload: TenantPayload): TenantOnboardingProgress {
   return {
@@ -53,6 +60,7 @@ function toUser(payload: UserPayload): UserOnboardingProgress {
     skipped: payload.skipped,
     skippedAt: payload.skippedAt ?? null,
     tourDialogId: payload.tourDialogId ?? null,
+    setupSeen: payload.setupSeen,
   };
 }
 
@@ -211,6 +219,20 @@ export function useOnboardingMutations() {
     [environment, setUser, toast],
   );
 
+  // The wizard showed its last screen ("You are ready to go" / "Everything is
+  // set up"): the server remembers it, so no other browser or device of this
+  // admin opens on that screen again. Fired on display, not on the button, and
+  // idempotent on the server, so a repeat is harmless. Errors toast.
+  const markSetupSeenInBackground = useCallback(() => {
+    commitMutation<MarkSetupSeenType>(environment, {
+      mutation: markUserOnboardingSetupSeenMutation,
+      variables: {},
+      onCompleted: res => setUser(toUser(res.markUserOnboardingSetupSeen)),
+      onError: err =>
+        toast({ title: 'Error', description: err.message || 'Failed to save setup progress', variant: 'destructive' }),
+    });
+  }, [environment, setUser, toast]);
+
   const skipUser = useCallback(
     (onDone?: () => void) => {
       begin();
@@ -336,6 +358,7 @@ export function useOnboardingMutations() {
     completeUserStepInBackground,
     completeUserInBackground,
     setTourDialogInBackground,
+    markSetupSeenInBackground,
     skipUser,
     skipUserInBackground,
     resetUser,
