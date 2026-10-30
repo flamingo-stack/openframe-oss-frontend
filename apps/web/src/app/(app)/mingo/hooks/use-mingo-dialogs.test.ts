@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DialogNode } from '../types';
-import { transformToDialogItem } from './use-mingo-dialogs';
+import { DIALOGS_BY_LAST_ACTIVITY, transformToDialogItem } from './use-mingo-dialogs';
 
 function dialog(fields: Partial<DialogNode> = {}): DialogNode {
   return {
@@ -31,6 +31,12 @@ describe('transformToDialogItem', () => {
     expect(transformToDialogItem(dialog()).id).toBe('6ac4e3a3fb523d620947f238');
   });
 
+  it('dates the row by its last message, by its creation while it has none', () => {
+    const active = transformToDialogItem(dialog({ lastActivityAt: '2026-10-21T09:00:00Z' }));
+    expect(active.timestamp).toEqual(new Date('2026-10-21T09:00:00Z'));
+    expect(transformToDialogItem(dialog()).timestamp).toEqual(new Date('2026-10-06T12:03:47.516Z'));
+  });
+
   it('leaves an active dialog writable', () => {
     expect(transformToDialogItem(dialog()).archived).toBe(false);
   });
@@ -39,6 +45,12 @@ describe('transformToDialogItem', () => {
     const item = transformToDialogItem(
       dialog({ owner: { type: 'ADMIN', userId: 'u-1', user: { id: 'u-1', firstName: 'Firsto', lastName: 'Lasto' } } }),
     );
-    expect(item.owner).toMatchObject({ name: 'Firsto Lasto' });
+    expect(item.owner).toMatchObject({ id: 'u-1', name: 'Firsto Lasto' });
+  });
+});
+
+describe('the chat list order', () => {
+  it('is the latest message first', () => {
+    expect(DIALOGS_BY_LAST_ACTIVITY).toEqual({ field: 'lastActivityAt', direction: 'DESC' });
   });
 });

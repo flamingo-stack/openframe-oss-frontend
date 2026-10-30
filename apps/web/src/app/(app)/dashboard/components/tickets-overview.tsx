@@ -8,30 +8,54 @@ import { SectionLoadError } from '@/app/components/shared';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { useTicketStatusesQuery } from '../../tickets/statuses/hooks/use-ticket-statuses-query';
+import { TICKET_STATUS_KIND } from '../../tickets/utils/ticket-statistics';
 import { useTicketsOverview } from '../hooks/use-dashboard-stats';
+import { sectionListAction } from './section-list-action';
 
 type TicketsOverviewData = ReturnType<typeof useTicketsOverview>;
 
-/** The ticket counts, read. */
-export function TicketsOverviewSection() {
-  return <TicketsOverview tickets={useTicketsOverview()} />;
+interface TicketsOverviewLinks {
+  /**
+   * Each card opens the Tickets list narrowed to the statuses it counts (`?status=`, read by
+   * both the board and the table). Off: every card opens the bare list.
+   */
+  filterLinks?: boolean;
 }
 
-/** The four cards in order: each card's static title and the count it reads. */
+/** The ticket counts, read. */
+export function TicketsOverviewSection({ filterLinks = false }: TicketsOverviewLinks) {
+  return <TicketsOverview tickets={useTicketsOverview()} filterLinks={filterLinks} />;
+}
+
+/** The four cards in order: each card's static title, the status kind it counts and the count it reads. */
 const TICKET_CARDS: ReadonlyArray<{
   key: string;
+  kind: string;
   title: (tickets: TicketsOverviewData | undefined) => ReactNode;
   count: (tickets: TicketsOverviewData) => number | null | undefined;
 }> = [
-  { key: 'ai', title: () => <TicketStatusTag status="AI_ASSISTANCE" />, count: tickets => tickets.aiAssistance },
+  {
+    key: 'ai',
+    kind: TICKET_STATUS_KIND.AI_ASSISTANCE,
+    title: () => <TicketStatusTag status="AI_ASSISTANCE" />,
+    count: tickets => tickets.aiAssistance,
+  },
   {
     key: 'tech',
+    kind: TICKET_STATUS_KIND.TECH_REQUIRED,
     title: tickets => <TicketStatusTag status="TECH_REQUIRED" color={tickets?.techRequiredColor} />,
     count: tickets => tickets.techRequired,
   },
-  { key: 'resolved', title: () => <TicketStatusTag status="RESOLVED" />, count: tickets => tickets.resolved },
+  {
+    key: 'resolved',
+    kind: TICKET_STATUS_KIND.RESOLVED,
+    title: () => <TicketStatusTag status="RESOLVED" />,
+    count: tickets => tickets.resolved,
+  },
   {
     key: 'other',
+    kind: TICKET_STATUS_KIND.CUSTOM,
     title: () => (
       <span className="flex h-8 items-center uppercase text-ods-text-secondary text-h5">Other Statuses</span>
     ),
@@ -40,12 +64,26 @@ const TICKET_CARDS: ReadonlyArray<{
 ];
 
 /** The section over the counts it is handed; with none (or in a loading scope) the cards draw their figures as bars. */
-export function TicketsOverview({ tickets }: { tickets?: TicketsOverviewData }) {
+export function TicketsOverview({
+  tickets,
+  filterLinks = false,
+}: TicketsOverviewLinks & { tickets?: TicketsOverviewData }) {
   const loading = useLoadingScope() || !tickets || tickets.isLoading;
+  // A card counts a status KIND (the statistics carry no ids), and the list filters by status
+  // id: the tenant's statuses name the ids behind each kind. Shared cache with the Tickets page.
+  const statuses = useTicketStatusesQuery({ enabled: filterLinks });
+
+  // Until the statuses answer, a card opens the bare list rather than nothing.
+  const hrefFor = (kind: string) =>
+    filterLinks
+      ? routes.tickets.filtered({
+          status: (statuses.data?.snapshot ?? []).filter(status => status.kind === kind).map(status => status.id),
+        })
+      : routes.tickets.list;
 
   return (
     <LoadingRegion label="Loading tickets overview" announce={loading}>
-      <TitleBlock title="Tickets Overview" />
+      <TitleBlock title="Tickets Overview" actions={sectionListAction('Tickets', routes.tickets.list)} />
 
       {!loading && tickets && (tickets.error || tickets.isOffline) && (
         <SectionLoadError
@@ -60,7 +98,7 @@ export function TicketsOverview({ tickets }: { tickets?: TicketsOverviewData }) 
             loading={loading}
             titleSlot={card.title(tickets)}
             value={loading || !tickets ? '' : (card.count(tickets) ?? EMPTY_VALUE)}
-            href={routes.tickets.list}
+            href={hrefFor(card.kind)}
           />
         ))}
       </div>

@@ -50,8 +50,8 @@ export function normalizeAskMessageData<T>(messageData: T): T {
 }
 
 const dialogsQuery = (extraNodeFields: string) => `
-  query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String) {
-  dialogs(filter: $filter, first: $first, after: $after, search: $search) {
+  query GetDialogs($filter: DialogFilterInput, $first: Int, $after: String, $search: String, $sort: SortInput) {
+  dialogs(filter: $filter, first: $first, after: $after, search: $search, sort: $sort) {
    edges {
     cursor
     node {
@@ -62,6 +62,7 @@ const dialogsQuery = (extraNodeFields: string) => `
      streamState${extraNodeFields}
      createdAt
      statusUpdatedAt
+     lastActivityAt
      owner {
       type
       ... on AdminDialogOwner {
@@ -92,9 +93,8 @@ const dialogsQuery = (extraNodeFields: string) => `
 export const GET_MINGO_DIALOGS_QUERY = dialogsQuery('');
 
 /**
- * The Mingo v2 chat list: each chat's pending approval rides along, for the row
- * status. Asked for only where v2 is on: a backend without the field rejects the
- * whole query, and every other list (v1, the archive, incidents) must keep loading.
+ * The chat list: each chat's pending approval rides along, for the row status. Not
+ * asked by the other lists (the archive, incidents), which need no row status.
  */
 export const GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY = dialogsQuery(`
      pendingApproval {

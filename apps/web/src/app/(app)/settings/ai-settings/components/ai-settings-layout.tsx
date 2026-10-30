@@ -55,18 +55,22 @@ export function AiSettingsLayout({ children, actions, selector, mobileBottomActi
             <span className="hidden md:inline">Guardrails &amp; </span>AI Settings
           </h1>
         </div>
-        {(hasActions || selector) && (
-          <div className="flex shrink-0 items-center gap-[var(--spacing-system-xs)]">
-            {selector}
-            {actions?.map((action, idx) => (
-              <ResponsiveAction
-                key={`${action.label ?? action.ariaLabel ?? 'action'}-${idx}`}
-                action={action}
-                hideMobileIcon={useMobileBottomBar}
-              />
-            ))}
-          </div>
-        )}
+        {/* Below md the slot keeps an icon button's height (the lib Button's `icon` size, h-11) whether
+            or not one is in it: view mode's Edit is one, edit mode's Save goes to the bottom bar, and
+            the title row must not change height between the two. */}
+        <div
+          data-testid="ai-settings-header-actions"
+          className="flex shrink-0 items-center gap-[var(--spacing-system-xs)] max-md:min-h-11"
+        >
+          {selector}
+          {actions?.map((action, idx) => (
+            <ResponsiveAction
+              key={`${action.label ?? action.ariaLabel ?? 'action'}-${idx}`}
+              action={action}
+              hideMobileIcon={useMobileBottomBar}
+            />
+          ))}
+        </div>
       </header>
 
       {children}

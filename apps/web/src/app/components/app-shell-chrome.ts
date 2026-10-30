@@ -1,5 +1,4 @@
 import type { HeaderLoadingCell } from '@flamingo-stack/openframe-frontend-core/components/navigation';
-import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * Shell constants the LIVE `AppLayout` needs. The chrome has no separate placeholder
@@ -12,19 +11,22 @@ import { isSaasTenantMode } from '@/lib/app-mode';
 
 /**
  * The trailing header cells the live header reserves while the chrome loads, in the
- * order it renders them: time tracker, notifications, then the Mingo launcher. No
- * avatar — the header carries no user cell (`showUser: false`), and reserving one
- * would leave a cell that never fills in.
- *
- * `'wide'` for Mingo is not cosmetic: that cell is content-width (icon + "Mingo AI"
- * wordmark, `gap-2 px-4`), roughly twice a square cell, so reserving a square for it
- * leaves the cluster short and shifts it when the real header lands.
- *
- * Derived from app mode only, which IS known synchronously: Mingo is a SaaS-tenant
- * surface.
+ * order it renders them: the time tracker, then notifications (an OSS tenant has no
+ * Mingo cell). No avatar — the header carries no user cell (`showUser: false`), and
+ * reserving one would leave a cell that never fills in.
  */
 export function headerLoadingCells(): HeaderLoadingCell[] {
-  return isSaasTenantMode() ? ['icon', 'icon', 'wide'] : ['icon', 'icon'];
+  return ['icon', 'icon'];
+}
+
+/**
+ * The same for the Mingo-first shell, whose header is the phone top bar only
+ * (`desktopHeader: false`): the time tracker and notifications, then the Mingo button
+ * at the end (an icon on a phone) wherever the chat is on: a phone has no composer
+ * under its pages.
+ */
+export function mingoHeaderLoadingCells(withMingo: boolean): HeaderLoadingCell[] {
+  return withMingo ? ['icon', 'icon', 'icon'] : ['icon', 'icon'];
 }
 
 /**
@@ -45,6 +47,9 @@ export function getMainClassNameOverride(pathname: string | null): string | unde
   if (pathname.startsWith('/devices/details/file-manager')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/tickets')) return 'pb-0 md:pb-0';
   if (pathname.startsWith('/settings')) return 'pb-0 md:pb-0';
+  // The Mingo chat and archive pages fill `<main>` (`h-full`): the default bottom
+  // padding would add its height as a scroll under them.
+  if (pathname.startsWith('/mingo/chat') || pathname.startsWith('/mingo/archive')) return 'pb-0 md:pb-0';
   return undefined;
 }
 
@@ -58,17 +63,22 @@ export function isBareChromeRoute(pathname: string | null): boolean {
   return pathname === '/setup' || (pathname?.startsWith('/setup/') ?? false);
 }
 
-/** The dashboard itself - the one page the onboarding redirect moves away from. */
-export function isDashboardRoute(pathname: string | null): boolean {
-  return pathname === '/dashboard' || pathname === '/dashboard/';
+/**
+ * Where a session starts (`getLandingPath`) - Mingo's home on a SaaS tenant (a new chat,
+ * where a login lands and the Mingo-first shell's setup ends), the dashboard on an OSS one -
+ * and the SaaS dashboard beside it. The pages the onboarding redirect moves away from;
+ * nothing deeper.
+ */
+export function isLandingRoute(pathname: string | null): boolean {
+  return pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/mingo' || pathname === '/mingo/';
 }
 
 /**
- * Whether the dashboard must stay on its skeleton for now: under onboarding v2
- * the dashboard is where a login lands, and whether this session belongs there
+ * Whether the landing page (the dashboard, or Mingo's home) must stay on its
+ * skeleton for now: under onboarding v2 it is where a login lands, and whether this session belongs there
  * or on `/setup` is known only once the flag and the onboarding progress have
  * answered (`useSetupPending`). Until then the page would render in full - stat
- * cards, the Mingo panel - and be torn down a moment later by the redirect.
+ * cards, the Mingo composer - and be torn down a moment later by the redirect.
  * Held while the answer is `unknown` AND once it is `setup`, so no frame of the
  * dashboard shows before the wizard; released on `none`, on the flag `off`
  * (the old flow lives on the dashboard itself) and on a locked workspace (the
@@ -80,5 +90,5 @@ export function holdsDashboard(
   pending: 'unknown' | 'setup' | 'none',
   locked: boolean,
 ): boolean {
-  return !locked && onboardingV2 !== 'off' && pending !== 'none' && isDashboardRoute(pathname);
+  return !locked && onboardingV2 !== 'off' && pending !== 'none' && isLandingRoute(pathname);
 }

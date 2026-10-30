@@ -11,7 +11,6 @@ import { ProfileCard } from './profile-card';
 
 interface AccountSettingsCardProps {
   onEditProfile: () => void;
-  onVerifyEmail: () => void;
 }
 
 /**
@@ -19,7 +18,7 @@ interface AccountSettingsCardProps {
  * into a single bordered, rounded container. The wrapper owns the outer border
  * and corner radius; the inner rows are borderless and separated by a divider.
  */
-export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSettingsCardProps) {
+export function AccountSettingsCard({ onEditProfile }: AccountSettingsCardProps) {
   const tenantQuery = useTenantInfo();
   const tenantInfo = tenantQuery.data;
   // `hasData`, not `isLoading`: a PAUSED query reports not-loading with no
@@ -53,7 +52,7 @@ export function AccountSettingsCard({ onEditProfile, onVerifyEmail }: AccountSet
       </div>
 
       <div className="bg-ods-card">
-        <ProfileCard onEditProfile={onEditProfile} onVerifyEmail={onVerifyEmail} />
+        <ProfileCard onEditProfile={onEditProfile} />
       </div>
 
       <EditOrganizationModal

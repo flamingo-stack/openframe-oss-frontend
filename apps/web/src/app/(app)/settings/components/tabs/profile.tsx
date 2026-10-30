@@ -10,6 +10,7 @@ import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { authApiClient } from '@/lib/auth-api-client';
 import { handleApiError } from '@/lib/handle-api-error';
 import { EditProfileModal } from '../edit-profile-modal';
+import { EmailVerificationBanner } from '../email-verification-banner';
 import { EmailVerificationModal } from '../email-verification-modal';
 import { UserIdentityRow } from '../identity-row';
 
@@ -71,13 +72,19 @@ export function ProfileTab() {
         className={CARD_CLASS}
         user={user}
         loading={loading}
-        onVerifyEmail={() => setIsVerificationModalOpen(true)}
         action={
           <Button variant="outline" disabled={!user} onClick={() => setIsEditModalOpen(true)} leftIcon={editIcon}>
             <span className="font-bold">Edit Profile</span>
           </Button>
         }
       />
+
+      {/* An unverified email is asked for under the row, as on the Settings page. */}
+      {user?.emailVerified === false && (
+        <div className="mt-[var(--spacing-system-l)]">
+          <EmailVerificationBanner onResend={() => setIsVerificationModalOpen(true)} />
+        </div>
+      )}
 
       {user && (
         <>

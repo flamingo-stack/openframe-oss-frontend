@@ -40,7 +40,7 @@ export const CONTENT_ORIGIN = isAppShell() ? runtimeEnv.tenantHostUrl() : '';
 /**
  * The `/content` proxy root (no `/api` suffix). Exported for the two callers
  * that need the base rather than a finished endpoint:
- *   - `<FaqSection apiBaseUrl>` and a page's `faq` prop (`pageFaq`), which
+ *   - `<FaqSection apiBaseUrl>` and a page's `faq` prop (`{ apiBaseUrl: CONTENT_BASE }`), which
  *     self-build `/api/faqs?…` onto it;
  *   - RELATIVE hub URLs that arrive INSIDE a payload and have to be routed back
  *     through the proxy — the walkthrough video's `captionsUrl` comes as
@@ -81,8 +81,9 @@ export const HELP_CENTER_BASE = routes.helpCenter.root;
 
 /** Route the knowledge-base docs hub (`<DocsHubPage>`) is mounted under — base
  *  page + its `[...path]` deep-link route. Lives here (a dep-light module) so
- *  both the page and the chat's doc-chip `baseRoute` share one SSOT without
- *  pulling the client `DocsHubPage` module into the chat bundle. */
+ *  both the page and the content composer that addresses the chat's doc chips
+ *  (`help-center-content-href.ts`) share one SSOT without pulling the client
+ *  `DocsHubPage` module into the chat bundle. */
 export const KNOWLEDGE_BASE_ROUTE = routes.helpCenter.knowledgeBase;
 
 export const EP = {
