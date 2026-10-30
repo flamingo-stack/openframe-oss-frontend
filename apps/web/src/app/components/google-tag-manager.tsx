@@ -2,7 +2,7 @@
 
 import Script from 'next/script';
 import { useEffect } from 'react';
-import { queueDesktopSuperProperties } from '@/lib/posthog/posthog-events';
+import { queueDesktopPostHogSetup } from '@/lib/posthog/posthog-events';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 interface GoogleTagManagerProps {
@@ -23,7 +23,7 @@ export function GoogleTagManager({ containerId, noscriptFallback }: GoogleTagMan
     // exists before the tag script loads.
     const w = window as unknown as { dataLayer?: unknown[] };
     w.dataLayer = w.dataLayer || [];
-    queueDesktopSuperProperties();
+    queueDesktopPostHogSetup();
   }, [id]);
 
   if (!id) return null;
