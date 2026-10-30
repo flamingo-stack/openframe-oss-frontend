@@ -291,7 +291,9 @@ export interface AssignedItemsResult {
   isReady: boolean;
   /** A read is paused on a lost connection: `isLoading` is false with nothing read. */
   isOffline: boolean;
-  /** A read failed or waits for the connection: an empty list here is not "nothing assigned". */
+  /** Per kind: its read failed or waits for the connection, so an empty list there is not "nothing assigned". */
+  failedTypes: Partial<Record<ServerAssignmentTargetType, true>>;
+  /** Some kind is in `failedTypes`. */
   loadFailed: boolean;
   /** Reads the kinds that failed again. */
   retry: () => void;
@@ -299,21 +301,26 @@ export interface AssignedItemsResult {
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
-  const states = results.map(result => queryState(result));
-  const isOffline = states.some(state => state.isOffline);
   const out: AssignedItemsResult = {
     value,
     isLoading: false,
     loadingTypes: {},
     isReady: true,
-    isOffline,
-    loadFailed: isOffline || states.some(state => state.error !== null),
+    isOffline: false,
+    failedTypes: {},
+    loadFailed: false,
     retry: () => {
       for (const result of results) if (result.isError) void result.refetch();
     },
   };
   ASSIGNMENT_TARGET_TYPES.forEach((type, i) => {
     const result = results[i];
+    const state = queryState(result);
+    if (state.isOffline) out.isOffline = true;
+    if (state.isOffline || state.error !== null) {
+      out.failedTypes[type] = true;
+      out.loadFailed = true;
+    }
     if (result.isLoading) {
       out.isLoading = true;
       out.loadingTypes[type] = true;

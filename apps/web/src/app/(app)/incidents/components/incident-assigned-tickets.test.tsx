@@ -24,6 +24,7 @@ const read = (over: Record<string, unknown>) => ({
   loadingTypes: {},
   isReady: true,
   isOffline: false,
+  failedTypes: {},
   loadFailed: false,
   retry: () => undefined,
   ...over,
@@ -42,8 +43,13 @@ describe('IncidentAssignedTickets', () => {
     expect(draw()).toBe('');
   });
 
+  it('draws nothing when only a kind the incident does not show failed', () => {
+    useAssignedItems.mockReturnValue(read({ failedTypes: { ORGANIZATION: true }, loadFailed: true }));
+    expect(draw()).toBe('');
+  });
+
   it('draws the section with the reason when the read failed', () => {
-    useAssignedItems.mockReturnValue(read({ loadFailed: true }));
+    useAssignedItems.mockReturnValue(read({ failedTypes: { TICKET: true }, loadFailed: true }));
     const html = draw();
     expect(html).toContain('Assigned Ticket');
     expect(html).toContain('load assigned items');

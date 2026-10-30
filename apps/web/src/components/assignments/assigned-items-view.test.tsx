@@ -12,6 +12,7 @@ const read = (over: Partial<AssignedItemsResult>): AssignedItemsResult => ({
   loadingTypes: {},
   isReady: true,
   isOffline: false,
+  failedTypes: {},
   loadFailed: false,
   retry: () => undefined,
   ...over,
