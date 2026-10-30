@@ -10,9 +10,10 @@ import type {
 import { BillingPeriod } from '@/generated/schema-enums';
 import { formatDate } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
+import { DEVICE_BILLING_TERMS_URL } from '@/lib/legal-urls';
 import { deviceAllocation } from '../shared/device-allocation';
 import { planSchedule } from '../shared/plan-schedule';
-import { StatEmphasis, StatSuffix, UsageStatCard } from '../shared/usage-stat-card';
+import { StatEmphasis, StatLink, StatSuffix, UsageStatCard } from '../shared/usage-stat-card';
 
 /**
  * The count against its allocation (`deviceAllocation`, shared with the overage
@@ -27,6 +28,9 @@ const deviceUsageCardFragment = graphql`
     ...planSchedule_subscription
   }
 `;
+
+/** Both forms of the caption run to two lines: a trial's two facts, a plan's billing and how it works. */
+const CAPTION_LINES = 2;
 
 /**
  * The line under the device count: what the count is measured against, or how it
@@ -52,8 +56,16 @@ function caption(isTrial: boolean, trialEndsOn: string | null, prepaid: boolean,
       </>
     );
   }
-  if (prepaid) return isAnnual ? 'Annual Prepaid' : 'Monthly Prepaid';
-  return 'Pay as you go';
+  return (
+    <>
+      <span className="block truncate">
+        {prepaid ? (isAnnual ? 'Annual Prepaid' : 'Monthly Prepaid') : 'Pay as you go'}
+      </span>
+      <span className="block truncate">
+        <StatLink href={DEVICE_BILLING_TERMS_URL}>How device billing works</StatLink>
+      </span>
+    </>
+  );
 }
 
 /** Devices under management, against the package that covers them. */
@@ -70,6 +82,7 @@ export function DeviceUsageCard({ subscription }: { subscription: deviceUsageCar
       tone={shown?.tone}
       value={shown?.value}
       caption={shown?.caption}
+      captionLines={CAPTION_LINES}
     />
   );
 }
