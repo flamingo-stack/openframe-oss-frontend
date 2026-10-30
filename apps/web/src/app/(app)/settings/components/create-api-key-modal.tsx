@@ -135,7 +135,7 @@ export function CreateApiKeyModal({
       }
     >
       <div className="space-y-2">
-        <Label>API Key Name *</Label>
+        <Label variant="large">API Key Name *</Label>
         <Input
           placeholder="Enter Name Here"
           value={name}
@@ -145,7 +145,7 @@ export function CreateApiKeyModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Description</Label>
+        <Label variant="large">Description</Label>
         <Textarea
           placeholder="Enter Description Here"
           value={description}
@@ -156,7 +156,7 @@ export function CreateApiKeyModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Expiration Date (Optional)</Label>
+        <Label variant="large">Expiration Date (Optional)</Label>
         <Input
           type="datetime-local"
           placeholder="Select Expiration Date"

@@ -58,6 +58,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
               <Input
                 type="text"
                 label="Article Title"
+                labelVariant="large"
                 value={field.value}
                 onChange={field.onChange}
                 placeholder="Enter article title"
@@ -73,7 +74,7 @@ export function ArticleFormFields({ form, disabled, initialTags, attachments }: 
           name="folderId"
           control={control}
           render={({ field }) => (
-            <FieldWrapper label="Folder">
+            <FieldWrapper label="Folder" labelVariant="large">
               <FolderPicker value={field.value} onSelect={target => field.onChange(target.id)} disabled={disabled} />
             </FieldWrapper>
           )}

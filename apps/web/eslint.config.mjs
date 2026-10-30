@@ -4,7 +4,7 @@ import relay from '@flamingo-stack/openframe-frontend-core/eslint-config/relay';
 import tests from '@flamingo-stack/openframe-frontend-core/eslint-config/tests';
 import { defineConfig } from 'eslint/config';
 
-import openframeRules from './eslint-rules/react-hook-form-needs-no-memo.mjs';
+import openframeRules from './eslint-rules/index.mjs';
 
 /*
  * The fast pass — no type-aware rules. This is what the editor loads (see
@@ -354,6 +354,18 @@ export default defineConfig([
     files: ['**/*.{ts,tsx}'],
     plugins: { openframe: openframeRules },
     rules: { 'openframe/react-hook-form-needs-no-memo': 'error' },
+  },
+
+  {
+    // One field-label scale across the dashboard: the lib's `large` (text-h4), as the script forms have it. The lib
+    // keeps text-h6 as its default for the other Flamingo apps, so every call site here opts in, and this rule (which
+    // fixes it) keeps a new form from starting on the small default. The auth pages are their own layout and keep the
+    // lib default.
+    name: 'openframe-frontend/form-label-scale',
+    files: ['src/**/*.tsx'],
+    ignores: ['src/app/(auth)/**'],
+    plugins: { openframe: openframeRules },
+    rules: { 'openframe/form-label-scale': 'error' },
   },
 
   {

@@ -80,7 +80,7 @@ function AssignedUserField({
   const selected = mergedOptions.find(option => option.value === value);
   return (
     <div className="space-y-2">
-      <Label>Employee</Label>
+      <Label variant="large">Employee</Label>
       <Autocomplete
         placeholder="Select Employee"
         value={selected ? value : null}
@@ -326,7 +326,7 @@ export function ManualEntryModal({
       )}
 
       <div className="space-y-2">
-        <Label>Work Time</Label>
+        <Label variant="large">Work Time</Label>
         <Controller
           name="workTime"
           control={control}
@@ -338,7 +338,7 @@ export function ManualEntryModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Date</Label>
+        <Label variant="large">Date</Label>
         <Controller
           name="startedAt"
           control={control}
@@ -357,7 +357,7 @@ export function ManualEntryModal({
 
       <div className="grid grid-cols-2 gap-[var(--spacing-system-m)]">
         <div className="space-y-2">
-          <Label>Ticket</Label>
+          <Label variant="large">Ticket</Label>
           <Autocomplete
             placeholder="Select Ticket"
             value={ticketCustomer.ticketId}
@@ -372,7 +372,7 @@ export function ManualEntryModal({
         </div>
 
         <div className="space-y-2">
-          <Label>Customer</Label>
+          <Label variant="large">Customer</Label>
           <Autocomplete
             placeholder="Select Customer"
             value={ticketCustomer.customerId}
@@ -391,7 +391,7 @@ export function ManualEntryModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Notes</Label>
+        <Label variant="large">Notes</Label>
         <Textarea
           placeholder="Additional Notes (optional if ticket selected)"
           rows={4}

@@ -64,7 +64,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
                 onProviderChange();
               }}
             >
-              <SelectTrigger label={providerLabel} error={fieldState.error?.message}>
+              <SelectTrigger label={providerLabel} labelVariant="large" error={fieldState.error?.message}>
                 <SelectValue placeholder="Select a provider" />
               </SelectTrigger>
               <SelectContent>
@@ -90,7 +90,7 @@ export function AiProviderModelFields<T extends AiLogicFormValues & FieldValues>
           control={aiControl}
           render={({ field, fieldState }) => (
             <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger label="Provider Model" error={fieldState.error?.message}>
+              <SelectTrigger label="Provider Model" labelVariant="large" error={fieldState.error?.message}>
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
@@ -146,7 +146,13 @@ export function AiAnswerStyleFields<T extends AiLogicFormValues & FieldValues>({
           name="customPrompt"
           control={aiControl}
           render={({ field, fieldState }) => (
-            <Textarea {...field} label="AI Model Custom Prompt" error={fieldState.error?.message} rows={6} />
+            <Textarea
+              {...field}
+              label="AI Model Custom Prompt"
+              labelVariant="large"
+              error={fieldState.error?.message}
+              rows={6}
+            />
           )}
         />
       )}

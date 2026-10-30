@@ -19,7 +19,9 @@ interface NewOwnerFieldProps {
 export function NewOwnerField({ options, value, onChange, onSearch, loading, disabled, error }: NewOwnerFieldProps) {
   return (
     <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-      <Label htmlFor="new-owner-select">New Owner</Label>
+      <Label variant="large" htmlFor="new-owner-select">
+        New Owner
+      </Label>
       <Autocomplete
         options={options}
         value={value}

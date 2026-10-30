@@ -125,6 +125,7 @@ function ScheduleCriteriaFieldsView({
         <Autocomplete
           multiple
           label="Customer"
+          labelVariant="large"
           placeholder="All Customers"
           // "All Customers" is the VALUE of an unconstrained dimension, not a
           // prompt for one: an empty list means "every customer", which is an
@@ -175,7 +176,7 @@ function ScheduleCriteriaFieldsView({
           onValueChange={value => onChange({ ...criteria, osTypes: value === ALL_OS_TYPES ? [] : [value] })}
           disabled={disabled || loading}
         >
-          <SelectTrigger label="OS" className="w-full">
+          <SelectTrigger label="OS" labelVariant="large" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
