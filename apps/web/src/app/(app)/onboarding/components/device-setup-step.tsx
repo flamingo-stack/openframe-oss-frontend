@@ -110,6 +110,7 @@ export function DeviceSetupStep({
           value={organizationId || null}
           onChange={val => setOrganizationId(val ?? '')}
           label="Select Customer"
+          labelVariant="large"
           placeholder="Choose customer"
           startAdornment={
             selectedOrg ? (

@@ -1,4 +1,8 @@
-import type { SuggestionPrompt, WhatToAskContent } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  getAgentAccent,
+  type SuggestionPrompt,
+  type WhatToAskContent,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
 import type { whatToAskDevicesRelayQuery$data } from '@/__generated__/whatToAskDevicesRelayQuery.graphql';
 import { decodeGlobalId } from '@/lib/relay-id';
@@ -10,6 +14,9 @@ export type WhatToAskDevice = whatToAskDevicesRelayQuery$data['devices']['edges'
 const isWorkstation = (device: WhatToAskDevice) => device.type === 'LAPTOP' || device.type === 'DESKTOP';
 const isServer = (device: WhatToAskDevice) => device.type === 'SERVER';
 const isWindows = (device: WhatToAskDevice) => device.osType === 'WINDOWS';
+
+/** A chip's glyph as Mingo's quick actions draw theirs (`useMingoQuickActionChips`): in Mingo's accent. */
+const mingoIcon = (name: string): SuggestionPrompt['icon'] => ({ name, accent: getAgentAccent('mingo') });
 
 /**
  * A prompt about one device: the chip shows the device's name, the message
@@ -35,7 +42,7 @@ const aboutDevice = (
  * "slow", a server for its logs, a Windows device for the print spooler, any
  * for the DNS cache), a different one each while there are enough; without one
  * that fits, the prompt asks without a name. A picked prompt is sent in that
- * chat, like a quick action.
+ * chat, like a quick action, and its chip is drawn as one (`mingoIcon`).
  */
 export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatToAskContent {
   const named = devices.filter(device => getDeviceName(device));
@@ -68,24 +75,24 @@ export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatTo
             slowDevice,
             name => `Why is ${name} slow? Check CPU, memory and disk`,
             'Which devices are slow right now? Check CPU, memory and disk',
-            { name: 'laptop' },
+            mingoIcon('laptop'),
           ),
           aboutDevice(
             logsDevice,
             name => `Pull error logs from ${name} for the last hour and tell me what failed`,
             'Pull error logs from my servers for the last hour and tell me what failed',
-            { name: 'clipboard-list' },
+            mingoIcon('clipboard-list'),
           ),
-          { label: 'Summarize open incidents and which ones need a technician', icon: { name: 'alert-triangle' } },
+          { label: 'Summarize open incidents and which ones need a technician', icon: mingoIcon('alert-triangle') },
         ],
       },
       {
         label: 'Check',
         prompts: [
-          { label: 'Which devices have critical CVEs this week?', icon: { name: 'shield-check' } },
-          { label: 'Which devices are still on an old Chrome version?', icon: { name: 'parcel-02' } },
-          { label: 'Which devices are offline right now?', icon: { name: 'monitor' } },
-          { label: 'Which open tickets are waiting on a technician right now?', icon: { name: 'ticket' } },
+          { label: 'Which devices have critical CVEs this week?', icon: mingoIcon('shield-check') },
+          { label: 'Which devices are still on an old Chrome version?', icon: mingoIcon('parcel-02') },
+          { label: 'Which devices are offline right now?', icon: mingoIcon('monitor') },
+          { label: 'Which open tickets are waiting on a technician right now?', icon: mingoIcon('ticket') },
         ],
       },
       {
@@ -95,19 +102,19 @@ export function buildMingoWhatToAsk(devices: readonly WhatToAskDevice[]): WhatTo
             dnsDevice,
             name => `Flush the DNS cache on ${name}`,
             'Flush the DNS cache on a device that cannot load websites',
-            { name: 'globe-01' },
+            mingoIcon('globe-01'),
           ),
           aboutDevice(
             spoolerDevice,
             name => `Clear the print spooler on ${name}`,
             'Clear the print spooler on a Windows device',
-            { name: 'wrench' },
+            mingoIcon('wrench'),
           ),
           {
             label: 'Write a script that frees disk space on Windows devices under 10% free, test it on one device',
-            icon: { name: 'bracket-curly' },
+            icon: mingoIcon('bracket-curly'),
           },
-          { label: 'Create a policy that flags any device with disk encryption turned off', icon: { name: 'radar' } },
+          { label: 'Create a policy that flags any device with disk encryption turned off', icon: mingoIcon('radar') },
         ],
       },
     ],

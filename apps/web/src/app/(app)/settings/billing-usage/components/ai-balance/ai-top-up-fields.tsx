@@ -95,6 +95,7 @@ export function AiTopUpFields({ topUp, label, disabled = false, loading: loading
           <Input
             id={customInputId}
             label="Top Up Amount"
+            labelVariant="large"
             type="text"
             inputMode="numeric"
             placeholder="0"

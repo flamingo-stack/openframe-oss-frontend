@@ -60,8 +60,9 @@ export interface TourStep {
   userStep: UserOnboardingStep;
   actions: TourAction[];
   /**
-   * The step also offers "Open Fae": the client side of tickets, Fae, opened on
-   * this machine (where the agent was just deployed) to send it a request.
+   * The step also offers "Open Fae - your client assistant": the client side of
+   * tickets, Fae, opened on this machine (where the agent was just deployed) to
+   * send it a request.
    */
   opensFae?: boolean;
 }

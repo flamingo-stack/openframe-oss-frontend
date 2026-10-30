@@ -1,9 +1,7 @@
 import type { Notification } from '@flamingo-stack/openframe-frontend-core';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { describe, expect, it } from 'vitest';
 import { toGlobalId } from '@/lib/relay-id';
 import {
-  mingoDrawerDialogId,
   notificationTargetsLocation,
   resolveNatsNotificationRoute,
   resolveNotificationAction,
@@ -138,77 +136,44 @@ describe('incident deep links', () => {
 });
 
 /**
- * A Mingo dialog lives in a drawer that has no route of its own, and these two
- * resolvers run in transports that cannot open it — a push tap and an OS toast,
- * both outside React. They used to answer `null` there and dead-end on the
- * notifications page.
+ * A Mingo dialog is opened in-app through the dialog-open seam, but these two resolvers
+ * run in transports that cannot reach it — a push tap and an OS toast, both outside
+ * React. They used to answer `null` there and dead-end on the notifications page.
  *
- * They now resolve the drawer's own resting URL rather than the `/mingo` route, so a
- * tap lands on the destination instead of paying for a client-side redirect first.
+ * They resolve the canonical chat link, `/mingo/chat?id=`, which works whichever shell
+ * the recipient runs: the Mingo-first shell shows the chat there, the classic shell
+ * redirects it to the drawer's resting URL.
  *
  * The flag store is deliberately NOT mocked: unloaded is exactly the cold-start
- * state these transports fire in, and the point is that the answer no longer
- * depends on it.
+ * state these transports fire in, and the point is that the answer does not
+ * depend on it.
  */
 describe('mingo dialog deep links', () => {
   it('routes an admin AI message to the canonical dialog URL', () => {
-    expect(resolvePushNotificationRoute({ type: 'ADMIN_AI_MESSAGE', dialogId: 'd-1' })).toBe(
-      '/dashboard?mingoDialog=d-1',
-    );
+    expect(resolvePushNotificationRoute({ type: 'ADMIN_AI_MESSAGE', dialogId: 'd-1' })).toBe('/mingo/chat?id=d-1');
     expect(resolveNatsNotificationRoute({ type: 'ADMIN_AI_MESSAGE', attributes: { dialogId: 'd-1' } })).toBe(
-      '/dashboard?mingoDialog=d-1',
+      '/mingo/chat?id=d-1',
     );
   });
 
   it('routes a dialog-only approval request to the dialog, and a ticket-linked one to its ticket', () => {
     expect(resolvePushNotificationRoute({ type: 'MINGO_APPROVAL_REQUEST', dialogId: 'd-1' })).toBe(
-      '/dashboard?mingoDialog=d-1',
+      '/mingo/chat?id=d-1',
     );
     expect(resolvePushNotificationRoute({ type: 'TICKET_APPROVAL_REQUEST', dialogId: 'd-1', ticketId: 't-1' })).toBe(
       '/tickets/dialog?id=t-1',
     );
   });
-});
 
-/**
- * `mingoDrawerDialogId` is where the drawer-vs-navigate decision moved to, and the
- * whole point of moving it was that it must be answered at CLICK time by the shell
- * rather than at mapping time by a feature flag that has not loaded yet.
- */
-describe('mingoDrawerDialogId', () => {
-  // Throws rather than returning null so each test below reads the action directly:
-  // an unresolvable ADMIN_AI_MESSAGE is a failure of the fixture, not of the case.
-  const mingoAction = () => {
-    const action = resolveNotificationAction({
+  it('carries the dialog id for the seam beside the route, and only for a dialog', () => {
+    const mingo = resolveNotificationAction({
       meta: { notificationType: 'ADMIN_AI_MESSAGE', dialogId: 'd-1' },
     } as unknown as Notification);
-    if (!action) throw new Error('resolveNotificationAction did not resolve the mingo fixture');
-    return action;
-  };
-
-  beforeEach(() => {
-    useMingoLauncherStore.setState({ canOpen: false });
-  });
-
-  it('yields the dialog id once the shell reports a drawer', () => {
-    useMingoLauncherStore.setState({ canOpen: true });
-    expect(mingoDrawerDialogId(mingoAction())).toBe('d-1');
-  });
-
-  it('yields null with no drawer, so the caller navigates to the canonical route instead', () => {
-    // See `MingoLauncherStore.canOpen` for the cases this covers.
-    const action = mingoAction();
-    expect(mingoDrawerDialogId(action)).toBeNull();
-    expect(action.route).toBe('/dashboard?mingoDialog=d-1');
-  });
-
-  it('yields null for an action that names no dialog, drawer or not', () => {
-    useMingoLauncherStore.setState({ canOpen: true });
+    expect(mingo).toEqual({ label: 'Open Chat', route: '/mingo/chat?id=d-1', mingoDialogId: 'd-1' });
     const ticket = resolveNotificationAction({
       meta: { notificationType: 'TICKET_ASSIGNED', ticketId: 't-1' },
     } as unknown as Notification);
-    if (!ticket) throw new Error('resolveNotificationAction did not resolve the ticket fixture');
-    expect(mingoDrawerDialogId(ticket)).toBeNull();
+    expect(ticket?.mingoDialogId).toBeUndefined();
   });
 });
 

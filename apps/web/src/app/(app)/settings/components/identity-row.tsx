@@ -1,7 +1,6 @@
 'use client';
 
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
-import { AlertCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { SquareAvatar, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import type { User } from '@/app/(auth)/auth/stores';
@@ -26,8 +25,6 @@ interface IdentityRowProps {
   nameAside?: ReactNode;
   /** The secondary line (an email, a website); empty draws no line once loaded. */
   subline?: string;
-  /** Drawn after the secondary line once loaded (a "Not verified" button). */
-  sublineAside?: ReactNode;
   /**
    * `mark`: every record carries the secondary line (its bar is drawn while loading, an empty one is the empty mark);
    * `none` (the default): only some do (no bar while loading, no line when empty).
@@ -51,7 +48,6 @@ export function IdentityRow({
   avatarVariant,
   nameAside,
   subline,
-  sublineAside,
   emptySubline = 'none',
   action,
 }: IdentityRowProps) {
@@ -74,7 +70,6 @@ export function IdentityRow({
         titleClassName={nameAside === undefined ? undefined : 'min-h-8'}
         titleSkeletonWidth="w-40"
         subline={subline}
-        sublineAside={sublineAside}
         sublineSkeletonWidth="w-56"
         emptySubline={emptySubline}
       />
@@ -90,24 +85,16 @@ interface UserIdentityRowProps {
   /** The signed-in user; `null` while it is read. */
   user: User | null;
   loading: boolean;
-  /** Opens the email verification flow from the "Not verified" button. */
-  onVerifyEmail: () => void;
   action: ReactNode;
   className?: string;
 }
 
 /**
  * The signed-in user's identity row, the same on the profile card and the profile tab: the round avatar, the display
- * name (the email when there is none) with a lib `Tag` per role, the email and, while it is unverified, the button
- * that resends the verification.
+ * name (the email when there is none) with a lib `Tag` per role, and the email. An unverified email draws no mark of
+ * its own here: the page's banner under the row asks for the verification (`EmailVerificationBanner`).
  */
-export function UserIdentityRow({
-  user,
-  loading,
-  onVerifyEmail,
-  action,
-  className = USER_ROW_CLASS,
-}: UserIdentityRowProps) {
+export function UserIdentityRow({ user, loading, action, className = USER_ROW_CLASS }: UserIdentityRowProps) {
   const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email : '';
   return (
     <IdentityRow
@@ -120,19 +107,6 @@ export function UserIdentityRow({
       nameAside={user?.roles?.map(role => <Tag key={role} variant="outline" label={role} />) ?? null}
       subline={user?.email}
       emptySubline="mark"
-      sublineAside={
-        user?.emailVerified === false && (
-          <button
-            type="button"
-            onClick={onVerifyEmail}
-            className="flex items-center gap-1 text-ods-warning transition-colors hover:text-ods-warning/80"
-            title="Email not verified - click to resend verification"
-          >
-            <AlertCircleIcon className="h-4 w-4" />
-            <span className="text-h6">Not verified</span>
-          </button>
-        )
-      }
       action={action}
     />
   );

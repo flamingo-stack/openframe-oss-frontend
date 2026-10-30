@@ -66,14 +66,17 @@ interface IncidentHeaderViewProps {
   transitions?: IncidentTransitionTable;
 }
 
-const MINGO_ICON = <AgentMark agent="mingo" className="size-5" />;
+// Both muted, as every outline action's icon is. The mark's glyph names its own color (the theme's text) unless told
+// to take `currentColor`, which is what drew it white beside the grey tag.
+const MINGO_ICON = <AgentMark agent="mingo" className="size-5 text-ods-text-secondary" color="currentColor" />;
 const CREATE_TICKET_ICON = <TagIcon className="text-ods-text-secondary" />;
 
 /** What the header settles into, inert while the record loads: Fix with Mingo, Create Ticket, the status button. */
 const LOADING_ACTIONS: PageActionButton[] = [
   { label: 'Fix with Mingo', variant: 'outline', icon: MINGO_ICON },
   { label: 'Create Ticket', variant: 'outline', icon: CREATE_TICKET_ICON },
-  { label: 'Resolve', variant: 'outline' },
+  // Its menu's chevron is part of its width: without it the row fits a narrow content area that the loaded row wraps in.
+  { label: 'Resolve', variant: 'outline', submenu: [{ id: 'resolve', label: 'Resolve' }] },
 ];
 
 /**
@@ -244,14 +247,13 @@ export const IncidentDetailsView = memo(function IncidentDetailsViewImpl({ incid
       header={<IncidentHeader incidentId={incidentId} />}
       body={
         // Notes sit between the card and the evidence but fetch on their own:
-        // they need only the id, so they do not wait behind the record. The
-        // assigned tickets come last: most incidents have none, so the section
-        // appears with its rows below everything the page always shows.
+        // they need only the id, so they do not wait behind the record. Most
+        // incidents have no assigned tickets: an optional part, drawn with its rows.
         <>
           <IncidentSummary incidentId={incidentId} />
           <IncidentNotes incidentId={incidentId} />
-          <IncidentEvidence incidentId={incidentId} />
           <IncidentAssignedTickets incidentId={incidentId} />
+          <IncidentEvidence incidentId={incidentId} />
         </>
       }
     />

@@ -36,6 +36,7 @@ import { EntityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   isCrossOriginUrl,
   decideNewTab as libDecideNewTab,
+  newTabFeatures,
   stripSameOriginToPath,
   useEmptyStateConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -56,7 +57,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useMemo } from 'react';
-import { CONTENT_ORIGIN } from '@/app/(app)/help-center/endpoints';
+import { CONTENT_ORIGIN, IMAGE_PROXY_SKIP_DOMAINS } from '@/app/(app)/help-center/endpoints';
 import { composeOpenframeInAppContentUrl } from '@/app/(app)/help-center/help-center-content-href';
 import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
@@ -218,9 +219,8 @@ const ASSISTANT_AGENT_SLUG = 'mingo';
 
 /**
  * How an "ask" surface opens this app's chat: the launcher store every other
- * entry point uses. A question is queued with `sendToMingo` (the chat entry
- * drains it into a fresh dialog, in the drawer and in the docked panel alike);
- * the launcher alone lands on a new chat, never on the conversation list.
+ * entry point uses. A question is sent in a new chat (`sendToMingo`); the launcher
+ * alone lands on a new chat on Mingo's home.
  */
 function openMingo({ prompt }: AssistantOpenRequest): void {
   const launcher = useMingoLauncherStore.getState();
@@ -239,33 +239,15 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // `openframe-docs` chips / cards / search results navigate identically here.
   const navigate = useCallback<NonNullable<ChatRuntime['navigation']['navigate']>>(
     ({ href, path }) => {
-      // Every branch that moves THIS window also dismisses the Mingo drawer the
-      // chat may be sitting in. `AppShell` closes it on a `pathname` change, but
-      // that misses exactly the links a chat emits most: a doc swap and a hash
-      // jump change no path at all, and `?id=`/`?slug=` targets change only the
-      // query — so the drawer stayed over the page it had just navigated, which
-      // below md is the entire viewport. A no-op when the drawer is closed, i.e.
-      // for the Help Center / knowledge-base surfaces sharing this runtime.
-      // `closeForNavigation` where the URL move is still PENDING (a `router.push`
-      // transition): the sync must not strip the param off the pre-navigation
-      // location. The doc-swap and hash branches move nothing / move history
-      // synchronously, so a plain `close` is right there.
-      const navigated = (pendingUrlMove = false) => {
-        const launcher = useMingoLauncherStore.getState();
-        if (pendingUrlMove) launcher.closeForNavigation();
-        else launcher.close();
-        return true;
-      };
-
       // 1. In-page doc-tree swap when `path` matches a mounted viewer.
-      if (path != null && docNav.navigate(path)) return navigated();
+      if (path != null && docNav.navigate(path)) return true;
       // 2. Same-origin URL → soft-nav (hash targets get the smooth same-page tween
       //    + synthetic `hashchange` so FAQ auto-expand / scroll-to-hash still fire).
       if (!isCrossOriginUrl(href)) {
         const target = stripSameOriginToPath(href);
-        if (navigateSamePageHash(target)) return navigated();
+        if (navigateSamePageHash(target)) return true;
         router.push(target);
-        return navigated(true);
+        return true;
       }
       // 3. Cross-origin → let the lib open it (new tab).
       return false;
@@ -304,7 +286,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   const openExternal = useCallback<NonNullable<ChatRuntime['navigation']['openExternal']>>(
     href => {
       if (sameWindow) window.location.assign(href);
-      else window.open(href, '_blank', 'noopener,noreferrer');
+      else window.open(href, '_blank', newTabFeatures(href));
     },
     [sameWindow],
   );
@@ -391,6 +373,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         // never showed. `/api/auth/identity` is the lib's documented hub default.
         identityUrl: content('/api/auth/identity'),
         imageProxyUrlPrefix: content('/api/image-proxy'),
+        imageProxySkipDomains: IMAGE_PROXY_SKIP_DOMAINS,
         // Native `<track>` VTT endpoint behind every video surface (help-center
         // release / onboarding-guide players, chat video cards, the floating
         // walkthrough card). The lib builds caption URLs off the relative hub
@@ -425,15 +408,15 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   // runtime configuration through its assistant context: whether this app's chat
   // can open, who the assistant is, where its questions come from and how the
   // chat is opened. Nothing is typed:
-  //   - `available`: the launcher store's `canOpen` (an unlocked workspace with
-  //     the chat mounted), so a card never offers a chat that cannot open;
+  //   - `available`: the composer dock is mounted (an unlocked workspace on a SaaS
+  //     tenant), so a card never offers a chat that cannot open;
   //   - name and glyph: the server's (see below; both requests are the ones the
   //     chat panel and the "Meet Mingo" step make, cached per URL). With no name
   //     the lib renders no card;
   //   - `askPromptsUrl`: the hub's general questions, picked by the topic each
   //     FAQ passes;
   //   - `open`: `openMingo` below, this app's own launcher.
-  const chatCanOpen = useMingoLauncherStore(state => state.canOpen);
+  const chatCanOpen = useMingoLauncherStore(state => state.dockMounted);
   // Identity, from the SERVER, in the hub's own order: the platform's chat
   // identity an admin set in chat config (`emptyStateUrl`, the request the chat
   // panel makes), else the Mingo agent's published one (`aiAgentConfigUrl`),

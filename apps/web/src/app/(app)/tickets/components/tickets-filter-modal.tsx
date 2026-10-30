@@ -1,8 +1,6 @@
 'use client';
 
-import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
-  Autocomplete,
   Button,
   CheckboxBlock,
   Label,
@@ -20,7 +18,7 @@ import { DEFAULT_TICKET_LIST_SORT } from '../utils/ticket-list-sort';
 import { ActivityFilter } from './activity-filter';
 import { AssigneeFilter } from './assignee-filter';
 import { OrganizationFilter } from './organization-filter';
-import { renderStatusOption, type StatusOption } from './status-autocomplete';
+import { type StatusOption, StatusFilter } from './status-autocomplete';
 
 interface TicketsFilterModalProps {
   isOpen: boolean;
@@ -33,7 +31,8 @@ interface TicketsFilterModalProps {
   /**
    * Renders the third, Status section (the table view — its status filter
    * lives in the column header on md+ and has no mobile surface otherwise).
-   * The board omits it: there the columns themselves are the statuses.
+   * The board passes it only while a `?status=` filter is applied (its lanes
+   * are the statuses, so there it is only the way to clear that filter).
    */
   status?: { value: string[]; options: StatusOption[] };
   /**
@@ -139,18 +138,18 @@ export function TicketsFilterModal({
       }
     >
       <div className="space-y-2">
-        <Label>Customer</Label>
+        <Label variant="large">Customer</Label>
         <OrganizationFilter value={localOrganizationIds} onChange={setLocalOrganizationIds} />
       </div>
 
       <div className="space-y-2">
-        <Label>Assignee</Label>
+        <Label variant="large">Assignee</Label>
         <AssigneeFilter value={localAssigneeIds} onChange={setLocalAssigneeIds} />
       </div>
 
       {activity && (
         <div className="space-y-2">
-          <Label>Activity</Label>
+          <Label variant="large">Activity</Label>
           <ActivityFilter value={localActivity} onChange={setLocalActivity} />
         </div>
       )}
@@ -159,22 +158,14 @@ export function TicketsFilterModal({
 
       {status && (
         <div className="space-y-2">
-          <Label>Status</Label>
-          <Autocomplete
-            multiple
-            options={status.options}
-            value={localStatus}
-            onChange={setLocalStatus}
-            placeholder="Show All Statuses"
-            startAdornment={<Filter02Icon className="size-6 text-ods-text-secondary" />}
-            renderOption={renderStatusOption}
-          />
+          <Label variant="large">Status</Label>
+          <StatusFilter options={status.options} value={localStatus} onChange={setLocalStatus} />
         </div>
       )}
 
       {sort && (
         <div className="space-y-2">
-          <Label>Sort by Ticket Number</Label>
+          <Label variant="large">Sort by Ticket Number</Label>
           <Select
             value={localSort.direction}
             onValueChange={value => setLocalSort({ ...localSort, direction: value as TicketListSort['direction'] })}

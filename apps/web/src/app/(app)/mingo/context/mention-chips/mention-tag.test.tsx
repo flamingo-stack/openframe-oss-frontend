@@ -1,28 +1,29 @@
 /**
- * Pins where a chip click takes the user and what it leaves in the launcher
- * store, because that state is read one effect later by `useMingoDialogUrlSync`,
- * off the PRE-navigation location.
- *
- *   - Where the chat covers the page (a phone), the drawer closes FOR the push.
- *     A close that does not carry `closedForNavigation` makes the sync strip
- *     `?mingoDialog=` with a `replaceState` of the old URL — over the push still
- *     in flight — and the tap lands nowhere.
- *   - Everywhere else the conversation stays: the push carries it in
- *     `?mingoDialog=`, and a docked panel over the whole content area steps
- *     back to its column first, so the page it opened is on screen.
- *   - The new-tab segment is a plain `_blank` link carrying the conversation,
- *     offered only where a tab is (see `useSameWindowLinks`).
+ * Pins how a chip click behaves. The chip is a chat link like any other: a plain
+ * click goes through the chat runtime's navigation (`NavLinkAnchorViaRuntime` →
+ * `runtime.navigation.navigate`), a modifier click stays the browser's, and the
+ * new-tab segment is a plain `_blank` link to the page alone (a `?mingoDialog=`
+ * would send that tab to the chat page), offered only where a tab is. Also that
+ * the chip fits what holds it, a table cell on a phone.
  */
 
+import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
-import { useMingoMessagesStore } from '@/app/(app)/mingo/stores/mingo-messages-store';
 import { MentionTag } from './mention-tag';
 
 const push = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }), usePathname: () => '/dashboard' }));
+
+/** The chat runtime the chip navigates through (the app's own is `OpenframeChatRuntimeProvider`). */
+const navigate = vi.fn(() => true);
+const openExternal = vi.fn();
+const runtime = {
+  endpoints: {},
+  navigation: { mode: 'host', navigate, openExternal, decideNewTab: () => false },
+  source: 'openframe',
+} as unknown as ChatRuntime;
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
 // `ResizeObserver`, and nothing here depends on the measurement.
@@ -36,9 +37,6 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 let sameWindow = true;
 vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => sameWindow }));
 
-let mobileViewport = true;
-vi.mock('@/app/hooks/use-is-mobile-viewport', () => ({ useIsMobileViewport: () => mobileViewport }));
-
 const HREF = '/devices/details?id=m-1';
 
 let container: HTMLDivElement;
@@ -46,8 +44,8 @@ let root: Root;
 
 beforeEach(() => {
   push.mockReset();
-  useMingoLauncherStore.setState({ isOpen: true, closedForNavigation: false, panelDocked: false, revealPage: null });
-  useMingoMessagesStore.setState({ activeDialogId: 'd-1' });
+  navigate.mockClear();
+  openExternal.mockClear();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -58,9 +56,13 @@ afterEach(() => {
   container.remove();
 });
 
-function renderChip(href: string, onOpen?: () => void) {
+function renderChip(href: string) {
   act(() => {
-    root.render(<MentionTag label="app-server-03" href={href} onOpen={onOpen} />);
+    root.render(
+      <ChatRuntimeContext.Provider value={runtime}>
+        <MentionTag label="app-server-03" href={href} />
+      </ChatRuntimeContext.Provider>,
+    );
   });
   const anchor = container.querySelector('a');
   if (!anchor) throw new Error('chip rendered no anchor');
@@ -80,84 +82,20 @@ function primaryClick(anchor: HTMLAnchorElement) {
 }
 
 describe('MentionTag click', () => {
-  it('closes the drawer FOR the navigation where the chat covers the page', () => {
-    sameWindow = true;
-    mobileViewport = true;
-    const event = primaryClick(renderChip(HREF));
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(push).toHaveBeenCalledWith(HREF);
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: false, closedForNavigation: true });
-  });
-
-  it('opens the page beside a docked panel in place, conversation along, panel intact', () => {
+  it('follows the chat runtime navigation, like every chat link', () => {
     sameWindow = false;
-    mobileViewport = false;
-    useMingoLauncherStore.setState({ isOpen: false, panelDocked: true });
     const anchor = renderChip(HREF);
     expect(anchor.getAttribute('target')).toBeNull();
 
     const event = primaryClick(anchor);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(push).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
-    expect(useMingoLauncherStore.getState()).toMatchObject({ panelDocked: true, closedForNavigation: false });
-  });
-
-  it('steps a panel over the whole content area back to its column before opening the page', () => {
-    sameWindow = false;
-    mobileViewport = false;
-    const order: string[] = [];
-    const revealPage = vi.fn(() => order.push('reveal'));
-    push.mockImplementation(() => order.push('push'));
-    useMingoLauncherStore.setState({ isOpen: false, panelDocked: true, revealPage });
-
-    primaryClick(renderChip(HREF));
-
-    expect(revealPage).toHaveBeenCalledTimes(1);
-    expect(order).toEqual(['reveal', 'push']);
-  });
-
-  it('keeps a drawer beside the page on a wide window open across the navigation', () => {
-    sameWindow = false;
-    mobileViewport = false;
-    const event = primaryClick(renderChip(HREF));
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(push).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
-  });
-
-  it('opens a plain page when the chip sits in no conversation yet', () => {
-    sameWindow = false;
-    mobileViewport = false;
-    useMingoMessagesStore.setState({ activeDialogId: null });
-    primaryClick(renderChip(HREF));
-
-    expect(push).toHaveBeenCalledWith(HREF);
-    expect(newTabSegment()?.getAttribute('href')).toBe(HREF);
-  });
-
-  it('hands a primary click to onOpen instead of navigating, drawer intact, no new tab', () => {
-    // Desktop web, where a plain chip offers a tab: an in-place target must not.
-    sameWindow = false;
-    mobileViewport = false;
-    const onOpen = vi.fn();
-    const anchor = renderChip('/dashboard?mingoDialog=d-1', onOpen);
-    expect(anchor.getAttribute('target')).toBeNull();
-    expect(newTabSegment()).toBeNull();
-
-    const event = primaryClick(anchor);
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ href: HREF }));
     expect(push).not.toHaveBeenCalled();
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
   });
 
-  it('lets a modifier click hand the href to the browser, drawer intact', () => {
+  it('lets a modifier click hand the href to the browser', () => {
     sameWindow = true;
-    mobileViewport = true;
     const anchor = renderChip(HREF);
     const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, metaKey: true });
     act(() => {
@@ -165,55 +103,47 @@ describe('MentionTag click', () => {
     });
 
     expect(event.defaultPrevented).toBe(false);
-    expect(push).not.toHaveBeenCalled();
-    expect(useMingoLauncherStore.getState().isOpen).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
 describe('MentionTag new-tab segment', () => {
-  it('opens the page in a new tab with the conversation, leaving this window alone', () => {
+  it('opens the page alone in a new tab, leaving this window alone', () => {
     sameWindow = false;
-    mobileViewport = false;
     renderChip(HREF);
     const segment = newTabSegment();
     if (!segment) throw new Error('no new-tab segment');
-    expect(segment.getAttribute('href')).toBe('/devices/details?id=m-1&mingoDialog=d-1');
-    expect(segment.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(segment.getAttribute('href')).toBe(HREF);
+    expect(segment.getAttribute('target')).toBe('_blank');
+    // A path of this site keeps the Referer (the lib's one referrer rule).
+    expect(segment.getAttribute('rel')).toBe('noopener');
     expect(segment.getAttribute('aria-label')).toBe('Open in new tab');
 
-    const event = primaryClick(segment);
+    primaryClick(segment);
 
-    expect(event.defaultPrevented).toBe(false);
-    expect(push).not.toHaveBeenCalled();
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
+    // The lib's executor opens the tab through the runtime's `openExternal`; this window does not move.
+    expect(openExternal).toHaveBeenCalledWith(HREF);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('is not offered where this window cannot or should not open a tab', () => {
     sameWindow = true;
-    mobileViewport = true;
     renderChip(HREF);
     expect(newTabSegment()).toBeNull();
     expect(container.querySelectorAll('a')).toHaveLength(1);
   });
 
-  it('is not offered in the app shells on a wide window, where the chip still opens the page in place', () => {
-    // The desktop app (and a tablet running the mobile one): a wide window
-    // with no tabs to open, so the shell alone decides.
-    sameWindow = true;
-    mobileViewport = false;
-    const anchor = renderChip(HREF);
-    expect(newTabSegment()).toBeNull();
-    expect(container.querySelectorAll('a')).toHaveLength(1);
-
-    primaryClick(anchor);
-
-    expect(push).toHaveBeenCalledWith('/devices/details?id=m-1&mingoDialog=d-1');
-    expect(useMingoLauncherStore.getState()).toMatchObject({ isOpen: true, closedForNavigation: false });
+  it('fits what holds it: the pair never wider than its cell, the main segment giving up its width first', () => {
+    sameWindow = false;
+    renderChip(HREF);
+    const pair = container.firstElementChild;
+    expect(pair?.className).toContain('max-w-full');
+    expect(pair?.querySelector('a')?.className).toContain('min-w-0');
+    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-[min(16rem,100%)]');
   });
 
   it('is not offered on a chip with no page to open', () => {
     sameWindow = false;
-    mobileViewport = false;
     act(() => {
       root.render(<MentionTag label="alice@example.com" />);
     });

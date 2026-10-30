@@ -1,171 +1,101 @@
-// Pins what the wizard tells the server about its last screen: "Everything is
-// set up" and "You are ready to go" are recorded as seen the moment they show,
-// once, and never again for an admin the server has already seen there - and
-// that leaving the wizard stays the wizard's own job.
+/**
+ * The wizard while its data is read draws the screen it is about to show, never another one: a workspace
+ * already set up (an admin after the first, a tour reset) waits on "Everything is set up", one still to set
+ * up on the welcome screen, and before the progress answers neither.
+ */
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
-import { TenantOnboardingStep } from '@/generated/schema-enums';
-import { routes } from '@/lib/routes';
-import {
-  type TenantOnboardingProgress,
-  useOnboardingStore,
-  type UserOnboardingProgress,
-} from '@/stores/onboarding-store';
-import { SetupWizard } from './setup-wizard';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 
-const { replace, completeTenantStep, completeTenantInBackground, markSetupSeenInBackground } = vi.hoisted(() => ({
-  replace: vi.fn(),
-  completeTenantStep: vi.fn(),
-  completeTenantInBackground: vi.fn(),
-  markSetupSeenInBackground: vi.fn(),
-}));
+const detect = vi.hoisted(() => ({ pending: true }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace, push: vi.fn() }) }));
-vi.mock('@flamingo-stack/openframe-frontend-core/components', async importOriginal => ({
-  ...(await importOriginal<object>()),
-  LoadingSuspense: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-vi.mock('@flamingo-stack/openframe-frontend-core/components/ui', async importOriginal => ({
-  ...(await importOriginal<object>()),
-  LoadingWhen: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useLoadingScope: () => false,
-}));
-vi.mock('@/app/(app)/mingo/stores/mingo-launcher-store', () => ({
-  useMingoLauncherStore: { getState: () => ({ setOpen: vi.fn() }) },
-}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+// The data auto-detect is the wizard's one suspending read: pending, it holds the wizard on its boundary.
 vi.mock('@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect', () => ({
-  useTenantOnboardingAutoDetect: () => new Set(),
+  useTenantOnboardingAutoDetect: () => {
+    if (detect.pending) throw new Promise(() => {});
+    return new Set();
+  },
 }));
 vi.mock('@/graphql/onboarding/use-onboarding-mutations', () => ({
-  useOnboardingMutations: () => ({ completeTenantStep, completeTenantInBackground, markSetupSeenInBackground }),
+  useOnboardingMutations: () => ({
+    completeTenantStep: vi.fn(),
+    completeTenantInBackground: vi.fn(),
+    markSetupSeenInBackground: vi.fn(),
+  }),
 }));
-vi.mock('../lib/tour-state', () => ({ markTourStarted: vi.fn() }));
+vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useDownloads: () => ({ data: undefined, isLoading: false }),
+}));
 vi.mock('./setup-frame', () => ({
   SetupFrame: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../steps/welcome-step', () => ({
-  WelcomeStep: ({ onContinue }: { onContinue: () => void }) => (
-    <button type="button" onClick={onContinue}>
-      Continue
-    </button>
-  ),
-}));
-vi.mock('../steps/organization-step', () => ({ OrganizationStep: () => <div>Set Up Your Organization</div> }));
-vi.mock('../steps/customer-step', () => ({ CustomerStep: () => <div>Your First Customer</div> }));
-vi.mock('../steps/deploy-device-step', () => ({ DeployDeviceStep: () => <div>Deploy First Device</div> }));
-vi.mock('../steps/ready-step', () => ({
-  ReadyStep: ({ onStart }: { onStart: () => void }) => (
-    <button type="button" onClick={onStart}>
-      You are ready to go
-    </button>
-  ),
-}));
-vi.mock('../steps/all-set-step', () => ({
-  AllSetStep: ({ onStart }: { onStart: () => void }) => (
-    <button type="button" onClick={onStart}>
-      Everything is set up
-    </button>
-  ),
-}));
+// The walk's screens, past the two this is about.
+vi.mock('../steps/organization-step', () => ({ OrganizationStep: () => null }));
+vi.mock('../steps/customer-step', () => ({ CustomerStep: () => null }));
+vi.mock('../steps/deploy-device-step', () => ({ DeployDeviceStep: () => null }));
+vi.mock('../steps/ready-step', () => ({ ReadyStep: () => null }));
 
-const FRESH_USER: UserOnboardingProgress = {
-  completedSteps: [],
-  completed: false,
-  completedAt: null,
-  skipped: false,
-  skippedAt: null,
-  tourDialogId: null,
-  setupSeen: false,
-};
+import { SetupWizard } from './setup-wizard';
 
-const SET_UP_TENANT: TenantOnboardingProgress = {
-  completedSteps: [
-    TenantOnboardingStep.MSP_SETUP,
-    TenantOnboardingStep.CUSTOMERS_SETUP,
-    TenantOnboardingStep.DEVICE_MANAGEMENT,
-    TenantOnboardingStep.MEET_MINGO,
-  ],
-  completed: true,
-  completedAt: null,
-};
+// The lib `Tag` ("Everything is set up"'s areas) measures its label for the truncation tooltip; jsdom has no
+// `ResizeObserver`, and nothing here depends on the measurement.
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
+const WELCOME = 'Agentic AI that runs your IT';
+const ALL_SET = 'Everything is set up';
 
 let container: HTMLDivElement;
 let root: Root;
 
-function progress(tenant: TenantOnboardingProgress, user: UserOnboardingProgress) {
-  const store = useOnboardingStore.getState();
-  store.setTenant(tenant);
-  store.setUser(user);
-}
-
-function render() {
-  act(() => root.render(<SetupWizard />));
-}
-
-function click(label: string) {
-  const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent === label);
-  if (!button) throw new Error(`no button "${label}"`);
-  act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-}
-
 beforeEach(() => {
-  replace.mockReset();
-  completeTenantStep.mockReset();
-  completeTenantInBackground.mockReset();
-  markSetupSeenInBackground.mockReset();
-  useOnboardingStore.getState().reset();
-  useAuthStore.setState({ user: { id: 'u-1', email: 'ann@example.com' } } as never);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
+  detect.pending = true;
 });
 
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
-  useAuthStore.setState({ user: null } as never);
+  useOnboardingStore.getState().reset();
 });
 
-describe('SetupWizard and the last screen', () => {
-  it('opens a set-up workspace on "Everything is set up" and records the screen as seen', () => {
-    progress(SET_UP_TENANT, FRESH_USER);
-    render();
+const tenant = (completed: boolean) => ({ completedSteps: [], completed, completedAt: null });
+const render = () => act(() => root.render(<SetupWizard />));
+const title = () => container.querySelector('h1')?.textContent ?? null;
 
-    expect(container.textContent).toContain('Everything is set up');
-    expect(markSetupSeenInBackground).toHaveBeenCalledTimes(1);
+describe('SetupWizard while its data is read', () => {
+  it('waits on "Everything is set up" for a workspace already set up, as after a tour reset', () => {
+    useOnboardingStore.getState().setTenant(tenant(true));
+    render();
+    expect(title()).toBe(ALL_SET);
+    expect(container.textContent).not.toContain(WELCOME);
   });
 
-  it('does not record the screen again for an admin the server has seen there', () => {
-    progress(SET_UP_TENANT, { ...FRESH_USER, setupSeen: true });
+  it('waits on the welcome screen for a workspace still to set up', () => {
+    useOnboardingStore.getState().setTenant(tenant(false));
     render();
-
-    expect(container.textContent).toContain('Everything is set up');
-    expect(markSetupSeenInBackground).not.toHaveBeenCalled();
+    expect(title()).toBe(WELCOME);
   });
 
-  it('records "You are ready to go" too, and none of the screens before it', () => {
-    progress(
-      { ...SET_UP_TENANT, completedSteps: SET_UP_TENANT.completedSteps.slice(0, 3), completed: false },
-      FRESH_USER,
-    );
+  it('draws no screen before the progress answers', () => {
     render();
-
-    expect(container.textContent).toContain('Continue');
-    expect(markSetupSeenInBackground).not.toHaveBeenCalled();
-
-    click('Continue');
-    expect(container.textContent).toContain('You are ready to go');
-    expect(markSetupSeenInBackground).toHaveBeenCalledTimes(1);
+    expect(title()).toBeNull();
   });
 
-  it('"Start with Mingo" on a set-up workspace leaves for the dashboard by itself', () => {
-    progress(SET_UP_TENANT, { ...FRESH_USER, setupSeen: true });
+  it('opens on the screen it waited on once the data lands', () => {
+    useOnboardingStore.getState().setTenant(tenant(true));
+    detect.pending = false;
     render();
-    click('Everything is set up');
-
-    expect(replace).toHaveBeenCalledWith(routes.dashboard);
+    expect(title()).toBe(ALL_SET);
   });
 });

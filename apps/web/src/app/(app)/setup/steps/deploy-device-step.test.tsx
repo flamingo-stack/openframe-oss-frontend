@@ -23,7 +23,11 @@ vi.mock('@/app/(app)/devices/hooks/use-device-organizations', () => ({
   },
 }));
 vi.mock('@/app/(app)/devices/hooks/use-install-command', () => ({
-  useInstallCommand: () => ({ command: 'sudo ./openframe-client install', initialKey: 'key' }),
+  useInstallCommand: () => ({
+    command: 'sudo ./openframe-client install',
+    initialKey: 'key',
+    installRequest: { orgId: 'org', initialKey: 'key' },
+  }),
 }));
 vi.mock('../hooks/use-first-device-enrollment', () => ({ useFirstDeviceEnrollment: () => reads.device }));
 vi.mock('../hooks/use-local-agent-install', () => ({

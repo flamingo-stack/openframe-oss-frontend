@@ -30,7 +30,7 @@ serde_json = "1"
 log = "0.4"
 url = "2"
 # NativeAuth bridge: native dev-ticket exchange (reads tokens off response
-# headers a cross-origin webview fetch can't) + the oneshot that parks
+# headers, so the refresh token stays in the shell) + the oneshot that parks
 # native_auth_start until the OS hands back the openframe-console://auth callback.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
@@ -67,6 +67,13 @@ windows = { version = "0.61", features = [
 # `_Impl` supertrait, and the error points nowhere near this file.
 windows-core = "0.61"
 winreg = "0.52"
+
+# The confirmation before "Deploy on this Device" elevates: a native dialog, so
+# nothing in the webview can draw or answer it. No default features: those are its
+# Linux backends. Without `common-controls-v6` Windows uses plain MessageBoxW, since
+# TaskDialogIndirect needs a comctl32 v6 manifest, which a test binary does not have.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+rfd = { version = "0.16", default-features = false }
 
 # clock_gettime for tokens::boot_secs — the clock that counts suspend
 # (CLOCK_MONOTONIC on macOS, CLOCK_BOOTTIME on Linux) — and, on macOS, statfs(2)

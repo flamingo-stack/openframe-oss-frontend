@@ -138,8 +138,8 @@ export function AddUsersModal({ isOpen, onClose, onInvited, listingIds }: AddUse
 
       <div className="flex flex-col gap-[var(--spacing-system-xs)]">
         <div className="grid grid-cols-2 gap-2">
-          <Label>User Email</Label>
-          <Label>Role</Label>
+          <Label variant="large">User Email</Label>
+          <Label variant="large">Role</Label>
         </div>
 
         {rows.map((row, idx) => (
