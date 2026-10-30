@@ -41,37 +41,37 @@ export function ApiKeyDetailsModal({ isOpen, onClose, apiKey }: ApiKeyDetailsMod
       {/* Two Column Layout */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Key ID</Label>
+          <Label variant="large">Key ID</Label>
           <Input value={apiKey.id} disabled className="bg-ods-card" />
         </div>
 
         <div className="space-y-2">
-          <Label>Created</Label>
+          <Label variant="large">Created</Label>
           <Input value={formatDateTime(apiKey.createdAt)} disabled className="bg-ods-card" />
         </div>
 
         <div className="space-y-2">
-          <Label>Expires</Label>
+          <Label variant="large">Expires</Label>
           <Input value={formatDateTime(apiKey.expiresAt)} disabled className="bg-ods-card" />
         </div>
 
         <div className="space-y-2">
-          <Label>Total Requests</Label>
+          <Label variant="large">Total Requests</Label>
           <Input value={formatCount(apiKey.totalRequests)} disabled className="bg-ods-card" />
         </div>
 
         <div className="space-y-2">
-          <Label>Successful Requests</Label>
+          <Label variant="large">Successful Requests</Label>
           <Input value={formatCount(apiKey.successfulRequests)} disabled className="bg-ods-card" />
         </div>
 
         <div className="space-y-2">
-          <Label>Failed Requests</Label>
+          <Label variant="large">Failed Requests</Label>
           <Input value={formatCount(apiKey.failedRequests)} disabled className="bg-ods-card" />
         </div>
 
         <div className="col-span-2 space-y-2">
-          <Label>Last Used</Label>
+          <Label variant="large">Last Used</Label>
           <Input value={formatDateTime(apiKey.lastUsed)} disabled className="bg-ods-card" />
         </div>
       </div>

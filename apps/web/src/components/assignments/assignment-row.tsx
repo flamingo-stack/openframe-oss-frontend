@@ -47,7 +47,7 @@ export function AssignmentRow({ targetType, value, onChange, onRemoveRow, disabl
   };
 
   return (
-    <FieldWrapper label={meta.rowLabel}>
+    <FieldWrapper label={meta.rowLabel} labelVariant="large">
       <div className="flex items-stretch gap-[var(--spacing-system-xsf)]">
         <div className="min-w-0 flex-1">
           <Autocomplete

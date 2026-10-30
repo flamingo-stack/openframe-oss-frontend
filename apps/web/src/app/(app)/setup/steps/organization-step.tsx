@@ -78,6 +78,7 @@ export function OrganizationStep({
           <Input
             id="setup-org-name"
             label="Organization Name"
+            labelVariant="large"
             value={name}
             onChange={event => setName(event.target.value)}
             disabled={busy}
@@ -86,6 +87,7 @@ export function OrganizationStep({
           <Input
             id="setup-org-website"
             label="Organization Website"
+            labelVariant="large"
             value={website}
             onChange={event => setWebsite(event.target.value)}
             disabled={busy}

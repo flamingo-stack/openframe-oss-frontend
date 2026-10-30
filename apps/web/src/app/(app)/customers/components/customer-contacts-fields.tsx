@@ -124,6 +124,7 @@ function ContactInput({ control, index, field, disabled, showErrors }: ContactIn
         <Input
           type={FIELD_TYPES[field]}
           label={CONTACT_FIELD_LABELS[field]}
+          labelVariant="large"
           placeholder={PLACEHOLDERS[field]}
           value={input.value}
           onChange={input.onChange}
