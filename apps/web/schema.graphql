@@ -674,10 +674,6 @@ enum DirectoryCapability {
   ADMIN_ROLES
 }
 
-"""
-Narrowing for directoryConnections. Free-text search is all the Tenants list needs today; further
-dimensions become optional fields here, so adding one never changes the query's signature.
-"""
 type DirectoryConnection {
   """
   Config document id — passed as connectionId to every per-connection query/mutation.
@@ -762,6 +758,27 @@ type DirectoryConnection {
   never reach OpenFrame (Google's "Access blocked" screen) are not recorded.
   """
   lastConsentInfo: DirectoryConsentInfo
+
+  # openframe-saas-tenant#4233. None of these calls the provider: licenseSummary and licenses read the stored snapshot.
+  "When a person paused the sync; null while syncing."
+  syncPausedAt: Instant
+  "Who paused the sync; null when not paused or the user no longer exists."
+  syncPausedBy: User
+  """
+  Totals for the list's LICENSES column. They leave out free / self-service SKUs, which licenses still lists.
+  Null until the license numbers have been read.
+  """
+  licenseSummary: DirectoryLicenseSummary
+  """
+  Licenses of the directory as of the last read, sorted by name unless orderBy says otherwise. Empty until the
+  license numbers have been read: licenseSummary == null tells "not read yet" from "none".
+  """
+  licenses(search: String, orderBy: DirectoryLicenseOrderInput): [DirectoryLicense!]!
+  """
+  What Disconnect keeps read-only and Delete removes. Runs a few counts per connection: select it for one
+  connection (the Disconnect and Delete dialogs), not for a page.
+  """
+  impact: DirectoryConnectionImpact!
 }
 
 """
@@ -2423,12 +2440,21 @@ type Mutation {
   """
   checkDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
 
+  "Stops reading from and writing to the directory until resumed; the credential and the synced data stay."
+  pauseDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
+  "Resumes a paused connection and starts a sync at once."
+  resumeDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
+  "Stops reading and writing and forgets OpenFrame's credential; synced data stays read-only. Reconnect = startDirectoryConsent."
+  disconnectDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
   """
-  Disconnects the directory tenant: deletes the connection, every user, group, device and audit
-  row it synced, and detaches it from every organization it was linked to. The provider grant is
-  revoked where the provider supports it, best-effort — a failed revoke still deletes local data.
-  Irreversible; reconnecting means a fresh consent. Returns the connection as it was immediately
-  before deletion.
+  Deletes the connection, every user, group and device it synced, and detaches it from every
+  organization it was linked to. OpenFrame stops reading the directory and forgets its credential;
+  the grant is not revoked at the provider, so the customer removes OpenFrame's access there.
+  Audit events already received stay. Irreversible; reconnecting means a fresh consent. Returns
+  the connection as it was immediately before deletion.
   """
   deleteDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
 
@@ -3577,9 +3603,18 @@ type Query {
     and is never widened by this.
     """
     search: String
+    filter: DirectoryConnectionFilterInput
+    "Default NAME ascending. Numbers sort on the stored snapshot; rows without a value come first ascending, last descending."
+    orderBy: DirectoryConnectionOrderInput
     first: Int
     after: String
   ): DirectoryConnectionConnection!
+
+  """
+  Options for the list's filter menus, each with how many connections it would match under the current search
+  and the other filters. Options with a zero count are left out.
+  """
+  directoryConnectionFilters(search: String, filter: DirectoryConnectionFilterInput): DirectoryConnectionFilters!
 
   """
   One connection by id, read live from the provider rather than from the search index, so it
@@ -6517,4 +6552,88 @@ type DirectoryConsentIssue {
 
   """What happened and what to do, in plain words."""
   message: String!
+}
+
+# Tenants list filters and sort, connection lifecycle, licenses, as openframe-saas-tenant#4233 serves them: cut from its
+# schema-directory/directory-integrations.graphqls. Merged by hand until it is on an environment's introspection.
+
+"""
+Narrowing for directoryConnections beside the free-text search. Every field is optional and an empty list
+narrows nothing; further dimensions become optional fields here, so adding one never changes the query's signature.
+"""
+input DirectoryConnectionFilterInput {
+    "Only connections whose last sync ended in one of these statuses, e.g. [ERROR] for the failed-sync row."
+    lastSyncStatuses: [DirectorySyncStatus!]
+    providers: [DirectoryProvider!]
+    "Connections serving any of these customers."
+    organizationIds: [ID!]
+    "The stored access state, refreshed by every live check of the connection."
+    accessStates: [DirectoryAccessState!]
+    licenses: [DirectoryLicenseFilter!]
+}
+
+"""
+HAS_UNUSED_SEATS: purchased exceeds assigned, over the paid SKUs. NO_PURCHASED_TOTAL: the provider reports assignments
+only (Google). NOT_READ_YET: the license numbers have not been read yet.
+"""
+enum DirectoryLicenseFilter { HAS_UNUSED_SEATS NO_PURCHASED_TOTAL NOT_READ_YET }
+
+input DirectoryConnectionOrderInput {
+    field: DirectoryConnectionSortField!
+    direction: SortDirection!
+}
+
+"Every field but NAME sorts on the stored snapshot; rows without a value come first ascending, last descending."
+enum DirectoryConnectionSortField { NAME USERS UNATTRIBUTED_USERS LICENSES_ASSIGNED LICENSES_UNUSED LAST_READ }
+
+type DirectoryConnectionFilters {
+    providers: [DirectoryConnectionFilterOption!]!
+    customers: [DirectoryConnectionFilterOption!]!
+    accessStates: [DirectoryConnectionFilterOption!]!
+    licenses: [DirectoryConnectionFilterOption!]!
+}
+
+type DirectoryConnectionFilterOption {
+    "The value to send back in DirectoryConnectionFilterInput."
+    value: String!
+    label: String!
+    "Connections this option matches under the current search and the other filters."
+    count: Int!
+}
+
+type DirectoryLicenseSummary {
+    assigned: Int!
+    "Null when the provider does not report purchased seats (Google Workspace)."
+    purchased: Int
+    "Purchased minus assigned, null when purchased is. May be negative when the provider counts suspended or warning seats."
+    unused: Int
+}
+
+type DirectoryLicense {
+    id: String!
+    "The product name; the SKU id when the provider gives none."
+    name: String!
+    assigned: Int!
+    "Null when the provider does not report purchased seats (Google Workspace)."
+    purchased: Int
+    "Purchased minus assigned, null when purchased is. May be negative when the provider counts suspended or warning seats."
+    unused: Int
+    "True for a free / self-service SKU; the totals leave it out."
+    free: Boolean!
+}
+
+input DirectoryLicenseOrderInput { field: DirectoryLicenseSortField!, direction: SortDirection! }
+
+enum DirectoryLicenseSortField { NAME ASSIGNED UNUSED }
+
+type DirectoryConnectionImpact {
+    users: Int!
+    groups: Int!
+    "Assignments of every SKU, free ones included. Null until the license numbers have been read."
+    licenseAssignments: Int
+    "Devices known only from the directory."
+    cloudOnlyDevices: Int!
+    "Directory records linked to an OpenFrame agent device; the agent devices themselves stay."
+    agentDeviceLinks: Int!
+    customers: Int!
 }

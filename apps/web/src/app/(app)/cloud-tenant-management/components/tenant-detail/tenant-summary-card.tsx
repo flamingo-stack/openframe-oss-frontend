@@ -26,7 +26,7 @@ import type { tenantSummaryCard_identity$key } from '@/__generated__/tenantSumma
 import { InfoCell } from '@/app/components/shared/info-cell';
 import { getFullImageUrl } from '@/lib/image-url';
 import { pluralNoun } from '@/lib/pluralize';
-import { attributionSummary, providerPresentation } from '../../utils/tenant-presentation';
+import { attributionSummary, isSyncPaused, providerPresentation } from '../../utils/tenant-presentation';
 import { boundCustomerOptions } from '../tenant-form/bound-customer';
 import type { PickerCustomer } from '../tenant-form/customer-option';
 import { CustomerOptionLabel } from '../tenant-form/customer-select';
@@ -63,6 +63,7 @@ const tenantSummaryCardFragment = graphql`
     userCount
     unattributedUserCount
     lastSyncAt
+    enabled
     access {
       state
     }
@@ -204,7 +205,15 @@ export function TenantSummaryCard({ connection }: { connection: tenantSummaryCar
           <InfoCell
             label={LABELS.status}
             // No label while the tenant loads: the tag draws its own skeleton in the cell's scope.
-            value={<Tag {...(data ? accessStateTag(data.access.state) : { label: null })} />}
+            value={
+              <Tag
+                {...(!data
+                  ? { label: null }
+                  : isSyncPaused(data)
+                    ? { label: 'Sync paused', variant: 'grey' as const }
+                    : accessStateTag(data.access.state))}
+              />
+            }
           />
           <InfoCell
             label={LABELS.lastRead}

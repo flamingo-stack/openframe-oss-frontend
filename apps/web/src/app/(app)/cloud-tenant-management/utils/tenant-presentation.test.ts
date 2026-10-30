@@ -25,6 +25,8 @@ import {
   capabilityLabels,
   checkResultTag,
   consentAlert,
+  isSyncPaused,
+  syncPausedDescription,
   consentIssueCode,
   consentIssueReport,
   consentIssueTag,
@@ -232,9 +234,9 @@ describe('usersCountLabel', () => {
   it('pluralises and renders the empty mark before the first read', () => {
     expect(usersCountLabel(null)).toBe(EMPTY_VALUE);
     expect(usersCountLabel(undefined)).toBe(EMPTY_VALUE);
-    expect(usersCountLabel(0)).toBe('0 Users');
-    expect(usersCountLabel(1)).toBe('1 User');
-    expect(usersCountLabel(227)).toBe('227 Users');
+    expect(usersCountLabel(0)).toBe('0 users');
+    expect(usersCountLabel(1)).toBe('1 user');
+    expect(usersCountLabel(227)).toBe('227 users');
   });
 });
 
@@ -416,5 +418,28 @@ describe('consent issues', () => {
         message: 'Blocked.',
       }),
     ).toBe('Provider: Google Workspace\nDomain: acme.com\nError code: admin_policy_enforced\nMessage: Blocked.');
+  });
+});
+
+describe('isSyncPaused', () => {
+  it('is a disabled tenant OpenFrame can still read', () => {
+    expect(isSyncPaused({ enabled: false, access: { state: 'WRITE_ENABLED' } })).toBe(true);
+    expect(isSyncPaused({ enabled: true, access: { state: 'WRITE_ENABLED' } })).toBe(false);
+  });
+
+  it('is not a disconnected tenant, which says Disconnected', () => {
+    expect(isSyncPaused({ enabled: false, access: { state: 'DISCONNECTED' } })).toBe(false);
+  });
+});
+
+describe('syncPausedDescription', () => {
+  it('names who and when, as far as it is known', () => {
+    expect(syncPausedDescription('Roman Smith', '2026-05-01T10:00:00Z')).toMatch(/^Paused by Roman Smith on .+\.$/);
+    expect(syncPausedDescription(null, '2026-05-01T10:00:00Z')).toMatch(/^Paused on .+\.$/);
+    expect(syncPausedDescription('Roman Smith', null)).toBe('Paused by Roman Smith.');
+  });
+
+  it('says nothing about a tenant paused before this was recorded', () => {
+    expect(syncPausedDescription(null, null)).toBeNull();
   });
 });

@@ -20,7 +20,9 @@ import { TenantConsentAlert } from './tenant-consent-alert';
 import { TenantConsentIssues } from './tenant-consent-issues';
 import { TENANT_DETAIL_TITLE, TenantDetailTitle } from './tenant-detail-title';
 import { TenantIntegrationSection } from './tenant-integration-section';
+import { TenantLicensesSection } from './tenant-licenses-section';
 import { TenantSummaryCard } from './tenant-summary-card';
+import { TenantSyncPausedNotice } from './tenant-sync-paused-notice';
 
 // `directoryConnection` is nullable: an unknown id is a field error, which reaches the page as null.
 // The integration rows are not here — they are `TenantIntegrationSection`'s own island (see there).
@@ -34,6 +36,7 @@ const tenantDetailContentQuery = graphql`
       access {
         state
       }
+      ...tenantSyncPausedNotice_connection
       ...tenantSummaryCard_connection
       ...tenantConsentAlert_connection
       ...tenantConsentIssues_connection
@@ -80,6 +83,7 @@ function TenantDetailContentReader(props: TenantDetailContentProps) {
           {/* The connected tenant's sections: most records on this page are connected. */}
           <TenantIntegrationSection id={props.id} provider={null} />
           <TenantAttributionRules id={props.id} />
+          <TenantLicensesSection id={props.id} provider={null} />
         </LoadingScope>
       </>
     );
@@ -112,6 +116,7 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
     <>
       <TenantDetailTitle title={connection.name} actions={actions} />
       <div className={BODY_CLASS}>
+        <TenantSyncPausedNotice connection={connection} />
         <TenantSummaryCard connection={connection} />
         {isReadable(connection.access.state) ? (
           <>
@@ -125,6 +130,11 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
               fallback={retry => <SectionLoadError message="Couldn't load the attribution rules." onRetry={retry} />}
             >
               <TenantAttributionRules id={connection.id} />
+            </ContentErrorBoundary>
+            <ContentErrorBoundary
+              fallback={retry => <SectionLoadError message="Couldn't load the licences." onRetry={retry} />}
+            >
+              <TenantLicensesSection id={connection.id} provider={connection.provider} />
             </ContentErrorBoundary>
           </>
         ) : (

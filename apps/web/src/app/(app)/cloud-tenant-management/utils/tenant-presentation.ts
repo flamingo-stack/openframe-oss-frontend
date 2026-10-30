@@ -62,6 +62,25 @@ const ACCESS_STATE_HINT = {
     "The customer's admin removed OpenFrame's access. Generate a new link and ask them to consent again.",
 } satisfies Record<Exclude<DirectoryAccessState, ReadableAccessState>, string>;
 
+/**
+ * A person paused the sync of a directory OpenFrame can still read. A disconnected tenant is disabled as well, and what
+ * it says is Disconnected.
+ */
+export function isSyncPaused(connection: {
+  readonly enabled: boolean;
+  readonly access: { readonly state: string };
+}): boolean {
+  return !connection.enabled && isReadable(connection.access.state);
+}
+
+/** "Paused by Roman Smith on 05/01/26." (Figma 3051-7925); a connection paused before this was recorded has neither. */
+export function syncPausedDescription(by: string | null | undefined, at: string | null | undefined): string | null {
+  const date = toValidDate(at);
+  const on = date ? ` on ${formatDate(date)}` : '';
+  if (by) return `Paused by ${by}${on}.`;
+  return date ? `Paused${on}.` : null;
+}
+
 /** The sentence under a failed "Check Connection"; an unknown state falls back to its tag label. */
 export function accessStateHint(state: string | null | undefined): string {
   return presentationFor(ACCESS_STATE_HINT, state) ?? accessStateTag(state).label;

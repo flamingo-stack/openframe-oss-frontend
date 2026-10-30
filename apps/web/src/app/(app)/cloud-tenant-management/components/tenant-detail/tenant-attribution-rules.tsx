@@ -75,7 +75,7 @@ const ATTRIBUTION_RULE_COLUMNS = {
   customer: { id: 'customer', header: 'Customer', width: 'flex-1 min-w-0' },
   matchBy: { id: 'matchBy', header: 'Match by', width: 'flex-1 min-w-0', hideAt: 'lg' },
   values: { id: 'values', header: 'Values', width: 'flex-1 min-w-0', hideAt: 'md' },
-  users: { id: 'users', header: 'Users', width: 'w-28 shrink-0', sortable: true },
+  users: { id: 'users', header: 'Users', width: 'flex-1 min-w-0', sortable: true },
 } satisfies Record<string, TableSkeletonColumn>;
 
 /** A typical tenant: one customer, one or two rules. */
