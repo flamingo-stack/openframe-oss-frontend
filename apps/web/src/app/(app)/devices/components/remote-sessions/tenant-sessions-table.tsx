@@ -80,18 +80,19 @@ interface TenantSessionsTableProps {
   onDeleted: () => void;
 }
 
-/** The mobile filters button: the header funnels go with the header cells below `md`. */
+/** The mobile filters button, the page's full width: the header funnels go with the header cells below `md`. */
 function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
   return (
-    <div className="flex justify-end content-md:hidden">
+    <div className="content-md:hidden">
       <Button
         variant="outline"
-        size="icon"
+        fullWidth
         onClick={onClick}
         disabled={!onClick}
-        aria-label="Open filters"
         leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-      />
+      >
+        Filter
+      </Button>
     </div>
   );
 }
