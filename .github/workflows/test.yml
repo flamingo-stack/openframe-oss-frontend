@@ -27,8 +27,9 @@ env:
 # =============================================================================
 
 jobs:
-  # Each app is checked only when its paths change; `every` applies to both
-  # filters, so desktop is one brace pattern.
+  # Each app is checked only when its paths change; `every` applies to all
+  # filters, so desktop is one brace pattern. install_fixture is read by a web
+  # unit test and a Rust one, so changing it from the desktop side runs both.
   changes:
     name: 'Changes'
     runs-on: ubuntu-latest
@@ -39,6 +40,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      install_fixture: ${{ steps.filter.outputs.install_fixture }}
     steps:
       # Outside pull_request the filter diffs with git.
       - if: github.event_name == 'merge_group'
@@ -56,6 +58,8 @@ jobs:
               - '!apps/mobile/**'
             desktop:
               - '{apps/desktop,.github/steps/rust-setup}/**'
+            install_fixture:
+              - 'apps/desktop/src-tauri/src/install-command.json'
 
   # Repo-wide and cheap, so ungated.
   static:
@@ -148,7 +152,7 @@ jobs:
     name: 'Unit Test'
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.outputs.web == 'true'
+    if: needs.changes.outputs.web == 'true' || needs.changes.outputs.install_fixture == 'true'
     permissions:
       contents: read
 

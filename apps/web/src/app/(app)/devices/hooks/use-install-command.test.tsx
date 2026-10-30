@@ -23,10 +23,11 @@ vi.mock('./use-registration-secret', () => ({
 const logKey = vi.hoisted(() => ({ value: undefined as string | undefined }));
 vi.mock('./use-agent-log-key', () => ({ useAgentLogKey: () => logKey.value }));
 
+const authUser = vi.hoisted(() => ({ id: 'user-1' }));
 type AuthSlice = { user: { id: string } };
 vi.mock('@/stores', () => ({
   selectUser: (state: AuthSlice) => state.user,
-  useAuthStore: (selector: (state: AuthSlice) => unknown) => selector({ user: { id: 'user-1' } }),
+  useAuthStore: (selector: (state: AuthSlice) => unknown) => selector({ user: authUser }),
 }));
 
 vi.mock('@/lib/platform', () => ({ isAppShell: () => false }));
@@ -192,6 +193,7 @@ describe('useInstallCommand log key', () => {
   afterEach(() => {
     unmountOnce();
     logKey.value = undefined;
+    authUser.id = 'user-1';
   });
 
   it('passes the tenant log key in both the install and the register command', () => {
@@ -210,9 +212,22 @@ describe('useInstallCommand log key', () => {
     }
   });
 
-  it('sends the desktop shell no log key while it is empty, since the shell refuses one', () => {
+  it('sends the desktop shell every value it has', () => {
+    logKey.value = 'log-1';
+    expect(renderOnce().installRequest).toEqual({
+      orgId: 'org-1',
+      initialKey: 'secret-1',
+      logKey: 'log-1',
+      userId: 'user-1',
+    });
+  });
+
+  it('sends the desktop shell no empty value, since the shell refuses one', () => {
     logKey.value = '';
-    expect(renderOnce().installRequest.logKey).toBeUndefined();
+    authUser.id = '';
+    const { installRequest } = renderOnce();
+    expect(installRequest.logKey).toBeUndefined();
+    expect(installRequest.userId).toBeUndefined();
   });
 
   it('hands out a command before the key arrives and adds the key once it does', () => {

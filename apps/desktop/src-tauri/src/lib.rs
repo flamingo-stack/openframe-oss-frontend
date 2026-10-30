@@ -512,18 +512,11 @@ pub(crate) fn is_loopback_host(host: &str) -> bool {
     matches!(host, "localhost" | "127.0.0.1")
 }
 
-/// Labels the backend can issue: lowercase (the URL parser has already lowered the
-/// host), digits, `-` and `_`. The parser accepts far more (`'`, `;`, `$`, `(`, `{`),
-/// and the agent's install command is written from this host, where a leading `-`
-/// would read as a flag.
+/// The URL parser accepts far more in a host than a tenant's name holds (`'`, `;`, `$`,
+/// `(`, `{`), and the agent's install command is written from this one, so each label
+/// is held to what may sit unquoted on that command line.
 fn is_tenant_host_name(host: &str) -> bool {
-    host.split('.').all(|label| {
-        !label.is_empty()
-            && !label.starts_with('-')
-            && label
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
-    })
+    host.split('.').all(installer::is_install_arg)
 }
 
 /// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and return
@@ -561,12 +554,14 @@ pub(crate) fn tenant_origin(input: &str, shared_host: Option<&str>) -> Result<St
         .ok_or("No shared host to check the tenant host against")?;
     let shared_name = shared.host_str().unwrap_or_default();
     let host = url.host_str().unwrap_or_default();
+    if !is_loopback_host(shared_name) && !is_tenant_host_name(host) {
+        return Err(format!("Tenant host {host} is not a plain host name"));
+    }
     let allowed = if is_loopback_host(shared_name) {
         is_loopback_host(host)
     } else {
         let zone = shared_name.strip_prefix("auth.").unwrap_or(shared_name);
         url.scheme() == "https"
-            && is_tenant_host_name(host)
             && (host == zone
                 || host
                     .strip_suffix(zone)
@@ -1272,10 +1267,10 @@ fn native_auth_cancel(state: State<'_, AuthState>) -> bool {
     canceled
 }
 
-/// NativeAuth.exchangeTicket: native (CORS-free) GET; the tokens ride on the
-/// Access-Token / Refresh-Token response headers, which a cross-origin webview
-/// fetch could not read. The refresh token stops here (see
-/// [`AuthState::exchanged`] and [`PageTokens`]).
+/// NativeAuth.exchangeTicket: native (CORS-free) GET, so the tokens on the
+/// Access-Token / Refresh-Token response headers land in the shell and not the
+/// page. The refresh token stops here (see [`AuthState::exchanged`] and
+/// [`PageTokens`]).
 #[tauri::command]
 async fn native_auth_exchange_ticket(
     app: AppHandle,
@@ -1986,6 +1981,8 @@ mod tests {
         ] {
             assert!(tenant_origin(input, SHARED).is_ok(), "{input}");
         }
+        let refused = tenant_origin("https://a;b.openframe.ai", SHARED).unwrap_err();
+        assert!(refused.contains("plain host name"), "{refused}");
     }
 
     #[test]
@@ -2139,10 +2136,11 @@ mod tests {
                 assert!(dev_sources.contains(source), "{directive}: {source}");
             }
             for source in dev_sources.iter().filter(|s| !sources.contains(s)) {
-                assert!(
-                    source.contains("localhost") || source.contains("127.0.0.1"),
-                    "{directive}: {source}"
-                );
+                let host = source
+                    .split("://")
+                    .nth(1)
+                    .and_then(|rest| rest.split(':').next());
+                assert!(host.is_some_and(is_loopback_host), "{directive}: {source}");
             }
         }
     }

