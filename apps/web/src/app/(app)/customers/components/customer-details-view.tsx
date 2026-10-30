@@ -34,6 +34,7 @@ import {
   CUSTOM_AI_ASSISTANT_TAB_ID,
   CUSTOMER_DEVICE_GUARDRAILS_TAB_ID,
   CUSTOMER_GUARDRAILS_TAB_ID,
+  CUSTOMER_GROUPS_TAB_ID,
   CUSTOMER_USERS_TAB_ID,
   getCustomerTabComponent,
   getCustomerTabs,
@@ -83,20 +84,20 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
   const deviceGuardrailsGate = useRemoteAccessApprovalGate();
   const deviceGuardrailsGateLoading = deviceGuardrailsGate === 'loading';
   const showDeviceGuardrails = deviceGuardrailsGate !== 'off';
-  // Directory users: the same tri-state treatment, and SaaS only — the flag is never on for an OSS tenant, which
-  // must not see the tab while the flag reads.
-  const usersGate = useTenantManagementGate();
-  const usersGateLoading = usersGate === 'loading';
-  const showUsers = isSaasTenant && usersGate !== 'off';
+  // Directory users and groups: the same tri-state treatment, and SaaS only — the flag is never on for an OSS tenant, which
+  // must not see the tabs while the flag reads.
+  const directoryGate = useTenantManagementGate();
+  const directoryGateLoading = directoryGate === 'loading';
+  const showDirectory = isSaasTenant && directoryGate !== 'off';
   const tabs = useMemo(
     () =>
       getCustomerTabs({
-        showUsers,
+        showDirectory,
         showCustomAiAssistant: isSaasTenant,
         showGuardrails: isSaasTenant,
         showDeviceGuardrails,
       }),
-    [showUsers, isSaasTenant, showDeviceGuardrails],
+    [showDirectory, isSaasTenant, showDeviceGuardrails],
   );
   const activeTab = (tabs.some(tab => tab.id === requestedTab) ? requestedTab : 'devices') as CustomerDetailTab;
 
@@ -247,7 +248,7 @@ export function CustomerDetailsView({ id }: CustomerDetailsViewProps) {
               <LoadingWhen
                 loading={
                   (tab === CUSTOMER_DEVICE_GUARDRAILS_TAB_ID && deviceGuardrailsGateLoading) ||
-                  (tab === CUSTOMER_USERS_TAB_ID && usersGateLoading)
+                  ((tab === CUSTOMER_USERS_TAB_ID || tab === CUSTOMER_GROUPS_TAB_ID) && directoryGateLoading)
                 }
               >
                 <TabContent

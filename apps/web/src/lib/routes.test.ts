@@ -73,6 +73,14 @@ describe('cloudTenantManagement', () => {
   });
 });
 
+describe('customer groups', () => {
+  it('opens a group, with the customer it came from when there is one', () => {
+    expect(routes.customers.group('g-1')).toBe('/customers/group?id=g-1');
+    expect(routes.customers.group('g-1', { customerId: 'o-1' })).toBe('/customers/group?id=g-1&customerId=o-1');
+    expect(routes.customers.details('o-1', { tab: 'user-groups' })).toBe('/customers/details?id=o-1&tab=user-groups');
+  });
+});
+
 describe('users', () => {
   it('builds the list and puts the account id in `?id=` on the user page', () => {
     expect(routes.users.list).toBe('/users');

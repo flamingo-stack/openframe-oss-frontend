@@ -1,7 +1,6 @@
 'use client';
 
 import { FloatingTooltip, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { graphql, useFragment } from 'react-relay';
@@ -22,6 +21,7 @@ import {
   userStatusTag,
   userStatusTooltip,
 } from '../../utils/user-presentation';
+import { DETAIL_CARD_CLASSES, DetailCell, RowDivider } from './detail-card';
 import { UserTabHeading } from './user-tab-heading';
 
 const userDetailsTabFragment = graphql`
@@ -66,12 +66,6 @@ const userDetailsTabFragment = graphql`
 
 type Account = userDetailsTab_person$data['accounts'][number];
 
-// The two cards of the Details tab (Figma 1014:1222): one grid, two cells a row below `content-lg` (tablet 1019:3,
-// phone 1019:35005) and four from it, so a cell keeps its column across rows. Rows are 80px from `content-md`.
-const CARD_CLASSES =
-  'grid grid-cols-2 overflow-hidden rounded-md border border-ods-border bg-ods-card gap-x-[var(--spacing-system-s)] px-[var(--spacing-system-s)] content-md:gap-x-[var(--spacing-system-m)] content-md:px-[var(--spacing-system-m)] content-lg:grid-cols-4';
-const CELL_CLASSES = 'flex min-w-0 items-center py-[var(--spacing-system-s)] content-md:min-h-20 content-md:py-0';
-
 /** A live value the provider did not answer for this time: the stored values are all the page has. */
 const NOT_AVAILABLE = 'Not available';
 const NOT_SET = 'Not set';
@@ -80,29 +74,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
       <h3 className="text-ods-text-secondary text-h5">{title}</h3>
-      <div className={CARD_CLASSES}>{children}</div>
+      <div className={DETAIL_CARD_CLASSES}>{children}</div>
     </section>
-  );
-}
-
-function Cell({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn(CELL_CLASSES, className)}>{children}</div>;
-}
-
-/**
- * The line between two rows, across the card's padding. Where a row ends depends on the width: `narrow` breaks only
- * where two cells make a row, `wide` only where four do, `all` at both.
- */
-function RowDivider({ at }: { at: 'narrow' | 'wide' | 'all' }) {
-  return (
-    <div
-      aria-hidden
-      className={cn(
-        'col-span-full -mx-[var(--spacing-system-s)] h-px bg-ods-border content-md:-mx-[var(--spacing-system-m)]',
-        at === 'narrow' && 'content-lg:hidden',
-        at === 'wide' && 'hidden content-lg:block',
-      )}
-    />
   );
 }
 
@@ -193,47 +166,47 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
       <UserTabHeading title="Details" />
       <Section title="Identity">
-        <Cell>
+        <DetailCell>
           <InfoCell label="Primary email" value={account?.email} skeletonWidth="w-40" />
-        </Cell>
-        <Cell>
+        </DetailCell>
+        <DetailCell>
           <InfoCell
             label="Aliases"
             value={liveValue(account, details => (details.aliases.length > 0 ? details.aliases.join(', ') : 'None'))}
           />
-        </Cell>
+        </DetailCell>
         <RowDivider at="narrow" />
-        <Cell>
+        <DetailCell>
           <InfoCell label="Account" value={<StatusValue account={account} />} />
-        </Cell>
-        <Cell>
+        </DetailCell>
+        <DetailCell>
           <CustomerValue person={person} />
-        </Cell>
+        </DetailCell>
         <RowDivider at="all" />
-        <Cell>
+        <DetailCell>
           <InfoCell label="Job title" value={liveValue(account, details => details.jobTitle)} />
-        </Cell>
-        <Cell>
+        </DetailCell>
+        <DetailCell>
           <InfoCell label="Department" value={liveValue(account, details => details.department)} />
-        </Cell>
+        </DetailCell>
         <RowDivider at="narrow" />
-        <Cell>
+        <DetailCell>
           <InfoCell
             label="Manager"
             value={liveValue(account, details => details.manager?.displayName ?? details.manager?.email ?? null)}
           />
-        </Cell>
-        <Cell>
+        </DetailCell>
+        <DetailCell>
           <InfoCell label="Phone" value={phone} />
-        </Cell>
+        </DetailCell>
       </Section>
       {/* Four across: Second factor takes two columns (1014:1243). Two across: it pairs with Last sign-in, and
           Created takes the last row (1019:3). */}
       <Section title="Access">
-        <Cell>
+        <DetailCell>
           <InfoCell label="Top admin" value={account ? topAdminValue(account.topAdmin, account.source) : null} />
-        </Cell>
-        <Cell>
+        </DetailCell>
+        <DetailCell>
           <InfoCell
             label="Other admin roles"
             value={
@@ -248,22 +221,22 @@ function UserDetailsCards({ person }: { person: userDetailsTab_person$data | nul
                 : null
             }
           />
-        </Cell>
+        </DetailCell>
         <RowDivider at="narrow" />
-        <Cell className="content-lg:col-span-2">
+        <DetailCell className="content-lg:col-span-2">
           <InfoCell label="Second factor" value={account ? secondFactorValue(account.secondFactor) : null} />
-        </Cell>
+        </DetailCell>
         <RowDivider at="wide" />
-        <Cell>
+        <DetailCell>
           <InfoCell
             label="Last sign-in"
             value={account ? lastSignInLabel(account.lastSignInAt, account.signInData, 'calendar') : null}
           />
-        </Cell>
+        </DetailCell>
         <RowDivider at="narrow" />
-        <Cell className="col-span-2 content-lg:col-span-1">
+        <DetailCell className="col-span-2 content-lg:col-span-1">
           <InfoCell label="Created" value={account ? (created ? formatDate(created) : NOT_AVAILABLE) : null} />
-        </Cell>
+        </DetailCell>
       </Section>
     </div>
   );

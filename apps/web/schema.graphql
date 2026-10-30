@@ -2516,7 +2516,14 @@ type Mutation {
   """
   Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
   """
-  transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!}
+  transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
+
+  # openframe-saas-tenant#4284 (W2)
+  "W2. Edit one account: provider fields (only those in editableFields) and local fields."
+  updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
+  "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
+  setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
+}
 
 input MutationDeleteInput {
   id: ID!
@@ -3691,6 +3698,14 @@ type Query {
   visible to that customer. Null when not found or not visible.
   """
   directoryAccount(id: ID!, organizationId: ID): DirectoryAccount
+
+  # openframe-saas-tenant#4284 (W2)
+  "Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
+  directoryGroups(organizationId: ID!, connectionId: ID, search: String,
+                  orderBy: DirectoryGroupOrderInput, first: Int, after: String): DirectoryGroupConnection!
+
+  "One group. With organizationId the group must touch that customer. Null when not found or not visible."
+  directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
 }
 
 """
@@ -6535,10 +6550,10 @@ type DirectoryConsentIssue {
   message: String!
 }
 
-# Directory users (wave W1), as openframe-saas-tenant#4270 serves it: its schema-directory/directory-users.graphqls
-# without the Query extension (folded into Query above), plus OrgDeviceKind from org-devices.graphqls. Merged by hand
-# until the wave is on an environment; replace with npm run fetch-schema then. Groups (W2) and devices (W3) are not in
-# it yet.
+# Directory users and groups (waves W1 and W2), as openframe-saas-tenant#4270 and #4284 serve them: their
+# schema-directory/directory-users.graphqls and directory-groups.graphqls without the Query and Mutation extensions
+# (folded into those types above), plus OrgDeviceKind from org-devices.graphqls. Merged by hand until the waves are on an
+# environment; replace with npm run fetch-schema then. Devices (W3) are not in it yet.
 
 # ---------- Users ----------
 
@@ -6574,7 +6589,7 @@ type DirectoryUserFilters {
   secondFactor: [DirectoryFilterOption!]!
   "Persons the Unused licenses preset matches under the current search and filters."
   unusedLicenses: Int!
-  "Persons left out of the preset because their tenant returns no sign-in data (Needs Entra ID P1). Provisional (P9)."
+  "Persons left out of the preset because their tenant returns no sign-in data (Needs Entra ID P1); shown as not readable (design D17)."
   unusedLicensesNotReadable: Int!
 }
 
@@ -6620,8 +6635,6 @@ type DirectoryPerson {
   lastSignInAt: Instant
   "Union over the accounts, one entry per SKU. state is always null here: the live state is per account, on DirectoryAccount.licenses."
   licenses: [DirectoryUserLicense!]!
-  "Provisional (P6): always false until the PM decides how the SERVICE tag is set."
-  serviceAccount: Boolean!
   "Every account of the person. directoryUser puts the requested account first."
   accounts: [DirectoryAccount!]!
 }
@@ -6666,8 +6679,6 @@ type DirectoryAccount {
   customers: [DirectoryCustomerClaim!]!
   "Null when the provider does not say."
   directoryCreatedAt: Instant
-  "Provisional (P6): always false until the PM decides how the SERVICE tag is set."
-  serviceAccount: Boolean!
   notes: String
   tags: [String!]
   "Local phone (OpenFrame field); the provider phones are in details."
@@ -6678,10 +6689,14 @@ type DirectoryAccount {
   licenses: [DirectoryUserLicense!]!
   "Live read (a few provider calls): select it on the user page only, never in lists."
   details: DirectoryUserLiveDetails
-  "Groups the account is a direct member of (stored membership). Paginate it through directoryAccount, not directoryUser."
+  "Groups the account is a direct member of (stored membership). Paginate it through directoryAccount, not directoryUser. Empty on list rows, like details."
   groups(first: Int, after: String): DirectoryGroupConnection!
   "Devices tied to the account."
   devices: DirectoryUserDevices!
+  "W2. Empty = writable. The first reason disables Suspend and the provider fields of Edit user."
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  "W2. Provider fields this provider and connection accept in updateDirectoryUser."
+  editableFields: [DirectoryUserField!]!
   "True when the live read failed; details is then null and everything else is the stored value."
   liveDataUnavailable: Boolean!
 }
@@ -6747,29 +6762,145 @@ enum TopAdminState { YES NO NOT_READABLE }
 enum SecondFactorState { ENROLLED NOT_ENROLLED NOT_READABLE }
 enum LastSignInBucket { LAST_7_DAYS LAST_30_DAYS OVER_45_DAYS NEVER NOT_READABLE }
 
-# ---------- Groups (the W1 subset: what the user's groups tab shows) ----------
+enum DirectoryUserField {
+  DISPLAY_NAME FIRST_NAME LAST_NAME JOB_TITLE DEPARTMENT OFFICE_LOCATION USAGE_LOCATION MANAGER
+  BUSINESS_PHONES MOBILE_PHONE
+}
 
-"An external group: OpenFrame reads it, never edits it from these pages. W1 carries the fields the user's groups tab shows."
+input UpdateDirectoryUserInput {
+  "Account id (DirectoryAccount.id)."
+  id: ID!
+  "The customer the edit is made for; the account must be visible to it."
+  organizationId: ID!
+  "Provider fields: each optional, absent = unchanged; only the fields in editableFields are accepted."
+  displayName: String
+  firstName: String
+  lastName: String
+  jobTitle: String
+  department: String
+  officeLocation: String
+  usageLocation: String
+  "Account id of the manager; null clears it."
+  managerId: ID
+  businessPhones: [String!]
+  mobilePhone: String
+  "Local fields, always editable, kept across syncs."
+  notes: String
+  tags: [String!]
+  phone: String
+  "Null clears it."
+  leavingDate: Date
+}
+
+input SetDirectoryUserSuspendedInput { id: ID!, organizationId: ID!, suspended: Boolean! }
+
+type DirectoryUserPayload {
+  "The person, read back after the write."
+  person: DirectoryPerson
+  "Microsoft only: blocking sign-in does not end open sessions."
+  sessionsStillOpen: Boolean
+  userErrors: [UserError!]!
+}
+
+# ---------- Groups ----------
+
+input DirectoryGroupOrderInput { field: DirectoryGroupSortField!, direction: SortDirection! }
+enum DirectoryGroupSortField { NAME MEMBERS }
+
+type DirectoryGroupConnection {
+  edges: [DirectoryGroupEdge!]!
+  pageInfo: CursorPageInfo!
+  totalCount: Int!
+}
+
+type DirectoryGroupEdge { cursor: String!, node: DirectoryGroup! }
+
+"An external group: OpenFrame reads it, never edits it from these pages."
 type DirectoryGroup {
-  "The group's own id in OpenFrame."
   id: ID!
   provider: DirectoryProvider!
   "Provider object id (Graph group id / Google group id)."
   sourceId: String!
   connection: DirectoryConnection!
   name: String!
-  "Google only until the Microsoft group mail is synced (W2)."
   email: String
-  "Direct members, stored."
+  description: String
+  kind: DirectoryGroupKind!
+  "Always true in this phase."
+  external: Boolean!
+  "Direct members, stored. Microsoft counts users, devices and subgroups; Google counts every member type."
   memberCount: Int!
-  "True when two or more customers touch the group."
+  "Customers whose GROUP rules name this group."
+  customers: [DirectoryCustomerClaim!]!
+  "Customers whose visible users are direct members."
+  memberCustomers: [Organization!]!
+  "True when the direct members span more than one customer."
   shared: Boolean!
+  "The rules that name this group: a deleted group silently stops claiming users."
+  dependedOnBy: [DirectoryGroupDependency!]!
   "Per connection, the same for every group of a connection."
   feed: DirectoryFeed!
+  settings: DirectoryGroupSettings!
+  "Always DIRECT: a GROUP rule claims direct members only."
+  membershipScopeOfRules: DirectoryMembershipScope!
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  """
+  DIRECT: stored membership. NESTED: a live read (transitive members). Resolved on directoryGroup only; empty on
+  list rows and nested groups. On a customer's tab, members outside that customer's view are counted in
+  hiddenMemberCount and not listed.
+  """
+  members(scope: DirectoryMembershipScope = DIRECT, first: Int, after: String): DirectoryGroupMemberConnection!
 }
+
+type DirectoryGroupDependency { organization: Organization!, rule: DirectoryConnectionRule! }
+
+type DirectoryGroupSettings {
+  "Microsoft: dynamic membership."
+  dynamic: Boolean
+  "Microsoft: the dynamic membership rule text."
+  membershipRule: String
+  "Microsoft: dynamic rule processing is paused."
+  membershipPaused: Boolean
+  "Microsoft: synced from on-premises AD."
+  onPremisesSynced: Boolean
+  "Microsoft: PUBLIC, PRIVATE, HIDDEN_MEMBERSHIP; null for Google."
+  visibility: DirectoryGroupVisibility
+  "Google: created by an admin (not a user)."
+  adminCreated: Boolean
+  "Google: the provider's own direct member count."
+  directMembersCount: Int
+}
+
+enum DirectoryGroupKind { MICROSOFT_365 SECURITY MAIL_ENABLED_SECURITY DISTRIBUTION GOOGLE_GROUP }
+enum DirectoryGroupVisibility { PUBLIC PRIVATE HIDDEN_MEMBERSHIP }
 "PUSH: Microsoft subscription live. AUDIT_STREAM: Google activities watch live (UI: 'No push', grey). POLLING: neither."
 enum DirectoryFeed { PUSH AUDIT_STREAM POLLING }
-type DirectoryGroupConnection { edges: [DirectoryGroupEdge!]!, pageInfo: CursorPageInfo!, totalCount: Int! }
-type DirectoryGroupEdge { cursor: String!, node: DirectoryGroup! }
+enum DirectoryMembershipScope { DIRECT NESTED }
+
+type DirectoryGroupMemberConnection {
+  edges: [DirectoryGroupMemberEdge!]!
+  pageInfo: CursorPageInfo!
+  "Listed members."
+  totalCount: Int!
+  "Members outside the customer's view: counted, not listed. 0 without organizationId."
+  hiddenMemberCount: Int!
+  "NESTED only: true when the live read failed; the connection is then empty."
+  liveDataUnavailable: Boolean!
+}
+
+type DirectoryGroupMemberEdge { cursor: String!, node: DirectoryGroupMember! }
+
+type DirectoryGroupMember {
+  "NESTED only: the group the member comes through, when the provider says it."
+  viaGroup: DirectoryGroupRef
+  member: DirectoryGroupMemberSubject!
+}
+
+union DirectoryGroupMemberSubject = DirectoryAccount | DirectoryGroup | OrgDevice
+
+enum DirectoryReadOnlyReason {
+  WRITE_NOT_ENABLED WRITE_NOT_CONSENTED PAUSED DISCONNECTED MASTERED_ON_PREMISES DEPROVISIONED
+  DYNAMIC_MEMBERSHIP EXCHANGE_MANAGED
+}
 
 enum OrgDeviceKind { ENTRA INTUNE CHROMEOS MOBILE }

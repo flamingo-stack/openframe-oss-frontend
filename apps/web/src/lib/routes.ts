@@ -29,6 +29,7 @@ export const TAB_IDS = {
   customerDetails: [
     'devices',
     'users',
+    'user-groups',
     'tickets',
     'logs',
     'worktime',
@@ -295,6 +296,9 @@ export const routes = {
       withQuery('/customers/details', { id, tab: o?.tab }),
     new: '/customers/new',
     edit: (id: string | number, o?: { tab?: CustomerEditTab }) => withQuery('/customers/edit', { id, tab: o?.tab }),
+    // A directory group. `customerId`: the customer it was opened from, which scopes its members.
+    group: (id: string | number, o?: { customerId?: string | number }) =>
+      withQuery('/customers/group', { id, customerId: o?.customerId }),
   },
 
   devices: {

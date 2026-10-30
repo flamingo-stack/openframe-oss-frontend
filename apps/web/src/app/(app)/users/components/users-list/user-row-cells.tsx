@@ -10,6 +10,7 @@ import {
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { firstAndCount } from '../../utils/user-presentation';
 
@@ -25,8 +26,7 @@ export interface UserRow {
   providers?: readonly string[];
   /** "Global admin" / "Super admin", or null. */
   roleTag?: string | null;
-  service?: boolean;
-  customers?: readonly UserRowCustomer[];
+  customers?: readonly ClaimingCustomer[];
   /** The tenant the first account is in; null for a user added in OpenFrame. */
   tenant?: { name: string; provider: string } | null;
   devices?: readonly string[];
@@ -37,15 +37,8 @@ export interface UserRow {
   licenses?: readonly string[];
 }
 
-export interface UserRowCustomer {
-  name: string;
-  imageUrl?: string;
-  /** Which rule brought the customer in ("Group: Finance"), or null when the user was added to it directly. */
-  claim: string | null;
-}
-
 /** The provider marks in front of a name: which console the account lives in (brief). */
-function ProviderMarks({ providers }: { providers: readonly string[] }) {
+export function ProviderMarks({ providers }: { providers: readonly string[] }) {
   return (
     <span className="flex shrink-0 items-center gap-[var(--spacing-system-xxs)]">
       {providers.map(provider => {
@@ -69,7 +62,6 @@ export function UserCell({ row }: { row: UserRow }) {
             {name}
           </TruncateText>
           {row.roleTag && <Tag data-loading-optional label={row.roleTag} variant="grey" className="min-w-0" />}
-          {row.service && <Tag data-loading-optional label="Service" variant="grey" className="min-w-0" />}
         </div>
         <TruncateText variant="h6" tone="secondary" className={loading ? 'w-40' : undefined}>
           {row.email === null ? EMPTY_VALUE : (row.email ?? '')}
@@ -79,7 +71,7 @@ export function UserCell({ row }: { row: UserRow }) {
   );
 }
 
-export function CustomerCell({ row }: { row: UserRow }) {
+export function CustomerCell({ row, showTenant = true }: { row: UserRow; showTenant?: boolean }) {
   const loading = useLoadingScope();
   const customers = row.customers ?? [];
   const { first, more } = firstAndCount(customers.map(customer => customer.name));
@@ -103,9 +95,11 @@ export function CustomerCell({ row }: { row: UserRow }) {
             {more > 0 && <span className="shrink-0 text-ods-text-secondary text-h4">+{more}</span>}
           </div>
         </FloatingTooltip>
-        <TruncateText variant="h6" tone="secondary" loading={loading}>
-          {row.tenant?.name ?? 'Added in OpenFrame'}
-        </TruncateText>
+        {showTenant && (
+          <TruncateText variant="h6" tone="secondary" loading={loading}>
+            {row.tenant?.name ?? 'Added in OpenFrame'}
+          </TruncateText>
+        )}
       </div>
     </div>
   );

@@ -34,11 +34,10 @@ import {
 import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { OpenRowButton } from '@/app/components/shared/open-row-button';
 import { DirectoryReadability, OrgUserSource, TopAdminState } from '@/generated/schema-enums';
-import { getFullImageUrl } from '@/lib/image-url';
+import { toClaimingCustomer } from '@/graphql/directory/customer-claim-fields';
 import { openInNewTab } from '@/lib/open-in-new-tab';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
-import { ruleKindLabel } from '../../../cloud-tenant-management/utils/tenant-presentation';
 import { multiColumnFilter } from '../../../software/components/shared/column-filters';
 import { lastSignInLabel, topAdminRole, userStatusTag, userStatusTooltip } from '../../utils/user-presentation';
 import { type UserFilterOptions, useUserFilters } from './use-user-filters';
@@ -85,24 +84,12 @@ const directoryUsersTableFragment = graphql`
           providers
           status
           topAdmin
-          serviceAccount
           lastSignInAt
           licenses {
             name
           }
           customers {
-            organization {
-              organizationId
-              name
-              image {
-                imageUrl
-                hash
-              }
-            }
-            rule {
-              kind
-            }
-            via
+            ...customerClaimFields_claim
           }
           accounts {
             id
@@ -141,13 +128,6 @@ const directoryUsersTableFragment = graphql`
 
 type PersonNode = directoryUsersTable_query$data['directoryUsers']['edges'][number]['node'];
 
-/** The claim's tooltip line: the rule kind and the value it matched; null for a user added to the customer in OpenFrame. */
-function claimLabel(claim: PersonNode['customers'][number]): string | null {
-  if (!claim.rule) return null;
-  const kind = ruleKindLabel(claim.rule.kind);
-  return claim.via ? `${kind}: ${claim.via}` : kind;
-}
-
 /**
  * The row as its cells read it. Per-account values come from the account that explains the person's merged value: the
  * one whose status is the row's status, the one holding the top admin role, the first one whose sign-in is unreadable.
@@ -167,12 +147,7 @@ function toUserRow(node: PersonNode): UserRow {
     // A mark says which console the account lives in: none for a user added in OpenFrame (brief).
     providers: node.providers.filter(source => source !== OrgUserSource.OPENFRAME),
     roleTag: adminAccount ? topAdminRole(node.topAdmin, adminAccount.source) : null,
-    service: node.serviceAccount,
-    customers: node.customers.map(claim => ({
-      name: claim.organization.name,
-      imageUrl: getFullImageUrl(claim.organization.image?.imageUrl, claim.organization.image?.hash),
-      claim: claimLabel(claim),
-    })),
+    customers: node.customers.map(toClaimingCustomer),
     tenant: firstAccount?.connection
       ? { name: firstAccount.connection.name, provider: firstAccount.connection.provider }
       : null,
