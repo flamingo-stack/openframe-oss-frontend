@@ -4,7 +4,7 @@ import { renderDeviceTypeIcon } from '@flamingo-stack/openframe-frontend-core/co
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { CustomerInfoCell, TitleLines } from '@/app/components/shared';
 import { DETAIL_CELL_CLASS } from '@/app/components/shared/detail-cell';
 import { InfoCell } from '@/app/components/shared/info-cell';
@@ -26,10 +26,10 @@ function Row({ children }: { children: ReactNode }) {
   );
 }
 
-/** A cell of the strip. */
-function Cell({ children, ...props }: HTMLAttributes<HTMLDivElement>) {
+/** A cell of the strip. `optional`: a cell only some incidents have. */
+function Cell({ optional, children }: { optional?: boolean; children: ReactNode }) {
   return (
-    <div {...props} className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>
+    <div data-loading-optional={optional || undefined} className={cn(DETAIL_CELL_CLASS, 'min-h-16 items-center')}>
       {children}
     </div>
   );
@@ -143,7 +143,7 @@ export function IncidentSummaryCard({ incident, assigneeSlot }: IncidentSummaryC
           <InfoCell loading={loading} value={<IncidentStatusTag status={incident?.status} />} label="Status" />
         </Cell>
         {snoozedUntil && (
-          <Cell data-loading-optional>
+          <Cell optional>
             <InfoCell value={formatDateTime(snoozedUntil)} label="Until" />
           </Cell>
         )}

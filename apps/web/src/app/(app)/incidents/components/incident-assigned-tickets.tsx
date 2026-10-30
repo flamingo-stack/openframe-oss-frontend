@@ -1,6 +1,6 @@
 'use client';
 
-import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
+import { AssignedItemsContent, useAssignedItems } from '@/components/assignments';
 
 /**
  * "Assigned Ticket": the tickets filed from this incident. The server records
@@ -10,12 +10,12 @@ import { AssignedItemsView, useAssignedItems } from '@/components/assignments';
  * a section that appears with its rows, not a slot the page reserves.
  */
 export function IncidentAssignedTickets({ incidentId }: { incidentId: string }) {
-  const { tickets } = useAssignedItems({ itemId: incidentId, itemType: 'INSIGHT' });
-  if (!tickets?.length) return null;
+  const assigned = useAssignedItems({ itemId: incidentId, itemType: 'INSIGHT' });
+  if (!assigned.tickets?.length) return null;
   return (
     <section data-loading-optional className="flex flex-col gap-[var(--spacing-system-m)]">
       <h2 className="text-ods-text-primary text-h2">Assigned Ticket</h2>
-      <AssignedItemsView itemId={incidentId} itemType="INSIGHT" showTitle={false} />
+      <AssignedItemsContent assigned={assigned} itemType="INSIGHT" showTitle={false} />
     </section>
   );
 }

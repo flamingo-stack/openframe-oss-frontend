@@ -3,22 +3,28 @@
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { type TabItem, TabNavigation, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
-import { NO_ITEMS } from '@/app/components/shared';
+import { NO_ITEMS, SectionLoadError } from '@/app/components/shared';
+import { loadErrorProps } from '@/lib/query-state';
 import { CustomersAssignedTable } from './tables/customers-assigned-table';
 import { DevicesAssignedTable } from './tables/devices-assigned-table';
 import { KnowledgeBaseAssignedTable } from './tables/knowledge-base-assigned-table';
 import { TicketsAssignedTable } from './tables/tickets-assigned-table';
 import { TARGET_CONFIG } from './target-config';
 import { ASSIGNMENT_TARGET_TYPES, type AssignmentItemType, type ServerAssignmentTargetType } from './types';
-import { useAssignedItems } from './use-assigned-items';
+import { type AssignedItemsResult, useAssignedItems } from './use-assigned-items';
 
-export interface AssignedItemsViewProps {
-  itemId: string;
+export interface AssignedItemsContentProps {
+  /** What `useAssignedItems` read, for a host that needs the answer too. */
+  assigned: AssignedItemsResult;
   itemType: AssignmentItemType;
   className?: string;
   /** Render the built-in "Assigned Items" heading. Hosts that supply their own
    *  section title (e.g. the ticket details page) pass `false`. */
   showTitle?: boolean;
+}
+
+export interface AssignedItemsViewProps extends Omit<AssignedItemsContentProps, 'assigned'> {
+  itemId: string;
 }
 
 /**
@@ -31,9 +37,15 @@ const TYPICAL_TARGET_TYPE: Record<AssignmentItemType, ServerAssignmentTargetType
   KNOWLEDGE_ARTICLE: 'ORGANIZATION',
 };
 
-export function AssignedItemsView({ itemId, itemType, className, showTitle = true }: AssignedItemsViewProps) {
+const LOAD_ERROR_MESSAGE = "Couldn't load assigned items.";
+
+export function AssignedItemsView({ itemId, itemType, ...props }: AssignedItemsViewProps) {
+  const assigned = useAssignedItems({ itemId, itemType, enabled: !useLoadingScope() });
+  return <AssignedItemsContent assigned={assigned} itemType={itemType} {...props} />;
+}
+
+export function AssignedItemsContent({ assigned, itemType, className, showTitle = true }: AssignedItemsContentProps) {
   const inScope = useLoadingScope();
-  const assigned = useAssignedItems({ itemId, itemType, enabled: !inScope });
   const { value, customers, devices, articles, tickets, loadingTypes } = assigned;
   const isLoading = inScope || assigned.isLoading;
 
@@ -77,8 +89,21 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
     }
   };
 
-  // An item with no assignments has no section. The section closes its page, so nothing moves when it goes.
-  if (!isLoading && activeTypes.length === 0) return null;
+  const title = showTitle && (
+    <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>
+  );
+
+  // An item with no assignments has no section. The section closes its page, so nothing moves when it goes. A read
+  // that did not answer says so: nothing read is not nothing assigned.
+  if (!isLoading && activeTypes.length === 0) {
+    if (assigned.isReady) return null;
+    return (
+      <section className={className}>
+        {title}
+        <SectionLoadError {...loadErrorProps(assigned.isOffline, LOAD_ERROR_MESSAGE, assigned.retry)} />
+      </section>
+    );
+  }
 
   // While nothing is read the view is the typical item: assignments of ONE kind, so no tab bar. An item whose
   // assignments span several kinds gains the tab bar above its rows once read; that is the accepted cost of drawing
@@ -87,7 +112,7 @@ export function AssignedItemsView({ itemId, itemType, className, showTitle = tru
 
   return (
     <LoadingRegion as="section" announce={pending} label="Loading assigned items" className={className}>
-      {showTitle && <h3 className="mb-[var(--spacing-system-lf)] text-ods-text-primary text-h2">Assigned Items</h3>}
+      {title}
 
       <div className="overflow-hidden rounded-md border border-ods-border">
         {shownTypes.length === 1 ? (

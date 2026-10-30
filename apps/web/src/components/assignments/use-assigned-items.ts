@@ -288,11 +288,24 @@ export interface AssignedItemsResult {
   /** Per kind: its read has not answered yet (a kind whose rows arrived is no longer loading). */
   loadingTypes: Partial<Record<ServerAssignmentTargetType, true>>;
   isReady: boolean;
+  /** A read is paused on a lost connection: `isLoading` is false with nothing read. */
+  isOffline: boolean;
+  /** Reads the kinds that failed again. */
+  retry: () => void;
 }
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
-  const out: AssignedItemsResult = { value, isLoading: false, loadingTypes: {}, isReady: true };
+  const out: AssignedItemsResult = {
+    value,
+    isLoading: false,
+    loadingTypes: {},
+    isReady: true,
+    isOffline: results.some(result => result.fetchStatus === 'paused'),
+    retry: () => {
+      for (const result of results) if (result.isError) void result.refetch();
+    },
+  };
   ASSIGNMENT_TARGET_TYPES.forEach((type, i) => {
     const result = results[i];
     if (result.isLoading) {
