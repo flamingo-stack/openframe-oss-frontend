@@ -160,6 +160,14 @@ export interface NativeAuthPlugin {
    */
   refreshTokens?(options?: { rejectedAccessToken?: string }): Promise<NativeTokens>;
   /**
+   * Revoke the session at the gateway, for a shell that keeps the refresh token
+   * to itself. Desktop only: its `getTokens`, `exchangeTicket`, `refreshTokens` and
+   * token-update event all carry the access token alone, so this side has nothing
+   * to put on the logout's `Refresh-Token` header. Resolves with whether the
+   * gateway answered (`logoutAsync`'s contract).
+   */
+  revokeSession?(options?: { tenantId?: string }): Promise<boolean>;
+  /**
    * Persist the hosts the web view knows in the shell, so shell-side
    * networking has a gateway without depending on webview localStorage.
    * `origin` is the login-learned tenant host (desktop: refresh + NATS; iOS:
@@ -774,12 +782,14 @@ export function onDesktopDownloadLink(callback: () => void): Promise<boolean> {
  * Why a local agent install did not happen, classified SHELL-side
  * (installer.rs). `message` is for the log; the kind is what the UI acts on.
  *
- * - `cancelled` — the user declined the administrator prompt (offer again)
+ * - `cancelled` — the user declined the shell's confirmation or the administrator
+ *   prompt (offer again)
  * - `failed` — the command ran and exited non-zero, or the launcher failed;
  *   the install log has the installer's own words
  * - `busy` — an install is already running; this call owns nothing
  * - `unsupported` — this shell cannot run an installer on this platform
- * - `unavailable` — our own precondition failed (wrong window, empty command)
+ * - `unavailable` — our own precondition failed (wrong window, a value the shell
+ *   refused, no workspace host it may install from)
  * - `io` — the run could not be set up or started
  * - `unknown` — a rejection from the IPC layer itself (an older shell binary)
  */
@@ -814,20 +824,34 @@ export function canInstallAgentLocally(): boolean {
 }
 
 /**
- * Run the agent install command on this machine with administrator rights.
- * `command` is the same text the page offers to copy; the shell runs it as is
- * behind the OS's own elevation prompt. Resolves once the run is under way -
- * the output then arrives through {@link onLocalAgentInstallOutput} and the
- * outcome through {@link onLocalAgentInstallDone}. Rejects with an
- * {@link AgentInstallError} when the run could not even start.
+ * What the shell needs from the page to install the agent. No command and no
+ * host: a string from the webview running behind the administrator prompt would
+ * hand that prompt to any script in the page, so the shell writes the command
+ * itself, the same text `buildInstallCommand` offers to copy (a shared fixture,
+ * `install-command.json`, pins the two), against the tenant it learned at login.
  */
-export async function startLocalAgentInstall(command: string): Promise<void> {
+export interface AgentInstallRequest {
+  orgId: string;
+  initialKey: string;
+  logKey?: string;
+  userId?: string;
+}
+
+/**
+ * Install the agent on this machine with administrator rights, behind a native
+ * confirmation naming the tenant and the OS's own elevation prompt. Resolves once
+ * the call is accepted, before either has been answered - the output then
+ * arrives through {@link onLocalAgentInstallOutput} and the outcome through
+ * {@link onLocalAgentInstallDone}. Rejects with an {@link AgentInstallError} when
+ * the run could not even start.
+ */
+export async function startLocalAgentInstall(request: AgentInstallRequest): Promise<void> {
   const invoke = tauriInvoke();
   if (!isDesktopShell() || !invoke) {
     throw { kind: 'unsupported', message: 'not running in the desktop shell' } satisfies AgentInstallError;
   }
   try {
-    await invoke('agent_install_start', { command });
+    await invoke('agent_install_start', { request });
   } catch (error) {
     throw asAgentInstallError(error);
   }

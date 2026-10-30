@@ -1,6 +1,7 @@
 import type { OSPlatformId } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import type { TagEntry } from '@/app/components/shared/tags';
+import type { AgentInstallRequest } from '@/lib/native-shell';
 import { isAppShell } from '@/lib/platform';
 import { runtimeEnv } from '@/lib/runtime-config';
 import { selectUser, useAuthStore } from '@/stores';
@@ -184,5 +185,9 @@ export function useInstallCommand({
     [initialKey, logKey, additionalArgs, platform, organizationId, serverUrl, userId],
   );
 
-  return { command, registerCommand, initialKey, rotateMachineId };
+  // What a local install needs of the same values: the desktop shell writes the
+  // command itself rather than running one from the page (see AgentInstallRequest).
+  const installRequest: AgentInstallRequest = { orgId: organizationId, initialKey, logKey, userId };
+
+  return { command, registerCommand, initialKey, installRequest, rotateMachineId };
 }

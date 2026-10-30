@@ -68,6 +68,13 @@ windows = { version = "0.61", features = [
 windows-core = "0.61"
 winreg = "0.52"
 
+# The confirmation before "Deploy on this Device" elevates: a native dialog, so
+# nothing in the webview can draw or answer it. No default features: those are its
+# Linux backends. Without `common-controls-v6` Windows uses plain MessageBoxW, since
+# TaskDialogIndirect needs a comctl32 v6 manifest, which a test binary does not have.
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+rfd = { version = "0.16", default-features = false }
+
 # clock_gettime for tokens::boot_secs — the clock that counts suspend
 # (CLOCK_MONOTONIC on macOS, CLOCK_BOOTTIME on Linux) — and, on macOS, statfs(2)
 # to tell a read-only mount (App Translocation, a disk image) apart.
