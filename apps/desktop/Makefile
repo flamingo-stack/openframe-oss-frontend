@@ -28,7 +28,7 @@ NPM ?= npm
 OPENFRAME_SHARED_HOST_URL ?=
 export OPENFRAME_SHARED_HOST_URL
 
-# Desktop-only GTM container baked into the binary, which is how PostHog reaches
+# The web app's GTM container baked into the binary, which is how PostHog reaches
 # the app. Unset (local builds) means no GTM and no analytics.
 OPENFRAME_GTM_CONTAINER_ID ?=
 export OPENFRAME_GTM_CONTAINER_ID

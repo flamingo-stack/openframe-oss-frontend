@@ -52,9 +52,9 @@ server would have:
 - `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE`, the
   dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID` (baked in from
   `OPENFRAME_GTM_CONTAINER_ID`; GTM is what loads PostHog, so a build without it
-  sends no analytics). That is a desktop-only container holding just the PostHog
-  tags, not the web one: every tag runs in the page and can call the shell's
-  commands. This is what `next-runtime-env` reads; export builds
+  sends no analytics). That is the web app's container, and only release builds get
+  it, so a tag added there runs here too: the CSP keeps its remote scripts out, but
+  an inline tag can call the shell's commands. This is what `next-runtime-env` reads; export builds
   omit `<PublicEnvScript />`. `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately
   **absent**, so the frontend falls through to the tenant host learned at login.
 - **`window.__OPENFRAME_SHELL__.nativeAuth`** — the auth bridge, backed by the

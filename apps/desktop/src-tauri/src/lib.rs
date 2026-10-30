@@ -128,8 +128,8 @@ const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL
 
 /// GTM container, set at compile time like the shared host. GTM is what loads
 /// PostHog (the web app bundles no SDK), so a build without it sends no analytics.
-/// Must be the desktop-only container, not the web one: every tag runs in the page
-/// and can call this shell's commands, so it holds the PostHog tags and nothing else.
+/// It is the web app's container, so a tag added there runs here too: the CSP keeps
+/// its remote scripts out, but an inline tag can call this shell's commands.
 const GTM_CONTAINER_ID: Option<&str> = option_env!("OPENFRAME_GTM_CONTAINER_ID");
 
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
