@@ -53,6 +53,9 @@ const nextConfig = {
   distDir: 'dist',
   env: {
     OPENFRAME_BUNDLE_VERSION: resolveBundleVersion(),
+    // The hub's Supabase project host: every environment reaches the one hub, so it is one public
+    // value for the Docker image and both shell bundles. A build env var overrides it.
+    NEXT_PUBLIC_SUPABASE_HOST: process.env.NEXT_PUBLIC_SUPABASE_HOST || 'shdrojejslhgnojzkzak.supabase.co',
   },
   images: {
     unoptimized: true,
