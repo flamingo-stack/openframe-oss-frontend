@@ -32,11 +32,20 @@ import { SetupFrame } from './setup-frame';
 const START_FAIL_OPEN_MS = 8_000;
 
 /**
- * The wizard's first screen while its progress is read: static copy, its Continue inert. Rendered in a loading
- * scope both by the wizard's boundary and by the wizard itself, so the two waits are one screen.
+ * The wizard's screen while its data is read: the screen it opens on, as the progress already in the store
+ * tells it, static copy with its button inert. "Everything is set up" for a workspace set up (an admin after
+ * the first, a tour reset), the welcome screen for one still to set up, and the bare frame before the progress
+ * answers, so no wait shows a screen the wizard is not going to open. Rendered in a loading scope both by the
+ * wizard's boundary and by the wizard itself, so the two waits are one screen.
  */
-function SetupWelcomeFrame() {
-  return (
+function SetupLoadingFrame() {
+  const tenant = useOnboardingStore(state => state.tenant);
+  if (!tenant) return <SetupFrame step="welcome">{null}</SetupFrame>;
+  return tenant.completed ? (
+    <SetupFrame step="all-set">
+      <AllSetStep onStart={noop} starting={false} />
+    </SetupFrame>
+  ) : (
     <SetupFrame step="welcome">
       <WelcomeStep onContinue={noop} />
     </SetupFrame>
@@ -52,9 +61,9 @@ function SetupWelcomeFrame() {
  * to go". "Start with Mingo" marks the tenant setup complete, records that the
  * tour has started and leaves for the dashboard with a fresh Mingo chat.
  *
- * With its own boundary: in its scope the reader draws the welcome screen. The boundary is the one element between
- * the bare shell's column and the frame: it has to be a filling column too, or the frame's `flex-1` has nothing to
- * fill and the welcome screen sits at the top until the wizard loads.
+ * With its own boundary: in its scope the reader draws the screen the wizard opens on (`SetupLoadingFrame`). The
+ * boundary is the one element between the bare shell's column and the frame: it has to be a filling column too, or
+ * the frame's `flex-1` has nothing to fill and the screen sits at the top until the wizard loads.
  */
 export function SetupWizard() {
   return (
@@ -65,7 +74,7 @@ export function SetupWizard() {
 }
 
 function SetupWizardReader() {
-  if (useLoadingScope()) return <SetupWelcomeFrame />;
+  if (useLoadingScope()) return <SetupLoadingFrame />;
   return <SetupWizardLive />;
 }
 
@@ -150,11 +159,11 @@ function SetupWizardLive() {
   );
 
   // No progress record yet (or the redirect is already sending this session away): the
-  // first screen, static copy, in a loading scope.
+  // bare frame, in a loading scope.
   if (!tenant) {
     return (
       <LoadingWhen loading>
-        <SetupWelcomeFrame />
+        <SetupLoadingFrame />
       </LoadingWhen>
     );
   }
