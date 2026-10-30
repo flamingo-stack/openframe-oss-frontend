@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { KNOWLEDGE_BASE_ROUTE } from './endpoints';
 import { composeOpenframeInAppContentUrl } from './help-center-content-href';
 
 const href = (input: Parameters<typeof composeOpenframeInAppContentUrl>[0]) =>
@@ -79,6 +80,13 @@ describe('composeOpenframeInAppContentUrl', () => {
     expect(composed.targetPlatform).toBeNull();
     expect(href({ type: 'markdown', identifier: 'doc-7', slug: 'getting-started' })).toBe(
       '/help-center/knowledge-base/getting-started',
+    );
+  });
+
+  // CU-17tkuw61kfy: a product doc in the chat opens this app's knowledge base, by the same composer as every card.
+  it('opens a product doc (its tree path as the slug) in the in-app knowledge base', () => {
+    expect(href({ type: 'markdown', identifier: 'd1', slug: 'openframe-cli/getting-started/quick-start.md' })).toBe(
+      `${KNOWLEDGE_BASE_ROUTE}/openframe-cli/getting-started/quick-start.md`,
     );
   });
 

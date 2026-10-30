@@ -1,18 +1,29 @@
 /**
- * A mention chip opens its entity in this window, through the router; a modifier click is the browser's. Where this
- * window can open a tab (see `useSameWindowLinks`), a separate segment opens the page in one.
+ * Pins how a chip click behaves. The chip is a chat link like any other: a plain
+ * click goes through the chat runtime's navigation (`NavLinkAnchorViaRuntime` →
+ * `runtime.navigation.navigate`), a modifier click stays the browser's, and the
+ * new-tab segment is a plain `_blank` link to the page alone (a `?mingoDialog=`
+ * would send that tab to the chat page), offered only where a tab is. Also that
+ * the chip fits what holds it, a table cell on a phone.
  */
 
+import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MentionTag } from './mention-tag';
 
 const push = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }), usePathname: () => '/dashboard' }));
 
-let sameWindow = true;
-vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => sameWindow }));
+/** The chat runtime the chip navigates through (the app's own is `OpenframeChatRuntimeProvider`). */
+const navigate = vi.fn(() => true);
+const openExternal = vi.fn();
+const runtime = {
+  endpoints: {},
+  navigation: { mode: 'host', navigate, openExternal, decideNewTab: () => false },
+  source: 'openframe',
+} as unknown as ChatRuntime;
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
 // `ResizeObserver`, and nothing here depends on the measurement.
@@ -23,12 +34,18 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
+let sameWindow = true;
+vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => sameWindow }));
+
+const HREF = '/devices/details?id=m-1';
+
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
   push.mockReset();
-  sameWindow = true;
+  navigate.mockClear();
+  openExternal.mockClear();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -41,15 +58,23 @@ afterEach(() => {
 
 function renderChip(href: string) {
   act(() => {
-    root.render(<MentionTag label="app-server-03" href={href} />);
+    root.render(
+      <ChatRuntimeContext.Provider value={runtime}>
+        <MentionTag label="app-server-03" href={href} />
+      </ChatRuntimeContext.Provider>,
+    );
   });
   const anchor = container.querySelector('a');
   if (!anchor) throw new Error('chip rendered no anchor');
   return anchor;
 }
 
-function click(anchor: HTMLAnchorElement, init: MouseEventInit = {}) {
-  const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init });
+function newTabSegment(): HTMLAnchorElement | null {
+  return container.querySelector('a[target="_blank"]');
+}
+
+function primaryClick(anchor: HTMLAnchorElement) {
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
   act(() => {
     anchor.dispatchEvent(event);
   });
@@ -57,55 +82,71 @@ function click(anchor: HTMLAnchorElement, init: MouseEventInit = {}) {
 }
 
 describe('MentionTag click', () => {
-  it('opens the entity in this window', () => {
-    const href = '/devices/details?id=m-1';
-    const anchor = renderChip(href);
+  it('follows the chat runtime navigation, like every chat link', () => {
+    sameWindow = false;
+    const anchor = renderChip(HREF);
     expect(anchor.getAttribute('target')).toBeNull();
 
-    const event = click(anchor);
+    const event = primaryClick(anchor);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(push).toHaveBeenCalledWith(href);
-  });
-
-  it('lets a modifier click hand the href to the browser', () => {
-    const event = click(renderChip('/devices/details?id=m-1'), { metaKey: true });
-
-    expect(event.defaultPrevented).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ href: HREF }));
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('offers no new-tab segment where links stay in this window', () => {
-    renderChip('/devices/details?id=m-1');
+  it('lets a modifier click hand the href to the browser', () => {
+    sameWindow = true;
+    const anchor = renderChip(HREF);
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    act(() => {
+      anchor.dispatchEvent(event);
+    });
 
-    expect(container.querySelector('a[target="_blank"]')).toBeNull();
-  });
-
-  it('opens the page in a new tab from its own segment where a tab is available', () => {
-    sameWindow = false;
-    const href = '/devices/details?id=m-1';
-    const anchor = renderChip(href);
-    const newTab = container.querySelector<HTMLAnchorElement>('a[target="_blank"]');
-
-    expect(newTab?.getAttribute('href')).toBe(href);
-    expect(newTab?.getAttribute('rel')).toBe('noopener noreferrer');
-
-    click(anchor);
-    expect(push).toHaveBeenCalledWith(href);
+    expect(event.defaultPrevented).toBe(false);
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
-describe('MentionTag width', () => {
-  // jsdom lays nothing out: the class is the contract. A table cell on a phone is
-  // narrower than the chip's 16rem, and the chip must not run out of it.
-  it('is never wider than what holds it, in one segment or two', () => {
-    renderChip('/devices/details?id=m-1');
-    expect(container.querySelector('a')?.firstElementChild?.className).toContain('max-w-[min(16rem,100%)]');
-
+describe('MentionTag new-tab segment', () => {
+  it('opens the page alone in a new tab, leaving this window alone', () => {
     sameWindow = false;
-    renderChip('/devices/details?id=m-1');
+    renderChip(HREF);
+    const segment = newTabSegment();
+    if (!segment) throw new Error('no new-tab segment');
+    expect(segment.getAttribute('href')).toBe(HREF);
+    expect(segment.getAttribute('target')).toBe('_blank');
+    // A path of this site keeps the Referer (the lib's one referrer rule).
+    expect(segment.getAttribute('rel')).toBe('noopener');
+    expect(segment.getAttribute('aria-label')).toBe('Open in new tab');
+
+    primaryClick(segment);
+
+    // The lib's executor opens the tab through the runtime's `openExternal`; this window does not move.
+    expect(openExternal).toHaveBeenCalledWith(HREF);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('is not offered where this window cannot or should not open a tab', () => {
+    sameWindow = true;
+    renderChip(HREF);
+    expect(newTabSegment()).toBeNull();
+    expect(container.querySelectorAll('a')).toHaveLength(1);
+  });
+
+  it('fits what holds it: the pair never wider than its cell, the main segment giving up its width first', () => {
+    sameWindow = false;
+    renderChip(HREF);
     const pair = container.firstElementChild;
     expect(pair?.className).toContain('max-w-full');
     expect(pair?.querySelector('a')?.className).toContain('min-w-0');
+    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-[min(16rem,100%)]');
+  });
+
+  it('is not offered on a chip with no page to open', () => {
+    sameWindow = false;
+    act(() => {
+      root.render(<MentionTag label="alice@example.com" />);
+    });
+    expect(container.querySelector('a')).toBeNull();
   });
 });

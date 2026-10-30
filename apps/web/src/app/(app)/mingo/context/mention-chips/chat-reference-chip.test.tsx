@@ -9,6 +9,7 @@
  * its own.
  */
 
+import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -25,7 +26,22 @@ const spies = vi.hoisted(() => ({
 
 // Where links stay in this window (no new-tab segment): the chip's own target is what is under test.
 vi.mock('@/app/hooks/use-same-window-links', () => ({ useSameWindowLinks: () => true }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: spies.push }), usePathname: () => '/dashboard' }));
+
+/** The chat runtime every chat link, this chip included, navigates through: an in-app link is a router push, as
+ *  in the app's own (`OpenframeChatRuntimeProvider`). */
+const runtime = {
+  endpoints: {},
+  navigation: {
+    mode: 'host',
+    navigate: ({ href }: { href: string }) => {
+      spies.push(href);
+      return true;
+    },
+    decideNewTab: () => false,
+  },
+  source: 'openframe',
+} as unknown as ChatRuntime;
 vi.mock('@/lib/api-client', () => ({ apiClient: { post: spies.post }, REQUEST_TIMEOUT_MS: 30_000 }));
 
 // The lib `Tag` measures its label for the truncation tooltip; jsdom has no
@@ -63,9 +79,11 @@ async function renderChip() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
     root.render(
-      <QueryClientProvider client={client}>
-        <ChatReferenceChip id={DIALOG_ID} />
-      </QueryClientProvider>,
+      <ChatRuntimeContext.Provider value={runtime}>
+        <QueryClientProvider client={client}>
+          <ChatReferenceChip id={DIALOG_ID} />
+        </QueryClientProvider>
+      </ChatRuntimeContext.Provider>,
     );
   });
   // The chip suspends on its lookup; settle it (the skeleton has no text). A

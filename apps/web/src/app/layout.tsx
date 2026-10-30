@@ -124,7 +124,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: sidebarWidthFoucScript(isSaasTenantMode()) }} />
       </head>
       <body suppressHydrationWarning className="min-h-screen font-body antialiased" data-app-type="openframe">
-        <GoogleTagManager />
+        <GoogleTagManager noscriptFallback={!isStaticExport} />
         <RegistrationAttributionCapture />
         <EmbedShimRegistration />
         <DeploymentInitializer />

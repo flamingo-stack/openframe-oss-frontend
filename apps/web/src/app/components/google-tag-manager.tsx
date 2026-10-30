@@ -2,13 +2,19 @@
 
 import Script from 'next/script';
 import { useEffect } from 'react';
+import { queueDesktopSuperProperties } from '@/lib/posthog/posthog-events';
 import { runtimeEnv } from '@/lib/runtime-config';
 
 interface GoogleTagManagerProps {
   containerId?: string;
+  /**
+   * Off in the static export: it prerenders without the id (the shell injects it at runtime), so a
+   * `<noscript>` would exist only on the client and fail hydration (React #418) on every boot.
+   */
+  noscriptFallback: boolean;
 }
 
-export function GoogleTagManager({ containerId }: GoogleTagManagerProps) {
+export function GoogleTagManager({ containerId, noscriptFallback }: GoogleTagManagerProps) {
   const id = containerId || runtimeEnv.gtmContainerId();
 
   useEffect(() => {
@@ -17,6 +23,7 @@ export function GoogleTagManager({ containerId }: GoogleTagManagerProps) {
     // exists before the tag script loads.
     const w = window as unknown as { dataLayer?: unknown[] };
     w.dataLayer = w.dataLayer || [];
+    queueDesktopSuperProperties();
   }, [id]);
 
   if (!id) return null;
@@ -37,14 +44,16 @@ export function GoogleTagManager({ containerId }: GoogleTagManagerProps) {
         }}
       />
 
-      <noscript>
-        <iframe
-          src={`https://www.googletagmanager.com/ns.html?id=${id}`}
-          height="0"
-          width="0"
-          style={{ display: 'none', visibility: 'hidden' }}
-        />
-      </noscript>
+      {noscriptFallback && (
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${id}`}
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
+      )}
     </>
   );
 }
