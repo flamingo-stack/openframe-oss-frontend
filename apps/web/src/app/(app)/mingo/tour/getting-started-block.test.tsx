@@ -57,6 +57,8 @@ function render(done: TourStepId[] = [], busy = false, openFae: (() => void) | n
   });
 }
 
+/** The Tickets step's Fae chip. */
+const OPEN_FAE = 'Open Fae - your client assistant';
 const buttons = () => [...container.querySelectorAll('button')];
 const button = (text: string) => {
   const found = buttons().find(b => b.textContent?.trim() === text);
@@ -211,10 +213,10 @@ describe('GettingStartedBlock', () => {
     onOpenFae.mockClear();
     onAction.mockClear();
     render([], true);
-    expect(buttons().some(b => b.textContent?.trim() === 'Open Fae')).toBe(false);
+    expect(buttons().some(b => b.textContent?.trim() === OPEN_FAE)).toBe(false);
 
     click(button('TicketsTickets and time logs'));
-    const chip = button('Open Fae');
+    const chip = button(OPEN_FAE);
     expect(chip.matches(':disabled')).toBe(false);
     click(chip);
     expect(onOpenFae).toHaveBeenCalledTimes(1);
@@ -225,7 +227,7 @@ describe('GettingStartedBlock', () => {
   it('leaves Open Fae out where Fae cannot run', () => {
     render([], false, null);
     click(button('TicketsTickets and time logs'));
-    expect(buttons().some(b => b.textContent?.trim() === 'Open Fae')).toBe(false);
+    expect(buttons().some(b => b.textContent?.trim() === OPEN_FAE)).toBe(false);
   });
 
   it('counts the done steps and offers to finish on the last one', () => {

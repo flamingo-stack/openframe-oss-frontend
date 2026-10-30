@@ -30,7 +30,7 @@ export interface GettingStartedBlockProps {
   /** "Finish tour", offered on the last step. */
   onFinish: () => void;
   /**
-   * "Open Fae", offered on the steps that open it (`TourStep.opensFae`).
+   * "Open Fae - your client assistant", offered on the steps that open it (`TourStep.opensFae`).
    * Absent where Fae cannot run (a phone): the chip is not shown.
    */
   onOpenFae?: () => void;
@@ -205,7 +205,7 @@ export function GettingStartedBlock({
                     {step.opensFae && onOpenFae && (
                       <div className="flex">
                         <QuickActionChipButton
-                          label="Open Fae"
+                          label="Open Fae - your client assistant"
                           icon={<ExternalLinkIcon size={16} className="text-ods-flamingo-cyan" />}
                           onSelect={onOpenFae}
                         />
