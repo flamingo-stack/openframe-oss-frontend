@@ -340,6 +340,9 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
                 approvalType
                 toolCallArguments
                 commandReview {
+                  decision
+                  approvalLevel
+                  policyLevel
                   operationCodes
                   matchedRules {
                     code

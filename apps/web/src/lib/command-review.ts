@@ -20,14 +20,37 @@ export function annotateMessageData<T>(messageData: T): T {
   return annotateApprovalChunk(messageData);
 }
 
-/** "AI review: Security Weaken — turns off real-time protection [MANAGE_ANTIVIRUS]" */
+const DECISION_LABELS: Record<string, string> = {
+  POLICY: 'Policy',
+  FALLBACK: 'Fallback (operation not in policy)',
+  SOFT_DENY: 'Soft deny',
+  HARD_DENY: 'Hard deny',
+  CLASSIFIER_FAILURE: 'Review failed (fallback)',
+};
+const RULE_DECISIONS = new Set(['SOFT_DENY', 'HARD_DENY']);
+
+/** "AI review · Soft deny: Security Weaken → ASK_TECHNICIAN (policy: ALLOW) — turns off real-time protection [MANAGE_ANTIVIRUS]" */
 export function formatCommandReview(review: UnknownRecord): string {
-  const rules = strings(review.matchedRules, rule => (isRecord(rule) ? rule.label : undefined));
   const codes = strings(review.operationCodes, code => code);
-  const verdict = rules.length > 0 ? rules.join(', ') : 'no block rule';
   const reason = typeof review.reason === 'string' && review.reason.trim() ? ` — ${review.reason.trim()}` : '';
   const operations = codes.length > 0 ? ` [${codes.join(', ')}]` : '';
-  return `AI review: ${verdict}${reason}${operations}`;
+  return `AI review · ${formatDecision(review)}${formatLevels(review)}${reason}${operations}`;
+}
+
+function formatDecision(review: UnknownRecord): string {
+  const rules = strings(review.matchedRules, rule => (isRecord(rule) ? rule.label : undefined)).join(', ');
+  const decision = typeof review.decision === 'string' ? review.decision : '';
+  const label = DECISION_LABELS[decision];
+  if (!label) return rules || 'no block rule';
+  return RULE_DECISIONS.has(decision) && rules ? `${label}: ${rules}` : label;
+}
+
+function formatLevels(review: UnknownRecord): string {
+  const approvalLevel = typeof review.approvalLevel === 'string' ? review.approvalLevel : '';
+  if (!approvalLevel) return '';
+  const policyLevel = typeof review.policyLevel === 'string' ? review.policyLevel : '';
+  const policy = policyLevel && policyLevel !== approvalLevel ? ` (policy: ${policyLevel})` : '';
+  return ` → ${approvalLevel}${policy}`;
 }
 
 function annotateToolCall(call: unknown): unknown {

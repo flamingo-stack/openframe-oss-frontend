@@ -130,6 +130,9 @@ export const GET_DIALOG_MESSAGES_QUERY = `
                 approvalType
                 toolCallArguments
                 commandReview {
+                  decision
+                  approvalLevel
+                  policyLevel
                   operationCodes
                   matchedRules {
                     code
