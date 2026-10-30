@@ -28,6 +28,8 @@ export const TAB_IDS = {
   customersList: ['active', 'archived'],
   customerDetails: [
     'devices',
+    'users',
+    'user-groups',
     'tickets',
     'logs',
     'worktime',
@@ -68,6 +70,8 @@ export const TAB_IDS = {
   aiSettings: ['mingo', 'customer', 'guardrails', 'device-guardrails'],
   notifications: ['history'],
   incidents: ['current', 'snoozed', 'archived'],
+  /** A directory user's page (`/users/details`). */
+  userDetails: ['details', 'devices', 'user-groups', 'licences'],
 } as const;
 
 export type CustomerListTab = (typeof TAB_IDS.customersList)[number];
@@ -92,6 +96,7 @@ export type AiSettingsTab = (typeof TAB_IDS.aiSettings)[number];
 export const MANAGE_AI_BALANCE_ACTION = 'manageAiBalance';
 export type BillingUsageAction = typeof MANAGE_AI_BALANCE_ACTION;
 export type NotificationsTab = (typeof TAB_IDS.notifications)[number];
+export type UserDetailTab = (typeof TAB_IDS.userDetails)[number];
 
 // --------------------------------------------------------------------------
 // Ticket prefill keys (shared with the ticket form and its page)
@@ -291,6 +296,9 @@ export const routes = {
       withQuery('/customers/details', { id, tab: o?.tab }),
     new: '/customers/new',
     edit: (id: string | number, o?: { tab?: CustomerEditTab }) => withQuery('/customers/edit', { id, tab: o?.tab }),
+    // A directory group. `customerId`: the customer it was opened from, which scopes its members.
+    group: (id: string | number, o?: { customerId?: string | number }) =>
+      withQuery('/customers/group', { id, customerId: o?.customerId }),
   },
 
   devices: {
@@ -429,6 +437,12 @@ export const routes = {
     details: (id: string | number) => withQuery('/cloud-tenant-management/details', { id }),
     edit: (id: string | number) => withQuery('/cloud-tenant-management/edit', { id }),
     reconnect: (id: string | number) => withQuery('/cloud-tenant-management/reconnect', { id }),
+  },
+
+  // Directory users of every connected tenant. `id` is an account id: the page shows that account's person.
+  users: {
+    list: '/users',
+    details: (id: string | number, o?: { tab?: UserDetailTab }) => withQuery('/users/details', { id, tab: o?.tab }),
   },
 
   notifications: (o?: { tab?: NotificationsTab }) => withQuery('/notifications', { tab: o?.tab }),

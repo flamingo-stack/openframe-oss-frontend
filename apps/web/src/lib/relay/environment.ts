@@ -505,6 +505,13 @@ const fetchRelay: FetchFunction = async (request, variables, cacheConfig, upload
  * - `PackageSearchItem` / `PackageDetails` — the `id` is the catalog package
  *   name, which Homebrew gives a formula and a cask alike (`docker`); merged,
  *   the two results read as one package with one `packageType`.
+ * - `DirectoryRuleValue` — the `id` is the directory's own value (a domain, a
+ *   group or org unit id), so two tenant connections can carry the same one
+ *   (`acme.com`), and one of them may no longer have it (`name: null`). Merged,
+ *   one connection's "not found in directory" would show on the other's value.
+ * - `DirectoryGroupRef` — a group named without loading it (a licence inherited
+ *   through it), and its `id` IS that group's `DirectoryGroup.id`. The user page
+ *   reads both, so merged they make one record with two `__typename`s.
  *
  * Returning `undefined` stores each list entry under a parent-scoped client id
  * (by field + index) instead, so colliding backend ids no longer merge. Safe
@@ -518,6 +525,8 @@ const UNNORMALIZED_TYPES = new Set([
   'AffectedSoftware',
   'PackageSearchItem',
   'PackageDetails',
+  'DirectoryRuleValue',
+  'DirectoryGroupRef',
 ]);
 
 function resolveDataId(value: { readonly id?: unknown }, typeName: string): string | undefined {

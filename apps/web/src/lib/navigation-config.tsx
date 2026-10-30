@@ -14,6 +14,7 @@ import {
   RadarIcon,
   Settings02Icon,
   TagIcon,
+  UsersIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { NavigationSidebarItem } from '@flamingo-stack/openframe-frontend-core/types/navigation';
 import type { UnreadCountsByCategory } from '@/app/components/notifications/unread-counts-hydrator';
@@ -159,6 +160,19 @@ export const getNavigationItems = (
             icon: <Parcel02Icon size={24} />,
             path: routes.software.list,
             isActive: pathname.startsWith('/software'),
+            badge: BETA_BADGE,
+          },
+        ]
+      : []),
+    // The users of every connected directory — behind `tenant-management`, like Integrations (Figma: after Software).
+    ...(flags.tenantManagement
+      ? [
+          {
+            id: 'users',
+            label: 'Users',
+            icon: <UsersIcon size={24} />,
+            path: routes.users.list,
+            isActive: pathname.startsWith('/users'),
             badge: BETA_BADGE,
           },
         ]

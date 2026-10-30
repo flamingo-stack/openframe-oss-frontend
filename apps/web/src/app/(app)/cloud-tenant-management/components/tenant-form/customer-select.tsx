@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
   SquareAvatar,
+  Tag,
   TruncateText,
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
@@ -18,11 +19,13 @@ import type { customerSelectPaginationQuery } from '@/__generated__/customerSele
 import type { customerSelectQuery as CustomerSelectQueryType } from '@/__generated__/customerSelectQuery.graphql';
 import { ContentErrorBoundary, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
-import { type CustomerOption, toCustomerOption } from './customer-option';
+import { type PickerCustomer, toCustomerOption } from './customer-option';
 import { withBoundOrganization } from './tenant-form-helpers';
 
-// The "Select Customer" field of the New / Edit forms: a core `Select` without a search box (Figma
-// comment #107) over the customers not yet bound to a connection, paged as the menu scrolls.
+// A customer field of "Customers and attribution": a core `Select` without a search box (Figma
+// comment #107) over the workspace's active customers, paged as the menu scrolls. A customer may
+// serve several directories, so every active one is listed; the ones picked in the form's other
+// rows are left out.
 
 const CUSTOMER_PAGE_SIZE = 20;
 
@@ -32,12 +35,12 @@ const customerSelectQuery = graphql`
   }
 `;
 
+// `organizations` lists active customers unless its filter says otherwise.
 const customerSelectFragment = graphql`
   fragment customerSelect_query on Query
   @refetchable(queryName: "customerSelectPaginationQuery")
   @argumentDefinitions(first: { type: "Int", defaultValue: 20 }, after: { type: "String" }) {
-    directoryConnectionOrganizations(first: $first, after: $after)
-      @connection(key: "customerSelect_directoryConnectionOrganizations") {
+    organizations(first: $first, after: $after) @connection(key: "customerSelect_organizations") {
       edges {
         node {
           ...customerOption_organization
@@ -54,23 +57,31 @@ const customerSelectFragment = graphql`
 interface CustomerSelectProps {
   value: string;
   onChange: (organizationId: string) => void;
+  /** Default "Select Customer"; a customer row of a shared directory says "Customer". */
+  label?: string;
   error?: string;
   invalid?: boolean;
   disabled?: boolean;
-  /** The customer this connection is already bound to; the API lists only unbound ones. */
-  includeOrganization?: CustomerOption | null;
-  /** Edit: hold the list until the bound customer is known, or a fully bound workspace reads "No customers available". */
+  /**
+   * The stored customer: the field names it before its list has paged to it. An archived or deleted one, which the
+   * list never offers, is named with its badge.
+   */
+  includeOrganization?: PickerCustomer | null;
+  /** The customers picked in the form's other rows: a customer is bound once per directory. */
+  exclude?: readonly string[];
+  /** Edit: hold the list until the stored customer is known. */
   enabled?: boolean;
 }
 
 interface CustomerSelectShellProps extends Omit<CustomerSelectProps, 'includeOrganization' | 'enabled'> {
-  options: readonly CustomerOption[];
+  options: readonly PickerCustomer[];
   placeholder: string;
   /** Rendered last inside the menu — the load-more sentinel. */
   footer?: ReactNode;
 }
 
-function CustomerOptionLabel({ organization }: { organization: CustomerOption }) {
+/** A customer's avatar, name and badge: a picker's option, and a row of the details card's customer list. */
+export function CustomerOptionLabel({ organization }: { organization: PickerCustomer }) {
   return (
     <span className="flex min-w-0 items-center gap-[var(--spacing-system-xsf)]">
       <SquareAvatar
@@ -83,6 +94,7 @@ function CustomerOptionLabel({ organization }: { organization: CustomerOption })
       <TruncateText as="span" className="text-inherit">
         {organization.name}
       </TruncateText>
+      {organization.badge && <Tag as="span" variant="warning" label={organization.badge} className="shrink-0" />}
     </span>
   );
 }
@@ -90,6 +102,7 @@ function CustomerOptionLabel({ organization }: { organization: CustomerOption })
 function CustomerSelectShell({
   value,
   onChange,
+  label = 'Select Customer',
   error,
   invalid,
   disabled,
@@ -99,13 +112,7 @@ function CustomerSelectShell({
 }: CustomerSelectShellProps) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger
-        label="Select Customer"
-        labelVariant="large"
-        invalid={invalid}
-        error={error}
-        aria-label="Select Customer"
-      >
+      <SelectTrigger label={label} labelVariant="large" invalid={invalid} error={error} aria-label={label}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -125,7 +132,12 @@ function CustomerSelectShell({
   );
 }
 
-function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit<CustomerSelectProps, 'enabled'>) {
+function CustomerSelectOptions({
+  includeOrganization,
+  exclude,
+  disabled,
+  ...props
+}: Omit<CustomerSelectProps, 'enabled'>) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<CustomerSelectQueryType>(
     customerSelectQuery,
@@ -137,8 +149,10 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
     customerSelect_query$key
   >(customerSelectFragment, queryData);
 
-  const loaded = data.directoryConnectionOrganizations.edges.map(edge => toCustomerOption(edge.node));
-  const options = withBoundOrganization(loaded, includeOrganization);
+  const loaded = data.organizations.edges.map(edge => toCustomerOption(edge.node));
+  const options = withBoundOrganization<PickerCustomer>(loaded, includeOrganization).filter(
+    organization => !exclude?.includes(organization.organizationId),
+  );
   // Nothing to pick is a disabled field with the reason as its placeholder: Radix forbids an empty-valued item.
   const empty = options.length === 0 && !hasNext;
 
@@ -168,27 +182,25 @@ function CustomerSelectOptions({ includeOrganization, disabled, ...props }: Omit
 
 /**
  * The customer field. Before its list is read (held by `enabled`, or in a loading scope: its own boundary's
- * fallback, or the page's) it is the real field, locked, with no options, and reads nothing.
+ * fallback, or the page's), and when the list cannot be read, it is the real field, locked, offering only its
+ * stored customer, and reads nothing.
  */
-export function CustomerSelect(props: CustomerSelectProps) {
-  const { enabled = true, includeOrganization, ...shellProps } = props;
+export function CustomerSelect({ enabled = true, ...props }: CustomerSelectProps) {
   if (!enabled) {
-    return <CustomerSelectLocked {...shellProps} />;
+    return <CustomerSelectLocked {...props} />;
   }
 
   return (
     <ContentErrorBoundary
       fallback={() => (
-        <CustomerSelectShell
-          {...shellProps}
-          options={NO_ITEMS}
+        <CustomerSelectLocked
+          {...props}
           placeholder="Couldn't load customers"
-          error={shellProps.error ?? 'Reload the page to try again.'}
-          disabled
+          error={props.error ?? 'Reload the page to try again.'}
         />
       )}
     >
-      <CustomerSelectList {...shellProps} includeOrganization={includeOrganization} />
+      <CustomerSelectList {...props} />
     </ContentErrorBoundary>
   );
 }
@@ -202,14 +214,28 @@ function CustomerSelectList(props: Omit<CustomerSelectProps, 'enabled'>) {
   );
 }
 
-function CustomerSelectBody({ includeOrganization, ...shellProps }: Omit<CustomerSelectProps, 'enabled'>) {
+function CustomerSelectBody(props: Omit<CustomerSelectProps, 'enabled'>) {
   if (useLoadingScope()) {
-    return <CustomerSelectLocked {...shellProps} />;
+    return <CustomerSelectLocked {...props} />;
   }
-  return <CustomerSelectOptions {...shellProps} includeOrganization={includeOrganization} />;
+  return <CustomerSelectOptions {...props} />;
 }
 
-/** The real field, locked, with no options: what it is before its list is read. */
-function CustomerSelectLocked(shellProps: Omit<CustomerSelectProps, 'enabled' | 'includeOrganization'>) {
-  return <CustomerSelectShell {...shellProps} options={NO_ITEMS} placeholder="Select Customer" disabled />;
+/**
+ * The real field, locked: what it is before its list is read, or once reading it failed. Its stored customer is its
+ * one option — a Select whose value matches no item draws neither the item nor the placeholder, only an empty box.
+ */
+function CustomerSelectLocked({
+  includeOrganization,
+  placeholder = 'Select Customer',
+  ...shellProps
+}: Omit<CustomerSelectProps, 'enabled'> & { placeholder?: string }) {
+  return (
+    <CustomerSelectShell
+      {...shellProps}
+      options={includeOrganization ? [includeOrganization] : NO_ITEMS}
+      placeholder={placeholder}
+      disabled
+    />
+  );
 }

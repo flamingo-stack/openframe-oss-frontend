@@ -281,6 +281,52 @@ describe('re-consent notice', () => {
 });
 
 /**
+ * The attribution notices: a group or org unit deleted in a directory opens the tenant whose rule it was; a customer
+ * archived or deleted opens the one tenant its rules matched users on, or the list when there were several.
+ */
+describe('attribution notices', () => {
+  const tenant = (id: string) => `/cloud-tenant-management/details?id=${id}`;
+  const twoConnections = JSON.stringify([
+    { id: 'c-1', name: 'Acme', provider: 'MICROSOFT_365', userCount: 12 },
+    { id: 'c-2', name: 'Acme Google', provider: 'GOOGLE_WORKSPACE', userCount: 3 },
+  ]);
+
+  it('routes a removed rule value to its tenant on every transport', () => {
+    expect(resolvePushNotificationRoute({ type: 'DIRECTORY_RULE_VALUE_REMOVED', connectionId: 'c-1' })).toBe(
+      tenant('c-1'),
+    );
+    expect(
+      resolveNatsNotificationRoute({
+        type: 'DIRECTORY_RULE_VALUE_REMOVED',
+        attributes: { connectionId: 'c-1', valueId: 'g-1' },
+        category: 'INTEGRATIONS',
+      }),
+    ).toBe(tenant('c-1'));
+    const action = resolveNotificationAction({
+      meta: { notificationType: 'DIRECTORY_RULE_VALUE_REMOVED', connectionId: 'c-1' },
+    } as unknown as Notification);
+    expect(action).toEqual({ label: 'Tenant Details', route: tenant('c-1') });
+  });
+
+  it('routes a deactivated customer to its one tenant, or to the list for several or none', () => {
+    const one = JSON.stringify([{ id: 'c-1', name: 'Acme', provider: 'MICROSOFT_365', userCount: 12 }]);
+    expect(
+      resolveNatsNotificationRoute({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', attributes: { connections: one } }),
+    ).toBe(tenant('c-1'));
+    expect(
+      resolveNatsNotificationRoute({
+        type: 'DIRECTORY_CUSTOMER_DEACTIVATED',
+        attributes: { connections: twoConnections },
+      }),
+    ).toBe('/cloud-tenant-management');
+    // A push over FCM's size budget drops the list whole.
+    expect(resolvePushNotificationRoute({ type: 'DIRECTORY_CUSTOMER_DEACTIVATED', organizationId: 'o-1' })).toBe(
+      '/cloud-tenant-management',
+    );
+  });
+});
+
+/**
  * The Remote Sessions recording cards: one about a recording opens it, a session that left no
  * recording opens its device's sessions, and the tenant's storage opens every device's sessions.
  */

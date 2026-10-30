@@ -4,6 +4,7 @@ import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/compone
 import {
   lastReadAt,
   type TenantRow,
+  type TenantsTableFilters,
   TenantsTableView,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -12,16 +13,28 @@ import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
 import type { tenantsTablePaginationQuery } from '@/__generated__/tenantsTablePaginationQuery.graphql';
-import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__/tenantsTableQuery.graphql';
+import type {
+  DirectoryConnectionFilterInput,
+  DirectoryConnectionOrderInput,
+  tenantsTableQuery as TenantsTableQueryType,
+} from '@/__generated__/tenantsTableQuery.graphql';
 import { EmptyState, NO_NEXT_PAGE, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
+import { isSyncPaused } from '../../utils/tenant-presentation';
+import { boundCustomerOptions } from '../tenant-form/bound-customer';
 
 const TENANTS_PAGE_SIZE = 20;
 
 const tenantsTableQuery = graphql`
-  query tenantsTableQuery($search: String, $first: Int!, $after: String) {
-    ...tenantsTable_query @arguments(search: $search, first: $first, after: $after)
+  query tenantsTableQuery(
+    $search: String
+    $filter: DirectoryConnectionFilterInput
+    $orderBy: DirectoryConnectionOrderInput
+    $first: Int!
+    $after: String
+  ) {
+    ...tenantsTable_query @arguments(search: $search, filter: $filter, orderBy: $orderBy, first: $first, after: $after)
   }
 `;
 
@@ -33,10 +46,12 @@ const tenantsTableFragment = graphql`
   @refetchable(queryName: "tenantsTablePaginationQuery")
   @argumentDefinitions(
     search: { type: "String" }
+    filter: { type: "DirectoryConnectionFilterInput" }
+    orderBy: { type: "DirectoryConnectionOrderInput" }
     first: { type: "Int", defaultValue: 20 }
     after: { type: "String" }
   ) {
-    directoryConnections(search: $search, first: $first, after: $after)
+    directoryConnections(search: $search, filter: $filter, orderBy: $orderBy, first: $first, after: $after)
       @connection(key: "tenantsTable_directoryConnections") {
       totalCount
       edges {
@@ -46,16 +61,19 @@ const tenantsTableFragment = graphql`
           provider
           domain
           userCount
+          unattributedUserCount
           lastSyncAt
+          enabled
+          licenseSummary {
+            assigned
+            purchased
+            unused
+          }
           access {
             state
           }
-          organization {
-            name
-            image {
-              imageUrl
-              hash
-            }
+          customers {
+            ...boundCustomer_customer
           }
         }
       }
@@ -71,6 +89,11 @@ const tenantRowHref = (row: TenantRow) => routes.cloudTenantManagement.details(r
 
 interface TenantsTableProps {
   search: string;
+  /** The deferred funnels and sort: they feed the query. */
+  filter: DirectoryConnectionFilterInput | null;
+  orderBy: DirectoryConnectionOrderInput | null;
+  /** The live funnels: what the headers draw, so a tick lands instantly. */
+  filters: TenantsTableFilters;
   /** The deferred search lags the typed one: the rows on screen are the previous result. */
   isPending: boolean;
   onEmptyChange: (isEmpty: boolean) => void;
@@ -97,6 +120,7 @@ function TenantsTableReader(props: TenantsTableProps) {
         rows={NO_ITEMS}
         getHref={tenantRowHref}
         search={props.search}
+        filters={props.filters}
         isPending={props.isPending}
         totalCount={0}
         stickyHeaderOffset={props.stickyHeaderOffset}
@@ -108,11 +132,19 @@ function TenantsTableReader(props: TenantsTableProps) {
   return <TenantsTableQuery {...props} />;
 }
 
-function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
+function TenantsTableQuery({
+  search,
+  filter,
+  orderBy,
+  filters,
+  isPending,
+  onEmptyChange,
+  stickyHeaderOffset,
+}: TenantsTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
     tenantsTableQuery,
-    { search: search || null, first: TENANTS_PAGE_SIZE, after: null },
+    { search: search || null, filter, orderBy, first: TENANTS_PAGE_SIZE, after: null },
     { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
   const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
@@ -131,19 +163,22 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
           name: node.name,
           provider: node.provider,
           domain: node.domain,
-          customer: {
-            name: node.organization.name,
-            imageUrl: getFullImageUrl(node.organization.image?.imageUrl, node.organization.image?.hash),
-          },
+          customers: boundCustomerOptions(node.customers).map(({ name, image }) => ({
+            name,
+            imageUrl: getFullImageUrl(image?.imageUrl, image?.hash),
+          })),
           userCount: node.userCount,
+          unattributedUserCount: node.unattributedUserCount,
           accessState: node.access.state,
           lastReadAt: lastReadAt({ lastSyncAt }),
+          syncPaused: isSyncPaused(node),
+          licenses: node.licenseSummary,
         };
       }),
     [edges],
   );
 
-  const showEmptyState = !search && !isPending && rows.length === 0;
+  const showEmptyState = !search && !filter && !isPending && rows.length === 0;
   // Before paint: the view hides its search toolbar over the empty state, so it must not flash first.
   useLayoutEffect(() => {
     onEmptyChange(showEmptyState);
@@ -170,6 +205,7 @@ function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffse
       rows={rows}
       getHref={tenantRowHref}
       search={search}
+      filters={filters}
       isPending={isPending}
       totalCount={totalCount}
       stickyHeaderOffset={stickyHeaderOffset}

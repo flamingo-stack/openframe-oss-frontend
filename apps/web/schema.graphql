@@ -346,11 +346,7 @@ input CreateDirectoryConnectionInput {
 
   """User-facing connection label, unique per tenant+provider."""
   name: String!
-
-  """
-  The customer this connection belongs to. Required — a connection always has exactly one.
-  """
-  organizationId: ID!
+  organizationId: ID @deprecated(reason: "Bind customers with updateDirectoryConnection(customers).")
 }
 
 input CreateKnowledgeBaseAttachmentInput {
@@ -546,8 +542,7 @@ input DeviceFilterInput {
   osTypes: [String!]
   organizationIds: [String!]
   tagKeys: [String!]
-  tagValues: [String!]
-}
+  tagValues: [String!]}
 
 type DeviceFilterOption {
   value: String!
@@ -561,8 +556,7 @@ type DeviceFilters {
   osTypes: [DeviceFilterOption!]!
   organizationIds: [DeviceFilterOption!]!
   tagKeys: [TagFilterOption!]!
-  filteredCount: Int!
-}
+  filteredCount: Int!}
 
 type DeviceLogConnection {
   edges: [DeviceLogEdge!]!
@@ -678,10 +672,6 @@ enum DirectoryCapability {
   ADMIN_ROLES
 }
 
-"""
-Narrowing for directoryConnections. Free-text search is all the Tenants list needs today; further
-dimensions become optional fields here, so adding one never changes the query's signature.
-"""
 type DirectoryConnection {
   """
   Config document id — passed as connectionId to every per-connection query/mutation.
@@ -722,13 +712,19 @@ type DirectoryConnection {
   lastSyncAt: Instant
   lastSyncError: String
 
-  """
-  The customer this connection belongs to. Exactly one; a customer may have several connections.
-  """
-  organizationId: ID!
+  """First customer (earliest attached); null while the connection serves none."""
+  organizationId: ID @deprecated(reason: "Use customers.")
+  organization: Organization @deprecated(reason: "Use customers.")
 
-  """Resolved through the shared organizationDataLoader — batched, no N+1."""
-  organization: Organization!
+  """
+  Customers this directory serves, earliest attached first. [] = not assigned to any customer yet.
+  """
+  customers: [DirectoryConnectionCustomer!]!
+
+  """
+  Synced users that no active customer's rules claim; a customer whose organization is not ACTIVE claims nobody. 0 when any active customer holds ALL. Null until the first sync.
+  """
+  unattributedUserCount: Int
 
   """
   Users synced under this connection (spine rows — no live provider call)
@@ -749,8 +745,6 @@ type DirectoryConnection {
   startDirectoryConsent is what mints a replacement, and that does invalidate the previous link.
   """
   consentUrl: String
-
-  " No `rules` field: nothing in the Tenant Management designs renders a connection's visibility\n rules, and the retrieval path needs review before it is exposed. Mingo still sets them through\n DirectoryConnectionRuleWriter, and the lib-side reader is untouched."
   access: DirectoryConnectionAccess!
   domains: [DirectoryDomain!]!
 
@@ -762,6 +756,31 @@ type DirectoryConnection {
   never reach OpenFrame (Google's "Access blocked" screen) are not recorded.
   """
   lastConsentInfo: DirectoryConsentInfo
+
+  # openframe-saas-tenant#4233. None of these calls the provider: licenseSummary and licenses read the stored snapshot.
+  "When a person paused the sync; null while syncing."
+  syncPausedAt: Instant
+  "Who paused the sync; null when not paused or the user no longer exists."
+  syncPausedBy: User
+  """
+  Totals for the list's LICENSES column. They leave out free / self-service SKUs, which licenses still lists.
+  Null until the license numbers have been read.
+  """
+  licenseSummary: DirectoryLicenseSummary
+  """
+  Licenses of the directory as of the last read, sorted by name unless orderBy says otherwise. Empty until the
+  license numbers have been read: licenseSummary == null tells "not read yet" from "none".
+  """
+  licenses(search: String, orderBy: DirectoryLicenseOrderInput): [DirectoryLicense!]!
+  """
+  What Disconnect keeps read-only and Delete removes. Runs a few counts per connection: select it for one
+  connection (the Disconnect and Delete dialogs), not for a page.
+  """
+  impact: DirectoryConnectionImpact!
+
+  # openframe-saas-tenant#4270 (W1)
+  "The stored write opt-in (true for a new connection). Writes also need write consent: see access.state."
+  writeEnabled: Boolean!
 }
 
 """
@@ -798,6 +817,29 @@ type DirectoryConnectionConnection {
   totalCount: Int!
 }
 
+type DirectoryConnectionCustomer {
+  organizationId: ID!
+
+  """
+  Null only when the organization document is missing (broken data); deletion is a status flip.
+  """
+  organization: Organization
+  attachedAt: Instant
+
+  """OR of every rule: a user is visible to this customer when any rule claims them."""
+  rules: [DirectoryConnectionRule!]!
+
+  """Users this customer sees through its rules. Null until the connection's first sync."""
+  userCount: Int
+}
+
+input DirectoryConnectionCustomerInput {
+  organizationId: ID!
+
+  """At least one rule."""
+  rules: [DirectoryRuleInput!]!
+}
+
 type DirectoryConnectionEdge {
   cursor: String!
   node: DirectoryConnection!
@@ -828,6 +870,16 @@ type DirectoryConnectionPayload {
   userErrors: [UserError!]!
 }
 
+type DirectoryConnectionRule {
+  kind: DirectoryRuleKind!
+
+  """Empty for ALL."""
+  values: [DirectoryRuleValue!]!
+
+  """Users this rule alone claims. Null until the connection's first sync."""
+  userCount: Int
+}
+
 """
 Verified domains, read live from the provider (Graph /organization | Admin SDK domains.list).
 """
@@ -849,6 +901,35 @@ When adding a provider: add its key here — must equal the DirectoryIntegration
 enum DirectoryProvider {
   GOOGLE_WORKSPACE
   MICROSOFT_365
+}
+
+input DirectoryRuleInput {
+  kind: DirectoryRuleKind!
+
+  """
+  Required non-empty unless kind = ALL; must be empty for ALL. Stable ids from directoryRuleOptions.
+  """
+  values: [String!]
+}
+
+"""
+DOMAIN matches the primary login domain, GROUP direct members, ORG_UNIT (Google Workspace only) the unit and everything under it.
+"""
+enum DirectoryRuleKind {
+  ALL
+  DOMAIN
+  GROUP
+  ORG_UNIT
+}
+
+type DirectoryRuleValue {
+  """What is stored: the domain, the Graph / Google group id, the Google orgUnitId."""
+  id: String!
+
+  """
+  Live display: the domain, the group name, the org-unit path. Null when no longer found in the directory.
+  """
+  name: String
 }
 
 """
@@ -1810,8 +1891,7 @@ type Machine implements Node & AssignableTarget {
   """
   Package managers as last reported by the device agent. Null until the first report.
   """
-  packageManagers: MachinePackageManagers
-}
+  packageManagers: MachinePackageManagers}
 
 type Mutation {
   setTenantRemoteAccessMode(mode: RemoteAccessMode!): TenantRemoteAccessPolicyPayload!
@@ -2361,12 +2441,21 @@ type Mutation {
   """
   checkDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
 
+  "Stops reading from and writing to the directory until resumed; the credential and the synced data stay."
+  pauseDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
+  "Resumes a paused connection and starts a sync at once."
+  resumeDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
+  "Stops reading and writing and forgets OpenFrame's credential; synced data stays read-only. Reconnect = startDirectoryConsent."
+  disconnectDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
+
   """
-  Disconnects the directory tenant: deletes the connection, every user, group, device and audit
-  row it synced, and detaches it from every organization it was linked to. The provider grant is
-  revoked where the provider supports it, best-effort — a failed revoke still deletes local data.
-  Irreversible; reconnecting means a fresh consent. Returns the connection as it was immediately
-  before deletion.
+  Deletes the connection, every user, group and device it synced, and detaches it from every
+  organization it was linked to. OpenFrame stops reading the directory and forgets its credential;
+  the grant is not revoked at the provider, so the customer removes OpenFrame's access there.
+  Audit events already received stay. Irreversible; reconnecting means a fresh consent. Returns
+  the connection as it was immediately before deletion.
   """
   deleteDirectoryConnection(connectionId: ID!): DirectoryConnectionPayload!
 
@@ -2454,6 +2543,12 @@ type Mutation {
   Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
   """
   transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
+
+  # openframe-saas-tenant#4284 (W2)
+  "W2. Edit one account: provider fields (only those in editableFields) and local fields."
+  updateDirectoryUser(input: UpdateDirectoryUserInput!): DirectoryUserPayload!
+  "W2. Microsoft 365: block / allow sign-in. Google Workspace: suspend / unsuspend."
+  setDirectoryUserSuspended(input: SetDirectoryUserSuspendedInput!): DirectoryUserPayload!
 }
 
 input MutationDeleteInput {
@@ -2507,6 +2602,7 @@ enum NotificationCategory {
   LOGS
   TICKETS
   INSIGHTS
+  INTEGRATIONS
   MINGO
   GENERIC
 }
@@ -2641,6 +2737,12 @@ type OrgDevice {
 
   " True when the live Microsoft 365 Graph read for this row failed; operatingSystem/\n operatingSystemVersion/manufacturer/model/active/lastSeenAt are the Mongo spine only\n (possibly null) for MICROSOFT_365 rows. Always false/null for other sources."
   liveDataUnavailable: Boolean
+
+  # openframe-saas-tenant#4270 (W1)
+  "The connection behind connectionId."
+  connection: DirectoryConnection
+  "Which directory record family the row is: derived from the source until the kind is stored."
+  kind: OrgDeviceKind!
 }
 
 type OrgUser {
@@ -2665,7 +2767,7 @@ type OrgUser {
   firstName: String
   lastName: String
   jobTitle: String
-  active: Boolean
+  active: Boolean @deprecated(reason: "Derived from the account status; read DirectoryAccount.status through directoryAccount.")
 
   """
   Provider-specific extras (orgUnitPath, userPrincipalName, 2FA flags, ...).
@@ -3498,7 +3600,7 @@ type Query {
   directoryConnectionOptions, so the form can scroll and re-fetch it without re-reading the
   provider list.
   """
-  directoryConnectionOrganizations(first: Int, after: String): OrganizationConnection!
+  directoryConnectionOrganizations(first: Int, after: String): OrganizationConnection! @deprecated(reason: "Pick customers from organizations; a customer may serve several connections.")
 
   """
   One page of the tenant's directory connections, ordered by name, ties broken by id. Omit search
@@ -3514,9 +3616,18 @@ type Query {
     and is never widened by this.
     """
     search: String
+    filter: DirectoryConnectionFilterInput
+    "Default NAME ascending. Numbers sort on the stored snapshot; rows without a value come first ascending, last descending."
+    orderBy: DirectoryConnectionOrderInput
     first: Int
     after: String
   ): DirectoryConnectionConnection!
+
+  """
+  Options for the list's filter menus, each with how many connections it would match under the current search
+  and the other filters. Options with a zero count are left out.
+  """
+  directoryConnectionFilters(search: String, filter: DirectoryConnectionFilterInput): DirectoryConnectionFilters!
 
   """
   One connection by id, read live from the provider rather than from the search index, so it
@@ -3524,6 +3635,15 @@ type Query {
   the same "not found" every other single-connection operation raises.
   """
   directoryConnection(connectionId: ID!): DirectoryConnection
+
+  """
+  Values for the rule editor's Values dropdown. Synced mirror first; a live provider read until the
+  connection's first sync has finished, or while the mirror holds nothing for it. Sorted by name; search is a
+  case-insensitive substring; first defaults to 50 and is capped at 200. ALL returns []. ORG_UNIT on
+  a Microsoft 365 connection is an error; a failed live read is an error with code
+  DIRECTORY_PROVIDER_READ_FAILED (HTTP 502) and a fixed message.
+  """
+  directoryRuleOptions(connectionId: ID!, kind: DirectoryRuleKind!, search: String, first: Int): [DirectoryRuleValue!]!
 
   """
   The tenant-wide re-consent banner for the connection list: OpenFrame now requests permissions that
@@ -3587,6 +3707,40 @@ type Query {
 
   """The open invitations list's funnels, counted the way userFilters counts."""
   invitationFilters(filter: InvitationFilterInput, search: String): InvitationFilters!
+
+  # openframe-saas-tenant#4270 (W1)
+  """
+  One row per person (accounts merged by lower-cased primary email). Without organizationId: every user of every
+  connection of the MSP plus OpenFrame users, unattributed users included (global Users page). With it: the
+  people that customer's rules claim. Deprovisioned accounts are left out unless filter.statuses names DEPROVISIONED.
+  Default order NAME ascending.
+  """
+  directoryUsers(organizationId: ID, search: String, filter: DirectoryUserFilterInput,
+                 orderBy: DirectoryUserOrderInput, first: Int, after: String): DirectoryPersonConnection!
+
+  "Facet counts for the Users filter menus, counted in persons; same scope, search and filter semantics as directoryUsers."
+  directoryUserFilters(organizationId: ID, search: String, filter: DirectoryUserFilterInput): DirectoryUserFilters!
+
+  """
+  The person that owns this account (an account id, as in DirectoryAccount.id), with that account selected. With
+  organizationId the account must be visible to that customer. Null when not found or not visible.
+  """
+  directoryUser(id: ID!, organizationId: ID): DirectoryPerson
+
+  """
+  One account, for the user page tabs. DirectoryAccount is not a Node and sits in the plural DirectoryPerson.accounts,
+  so a refetchable fragment over groups(first, after) starts from this query. With organizationId the account must be
+  visible to that customer. Null when not found or not visible.
+  """
+  directoryAccount(id: ID!, organizationId: ID): DirectoryAccount
+
+  # openframe-saas-tenant#4284 (W2)
+  "Groups that touch the customer: named by one of its GROUP rules, or with one of its visible users as a direct member."
+  directoryGroups(organizationId: ID!, connectionId: ID, search: String,
+                  orderBy: DirectoryGroupOrderInput, first: Int, after: String): DirectoryGroupConnection!
+
+  "One group. With organizationId the group must touch that customer. Null when not found or not visible."
+  directoryGroup(id: ID!, organizationId: ID): DirectoryGroup
 }
 
 """
@@ -5883,9 +6037,14 @@ input UpdateDirectoryConnectionInput {
   name: String
 
   """
-  Moves the connection to another customer; omit to leave it where it is.
+  Moves a connection that serves at most one customer; that customer's rules move with it.
   """
-  organizationId: ID
+  organizationId: ID @deprecated(reason: "Use customers.")
+
+  """
+  The complete desired set of customers and their rules. Omit to leave them untouched; [] removes every customer.
+  """
+  customers: [DirectoryConnectionCustomerInput!]
 
   """
   The 'Edit Domain' action, accepted only while the connection has never connected — a userError
@@ -5893,6 +6052,10 @@ input UpdateDirectoryConnectionInput {
   any URL already issued: follow with startDirectoryConsent to mint a new one.
   """
   domain: String
+
+  # openframe-saas-tenant#4270 (W1)
+  "Turn the write opt-in on or off. true without write consent is a userError."
+  writeEnabled: Boolean
 }
 
 input UpdateInsightNoteInput {
@@ -6418,10 +6581,13 @@ type DirectoryConsentInfo {
 """
 PROVIDER_ERROR: Microsoft or Google failed the step (not an admin's decline); providerCode and correlationId identify it.
 PERMISSIONS_PENDING: the admin accepted, but the permissions were not visible yet; OpenFrame rechecks automatically.
+NOT_FINISHED: Microsoft 365 only — the chain has not got the admin's answer for this tier (still on, or left on, a Microsoft screen).
+A PERMISSIONS_PENDING issue of a tier that is ACTIVE now has settled (healed) and is left out; every other issue stays.
 """
 enum DirectoryConsentIssueKind {
   PROVIDER_ERROR
   PERMISSIONS_PENDING
+  NOT_FINISHED
 }
 
 type DirectoryConsentIssue {
@@ -6438,3 +6604,442 @@ type DirectoryConsentIssue {
   """What happened and what to do, in plain words."""
   message: String!
 }
+
+# Tenants list filters and sort, connection lifecycle, licenses, as openframe-saas-tenant#4233 serves them: cut from its
+# schema-directory/directory-integrations.graphqls. Merged by hand until it is on an environment's introspection.
+
+"""
+Narrowing for directoryConnections beside the free-text search. Every field is optional and an empty list
+narrows nothing; further dimensions become optional fields here, so adding one never changes the query's signature.
+"""
+input DirectoryConnectionFilterInput {
+    "Only connections whose last sync ended in one of these statuses, e.g. [ERROR] for the failed-sync row."
+    lastSyncStatuses: [DirectorySyncStatus!]
+    providers: [DirectoryProvider!]
+    "Connections serving any of these customers."
+    organizationIds: [ID!]
+    "The stored access state, refreshed by every live check of the connection."
+    accessStates: [DirectoryAccessState!]
+    licenses: [DirectoryLicenseFilter!]
+}
+
+"""
+HAS_UNUSED_SEATS: purchased exceeds assigned, over the paid SKUs. NO_PURCHASED_TOTAL: the provider reports assignments
+only (Google). NOT_READ_YET: the license numbers have not been read yet.
+"""
+enum DirectoryLicenseFilter { HAS_UNUSED_SEATS NO_PURCHASED_TOTAL NOT_READ_YET }
+
+input DirectoryConnectionOrderInput {
+    field: DirectoryConnectionSortField!
+    direction: SortDirection!
+}
+
+"Every field but NAME sorts on the stored snapshot; rows without a value come first ascending, last descending."
+enum DirectoryConnectionSortField { NAME USERS UNATTRIBUTED_USERS LICENSES_ASSIGNED LICENSES_UNUSED LAST_READ }
+
+type DirectoryConnectionFilters {
+    providers: [DirectoryConnectionFilterOption!]!
+    customers: [DirectoryConnectionFilterOption!]!
+    accessStates: [DirectoryConnectionFilterOption!]!
+    licenses: [DirectoryConnectionFilterOption!]!
+}
+
+type DirectoryConnectionFilterOption {
+    "The value to send back in DirectoryConnectionFilterInput."
+    value: String!
+    label: String!
+    "Connections this option matches under the current search and the other filters."
+    count: Int!
+}
+
+type DirectoryLicenseSummary {
+    assigned: Int!
+    "Null when the provider does not report purchased seats (Google Workspace)."
+    purchased: Int
+    "Purchased minus assigned, null when purchased is. May be negative when the provider counts suspended or warning seats."
+    unused: Int
+}
+
+type DirectoryLicense {
+    id: String!
+    "The product name; the SKU id when the provider gives none."
+    name: String!
+    assigned: Int!
+    "Null when the provider does not report purchased seats (Google Workspace)."
+    purchased: Int
+    "Purchased minus assigned, null when purchased is. May be negative when the provider counts suspended or warning seats."
+    unused: Int
+    "True for a free / self-service SKU; the totals leave it out."
+    free: Boolean!
+}
+
+input DirectoryLicenseOrderInput { field: DirectoryLicenseSortField!, direction: SortDirection! }
+
+enum DirectoryLicenseSortField { NAME ASSIGNED UNUSED }
+
+type DirectoryConnectionImpact {
+    users: Int!
+    groups: Int!
+    "Assignments of every SKU, free ones included. Null until the license numbers have been read."
+    licenseAssignments: Int
+    "Devices known only from the directory."
+    cloudOnlyDevices: Int!
+    "Directory records linked to an OpenFrame agent device; the agent devices themselves stay."
+    agentDeviceLinks: Int!
+    customers: Int!
+}
+
+# Directory users and groups (waves W1 and W2), as openframe-saas-tenant#4270 and #4284 serve them: their
+# schema-directory/directory-users.graphqls and directory-groups.graphqls without the Query and Mutation extensions
+# (folded into those types above), plus OrgDeviceKind from org-devices.graphqls. Merged by hand until the waves are on an
+# environment; replace with npm run fetch-schema then. Devices (W3) are not in it yet.
+
+# ---------- Users ----------
+
+input DirectoryUserFilterInput {
+  "Tenant block: connections to include."
+  connectionIds: [ID!]
+  "Tenant block: include OpenFrame (manually created) users."
+  includeOpenFrame: Boolean
+  "Default: every status but DEPROVISIONED."
+  statuses: [OrgUserStatus!]
+  topAdmin: [TopAdminState!]
+  lastSignIn: [LastSignInBucket!]
+  "SKU ids, the same ids as DirectoryLicense.id."
+  skuIds: [String!]
+  "Holds no license."
+  noLicense: Boolean
+  secondFactor: [SecondFactorState!]
+  "The 'Unused licenses' preset: holds a license and no sign-in for 45+ days, on accounts whose sign-in data is READ."
+  unusedLicenses: Boolean
+}
+
+input DirectoryUserOrderInput { field: DirectoryUserSortField!, direction: SortDirection! }
+enum DirectoryUserSortField { NAME LAST_SIGN_IN STATUS }
+
+type DirectoryUserFilters {
+  "Connections, plus value OPENFRAME for OpenFrame users."
+  tenants: [DirectoryFilterOption!]!
+  statuses: [DirectoryFilterOption!]!
+  topAdmin: [DirectoryFilterOption!]!
+  lastSignIn: [DirectoryFilterOption!]!
+  "One option per SKU (value = SKU id, label = product name) plus value NO_LICENSE."
+  licenses: [DirectoryFilterOption!]!
+  secondFactor: [DirectoryFilterOption!]!
+  "Persons the Unused licenses preset matches under the current search and filters."
+  unusedLicenses: Int!
+  "Persons left out of the preset because their tenant returns no sign-in data (Needs Entra ID P1); shown as not readable (design D17)."
+  unusedLicensesNotReadable: Int!
+}
+
+"Shape identical to DirectoryConnectionFilterOption (#4233), which stays as it is."
+type DirectoryFilterOption {
+  "The value to send back in the matching filter input."
+  value: String!
+  label: String!
+  "Rows this option matches under the current search and the other filters."
+  count: Int!
+}
+
+type DirectoryPersonConnection {
+  edges: [DirectoryPersonEdge!]!
+  pageInfo: CursorPageInfo!
+  "Persons, not accounts."
+  totalCount: Int!
+}
+
+type DirectoryPersonEdge { cursor: String!, node: DirectoryPerson! }
+
+"""
+One person: every account sharing a primary email (OpenFrame, Microsoft 365, Google Workspace). Row-level values are
+merged over the accounts; each account keeps its own under accounts.
+"""
+type DirectoryPerson {
+  "Stable key of the person: the lower-cased primary email, or the account id when the account has no email."
+  personKey: ID!
+  "From the first account in the order OPENFRAME, MICROSOFT_365, GOOGLE_WORKSPACE."
+  displayName: String!
+  email: String
+  "Provider marks under the name."
+  providers: [OrgUserSource!]!
+  "The most active over the accounts: ACTIVE > PROVISIONED > SUSPENDED > DEPROVISIONED."
+  status: OrgUserStatus!
+  "Every customer that claims any account, each with the rule that brought it in, in rule order. Empty when unattributed."
+  customers: [DirectoryCustomerClaim!]!
+  "YES when any account holds the top admin role."
+  topAdmin: TopAdminState!
+  "ENROLLED when any account is enrolled."
+  secondFactor: SecondFactorState!
+  "The latest over the accounts."
+  lastSignInAt: Instant
+  "Union over the accounts, one entry per SKU. state is always null here: the live state is per account, on DirectoryAccount.licenses."
+  licenses: [DirectoryUserLicense!]!
+  "Every account of the person. directoryUser puts the requested account first."
+  accounts: [DirectoryAccount!]!
+}
+
+type DirectoryCustomerClaim {
+  organization: Organization!
+  """
+  The rule of that customer that claims the account (the first one, in rule order). Null for an OpenFrame account:
+  it belongs to its customer directly.
+  """
+  rule: DirectoryConnectionRule
+  "Display name of the matched value: the group name, the domain or the org-unit path; null for ALL and for OpenFrame accounts."
+  via: String
+}
+
+"""
+One account of one person in one source. A new type rather than OrgUser, so OrgUser keeps its non-null
+organizationId (the global Users page has no organization to report).
+"""
+type DirectoryAccount {
+  "The org_users id; the same id as OrgUser.id."
+  id: ID!
+  source: OrgUserSource!
+  "Provider object id (Graph user id / Google user id); a generated id for OPENFRAME accounts."
+  sourceId: String
+  "Null for OPENFRAME accounts."
+  connection: DirectoryConnection
+  email: String
+  displayName: String!
+  firstName: String
+  lastName: String
+  status: OrgUserStatus!
+  statusReason: OrgUserStatusReason
+  "Raw provider value for the status tooltip (e.g. Google's suspensionReason)."
+  statusDetail: String
+  "Null when never signed in or never read. When signInData is not READ, this is the last date that was read."
+  lastSignInAt: Instant
+  signInData: DirectoryReadability!
+  secondFactor: SecondFactorState!
+  topAdmin: TopAdminState!
+  "Customers that claim this account."
+  customers: [DirectoryCustomerClaim!]!
+  "Null when the provider does not say."
+  directoryCreatedAt: Instant
+  notes: String
+  tags: [String!]
+  "Local phone (OpenFrame field); the provider phones are in details."
+  phone: String
+  "Local leaving date (OpenFrame field, never sent to the provider). Null when not set."
+  leavingDate: Date
+  "One entry per SKU. Empty when the account holds none."
+  licenses: [DirectoryUserLicense!]!
+  "Live read (a few provider calls): select it on the user page only, never in lists."
+  details: DirectoryUserLiveDetails
+  "Groups the account is a direct member of (stored membership). Paginate it through directoryAccount, not directoryUser. Empty on list rows, like details."
+  groups(first: Int, after: String): DirectoryGroupConnection!
+  "Devices tied to the account."
+  devices: DirectoryUserDevices!
+  "W2. Empty = writable. The first reason disables Suspend and the provider fields of Edit user."
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  "W2. Provider fields this provider and connection accept in updateDirectoryUser."
+  editableFields: [DirectoryUserField!]!
+  "True when the live read failed; details is then null and everything else is the stored value."
+  liveDataUnavailable: Boolean!
+}
+
+type DirectoryUserLiveDetails {
+  "Microsoft proxyAddresses + otherMails; Google aliases + nonEditableAliases."
+  aliases: [String!]!
+  jobTitle: String
+  department: String
+  manager: DirectoryUserRef
+  businessPhones: [String!]!
+  mobilePhone: String
+  officeLocation: String
+  "Microsoft only; null for Google."
+  usageLocation: String
+  "Held admin roles other than the top admin; null when the roles are not readable (consent missing)."
+  otherAdminRoles: [String!]
+}
+
+"A person referenced by the provider (a manager). accountId is null when that person is not a synced account here."
+type DirectoryUserRef { accountId: ID, displayName: String, email: String }
+
+type DirectoryUserLicense {
+  "SKU id, the same id as DirectoryLicense.id."
+  skuId: String!
+  "Product name; the SKU id when the provider gives none."
+  name: String!
+  "Assigned to the user directly. A SKU can be both direct and inherited."
+  assignedDirectly: Boolean!
+  "Groups the SKU is inherited from; empty when only direct. Always empty for Google."
+  viaGroups: [DirectoryGroupRef!]!
+  "Microsoft only, live on the user page: the assignment state / error; null in lists and for Google."
+  state: String
+}
+
+"A group named without loading it (license inheritance, rules)."
+type DirectoryGroupRef { id: ID!, name: String }
+
+type DirectoryUserDevices {
+  "Agent machines linked to the account's directory devices. Always [] until W3."
+  managed: [DirectoryUserDevice!]!
+  "The account's directory devices with no agent machine linked."
+  unmanaged: [DirectoryUserDevice!]!
+}
+
+type DirectoryUserDevice {
+  "How the device is tied to the account: a declared owner first, then a seen user."
+  link: DirectoryDeviceUserLink!
+  "The directory record."
+  directoryDevice: OrgDevice!
+}
+
+enum DirectoryDeviceUserLink { DECLARED SEEN }
+
+enum OrgUserStatus { ACTIVE PROVISIONED SUSPENDED DEPROVISIONED }
+
+enum OrgUserStatusReason {
+  SIGN_IN_BLOCKED SUSPENDED_BY_ADMIN SUSPENDED_BY_PROVIDER ARCHIVED DISABLED INVITATION_PENDING NEVER_SIGNED_IN
+}
+
+enum DirectoryReadability { READ NEEDS_ENTRA_P1 NOT_CONSENTED }
+enum TopAdminState { YES NO NOT_READABLE }
+enum SecondFactorState { ENROLLED NOT_ENROLLED NOT_READABLE }
+enum LastSignInBucket { LAST_7_DAYS LAST_30_DAYS OVER_45_DAYS NEVER NOT_READABLE }
+
+enum DirectoryUserField {
+  DISPLAY_NAME FIRST_NAME LAST_NAME JOB_TITLE DEPARTMENT OFFICE_LOCATION USAGE_LOCATION MANAGER
+  BUSINESS_PHONES MOBILE_PHONE
+}
+
+input UpdateDirectoryUserInput {
+  "Account id (DirectoryAccount.id)."
+  id: ID!
+  "The customer the edit is made for; the account must be visible to it."
+  organizationId: ID!
+  "Provider fields: each optional, absent = unchanged; only the fields in editableFields are accepted."
+  displayName: String
+  firstName: String
+  lastName: String
+  jobTitle: String
+  department: String
+  officeLocation: String
+  usageLocation: String
+  "Account id of the manager; null clears it."
+  managerId: ID
+  businessPhones: [String!]
+  mobilePhone: String
+  "Local fields, always editable, kept across syncs."
+  notes: String
+  tags: [String!]
+  phone: String
+  "Null clears it."
+  leavingDate: Date
+}
+
+input SetDirectoryUserSuspendedInput { id: ID!, organizationId: ID!, suspended: Boolean! }
+
+type DirectoryUserPayload {
+  "The person, read back after the write."
+  person: DirectoryPerson
+  "Microsoft only: blocking sign-in does not end open sessions."
+  sessionsStillOpen: Boolean
+  userErrors: [UserError!]!
+}
+
+# ---------- Groups ----------
+
+input DirectoryGroupOrderInput { field: DirectoryGroupSortField!, direction: SortDirection! }
+enum DirectoryGroupSortField { NAME MEMBERS }
+
+type DirectoryGroupConnection {
+  edges: [DirectoryGroupEdge!]!
+  pageInfo: CursorPageInfo!
+  totalCount: Int!
+}
+
+type DirectoryGroupEdge { cursor: String!, node: DirectoryGroup! }
+
+"An external group: OpenFrame reads it, never edits it from these pages."
+type DirectoryGroup {
+  id: ID!
+  provider: DirectoryProvider!
+  "Provider object id (Graph group id / Google group id)."
+  sourceId: String!
+  connection: DirectoryConnection!
+  name: String!
+  email: String
+  description: String
+  kind: DirectoryGroupKind!
+  "Always true in this phase."
+  external: Boolean!
+  "Direct members, stored. Microsoft counts users, devices and subgroups; Google counts every member type."
+  memberCount: Int!
+  "Customers whose GROUP rules name this group."
+  customers: [DirectoryCustomerClaim!]!
+  "Customers whose visible users are direct members."
+  memberCustomers: [Organization!]!
+  "True when the direct members span more than one customer."
+  shared: Boolean!
+  "The rules that name this group: a deleted group silently stops claiming users."
+  dependedOnBy: [DirectoryGroupDependency!]!
+  "Per connection, the same for every group of a connection."
+  feed: DirectoryFeed!
+  settings: DirectoryGroupSettings!
+  "Always DIRECT: a GROUP rule claims direct members only."
+  membershipScopeOfRules: DirectoryMembershipScope!
+  readOnlyReasons: [DirectoryReadOnlyReason!]!
+  """
+  DIRECT: stored membership. NESTED: a live read (transitive members). Resolved on directoryGroup only; empty on
+  list rows and nested groups. On a customer's tab, members outside that customer's view are counted in
+  hiddenMemberCount and not listed.
+  """
+  members(scope: DirectoryMembershipScope = DIRECT, first: Int, after: String): DirectoryGroupMemberConnection!
+}
+
+type DirectoryGroupDependency { organization: Organization!, rule: DirectoryConnectionRule! }
+
+type DirectoryGroupSettings {
+  "Microsoft: dynamic membership."
+  dynamic: Boolean
+  "Microsoft: the dynamic membership rule text."
+  membershipRule: String
+  "Microsoft: dynamic rule processing is paused."
+  membershipPaused: Boolean
+  "Microsoft: synced from on-premises AD."
+  onPremisesSynced: Boolean
+  "Microsoft: PUBLIC, PRIVATE, HIDDEN_MEMBERSHIP; null for Google."
+  visibility: DirectoryGroupVisibility
+  "Google: created by an admin (not a user)."
+  adminCreated: Boolean
+  "Google: the provider's own direct member count."
+  directMembersCount: Int
+}
+
+enum DirectoryGroupKind { MICROSOFT_365 SECURITY MAIL_ENABLED_SECURITY DISTRIBUTION GOOGLE_GROUP }
+enum DirectoryGroupVisibility { PUBLIC PRIVATE HIDDEN_MEMBERSHIP }
+"PUSH: Microsoft subscription live. AUDIT_STREAM: Google activities watch live (UI: 'No push', grey). POLLING: neither."
+enum DirectoryFeed { PUSH AUDIT_STREAM POLLING }
+enum DirectoryMembershipScope { DIRECT NESTED }
+
+type DirectoryGroupMemberConnection {
+  edges: [DirectoryGroupMemberEdge!]!
+  pageInfo: CursorPageInfo!
+  "Listed members."
+  totalCount: Int!
+  "Members outside the customer's view: counted, not listed. 0 without organizationId."
+  hiddenMemberCount: Int!
+  "NESTED only: true when the live read failed; the connection is then empty."
+  liveDataUnavailable: Boolean!
+}
+
+type DirectoryGroupMemberEdge { cursor: String!, node: DirectoryGroupMember! }
+
+type DirectoryGroupMember {
+  "NESTED only: the group the member comes through, when the provider says it."
+  viaGroup: DirectoryGroupRef
+  member: DirectoryGroupMemberSubject!
+}
+
+union DirectoryGroupMemberSubject = DirectoryAccount | DirectoryGroup | OrgDevice
+
+enum DirectoryReadOnlyReason {
+  WRITE_NOT_ENABLED WRITE_NOT_CONSENTED PAUSED DISCONNECTED MASTERED_ON_PREMISES DEPROVISIONED
+  DYNAMIC_MEMBERSHIP EXCHANGE_MANAGED
+}
+
+enum OrgDeviceKind { ENTRA INTUNE CHROMEOS MOBILE }
