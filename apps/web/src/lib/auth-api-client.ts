@@ -534,10 +534,10 @@ class AuthApiClient {
   }
 
   async logoutAsync(tenantId?: string): Promise<boolean> {
-    const revokeInShell = nativeAuthPlugin()?.revokeSession;
-    if (revokeInShell) {
+    const plugin = nativeAuthPlugin();
+    if (plugin?.revokeSession) {
       try {
-        return await revokeInShell({ tenantId });
+        return await plugin.revokeSession({ tenantId });
       } catch {
         return false;
       }

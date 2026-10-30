@@ -187,7 +187,13 @@ export function useInstallCommand({
 
   // What a local install needs of the same values: the desktop shell writes the
   // command itself rather than running one from the page (see AgentInstallRequest).
-  const installRequest: AgentInstallRequest = { orgId: organizationId, initialKey, logKey, userId };
+  // Empty stays absent: the copied command leaves the flag out, and the shell refuses it.
+  const installRequest: AgentInstallRequest = {
+    orgId: organizationId,
+    initialKey,
+    logKey: logKey || undefined,
+    userId: userId || undefined,
+  };
 
   return { command, registerCommand, initialKey, installRequest, rotateMachineId };
 }

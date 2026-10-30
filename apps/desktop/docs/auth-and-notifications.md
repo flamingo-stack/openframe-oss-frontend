@@ -177,8 +177,8 @@ what must survive idle:
 
 The bridge is shell-agnostic; the frontend feature-detects each method.
 
-**On desktop the page gets the access token and never the refresh token.** The
-shell is the only refresher, so the page has no use for it, and it is the one
+**On desktop the bridge gives the page the access token and never the refresh
+token.** The shell is the only refresher, so the page has no use for it, and it is the one
 credential a script in the page could carry off and keep using after the access
 token expires. `getTokens`, `exchangeTicket`, `refreshTokens` and the
 `native-auth:token-update` event all carry `{ accessToken }` alone (`PageTokens`
@@ -186,7 +186,7 @@ in `tokens.rs`). Mobile's plugins still hand over both.
 
 | Method | Notes |
 |---|---|
-| `start` / `exchangeTicket` | OAuth in the user's default browser, then a native token exchange — the response headers carrying tokens are invisible to a cross-origin webview fetch. `exchangeTicket` only goes to the shared host's `/oauth/dev-exchange`. It holds the refresh token back until the page stores the session, because `completeTicketFlow` resolves the tenant first and may give up. |
+| `start` / `exchangeTicket` | OAuth in the user's default browser, then a native token exchange, so the refresh token ends up in the shell and not in the page. `exchangeTicket` only goes to the shared host's `/oauth/dev-exchange`. It holds the refresh token back until the page stores the session, because `completeTicketFlow` resolves the tenant first and may give up. |
 | `get` / `set` / `clearTokens` | `set` merges per field: a rotation response may carry one token or both. Naming the access token from `exchangeTicket` commits the refresh token held back with it. The sign-ins the page runs itself (`storeTokensFromHeaders`) still pass a refresh token in. |
 | `refreshTokens` | Optional. Its presence means "the shell owns refresh", and the webview stops calling the refresh endpoint entirely. Takes `{ rejectedAccessToken }`, the bearer the gateway refused. Resolves with the tokens (empty = session over, the webview logs out); rejects on any transient failure, which the webview treats as "keep the session, fail this request". |
 | `revokeSession` | Desktop only. The `GET /oauth/logout` with the `Refresh-Token` header that `logoutAsync` sends itself elsewhere, since the page here has no token to put on it. Bounded to 10 s, because the sign-out goes ahead whatever it reports. |

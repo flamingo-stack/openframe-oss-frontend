@@ -50,16 +50,18 @@ Every window hosting bundle content gets a Tauri initialization script
 server would have:
 
 - `window.__ENV` — `NEXT_PUBLIC_SHARED_HOST_URL`, `NEXT_PUBLIC_APP_MODE`, the
-  dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID` (baked in from
-  `OPENFRAME_GTM_CONTAINER_ID`; GTM is what loads PostHog, so a build without it
-  sends no analytics). That is the web app's container. Only release builds carry
-  it, and the shell injects it only on the shared host the build was made for: one
-  release serves every environment, and an install pointed at stage or QA must stay
-  out of production analytics. A tag added to that container runs here too: the CSP
-  keeps its remote scripts out, but an inline tag can call the shell's commands.
-  This is what `next-runtime-env` reads; export builds
-  omit `<PublicEnvScript />`. `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately
-  **absent**, so the frontend falls through to the tenant host learned at login.
+  dev-ticket observer flag, and `NEXT_PUBLIC_GTM_CONTAINER_ID`. This is what
+  `next-runtime-env` reads; export builds omit `<PublicEnvScript />`.
+  `NEXT_PUBLIC_TENANT_HOST_URL` is deliberately **absent**, so the frontend falls
+  through to the tenant host learned at login.
+
+  The GTM id is baked in from `OPENFRAME_GTM_CONTAINER_ID`; GTM is what loads
+  PostHog, so a build without it sends no analytics. It is the web app's container.
+  Only release builds carry it, and the shell injects it only on the shared host the
+  build was made for: one release serves every environment, and an install pointed
+  at stage or QA must stay out of production analytics. A tag added to that container
+  runs here too: the CSP keeps its remote scripts out, but an inline tag can call the
+  shell's commands.
 - **`window.__OPENFRAME_SHELL__.nativeAuth`** — the auth bridge, backed by the
   `native_auth_*` Tauri commands. Its method names match openframe-mobile's
   `NativeAuthPlugin`, so the frontend keeps one interface with two
@@ -254,10 +256,17 @@ shell itself refuses.
   it anything the user can reach, including the registration secret.
 - Start the enrolment described under [Local agent install](#local-agent-install).
   The native dialog is the check on that, and it depends on the person reading it.
+- Take the refresh token by redeeming a sign-in ticket itself. `start` hands the page
+  the callback URL with its `devTicket`, signup hands it one in a response body, and
+  the gateway exposes `Refresh-Token` to these origins, so a script that catches a
+  ticket can fetch `/oauth/dev-exchange` and read the header. Reasoned from the code
+  and the gateway config, not run. Closing it takes the gateway no longer exposing
+  that header, and moving the sign-ins the page runs itself
+  (`storeTokensFromHeaders`) into the shell.
 
-**What it cannot do:** run a command of its own through the admin prompt, read the
-refresh token, point the shell at a host outside the shared host's zone, or call a
-command the capability does not grant.
+**What it cannot do:** run a command of its own through the admin prompt, get the
+refresh token through the bridge, point the shell at a host outside the shared host's
+zone, or call a command the capability does not grant.
 
 - **CSP.** `tauri.conf.json`. It limits which remote hosts can serve a `<script
   src>` (`www.googletagmanager.com`, `us-assets.i.posthog.com`) and blocks `eval`.
@@ -276,7 +285,8 @@ command the capability does not grant.
   - `connect-src`, `img-src`, `media-src` and `frame-src` take any `https:`, since
     tenants, presigned storage URLs, Mux and embeds are not a list this shell can know
     at build time. A script that runs can send what it can read anywhere.
-  - `devCsp` is the same plus loopback, for a gateway on the developer's own box.
+  - `devCsp` is the same plus loopback, for a gateway on the developer's own box. A
+    release build has no loopback source, so a local gateway needs `npm run dev`.
 - **Capabilities and the ACL.** `build.rs` declares every app command, which is
   what puts them under the ACL, and `capabilities/main.json` (scoped to `main` and
   `child-*`) grants exactly what `apps/web` and `env_init_script` call: a new
@@ -288,26 +298,29 @@ command the capability does not grant.
   There is one capability rather than a narrower one for `child-*`, because on
   macOS a child window is built on its opener's webview configuration and its
   `invoke` arrives labelled `main`. Commands that are main-only say so in Rust
-  (`agent_install_start`, `update_check`), which is only as good as that label.
+  (`agent_install_start` and `update_apply_now`, for example), which is only as good
+  as that label.
   `withGlobalTauri` stays on: `__TAURI_INTERNALS__` exists regardless, so turning it
   off would hide nothing from a script.
   `core:window:allow-maximize` is there because sign-in, registration and the setup
   wizard are drawn for a full screen, and the window is maximized from the first of
   them.
-- **The page does not hold the refresh token.** See
-  [NativeAuth surface](./auth-and-notifications.md#nativeauth-surface). The access
-  token is unavoidable, since every request from the page carries it, so a script
-  that runs can act as the user until it expires, but not past that.
+- **The bridge does not give the page the refresh token.** See
+  [NativeAuth surface](./auth-and-notifications.md#nativeauth-surface), and the ticket
+  path above for the way around it. The access token is unavoidable, since every
+  request from the page carries it, so a script that runs can act as the user until
+  it expires.
 - **A tenant host is checked, not taken.** `native_auth_set_tenant_host` takes a
   bare `https` origin under the shared host (`tenant_origin` in `lib.rs`), the
-  zone the backend issues tenants in. The shell sends the bearer to that host, reads
-  the updater manifest from it, and installs the agent from it. A script can still
-  name another real tenant, though not an arbitrary server, which is why the install
+  zone the backend issues tenants in, and its labels are only lowercase letters,
+  digits, `-` and `_`, because the install command is written from it. The shell
+  sends the bearer to that host, reads the updater manifest from it, and installs the
+  agent from it. A script can still name another real tenant, though not an arbitrary server, which is why the install
   dialog names the host.
 - **Gateway CORS is a prerequisite.** The gateway must allow `tauri://localhost`
   (macOS/Linux) and `http://tauri.localhost` (Windows), and expose the
-  `Access-Token`/`Refresh-Token` headers. Without it the bundle renders and every
-  data call fails.
+  `Access-Token`/`Refresh-Token` headers (the ticket path above is what exposing the
+  second one costs). Without it the bundle renders and every data call fails.
 - **Dev shares the production origin.** `npm run dev` passes `--no-dev-server`, so
   dev serves the bundle from disk over the same `tauri://localhost` protocol
   rather than the CLI's static server on `http://127.0.0.1`, whose origin would

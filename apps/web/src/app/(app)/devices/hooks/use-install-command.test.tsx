@@ -210,6 +210,11 @@ describe('useInstallCommand log key', () => {
     }
   });
 
+  it('sends the desktop shell no log key while it is empty, since the shell refuses one', () => {
+    logKey.value = '';
+    expect(renderOnce().installRequest.logKey).toBeUndefined();
+  });
+
   it('hands out a command before the key arrives and adds the key once it does', () => {
     latest = undefined;
     const { root } = mount('darwin');

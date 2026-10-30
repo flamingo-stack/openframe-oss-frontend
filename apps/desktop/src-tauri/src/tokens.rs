@@ -19,10 +19,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::{load_config, tenant_host, AppConfig, MAIN_LABEL};
 
 /// Emitted to every bundle window whenever the stored tokens change from the
-/// Rust side (refresh rotation or session death). Payload: NativeAuthTokens.
+/// Rust side (refresh rotation or session death). Payload: PageTokens.
 pub const TOKEN_UPDATE_EVENT: &str = "native-auth:token-update";
-/// How long a sign-out waits on the gateway to revoke the refresh token.
-const REVOKE_BUDGET: Duration = Duration::from_secs(10);
 
 /// Refresh this long before the end of the access token's life (counted from
 /// receipt, see [`refresh_delay_secs`]; after a restart, before its `exp`, see
@@ -83,6 +81,9 @@ const MAX_POLL_BACKOFF: u32 = 16;
 /// [`under_wall_clock_deadline`] rather than by reqwest — the client's own timer
 /// is monotonic and so is stopped by the sleep that makes a refresh go wrong.
 const REFRESH_WALL_CLOCK_BUDGET: Duration = Duration::from_secs(10);
+/// How long a sign-out waits on the gateway to revoke the refresh token, enforced
+/// the same way, since the wait holds the same lock.
+const REVOKE_BUDGET: Duration = Duration::from_secs(10);
 /// Bound on the connect alone, so a TCP connect left hanging by a half-up
 /// network resolves as [`Outcome::Unreached`] — which is retryable — instead of
 /// running out the total budget and being called [`Outcome::Unknown`], which is
@@ -211,7 +212,7 @@ impl NativeAuthTokens {
 /// token stays on this side of the bridge. The shell is the only refresher, so the
 /// page has no use for it, and it is the one credential a script in the page could
 /// carry off and keep using after the access token expires.
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageTokens {
     access_token: Option<String>,
@@ -1335,7 +1336,7 @@ pub async fn revoke_session(app: &AppHandle, tenant_id: Option<String>) -> bool 
         let lifecycle = app.state::<TokenLifecycle>();
         let _guard = lifecycle.refresh_lock.lock().await;
         let refresh_token = load_tokens(app).refresh_token.ok_or("nothing to revoke")?;
-        let base = refresh_base(&crate::load_config(app)).ok_or("no gateway to revoke at")?;
+        let base = refresh_base(&load_config(app)).ok_or("no gateway to revoke at")?;
         let mut url = url::Url::parse(&format!("{base}/oauth/logout"))
             .map_err(|e| format!("bad gateway URL: {e}"))?;
         if let Some(tenant_id) = tenant_id.filter(|id| !id.is_empty()) {
@@ -1353,13 +1354,13 @@ pub async fn revoke_session(app: &AppHandle, tenant_id: Option<String>) -> bool 
             .map_err(|e| e.to_string())?;
         Ok::<(), String>(())
     };
-    match tokio::time::timeout(REVOKE_BUDGET, attempt).await {
-        Ok(Ok(())) => true,
-        Ok(Err(reason)) => {
+    match under_wall_clock_deadline(REVOKE_BUDGET, attempt).await {
+        Some(Ok(())) => true,
+        Some(Err(reason)) => {
             log::warn!("[tokens] refresh token not revoked: {reason}");
             false
         }
-        Err(_) => {
+        None => {
             log::warn!(
                 "[tokens] refresh token not revoked: no answer within {}s",
                 REVOKE_BUDGET.as_secs()

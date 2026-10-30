@@ -45,7 +45,7 @@ pub const EVENT_OUTPUT: &str = "agent-install:output";
 pub const EVENT_DONE: &str = "agent-install:done";
 
 /// One install at a time: a second "Deploy on this Device" while one is running
-/// is answered with [`InstallError::busy`] instead of a second elevation prompt.
+/// is answered with [`InstallError::busy`] instead of a second confirmation.
 #[derive(Default)]
 pub struct InstallerState {
     running: AtomicBool,
@@ -77,8 +77,8 @@ impl InstallError {
         }
     }
 
-    /// Our own precondition failed: a call from the wrong window, an empty
-    /// command. Nothing the user can retry.
+    /// Our own precondition failed: a call from the wrong or a hidden window, a
+    /// refused value, no workspace to install for.
     fn unavailable(message: impl Into<String>) -> Self {
         Self {
             kind: "unavailable",
@@ -136,8 +136,8 @@ fn is_install_arg(value: &str) -> bool {
 /// What only the page knows about the install. The host is not here on purpose:
 /// the agent is downloaded from, and enrolled with, the tenant the shell holds.
 /// `deny_unknown_fields`, so a caller still sending a `command` is refused
-/// rather than quietly ignored.
-#[derive(Debug, Deserialize)]
+/// rather than quietly ignored. No `Debug`: `initial_key` must never reach the log.
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstallRequest {
     org_id: String,
@@ -187,22 +187,16 @@ impl InstallOs {
     }
 }
 
-/// `--serverUrl` for the tenant at `origin`, and the host the admin prompt
-/// names. A gateway on the developer's own box needs `--localMode` as well, which
-/// is what `withLocalMode` in apps/web adds to the copied command.
+/// `--serverUrl` for the tenant at `origin`. A gateway on the developer's own box
+/// needs `--localMode` as well, which is what `withLocalMode` in apps/web adds to
+/// the copied command.
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
-fn tenant_server_arg(origin: &url::Url) -> (String, String) {
-    let hostname = origin.host_str().unwrap_or_default();
-    let host = match origin.port() {
-        Some(port) => format!("{hostname}:{port}"),
-        None => hostname.to_string(),
-    };
-    let server = if matches!(hostname, "localhost" | "127.0.0.1") {
+fn server_arg(origin: &url::Url) -> String {
+    if crate::is_loopback_host(origin.host_str().unwrap_or_default()) {
         "localhost --localMode".to_string()
     } else {
-        host.clone()
-    };
-    (server, host)
+        origin.authority().to_string()
+    }
 }
 
 /// The install command, identical to `buildInstallCommand` in apps/web for the
@@ -216,7 +210,7 @@ fn install_command(
     request: &InstallRequest,
     machine_id: &str,
 ) -> String {
-    let (server, _) = tenant_server_arg(origin);
+    let server = server_arg(origin);
     let base = origin.origin().ascii_serialization();
     let mut args = format!(
         "install --serverUrl {server} --initialKey {}",
@@ -274,14 +268,17 @@ fn confirmed_by_user(window: &WebviewWindow, tenant_host: &str) -> bool {
 
 /// The tenant to install against: the one login taught the shell, held to the
 /// same rule as when it was learned, because `config.json` may predate the rule.
-fn install_target(app: &AppHandle) -> Result<String, InstallError> {
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn install_target(app: &AppHandle) -> Result<url::Url, InstallError> {
     let cfg = crate::load_config(app);
     let host = crate::tenant_host(&cfg)
         .ok_or_else(|| InstallError::unavailable("no workspace to install for"))?;
-    crate::tenant_origin(&host, crate::shared_host(&cfg).as_deref()).map_err(|error| {
-        log::warn!("agent install: refusing the learned tenant host: {error}");
-        InstallError::unavailable("the workspace host is not one this app may install from")
-    })
+    let origin =
+        crate::tenant_origin(&host, crate::shared_host(&cfg).as_deref()).map_err(|error| {
+            log::warn!("agent install: refusing the learned tenant host: {error}");
+            InstallError::unavailable("the workspace host is not one this app may install from")
+        })?;
+    url::Url::parse(&origin).map_err(InstallError::io)
 }
 
 #[derive(Clone, Serialize)]
@@ -299,8 +296,20 @@ struct DoneEvent {
     error: Option<InstallError>,
 }
 
-/// Start the agent install on this machine. Returns as soon as the run is under
-/// way; everything after that arrives as [`EVENT_OUTPUT`] and one
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+impl DoneEvent {
+    /// The run ended without the command's own exit code.
+    fn not_run(error: InstallError) -> Self {
+        Self {
+            success: false,
+            exit_code: None,
+            error: Some(error),
+        }
+    }
+}
+
+/// Start the agent install on this machine. Returns once the call is accepted; the
+/// person's answer and everything after it arrive as [`EVENT_OUTPUT`] and one
 /// [`EVENT_DONE`] on the main window.
 #[tauri::command]
 pub fn agent_install_start(
@@ -317,15 +326,14 @@ pub fn agent_install_start(
     request.validate()?;
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = (app, state, install_target);
+        let _ = (app, state);
         Err(InstallError::unsupported())
     }
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         use std::sync::atomic::Ordering;
         let origin = install_target(&app)?;
-        let origin = url::Url::parse(&origin).map_err(InstallError::io)?;
-        let (_, tenant_host) = tenant_server_arg(&origin);
+        let tenant_host = origin.authority().to_string();
         // The page keeps running in a window hidden to the tray, and a dialog
         // attached to a window nobody can see would be waiting on nobody.
         if !window.is_visible().unwrap_or(false) {
@@ -353,19 +361,11 @@ pub fn agent_install_start(
                     Ok(run) => run::execute(&app, run, &tenant_host),
                     Err(error) => {
                         log::warn!("agent install: could not prepare the run: {error}");
-                        DoneEvent {
-                            success: false,
-                            exit_code: None,
-                            error: Some(InstallError::io(error)),
-                        }
+                        DoneEvent::not_run(InstallError::io(error))
                     }
                 }
             } else {
-                DoneEvent {
-                    success: false,
-                    exit_code: None,
-                    error: Some(InstallError::cancelled()),
-                }
+                DoneEvent::not_run(InstallError::cancelled())
             };
             log::info!(
                 "agent install finished: success={} exit_code={:?} error={:?}",
@@ -644,11 +644,7 @@ mod run {
             Ok(child) => child,
             Err(error) => {
                 log::warn!("agent install: launcher did not start: {error}");
-                return DoneEvent {
-                    success: false,
-                    exit_code: None,
-                    error: Some(InstallError::io(error)),
-                };
+                return DoneEvent::not_run(InstallError::io(error));
             }
         };
         // Drained on its own thread: a pipe nobody reads blocks the writer.
@@ -718,11 +714,7 @@ mod run {
                         detail.to_string()
                     })
                 };
-                DoneEvent {
-                    success: false,
-                    exit_code: None,
-                    error: Some(error),
-                }
+                DoneEvent::not_run(error)
             }
         }
     }
@@ -818,57 +810,36 @@ mod tests {
         url::Url::parse(text).unwrap()
     }
 
-    /// Both sides of the bridge read this file, so the command the shell runs and
-    /// the one the wizard offers to copy cannot drift apart unnoticed.
+    /// Both sides of the bridge read this file, which pins the command the shell runs
+    /// to the one the wizard offers to copy, and `request` to what the shell accepts.
     #[test]
     fn the_command_matches_the_one_the_wizard_copies() {
         let fixture: serde_json::Value =
             serde_json::from_str(include_str!("install-command.json")).unwrap();
-        let input = &fixture["input"];
-        let text = |key: &str| input[key].as_str().unwrap().to_string();
-        let request = InstallRequest {
-            org_id: text("orgId"),
-            initial_key: text("initialKey"),
-            log_key: Some(text("logKey")),
-            user_id: Some(text("userId")),
-        };
-        request.validate().unwrap();
-        let origin = origin(&text("downloadBaseUrl"));
-        let machine_id = text("machineId");
-        for (os, key) in [
-            (InstallOs::Macos, "darwin"),
-            (InstallOs::Windows, "windows"),
-        ] {
-            assert_eq!(
-                install_command(os, &origin, &request, &machine_id),
-                fixture["commands"][key].as_str().unwrap()
-            );
+        for case in fixture["cases"].as_array().unwrap() {
+            let request: InstallRequest = serde_json::from_value(case["request"].clone()).unwrap();
+            request.validate().unwrap();
+            let origin = origin(case["downloadBaseUrl"].as_str().unwrap());
+            let machine_id = case["machineId"].as_str().unwrap();
+            for (os, key) in [
+                (InstallOs::Macos, "darwin"),
+                (InstallOs::Windows, "windows"),
+            ] {
+                assert_eq!(
+                    install_command(os, &origin, &request, machine_id),
+                    case["commands"][key].as_str().unwrap()
+                );
+            }
         }
     }
 
     #[test]
-    fn optional_values_leave_their_flags_out() {
-        let command = install_command(
-            InstallOs::Macos,
-            &origin("https://acme.openframe.ai"),
-            &request(),
-            "id",
-        );
-        assert!(command.ends_with(
-            "install --serverUrl acme.openframe.ai --initialKey secret-1 --orgId org-1"
-        ));
-    }
-
-    #[test]
     fn a_gateway_on_this_box_installs_in_local_mode() {
-        let command = install_command(
-            InstallOs::Macos,
-            &origin("http://localhost:8443"),
-            &request(),
-            "id",
-        );
-        assert!(command.contains("--serverUrl localhost --localMode --initialKey"));
-        assert!(command.contains("'http://localhost:8443/v0/api/assets/download?"));
+        for base in ["http://localhost:8443", "http://127.0.0.1:8443"] {
+            let command = install_command(InstallOs::Macos, &origin(base), &request(), "id");
+            assert!(command.contains("--serverUrl localhost --localMode --initialKey"));
+            assert!(command.contains(&format!("'{base}/v0/api/assets/download?")));
+        }
     }
 
     #[test]
@@ -880,10 +851,9 @@ mod tests {
     }
 
     #[test]
-    fn the_prompt_names_a_port_when_there_is_one() {
-        let (server, host) = tenant_server_arg(&origin("https://acme.openframe.ai:8443"));
-        assert_eq!(server, "acme.openframe.ai:8443");
-        assert_eq!(host, "acme.openframe.ai:8443");
+    fn the_server_arg_keeps_a_port() {
+        let tenant = origin("https://acme.openframe.ai:8443");
+        assert_eq!(server_arg(&tenant), "acme.openframe.ai:8443");
     }
 
     #[test]

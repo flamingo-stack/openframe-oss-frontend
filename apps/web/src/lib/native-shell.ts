@@ -459,7 +459,7 @@ export function networkPlugin(): NetworkPlugin | null {
 
 /**
  * The hosting shell binary's own version — mobile `MARKETING_VERSION` / `versionName`, desktop
- * `tauri.conf.json` `version` via Tauri's built-in `plugin:app|version` (granted by `core:default`).
+ * `tauri.conf.json` `version` via Tauri's built-in `plugin:app|version` (granted by `core:app:allow-version`).
  * Null on the web, and when the shell cannot say.
  */
 export async function nativeShellVersion(): Promise<string | null> {

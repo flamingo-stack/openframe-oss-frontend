@@ -80,6 +80,7 @@ make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
 | Variable | Purpose |
 |---|---|
 | `OPENFRAME_SHARED_HOST_URL` | **Required for `build`.** Baked into the binary; see [Configuration](#configuration). |
+| `OPENFRAME_GTM_CONTAINER_ID` | Optional. Baked into the binary; unset means no GTM and no analytics. |
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
 | `BUNDLES` | Bundle subset, e.g. `BUNDLES=app` for an unsigned macOS `.app`. |
@@ -190,8 +191,8 @@ Without it the UI renders and every data call fails.
 - **Login** — the OAuth flow runs in the user's default browser, so an SSO
   session they already have there is reused instead of asking for credentials
   again, and comes back on the `openframe-console://auth` scheme this app
-  registers with the OS. Tokens are then exchanged natively, because the response
-  headers carrying them are invisible to a cross-origin webview fetch.
+  registers with the OS. Tokens are then exchanged natively, so the refresh token
+  ends up in the shell and not in the page.
 - **Tokens** — refresh is scheduled from the JWT expiry and runs on a background
   poll, so a session survives the webview being idle in the tray. The shell is
   the *only* refresher: refresh tokens rotate, so two would invalidate each other.

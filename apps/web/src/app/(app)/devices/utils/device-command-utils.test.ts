@@ -7,8 +7,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AgentInstallRequest } from '@/lib/native-shell';
 import {
   buildInstallCommand,
+  type InstallCommandOptions,
   buildRegisterCommand,
   buildRemoteAccessModeArgs,
   buildUninstallCommand,
@@ -177,11 +179,21 @@ describe('buildRemoteAccessModeArgs', () => {
  * A change to the command here fails until the shell makes it too.
  */
 describe('the command the desktop shell runs', () => {
-  const fixture = JSON.parse(
+  const { cases } = JSON.parse(
     readFileSync(resolve(import.meta.dirname, '../../../../../../desktop/src-tauri/src/install-command.json'), 'utf8'),
-  );
+  ) as {
+    cases: (Pick<InstallCommandOptions, 'serverUrl' | 'downloadBaseUrl' | 'machineId'> & {
+      name: string;
+      request: AgentInstallRequest;
+      commands: Record<'darwin' | 'windows', string>;
+    })[];
+  };
 
-  it.each(['darwin', 'windows'] as const)('is the one offered for copying on %s', platform => {
-    expect(buildInstallCommand({ ...fixture.input, platform })).toBe(fixture.commands[platform]);
+  describe.each(cases)('with $name', ({ serverUrl, downloadBaseUrl, machineId, request, commands }) => {
+    it.each(['darwin', 'windows'] as const)('is the one offered for copying on %s', platform => {
+      expect(buildInstallCommand({ serverUrl, downloadBaseUrl, machineId, ...request, platform })).toBe(
+        commands[platform],
+      );
+    });
   });
 });
