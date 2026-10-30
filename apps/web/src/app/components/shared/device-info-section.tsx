@@ -14,7 +14,7 @@ interface DeviceInfoSectionProps {
 /**
  * The device a log or ticket names, as its card. Reads the device itself when only an id is given; while it is read
  * (or in a loading scope, where it reads nothing) the card draws its own loading state under the real title. Most
- * records name a device, so the section is always drawn: a record with none (or a device no longer found) shows the
+ * records name a device, so the page draws the section while the record is read; a device no longer found shows the
  * empty mark under the title.
  */
 export function DeviceInfoSection({ deviceId, device: deviceFromProps }: DeviceInfoSectionProps) {

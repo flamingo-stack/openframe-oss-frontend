@@ -6,11 +6,11 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentInstallDone } from '@/lib/native-shell';
+import type { AgentInstallDone, AgentInstallRequest } from '@/lib/native-shell';
 
 const bridge = vi.hoisted(() => ({
   supported: true,
-  start: vi.fn<(command: string) => Promise<void>>(),
+  start: vi.fn<(request: AgentInstallRequest) => Promise<void>>(),
   output: null as ((lines: string[]) => void) | null,
   done: null as ((done: AgentInstallDone) => void) | null,
 }));
@@ -29,6 +29,8 @@ vi.mock('@/lib/native-shell', () => ({
 }));
 
 import { type LocalAgentInstall, useLocalAgentInstall } from './use-local-agent-install';
+
+const REQUEST: AgentInstallRequest = { orgId: 'org-1', initialKey: 'key-1', logKey: 'log-1', userId: 'user-1' };
 
 let container: HTMLDivElement;
 let root: Root;
@@ -64,14 +66,14 @@ afterEach(() => {
 });
 
 describe('useLocalAgentInstall', () => {
-  it('starts idle, runs the command and collects what it prints until it is done', async () => {
+  it('starts idle, runs the install and collects what it prints until it is done', async () => {
     expect(probe.latest()?.supported).toBe(true);
     expect(probe.latest()?.status).toBe('idle');
 
     await act(async () => {
-      await probe.latest()?.start('echo hello');
+      await probe.latest()?.start(REQUEST);
     });
-    expect(bridge.start).toHaveBeenCalledWith('echo hello');
+    expect(bridge.start).toHaveBeenCalledWith(REQUEST);
     expect(probe.latest()?.status).toBe('running');
 
     act(() => bridge.output?.(['[+] Admin privileges', 'Starting installation...']));
@@ -91,14 +93,14 @@ describe('useLocalAgentInstall', () => {
   it('reports a run the shell could not start, and a run that failed', async () => {
     bridge.start.mockRejectedValueOnce({ kind: 'busy', message: 'an install is already running' });
     await act(async () => {
-      await probe.latest()?.start('echo hello');
+      await probe.latest()?.start(REQUEST);
     });
     expect(probe.latest()?.status).toBe('failed');
     expect(probe.latest()?.error?.kind).toBe('busy');
 
     // The next start clears the previous outcome.
     await act(async () => {
-      await probe.latest()?.start('echo again');
+      await probe.latest()?.start(REQUEST);
     });
     expect(probe.latest()?.status).toBe('running');
     expect(probe.latest()?.error).toBeNull();

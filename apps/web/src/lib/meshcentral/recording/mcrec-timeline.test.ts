@@ -5,7 +5,7 @@
  * it pins to the nearest end.
  */
 import { describe, expect, it } from 'vitest';
-import { toPlaybackMs } from './mcrec-timeline';
+import { lastFrameAtMs, toPlaybackMs } from './mcrec-timeline';
 
 const T0 = 1_700_000_000_000;
 
@@ -39,5 +39,15 @@ describe('toPlaybackMs', () => {
     const single = { baseTimeMs: T0, durationMs: 40_000 };
     expect(toPlaybackMs(single, T0 + 12_345)).toBe(12_345);
     expect(toPlaybackMs(single, T0 + 50_000)).toBe(40_000);
+  });
+});
+
+describe('lastFrameAtMs', () => {
+  it("is the last file's last frame, in server time, however much the stitcher moved it back", () => {
+    expect(lastFrameAtMs(stitched)).toBe(T0 + 32_000);
+  });
+
+  it('is the end of a single file without spans', () => {
+    expect(lastFrameAtMs({ baseTimeMs: T0, durationMs: 40_000 })).toBe(T0 + 40_000);
   });
 });

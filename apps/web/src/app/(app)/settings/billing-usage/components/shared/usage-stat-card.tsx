@@ -21,6 +21,8 @@ interface UsageStatCardProps {
   value?: ReactNode;
   /** The line under the figure — what it is measured against, or how it is billed. Unread while loading. */
   caption?: ReactNode;
+  /** How many lines the caption takes once loaded, so the row keeps its height through the wait. */
+  captionLines?: number;
   /** Its subscription has not answered: the card draws its own skeleton (as it does in a loading scope). */
   loading?: boolean;
   /**
@@ -71,6 +73,7 @@ export function UsageStatCard({
   title,
   value,
   caption,
+  captionLines,
   tone = 'default',
   trailing,
   loading: loadingProp,
@@ -95,7 +98,7 @@ export function UsageStatCard({
         )}
       </div>
       {loading ? (
-        <LoadingLine type="h6" className="w-32" />
+        <LoadingLine type="h6" lines={captionLines} className="w-32" />
       ) : (
         <p className={cn(CAPTION_CLASS, TONE_TEXT[shownTone])}>{caption}</p>
       )}
@@ -138,5 +141,17 @@ export function StatEmphasis({ children }: { children: ReactNode }) {
     <span className="text-ods-text-primary group-data-[tone=error]/stat:text-ods-error group-data-[tone=warning]/stat:text-ods-warning">
       {children}
     </span>
+  );
+}
+
+/**
+ * A caption line that leads out to a document, in a new tab (the desktop shell hands that to the system browser).
+ * Takes the caption's colour, so a recoloured card recolours it too; the underline is what says it is a link.
+ */
+export function StatLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+      {children}
+    </a>
   );
 }

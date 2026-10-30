@@ -15,7 +15,11 @@ import {
 
 const SPEEDS: RecordingPlaybackSpeed[] = [0.5, 1, 2, 4];
 
+/** A seek that lands sooner never shows as 'seeking': no dimmed frame or disabled controls flash on each click. */
+const SEEK_BUSY_DELAY_MS = 150;
+
 export interface UseRecordingPlayerResult {
+  /** The player's state, except that a seek keeps the state it started from for its first {@link SEEK_BUSY_DELAY_MS}. */
   state: RecordingPlayerState;
   currentMs: number;
   durationMs: number;
@@ -35,6 +39,8 @@ export interface UseRecordingPlayerResult {
   loadSegments: (sources: ReadonlyArray<() => Promise<ArrayBuffer>>) => Promise<{ failed: number }>;
   togglePlay: () => void;
   seek: (ms: number) => void;
+  /** Jump to a wall-clock time, such as a session event's; one in a file still downloading lands once it arrives. */
+  seekToTime: (atMs: number) => void;
   stepBack: () => void;
   stepForward: () => void;
   setSpeed: (speed: RecordingPlaybackSpeed) => void;
@@ -66,14 +72,22 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     setTimeline({ baseTimeMs: recording.baseTimeMs, durationMs: recording.durationMs, spans: recording.spans });
 
   useEffect(() => {
+    let seekBusyTimer: ReturnType<typeof setTimeout> | null = null;
+    const showState = (next: RecordingPlayerState) => {
+      if (seekBusyTimer !== null) clearTimeout(seekBusyTimer);
+      seekBusyTimer = null;
+      if (next === 'seeking') seekBusyTimer = setTimeout(() => setState('seeking'), SEEK_BUSY_DELAY_MS);
+      else setState(next);
+    };
     const player = new McrecPlayer({
-      onState: setState,
+      onState: showState,
       onTime: setCurrentMs,
       onDuration: setDurationMs,
     });
     playerRef.current = player;
     return () => {
       player.dispose();
+      if (seekBusyTimer !== null) clearTimeout(seekBusyTimer);
       playerRef.current = null;
       terminalRef.current?.dispose();
       terminalRef.current = null;
@@ -117,6 +131,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
   const loadSegments = (sources: ReadonlyArray<() => Promise<ArrayBuffer>>) => {
     const generation = ++loadGenerationRef.current;
     const isCurrent = () => generation === loadGenerationRef.current && playerRef.current !== null;
+    playerRef.current?.cancelWait();
     return loadSessionSegments(sources, {
       isCurrent,
       start: async (recording, complete) => {
@@ -145,6 +160,10 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     void playerRef.current?.seek(ms);
   };
 
+  const seekToTime = (atMs: number) => {
+    void playerRef.current?.seekToTime(atMs);
+  };
+
   const setSpeed = (next: RecordingPlaybackSpeed) => {
     playerRef.current?.setSpeed(next);
     setSpeedState(next);
@@ -167,6 +186,7 @@ export function useRecordingPlayer(): UseRecordingPlayerResult {
     loadSegments,
     togglePlay,
     seek,
+    seekToTime,
     stepBack: () => {
       void playerRef.current?.stepBack();
     },

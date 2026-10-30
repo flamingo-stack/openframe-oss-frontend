@@ -34,6 +34,7 @@ import { formatDate, formatTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { ApiKeyCreatedModal } from '../../components/api-key-created-modal';
 import { ApiKeyDetailsModal } from '../../components/api-key-details-modal';
 import { CreateApiKeyModal } from '../../components/create-api-key-modal';
@@ -262,7 +263,15 @@ export function ApiKeysTab() {
       // `currentColor`: the icon's own default is the primary text colour, which would override the button's icon tone.
       icon: <DocumentIcon className="h-5 w-5" color="currentColor" />,
       variant: 'outline',
-      onClick: () => window.open('/swagger-ui/index.html#/', '_blank', 'noopener,noreferrer'),
+      // Swagger UI is served by the tenant gateway, not the app bundle. Relative, it resolves against the desktop
+      // shell's own origin (`tauri://localhost`), which the shell opens as an in-app window that falls back to the
+      // dashboard; on the gateway origin it is off-app, so the shell hands it to the system browser.
+      onClick: () =>
+        window.open(
+          `${runtimeEnv.tenantHostUrl().replace(/\/+$/, '')}/swagger-ui/index.html#/`,
+          '_blank',
+          'noopener,noreferrer',
+        ),
     },
     {
       label: 'Create API Key',
