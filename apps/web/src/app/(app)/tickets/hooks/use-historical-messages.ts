@@ -13,7 +13,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useRef } from 'react';
 import { foldPendingApprovalsEnvelope } from '@/lib/chat-history';
-import { annotateMessageData } from '@/lib/command-review';
 import type { ChatType } from '../constants';
 import type { MessagePage } from '../services/ticket-service.types';
 import { type ChatSide, useTicketDetailsStore } from '../stores/ticket-details-store';
@@ -96,7 +95,7 @@ export function useHistoricalMessages({
       chatType: msg.chatType,
       createdAt: msg.createdAt,
       owner: msg.owner,
-      messageData: annotateMessageData(msg.messageData),
+      messageData: msg.messageData,
       // Feed the merge's per-role seq coverage so a post-reload live synthetic
       // isn't dropped by an unrelated row's seq (message-loss on stop/reload).
       lastChunkStreamSeq: msg.lastChunkStreamSeq,

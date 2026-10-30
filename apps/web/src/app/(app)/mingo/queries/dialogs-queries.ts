@@ -311,6 +311,17 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
               requiresApproval
               approvalStatus
               toolExecutionRequestId
+              commandReview {
+                decision
+                approvalLevel
+                policyLevel
+                operationCodes
+                matchedRules {
+                  code
+                  label
+                }
+                reason
+              }
             }
 
             ... on ExecutedToolData {
