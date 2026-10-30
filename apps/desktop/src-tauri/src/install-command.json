@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "name": "every flag",
+      "serverUrl": "acme.openframe.ai",
+      "downloadBaseUrl": "https://acme.openframe.ai",
+      "machineId": "11111111-2222-4333-8444-555555555555",
+      "request": {
+        "orgId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "initialKey": "AbC123xYz",
+        "logKey": "LogKey456",
+        "userId": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      },
+      "commands": {
+        "darwin": "cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -H 'x-machine-id: 11111111-2222-4333-8444-555555555555' -o openframe-client_macos.tar.gz 'https://acme.openframe.ai/v0/api/assets/download?agent=client&platform=macos' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client install --serverUrl acme.openframe.ai --initialKey AbC123xYz --logKey LogKey456 --orgId 0f8fad5b-d9cb-469f-a165-70867728950e --userId 7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "windows": "Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri 'https://acme.openframe.ai/v0/api/assets/download?agent=client&platform=windows' -Headers @{ 'x-machine-id' = '11111111-2222-4333-8444-555555555555' } -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; & '.\\openframe-client.exe' install --serverUrl acme.openframe.ai --initialKey AbC123xYz --logKey LogKey456 --orgId 0f8fad5b-d9cb-469f-a165-70867728950e --userId 7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      }
+    },
+    {
+      "name": "the optional flags left out",
+      "serverUrl": "acme.openframe.ai",
+      "downloadBaseUrl": "https://acme.openframe.ai",
+      "machineId": "11111111-2222-4333-8444-555555555555",
+      "request": {
+        "orgId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "initialKey": "AbC123xYz"
+      },
+      "commands": {
+        "darwin": "cd ~ && rm -f openframe-client_macos.tar.gz openframe-client 2>/dev/null; curl -fL -H 'x-machine-id: 11111111-2222-4333-8444-555555555555' -o openframe-client_macos.tar.gz 'https://acme.openframe.ai/v0/api/assets/download?agent=client&platform=macos' && tar -xzf openframe-client_macos.tar.gz && sudo chmod +x ./openframe-client && sudo ./openframe-client install --serverUrl acme.openframe.ai --initialKey AbC123xYz --orgId 0f8fad5b-d9cb-469f-a165-70867728950e",
+        "windows": "Set-Location ~; Remove-Item -Path 'openframe-client.zip','openframe-client.exe' -Force -ErrorAction SilentlyContinue; Invoke-WebRequest -Uri 'https://acme.openframe.ai/v0/api/assets/download?agent=client&platform=windows' -Headers @{ 'x-machine-id' = '11111111-2222-4333-8444-555555555555' } -OutFile 'openframe-client.zip'; Expand-Archive -Path 'openframe-client.zip' -DestinationPath '.' -Force; & '.\\openframe-client.exe' install --serverUrl acme.openframe.ai --initialKey AbC123xYz --orgId 0f8fad5b-d9cb-469f-a165-70867728950e"
+      }
+    }
+  ]
+}

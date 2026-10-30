@@ -34,5 +34,7 @@ lockfile without its `libc` fields.
   per app by paths, behind the required "All Checks".
 - A bridge name change (Tauri command/event, Capacitor plugin method) touches
   `apps/web/src/lib/native-shell.ts` and the shell implementation in the same PR.
+  A new Tauri command also goes in `src-tauri/build.rs` and, if the page calls it,
+  `src-tauri/capabilities/main.json`; without both it is refused at runtime.
 
 @./apps/web/CLAUDE.md

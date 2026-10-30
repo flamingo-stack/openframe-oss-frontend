@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, AUTH_UNAVAILABLE_MESSAGE } from '@/lib/api-client';
 import { isSaasSharedMode } from '@/lib/app-mode';
 import { isDevTicketExchangePending } from '@/lib/dev-ticket-pending';
 import { forceLogout } from '@/lib/force-logout';
@@ -51,6 +51,33 @@ export const authSessionQueryKey = ['auth', 'session'] as const;
  */
 const AUTH_RECHECK_BASE_MS = 5_000;
 const AUTH_RECHECK_MAX_MS = 60_000;
+
+/** Quick retries for an ordinary transient failure (a gateway pod restarting mid-load). */
+const AUTH_SESSION_RETRIES = 2;
+
+/**
+ * `/me` failed because the refresh behind its 401 failed (`AUTH_UNAVAILABLE_MESSAGE`):
+ * the auth service is unavailable, the session itself is undecided. A class of
+ * its own so the retry policy can tell it from a plain transient error.
+ */
+export class AuthUnavailableError extends Error {
+  constructor() {
+    super(AUTH_UNAVAILABLE_MESSAGE);
+    this.name = 'AuthUnavailableError';
+  }
+}
+
+/**
+ * `retry` for the session query. A refresh failure is NOT retried here: the
+ * refresh manager has already made its attempts, and every `/me` retry was one
+ * more 401 feeding one more refresh cycle — three `/me` and nine `/oauth/refresh`
+ * before the query even reached its error state. The backoff in `refetchInterval`
+ * below is the re-ask. Everything else keeps the two quick retries.
+ */
+export function shouldRetryAuthSession(failureCount: number, error: Error): boolean {
+  if (error instanceof AuthUnavailableError) return false;
+  return failureCount < AUTH_SESSION_RETRIES;
+}
 
 interface MeResponse {
   authenticated: boolean;
@@ -136,6 +163,11 @@ export function useAuthSession() {
       if (response.status === 401 || response.status === 403) {
         return null;
       }
+      // The 401 went through a refresh that failed: not retried here (see
+      // `shouldRetryAuthSession`), re-asked on the backoff below.
+      if (response.error === AUTH_UNAVAILABLE_MESSAGE) {
+        throw new AuthUnavailableError();
+      }
       // For transient errors (500, network), throw so React Query retries
       // and preserves previous query.data (doesn't overwrite with null)
       throw new Error(response.error || `Auth check failed with status ${response.status}`);
@@ -159,7 +191,7 @@ export function useAuthSession() {
     // case on purpose — the app-wide default is off, and re-asking `/me` on every
     // focus of an already-resolved session is what that default exists to avoid.
     refetchOnWindowFocus: liveQuery => liveQuery.state.status === 'error',
-    retry: 2,
+    retry: shouldRetryAuthSession,
     retryDelay: 1000,
   });
 

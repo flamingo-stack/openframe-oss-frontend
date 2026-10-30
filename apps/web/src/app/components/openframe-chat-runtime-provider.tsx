@@ -36,6 +36,7 @@ import { EntityIcon } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   isCrossOriginUrl,
   decideNewTab as libDecideNewTab,
+  newTabFeatures,
   stripSameOriginToPath,
   useEmptyStateConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -306,7 +307,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   const openExternal = useCallback<NonNullable<ChatRuntime['navigation']['openExternal']>>(
     href => {
       if (sameWindow) window.location.assign(href);
-      else window.open(href, '_blank', 'noopener,noreferrer');
+      else window.open(href, '_blank', newTabFeatures(href));
     },
     [sameWindow],
   );

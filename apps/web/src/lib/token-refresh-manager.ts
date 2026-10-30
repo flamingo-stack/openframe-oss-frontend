@@ -4,16 +4,23 @@
  * Single source of truth for token refresh. ApiClient, AuthApiClient and the
  * Relay environment all delegate here.
  *
- * Two rules shape this module:
+ * Three rules shape this module:
  *
  * 1. **A failed refresh is not automatically a dead session.** The BFF answers
- *    401 WITH cleared auth cookies for every rejection, so one unlucky refresh
- *    can end the session in every tab. Only a 401 is `terminal`; 5xx, a WAF 403,
- *    a dropped link and our own timeout are `transient` and must not log out.
+ *    401 for every refresh token it rejects, so one unlucky refresh can end the
+ *    session in every tab. Only a 401 is `terminal`; 5xx, a WAF 403, a dropped
+ *    link and our own timeout are `transient` and must not log out.
  * 2. **Rotations are serialized across tabs.** Refresh tokens rotate and the
  *    backend has no CAS, so two tabs refreshing at once leave one of them with a
  *    dead token. A Web Lock plus a localStorage marker makes it single-flight
  *    for the whole origin.
+ * 3. **Cycles are spaced once one has failed.** A `transient` cycle arms a
+ *    backoff shared by every tab, and until it lapses a 401 is answered
+ *    `transient` from here, with no request. Without it every 401 that followed
+ *    a failed cycle — `/api/me`'s own retries, every page query the session gate
+ *    released — started another three-POST cycle at once: hundreds of
+ *    `/oauth/refresh` per page open while the auth service was down, and a page
+ *    that never left its skeletons.
  */
 
 import { clearStoredTokens } from './force-logout';
@@ -34,6 +41,15 @@ import {
 /** What the attempt says about the SESSION — not whether the request succeeded. */
 export type RefreshOutcome = 'refreshed' | 'transient' | 'terminal';
 
+export interface RefreshOptions {
+  /**
+   * Run a cycle now even while the between-cycle backoff is pending — the Retry
+   * of the "can't verify your session" screen. A failure arms the next step as
+   * usual.
+   */
+  ignoreBackoff?: boolean;
+}
+
 let isRefreshing = false;
 let refreshPromise: Promise<RefreshOutcome> | null = null;
 
@@ -41,8 +57,16 @@ const REFRESH_LOCK_NAME = 'openframe-token-refresh';
 /** Plain timestamp, no token material — safe in cookie mode, where nothing else is stored. */
 const ROTATION_MARKER_KEY = 'of_token_rotated_at';
 
-/** `fetch` has no timeout; without one a hung refresh stalls every 401 waiting on it. */
-const REFRESH_TIMEOUT_MS = 15_000;
+/**
+ * `fetch` has no timeout; without one a hung refresh stalls every 401 waiting on
+ * it. Above the gateway's own 30 s connect + read timeout on the auth server, on
+ * purpose: the gateway answers a hang with a 503 (`retriable`) and a late auth
+ * server with a rotation. Giving up before it answers would classify the hang as
+ * our own timeout — a transport failure, not retried because the response may
+ * carry a rotation — and could leave this browser holding a refresh token the
+ * server has already rotated away.
+ */
+const REFRESH_TIMEOUT_MS = 35_000;
 
 /**
  * Retries for SERVER-side failures only (5xx/408/429): the grant was refused or
@@ -52,11 +76,36 @@ const REFRESH_TIMEOUT_MS = 15_000;
  */
 const RETRY_DELAYS_MS = [1_000, 2_500];
 
+/**
+ * How long one cycle may keep scheduling attempts. Bounds elapsed time, not
+ * attempts: a gateway that takes its full timeout to answer 503 is hanging, not
+ * flapping, and a second 30 s attempt against it only delays the error state.
+ * Fast 503s (the auth server refusing connections behind the gateway) still get
+ * every attempt in `RETRY_DELAYS_MS`.
+ */
+const CYCLE_BUDGET_MS = 30_000;
+
+/**
+ * Delay between CYCLES after one ends `transient`, per consecutive failure, the
+ * last one repeating. Shared across tabs through `BACKOFF_MARKER_KEY` so the
+ * whole origin waits for the same moment, and reset by the next success. The
+ * numbers are the BE contract's proposal; the requirement is that cycles are
+ * spaced and capped.
+ */
+const CYCLE_BACKOFF_DELAYS_MS = [5_000, 15_000, 60_000];
+
+/** `<deadline ms>:<consecutive failures>` — a timestamp and a count, no token material. */
+const BACKOFF_MARKER_KEY = 'of_token_refresh_backoff';
+
 /** How recent another tab's rotation must be for this call to adopt it. */
 const ROTATION_ADOPTION_WINDOW_MS = 10_000;
 
-/** Above the worst case a healthy holder can take, so a stuck one can't stall this tab. */
-const LOCK_WAIT_TIMEOUT_MS = 25_000;
+/**
+ * Above one attempt's ceiling, so a holder waiting out a hung gateway is not
+ * raced by a second, unserialized rotation; a holder still busy past that is
+ * treated as stuck, and this tab rotates on its own as before.
+ */
+const LOCK_WAIT_TIMEOUT_MS = REFRESH_TIMEOUT_MS + 10_000;
 
 /** Refresh proactively once the access token is within this much of expiring. */
 const PROACTIVE_REFRESH_LEEWAY_MS = 2 * 60_000;
@@ -97,6 +146,80 @@ function markRotationTimestamp(): void {
   } catch {
     // Quota/private-mode failures only cost the cross-tab hint.
   }
+}
+
+interface CycleBackoff {
+  /** When the next cycle may start. */
+  until: number;
+  /** Consecutive `transient` cycles — picks the next delay. */
+  failures: number;
+}
+
+/**
+ * This realm's copy of the backoff: the source of truth where storage is
+ * unavailable (private mode, quota), so the automatic retry behind the
+ * "can't verify your session" screen can never tighten into back-to-back cycles.
+ */
+let memoryBackoff: CycleBackoff | null = null;
+
+function parseBackoff(raw: string | null): CycleBackoff | null {
+  if (!raw) return null;
+  const [until, failures] = raw.split(':').map(Number);
+  return Number.isFinite(until) && Number.isFinite(failures) ? { until, failures } : null;
+}
+
+function readStoredBackoff(): CycleBackoff | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return parseBackoff(localStorage.getItem(BACKOFF_MARKER_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** The later of the stored and the in-memory deadline: another tab's failure counts here too. */
+function readBackoff(): CycleBackoff | null {
+  const stored = readStoredBackoff();
+  if (!stored) return memoryBackoff;
+  if (!memoryBackoff) return stored;
+  return stored.until >= memoryBackoff.until ? stored : memoryBackoff;
+}
+
+function writeBackoff(backoff: CycleBackoff | null): void {
+  memoryBackoff = backoff;
+  if (typeof window === 'undefined') return;
+  try {
+    if (backoff) localStorage.setItem(BACKOFF_MARKER_KEY, `${backoff.until}:${backoff.failures}`);
+    else localStorage.removeItem(BACKOFF_MARKER_KEY);
+  } catch {
+    // Storage failures only cost the cross-tab share of the backoff.
+  }
+}
+
+/** Arm (or step up) the between-cycle backoff after a `transient` cycle. */
+function armCycleBackoff(): void {
+  const previous = readBackoff();
+  const maxDelay = CYCLE_BACKOFF_DELAYS_MS[CYCLE_BACKOFF_DELAYS_MS.length - 1];
+  // A failure long after the last deadline is a new outage, not the next step
+  // of the old one — a marker a sign-in never cleared must not start at the cap.
+  const continuing = previous !== null && Date.now() - previous.until < maxDelay;
+  const failures = continuing ? previous.failures + 1 : 1;
+  const delay = CYCLE_BACKOFF_DELAYS_MS[Math.min(failures, CYCLE_BACKOFF_DELAYS_MS.length) - 1];
+  writeBackoff({ until: Date.now() + delay, failures });
+}
+
+/** A rotation succeeded, or the session ended: the next cycle starts clean. */
+function clearCycleBackoff(): void {
+  if (readBackoff()) writeBackoff(null);
+}
+
+/**
+ * Milliseconds until the next refresh cycle may start; 0 when none is pending.
+ * The "can't verify your session" screen schedules its automatic retry on it.
+ */
+export function getRefreshBackoffRemainingMs(): number {
+  const backoff = readBackoff();
+  return backoff ? Math.max(0, backoff.until - Date.now()) : 0;
 }
 
 let crossTabSyncRegistered = false;
@@ -149,8 +272,12 @@ function credentialReplacedSince(snapshot: CredentialSnapshot): boolean {
   return getTokenEpoch() !== snapshot.epoch || getAccessTokenSync() !== snapshot.accessToken;
 }
 
-/** One `/oauth/refresh` POST. `retriable` means "server-side failure, safe to send again". */
-async function attemptRefresh(): Promise<RefreshOutcome | 'retriable'> {
+/**
+ * One `/oauth/refresh` POST. `retriable` means "server-side failure, safe to send
+ * again"; `skipped` means nothing was sent, because there was no credential to
+ * send — so nothing failed either.
+ */
+async function attemptRefresh(): Promise<RefreshOutcome | 'retriable' | 'skipped'> {
   const bearerMode = isBearerAuthMode();
   const url = buildRefreshUrl();
 
@@ -171,7 +298,7 @@ async function attemptRefresh(): Promise<RefreshOutcome | 'retriable'> {
       // Native has no cookie jar: no stored token means no credential at all.
       // Fatal during the biometric cold-start lock, where the tokens sit in the
       // Keychain unread and a credential-less refresh would clear them.
-      return 'transient';
+      return 'skipped';
     }
     // Web dev-ticket mode with no stored token still has the refresh cookie —
     // fall through and let `credentials: 'include'` carry it.
@@ -252,6 +379,11 @@ async function attemptRefresh(): Promise<RefreshOutcome | 'retriable'> {
   return 'refreshed';
 }
 
+/**
+ * One refresh CYCLE: the attempts of `RETRY_DELAYS_MS` within `CYCLE_BUDGET_MS`.
+ * Its answer is what arms or clears the between-cycle backoff: `transient` arms
+ * it, `refreshed` and `terminal` clear it, a skipped attempt leaves it alone.
+ */
 async function executeRefresh(): Promise<RefreshOutcome> {
   // Shells that implement refreshTokens own the refresh entirely — rotating
   // refresh tokens tolerate exactly one refresher. The shell resolves with the
@@ -267,20 +399,36 @@ async function executeRefresh(): Promise<RefreshOutcome> {
         // The shell already stored the pair — mirror it, never write it back
         // (see adoptNativeTokens).
         adoptNativeTokens(tokens);
+        clearCycleBackoff();
         return 'refreshed';
       }
       clearStoredTokens();
+      clearCycleBackoff();
       return 'terminal';
     } catch {
+      // The shell made one attempt and it failed; the pacing is the same as for
+      // our own attempts, so an auth outage under the desktop app is spaced too.
+      armCycleBackoff();
       return 'transient';
     }
   }
 
+  const startedAt = Date.now();
   for (let attempt = 0; ; attempt++) {
-    const outcome = await attemptRefresh();
-    if (outcome !== 'retriable') return outcome;
-    if (attempt >= RETRY_DELAYS_MS.length) return 'transient';
-    await sleep(RETRY_DELAYS_MS[attempt]);
+    const result = await attemptRefresh();
+    if (result === 'skipped') return 'transient';
+    if (result === 'retriable') {
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay !== undefined && Date.now() - startedAt + delay < CYCLE_BUDGET_MS) {
+        await sleep(delay);
+        continue;
+      }
+      armCycleBackoff();
+      return 'transient';
+    }
+    if (result === 'transient') armCycleBackoff();
+    else clearCycleBackoff();
+    return result;
   }
 }
 
@@ -304,7 +452,7 @@ function adoptRotationSince(waitStartedAt: number): boolean {
  * The wait is bounded: on timeout the rotation proceeds unserialized, so the
  * worst case is the old race rather than a hung refresh.
  */
-async function runExclusive(waitStartedAt: number): Promise<RefreshOutcome> {
+async function runExclusive(waitStartedAt: number, ignoreBackoff: boolean): Promise<RefreshOutcome> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (!locks?.request) return executeRefresh();
 
@@ -314,6 +462,8 @@ async function runExclusive(waitStartedAt: number): Promise<RefreshOutcome> {
   try {
     return (await locks.request(REFRESH_LOCK_NAME, { signal: abortWait.signal }, async () => {
       if (adoptRotationSince(waitStartedAt)) return 'refreshed';
+      // The holder ahead of this tab may have just failed and armed the backoff.
+      if (!ignoreBackoff && getRefreshBackoffRemainingMs() > 0) return 'transient';
       return executeRefresh();
     })) as RefreshOutcome;
   } catch (error) {
@@ -339,7 +489,7 @@ async function runExclusive(waitStartedAt: number): Promise<RefreshOutcome> {
  * rotation starts another one — and each extra rotation invalidates the
  * credential just obtained.
  */
-export async function refreshTokens(observedEpoch?: number): Promise<RefreshOutcome> {
+export async function refreshTokens(observedEpoch?: number, options: RefreshOptions = {}): Promise<RefreshOutcome> {
   // Checked BEFORE joining an in-flight rotation: a stale-epoch caller already
   // holds a newer credential and must not inherit that rotation's failure.
   if (observedEpoch !== undefined && observedEpoch !== getTokenEpoch()) {
@@ -350,12 +500,19 @@ export async function refreshTokens(observedEpoch?: number): Promise<RefreshOutc
     return refreshPromise;
   }
 
+  // A cycle has failed and its backoff has not lapsed: this 401 is "refresh
+  // pending", not a trigger. Answered as that cycle was, without a request.
+  const ignoreBackoff = options.ignoreBackoff === true;
+  if (!ignoreBackoff && getRefreshBackoffRemainingMs() > 0) {
+    return 'transient';
+  }
+
   isRefreshing = true;
   const waitStartedAt = Date.now();
 
   refreshPromise = (async () => {
     try {
-      return await runExclusive(waitStartedAt);
+      return await runExclusive(waitStartedAt, ignoreBackoff);
     } catch {
       return 'transient';
     } finally {

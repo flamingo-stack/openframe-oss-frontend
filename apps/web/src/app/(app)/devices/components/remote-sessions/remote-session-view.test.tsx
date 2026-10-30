@@ -20,10 +20,16 @@ const recording = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: vi.fn(),
 }));
-const playback = vi.hoisted<{ state: UseRecordingPlayerResult['state']; currentMs: number; seek: Mock }>(() => ({
+const playback = vi.hoisted<{
+  state: UseRecordingPlayerResult['state'];
+  currentMs: number;
+  seek: Mock;
+  seekToTime: Mock;
+}>(() => ({
   state: 'empty',
   currentMs: 0,
   seek: vi.fn(),
+  seekToTime: vi.fn(),
 }));
 const linked = vi.hoisted(() => ({ tickets: [] as RecordingTicket[] }));
 const T0 = Date.parse('2026-10-14T08:00:00.000Z');
@@ -61,6 +67,7 @@ vi.mock('./use-recording-player', () => ({
     loadSegments: vi.fn(),
     togglePlay: vi.fn(),
     seek: playback.seek,
+    seekToTime: playback.seekToTime,
     stepBack: vi.fn(),
     stepForward: vi.fn(),
     setSpeed: vi.fn(),
@@ -190,8 +197,9 @@ describe('RemoteSessionView with a recording', () => {
     ]);
     expect(rows().map(row => row.getAttribute('aria-current'))).toEqual([null, 'true']);
 
+    // By the server time: the player places it, and waits for its file if that is still downloading.
     act(() => rows()[0].click());
-    expect(playback.seek).toHaveBeenCalledWith(3000);
+    expect(playback.seekToTime).toHaveBeenCalledWith(T0 + 3000);
     // The same events mark the track.
     expect(container.querySelector('[aria-label="Input enabled at 00:03"]')).not.toBeNull();
   });
