@@ -1,6 +1,7 @@
 // Pins where "Reset Onboarding" lives: the profile menu offers it on an OSS tenant
 // (a SaaS tenant's tour resets from the Mingo chat), and only when there is a
-// finished or started tour to replay.
+// finished or started tour to replay. And that an unverified email draws no mark of
+// its own in the row: the Settings page's banner under it asks for the verification.
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -9,7 +10,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { ProfileCard } from './profile-card';
 
 const { USER, mode } = vi.hoisted(() => ({
-  USER: { id: 'u-1', email: 'a@b.c', firstName: 'Ann', lastName: 'Lee' },
+  USER: { id: 'u-1', email: 'a@b.c', firstName: 'Ann', lastName: 'Lee', emailVerified: false },
   mode: { saas: false },
 }));
 vi.mock('@/lib/app-mode', async importOriginal => ({
@@ -49,7 +50,7 @@ function menuLabels(): string[] {
 
 function renderCard() {
   act(() => {
-    root.render(<ProfileCard onEditProfile={vi.fn()} onVerifyEmail={vi.fn()} />);
+    root.render(<ProfileCard onEditProfile={vi.fn()} />);
   });
 }
 
@@ -106,5 +107,26 @@ describe('ProfileCard - Reset Onboarding', () => {
     renderCard();
 
     expect(menuLabels()).not.toContain('Reset Onboarding');
+  });
+});
+
+describe('ProfileCard - an unverified email', () => {
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    document.body.innerHTML = '';
+  });
+
+  it('shows the email alone, with no "Not verified" mark beside it', () => {
+    renderCard();
+    expect(container.textContent).toContain('a@b.c');
+    expect(container.textContent).not.toContain('Not verified');
+    expect(container.querySelector('button[title^="Email not verified"]')).toBeNull();
   });
 });

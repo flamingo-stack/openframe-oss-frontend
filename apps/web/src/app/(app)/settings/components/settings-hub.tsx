@@ -184,10 +184,7 @@ export function SettingsHub() {
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         {/* Organization + Profile */}
-        <AccountSettingsCard
-          onEditProfile={() => setIsEditModalOpen(true)}
-          onVerifyEmail={() => setIsVerificationModalOpen(true)}
-        />
+        <AccountSettingsCard onEditProfile={() => setIsEditModalOpen(true)} />
 
         {user?.emailVerified === false && <EmailVerificationBanner onResend={() => setIsVerificationModalOpen(true)} />}
 

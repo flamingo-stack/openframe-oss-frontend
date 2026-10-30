@@ -19,7 +19,6 @@ import { NotificationSettingsModal } from './notification-settings-modal';
 
 interface ProfileCardProps {
   onEditProfile: () => void;
-  onVerifyEmail: () => void;
 }
 
 /**
@@ -27,7 +26,7 @@ interface ProfileCardProps {
  * lines as bars (the name line's `min-h-8` is the role `Tag`'s height, so the row is one height with or without
  * roles), and the kebab is its icon-button box.
  */
-export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) {
+export function ProfileCard({ onEditProfile }: ProfileCardProps) {
   const inScope = useLoadingScope();
   const user = useAuthStore(state => state.user);
   // `/me`'s own answer, taken from the session query rather than the store — the `!user`
@@ -64,7 +63,6 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
       <UserIdentityRow
         user={user}
         loading={loading}
-        onVerifyEmail={onVerifyEmail}
         action={
           <ActionsMenuDropdown
             loading={loading}
