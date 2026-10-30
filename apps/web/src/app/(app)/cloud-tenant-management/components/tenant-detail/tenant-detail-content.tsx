@@ -118,6 +118,9 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
       <div className={BODY_CLASS}>
         <TenantSyncPausedNotice connection={connection} />
         <TenantSummaryCard connection={connection} />
+        {/* Parts only some tenants have (`data-loading-optional`), read right under the summary they qualify. */}
+        <TenantConsentAlert connection={connection} />
+        <TenantConsentIssues connection={connection} />
         {isReadable(connection.access.state) ? (
           <>
             {/* Each its own error boundary: a failed read loses that section, not the page. */}
@@ -147,9 +150,6 @@ function TenantDetailContentQuery({ id, actions }: TenantDetailContentProps) {
             onCheck={check}
           />
         )}
-        {/* Parts only some tenants have, below the section they would otherwise push (`data-loading-optional`). */}
-        <TenantConsentAlert connection={connection} />
-        <TenantConsentIssues connection={connection} />
       </div>
     </>
   );
