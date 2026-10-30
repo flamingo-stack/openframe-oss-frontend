@@ -1,7 +1,27 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "IPC permissions for the windows hosting the bundled frontend (main + child). The bundle is our own code, so it may invoke the native_auth_* commands backing the window.__OPENFRAME_SHELL__.nativeAuth bridge. No window hosts a remote origin: the OAuth login runs in the user's default browser and comes back as an openframe-console:// URL, so no third-party page is ever inside a window this capability covers.",
+  "description": "What the windows hosting the bundled frontend (main + child) may call. Exactly what apps/web and env_init_script invoke, and nothing else: any script in the document holds every permission listed here, so core:default and updater:default are not granted (the updater runs from Rust) and neither are autostart_status/autostart_set, which no web code calls yet. Local origin only: no window hosts a remote origin, and a remote document that ends up in one gets no IPC.",
   "windows": ["main", "child-*"],
-  "permissions": ["core:default", "core:window:allow-maximize", "updater:default"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:app:allow-version",
+    "core:window:allow-maximize",
+    "allow-native-auth-start",
+    "allow-native-auth-cancel",
+    "allow-native-auth-exchange-ticket",
+    "allow-native-auth-revoke-session",
+    "allow-native-auth-get-tokens",
+    "allow-native-auth-refresh-tokens",
+    "allow-native-auth-set-tokens",
+    "allow-native-auth-clear-tokens",
+    "allow-native-auth-set-tenant-host",
+    "allow-take-pending-notification-click",
+    "allow-webview-log",
+    "allow-update-check",
+    "allow-update-apply-now",
+    "allow-agent-install-start",
+    "allow-take-pending-download-id"
+  ]
 }
