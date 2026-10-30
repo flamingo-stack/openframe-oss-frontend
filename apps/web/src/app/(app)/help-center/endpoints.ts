@@ -74,8 +74,9 @@ export const HELP_CENTER_BASE = routes.helpCenter.root;
 
 /** Route the knowledge-base docs hub (`<DocsHubPage>`) is mounted under — base
  *  page + its `[...path]` deep-link route. Lives here (a dep-light module) so
- *  both the page and the chat's doc-chip `baseRoute` share one SSOT without
- *  pulling the client `DocsHubPage` module into the chat bundle. */
+ *  both the page and the content composer that addresses the chat's doc chips
+ *  (`help-center-content-href.ts`) share one SSOT without pulling the client
+ *  `DocsHubPage` module into the chat bundle. */
 export const KNOWLEDGE_BASE_ROUTE = routes.helpCenter.knowledgeBase;
 
 export const EP = {

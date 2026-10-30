@@ -85,7 +85,6 @@ describe('useOpenframeChatProps', () => {
       whatToAsk,
       pendingApprovals: chat.pendingApprovals,
       modes: {},
-      baseRoute: '/help-center/knowledge-base',
       userDisplayName: 'Ann Lee',
     });
   });

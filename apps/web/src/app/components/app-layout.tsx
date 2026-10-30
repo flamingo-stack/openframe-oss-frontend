@@ -430,16 +430,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
   });
   const currentPath = search ? `${pathname}?${search}` : pathname;
 
-  // Receives the FULL href computed by TicketAlertsButton
-  // (`/help-center/tickets?ticket=<id>#ticket-<id>` for the newest-unread
-  // ticket) — soft-navigate so the drawer auto-opens + the row scrolls.
-  const openHelpCenterTickets = useCallback(
-    (href: string) => {
-      router.push(href);
-    },
-    [router],
-  );
-
   const sidebarConfig: NavigationSidebarConfig = useMemo(
     () =>
       grouped
@@ -601,8 +591,9 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
       // Attention-only: renders nothing unless <TicketLiveProvider> is
       // enabled (below), the viewer is authed, AND there are unread replies.
       showTicketAlerts: true,
+      // The cell opens the newest unread ticket through the chat runtime's navigation
+      // (`OpenframeChatRuntimeProvider`): a soft navigation, so the drawer opens on its row.
       ticketAlertsHref: routes.helpCenter.tickets,
-      onTicketAlerts: openHelpCenterTickets,
       // The Mingo-first shell draws this header below md only (`desktopHeader`): the
       // phone top bar — burger, logo, time tracker, bell, ticket alerts and Mingo. Mingo
       // opens the chat list, and its × leaves Mingo (above); the burger's drawer has the
@@ -625,7 +616,6 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
     }),
     [
       chromeLoading,
-      openHelpCenterTickets,
       mingoShell,
       isMdUp,
       mingoButton,

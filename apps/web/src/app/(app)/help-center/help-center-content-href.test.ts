@@ -68,6 +68,20 @@ describe('composeOpenframeInAppContentUrl', () => {
     expect(composeOpenframeInAppContentUrl({ type: 'blog_post', identifier: 'my-post' }).hostOverride).toBeUndefined();
   });
 
+  it("opens a cited document in this app's Knowledge Base, at its tree path, in the same tab", () => {
+    // A doc row (the lib's doc-table types) carries its tree path as the slug and no externalUrl.
+    const composed = composeOpenframeInAppContentUrl({
+      type: 'markdown',
+      identifier: 'doc-42',
+      slug: 'agents/install-on-windows',
+    });
+    expect(composed.href).toBe('/help-center/knowledge-base/agents/install-on-windows');
+    expect(composed.targetPlatform).toBeNull();
+    expect(href({ type: 'markdown', identifier: 'doc-7', slug: 'getting-started' })).toBe(
+      '/help-center/knowledge-base/getting-started',
+    );
+  });
+
   it('keeps hub-only types on the absolute content-hub origin', () => {
     expect(href({ type: 'blog_post', identifier: 'my-post' })).toBe('https://www.flamingo.run/blog/my-post');
     // The RAG hands back RELATIVE externalUrls for content we do not host.

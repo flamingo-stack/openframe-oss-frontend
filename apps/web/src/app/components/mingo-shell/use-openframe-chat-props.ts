@@ -5,7 +5,6 @@ import type {
   EmbeddableChatProps,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { useMemo } from 'react';
-import { KNOWLEDGE_BASE_ROUTE } from '@/app/(app)/help-center/endpoints';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
 import { renderMingoContextItem, renderMingoMention } from '@/app/(app)/mingo/context/mention-chips/render-mention';
@@ -25,7 +24,6 @@ import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
  */
 export type OpenframeChatProps = Pick<
   EmbeddableChatProps,
-  | 'baseRoute'
   | 'contextMemory'
   | 'contextPicker'
   | 'dialogStatusOf'
@@ -132,11 +130,6 @@ export function useOpenframeChatProps({
     // the uncontrolled active mode defaults to 'mingo'.
     modes: {},
     mingoState: state,
-    // Where an in-app doc chip navigates. Guide Mode V3 answers cite product
-    // documentation, and each cited source renders as a chip whose target is
-    // resolved against this route; without it the lib derives one from
-    // `runtime.source`, which is the hub's doc tree, not ours.
-    baseRoute: KNOWLEDGE_BASE_ROUTE,
     // PENDING approval cards are FILTERED OUT of their bubble by
     // `useMingoDialogChat` (dedupe for interrupted retries), so a card that the
     // reducer built renders nowhere unless it is handed back here — including the
