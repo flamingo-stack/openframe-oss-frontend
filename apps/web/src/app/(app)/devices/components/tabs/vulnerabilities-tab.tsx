@@ -92,7 +92,20 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
-      <SoftwareListFrame paramPrefix="cve" placeholder={SEARCH_PLACEHOLDER} loading={loading}>
+      <SoftwareListFrame
+        paramPrefix="cve"
+        placeholder={SEARCH_PLACEHOLDER}
+        loading={loading}
+        // The last matching run predates the current software inventory — e.g. a patched CVE may still show as
+        // active until the hourly run catches up. A status line over the rows; an empty list says it itself.
+        banner={
+          !scoped &&
+          device &&
+          isVulnerabilityScanPending(device) && (
+            <DataSyncBanner data-loading-optional className="mb-[var(--spacing-system-l)]" />
+          )
+        }
+      >
         {list => (
           <ContentErrorBoundary label="VulnerabilitiesTab" message="Couldn't load this device's vulnerabilities.">
             <DeviceVulnerabilitiesTable
@@ -106,9 +119,6 @@ function ModuleVulnerabilitiesTab({ device, loading }: VulnerabilitiesTabProps &
           </ContentErrorBoundary>
         )}
       </SoftwareListFrame>
-      {/* The last matching run predates the current software inventory — e.g. a patched CVE may still show as
-          active until the hourly run catches up. Below the list: drawn above it, its arrival would move the rows. */}
-      {!scoped && device && isVulnerabilityScanPending(device) && <DataSyncBanner data-loading-optional />}
     </div>
   );
 }
