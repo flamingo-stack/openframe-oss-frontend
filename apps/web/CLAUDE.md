@@ -340,7 +340,7 @@ paint, so nothing waits for a flag and no page shows a loader on the way.
   drawer opened; `listOpen`), and with Mingo open (the list, home, a chat page) it is the ×, back to the last page
   outside Mingo (`outsidePage`) or the dashboard. So a chat's own header draws no actions there. A new chat
   opened from the list (Mingo's home) and a chat started there are about that page (`pageContextHref` with
-  `outsidePage`: its chip, what is sent), and the home offers "Back" to it, with the list open over it again
+  `newChatPage`: its chip, what is sent), and the home offers "Back" to it, with the list open over it again
   (`showListAfterNavigation`). The sheet hides
   the page's `PageActions` bar (the lib's `ComposerSheet` covers it), and `AppLayout` pads `<main>` by its height.
 - **Onboarding is v2's (flag `onboarding-v2`)**: no Initial Setup card, no `/onboarding`

@@ -314,14 +314,14 @@ describe('snapshotSendContext', () => {
     window.matchMedia = ((query: string) => ({ matches: false, media: query })) as typeof window.matchMedia;
     try {
       window.history.replaceState(null, '', '/mingo/');
-      useMingoSheetStore.setState({ lastPage: '/devices/', outsidePage: '/devices/?statuses=OFFLINE' });
+      useMingoSheetStore.setState({ lastPage: '/devices/', newChatPage: '/devices/?statuses=OFFLINE' });
       expect(snapshotSendContext()).toMatchObject({
         currentPage: { kind: 'LIST', title: 'Devices' },
         currentList: { module: 'DEVICES', filters: [{ field: 'statuses', values: ['OFFLINE'] }] },
       });
     } finally {
       window.matchMedia = matchMedia;
-      useMingoSheetStore.setState({ outsidePage: null });
+      useMingoSheetStore.setState({ newChatPage: null });
     }
   });
 

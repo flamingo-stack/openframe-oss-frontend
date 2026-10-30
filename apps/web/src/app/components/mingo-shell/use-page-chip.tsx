@@ -53,7 +53,7 @@ function ChipLabel({ children }: { children: string }) {
  *
  * Mingo's home and the chat page are no page of their own: their chip is the page their
  * messages are about (`pageContextHref`), the one the chat was opened from — on a phone,
- * the page the chat list was opened over — and none when that is the home, a new chat
+ * the page a new chat was started over — and none when that is the home, a new chat
  * with no page (a desktop's home always is).
  */
 export function usePageChip(route: ComposerRoute, onAsk: (prompt: string) => void): ReactNode {
@@ -63,7 +63,7 @@ export function usePageChip(route: ComposerRoute, onAsk: (prompt: string) => voi
   const removeView = useMingoContextStore(s => s.removeView);
   const entityTypes = useMingoContextEntityTypes();
   const lastPage = useMingoSheetStore(s => s.lastPage);
-  const outsidePage = useMingoSheetStore(s => s.outsidePage);
+  const newChatPage = useMingoSheetStore(s => s.newChatPage);
   const phone = useIsMobileViewport() === true;
 
   if (pathname === null) return null;
@@ -71,7 +71,7 @@ export function usePageChip(route: ComposerRoute, onAsk: (prompt: string) => voi
 
   if (route === 'home' || route === 'chat') {
     const location = { pathname, search: search ? `?${search}` : '' };
-    const href = pageContextHref(location, lastPage, phone ? { outsidePage } : undefined);
+    const href = pageContextHref(location, lastPage, phone ? { newChatPage } : undefined);
     return isMingoHomeHref(href) ? null : <PageChip href={href} onAsk={ask} />;
   }
 

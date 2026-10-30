@@ -6,6 +6,7 @@ import { type MingoDockRequest, useMingoLauncherStore } from '@/app/(app)/mingo/
 import type { DialogIntent } from '@/app/(app)/tickets/constants';
 import { routes } from '@/lib/routes';
 import { type ComposerRoute, isSheetRoute } from './mingo-dock-route';
+import { useMingoSheetStore } from './mingo-sheet-store';
 
 /**
  * Publishes the dock to the launcher store while it is mounted: the launchers (Fix
@@ -48,7 +49,7 @@ interface ComposerLauncherDrainOptions {
  *    chat back before it is left, and draw the empty new chat on its way out). The
  *    request waits until the dock is there; the way home does not wait for the chat
  *    module to load. A phone has no composer under its pages: there a draft goes home,
- *    a new chat that takes the screen;
+ *    a new chat that takes the screen, about the page it was raised on (`newChatPage`);
  *  - a prompt (Meet Mingo, Help Center "Ask Mingo") is sent at once in a new chat,
  *    which then opens over the page, home included (`useComposerTarget`);
  *  - an intent ("Generate with AI" on a create button) creates its chat at once —
@@ -104,6 +105,7 @@ export function useComposerLauncherDrain({
     if (!inPlace && route !== 'home') {
       if (sentHomeRef.current !== dockRequest) {
         sentHomeRef.current = dockRequest;
+        if (isSheetRoute(route)) useMingoSheetStore.getState().rememberNewChatPage();
         navigate(routes.mingo.home);
       }
       return;
