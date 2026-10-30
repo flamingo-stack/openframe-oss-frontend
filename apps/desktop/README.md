@@ -162,6 +162,9 @@ The shared host is baked in at build time and can be overridden per install by
 }
 ```
 
+An install whose `shared_host` differs from the baked one loads no GTM, and so no
+PostHog: test environments stay out of production analytics.
+
 `learned_host` is written by the shell after login; it is not meant to be edited.
 Tokens live next to it in `tokens.json` (owner-readable only, plaintext —
 keychain storage is a known gap).

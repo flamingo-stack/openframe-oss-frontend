@@ -130,6 +130,7 @@ const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL
 /// PostHog (the web app bundles no SDK), so a build without it sends no analytics.
 /// It is the web app's container, so a tag added there runs here too: the CSP keeps
 /// its remote scripts out, but an inline tag can call this shell's commands.
+/// [`gtm_container`] decides whether an install gets it.
 const GTM_CONTAINER_ID: Option<&str> = option_env!("OPENFRAME_GTM_CONTAINER_ID");
 
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -409,6 +410,25 @@ pub(crate) fn tenant_host(cfg: &AppConfig) -> Option<String> {
         .map(str::to_string)
 }
 
+/// The GTM container this install may load: none unless it is on the shared host
+/// the binary was built for. One release serves every environment, and an install
+/// reaches stage or QA through `shared_host` in config.json, so the build cannot tell
+/// them apart and their test traffic would land in production analytics.
+fn gtm_container<'a>(
+    shared_host: Option<&str>,
+    built_for: Option<&str>,
+    container: Option<&'a str>,
+) -> &'a str {
+    match (shared_host, built_for, container) {
+        (Some(host), Some(built_for), Some(container))
+            if host.trim_end_matches('/') == built_for.trim_end_matches('/') =>
+        {
+            container
+        }
+        _ => "",
+    }
+}
+
 /// RFC 3986 unreserved set. Anything the shell interpolates into a URL — an id
 /// into a path, a bearer into a query — is escaped against this, so a value can
 /// never smuggle in a path or a parameter of its own.
@@ -585,11 +605,13 @@ fn exchange_ticket_url(url: &str, shared_host: Option<&str>) -> Result<url::Url,
 ///   openframe-mobile's NativeAuthPlugin — one frontend interface, two
 ///   implementations — but only the methods desktop actually implements.
 fn env_init_script(app: &AppHandle) -> String {
+    let shared = shared_host(&load_config(app));
     let env = serde_json::json!({
-        "NEXT_PUBLIC_SHARED_HOST_URL": shared_host(&load_config(app)).unwrap_or_default(),
+        "NEXT_PUBLIC_SHARED_HOST_URL": shared.as_deref().unwrap_or_default(),
         "NEXT_PUBLIC_APP_MODE": "saas-tenant",
         "NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER": "true",
-        "NEXT_PUBLIC_GTM_CONTAINER_ID": GTM_CONTAINER_ID.unwrap_or_default(),
+        "NEXT_PUBLIC_GTM_CONTAINER_ID":
+            gtm_container(shared.as_deref(), DEFAULT_SHARED_HOST, GTM_CONTAINER_ID),
     });
     format!(
         r#"window.__ENV = {env};
@@ -2189,5 +2211,41 @@ mod tests {
         assert!(!on_read_only_mount(&std::env::temp_dir()));
         assert!(!on_read_only_mount(std::path::Path::new("/Applications")));
         assert!(!on_read_only_mount(std::path::Path::new("/no/such/path")));
+    }
+
+    const BUILT_FOR: Option<&str> = Some("https://openframe.ai");
+    const CONTAINER: Option<&str> = Some("GTM-TEST");
+
+    #[test]
+    fn an_install_on_the_host_it_was_built_for_gets_the_container() {
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, CONTAINER), "GTM-TEST");
+        assert_eq!(
+            gtm_container(Some("https://openframe.ai/"), BUILT_FOR, CONTAINER),
+            "GTM-TEST"
+        );
+    }
+
+    #[test]
+    fn an_install_pointed_at_another_environment_gets_no_container() {
+        for host in [
+            "https://openframe.miami",
+            "https://qa.openframe.build",
+            "https://dev.openframe.build",
+            "https://openframe.ai.example.com",
+        ] {
+            assert_eq!(
+                gtm_container(Some(host), BUILT_FOR, CONTAINER),
+                "",
+                "{host}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_build_without_a_container_or_a_host_injects_nothing() {
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, None), "");
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, Some("")), "");
+        assert_eq!(gtm_container(BUILT_FOR, None, CONTAINER), "");
+        assert_eq!(gtm_container(None, BUILT_FOR, CONTAINER), "");
     }
 }
