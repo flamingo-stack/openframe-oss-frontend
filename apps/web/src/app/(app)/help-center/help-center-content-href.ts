@@ -37,7 +37,7 @@ import {
   makeComposeContentUrl,
 } from '@flamingo-stack/openframe-frontend-core/utils';
 import { routes } from '@/lib/routes';
-import { HELP_CENTER_BASE, KNOWLEDGE_BASE_ROUTE } from './endpoints';
+import { HELP_CENTER_BASE } from './endpoints';
 
 /** Public origin of the Flamingo content hub — fallback for content types Help
  *  Center does NOT host in-app (blog / podcast / case-study / …). */
@@ -105,7 +105,7 @@ const composeLibContentUrl = makeComposeContentUrl({
     onboarding_guide: `${HC}/onboarding-guides`,
     product_release: `${HC}/releases`,
     // A product doc (its tree path arrives as the slug) opens in this app's knowledge base.
-    markdown: KNOWLEDGE_BASE_ROUTE.replace(/^\//, ''),
+    markdown: `${HC}/knowledge-base`,
   },
   contentOrigin: CONTENT_HUB_ORIGIN,
   // List-filter types deep-link into their EXISTING in-app list route with the
