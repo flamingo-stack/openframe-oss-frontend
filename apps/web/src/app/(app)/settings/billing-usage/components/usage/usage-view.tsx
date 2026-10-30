@@ -144,6 +144,22 @@ function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
         {hasAi && <DashboardInfoCard loading={loading} title="AI Usage" value={aiTokensUsed} />}
       </div>
 
+      {/* Only a workspace over its limit has it: a warning, so it sits under the figures it explains. */}
+      {deviceOverLimit && (
+        <div
+          data-loading-optional
+          className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]"
+        >
+          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
+            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
+            <p className="text-ods-text-secondary text-h4">
+              Your workspace administrator can raise the limit for your team.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div
         className={cn(
           'grid grid-cols-1 items-stretch gap-[var(--spacing-system-l)]',
@@ -160,21 +176,6 @@ function UsageScreen({ data }: { data: usageViewQuery$data | null }) {
           </SectionBlock>
         )}
       </div>
-      {/* Below the sections it would otherwise push: only a workspace over its limit has it. */}
-      {deviceOverLimit && (
-        <div
-          data-loading-optional
-          className="flex items-start gap-[var(--spacing-system-m)] rounded-md border border-ods-warning bg-ods-card p-[var(--spacing-system-m)]"
-        >
-          <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
-          <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-            <p className="font-bold text-ods-text-primary text-h3">You're over your device limit</p>
-            <p className="text-ods-text-secondary text-h4">
-              Your workspace administrator can raise the limit for your team.
-            </p>
-          </div>
-        </div>
-      )}
     </PageLayout>
   );
 }

@@ -7,6 +7,7 @@ import {
   BannedIcon,
   CheckCircleIcon,
   EyeIcon,
+  KeyIcon,
   PenEditIcon,
   Refresh02VrIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -25,7 +26,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
 import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EMPTY_VALUE } from '@/lib/empty-value';
@@ -33,6 +34,7 @@ import { formatDate, formatTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { ApiKeyCreatedModal } from '../../components/api-key-created-modal';
 import { ApiKeyDetailsModal } from '../../components/api-key-details-modal';
 import { CreateApiKeyModal } from '../../components/create-api-key-modal';
@@ -251,16 +253,29 @@ export function ApiKeysTab() {
     enableSorting: false,
   });
 
+  // No key at all is the app's empty state in place of the table, as every list without records says it: nothing to
+  // count or open, so no row count and no column titles. A failed read keeps the table and says why in its body.
+  const showEmptyState = !isLoading && !error && items.length === 0;
+
   const actions: PageActionButton[] = [
     {
       label: 'API Documentation',
-      icon: <DocumentIcon className="h-5 w-5" />,
+      // `currentColor`: the icon's own default is the primary text colour, which would override the button's icon tone.
+      icon: <DocumentIcon className="h-5 w-5" color="currentColor" />,
       variant: 'outline',
-      onClick: () => window.open('/swagger-ui/index.html#/', '_blank', 'noopener,noreferrer'),
+      // Swagger UI is served by the tenant gateway, not the app bundle. Relative, it resolves against the desktop
+      // shell's own origin (`tauri://localhost`), which the shell opens as an in-app window that falls back to the
+      // dashboard; on the gateway origin it is off-app, so the shell hands it to the system browser.
+      onClick: () =>
+        window.open(
+          `${runtimeEnv.tenantHostUrl().replace(/\/+$/, '')}/swagger-ui/index.html#/`,
+          '_blank',
+          'noopener,noreferrer',
+        ),
     },
     {
       label: 'Create API Key',
-      icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
+      icon: <PlusCircleIcon size={20} />,
       variant: 'outline',
       onClick: () => setIsCreateOpen(true),
     },
@@ -273,16 +288,24 @@ export function ApiKeysTab() {
       className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />} />
-        <DataTable.Body
-          loading={isLoading}
-          loadingCells={loadingRows}
-          skeletonRows={API_KEYS_SKELETON_ROWS}
-          emptyState={oneLineEmptyState(error || 'No API keys found.')}
-          onRowClick={openDetails}
+      {showEmptyState ? (
+        <EmptyState
+          icon={<KeyIcon />}
+          title="No API keys yet"
+          description="Keys that let your scripts and integrations call the OpenFrame API will be listed here."
         />
-      </DataTable>
+      ) : (
+        <DataTable table={table}>
+          <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />} />
+          <DataTable.Body
+            loading={isLoading}
+            loadingCells={loadingRows}
+            skeletonRows={API_KEYS_SKELETON_ROWS}
+            emptyState={oneLineEmptyState(error || 'No API keys found.')}
+            onRowClick={openDetails}
+          />
+        </DataTable>
+      )}
       <CreateApiKeyModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}

@@ -179,6 +179,12 @@ jobs:
         working-directory: apps/web
         run: npm test
 
+      # Every page carries the stylesheet inside its HTML (next.config.mjs, the lib's withInlineStyles),
+      # so its brotli size has a budget. The scan behind it reads the generated code above.
+      - name: Stylesheet budget
+        working-directory: apps/web
+        run: npm run css:budget:check
+
   build_image:
     name: 'Test Frontend'
     runs-on: ubuntu-latest
@@ -239,6 +245,17 @@ jobs:
                   -f "./apps/web/Dockerfile")
             while IFS= read -r t; do [ -n "$t" ] && args+=(--tag "$t"); done <<< "$META_TAGS"
             docker buildx build "${args[@]}" "./apps/web"
+
+      # The image built above, amd64 from this job's builder cache, so no second build. A fixable
+      # HIGH/CRITICAL finding fails the job: the image is not pushed and All Checks goes red. The
+      # merge queue does not scan again.
+      - name: Scan image
+        if: github.event_name == 'pull_request'
+        uses: ./.github/steps/trivy
+        with:
+          name: ${{ env.REPOSITORY }}
+          dockerfile: ./apps/web/Dockerfile
+          context: ./apps/web
 
       - name: Push image pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }} (pr-${{ github.event.pull_request.number }} tag)
         id: docker_push

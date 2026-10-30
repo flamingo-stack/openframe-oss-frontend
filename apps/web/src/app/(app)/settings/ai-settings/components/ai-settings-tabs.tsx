@@ -13,9 +13,12 @@ import { useRemoteAccessApprovalGate } from '@/app/(app)/devices/hooks/use-remot
 export const AI_SETTINGS_TAB_IDS = ['mingo', 'customer', 'guardrails', 'device-guardrails'] as const;
 export type AiSettingsTabId = (typeof AI_SETTINGS_TAB_IDS)[number];
 
-/** Mingo's tab is marked by Mingo's own identity icon, like every Mingo mark in the app. */
+/**
+ * Mingo's tab is marked by Mingo's own identity icon, like every Mingo mark in the app. `currentColor`: the strip
+ * colours its icons through `className` (the accent on the open tab, secondary on the rest), and the mark follows.
+ */
 function MingoTabIcon({ className }: { className?: string }) {
-  return <AgentMark agent="mingo" className={className} />;
+  return <AgentMark agent="mingo" className={className} color="currentColor" />;
 }
 
 export const AI_SETTINGS_TABS: TabItem[] = [

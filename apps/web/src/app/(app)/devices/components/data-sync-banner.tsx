@@ -8,8 +8,8 @@ import type { HTMLAttributes } from 'react';
  * the connecting `WarningBlock` banner, but grey: the data on screen is real,
  * just possibly behind an in-flight sync, so it must not read as a warning.
  * Only some devices are mid-sync, so it is an optional part (callers mark it
- * `data-loading-optional`): drawn below the list it qualifies, never above it,
- * where its arrival would move the rows.
+ * `data-loading-optional`). It heads the list it qualifies, so it is read before
+ * the rows it is about.
  */
 export function DataSyncBanner({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
