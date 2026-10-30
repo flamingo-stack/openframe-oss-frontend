@@ -27,6 +27,7 @@ import { BillingPageFrame } from './billing-page-frame';
 import { BillingSections } from './billing-sections';
 import { DeviceOverageBlock } from './device-overage-block';
 import { PaidAiTokensCard } from './paid-ai-tokens-card';
+import { PurchasedTokenPacks } from './purchased-token-packs';
 import { useBillingPageActions } from './use-billing-page-actions';
 
 /**
@@ -53,6 +54,7 @@ const billingUsageContentQuery = graphql`
       ...billingSections_subscription
       ...paidAiTokensCard_subscription
       ...aiBalanceAlert_subscription
+      ...purchasedTokenPacks_subscription
       ...deviceOverageBlock_subscription
       ...cancelSubscriptionFlow_subscription
     }
@@ -219,6 +221,12 @@ export function BillingUsageScreen({ data, onRefetch: refetch }: BillingUsageScr
                     <AutoTopUpNotice status={autoTopUp} onManage={aiBalanceOffered ? openAiBalanceModal : null} />
                   )}
                 </AutoTopUpIsland>
+              </div>
+            )}
+
+            {hasAi && subscription && (
+              <div data-loading-optional className="contents">
+                <PurchasedTokenPacks subscription={subscription} />
               </div>
             )}
 

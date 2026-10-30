@@ -139,18 +139,18 @@ export function TicketsFilterModal({
       }
     >
       <div className="space-y-2">
-        <Label>Customer</Label>
+        <Label variant="large">Customer</Label>
         <OrganizationFilter value={localOrganizationIds} onChange={setLocalOrganizationIds} />
       </div>
 
       <div className="space-y-2">
-        <Label>Assignee</Label>
+        <Label variant="large">Assignee</Label>
         <AssigneeFilter value={localAssigneeIds} onChange={setLocalAssigneeIds} />
       </div>
 
       {activity && (
         <div className="space-y-2">
-          <Label>Activity</Label>
+          <Label variant="large">Activity</Label>
           <ActivityFilter value={localActivity} onChange={setLocalActivity} />
         </div>
       )}
@@ -159,7 +159,7 @@ export function TicketsFilterModal({
 
       {status && (
         <div className="space-y-2">
-          <Label>Status</Label>
+          <Label variant="large">Status</Label>
           <Autocomplete
             multiple
             options={status.options}
@@ -174,7 +174,7 @@ export function TicketsFilterModal({
 
       {sort && (
         <div className="space-y-2">
-          <Label>Sort by Ticket Number</Label>
+          <Label variant="large">Sort by Ticket Number</Label>
           <Select
             value={localSort.direction}
             onValueChange={value => setLocalSort({ ...localSort, direction: value as TicketListSort['direction'] })}

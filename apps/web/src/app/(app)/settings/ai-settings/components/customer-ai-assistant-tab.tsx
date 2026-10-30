@@ -153,7 +153,7 @@ function CustomerAiAssistantEditor({
             name="assistantName"
             control={form.control}
             render={({ field, fieldState }) => (
-              <Input {...field} label="Assistant Name" error={fieldState.error?.message} />
+              <Input {...field} label="Assistant Name" labelVariant="large" error={fieldState.error?.message} />
             )}
           />
 
@@ -168,6 +168,7 @@ function CustomerAiAssistantEditor({
         <div className="w-full shrink-0 content-md:w-[274px]">
           <ImageUploader
             fieldLabel="Assistant Avatar"
+            labelVariant="large"
             value={avatarUrl}
             onChange={onAvatarChange}
             onRemove={onAvatarRemove}

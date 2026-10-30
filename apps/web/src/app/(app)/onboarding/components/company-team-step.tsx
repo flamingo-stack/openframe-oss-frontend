@@ -120,8 +120,10 @@ export function CompanyTeamStep({
       <div className="flex flex-col">
         {/* Column labels — shown once above the rows */}
         <div className="grid grid-cols-1 gap-[var(--spacing-system-xs)] content-md:grid-cols-2">
-          <Label>User Email</Label>
-          <Label className="hidden content-md:block">Role</Label>
+          <Label variant="large">User Email</Label>
+          <Label variant="large" className="hidden content-md:block">
+            Role
+          </Label>
         </div>
 
         <div className="flex flex-col gap-[var(--spacing-system-xs)]">
