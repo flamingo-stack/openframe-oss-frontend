@@ -7,7 +7,6 @@ import { SearchToolbar } from '@/app/components/shared/search-toolbar';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { FLEET_SEARCH_DEBOUNCE_MS } from '../../shared/fleet-list-paging';
 import { useServerSort } from '../../shared/use-server-sort';
 import { SOFTWARE_VULNERABILITIES_SORTABLE_COLUMN_IDS } from './software-vulnerabilities-columns';
 import { SoftwareVulnerabilitiesTable } from './software-vulnerabilities-table';
@@ -34,7 +33,7 @@ export const SoftwareVulnerabilitiesTab = memo(function SoftwareVulnerabilitiesT
     search: searchInput,
     setSearch: setSearchInput,
     debouncedSearch,
-  } = useSearchParam(params.cveSearch, value => setParam('cveSearch', value), FLEET_SEARCH_DEBOUNCE_MS);
+  } = useSearchParam(params.cveSearch, value => setParam('cveSearch', value), 300);
 
   const [isEmpty, setIsEmpty] = useState(false);
   const { toolbarRef, containerStyle, stickyHeaderOffset } = useStickyToolbar();

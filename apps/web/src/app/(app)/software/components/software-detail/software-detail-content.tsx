@@ -69,7 +69,7 @@ function SoftwareDetailContentQuery({ softwareId }: { softwareId: string }) {
   const { software } = useLazyLoadQuery<SoftwareDetailContentQueryType>(
     softwareDetailContentQuery,
     { id: softwareId },
-    { fetchPolicy: 'store-or-network', fetchKey: retryKey },
+    { fetchPolicy: 'store-and-network', fetchKey: retryKey },
   );
 
   // Register this title as the Mingo "open view" so the agent gets the user's
