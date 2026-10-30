@@ -11,7 +11,7 @@ import {
   useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   groupMembersTable_query$data,
@@ -234,6 +234,7 @@ interface MembersProps {
   liveScope: string;
   onScopeChange: (scope: string) => void;
   isPending: boolean;
+  heading: ReactNode;
 }
 
 /**
@@ -258,21 +259,7 @@ export function GroupMembersSection({
   const onScopeChange = (next: string) => setParam('scope', next);
 
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-l)]">
-      <UserTabHeading
-        title="Members"
-        actions={
-          <Button
-            variant="outline"
-            size="icon"
-            className="content-md:hidden"
-            onClick={() => setFiltersOpen(true)}
-            disabled={loading}
-            aria-label="Open filters"
-            leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-          />
-        }
-      />
+    <>
       <GroupMembersIsland
         id={id}
         customerId={customerId}
@@ -281,6 +268,22 @@ export function GroupMembersSection({
         onScopeChange={onScopeChange}
         isPending={isPending}
         loading={loading}
+        heading={
+          <UserTabHeading
+            title="Members"
+            actions={
+              <Button
+                variant="outline"
+                size="icon"
+                className="content-md:hidden"
+                onClick={() => setFiltersOpen(true)}
+                disabled={loading}
+                aria-label="Open filters"
+                leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+              />
+            }
+          />
+        }
       />
       <FilterModal
         isOpen={filtersOpen}
@@ -295,11 +298,11 @@ export function GroupMembersSection({
         currentFilters={{ scope: [liveScope] }}
         onFilterChange={filters => onScopeChange(pickMembershipScope(liveScope, filters.scope ?? []))}
       />
-    </section>
+    </>
   );
 }
 
-/** The rows, their own island: the heading and its filter button draw beside them. */
+/** The heading and the rows, one island: a missing group has no Members section to head. */
 function GroupMembersIsland({ loading = false, ...props }: MembersProps & { loading?: boolean }) {
   return (
     <LoadingSuspense live label="Loading members" gated={loading}>
@@ -373,6 +376,7 @@ function MembersRows({
   liveScope,
   onScopeChange,
   isPending,
+  heading,
 }: MembersProps & {
   rows: readonly MemberRow[];
   totalCount: number;
@@ -400,28 +404,31 @@ function MembersRows({
     onColumnFiltersChange,
   });
   return (
-    <div className="flex flex-col gap-[var(--spacing-system-xs)]">
-      {hiddenCount > 0 && (
-        <p className="text-ods-text-secondary text-h6">
-          {hiddenCount === 1 ? '1 member' : `${hiddenCount} members`} outside this customer
-        </p>
-      )}
-      <LiveTable
-        table={table}
-        pageSize={MEMBERS_PAGE_SIZE}
-        loadingCells={loading}
-        stickyHeader={false}
-        itemName="result"
-        totalCount={totalCount}
-        isPending={isPending}
-        emptyState={oneLineEmptyState(
-          liveFailed
-            ? 'The nested members could not be read just now. Try again in a few minutes.'
-            : 'This group has no members.',
+    <section className="flex flex-col gap-[var(--spacing-system-l)]">
+      {heading}
+      <div className="flex flex-col gap-[var(--spacing-system-xs)]">
+        {hiddenCount > 0 && (
+          <p className="text-ods-text-secondary text-h6">
+            {hiddenCount === 1 ? '1 member' : `${hiddenCount} members`} outside this customer
+          </p>
         )}
-        rowHref={rowHref}
-        footer={rows.length > 0 ? infiniteScroll : null}
-      />
-    </div>
+        <LiveTable
+          table={table}
+          pageSize={MEMBERS_PAGE_SIZE}
+          loadingCells={loading}
+          stickyHeader={false}
+          itemName="result"
+          totalCount={totalCount}
+          isPending={isPending}
+          emptyState={oneLineEmptyState(
+            liveFailed
+              ? 'The nested members could not be read just now. Try again in a few minutes.'
+              : 'This group has no members.',
+          )}
+          rowHref={rowHref}
+          footer={rows.length > 0 ? infiniteScroll : null}
+        />
+      </div>
+    </section>
   );
 }
