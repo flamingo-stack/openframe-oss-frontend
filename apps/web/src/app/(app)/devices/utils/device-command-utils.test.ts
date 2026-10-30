@@ -4,6 +4,8 @@
  * id handed to it is a fresh v4 UUID each time.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildInstallCommand,
@@ -166,5 +168,20 @@ describe('buildRemoteAccessModeArgs', () => {
   it('adds nothing when the device follows its customer', () => {
     expect(buildRemoteAccessModeArgs(null)).toEqual([]);
     expect(buildRemoteAccessModeArgs(undefined)).toEqual([]);
+  });
+});
+
+/**
+ * The desktop shell writes this command itself instead of running one from the
+ * page (`install_command` in installer.rs), and its own test reads the same file.
+ * A change to the command here fails until the shell makes it too.
+ */
+describe('the command the desktop shell runs', () => {
+  const fixture = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, '../../../../../../desktop/src-tauri/src/install-command.json'), 'utf8'),
+  );
+
+  it.each(['darwin', 'windows'] as const)('is the one offered for copying on %s', platform => {
+    expect(buildInstallCommand({ ...fixture.input, platform })).toBe(fixture.commands[platform]);
   });
 });

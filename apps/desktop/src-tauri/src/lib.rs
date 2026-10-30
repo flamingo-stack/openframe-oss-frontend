@@ -39,7 +39,7 @@ use tauri::{
     AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
 };
-use tokens::NativeAuthTokens;
+use tokens::{NativeAuthTokens, PageTokens};
 
 /// App background applied to every window so no white frame shows before the
 /// page paints (matches the dark OpenFrame UI).
@@ -487,9 +487,22 @@ pub(crate) fn on_read_only_mount(_path: &std::path::Path) -> bool {
     false
 }
 
-/// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and
-/// normalize to a scheme-qualified origin with no trailing slash.
-fn normalize_host(input: &str) -> Result<String, String> {
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
+/// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and return
+/// the origin, if it is a tenant of the shared host this app was built for.
+///
+/// Everything the shell does on the tenant goes to this origin: it dials NATS with
+/// the bearer on the URL, fetches the updater manifest from it, and downloads the
+/// agent it runs as root from it. The page supplies the value, so it has to name a
+/// host the backend could have issued. Tenants live on `<slug>.<zone>`, where the
+/// zone is the shared host itself (`openframe.tenancy.base-domain` and the
+/// gateway's `Host=*.` route are both `SHARED_HOST_URL`) less the `auth.` alias it
+/// is also served under. Plain http is for a gateway on the developer's own box,
+/// and only when the shared host is on it too.
+pub(crate) fn tenant_origin(input: &str, shared_host: Option<&str>) -> Result<String, String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Err("Host is empty".into());
@@ -499,8 +512,53 @@ fn normalize_host(input: &str) -> Result<String, String> {
     } else {
         format!("https://{trimmed}")
     };
-    url::Url::parse(&with_scheme).map_err(|e| format!("Invalid URL: {e}"))?;
-    Ok(with_scheme.trim_end_matches('/').to_string())
+    let url = url::Url::parse(&with_scheme).map_err(|e| format!("Invalid URL: {e}"))?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("Tenant host must be a bare origin".into());
+    }
+    let shared = shared_host
+        .and_then(|shared| url::Url::parse(shared).ok())
+        .ok_or("No shared host to check the tenant host against")?;
+    let shared_name = shared.host_str().unwrap_or_default();
+    let host = url.host_str().unwrap_or_default();
+    let allowed = if is_loopback_host(shared_name) {
+        is_loopback_host(host)
+    } else {
+        let zone = shared_name.strip_prefix("auth.").unwrap_or(shared_name);
+        url.scheme() == "https"
+            && (host == zone
+                || host
+                    .strip_suffix(zone)
+                    .is_some_and(|sub| sub.ends_with('.')))
+    };
+    if !allowed {
+        return Err(format!("Tenant host {host} is not under {shared_name}"));
+    }
+    Ok(url.origin().ascii_serialization())
+}
+
+/// The ticket exchange is a GET the page asks the shell to make, outside CORS, and
+/// whatever `Access-Token`/`Refresh-Token` the answer carries become the session.
+/// So it goes to the one place tickets are redeemed: the shared host's
+/// `/oauth/dev-exchange`, which is the only URL `native-login.ts` ever builds here.
+fn exchange_ticket_url(url: &str, shared_host: Option<&str>) -> Result<url::Url, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid exchange URL: {e}"))?;
+    let shared = shared_host
+        .and_then(|shared| url::Url::parse(shared).ok())
+        .ok_or("No shared host to exchange the ticket at")?;
+    if parsed.origin() != shared.origin()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.path() != "/oauth/dev-exchange"
+    {
+        return Err("Ticket exchange must go to the shared host".into());
+    }
+    Ok(parsed)
 }
 
 /// JS injected into every window that hosts the bundled frontend, before any
@@ -547,6 +605,11 @@ window.__OPENFRAME_SHELL__ = {{
     }},
     exchangeTicket: function (o) {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_exchange_ticket', {{ url: o.url }});
+    }},
+    revokeSession: function (o) {{
+      return window.__TAURI_INTERNALS__.invoke('native_auth_revoke_session', {{
+        tenantId: (o && o.tenantId) || null
+      }});
     }},
     getTokens: function () {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_get_tokens');
@@ -947,6 +1010,22 @@ struct AuthState {
     /// within the first ticket's lifetime, that ticket can still be good: the app
     /// then signs in to whichever account the first tab finished with.
     pending_login: Mutex<Option<tokio::sync::oneshot::Sender<Result<String, String>>>>,
+    /// The tokens of a ticket exchange the page has not stored yet. The page gets
+    /// the access half and decides whether to keep the session (`completeTicketFlow`
+    /// resolves the tenant first and may give up); the refresh half waits here for
+    /// `native_auth_set_tokens` to name that access token.
+    exchanged: Mutex<Option<NativeAuthTokens>>,
+}
+
+impl AuthState {
+    /// The refresh token waiting for this access token, once.
+    fn claim_exchanged_refresh(&self, access_token: Option<&str>) -> Option<String> {
+        let mut exchanged = notifications::lock(&self.exchanged);
+        if access_token.is_none() || exchanged.as_ref()?.access_token.as_deref() != access_token {
+            return None;
+        }
+        exchanged.take()?.refresh_token
+    }
 }
 
 #[derive(Serialize)]
@@ -1157,14 +1236,19 @@ fn native_auth_cancel(state: State<'_, AuthState>) -> bool {
 
 /// NativeAuth.exchangeTicket: native (CORS-free) GET; the tokens ride on the
 /// Access-Token / Refresh-Token response headers, which a cross-origin webview
-/// fetch could not read.
+/// fetch could not read. The refresh token stops here (see
+/// [`AuthState::exchanged`] and [`PageTokens`]).
 #[tauri::command]
-async fn native_auth_exchange_ticket(url: String) -> Result<NativeAuthTokens, String> {
+async fn native_auth_exchange_ticket(
+    app: AppHandle,
+    state: State<'_, AuthState>,
+    url: String,
+) -> Result<PageTokens, String> {
+    let url = exchange_ticket_url(&url, shared_host(&load_config(&app)).as_deref())
+        .inspect_err(|e| log::warn!("[auth] refused a ticket exchange: {e}"))?;
     // Log the origin only — the ticket rides in the query string.
-    let origin = url::Url::parse(&url)
-        .map(|u| u.origin().ascii_serialization())
-        .unwrap_or_else(|_| "<invalid url>".into());
-    let response = reqwest::get(&url)
+    let origin = url.origin().ascii_serialization();
+    let response = reqwest::get(url)
         .await
         .inspect_err(|e| log::warn!("[auth] ticket exchange at {origin} failed: {e}"))
         .map_err(|e| format!("Ticket exchange failed: {e}"))?;
@@ -1189,14 +1273,24 @@ async fn native_auth_exchange_ticket(url: String) -> Result<NativeAuthTokens, St
         tokens.access_token.is_some(),
         tokens.refresh_token.is_some()
     );
-    Ok(tokens)
+    let page = PageTokens::from(tokens.clone());
+    *notifications::lock(&state.exchanged) = Some(tokens);
+    Ok(page)
 }
 
 /// Fresh-on-read: refreshes first when the stored access token is missing or
 /// expiring, so the webview resumes instantly after long idle.
 #[tauri::command]
-async fn native_auth_get_tokens(app: AppHandle) -> Result<NativeAuthTokens, String> {
-    Ok(tokens::ensure_fresh(&app).await)
+async fn native_auth_get_tokens(app: AppHandle) -> Result<PageTokens, String> {
+    Ok(tokens::ensure_fresh(&app).await.into())
+}
+
+/// NativeAuth.revokeSession: the half of sign-out that needs the refresh token,
+/// which the webview no longer has. Reports whether the gateway answered, the
+/// contract of the webview's `logoutAsync`.
+#[tauri::command]
+async fn native_auth_revoke_session(app: AppHandle, tenant_id: Option<String>) -> bool {
+    tokens::revoke_session(&app, tenant_id).await
 }
 
 /// Shell-owned refresh, delegated to by the webview's token-refresh-manager on
@@ -1224,24 +1318,33 @@ async fn native_auth_get_tokens(app: AppHandle) -> Result<NativeAuthTokens, Stri
 async fn native_auth_refresh_tokens(
     app: AppHandle,
     rejected_access_token: Option<String>,
-) -> Result<NativeAuthTokens, String> {
+) -> Result<PageTokens, String> {
     log::info!("[tokens] webview requested a refresh (upstream 401)");
     let prev_access = tokens::damping_token(
         rejected_access_token,
         tokens::load_tokens(&app).access_token,
     );
-    tokens::refresh(&app, true, prev_access, "webview upstream 401").await
+    tokens::refresh(&app, true, prev_access, "webview upstream 401")
+        .await
+        .map(PageTokens::from)
 }
 
 /// Merge semantics and the lock they need both live in `tokens::merge_and_save`:
 /// a write from the webview must not land on top of a rotation the shell
 /// completed in between.
+///
+/// A refresh token still arrives here from the sign-ins the page runs itself
+/// (`storeTokensFromHeaders`). After a ticket exchange the page only has the access
+/// token, and naming it is what commits the refresh token the shell held back.
 #[tauri::command]
 async fn native_auth_set_tokens(
     app: AppHandle,
+    state: State<'_, AuthState>,
     access_token: Option<String>,
     refresh_token: Option<String>,
 ) -> Result<(), String> {
+    let refresh_token =
+        refresh_token.or_else(|| state.claim_exchanged_refresh(access_token.as_deref()));
     log::info!(
         "[tokens] webview stored tokens (access: {}, refresh: {})",
         access_token.is_some(),
@@ -1260,6 +1363,7 @@ fn native_auth_clear_tokens(app: AppHandle) -> Result<(), String> {
     // webview (force-logout / sign-out) or the tray's Sign Out — the shell's
     // own refresh logs its 401-clear separately in tokens.rs.
     log::info!("[tokens] tokens cleared (webview logout or tray sign-out)");
+    *notifications::lock(&app.state::<AuthState>().exchanged) = None;
     // Every logout funnels through here, so this is the one place that reliably
     // tears down the signed-out user's notification subscription.
     notifications::end_session(&app);
@@ -1271,8 +1375,9 @@ fn native_auth_clear_tokens(app: AppHandle) -> Result<(), String> {
 /// gateway without depending on webview localStorage.
 #[tauri::command]
 fn native_auth_set_tenant_host(app: AppHandle, origin: String) -> Result<(), String> {
-    let normalized = normalize_host(&origin)?;
     let mut cfg = load_config(&app);
+    let normalized = tenant_origin(&origin, shared_host(&cfg).as_deref())
+        .inspect_err(|e| log::warn!("[auth] refused a tenant host: {e}"))?;
     if cfg.learned_host.as_deref() != Some(normalized.as_str()) {
         log::info!("learned tenant host: {normalized}");
         cfg.learned_host = Some(normalized);
@@ -1527,6 +1632,7 @@ pub fn run() {
             native_auth_start,
             native_auth_cancel,
             native_auth_exchange_ticket,
+            native_auth_revoke_session,
             native_auth_get_tokens,
             native_auth_refresh_tokens,
             native_auth_set_tokens,
@@ -1774,6 +1880,192 @@ mod tests {
 
     fn parse(url: &str) -> url::Url {
         url::Url::parse(url).unwrap()
+    }
+
+    const SHARED: Option<&str> = Some("https://openframe.ai");
+
+    #[test]
+    fn a_tenant_of_the_shared_host_normalizes_to_its_origin() {
+        for input in [
+            "acme.openframe.ai",
+            "https://acme.openframe.ai",
+            "https://acme.openframe.ai/",
+            " https://ACME.openframe.ai ",
+        ] {
+            assert_eq!(
+                tenant_origin(input, SHARED).as_deref(),
+                Ok("https://acme.openframe.ai"),
+                "{input}"
+            );
+        }
+        // A pull-request namespace sits a level deeper in the same zone.
+        assert!(tenant_origin("https://a.pr-12.openframe.ai", SHARED).is_ok());
+        assert!(tenant_origin("https://openframe.ai", SHARED).is_ok());
+        assert!(tenant_origin("https://acme.openframe.ai:8443", SHARED).is_ok());
+    }
+
+    #[test]
+    fn the_auth_alias_of_the_shared_host_has_the_same_tenants() {
+        let shared = Some("https://auth.openframe.miami");
+        assert!(tenant_origin("https://acme.openframe.miami", shared).is_ok());
+        assert!(tenant_origin("https://acme.openframe.ai", shared).is_err());
+    }
+
+    #[test]
+    fn a_host_outside_the_zone_is_not_a_tenant() {
+        for input in [
+            "https://evil.example",
+            "https://evilopenframe.ai",
+            "https://openframe.ai.evil.example",
+            "https://acme.openframe.ai.",
+            "https://acme.openframe.build",
+            "https://127.0.0.1",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+    }
+
+    #[test]
+    fn a_tenant_host_is_a_bare_https_origin() {
+        for input in [
+            "http://acme.openframe.ai",
+            "https://evil.example@acme.openframe.ai",
+            "https://acme.openframe.ai@evil.example",
+            "https://user:pass@acme.openframe.ai",
+            "https://acme.openframe.ai/path",
+            "https://acme.openframe.ai?x=1",
+            "https://acme.openframe.ai#x",
+            "javascript:alert(1)",
+            "",
+            "   ",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+    }
+
+    #[test]
+    fn plain_http_is_only_for_a_gateway_on_this_box() {
+        let local = Some("http://localhost:8080");
+        assert_eq!(
+            tenant_origin("http://localhost", local).as_deref(),
+            Ok("http://localhost")
+        );
+        assert!(tenant_origin("http://127.0.0.1:8443", local).is_ok());
+        assert!(tenant_origin("http://evil.example", local).is_err());
+        assert!(tenant_origin("http://localhost", SHARED).is_err());
+    }
+
+    #[test]
+    fn no_shared_host_means_no_tenant_host() {
+        assert!(tenant_origin("https://acme.openframe.ai", None).is_err());
+    }
+
+    #[test]
+    fn a_ticket_is_only_exchanged_at_the_shared_host() {
+        let good = "https://openframe.ai/oauth/dev-exchange?ticket=abc";
+        assert!(exchange_ticket_url(good, SHARED).is_ok());
+        for bad in [
+            "https://evil.example/oauth/dev-exchange?ticket=abc",
+            "https://acme.openframe.ai/oauth/dev-exchange?ticket=abc",
+            "http://openframe.ai/oauth/dev-exchange?ticket=abc",
+            "https://openframe.ai/api/me",
+            "https://openframe.ai/oauth/dev-exchange/../me",
+            "https://x@openframe.ai/oauth/dev-exchange?ticket=abc",
+            "file:///etc/passwd",
+            "not a url",
+        ] {
+            assert!(exchange_ticket_url(bad, SHARED).is_err(), "{bad}");
+        }
+        assert!(exchange_ticket_url(good, None).is_err());
+    }
+
+    #[test]
+    fn an_exchanged_refresh_token_is_claimed_once_by_its_access_token() {
+        let state = AuthState::default();
+        let held = || NativeAuthTokens {
+            access_token: Some("access".into()),
+            refresh_token: Some("refresh".into()),
+        };
+        assert_eq!(state.claim_exchanged_refresh(Some("access")), None);
+
+        *notifications::lock(&state.exchanged) = Some(held());
+        assert_eq!(state.claim_exchanged_refresh(None), None);
+        assert_eq!(state.claim_exchanged_refresh(Some("other")), None);
+        assert_eq!(
+            state.claim_exchanged_refresh(Some("access")).as_deref(),
+            Some("refresh")
+        );
+        assert_eq!(state.claim_exchanged_refresh(Some("access")), None);
+    }
+
+    /// A command missing from the manifest is refused at runtime, with nothing at
+    /// build time to say so.
+    #[test]
+    fn every_command_is_declared_in_the_acl_manifest() {
+        let lib = include_str!("lib.rs");
+        let start = lib.find("generate_handler![").unwrap() + "generate_handler![".len();
+        let handlers = &lib[start..start + lib[start..].find(']').unwrap()];
+        let manifest = include_str!("../build.rs");
+        let mut count = 0;
+        for handler in handlers.split(',').map(str::trim).filter(|h| !h.is_empty()) {
+            let command = handler.rsplit("::").next().unwrap();
+            assert!(
+                manifest.contains(&format!("\"{command}\"")),
+                "{command} is not in build.rs"
+            );
+            count += 1;
+        }
+        assert!(count > 10, "parsed only {count} commands");
+    }
+
+    /// A hash or a nonce in a directive makes browsers ignore `'unsafe-inline'` there,
+    /// and then every inline script of the export is blocked: a blank page. So Tauri
+    /// must not touch `script-src` while it admits inline script.
+    #[test]
+    fn the_csp_keeps_its_allowlist_and_tauri_leaves_it_alone() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let security = &conf["app"]["security"];
+        for csp in [&security["csp"], &security["devCsp"]] {
+            let script_src = csp["script-src"].as_str().unwrap();
+            assert!(script_src.contains("'unsafe-inline'"), "{script_src}");
+            assert!(!script_src.contains("'unsafe-eval'"), "{script_src}");
+            assert!(
+                !script_src
+                    .split_whitespace()
+                    .any(|source| source == "https:"),
+                "{script_src}"
+            );
+        }
+        let untouched = security["dangerousDisableAssetCspModification"]
+            .as_array()
+            .unwrap();
+        assert!(untouched.contains(&serde_json::json!("script-src")));
+    }
+
+    /// What the page can reach is the capability, not the handler list.
+    #[test]
+    fn the_page_is_granted_only_what_it_calls() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
+        let granted: Vec<&str> = capability["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap())
+            .collect();
+        for present in ["allow-agent-install-start", "allow-native-auth-get-tokens"] {
+            assert!(granted.contains(&present), "{present}");
+        }
+        for absent in [
+            "core:default",
+            "updater:default",
+            "core:event:allow-emit",
+            "allow-autostart-set",
+            "allow-autostart-status",
+        ] {
+            assert!(!granted.contains(&absent), "{absent}");
+        }
     }
 
     // "Open Fae" hands openframe-chat:// to the OS; any other non-web scheme

@@ -176,8 +176,9 @@ and `write_atomic`, which the crate already has.
   switch lines across. Only an explicit toggle clears either.
 - **Surfaces**: the tray's *Start at Login* check item, and the
   `autostart_status` / `autostart_set` commands for the frontend. Both go through
-  the same state, so either moves the same check mark. As app-defined commands
-  they need no capability entry.
+  the same state, so either moves the same check mark. No web code calls the
+  commands yet, so `capabilities/main.json` does not grant them; a settings toggle
+  has to add `allow-autostart-status` and `allow-autostart-set` there.
 - **Always Start Hidden** (tray check item, `start_hidden` in config.json) makes
   every cold start headless, not only a flagged one. The flag marks only the
   launches our own registration makes; a login item the user added by hand, an
@@ -195,13 +196,31 @@ and `write_atomic`, which the crate already has.
 ## Local agent install
 
 "Deploy on this Device" on the setup wizard's Deploy First Device screen
-(`src-tauri/src/installer.rs`, command `agent_install_start`). The web app hands
-over the same install command it offers to copy; the shell adds the two things a
-browser tab cannot - an elevation prompt and a place to run it.
+(`src-tauri/src/installer.rs`, command `agent_install_start`). The shell adds the
+two things a browser tab cannot - an elevation prompt and a place to run the
+install - and it writes the command itself.
 
+- **The page sends values, never a command.** `{ orgId, initialKey, logKey?,
+  userId? }`, each held to the characters the backend issues them in (letters,
+  digits, `-`, `_`, no leading `-`), with unknown fields refused. The host comes
+  from the shell's own `learned_host`, held to the tenant rule below, and the
+  download's machine id is a UUID the shell generates. The result is the text the
+  wizard offers to copy: `src-tauri/src/install-command.json` holds the expected
+  command for both platforms, and a Rust test and a web test both compare against
+  it, so changing `buildInstallCommand` fails until the shell changes too.
+- **A native dialog comes first, and it is the check on enrolment.** A script in
+  the page can still sign in to a workspace of its own and start this install, and
+  the agent it gets is the real one, so an approved install hands that workspace
+  remote control of the machine. Before anything is written or elevated, the shell
+  shows its own dialog (`rfd`: `NSAlert` on macOS, `MessageBoxW` on Windows) naming
+  the tenant host it resolved. Nothing in the webview can draw or answer it. Anything
+  but OK ends the run as `cancelled`, the same as a declined admin prompt, and a
+  window hidden to the tray cannot raise it at all. It relies on the person reading
+  the host: a script can still raise it again and again from a visible window.
 - **Elevation is the OS's own prompt**, never a password of ours: `osascript …
   with administrator privileges` on macOS, `Start-Process -Verb RunAs` (UAC) on
-  Windows. A declined prompt ends the run as `cancelled`.
+  Windows. A declined prompt ends the run as `cancelled`. The macOS prompt names the
+  tenant host too; UAC has no room for text of ours.
 - **The command runs from a per-run temp directory** (`openframe-install-<uuid>`
   under the user's temp dir, `0700` on macOS): the command as a script, a runner
   script the elevated process executes, `install.log` and `status`. The command
@@ -219,14 +238,69 @@ browser tab cannot - an elevation prompt and a place to run it.
 
 ## Security model
 
-- **Capabilities.** Only `main.json` exists, scoped to `main` and `child-*`. The
-  bundle is our own code, so it may invoke the IPC backing the NativeAuth bridge.
-  No window hosts a remote origin at all: the login page — which is
-  third-party-influenced — renders in the user's own browser, not in a window of
-  ours, and returns only a URL on the app's scheme.
-  Beyond `core:default` (whose window part only reads state) it grants
-  `core:window:allow-maximize`: sign-in, registration and the setup wizard are
-  drawn for a full screen, and the window is maximized from the first of them.
+The threat this section is written against is a script running in the document:
+an XSS, or a third-party tag, and the webview's CSP admits both GTM and inline
+script on purpose (PostHog runs through GTM's Custom HTML tags). Such a script runs
+with the document's origin (`tauri://localhost`), so nothing here can tell it from
+our own code. Assume one runs. What protects the machine and the session is what the
+shell itself refuses.
+
+**What an inline tag can still do:**
+
+- Read the access token, use it, and send it anywhere until it expires, and through
+  it anything the user can reach, including the registration secret.
+- Start the enrolment described under [Local agent install](#local-agent-install).
+  The native dialog is the check on that, and it depends on the person reading it.
+
+**What it cannot do:** run a command of its own through the admin prompt, read the
+refresh token, point the shell at a host outside the shared host's zone, or call a
+command the capability does not grant.
+
+- **CSP.** `tauri.conf.json`. It limits which remote hosts can serve a `<script
+  src>` (`www.googletagmanager.com`, `us-assets.i.posthog.com`) and blocks `eval`.
+  **It does not stop injected code.** `script-src` has `'unsafe-inline'`, which GTM's
+  Custom HTML tags need, so an injected inline script runs, and since `connect-src`
+  takes any `https:` it can fetch code from any host and run that inline too. The
+  allowlist keeps a Meta or Reddit tag added to the container from loading its
+  remote script. It is not a boundary against a script already running.
+  - Tauri's asset modification is off for `script-src` and `style-src`
+    (`dangerousDisableAssetCspModification`). A hash or a nonce in a directive makes
+    browsers ignore `'unsafe-inline'` there, and Tauri would add both. With hashes on,
+    every inline script of the export but the ones it hashed is blocked; a test holds
+    this setting in place.
+  - No `'unsafe-eval'`, and no bare `https:` in `script-src`. A new remote script
+    host has to be added here on purpose, in `csp` and `devCsp`.
+  - `connect-src`, `img-src`, `media-src` and `frame-src` take any `https:`, since
+    tenants, presigned storage URLs, Mux and embeds are not a list this shell can know
+    at build time. A script that runs can send what it can read anywhere.
+  - `devCsp` is the same plus loopback, for a gateway on the developer's own box.
+- **Capabilities and the ACL.** `build.rs` declares every app command, which is
+  what puts them under the ACL, and `capabilities/main.json` (scoped to `main` and
+  `child-*`) grants exactly what `apps/web` and `env_init_script` call: a new
+  command is refused until it is listed in both, and a test checks the first.
+  `core:default` and `updater:default` are not granted (the updater runs from Rust),
+  nor are `autostart_status` / `autostart_set`, which no web code calls yet; the
+  tray reaches the same state from Rust. A remote document gets no IPC, since no
+  capability sets `remote`.
+  There is one capability rather than a narrower one for `child-*`, because on
+  macOS a child window is built on its opener's webview configuration and its
+  `invoke` arrives labelled `main`. Commands that are main-only say so in Rust
+  (`agent_install_start`, `update_check`), which is only as good as that label.
+  `withGlobalTauri` stays on: `__TAURI_INTERNALS__` exists regardless, so turning it
+  off would hide nothing from a script.
+  `core:window:allow-maximize` is there because sign-in, registration and the setup
+  wizard are drawn for a full screen, and the window is maximized from the first of
+  them.
+- **The page does not hold the refresh token.** See
+  [NativeAuth surface](./auth-and-notifications.md#nativeauth-surface). The access
+  token is unavoidable, since every request from the page carries it, so a script
+  that runs can act as the user until it expires, but not past that.
+- **A tenant host is checked, not taken.** `native_auth_set_tenant_host` takes a
+  bare `https` origin under the shared host (`tenant_origin` in `lib.rs`), the
+  zone the backend issues tenants in. The shell sends the bearer to that host, reads
+  the updater manifest from it, and installs the agent from it. A script can still
+  name another real tenant, though not an arbitrary server, which is why the install
+  dialog names the host.
 - **Gateway CORS is a prerequisite.** The gateway must allow `tauri://localhost`
   (macOS/Linux) and `http://tauri.localhost` (Windows), and expose the
   `Access-Token`/`Refresh-Token` headers. Without it the bundle renders and every
