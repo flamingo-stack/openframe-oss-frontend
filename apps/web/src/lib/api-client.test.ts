@@ -33,8 +33,11 @@ const UPGRADE_BODY = { code: 'CLIENT_UPGRADE_REQUIRED', minBundleVersion: '1.0.1
 
 async function load() {
   vi.resetModules();
-  const [{ apiClient }, versionCheck] = await Promise.all([import('./api-client'), import('./version-check')]);
-  return { apiClient, versionCheck };
+  const [{ apiClient, AUTH_UNAVAILABLE_MESSAGE }, versionCheck] = await Promise.all([
+    import('./api-client'),
+    import('./version-check'),
+  ]);
+  return { apiClient, AUTH_UNAVAILABLE_MESSAGE, versionCheck };
 }
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -90,11 +93,16 @@ describe('apiClient session health', () => {
   });
 
   it('pauses on a transient refresh and keeps the session', async () => {
-    const { apiClient } = await load();
+    const { apiClient, AUTH_UNAVAILABLE_MESSAGE } = await load();
     const health = await loadSessionHealth();
     mocks.refreshTokens.mockResolvedValue('transient');
     fetchMock.mockImplementation(respond(401));
-    expect(await apiClient.get('/api/devices')).toMatchObject({ status: 0, ok: false });
+    // The named answer is what `/me` keys its retry policy on (`use-auth-session.ts`).
+    expect(await apiClient.get('/api/devices')).toMatchObject({
+      status: 0,
+      ok: false,
+      error: AUTH_UNAVAILABLE_MESSAGE,
+    });
     expect(health.getSessionHealth()).toBe('paused');
     expect(mocks.forceLogout).not.toHaveBeenCalled();
   });
