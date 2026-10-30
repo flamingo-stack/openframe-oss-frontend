@@ -2,7 +2,6 @@
 
 import { TrustCenterPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
 import { EP, HELP_CENTER_BASE } from '../endpoints';
-import { useStatePageTopic } from '../page-topic';
 
 /**
  * Trust Center — one-line mount of the lib's ready-made `<TrustCenterPage>`
@@ -15,16 +14,11 @@ import { useStatePageTopic } from '../page-topic';
  * EndpointsRuntime. `shell={false}` because `AppLayout` already provides the
  * page `<main>`.
  */
-/** The topic of the Trust Center FAQ's "Ask Mingo" card: the hub's general questions tagged `trust-center`. */
-const TRUST_CENTER_ASK = { topic: 'trust-center' } as const;
-
 export default function TrustCenterRoute() {
-  useStatePageTopic(TRUST_CENTER_ASK.topic);
   return (
     <TrustCenterPage
       shell={false}
       endpoint={EP.trustCenter}
-      ask={TRUST_CENTER_ASK}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
     />
   );

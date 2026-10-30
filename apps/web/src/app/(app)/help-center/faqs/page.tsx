@@ -2,7 +2,6 @@
 
 import { FaqDocumentPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
 import { CONTENT_BASE, HELP_CENTER_BASE } from '../endpoints';
-import { useStatePageTopic } from '../page-topic';
 
 /**
  * FAQs — one-line mount of the lib's ready-made `<FaqDocumentPage>`. It routes
@@ -11,17 +10,12 @@ import { useStatePageTopic } from '../page-topic';
  * `/content` proxy (`apiBaseUrl`), so this page only supplies copy + the back
  * target. `shell={false}` because `AppLayout` already provides the page `<main>`.
  */
-/** The topic of this page's "Ask Mingo" card: the hub's general questions tagged `faqs`. */
-const FAQS_ASK = { topic: 'faqs' } as const;
-
 export default function FaqsRoute() {
-  useStatePageTopic(FAQS_ASK.topic);
   return (
     <FaqDocumentPage
       shell={false}
       subtitle="Answers to the most common questions about OpenFrame."
       apiBaseUrl={CONTENT_BASE}
-      ask={FAQS_ASK}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
     />
   );

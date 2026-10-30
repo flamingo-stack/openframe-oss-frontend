@@ -44,6 +44,7 @@ import {
   type AssistantOpenRequest,
   type AssistantRuntime,
   AssistantRuntimeContext,
+  PageTopicsProvider,
   type ChatRuntime,
   ChatRuntimeContext,
 } from '@flamingo-stack/openframe-frontend-core/contexts';
@@ -78,6 +79,7 @@ import { isSessionGone, noteGatewayResponse, SessionGoneError } from '@/lib/sess
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
+import { PAGE_TOPICS } from '../(app)/help-center/page-topics';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -471,7 +473,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
 
   return (
     <ChatRuntimeContext.Provider value={runtime}>
-      <AssistantRuntimeContext.Provider value={assistant}>{children}</AssistantRuntimeContext.Provider>
+      <AssistantRuntimeContext.Provider value={assistant}>
+        {/* This app's route to topic map: the lib reads every page's topic from its address through it (the FAQ
+            blocks, their ask cards, the chat's quick actions). */}
+        <PageTopicsProvider topics={PAGE_TOPICS}>{children}</PageTopicsProvider>
+      </AssistantRuntimeContext.Provider>
     </ChatRuntimeContext.Provider>
   );
 }

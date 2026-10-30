@@ -1,6 +1,5 @@
 'use client';
 
-import { usePageTopic } from '../../help-center/page-topic';
 import { useAdminAiConfig } from '../../settings/ai-settings/hooks/use-agent-ai-config';
 import { useHubDefaultQuickActions } from '../../settings/ai-settings/hooks/use-hub-default-quick-actions';
 import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings';
@@ -16,8 +15,7 @@ import type { AiQuickAction } from '../../settings/ai-settings/types/ai-settings
 export function useMingoQuickActions(): AiQuickAction[] {
   const { config } = useAdminAiConfig();
   const isDefault = config?.quickActionsIsDefault ?? true;
-  const topic = usePageTopic();
-  const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: isDefault, topic });
+  const hubDefaults = useHubDefaultQuickActions('mingo', { enabled: isDefault });
 
   return isDefault ? hubDefaults.actions : (config?.quickActions ?? []);
 }

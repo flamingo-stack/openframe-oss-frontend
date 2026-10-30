@@ -51,11 +51,10 @@ const CONTENT = `${CONTENT_BASE}/api`;
 
 /**
  * A Help Center page's own FAQ block: the lib's shared pages take it as their
- * `faq` prop. The topic is what the page is about, written by the page (the
- * hub shows the FAQs its admin wrote for that topic); it is never read from
- * the route. A topic with no FAQ renders nothing.
+ * `faq` prop. Its topic is the page's, read by the lib from the address
+ * (`PAGE_TOPICS`); a page with no FAQ for it renders nothing.
  */
-export const pageFaq = (topic: string) => ({ topic, apiBaseUrl: CONTENT_BASE });
+export const PAGE_FAQ = { apiBaseUrl: CONTENT_BASE } as const;
 
 /**
  * The route prefix this whole section is mounted under.
