@@ -30,6 +30,11 @@ import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 // what holds it: a table cell narrower than 16rem (a phone) truncates the label (the tooltip then shows it whole)
 // instead of letting the chip run out of the cell.
 const CHIP_CLASS = 'max-w-[min(16rem,100%)]';
+// In the two-segment form the cap sits on the PAIR, and the chip fills its link (`max-w-full`). Capped on the chip,
+// the link around it still sized to the whole label (a percentage max-width does not bound an intrinsic size), so a
+// long name left an empty gap between the truncated chip and its new-tab segment.
+const PAIR_CLASS = cn('inline-flex align-middle', CHIP_CLASS);
+const PAIRED_CHIP_CLASS = 'max-w-full';
 
 // The two segments of a chip that can also open a tab: one chip outline, the
 // main segment's right border is the seam between them, and each segment
@@ -53,8 +58,9 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
   // trigger that stays valid inside the markdown `<p>`.
+  const paired = Boolean(href) && offersNewTab;
   const chip = (
-    <InlineChip icon={icon} label={label} className={cn(CHIP_CLASS, href && offersNewTab && MAIN_SEGMENT_CLASS)} />
+    <InlineChip icon={icon} label={label} className={paired ? cn(PAIRED_CHIP_CLASS, MAIN_SEGMENT_CLASS) : CHIP_CLASS} />
   );
   if (!href) return chip;
 
@@ -72,7 +78,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // `?mingoDialog=` would send that tab to the chat page instead (`MingoDialogParamBridge`). The pair fits what
   // holds it too: the main segment gives up its width first.
   return (
-    <span className="inline-flex max-w-full align-middle">
+    <span className={PAIR_CLASS}>
       <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
         {chip}
       </NavLinkAnchorViaRuntime>

@@ -133,13 +133,15 @@ describe('MentionTag new-tab segment', () => {
     expect(container.querySelectorAll('a')).toHaveLength(1);
   });
 
-  it('fits what holds it: the pair never wider than its cell, the main segment giving up its width first', () => {
+  it('fits what holds it: the PAIR is capped, the main segment giving up its width first and the chip filling it', () => {
     sameWindow = false;
     renderChip(HREF);
     const pair = container.firstElementChild;
-    expect(pair?.className).toContain('max-w-full');
+    // Capped on the chip instead, the link kept the whole label's width and a long name left a gap before the
+    // new-tab segment.
+    expect(pair?.className).toContain('max-w-[min(16rem,100%)]');
     expect(pair?.querySelector('a')?.className).toContain('min-w-0');
-    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-[min(16rem,100%)]');
+    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-full');
   });
 
   it('is not offered on a chip with no page to open', () => {
