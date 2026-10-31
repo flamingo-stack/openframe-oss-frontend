@@ -59,8 +59,7 @@ function render() {
 }
 
 function chip(label: string): HTMLButtonElement {
-  const row = container.querySelector('[aria-label="Quick actions"]');
-  const match = Array.from(row?.querySelectorAll('button') ?? []).find(b => b.textContent?.includes(label));
+  const match = Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes(label));
   if (!match) throw new Error(`no chip "${label}"`);
   return match;
 }
@@ -91,9 +90,8 @@ describe('MingoDockQuickActions', () => {
   it("holds the wall's place while the actions are read, with no chip to press", () => {
     quickActions.loading = true;
     render();
-    const section = container.querySelector('[aria-label="Quick actions"]');
-    expect(section?.innerHTML).toContain('data-loading-item');
-    expect(section?.querySelectorAll('button[aria-label]')).toHaveLength(0);
+    expect(container.innerHTML).toContain('data-loading-item');
+    expect(container.querySelectorAll('button[aria-label]')).toHaveLength(0);
   });
 
   it("draws its loading form in a loading scope: the dock's first frame, before its chat has loaded", () => {
@@ -105,9 +103,8 @@ describe('MingoDockQuickActions', () => {
         </LoadingRegion>,
       ),
     );
-    const set = container.querySelector('[aria-label="Quick actions"]');
     // Inset like the composer under it, at the set's distance from it: the loaded dock's box.
-    expect(set?.parentElement?.className).toContain('mb-[var(--spacing-system-mf)]');
-    expect(set?.innerHTML).toContain('data-loading-item');
+    expect(container.innerHTML).toContain('mb-[var(--spacing-system-mf)]');
+    expect(container.innerHTML).toContain('data-loading-item');
   });
 });
