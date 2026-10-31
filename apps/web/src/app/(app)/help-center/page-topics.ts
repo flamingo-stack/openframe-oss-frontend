@@ -26,4 +26,27 @@ export const PAGE_TOPICS: PageTopics = {
   [help.legal('payment')]: 'payment-terms',
   [help.legal('license')]: 'license',
   [help.legal('security')]: 'security-policy',
+  [help.tickets]: 'tickets',
+  [help.knowledgeBase]: 'knowledge-base',
+
+  // The product's own screens: the chat asks for their quick actions by these topics (Mingo's home wall and a new
+  // chat's empty state today, any chip row a screen adds later). A route stands for the pages under it. Where the
+  // hub uses a topic for a different page, the screen takes its own name (the helpdesk's tickets, the tenant's
+  // articles), so one topic never means two pages.
+  [routes.mingo.home]: 'mingo',
+  [routes.dashboard]: 'dashboard',
+  [routes.devices.list]: 'devices',
+  [routes.tickets.list]: 'helpdesk-tickets',
+  [routes.scripts.list]: 'scripts',
+  [routes.software.list]: 'software',
+  '/monitoring': 'monitoring',
+  [routes.logs.page]: 'logs',
+  '/log-details': 'logs',
+  [routes.incidents.list]: 'incidents',
+  [routes.approvals]: 'approvals',
+  '/customers': 'customers-list',
+  [routes.knowledgeBase.list]: 'knowledge-articles',
+  '/notifications': 'notifications',
+  '/settings': 'settings',
+  [routes.worktime]: 'worktime',
 };
