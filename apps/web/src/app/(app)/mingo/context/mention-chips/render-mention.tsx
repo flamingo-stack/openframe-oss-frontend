@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * `renderMention` for `<EmbeddableChat>` — the `@marker:id` analogue of
- * `renderEntityCard` for `[card://]`. The lib parses an inline mention token and
- * calls this; we dispatch by marker to a SELF-FETCHING chip (each entity type
- * owns its own fetcher + detail-page link), mirroring how `card://` markers
- * route to per-type entity cards.
+ * `renderMention` for `<EmbeddableChat>`: the chip of a record an answer names. The lib finds a record link,
+ * `[MacBook-Pro-14](record://device/64f0a1)` (the lib's `chat-protocol/record-link.ts`), or, in answers stored
+ * before record links, the legacy token `@device:64f0a1`, and calls this with `{ marker: type, id, label }`; we
+ * dispatch by marker to a SELF-FETCHING chip (each entity type owns its own fetcher + detail-page link). A type we
+ * have no chip for returns null, and the lib draws its own chip with the link's name.
  *
  * Module-level (not a hook): it needs only the static entity-type config, so a
  * stable identity falls out for free — the lib's per-message memo relies on
@@ -62,10 +62,10 @@ export function renderMingoMention({
 }: {
   marker: string;
   id: string;
-  /** Known display name (a context item's picked label). Inline mentions don't
-   *  have one; context items do. Used as the chip's fallback so it never shows a
-   *  bare id when the live resolve misses (e.g. a script id the resolver can't
-   *  find, or a reloaded message whose label was stripped on the wire). */
+  /** Known display name: a record link's text (the name the answer gave the record) or a context item's picked
+   *  label; a legacy `@marker:id` token has none. Used as the chip's fallback so it never shows a bare id when the
+   *  live resolve misses (e.g. a script id the resolver can't find, or a reloaded message whose label was stripped
+   *  on the wire). */
   label?: string;
 }): ReactNode {
   const icon = ICON_BY_MARKER.get(marker);
