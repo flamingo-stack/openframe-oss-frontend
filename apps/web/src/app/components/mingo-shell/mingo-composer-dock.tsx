@@ -65,7 +65,6 @@ import { isMingoWhatToAsk, routes } from '@/lib/routes';
 import { ResetInitialSetupDialog, useDevOnboardingMenuItems } from '../dev-onboarding-shortcuts';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '../reset-onboarding-dialog';
 import { useChatPageNodeStore } from './chat-page-node-store';
-import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
 import {
@@ -127,7 +126,7 @@ function DockComposerLoading({ route, quickActions = false }: { route: ComposerR
     <LoadingRegion label="Loading Mingo">
       {/* The home's quick actions in their loading form (the scope), so the dock is its
           loaded height from the first frame and the greeting centred above it stays put. */}
-      {quickActions && <MingoDockQuickActions onSend={noop} />}
+      {quickActions && <MingoDockQuickActions onPick={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
         inputRef={null}
@@ -252,8 +251,6 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   }, [handle, setChatMounted]);
   // Only once the page lets the thread in: it holds its skeleton until the conversation has loaded.
   const chatPageNode = useChatPageNodeStore(s => (s.threadReady ? s.node : null));
-  // Ghost text from chips drawn outside the chat (Mingo's home Quick Actions).
-  const previewText = useComposerPreviewStore(s => s.text);
 
   // A reload of this tab keeps the chat behind the pages (and their "Continue" chip).
   useChatBehindPage({ route, state: chat.state });
@@ -298,7 +295,6 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     chat,
     copyDialogLink,
     compactDialog,
-    sendInNewDialog: target.sendInNewDialog,
   });
 
   // Over a page: the open chat is one click away. Up, its header leads to the chat's
@@ -410,10 +406,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   return (
     <>
       {/* Mingo's quick actions over the composer on every route but the chat page, for the page's
-          topic, sent through the dock's own send (a new chat, over the page off home). Not under the
-          sheet: the composer then replies to the chat in it. */}
+          topic. A click puts the action into the composer, in a new chat, to edit and send
+          (`prefillDraft`). Not under the sheet: the composer then replies to the chat in it. */}
       {showsDockQuickActions(route) && !sheetOpen && (
-        <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
+        <MingoDockQuickActions onPick={text => handle?.prefillDraft({ text })} />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
@@ -466,7 +462,6 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
         // keyboard's, `.app-shell-root` in globals.css), so the composer must not add it
         // again. On the web (iOS Safari, `viewport-fit=cover`) the composer's is the one.
         safeAreaBottom={!isMobileShell()}
-        composerPreviewText={previewText}
         // Mingo's edge light around the input, the hub launcher's: the one place to ask Mingo.
         composerEdgeLight
       />
