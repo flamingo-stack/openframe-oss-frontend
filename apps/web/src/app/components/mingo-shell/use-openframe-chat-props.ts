@@ -108,7 +108,7 @@ export function useOpenframeChatProps({
   // Admin-configured Mingo quick actions become starter chips in the empty state.
   // Clicking one opens a new dialog seeded with the action's instructions — same path
   // the launcher prompt uses.
-  const { chips: mingoQuickActions } = useMingoQuickActionChips(sendInNewDialog);
+  const { chips: mingoQuickActions, loading: mingoQuickActionsLoading } = useMingoQuickActionChips(sendInNewDialog);
 
   return {
     dialogStatusOf,
@@ -158,10 +158,14 @@ export function useOpenframeChatProps({
       onCopyLink: copyDialogLink,
       compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
     },
-    // Admin-configured Mingo quick actions rendered as chips in the Mingo
-    // empty state. Omitted when none are configured so the lib keeps its
-    // default welcome content.
-    mingoWelcome: mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined,
+    // Admin-configured Mingo quick actions rendered as the lib's quick-action set in the
+    // Mingo empty state. While they are read the set holds its slots (its chips' loading
+    // form), so the empty state keeps its height when they land. Omitted when none are
+    // configured so the lib keeps its default welcome content.
+    mingoWelcome:
+      mingoQuickActions.length > 0 || mingoQuickActionsLoading
+        ? { quickActions: mingoQuickActions, quickActionsLoading: mingoQuickActionsLoading }
+        : undefined,
     contextPicker,
     // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
     // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
