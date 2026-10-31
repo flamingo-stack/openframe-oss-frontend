@@ -68,7 +68,14 @@ import { useChatPageNodeStore } from './chat-page-node-store';
 import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoDockErrorBoundary } from './mingo-dock-error-boundary';
 import { MingoDockQuickActions } from './mingo-dock-quick-actions';
-import { canShowSheet, type ComposerRoute, composerRouteOf, dockViewOf, isSheetRoute } from './mingo-dock-route';
+import {
+  canShowSheet,
+  type ComposerRoute,
+  composerRouteOf,
+  dockViewOf,
+  isSheetRoute,
+  showsDockQuickActions,
+} from './mingo-dock-route';
 import { isSheetUp, useMingoSheetStore } from './mingo-sheet-store';
 import { useChatBehindPage } from './use-chat-behind-page';
 import { useComposerLauncherDrain, usePublishComposerDock } from './use-composer-launcher-drain';
@@ -181,23 +188,23 @@ export function MingoComposerDock({ held = false }: { held?: boolean }) {
     >
       <MingoDockErrorBoundary>
         {held ? (
-          <DockComposerLoading route={route} quickActions={route === 'home'} />
+          <DockComposerLoading route={route} quickActions={showsDockQuickActions(route)} />
         ) : (
-          <DockSurface route={route} homeQuickActions={route === 'home' && !sheetUp} />
+          <DockSurface route={route} quickActions={showsDockQuickActions(route) && !sheetUp} />
         )}
       </MingoDockErrorBoundary>
     </section>
   );
 }
 
-function DockSurface({ route, homeQuickActions }: { route: ComposerRoute; homeQuickActions: boolean }) {
+function DockSurface({ route, quickActions }: { route: ComposerRoute; quickActions: boolean }) {
   // A surface for the whole session: the chat state runs while the dock is mounted.
   const { chat, error, enabled, identityEnabled, compactDialog, copyDialogLink } = useMingoChatSurface();
   if (error) throw error;
   // Disabled = no session yet (the paywall unmounts the dock): the composer's place, locked.
-  // On the home the quick actions' place too, so the dock is its loaded height from the first
-  // frame and the greeting centred above it does not move.
-  if (!enabled || !chat) return <DockComposerLoading route={route} quickActions={homeQuickActions} />;
+  // The quick actions' place too, so the dock is its loaded height from the first frame and
+  // nothing above it moves.
+  if (!enabled || !chat) return <DockComposerLoading route={route} quickActions={quickActions} />;
   return (
     // Its own identity provider: the dock sits outside `<main>`, and the provider
     // must not wrap the page (see `MingoChatProvider`). The thread portalled into the
@@ -402,9 +409,12 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
 
   return (
     <>
-      {/* Home: Mingo's quick actions over the composer, sent through the dock's own send.
-          Not under the sheet: the composer then replies to the chat in it. */}
-      {route === 'home' && !sheetOpen && <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />}
+      {/* Mingo's quick actions over the composer on every route but the chat page, for the page's
+          topic, sent through the dock's own send (a new chat, over the page off home). Not under the
+          sheet: the composer then replies to the chat in it. */}
+      {showsDockQuickActions(route) && !sheetOpen && (
+        <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
+      )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
       <EmbeddableChat

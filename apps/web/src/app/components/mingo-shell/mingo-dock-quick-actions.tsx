@@ -12,10 +12,11 @@ interface MingoDockQuickActionsProps {
 }
 
 /**
- * Mingo's quick actions above the docked composer on the home (FE_PROMPT §3.7, MISSING
- * 1.6): the chat's own quick-action wall (`MingoQuickActionWall`, what the classic chat's
- * empty state drew), with no caption over it ("What to ask Mingo?" is the home's button
- * and in the chat history's ⋯). A click SENDS the action's instructions in a new chat; hover or focus
+ * Mingo's quick actions above the docked composer on every route but the chat page
+ * (`showsDockQuickActions`; FE_PROMPT §3.7, MISSING 1.6): the chat's own quick-action set
+ * (`MingoQuickActionWall`, what the chat's empty state draws), read for the page's topic and
+ * stamped with it, with no caption over it ("What to ask Mingo?" is the home's button and in
+ * the chat history's ⋯). A click SENDS the action's instructions in a new chat; hover or focus
  * previews them as ghost text in the composer (the chip's short name does not say what
  * it sends). With no actions it draws nothing.
  */
@@ -32,8 +33,8 @@ export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   // The preview a chip put up, for the hover end (the wall does not say which chip left).
   const previewedRef = useRef<string | null>(null);
 
-  // The preview belongs to the chips on screen: leaving home (a click's chat page
-  // included) must not leave it in the composer.
+  // The preview belongs to the chips on screen: going where they are not drawn (a click's
+  // chat page included) must not leave it in the composer.
   useEffect(() => clearPreview, [clearPreview]);
 
   const loading = chipsLoading || inScope;

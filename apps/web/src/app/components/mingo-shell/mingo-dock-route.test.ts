@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composerRouteOf, dockViewOf } from './mingo-dock-route';
+import { composerRouteOf, dockViewOf, showsDockQuickActions } from './mingo-dock-route';
 
 describe('dockViewOf(…).floats', () => {
   it('lays the dock over plain pages, which run on under it', () => {
@@ -18,5 +18,14 @@ describe('dockViewOf(…).floats', () => {
     expect(dockViewOf(composerRouteOf('/mingo/')).floats).toBe(false);
     expect(dockViewOf(composerRouteOf('/mingo/chat/')).floats).toBe(false);
     expect(dockViewOf(composerRouteOf('/devices/details/remote-desktop/')).floats).toBe(false);
+  });
+});
+
+describe('showsDockQuickActions', () => {
+  it('draws the quick actions over the dock on every route but the chat page', () => {
+    expect(showsDockQuickActions('home')).toBe(true);
+    expect(showsDockQuickActions('page')).toBe(true);
+    expect(showsDockQuickActions('full-width')).toBe(true);
+    expect(showsDockQuickActions('chat')).toBe(false);
   });
 });

@@ -593,9 +593,16 @@ describe('MingoComposerDock', () => {
       expect(container.firstElementChild?.className).toContain('max-w-[880px]');
     });
 
-    it('only home carries the quick actions', () => {
+    it('every page carries the quick actions, as home does', () => {
       chips.onSend = null;
       render('/devices/');
+      expect(chips.onSend).not.toBeNull();
+    });
+
+    it('the chat page carries none: its new chat draws them in its empty state', () => {
+      chips.onSend = null;
+      setSurface({ activeDialogId: 'd-1' });
+      render('/mingo/chat/');
       expect(chips.onSend).toBeNull();
     });
 
