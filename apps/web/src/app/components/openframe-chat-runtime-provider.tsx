@@ -64,6 +64,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
+import { routes } from '@/lib/routes';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -80,7 +81,6 @@ import { isSessionGone, noteGatewayResponse, SessionGoneError } from '@/lib/sess
 import { refreshAccessToken } from '@/lib/token-refresh-manager';
 import { getAccessTokenSync, getTokenEpoch, isBearerAuthMode, subscribeToTokenChange } from '@/lib/token-store';
 import { isUpdateRequired, noteUpgradeRequired, UpdateRequiredError } from '@/lib/version-check';
-import { PAGE_TOPICS } from '../(app)/help-center/page-topics';
 
 /** Stable source identifier used for localStorage namespacing inside the
  *  lib (`mingo-chat-openframe-v1` keys). Must not change between
@@ -457,10 +457,12 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
   return (
     <ChatRuntimeContext.Provider value={runtime}>
       <AssistantRuntimeContext.Provider value={assistant}>
-        {/* This app's route to topic map: the lib reads every page's topic from its address through it (the FAQ
-            blocks, their ask cards, the chat's quick actions). `showTopic`: each of them prints the topic as a faint
-            stamp, so whoever edits FAQs and quick actions on the hub sees which topic a page asks for. */}
-        <PageTopicsProvider topics={PAGE_TOPICS} showTopic>
+        {/* A page's topic is its path, read by the lib from the address for the FAQ blocks, their ask cards and
+            the chat's quick actions. The Help Center mounts the hub's pages, so a page there asks with the hub
+            page's path (`/help-center/roadmap` asks `/roadmap`); every other screen asks with its own (`/devices`).
+            `showTopic`: each of them prints it as a faint stamp, so whoever tags FAQs and quick actions on the
+            hub sees which path to use. */}
+        <PageTopicsProvider basePath={routes.helpCenter.root} showTopic>
           {children}
         </PageTopicsProvider>
       </AssistantRuntimeContext.Provider>

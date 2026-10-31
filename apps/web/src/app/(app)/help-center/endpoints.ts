@@ -59,8 +59,8 @@ export const IMAGE_PROXY_SKIP_DOMAINS = SUPABASE_HOST ? [SUPABASE_HOST] : [];
 
 /**
  * A Help Center page's own FAQ block: the lib's shared pages take it as their
- * `faq` prop. Its topic is the page's, read by the lib from the address
- * (`PAGE_TOPICS`); a page with no FAQ for it renders nothing.
+ * `faq` prop. Its topic is the page's path, read by the lib from the address
+ * (without the Help Center's mount); a page with no FAQ for it renders nothing.
  */
 export const PAGE_FAQ = { apiBaseUrl: CONTENT_BASE } as const;
 
