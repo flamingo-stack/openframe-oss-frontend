@@ -29,7 +29,7 @@ export function useBillingPortalSession() {
   const mutate = useCallback(() => {
     // Opened here, while the click is still live — the URL is minted by the
     // mutation below and a tab opened once it answers is a blocked popup.
-    const tab = openDeferredTab();
+    const tab = openDeferredTab('Opening the customer portal...');
 
     commit({
       variables: {},
