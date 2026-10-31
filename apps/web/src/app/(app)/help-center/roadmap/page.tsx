@@ -1,7 +1,7 @@
 'use client';
 
 import { RoadmapPage } from '@flamingo-stack/openframe-frontend-core/components/help-center-pages';
-import { EP, HELP_CENTER_BASE, PAGE_FAQ } from '../endpoints';
+import { EP, HELP_CENTER_BASE } from '../endpoints';
 
 /**
  * Roadmap — one-line mount of the lib's ready-made `<RoadmapPage>` (PageLayout
@@ -16,7 +16,6 @@ export default function RoadmapRoute() {
       buildRefreshUrl={EP.roadmapById}
       voteApiEndpoint={EP.roadmapVote}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
-      faq={PAGE_FAQ}
     />
   );
 }
