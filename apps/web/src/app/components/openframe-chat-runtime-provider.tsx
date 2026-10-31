@@ -45,6 +45,7 @@ import {
   type AssistantOpenRequest,
   type AssistantRuntime,
   AssistantRuntimeContext,
+  PageTopicsProvider,
   type ChatRuntime,
   ChatRuntimeContext,
 } from '@flamingo-stack/openframe-frontend-core/contexts';
@@ -63,6 +64,7 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { clientIdentityHeaders } from '@/lib/client-identity';
+import { routes } from '@/lib/routes';
 /**
  * Content-href seam for openframe. The type→route map is shared with the Help
  * Center pages (single source of truth in `help-center-content-href.ts`): every
@@ -454,7 +456,16 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
 
   return (
     <ChatRuntimeContext.Provider value={runtime}>
-      <AssistantRuntimeContext.Provider value={assistant}>{children}</AssistantRuntimeContext.Provider>
+      <AssistantRuntimeContext.Provider value={assistant}>
+        {/* A page's topic is its path, read by the lib from the address for the FAQ blocks, their ask cards and
+            the chat's quick actions. The Help Center mounts the hub's pages, so a page there asks with the hub
+            page's path (`/help-center/roadmap` asks `/roadmap`); every other screen asks with its own (`/devices`).
+            `showTopic`: each of them prints it as a faint stamp, so whoever tags FAQs and quick actions on the
+            hub sees which path to use. */}
+        <PageTopicsProvider basePath={routes.helpCenter.root} showTopic>
+          {children}
+        </PageTopicsProvider>
+      </AssistantRuntimeContext.Provider>
     </ChatRuntimeContext.Provider>
   );
 }

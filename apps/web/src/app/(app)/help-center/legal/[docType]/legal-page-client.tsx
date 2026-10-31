@@ -2,7 +2,7 @@
 
 import { LegalDocumentPage } from '@flamingo-stack/openframe-frontend-core/components';
 import { useParams } from 'next/navigation';
-import { CONTENT_BASE, EP, HELP_CENTER_BASE } from '../../endpoints';
+import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 /**
  * One legal document's page. The lib page reads the document and the hub's list
@@ -18,7 +18,6 @@ export function LegalPageClient() {
       apiEndpoint={EP.legal(docType)}
       documentsEndpoint={EP.legalDocuments}
       backButton={{ label: 'Back to Help Center', href: HELP_CENTER_BASE }}
-      faq={{ apiBaseUrl: CONTENT_BASE }}
     />
   );
 }
