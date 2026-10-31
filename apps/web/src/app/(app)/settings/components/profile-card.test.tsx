@@ -61,6 +61,7 @@ const FINISHED_TOUR = {
   skipped: false,
   skippedAt: null,
   tourDialogId: null,
+  setupSeen: false,
 };
 
 describe('ProfileCard - Reset Onboarding', () => {

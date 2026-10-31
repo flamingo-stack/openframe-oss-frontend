@@ -28,6 +28,13 @@ export interface UserOnboardingProgress {
   skippedAt: string | null;
   /** The Mingo conversation the Get Started tour lives in; null until "Start with Mingo". */
   tourDialogId: string | null;
+  /**
+   * The setup wizard has shown this user its last screen ("You are ready to go" /
+   * "Everything is set up"): the server's lasting record that the admin has been
+   * through the wizard, kept across browsers and devices. Cleared by "Reset
+   * Onboarding".
+   */
+  setupSeen: boolean;
 }
 
 export interface OnboardingState {

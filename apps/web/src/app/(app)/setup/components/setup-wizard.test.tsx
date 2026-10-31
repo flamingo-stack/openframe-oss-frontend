@@ -20,7 +20,11 @@ vi.mock('@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect', () => 
   },
 }));
 vi.mock('@/graphql/onboarding/use-onboarding-mutations', () => ({
-  useOnboardingMutations: () => ({ completeTenantStep: vi.fn(), completeTenantInBackground: vi.fn() }),
+  useOnboardingMutations: () => ({
+    completeTenantStep: vi.fn(),
+    completeTenantInBackground: vi.fn(),
+    markSetupSeenInBackground: vi.fn(),
+  }),
 }));
 vi.mock('@flamingo-stack/openframe-frontend-core/hooks', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
