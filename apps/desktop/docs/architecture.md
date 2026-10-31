@@ -62,6 +62,13 @@ server would have:
   at stage or QA must stay out of production analytics. A tag added to that container
   runs here too: the CSP keeps its remote scripts out, but an inline tag can call the
   shell's commands.
+
+  Page URLs on events, recordings and heatmaps report the tenant's origin rather than
+  `tauri://localhost`, or the shared host when not signed in
+  (`desktop-tenant-urls.ts` in `apps/web`, PostHog's `before_send`).
+  `app_platform: desktop` on the session's events is what tells them from the web's:
+  a recording's own batches carry no super properties. Links and images inside a
+  replayed page keep the bundle origin.
 - **`window.__OPENFRAME_SHELL__.nativeAuth`** — the auth bridge, backed by the
   `native_auth_*` Tauri commands. Its method names match openframe-mobile's
   `NativeAuthPlugin`, so the frontend keeps one interface with two
