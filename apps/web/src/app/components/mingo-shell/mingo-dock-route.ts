@@ -66,6 +66,15 @@ export function canShowSheet(route: ComposerRoute): boolean {
   return isSheetRoute(route) || route === 'home';
 }
 
+/**
+ * Where the dock draws Mingo's quick actions over its composer: every route but the chat
+ * page, whose new chat draws them in its own empty state. The caller also leaves them out
+ * while the sheet is up: the composer then replies to the chat in it.
+ */
+export function showsDockQuickActions(route: ComposerRoute): boolean {
+  return route !== 'chat';
+}
+
 /** How the dock draws itself on a route. */
 export interface DockView {
   /** Max width, centred: the chat column in the chat, the page column elsewhere (FE_PROMPT §2.1). */
