@@ -234,7 +234,7 @@ const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
 
 /**
  * The records an answer shows as cards (the assistant's `showRecords` call), stored as a part of their own and drawn
- * above the answer's text. Selected as the live `RECORD_CARDS` chunk carries them: the core lib decodes both through
+ * where that part sits among the message's parts. Selected as the live `RECORD_CARDS` chunk carries them: the core lib decodes both through
  * one function (`recordCardsEvent`).
  */
 const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
