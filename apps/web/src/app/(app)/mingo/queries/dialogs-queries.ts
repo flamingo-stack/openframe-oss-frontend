@@ -214,7 +214,6 @@ const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
                 }
               }
               videos {
-                recordLink
                 type
                 sourceRepo
                 id
@@ -228,7 +227,6 @@ const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
                 }
               }
               cards {
-                recordLink
                 entityType
                 entityId
               }
