@@ -154,7 +154,7 @@ vi.mock('./use-openframe-chat-props', () => ({
       contextPicker: { fromBuilder: true },
       mingoDialogCapabilities: CAPABILITIES,
       pendingApprovals: PENDING_APPROVALS,
-      renderMention: RENDER_MENTION,
+      renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     };
   },
@@ -655,7 +655,7 @@ describe('MingoComposerDock', () => {
     render('/mingo/chat/');
     expect(props()).toMatchObject({
       pendingApprovals: PENDING_APPROVALS,
-      renderMention: RENDER_MENTION,
+      renderRecordChip: RENDER_MENTION,
       renderContextItem: RENDER_CONTEXT_ITEM,
     });
     expect(props().mingoState).toMatchObject({

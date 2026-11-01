@@ -2,7 +2,7 @@
 // workstation for "slow", a server for its logs, a Windows device for the print
 // spooler, any for the DNS cache, a different one each while there are enough;
 // that the chip shows the name the device list shows while the message carries
-// the device's `@device:<id>` mention (hostnames repeat across a fleet); and a
+// the device's record link (hostnames repeat across a fleet); and a
 // prompt without a name when nothing fits. Also that every prompt is one Mingo's
 // tools can answer (no "offline since when", no "update software"), and that every chip
 // is drawn as Mingo's quick actions are: its icon in Mingo's accent.
@@ -34,24 +34,24 @@ const WINDOWS_DESKTOP = device('3', { hostname: 'acme-ws-07', type: 'DESKTOP', o
 const SPARE = device('4', { hostname: 'spare-01', type: 'OTHER', osType: 'MAC_OS' });
 
 describe('buildMingoWhatToAsk', () => {
-  it('shows a fitting online device on each chip and sends its mention', () => {
+  it('shows a fitting online device on each chip and sends its record link', () => {
     const devices = [LAPTOP, SERVER, WINDOWS_DESKTOP, SPARE];
 
     expect(find(devices, 'Why is')).toMatchObject({
       label: 'Why is ann-mbp slow? Check CPU, memory and disk',
-      prompt: 'Why is @device:1 slow? Check CPU, memory and disk',
+      prompt: 'Why is [ann-mbp](record://device/1) slow? Check CPU, memory and disk',
     });
     expect(find(devices, 'Pull error logs')).toMatchObject({
       label: 'Pull error logs from lab-srv-02 for the last hour and tell me what failed',
-      prompt: 'Pull error logs from @device:2 for the last hour and tell me what failed',
+      prompt: 'Pull error logs from [lab-srv-02](record://device/2) for the last hour and tell me what failed',
     });
     expect(find(devices, 'Clear the print spooler')).toMatchObject({
       label: 'Clear the print spooler on acme-ws-07',
-      prompt: 'Clear the print spooler on @device:3',
+      prompt: 'Clear the print spooler on [acme-ws-07](record://device/3)',
     });
     expect(find(devices, 'Flush the DNS cache')).toMatchObject({
       label: 'Flush the DNS cache on spare-01',
-      prompt: 'Flush the DNS cache on @device:4',
+      prompt: 'Flush the DNS cache on [spare-01](record://device/4)',
     });
   });
 
@@ -64,12 +64,12 @@ describe('buildMingoWhatToAsk', () => {
     expect(find(devices, 'Why is')?.label).toMatch(/^Why is (acme-ws-07|bob-mbp) slow\?/);
   });
 
-  it('shows the name the device list shows, and sends the mention whatever the name', () => {
+  it('shows the name the device list shows, and links the device by that name', () => {
     const named = device('6', { hostname: 'ann-mbp', type: 'LAPTOP', osType: 'MAC_OS', nickname: "Ann's laptop" });
 
     expect(find([named], 'Why is')).toMatchObject({
       label: "Why is Ann's laptop slow? Check CPU, memory and disk",
-      prompt: 'Why is @device:6 slow? Check CPU, memory and disk',
+      prompt: "Why is [Ann's laptop](record://device/6) slow? Check CPU, memory and disk",
     });
   });
 

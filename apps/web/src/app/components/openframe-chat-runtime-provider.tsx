@@ -356,7 +356,7 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         docsSearchUrl: content('/api/docs/search'),
         docsResolveLinkUrl: content('/api/docs/resolve-link'),
         // Fetch-mode entity cards (blog, roadmap, case study, release,
-        // podcast/webinar/event, …) expand their `[card://<type>:<id>]`
+        // podcast/webinar/event, …) expand their `record://<type>/<id>`
         // markers by GETting the type's list endpoint. The lib owns the
         // non-obvious per-type URL shapes (`task_ids` vs `ids`, `pageSize`,
         // `&filter=all`, distinct paths); we just point its builder at the

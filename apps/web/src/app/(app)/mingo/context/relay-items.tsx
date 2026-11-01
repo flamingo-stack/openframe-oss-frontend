@@ -117,7 +117,7 @@ export function DeviceItems({ query, selectedKeys, onToggle, atLimit }: ContextI
                 type: CONTEXT_ENTITY_KIND.DEVICE,
                 // Store the RAW db id, decoded from the Relay global `id`
                 // (`base64("Machine:<rawId>")`) — that's what the backend's
-                // DEVICE context resolver + `@device:<id>` mention marker expect.
+                // DEVICE context resolver + the `record://device/<id>` link expect.
                 // The chip re-encodes it to a global id for its `node(id:)` fetch
                 // (see relay-mention-chips). Falls back to `machineId` if decode
                 // ever fails.
@@ -252,7 +252,7 @@ export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextIte
     relayItemsUsersPaginationQuery,
     relayItemsUsers_query$key
   >(USERS_FRAGMENT, root as relayItemsUsers_query$key);
-  // Raw db id: the USER context resolver, the `@user:<id>` marker and the
+  // Raw db id: the USER context resolver, the `record://user/<id>` link and the
   // mention chip all take it.
   const items = data.users.edges.map(({ node }) => {
     const { rawId, name, email } = toUserSummary(node);
@@ -405,7 +405,7 @@ export function KnowledgeBaseFolderItems({ query, selectedKeys, onToggle, atLimi
           ? [
               {
                 type: CONTEXT_ENTITY_KIND.KB_FOLDER,
-                // Raw db id, as for an article: the `@kbFolder:<id>` marker and the
+                // Raw db id, as for an article: the `record://kbFolder/<id>` link and the
                 // folder resolver take it, and the chip re-encodes it.
                 id: rawIdOf(e.node.id),
                 label: e.node.name || e.node.id,
@@ -477,7 +477,7 @@ export function ScriptItems({ query, selectedKeys, onToggle, atLimit }: ContextI
     () =>
       (data.scripts?.edges ?? []).flatMap(e => {
         // Raw db id, decoded from the global `id` (`base64("Script:<rawId>")`);
-        // that's what the backend's SCRIPT context resolver + `@script:<id>` marker
+        // that's what the backend's SCRIPT context resolver + `record://script/<id>` marker
         // expect. The chip re-encodes it to a global id for its `script(id:)` fetch
         // (see relay-mention-chips). Drop any edge we can't decode to a raw id — a
         // global id stored here would misroute the chip to the legacy Tactical
@@ -555,7 +555,7 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
       (data.scriptSchedules?.edges ?? []).flatMap(e => {
         // Raw db id, decoded from the global `id` (`base64("ScriptSchedule:<rawId>")`)
         // — that's what the backend's SCHEDULED_SCRIPT resolver
-        // (`ScriptScheduleService.findById`) + the `@scheduledScript:<id>` marker
+        // (`ScriptScheduleService.findById`) + the `record://scheduledScript/<id>` marker
         // expect. The chip re-encodes it to a global id for its `scriptSchedule(id:)`
         // fetch. Drop any edge we can't decode: a global id stored here would be
         // double-encoded on the way back and resolve to nothing.
@@ -591,7 +591,7 @@ export function ScheduleItems({ query, selectedKeys, onToggle, atLimit }: Contex
 // Mingo incident context lists the WORKING SET only — everything but ARCHIVED,
 // which is filed away and nothing to act on (the device Incidents tab's
 // default). `Insight.id` is already the opaque id the `insight(id:)` query and
-// the `@insight:<id>` marker take, so no decode/re-encode here.
+// the `record://insight/<id>` link take, so no decode/re-encode here.
 const INCIDENT_CONTEXT_FILTER = { statuses: [...WORKING_SET_STATUSES] };
 
 const INCIDENTS_FRAGMENT = graphql`

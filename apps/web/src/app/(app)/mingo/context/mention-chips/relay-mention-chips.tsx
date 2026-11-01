@@ -4,9 +4,8 @@ import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/component
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 /**
- * Self-fetching mention chips for the GraphQL-resolvable entity types (device,
- * organization, kb article) — the `@marker:id` analogue of `[card://]` entity
- * cards. Each suspends on first fetch (→ skeleton), reads from the Relay store
+ * Self-fetching record-link chips for the GraphQL-resolvable entity types
+ * (device, organization, kb article). Each suspends on first fetch (→ skeleton), reads from the Relay store
  * on streaming remounts (`store-or-network`, no flash), and falls back to a
  * plain id chip on error / unresolved name.
  *
@@ -271,7 +270,7 @@ function innerFor(kind: ContextEntityKind): (p: InnerProps) => ReactNode {
 export function GraphqlMentionChip({ kind, id, icon, fallbackLabel }: GraphqlMentionChipProps) {
   const typename = CONTEXT_RELAY_TYPENAME[kind];
   // `id` may be a RAW db id (context item) OR an already-global id (an inline
-  // `@kb:<globalId>` mention, since KB's idHint == the node id). `ensure…`
+  // `record://kb/<globalId>` link, since KB's idHint == the node id). `ensure…`
   // encodes the former and passes the latter through unchanged — no double-encode.
   // `toGlobalId` emits the backend's unpadded form, so this global id is URL-safe
   // for the kb/script detail hrefs (`/scripts/details/<globalId>`). A kind with

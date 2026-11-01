@@ -170,7 +170,7 @@ export function TicketDetailsView({ ticketId }: TicketDetailsViewProps) {
 
   // Register the open ticket as the Mingo "open view" so it rides on the sidebar
   // chat's context. `dialog.id` is the raw db id the backend TICKET resolver /
-  // `@ticket:id` marker expects (TICKET is REST-resolved — no global-id round-trip).
+  // `record://ticket/<id>` link expects (TICKET is REST-resolved — no global-id round-trip).
   useTrackOpenView(
     dialog ? { type: CONTEXT_ENTITY_KIND.TICKET, id: dialog.id, label: formatTicketRef(dialog, dialog.id) } : null,
     { loading: isLoading },

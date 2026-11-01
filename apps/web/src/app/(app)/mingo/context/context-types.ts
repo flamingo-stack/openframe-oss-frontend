@@ -17,16 +17,15 @@
  * today — it answers "not available in this build" until the insight lookup
  * lands; SOFTWARE and VULNERABILITY are the two the backend enum still has to
  * grow — see their entries). KB_FOLDER is both picked and mentioned: the picker
- * lists every folder, and the agent emits `@kbFolder:id` on its own.
+ * lists every folder, and the agent links `record://kbFolder/<id>` on its own.
  *
  * `CONTEXT_ENTITY_MARKER` maps each kind to that enum's `marker()` — the SHORT
- * token the backend uses for inline `@marker:id` mentions (note `KB_ARTICLE` →
- * `kb`, not `kb_article`, and `SCHEDULED_SCRIPT` → camelCase `scheduledScript`).
- * The structured `contextItems[].type` wire field keeps the UPPERCASE kind
- * (the `ContextItemType` GraphQL enum, matched by name); only the inline
- * `@`-mention token in the message text uses the marker. The picker forwards
- * the marker to the lib via `ChatContextEntityType.marker`, the single mapper
- * that brings every mention to the backend's short form.
+ * record type of its record link (note `KB_ARTICLE` → `kb`, not `kb_article`,
+ * and `SCHEDULED_SCRIPT` → camelCase `scheduledScript`). The structured
+ * `contextItems[].type` wire field keeps the UPPERCASE kind (the
+ * `ContextItemType` GraphQL enum, matched by name); only the record link in the
+ * message text uses the record type. The picker forwards it to the lib via
+ * `ChatContextEntityType.marker`.
  *
  * SINGLE SOURCE OF TRUTH — to add a kind: add one entry here (+ its marker),
  * then wire its label/icon in `MINGO_CONTEXT_ENTITY_TYPES` and its fetcher in
@@ -47,7 +46,7 @@ export const CONTEXT_ENTITY_KIND = {
   QUERY: 'QUERY',
   SCHEDULED_SCRIPT: 'SCHEDULED_SCRIPT',
   /**
-   * An incident (the API's `Insight`); the marker is `@insight:<stored id>` —
+   * An incident (the API's `Insight`); its record link is `record://insight/<stored id>` —
    * the id INSIDE the Relay handle, like every other kind.
    */
   INSIGHT: 'INSIGHT',
@@ -70,13 +69,12 @@ export type ContextEntityKind = (typeof CONTEXT_ENTITY_KIND)[keyof typeof CONTEX
 export const CONTEXT_ENTITY_KINDS = Object.values(CONTEXT_ENTITY_KIND) as ContextEntityKind[];
 
 /**
- * Backend mention markers — each kind's `ContextItemType.marker()`. This is the
- * single mapper that reduces every `@`-mention to the backend's short form
- * (`@device:…`, `@kb:…`, `@policy:…`). Three entries are not a plain lowercase
- * of the kind: `KB_ARTICLE → 'kb'`, and the camelCase `KB_FOLDER → 'kbFolder'`
- * and `SCHEDULED_SCRIPT → 'scheduledScript'` (the backend's `MentionParser`
- * matches the token verbatim, so the case MUST be preserved end to end). Fed to
- * the lib via the picker so the committed inline token matches that parser.
+ * Record types — each kind's `ContextItemType.marker()`, the `<type>` of its
+ * record link (`record://device/…`, `record://kb/…`, `record://policy/…`). Three
+ * entries are not a plain lowercase of the kind: `KB_ARTICLE → 'kb'`, and the
+ * camelCase `KB_FOLDER → 'kbFolder'` and `SCHEDULED_SCRIPT → 'scheduledScript'`
+ * (the backend matches the type verbatim, so the case MUST be preserved end to
+ * end). Fed to the lib via the picker so the committed record link matches.
  */
 export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
   DEVICE: 'device',
@@ -99,8 +97,8 @@ export const CONTEXT_ENTITY_MARKER: Record<ContextEntityKind, string> = {
  * raw db id back to a Relay global id (`base64("<typename>:<rawId>")`, see
  * `@/lib/relay-id`) right before a client-side `node(id:)` fetch in the chips.
  *
- * TEMPORARY (intentional hack): mentions AND contextItems carry RAW database ids
- * — that's what the backend context resolvers / `@marker:id` parser expect, and
+ * TEMPORARY (intentional hack): record links AND contextItems carry RAW database ids
+ * — that's what the backend context resolvers expect, and
  * what we store + send on the wire. But Relay's store is keyed by GLOBAL id, so
  * each chip must re-encode the raw id before fetching. On the way IN (manual
  * context-add in the picker) we do the inverse: take the GraphQL node's global

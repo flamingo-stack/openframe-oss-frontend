@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * Inline `@chat:<dialogId>` — Mingo citing an EARLIER CONVERSATION of the same
- * technician when it answers from chat memory. The ai-agent's memory search
- * hands the model a `chatTag` per supporting source — only for dialogs the
- * asking technician owns, and never the one open — and the model pastes that
- * marker beside the statement it supports.
+ * A chat record link, `[title](record://chat/<dialogId>)` — Mingo citing an
+ * EARLIER CONVERSATION of the same technician when it answers from chat memory.
+ * The ai-agent's memory search hands the model a `recordLink` per supporting
+ * source — only for dialogs the asking technician owns, and never the one
+ * open — and the model links it beside the statement it supports.
  *
- * `chat` is a reference marker, not a `ContextItemType`: nothing attaches a
+ * `chat` is a record type, not a `ContextItemType`: nothing attaches a
  * conversation as context, the picker does not offer one, and it has no entry
- * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
+ * in `CONTEXT_ENTITY_MARKER`. It is the one link-only type.
  *
  * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *
@@ -28,8 +28,7 @@ import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
-/** The marker the ai-agent writes in front of a recalled dialog's id
- *  (`ConversationMemoryReferenceService.CHAT_TAG_PREFIX`, without the `@`). */
+/** The record type of a recalled dialog's link (`ConversationMemoryReferenceService.CHAT_RECORD_TYPE`). */
 export const CHAT_REFERENCE_MARKER = 'chat';
 
 /** The backend substitutes this for a blank title itself; kept here for a

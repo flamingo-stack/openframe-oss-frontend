@@ -32,10 +32,10 @@ const KbArticleIcon = KB_ITEM_ICON[KnowledgeBaseItemType.ARTICLE];
 const KbFolderIcon = KB_ITEM_ICON[KnowledgeBaseItemType.FOLDER];
 
 /**
- * Entity types in picker display order. `marker` is the backend mention short
- * form (from `CONTEXT_ENTITY_MARKER`) — the lib uses it to commit `@marker:id`
- * tokens that match the backend's `MentionParser`. Every kind offered here
- * resolves server-side.
+ * Entity types in picker display order. `marker` is the backend's record type
+ * (from `CONTEXT_ENTITY_MARKER`): the lib commits a picked record as a record
+ * link of that type, which the backend's `MentionParser` reads. Every kind
+ * offered here resolves server-side.
  */
 export const MINGO_CONTEXT_ENTITY_TYPES: ChatContextEntityType[] = [
   {
@@ -142,7 +142,7 @@ const KIND_FLAG: Partial<Record<ContextEntityKind, ModuleFlag>> = {
  * the flag booleans, so the picker config that memoizes on the result stays
  * put while the flags hold still. Appearing late is fine here: an entry absent
  * until its flag answers changes nothing else, and a mention already in a chat
- * renders as a chip regardless (`renderMingoMention` dispatches by marker, not
+ * renders as a chip regardless (`renderMingoRecordChip` dispatches by type, not
  * by this list).
  */
 export function useMingoContextEntityTypes(): ChatContextEntityType[] {

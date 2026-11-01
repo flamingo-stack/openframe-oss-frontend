@@ -61,7 +61,7 @@ async function fetchTicketsPage(
   const conn = res.data?.data?.tickets;
   const items = (conn?.edges ?? []).map(e => ({
     type: CONTEXT_ENTITY_KIND.TICKET,
-    // Raw: the server matches an `@ticket:<id>` mention token literally against
+    // Raw: the server matches an `record://ticket/<id>` record link literally against
     // the raw ticket id, so a global id would leave the mention as plain text.
     id: e.node.ticketId,
     // The picked label becomes the chip's fallback label, so it carries the

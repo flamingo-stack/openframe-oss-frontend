@@ -7,7 +7,7 @@ import type {
 import { useMemo } from 'react';
 import { useMingoContextEntityTypes } from '@/app/(app)/mingo/context/context-sources';
 import { CONTEXT_ITEMS_MAX } from '@/app/(app)/mingo/context/context-types';
-import { renderMingoContextItem, renderMingoMention } from '@/app/(app)/mingo/context/mention-chips/render-mention';
+import { renderMingoContextItem, renderMingoRecordChip } from '@/app/(app)/mingo/context/mention-chips/render-mention';
 import { renderMingoContextItems } from '@/app/(app)/mingo/context/render-context-items';
 import { useMingoContextMemory } from '@/app/(app)/mingo/context/use-context-memory';
 import { MINGO_DIALOGS_PAGE_SIZE } from '@/app/(app)/mingo/hooks/use-mingo-dialogs';
@@ -34,7 +34,7 @@ export type OpenframeChatProps = Pick<
   | 'modes'
   | 'pendingApprovals'
   | 'renderContextItem'
-  | 'renderMention'
+  | 'renderRecordChip'
   | 'sourceSkeletonCount'
   | 'userAvatarUrl'
   | 'userDisplayName'
@@ -163,10 +163,10 @@ export function useOpenframeChatProps({
     // default welcome content.
     mingoWelcome: mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined,
     contextPicker,
-    // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
-    // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
-    // for `[card://]`. Stable module-level fn so the message memo holds.
-    renderMention: renderMingoMention,
+    // Renders the chip of a record link (`[MacBook](record://device/<id>)`) in
+    // a message as a self-fetching chip. Stable module-level fn so the message
+    // memo holds.
+    renderRecordChip: renderMingoRecordChip,
     // Renders a user's ATTACHED context chips (`contextItems`) as the SAME
     // self-fetching chips as inline mentions — so manually attached context
     // resolves its live name + link instead of the lib's label-only pill.

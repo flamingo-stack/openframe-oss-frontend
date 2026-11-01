@@ -51,8 +51,8 @@ export interface FirstDevice {
   /** The device page's id (`routes.devices.details`); null for a record without one. */
   machineId: string | null;
   /**
-   * What an inline `@device:<id>` mention names it by: the raw part of its global
-   * id, as the context picker sends it (`relay-items`), else `machineId`.
+   * The id its record link (`record://device/<id>`) names it by: the raw part of
+   * its global id, as the context picker sends it (`relay-items`), else `machineId`.
    */
   mentionId: string | null;
   /** What the device page would call it: display name, else hostname. */

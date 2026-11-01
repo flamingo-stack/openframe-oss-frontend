@@ -1,19 +1,18 @@
 'use client';
 
 /**
- * `renderMention` for `<EmbeddableChat>`: the chip of a record an answer names. The lib finds a record link,
- * `[MacBook-Pro-14](record://device/64f0a1)` (the lib's `chat-protocol/record-link.ts`), or, in answers stored
- * before record links, the legacy token `@device:64f0a1`, and calls this with `{ marker: type, id, label }`; we
- * dispatch by marker to a SELF-FETCHING chip (each entity type owns its own fetcher + detail-page link). A type we
- * have no chip for returns null, and the lib draws its own chip with the link's name.
+ * `renderRecordChip` for `<EmbeddableChat>`: the chip of a record a message names. The lib finds a record link,
+ * `[MacBook-Pro-14](record://device/64f0a1)` (the lib's `chat-protocol/record-link.ts`), and calls this with
+ * `{ type, id, label }`; we dispatch by type to a SELF-FETCHING chip (each entity type owns its own fetcher +
+ * detail-page link). A type we have no chip for returns null, and the lib draws its own chip with the link's name.
  *
  * Module-level (not a hook): it needs only the static entity-type config, so a
  * stable identity falls out for free — the lib's per-message memo relies on
- * `renderMention` keeping reference equality across streaming chunks.
+ * `renderRecordChip` keeping reference equality across streaming chunks.
  *
- * Coverage = all thirteen entity markers the agent can emit, plus `@chat:` — a
- * reference to an EARLIER CONVERSATION recalled from chat memory, which is not an
- * entity and opens in the drawer rather than on a page (`ChatReferenceChip`).
+ * Coverage = every record type the agent links, plus `chat` (`record://chat/<id>`) —
+ * an EARLIER CONVERSATION recalled from chat memory, which is not an entity and
+ * opens in the drawer rather than on a page (`ChatReferenceChip`).
  * GraphQL types (device, customer, user, kb article, kb folder, scheduled script,
  * incident, software) resolve via Relay; REST/ai-agent types (policy, query,
  * ticket) via `RestMentionChip`; a vulnerability needs no fetch at all —
@@ -21,7 +20,7 @@
  * ObjectId) resolves via Relay, a LEGACY Tactical script (numeric id) via REST —
  * so both kinds of script id render regardless of the flag. Every chip falls
  * back to a plain id chip (clickable where a route exists) if its fetch can't
- * resolve a name. Unknown marker → bare token.
+ * resolve a name. Unknown type → the lib's own chip.
  */
 
 import type { ChatContextItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -50,26 +49,24 @@ const ICON_BY_MARKER = new Map<string, ReactNode>([
 
 /**
  * New OpenFrame scripts carry a 24-char Mongo ObjectId raw db id; legacy Tactical
- * scripts carry a plain numeric id. Used to route a `@script:id` to the right
+ * scripts carry a plain numeric id. Used to route a script's record link to the right
  * resolver (Relay vs Tactical REST) so both kinds render.
  */
 const OBJECT_ID_RE = /^[0-9a-f]{24}$/i;
 
-export function renderMingoMention({
-  marker,
+export function renderMingoRecordChip({
+  type,
   id,
   label,
 }: {
-  marker: string;
+  type: string;
   id: string;
-  /** Known display name: a record link's text (the name the answer gave the record) or a context item's picked
-   *  label; a legacy `@marker:id` token has none. Used as the chip's fallback so it never shows a bare id when the
-   *  live resolve misses (e.g. a script id the resolver can't find, or a reloaded message whose label was stripped
-   *  on the wire). */
+  /** Known display name: a record link's text or a context item's picked label. Used as the chip's fallback so it
+   *  never shows a bare id when the live resolve misses (e.g. a script id the resolver can't find). */
   label?: string;
 }): ReactNode {
-  const icon = ICON_BY_MARKER.get(marker);
-  switch (marker) {
+  const icon = ICON_BY_MARKER.get(type);
+  switch (type) {
     case CHAT_REFERENCE_MARKER:
       // Not an entity: an earlier conversation Mingo cites from chat memory.
       // Opens IN the drawer (see the chip), never on a page.
@@ -103,26 +100,26 @@ export function renderMingoMention({
       return OBJECT_ID_RE.test(id) ? (
         <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.SCRIPT} id={id} icon={icon} fallbackLabel={label} />
       ) : (
-        <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />
+        <RestMentionChip marker={type} id={id} icon={icon} fallbackLabel={label} />
       );
     case M.USER:
       return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.USER} id={id} icon={icon} fallbackLabel={label} />;
     case M.POLICY:
     case M.QUERY:
     case M.TICKET:
-      return <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />;
+      return <RestMentionChip marker={type} id={id} icon={icon} fallbackLabel={label} />;
     default:
-      // Unknown marker → let the lib render the bare `@marker:id` token.
+      // Unknown type → the lib draws its own chip with the link's name.
       return null;
   }
 }
 
 /**
  * `renderContextItem` for `<EmbeddableChat>` — renders a user's ATTACHED context
- * chip (from `contextItems`) IDENTICALLY to an inline `@marker:id` mention.
- * Bridges the structured `{ type: <KIND>, id }` shape to the marker-keyed mention
- * path: maps the stored kind to its backend marker and delegates to
- * `renderMingoMention`, so the attached chip is the same self-fetching,
+ * chip (from `contextItems`) IDENTICALLY to an inline record link.
+ * Bridges the structured `{ type: <KIND>, id }` shape to the record-type-keyed
+ * path: maps the stored kind to its record type and delegates to
+ * `renderMingoRecordChip`, so the attached chip is the same self-fetching,
  * name-resolving, linked chip. Returns null for an unknown kind → the lib falls
  * back to its default label-only pill. Module-level for a stable identity (the
  * message memo depends on it).
@@ -135,5 +132,5 @@ export function renderMingoContextItem(item: ChatContextItem): ReactNode {
   // re-fetch can't resolve. `label === id` (history with the label stripped on
   // the wire) is treated as "no label".
   const label = item.label && item.label !== item.id ? item.label : undefined;
-  return renderMingoMention({ marker, id: item.id, label });
+  return renderMingoRecordChip({ type: marker, id: item.id, label });
 }

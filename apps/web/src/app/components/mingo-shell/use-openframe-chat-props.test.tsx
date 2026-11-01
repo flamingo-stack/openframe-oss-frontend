@@ -23,7 +23,7 @@ vi.mock('@/app/(app)/mingo/hooks/use-mingo-dialogs', () => ({ MINGO_DIALOGS_PAGE
 vi.mock('@/app/(app)/mingo/context/context-sources', () => ({ useMingoContextEntityTypes: () => [] }));
 vi.mock('@/app/(app)/mingo/context/mention-chips/render-mention', () => ({
   renderMingoContextItem: () => null,
-  renderMingoMention: () => null,
+  renderMingoRecordChip: () => null,
 }));
 vi.mock('@/app/(app)/mingo/context/render-context-items', () => ({ renderMingoContextItems: () => null }));
 vi.mock('@/app/(app)/mingo/context/use-context-memory', () => ({ useMingoContextMemory: () => undefined }));

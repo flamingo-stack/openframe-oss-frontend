@@ -1,5 +1,5 @@
 /**
- * `@chat:<dialogId>` — an earlier conversation Mingo cites from chat memory.
+ * `record://chat/<dialogId>` — an earlier conversation Mingo cites from chat memory.
  *
  * Pins the three answers the ai-agent's `conversationMemoryChatReference` can
  * give and what each becomes in the sentence: a title → a linked chip that

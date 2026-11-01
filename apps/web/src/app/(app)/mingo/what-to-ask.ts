@@ -1,3 +1,4 @@
+import { recordLinkMarkdown } from '@flamingo-stack/openframe-frontend-core/chat-protocol';
 import {
   getAgentAccent,
   type SuggestionPrompt,
@@ -20,9 +21,9 @@ const mingoIcon = (name: string): SuggestionPrompt['icon'] => ({ name, accent: g
 
 /**
  * A prompt about one device: the chip shows the device's name, the message
- * carries the device's `@device:<id>` mention - the token the composer's own
- * @-mention commits - so Mingo knows exactly which device is meant even when
- * several share the name (hostnames repeat across a fleet).
+ * names the device with its record link (`[name](record://device/<id>)`, what
+ * the composer's own @-mention commits) so Mingo knows exactly which device is
+ * meant even when several share the name (hostnames repeat across a fleet).
  */
 const aboutDevice = (
   device: WhatToAskDevice | null,
@@ -32,7 +33,12 @@ const aboutDevice = (
 ): SuggestionPrompt => {
   if (!device) return { label: unnamed, icon };
   const id = decodeGlobalId(device.id)?.rawId ?? device.machineId;
-  return { label: named(getDeviceName(device)), prompt: named(`@${CONTEXT_ENTITY_MARKER.DEVICE}:${id}`), icon };
+  const name = getDeviceName(device);
+  return {
+    label: named(name),
+    prompt: named(recordLinkMarkdown({ type: CONTEXT_ENTITY_MARKER.DEVICE, id }, name)),
+    icon,
+  };
 };
 
 /**
