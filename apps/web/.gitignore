@@ -43,3 +43,6 @@ src/generated/
 
 # eslint --cache (npm run lint)
 .eslintcache
+
+# Per-route stylesheets of the last `next-styles build`
+.next-styles/
