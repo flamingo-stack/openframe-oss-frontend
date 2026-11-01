@@ -126,7 +126,7 @@ function DockComposerLoading({ route, quickActions = false }: { route: ComposerR
     <LoadingRegion label="Loading Mingo">
       {/* The home's quick actions in their loading form (the scope), so the dock is its
           loaded height from the first frame and the greeting centred above it stays put. */}
-      {quickActions && <MingoDockQuickActions onPick={noop} />}
+      {quickActions && <MingoDockQuickActions onSend={noop} />}
       <ChatComposer
         lock={{ placeholder: view.placeholder }}
         inputRef={null}
@@ -406,11 +406,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
   return (
     <>
       {/* Mingo's quick actions over the composer on every route but the chat page, for the page's
-          topic. A click puts the action into the composer, in a new chat, to edit and send
-          (`prefillDraft`), so until the chat has loaded they draw their loading form. Not under the
-          sheet: the composer then replies to the chat in it. */}
+          topic. A click sends the action at once, in a new chat (the dock's own send, which then
+          opens it). Not under the sheet: the composer then replies to the chat in it. */}
       {showsDockQuickActions(route) && !sheetOpen && (
-        <MingoDockQuickActions onPick={text => handle?.prefillDraft({ text })} loading={!handle} />
+        <MingoDockQuickActions onSend={text => void target.sendInNewDialog(text)} />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
