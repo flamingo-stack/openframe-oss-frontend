@@ -35,7 +35,6 @@ export type OpenframeChatProps = Pick<
   | 'pendingApprovals'
   | 'renderContextItem'
   | 'renderRecordChip'
-  | 'sourceSkeletonCount'
   | 'userAvatarUrl'
   | 'userDisplayName'
   | 'whatToAsk'
@@ -106,9 +105,6 @@ export function useOpenframeChatProps({
     dialogStatusOf,
     // One page of the dialog list: the conversation lists' loading state draws this many rows.
     historyPageSize: MINGO_DIALOGS_PAGE_SIZE,
-    // No loading source strip under an answer being written: Mingo's answers rarely cite sources, so a strip
-    // drawn while it writes would appear and then go away.
-    sourceSkeletonCount: 0,
     // "What to ask Mingo?" answers in a new chat with prompts that go into the
     // composer, naming online devices.
     whatToAsk: loadWhatToAsk,
