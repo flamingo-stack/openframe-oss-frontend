@@ -1,55 +1,36 @@
 'use client';
 
 /**
- * Presentational shell every per-type mention chip renders into — the lib's
- * `InlineChip` (its `Tag` badge as an inline `<span>`), the box the chat also
- * draws for a link to a screen of the app.
+ * Presentational shell every per-type mention chip renders into: the lib's `InlineChip`, the box the chat also draws
+ * for a link to a screen of the app. A chip in a sentence shows the record's whole name and wraps with the line like a
+ * link (the lib's rule: no width cap, no ellipsis).
  *
- * When `href` is set the chip is a link to the entity's page, followed by the
- * chat's normal navigation (`NavLinkAnchorViaRuntime`), exactly as every other
- * chat link: the chat stays in the sidebar and the composer under every page, so
- * Back returns to the conversation. Where this window can open a tab, a separate
- * trailing segment opens the page in a NEW TAB instead. In a chat answer that trailing segment is the record's "⋯"
- * menu instead, the lib's own for every record (`useRecordChipMenu`): the same rows as the record's card (Ask
- * Mingo, Open Details with its new tab where this window opens tabs, the runtime's `opensTabs`). In a loading scope the chip is the `Tag`'s own
- * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
- * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
- * always: skeleton while fetching → resolved chip → plain id chip if the fetch
- * throws (never crashes the message).
+ * When `href` is set the chip's name is a link to the entity's page, followed by the chat's normal navigation
+ * (`NavLinkAnchorViaRuntime`), exactly as every other chat link: the chat stays in the sidebar and the composer under
+ * every page, so Back returns to the conversation. After the name, inside the same box, comes the chip's action: in a
+ * chat answer the record's "⋯" menu, the lib's own for every record (`useRecordChipMenu`: the same rows as the
+ * record's card, Ask Mingo and Open Details with its new tab where this window opens tabs); for an attached context
+ * item, a new-tab link where this window can open a tab. In a loading scope the chip is the `Tag`'s own skeleton;
+ * `MentionSuspense` is the Suspense boundary that puts it in one, and `MentionErrorBoundary` the error boundary, so a
+ * per-type chip is always: skeleton while fetching → resolved chip → plain id chip if the fetch throws (never crashes
+ * the message).
  */
 
 import {
   InlineChip,
   NavLinkAnchorViaRuntime,
-  RECORD_CHIP_LEAD_SEGMENT_CLASS,
-  RecordChipActions,
+  RecordChipMenu,
   useRecordChipMenu,
 } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { Component } from 'react';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 
-// The box is the lib's `InlineChip`: the same box the chat draws for a link to a screen of the app, so a mention and
-// an app link read alike. No `cursor-pointer` here: the link cursor comes from the `<a>` wrapper, so a chip WITHOUT an
-// href (a user has no detail page) does not look clickable. `max-w-[min(16rem,100%)]` keeps the chip no wider than
-// what holds it: a table cell narrower than 16rem (a phone) truncates the label (the tooltip then shows it whole)
-// instead of letting the chip run out of the cell.
-const CHIP_CLASS = 'max-w-[min(16rem,100%)]';
-// In the two-segment form the cap sits on the PAIR, and the chip fills its link (`max-w-full`). Capped on the chip,
-// the link around it still sized to the whole label (a percentage max-width does not bound an intrinsic size), so a
-// long name left an empty gap between the truncated chip and its new-tab segment.
-const PAIR_CLASS = cn('inline-flex align-middle', CHIP_CLASS);
-const PAIRED_CHIP_CLASS = 'max-w-full';
-
-// The two segments of a chip that can also open a tab: one chip outline, the
-// main segment's right border is the seam between them, and each segment
-// lights up on its own hover so the two targets read as two.
-const SEGMENT_HOVER_CLASS = 'hover:bg-ods-bg-hover';
-const MAIN_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-r-none');
-const NEW_TAB_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-l-none border-l-0 hover:[&_svg]:text-ods-text-primary');
+// No `cursor-pointer` on the box: the link cursor comes from the `<a>` around the name, so a chip WITHOUT an href (a
+// user has no detail page) does not look clickable.
+const LINKED_CHIP_CLASS = 'hover:bg-ods-bg-hover';
 
 interface MentionTagProps {
   icon?: ReactNode;
@@ -60,60 +41,40 @@ interface MentionTagProps {
 
 export function MentionTag({ icon, label, href }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
-  // A tab only where this window can open one and should (see `useSameWindowLinks`).
-  const offersNewTab = !sameWindow;
   // In a chat answer, the record's menu (the card's rows); none for an attached context item.
   const menuGroups = useRecordChipMenu({ href });
-  if (menuGroups) {
-    const lead = (
-      <InlineChip icon={icon} label={label} className={cn(RECORD_CHIP_LEAD_SEGMENT_CLASS, SEGMENT_HOVER_CLASS)} />
-    );
-    return (
-      <RecordChipActions menuGroups={menuGroups} label={typeof label === 'string' ? label : 'record'}>
-        {href ? (
-          <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
-            {lead}
-          </NavLinkAnchorViaRuntime>
-        ) : (
-          lead
-        )}
-      </RecordChipActions>
-    );
-  }
-
-  // String labels go straight to Tag: its label slot shows a FloatingTooltip with
-  // the full entity name only when the chip's max-w actually clips it, on a span
-  // trigger that stays valid inside the markdown `<p>`.
-  const paired = Boolean(href) && offersNewTab;
-  const chip = (
-    <InlineChip icon={icon} label={label} className={paired ? cn(PAIRED_CHIP_CLASS, MAIN_SEGMENT_CLASS) : CHIP_CLASS} />
-  );
-  if (!href) return chip;
-
-  // The chip is a chat link like any other: the chat's normal navigation (`NavLinkAnchorViaRuntime`, the one
-  // decision and the one executor every chat link uses).
-  if (!offersNewTab) {
-    return (
-      <NavLinkAnchorViaRuntime href={href} className="no-underline">
-        {chip}
-      </NavLinkAnchorViaRuntime>
-    );
-  }
-
-  // The new-tab segment is the same chat link, asked for a new tab (`openIn`), to the page alone: a
-  // `?mingoDialog=` would send that tab to the chat page instead (`MingoDialogParamBridge`). The pair fits what
-  // holds it too: the main segment gives up its width first.
-  return (
-    <span className={PAIR_CLASS}>
-      <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
-        {chip}
-      </NavLinkAnchorViaRuntime>
-      <FloatingTooltip content="Open in new tab" side="top" as="span">
-        <NavLinkAnchorViaRuntime href={href} openIn="new-tab" aria-label="Open in new tab" className="no-underline">
-          <InlineChip label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
+  const link = href
+    ? (content: ReactNode) => (
+        <NavLinkAnchorViaRuntime href={href} className="text-inherit no-underline">
+          {content}
         </NavLinkAnchorViaRuntime>
-      </FloatingTooltip>
-    </span>
+      )
+    : undefined;
+  // The new-tab link of an attached context item is the same chat link, asked for a new tab (`openIn`), to the page
+  // alone: a `?mingoDialog=` would send that tab to the chat page instead (`MingoDialogParamBridge`). Offered only
+  // where this window can open a tab and should (`useSameWindowLinks`).
+  const trailing = menuGroups ? (
+    <RecordChipMenu menuGroups={menuGroups} label={typeof label === 'string' ? label : 'record'} />
+  ) : href && !sameWindow ? (
+    <FloatingTooltip content="Open in new tab" side="top" as="span">
+      <NavLinkAnchorViaRuntime
+        href={href}
+        openIn="new-tab"
+        aria-label="Open in new tab"
+        className="text-inherit no-underline hover:text-ods-text-primary [&_svg]:inline [&_svg]:size-4 [&_svg]:align-[-0.2em]"
+      >
+        <ExternalLinkIcon />
+      </NavLinkAnchorViaRuntime>
+    </FloatingTooltip>
+  ) : undefined;
+  return (
+    <InlineChip
+      icon={icon}
+      label={label}
+      className={href ? LINKED_CHIP_CLASS : undefined}
+      link={link}
+      trailing={trailing}
+    />
   );
 }
 

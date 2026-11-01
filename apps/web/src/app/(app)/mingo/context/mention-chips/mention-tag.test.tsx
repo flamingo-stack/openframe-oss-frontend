@@ -4,7 +4,7 @@
  * `runtime.navigation.navigate`), a modifier click stays the browser's, and the
  * new-tab segment is a plain `_blank` link to the page alone (a `?mingoDialog=`
  * would send that tab to the chat page), offered only where a tab is. Also that
- * the chip fits what holds it, a table cell on a phone.
+ * the chip shows its whole name in one box that wraps with its line.
  */
 
 import { RecordActionsProvider, RecordChipProvider } from '@flamingo-stack/openframe-frontend-core/components/chat';
@@ -134,15 +134,14 @@ describe('MentionTag new-tab segment', () => {
     expect(container.querySelectorAll('a')).toHaveLength(1);
   });
 
-  it('fits what holds it: the PAIR is capped, the main segment giving up its width first and the chip filling it', () => {
+  it('shows the whole name in one box that wraps with its line, the new-tab link inside it', () => {
     sameWindow = false;
     renderChip(HREF);
-    const pair = container.firstElementChild;
-    // Capped on the chip instead, the link kept the whole label's width and a long name left a gap before the
-    // new-tab segment.
-    expect(pair?.className).toContain('max-w-[min(16rem,100%)]');
-    expect(pair?.querySelector('a')?.className).toContain('min-w-0');
-    expect(container.querySelector('[data-testid="inline-chip"]')?.className).toContain('max-w-full');
+    const chip = container.querySelector('[data-testid="inline-chip"]');
+    expect(chip?.textContent).toContain('app-server-03');
+    expect(chip?.className).not.toMatch(/max-w-|truncate/);
+    expect(chip?.className).toContain('[box-decoration-break:clone]');
+    expect(chip?.querySelector('a[target="_blank"]')).not.toBeNull();
   });
 
   it('is not offered on a chip with no page to open', () => {
