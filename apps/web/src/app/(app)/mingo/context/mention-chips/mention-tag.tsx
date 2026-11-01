@@ -29,10 +29,6 @@ import type { ReactNode } from 'react';
 import { Component } from 'react';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 
-// No `cursor-pointer` on the box: the link cursor comes from the `<a>` around the name, so a chip WITHOUT an href (a
-// user has no detail page) does not look clickable.
-const LINKED_CHIP_CLASS = 'hover:bg-ods-bg-hover';
-
 interface MentionTagProps {
   icon?: ReactNode;
   label: ReactNode;
@@ -76,15 +72,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
       </NavLinkAnchorViaRuntime>
     </FloatingTooltip>
   ) : undefined;
-  return (
-    <InlineChip
-      icon={icon}
-      label={label}
-      className={href ? LINKED_CHIP_CLASS : undefined}
-      link={link}
-      trailing={trailing}
-    />
-  );
+  return <InlineChip icon={icon} label={label} link={link} trailing={trailing} />;
 }
 
 /**
