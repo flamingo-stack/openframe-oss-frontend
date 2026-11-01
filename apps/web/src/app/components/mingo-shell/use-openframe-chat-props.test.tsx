@@ -42,7 +42,6 @@ vi.mock('@/lib/image-url', () => ({ getFullImageUrl: () => undefined }));
 
 const chat = { ...makeFakeChat({ activeDialogId: 'd-1' }) } as unknown as MingoChatState;
 const copyDialogLink = vi.fn(async () => {});
-const sendInNewDialog = vi.fn(async () => {});
 const compactDialog = vi.fn();
 const probe = { compact: true };
 
@@ -55,7 +54,6 @@ function Probe() {
     chat,
     copyDialogLink,
     compactDialog: probe.compact ? compactDialog : undefined,
-    sendInNewDialog,
   });
   useLayoutEffect(() => {
     seen.props = props;
@@ -65,7 +63,6 @@ function Probe() {
 
 beforeEach(() => {
   seen.props = null;
-  sendInNewDialog.mockClear();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -108,11 +105,10 @@ describe('useOpenframeChatProps', () => {
     probe.compact = true;
   });
 
-  it('starts a quick action through the send it is given', () => {
+  it("hands the chat each quick action's instructions, which it puts into its composer", () => {
     const [action] = seen.props?.mingoWelcome?.quickActions ?? [];
     expect(action).toMatchObject({ id: 'qa-1', label: 'Disk cleanup', prompt: 'Free up disk space' });
-
-    action?.onClick?.();
-    expect(sendInNewDialog).toHaveBeenCalledWith('Free up disk space');
+    // The chat wires the click itself; the chips send nothing of their own.
+    expect(action?.onClick).toBeUndefined();
   });
 });

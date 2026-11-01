@@ -11,10 +11,11 @@ import { useMingoQuickActions } from '@/app/(app)/mingo/hooks/use-mingo-quick-ac
 /**
  * Admin-configured Mingo quick actions (AI Settings → "Mingo AI Chat" tab, else the hub
  * defaults) as the chat's quick-action chips: the chat's empty state (`mingoWelcome`) and
- * the dock's wall on Mingo's home draw the same ones. A click SENDS the action's
- * instructions in a new chat (`send`); the chip's `prompt` is what hover previews.
+ * the dock's set draw the same ones. The chip's `prompt` is the action's instructions: the
+ * chat sends it on a click by itself; a host that draws the set outside the chat (the dock)
+ * passes `send` for its click.
  */
-export function useMingoQuickActionChips(send: (instructions: string) => void): {
+export function useMingoQuickActionChips(send?: (instructions: string) => void): {
   chips: MingoQuickAction[];
   /** The actions are still read: a wall holds its place with its loading form. */
   loading: boolean;
@@ -36,10 +37,9 @@ export function useMingoQuickActionChips(send: (instructions: string) => void): 
           props: action.iconProps ?? undefined,
           accent: getAgentAccent('mingo'),
         }),
-        // Hover/focus previews the full instruction (what's actually sent) as
-        // ghost text in the composer; the chip `label` is just the short name.
+        // The full instruction; the chip `label` is just the short name.
         prompt: action.instructions,
-        onClick: () => send(action.instructions),
+        onClick: send ? () => send(action.instructions) : undefined,
       })),
     [quickActions, send],
   );

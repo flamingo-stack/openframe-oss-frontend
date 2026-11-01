@@ -13,7 +13,6 @@ import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-s
 import { routes } from '@/lib/routes';
 import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
 import { useChatPageNodeStore } from './chat-page-node-store';
-import { useComposerPreviewStore } from './composer-preview-store';
 import { MingoComposerDock } from './mingo-composer-dock';
 import { composerRouteOf } from './mingo-dock-route';
 import { useMingoSheetStore } from './mingo-sheet-store';
@@ -121,7 +120,7 @@ vi.mock('@/lib/platform', async importOriginal => ({
 vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
   useMingoChatSurface: () => surface.value,
 }));
-// The chips have tests of their own; here: where they show and what they send through.
+// The chips have tests of their own; here: where they show and what a click does.
 vi.mock('./mingo-dock-quick-actions', () => ({
   MingoDockQuickActions: ({ onSend }: { onSend: (text: string) => void }) => {
     chips.onSend = onSend;
@@ -552,22 +551,15 @@ describe('MingoComposerDock', () => {
     }
   });
 
-  it("shows the home chips' preview as ghost text in the composer", () => {
-    render('/mingo/');
-    expect(props().composerPreviewText).toBeNull();
-
-    act(() => useComposerPreviewStore.getState().show('List every online machine'));
-    expect(props().composerPreviewText).toBe('List every online machine');
-
-    act(() => useComposerPreviewStore.getState().hide('List every online machine'));
-    expect(props().composerPreviewText).toBeNull();
+  it('sends a quick action at once, in a new chat', () => {
+    render('/devices/');
+    act(() => chips.onSend?.('List every online machine'));
+    expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
+    expect(panel.prefillDraft).not.toHaveBeenCalled();
   });
 
   it('builds its chat with the props builder, through its own send', () => {
     render('/devices/');
-    // Quick actions start their chat through the follow-wrapped send, not the raw one.
-    expect(typeof builder.lastOptions?.sendInNewDialog).toBe('function');
-    expect(builder.lastOptions?.sendInNewDialog).not.toBe(sendInNewDialog);
     // The state the chat sends through is the dock's wrapper around the session's.
     expect(props().mingoState).toMatchObject({ activeDialogId: null, sendMessage: expect.any(Function) });
     expect(props().mingoState).not.toHaveProperty('fromBuilder');
@@ -593,9 +585,16 @@ describe('MingoComposerDock', () => {
       expect(container.firstElementChild?.className).toContain('max-w-[880px]');
     });
 
-    it('only home carries the quick actions', () => {
+    it('every page carries the quick actions, as home does', () => {
       chips.onSend = null;
       render('/devices/');
+      expect(chips.onSend).not.toBeNull();
+    });
+
+    it('the chat page carries none: its new chat draws them in its empty state', () => {
+      chips.onSend = null;
+      setSurface({ activeDialogId: 'd-1' });
+      render('/mingo/chat/');
       expect(chips.onSend).toBeNull();
     });
 
