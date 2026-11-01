@@ -392,6 +392,9 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
         navigate,
         decideNewTab,
         openExternal,
+        // Where this window cannot or should not open a tab (`useSameWindowLinks`), no record's menu, a card's or a
+        // chip's, offers one.
+        opensTabs: !sameWindow,
       },
       // Unified content-href seam (shared with Help Center pages): the hosted
       // types and the Help Center overrides soft-nav into `/help-center/...`;
@@ -400,11 +403,11 @@ export function OpenframeChatRuntimeProvider({ children }: { children: ReactNode
       composeContentUrl: composeOpenframeInAppContentUrl,
       source: CHAT_SOURCE,
     };
-    // `navigate` / `decideNewTab` / `openExternal` are the only reactive deps.
-    // The first two are stable `useCallback`s; `openExternal` changes only on a
+    // `navigate` / `decideNewTab` / `openExternal` / `sameWindow` are the only reactive deps.
+    // The first two are stable `useCallback`s; the last two change only on a
     // resize across the md breakpoint, so the runtime object is rebuilt about as
     // often as never.
-  }, [navigate, decideNewTab, openExternal]);
+  }, [navigate, decideNewTab, openExternal, sameWindow]);
 
   // The lib's "ask" surfaces (the "Ask Mingo" card beside a FAQ) read the SAME
   // runtime configuration through its assistant context: whether this app's chat

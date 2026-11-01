@@ -11,7 +11,7 @@
  * Back returns to the conversation. Where this window can open a tab, a separate
  * trailing segment opens the page in a NEW TAB instead. In a chat answer that trailing segment is the record's "⋯"
  * menu instead, the lib's own for every record (`useRecordChipMenu`): the same rows as the record's card (Ask
- * Mingo, Open Details with its new tab where this window opens tabs). In a loading scope the chip is the `Tag`'s own
+ * Mingo, Open Details with its new tab where this window opens tabs, the runtime's `opensTabs`). In a loading scope the chip is the `Tag`'s own
  * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
  * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
  * always: skeleton while fetching → resolved chip → plain id chip if the fetch
@@ -63,7 +63,7 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   // A tab only where this window can open one and should (see `useSameWindowLinks`).
   const offersNewTab = !sameWindow;
   // In a chat answer, the record's menu (the card's rows); none for an attached context item.
-  const menuGroups = useRecordChipMenu({ href, newTab: offersNewTab });
+  const menuGroups = useRecordChipMenu({ href });
   if (menuGroups) {
     const lead = (
       <InlineChip icon={icon} label={label} className={cn(RECORD_CHIP_LEAD_SEGMENT_CLASS, SEGMENT_HOVER_CLASS)} />

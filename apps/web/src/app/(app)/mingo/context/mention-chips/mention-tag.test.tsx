@@ -155,10 +155,12 @@ describe('MentionTag new-tab segment', () => {
 });
 
 describe("MentionTag in a chat answer: the record card's menu", () => {
+  // The app's runtime states `opensTabs` from the same rule (`useSameWindowLinks`), so the card and the chip agree.
   function renderAnswerChip(onDiscuss: (ref: unknown) => void) {
+    const answerRuntime = { ...runtime, navigation: { ...runtime.navigation, opensTabs: !sameWindow } } as ChatRuntime;
     act(() => {
       root.render(
-        <ChatRuntimeContext.Provider value={runtime}>
+        <ChatRuntimeContext.Provider value={answerRuntime}>
           <RecordActionsProvider value={{ onDiscuss }}>
             <RecordChipProvider value={{ type: 'device', id: 'm-1', label: 'app-server-03' }}>
               <MentionTag label="app-server-03" href={HREF} />
