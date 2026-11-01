@@ -46,8 +46,6 @@ interface OpenframeChatPropsOptions {
   copyDialogLink: MingoChat['copyDialogLink'];
   /** "Compact Chat Memory" in the chat's ⋯; undefined while its flag is off. */
   compactDialog?: MingoChat['compactDialog'];
-  /** How a quick-action chip starts its chat. Default: the session's `sendInNewDialog`. */
-  sendInNewDialog?: (text: string) => Promise<void>;
 }
 
 /** Builds {@link OpenframeChatProps} from the session's chat state. */
@@ -55,12 +53,7 @@ export function useOpenframeChatProps({
   chat,
   copyDialogLink,
   compactDialog,
-  sendInNewDialog: sendInNewDialogOption,
 }: OpenframeChatPropsOptions): OpenframeChatProps {
-  // Not a parameter default: one read from another parameter is a construct the
-  // React Compiler cannot reorder, and it then skipped this whole hook, so every
-  // object it builds for the docked chat was new on every render.
-  const sendInNewDialog = sendInNewDialogOption ?? chat.sendInNewDialog;
   const {
     state,
     pendingApprovals,
@@ -105,10 +98,9 @@ export function useOpenframeChatProps({
   // droppable from the `⋯` dropdown.
   const contextMemory = useMingoContextMemory();
 
-  // Admin-configured Mingo quick actions become starter chips in the empty state.
-  // Clicking one opens a new dialog seeded with the action's instructions — same path
-  // the launcher prompt uses.
-  const { chips: mingoQuickActions } = useMingoQuickActionChips(sendInNewDialog);
+  // Admin-configured Mingo quick actions become starter chips in the empty state. The chat
+  // puts a clicked one's instructions into its composer to edit and send.
+  const { chips: mingoQuickActions, loading: mingoQuickActionsLoading } = useMingoQuickActionChips();
 
   return {
     dialogStatusOf,
@@ -158,10 +150,14 @@ export function useOpenframeChatProps({
       onCopyLink: copyDialogLink,
       compactDialog: compactDialog && (dialog => compactDialog(dialog.id)),
     },
-    // Admin-configured Mingo quick actions rendered as chips in the Mingo
-    // empty state. Omitted when none are configured so the lib keeps its
-    // default welcome content.
-    mingoWelcome: mingoQuickActions.length > 0 ? { quickActions: mingoQuickActions } : undefined,
+    // Admin-configured Mingo quick actions rendered as the lib's quick-action set in the
+    // Mingo empty state. While they are read the set holds its slots (its chips' loading
+    // form), so the empty state keeps its height when they land. Omitted when none are
+    // configured so the lib keeps its default welcome content.
+    mingoWelcome:
+      mingoQuickActions.length > 0 || mingoQuickActionsLoading
+        ? { quickActions: mingoQuickActions, quickActionsLoading: mingoQuickActionsLoading }
+        : undefined,
     contextPicker,
     // Renders inline AI mentions (`@device:<machineId>` in Mingo's replies)
     // as self-fetching chips — the `@marker:id` analogue of `renderEntityCard`
