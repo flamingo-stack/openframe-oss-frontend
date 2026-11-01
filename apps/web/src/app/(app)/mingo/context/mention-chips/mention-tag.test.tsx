@@ -7,6 +7,7 @@
  * the chip fits what holds it, a table cell on a phone.
  */
 
+import { RecordActionsProvider, RecordChipProvider } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { type ChatRuntime, ChatRuntimeContext } from '@flamingo-stack/openframe-frontend-core/contexts';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -150,5 +151,57 @@ describe('MentionTag new-tab segment', () => {
       root.render(<MentionTag label="alice@example.com" />);
     });
     expect(container.querySelector('a')).toBeNull();
+  });
+});
+
+describe("MentionTag in a chat answer: the record card's menu", () => {
+  function renderAnswerChip(onDiscuss: (ref: unknown) => void) {
+    act(() => {
+      root.render(
+        <ChatRuntimeContext.Provider value={runtime}>
+          <RecordActionsProvider value={{ onDiscuss }}>
+            <RecordChipProvider value={{ type: 'device', id: 'm-1', label: 'app-server-03' }}>
+              <MentionTag label="app-server-03" href={HREF} />
+            </RecordChipProvider>
+          </RecordActionsProvider>
+        </ChatRuntimeContext.Provider>,
+      );
+    });
+  }
+
+  it('offers the same rows as a card, Ask Mingo asking about the record', async () => {
+    sameWindow = false;
+    const onDiscuss = vi.fn();
+    renderAnswerChip(onDiscuss);
+    // The trailing segment is the record's menu now: no separate new-tab segment.
+    expect(newTabSegment()).toBeNull();
+    const trigger = container.querySelector('button[aria-label="Actions for app-server-03"]');
+    if (!trigger) throw new Error('no menu segment');
+    act(() => {
+      trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' }));
+    });
+    const menu = document.querySelector('[role="menu"]');
+    if (!menu) throw new Error('menu did not open');
+    const rows = [...menu.querySelectorAll('[role="menuitem"], a')]
+      .filter(row => row.getAttribute('aria-label') !== 'Open in new tab')
+      .map(row => row.textContent?.trim());
+    expect(rows).toEqual(['Ask Mingo', 'Open Details']);
+    expect(menu.querySelector('a[aria-label="Open in new tab"]')?.getAttribute('href')).toBe(HREF);
+    act(() => {
+      (menu.querySelector('[role="menuitem"]') as HTMLElement).click();
+    });
+    expect(onDiscuss).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'device', id: 'm-1', title: 'app-server-03' }),
+    );
+  });
+
+  it('leaves out the new-tab button where this window opens no tabs', () => {
+    sameWindow = true;
+    renderAnswerChip(vi.fn());
+    const trigger = container.querySelector('button[aria-label="Actions for app-server-03"]');
+    act(() => {
+      trigger?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' }));
+    });
+    expect(document.querySelector('[role="menu"] a[aria-label="Open in new tab"]')).toBeNull();
   });
 });

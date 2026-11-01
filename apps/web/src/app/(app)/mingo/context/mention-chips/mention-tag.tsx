@@ -9,14 +9,22 @@
  * chat's normal navigation (`NavLinkAnchorViaRuntime`), exactly as every other
  * chat link: the chat stays in the sidebar and the composer under every page, so
  * Back returns to the conversation. Where this window can open a tab, a separate
- * trailing segment opens the page in a NEW TAB instead. In a loading scope the chip is the `Tag`'s own
+ * trailing segment opens the page in a NEW TAB instead. In a chat answer that trailing segment is the record's "⋯"
+ * menu instead, the lib's own for every record (`useRecordChipMenu`): the same rows as the record's card (Ask
+ * Mingo, Open Details with its new tab where this window opens tabs). In a loading scope the chip is the `Tag`'s own
  * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
  * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
  * always: skeleton while fetching → resolved chip → plain id chip if the fetch
  * throws (never crashes the message).
  */
 
-import { InlineChip, NavLinkAnchorViaRuntime } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import {
+  InlineChip,
+  NavLinkAnchorViaRuntime,
+  RECORD_CHIP_LEAD_SEGMENT_CLASS,
+  RecordChipActions,
+  useRecordChipMenu,
+} from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { FloatingTooltip } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
@@ -54,6 +62,24 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   // A tab only where this window can open one and should (see `useSameWindowLinks`).
   const offersNewTab = !sameWindow;
+  // In a chat answer, the record's menu (the card's rows); none for an attached context item.
+  const menuGroups = useRecordChipMenu({ href, newTab: offersNewTab });
+  if (menuGroups) {
+    const lead = (
+      <InlineChip icon={icon} label={label} className={cn(RECORD_CHIP_LEAD_SEGMENT_CLASS, SEGMENT_HOVER_CLASS)} />
+    );
+    return (
+      <RecordChipActions menuGroups={menuGroups} label={typeof label === 'string' ? label : 'record'}>
+        {href ? (
+          <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
+            {lead}
+          </NavLinkAnchorViaRuntime>
+        ) : (
+          lead
+        )}
+      </RecordChipActions>
+    );
+  }
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
