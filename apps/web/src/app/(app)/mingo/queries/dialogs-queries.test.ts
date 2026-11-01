@@ -48,6 +48,11 @@ describe('getMingoDialogMessagesQuery', () => {
     expect(fragmentBody(legacyQuery, 'GuideData')).toContain('payload');
   });
 
+  it('fetches an answer’s record cards, and leaves them out for a backend that has none', () => {
+    expect(fragmentBody(query, 'RecordCardsData')).toContain('cards {');
+    expect(getMingoDialogMessagesQuery({ recordCards: false })).not.toContain('RecordCardsData');
+  });
+
   it('does not select GuideData.text', () => {
     // Payload-only records persist `text` as an empty non-null string, which
     // would replay as an empty text segment above the answer.

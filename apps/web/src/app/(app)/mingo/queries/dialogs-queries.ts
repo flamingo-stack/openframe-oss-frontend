@@ -233,6 +233,18 @@ const ATTACHMENTS_FRAGMENT = `... on AttachmentsData {
             }`;
 
 /**
+ * The records an answer shows as cards (the assistant's `showRecords` call), stored as a part of their own and drawn
+ * above the answer's text. Selected as the live `RECORD_CARDS` chunk carries them: the core lib decodes both through
+ * one function (`recordCardsEvent`).
+ */
+const RECORD_CARDS_FRAGMENT = `... on RecordCardsData {
+              cards {
+                entityType
+                entityId
+              }
+            }`;
+
+/**
  * What a backend from before saas-tenant#3633 has in place of `AttachmentsData`
  * (see `fetchMingoDialogMessages`). `GuideData.text` is NOT selected:
  * payload-only records persist it as an empty string, which would replay as an
@@ -242,7 +254,10 @@ const LEGACY_GUIDE_FRAGMENT = `... on GuideData {
               payload
             }`;
 
-export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGuide?: boolean } = {}) {
+export function getMingoDialogMessagesQuery({
+  legacyGuide = false,
+  recordCards = true,
+}: { legacyGuide?: boolean; recordCards?: boolean } = {}) {
   return `
   query GetAllMessages($dialogId: ID!, $cursor: String, $limit: Int, $sortField: String, $sortDirection: SortDirection) {
     messages(
@@ -289,6 +304,8 @@ export function getMingoDialogMessagesQuery({ legacyGuide = false }: { legacyGui
             }
 
             ${legacyGuide ? LEGACY_GUIDE_FRAGMENT : ATTACHMENTS_FRAGMENT}
+
+            ${recordCards ? RECORD_CARDS_FRAGMENT : ''}
 
             ... on AskData {
               ${ASK_INTRO_ALIAS}: text

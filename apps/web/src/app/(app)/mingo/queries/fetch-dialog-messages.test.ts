@@ -57,6 +57,34 @@ describe('fetchMingoDialogMessages', () => {
     expect(queryOfCall(2)).toContain('... on GuideData');
   });
 
+  it('leaves out RecordCardsData on a backend without it, and stays without it', async () => {
+    const noCards = {
+      ...REJECTED,
+      data: { errors: [{ message: "Validation error (UnknownType) : Unknown type 'RecordCardsData'" }] },
+    };
+    post.mockResolvedValueOnce(noCards).mockResolvedValue(PAGE);
+    const fetchMingoDialogMessages = await loadFetch();
+
+    await expect(fetchMingoDialogMessages(VARIABLES)).resolves.toBe(PAGE);
+    expect(queryOfCall(0)).toContain('... on RecordCardsData');
+    expect(queryOfCall(1)).not.toContain('RecordCardsData');
+    expect(queryOfCall(1)).toContain('... on AttachmentsData');
+
+    await fetchMingoDialogMessages(VARIABLES);
+    expect(queryOfCall(2)).not.toContain('RecordCardsData');
+  });
+
+  it('drops both parts for a backend that lacks both', async () => {
+    const noCards = { ...REJECTED, data: { errors: [{ message: "Unknown type 'RecordCardsData'" }] } };
+    post.mockResolvedValueOnce(REJECTED).mockResolvedValueOnce(noCards).mockResolvedValue(PAGE);
+    const fetchMingoDialogMessages = await loadFetch();
+
+    await expect(fetchMingoDialogMessages(VARIABLES)).resolves.toBe(PAGE);
+    expect(post).toHaveBeenCalledTimes(3);
+    expect(queryOfCall(2)).toContain('... on GuideData');
+    expect(queryOfCall(2)).not.toContain('RecordCardsData');
+  });
+
   it('hands any other failure back untouched', async () => {
     const failure = { ok: false, status: 500, error: 'Request failed with status 500' };
     post.mockResolvedValue(failure);
