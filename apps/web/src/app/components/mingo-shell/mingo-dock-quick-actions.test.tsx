@@ -1,7 +1,6 @@
 /**
  * Mingo's quick actions over the docked composer: the quick-action set, with no caption. A
- * chip's click hands the action's instructions to the dock (`onPick`), which puts them into the
- * composer to edit and send; with no actions nothing is drawn.
+ * chip's click hands the action's instructions to the dock (`onSend`), which sends them at once; with no actions nothing is drawn.
  */
 
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
@@ -36,12 +35,12 @@ window.matchMedia ??= (query: string) =>
     dispatchEvent: () => false,
   }) as MediaQueryList;
 
-const onPick = vi.fn<(text: string) => void>();
+const onSend = vi.fn<(text: string) => void>();
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-  onPick.mockClear();
+  onSend.mockClear();
   quickActions.value = [];
   quickActions.loading = false;
   container = document.createElement('div');
@@ -55,7 +54,7 @@ afterEach(() => {
 });
 
 function render() {
-  act(() => root.render(<MingoDockQuickActions onPick={onPick} />));
+  act(() => root.render(<MingoDockQuickActions onSend={onSend} />));
 }
 
 function chip(label: string): HTMLButtonElement {
@@ -65,13 +64,13 @@ function chip(label: string): HTMLButtonElement {
 }
 
 describe('MingoDockQuickActions', () => {
-  it('hands a clicked quick action to the dock, which fills the composer', () => {
+  it('hands a clicked quick action to the dock, which sends it', () => {
     quickActions.value = [
       { id: 'qa-1', name: 'Machines online', instructions: 'List every online machine with its customer' },
     ];
     render();
     act(() => chip('Machines online').click());
-    expect(onPick).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
+    expect(onSend).toHaveBeenCalledExactlyOnceWith('List every online machine with its customer');
   });
 
   it('draws the wall with no caption and no "What to ask Mingo?"', () => {
@@ -94,21 +93,12 @@ describe('MingoDockQuickActions', () => {
     expect(container.querySelectorAll('button[aria-label]')).toHaveLength(0);
   });
 
-  it('draws its loading form, with nothing to press, until what a click fills is ready', () => {
-    quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
-    act(() => root.render(<MingoDockQuickActions onPick={onPick} loading />));
-    expect(container.innerHTML).toContain('data-loading-item');
-    expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent?.includes('Machines online'))).toBe(
-      false,
-    );
-  });
-
   it("draws its loading form in a loading scope: the dock's first frame, before its chat has loaded", () => {
     quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
     act(() =>
       root.render(
         <LoadingRegion label="Loading Mingo">
-          <MingoDockQuickActions onPick={onPick} />
+          <MingoDockQuickActions onSend={onSend} />
         </LoadingRegion>,
       ),
     );

@@ -12,10 +12,10 @@ import { useMingoQuickActions } from '@/app/(app)/mingo/hooks/use-mingo-quick-ac
  * Admin-configured Mingo quick actions (AI Settings → "Mingo AI Chat" tab, else the hub
  * defaults) as the chat's quick-action chips: the chat's empty state (`mingoWelcome`) and
  * the dock's set draw the same ones. The chip's `prompt` is the action's instructions: the
- * chat puts it into its composer on a click by itself; a host that draws the set outside the
- * chat (the dock) passes `pick` for its click.
+ * chat sends it on a click by itself; a host that draws the set outside the chat (the dock)
+ * passes `send` for its click.
  */
-export function useMingoQuickActionChips(pick?: (instructions: string) => void): {
+export function useMingoQuickActionChips(send?: (instructions: string) => void): {
   chips: MingoQuickAction[];
   /** The actions are still read: a wall holds its place with its loading form. */
   loading: boolean;
@@ -39,9 +39,9 @@ export function useMingoQuickActionChips(pick?: (instructions: string) => void):
         }),
         // The full instruction; the chip `label` is just the short name.
         prompt: action.instructions,
-        onClick: pick ? () => pick(action.instructions) : undefined,
+        onClick: send ? () => send(action.instructions) : undefined,
       })),
-    [quickActions, pick],
+    [quickActions, send],
   );
   return { chips, loading };
 }

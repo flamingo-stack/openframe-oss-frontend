@@ -5,11 +5,8 @@ import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/compone
 import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 
 interface MingoDockQuickActionsProps {
-  /** Puts an action's instructions into the docked composer, in a new chat, to edit and send. */
-  onPick: (instructions: string) => void;
-  /** What `onPick` fills is not ready yet (the docked chat is still loading): the set draws its
-   *  loading form, so no chip can be clicked to no effect, and the dock keeps its height. */
-  loading?: boolean;
+  /** Sends an action's instructions in a new chat (the dock's own send, which then opens it). */
+  onSend: (instructions: string) => void;
 }
 
 /**
@@ -17,15 +14,14 @@ interface MingoDockQuickActionsProps {
  * (`showsDockQuickActions`; FE_PROMPT §3.7, MISSING 1.6): the chat's own quick-action set
  * (`MingoQuickActionWall`, what the chat's empty state draws), read for the page's topic, with
  * no caption over it ("What to ask Mingo?" is the home's button and in the chat history's ⋯).
- * A click puts the action's instructions into the composer to edit and send (`onPick`), the way
- * a conversation starter works: nothing is sent on the click.
+ * A click sends the action's instructions at once (`onSend`).
  */
-export function MingoDockQuickActions({ onPick, loading: loadingProp = false }: MingoDockQuickActionsProps) {
+export function MingoDockQuickActions({ onSend }: MingoDockQuickActionsProps) {
   // In a loading scope (the dock's own loading form) the set is its loading form too.
   const inScope = useLoadingScope();
-  const { chips, loading: chipsLoading } = useMingoQuickActionChips(onPick);
+  const { chips, loading: chipsLoading } = useMingoQuickActionChips(onSend);
 
-  const loading = chipsLoading || inScope || loadingProp;
+  const loading = chipsLoading || inScope;
   if (chips.length === 0 && !loading) return null;
   return (
     // Inset like the composer card under it (`spacing-system-m`), so the two line up, and the

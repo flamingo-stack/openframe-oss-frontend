@@ -48,7 +48,7 @@ const {
   builder: { lastOptions: null as Record<string, unknown> | null },
   shell: { mobile: false },
   identity: { enabled: null as boolean | null },
-  chips: { onPick: null as ((text: string) => void) | null },
+  chips: { onSend: null as ((text: string) => void) | null },
   /** `useMdUp()`: false on a phone. */
   viewport: { mdUp: true as boolean | undefined },
   CONTEXT_MEMORY: { items: [{ type: 'DEVICE', id: 'm-1', label: 'web-01' }], onRemove: () => {} },
@@ -122,8 +122,8 @@ vi.mock('@/app/(app)/mingo/providers/mingo-chat-provider', () => ({
 }));
 // The chips have tests of their own; here: where they show and what a click does.
 vi.mock('./mingo-dock-quick-actions', () => ({
-  MingoDockQuickActions: ({ onPick }: { onPick: (text: string) => void }) => {
-    chips.onPick = onPick;
+  MingoDockQuickActions: ({ onSend }: { onSend: (text: string) => void }) => {
+    chips.onSend = onSend;
     return null;
   },
 }));
@@ -472,12 +472,12 @@ describe('MingoComposerDock', () => {
       setSurface({ activeDialogId: 'a' });
       const sheetNode = document.createElement('div');
       useMingoSheetStore.setState({ open: true, node: sheetNode });
-      chips.onPick = null;
+      chips.onSend = null;
       render('/mingo/');
       expect(props().threadContainer).toBe(sheetNode);
       expect(headerActions().map(action => action.label)).toEqual(['Open as full chat', 'Back to page']);
       // The composer replies to the chat in the sheet: no quick actions for a new one.
-      expect(chips.onPick).toBeNull();
+      expect(chips.onSend).toBeNull();
       expect(selectDialog).not.toHaveBeenCalledWith(null);
     });
   });
@@ -551,10 +551,11 @@ describe('MingoComposerDock', () => {
     }
   });
 
-  it('puts a quick action into the composer, in a new chat, to edit and send', () => {
+  it('sends a quick action at once, in a new chat', () => {
     render('/devices/');
-    act(() => chips.onPick?.('List every online machine'));
-    expect(panel.prefillDraft).toHaveBeenCalledWith({ text: 'List every online machine' });
+    act(() => chips.onSend?.('List every online machine'));
+    expect(sendInNewDialog).toHaveBeenCalledWith('List every online machine');
+    expect(panel.prefillDraft).not.toHaveBeenCalled();
   });
 
   it('builds its chat with the props builder, through its own send', () => {
@@ -572,9 +573,9 @@ describe('MingoComposerDock', () => {
 
   describe('per route', () => {
     it('home: a new chat — its own prompt, the model row, the quick actions', () => {
-      chips.onPick = null;
+      chips.onSend = null;
       render('/mingo/');
-      expect(chips.onPick).toBeTypeOf('function');
+      expect(chips.onSend).toBeTypeOf('function');
       // The lib's default: the model row is on every route, so the composer keeps its height.
       expect(props().showModel).toBeUndefined();
       expect(props()).toMatchObject({
@@ -585,16 +586,16 @@ describe('MingoComposerDock', () => {
     });
 
     it('every page carries the quick actions, as home does', () => {
-      chips.onPick = null;
+      chips.onSend = null;
       render('/devices/');
-      expect(chips.onPick).not.toBeNull();
+      expect(chips.onSend).not.toBeNull();
     });
 
     it('the chat page carries none: its new chat draws them in its empty state', () => {
-      chips.onPick = null;
+      chips.onSend = null;
       setSurface({ activeDialogId: 'd-1' });
       render('/mingo/chat/');
-      expect(chips.onPick).toBeNull();
+      expect(chips.onSend).toBeNull();
     });
 
     it('chat: the 760px column and the model row', () => {
