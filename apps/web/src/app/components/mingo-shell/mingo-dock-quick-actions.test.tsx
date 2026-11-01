@@ -94,6 +94,15 @@ describe('MingoDockQuickActions', () => {
     expect(container.querySelectorAll('button[aria-label]')).toHaveLength(0);
   });
 
+  it('draws its loading form, with nothing to press, until what a click fills is ready', () => {
+    quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
+    act(() => root.render(<MingoDockQuickActions onPick={onPick} loading />));
+    expect(container.innerHTML).toContain('data-loading-item');
+    expect(Array.from(container.querySelectorAll('button')).some(b => b.textContent?.includes('Machines online'))).toBe(
+      false,
+    );
+  });
+
   it("draws its loading form in a loading scope: the dock's first frame, before its chat has loaded", () => {
     quickActions.value = [{ id: 'qa-1', name: 'Machines online', instructions: 'List every online machine' }];
     act(() =>

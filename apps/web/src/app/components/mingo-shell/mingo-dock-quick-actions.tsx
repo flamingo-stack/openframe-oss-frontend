@@ -7,6 +7,9 @@ import { useMingoQuickActionChips } from './use-mingo-quick-action-chips';
 interface MingoDockQuickActionsProps {
   /** Puts an action's instructions into the docked composer, in a new chat, to edit and send. */
   onPick: (instructions: string) => void;
+  /** What `onPick` fills is not ready yet (the docked chat is still loading): the set draws its
+   *  loading form, so no chip can be clicked to no effect, and the dock keeps its height. */
+  loading?: boolean;
 }
 
 /**
@@ -17,12 +20,12 @@ interface MingoDockQuickActionsProps {
  * A click puts the action's instructions into the composer to edit and send (`onPick`), the way
  * a conversation starter works: nothing is sent on the click.
  */
-export function MingoDockQuickActions({ onPick }: MingoDockQuickActionsProps) {
+export function MingoDockQuickActions({ onPick, loading: loadingProp = false }: MingoDockQuickActionsProps) {
   // In a loading scope (the dock's own loading form) the set is its loading form too.
   const inScope = useLoadingScope();
   const { chips, loading: chipsLoading } = useMingoQuickActionChips(onPick);
 
-  const loading = chipsLoading || inScope;
+  const loading = chipsLoading || inScope || loadingProp;
   if (chips.length === 0 && !loading) return null;
   return (
     // Inset like the composer card under it (`spacing-system-m`), so the two line up, and the

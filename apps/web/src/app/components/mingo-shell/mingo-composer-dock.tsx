@@ -407,9 +407,10 @@ function DockChat({ route, chat, compactDialog, copyDialogLink }: DockChatProps)
     <>
       {/* Mingo's quick actions over the composer on every route but the chat page, for the page's
           topic. A click puts the action into the composer, in a new chat, to edit and send
-          (`prefillDraft`). Not under the sheet: the composer then replies to the chat in it. */}
+          (`prefillDraft`), so until the chat has loaded they draw their loading form. Not under the
+          sheet: the composer then replies to the chat in it. */}
       {showsDockQuickActions(route) && !sheetOpen && (
-        <MingoDockQuickActions onPick={text => handle?.prefillDraft({ text })} />
+        <MingoDockQuickActions onPick={text => handle?.prefillDraft({ text })} loading={!handle} />
       )}
       {/* The chat module loads lazily and draws nothing until it has. */}
       {!handle && <DockComposerLoading route={route} />}
