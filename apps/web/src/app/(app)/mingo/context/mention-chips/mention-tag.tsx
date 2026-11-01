@@ -18,6 +18,7 @@
 
 import {
   InlineChip,
+  type InlineChipAnchor,
   NavLinkAnchorViaRuntime,
   RecordChipMenu,
   useRecordChipMenu,
@@ -43,9 +44,17 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
   // In a chat answer, the record's menu (the card's rows); none for an attached context item.
   const menuGroups = useRecordChipMenu({ href });
+  // `anchor` is the lib's: a name split over two anchors names the whole record on the first, and the second (its last
+  // word, kept beside the action) is a click target only.
   const link = href
-    ? (content: ReactNode) => (
-        <NavLinkAnchorViaRuntime href={href} className="text-inherit no-underline">
+    ? (content: ReactNode, anchor: InlineChipAnchor) => (
+        <NavLinkAnchorViaRuntime
+          href={href}
+          aria-label={anchor.label}
+          aria-hidden={anchor.hidden || undefined}
+          tabIndex={anchor.hidden ? -1 : undefined}
+          className="text-inherit no-underline"
+        >
           {content}
         </NavLinkAnchorViaRuntime>
       )
