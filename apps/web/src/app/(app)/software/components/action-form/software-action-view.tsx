@@ -127,6 +127,8 @@ export function SoftwareActionView({
       initialValues={INITIAL_VALUES}
       renderPackageSearch={renderPackageSearch}
       renderDevicePicker={renderDevicePicker}
+      // The submit sends them as updateSettings + autoUpdate (use-software-action-submit).
+      showUpdateSettings
     />
   );
 }
