@@ -88,7 +88,7 @@ export function ScriptFormFields({
               <SelectButton
                 key={p.id}
                 title={p.name}
-                icon={<p.icon className="h-5 w-5" />}
+                icon={<p.icon className="h-5 w-5" color="currentColor" />}
                 selected={!isDisabled && watchedSupportedPlatforms.includes(p.id)}
                 disabled={isDisabled || disabled}
                 tag={isDisabled ? (isMdUp ? 'Coming Soon' : 'Soon') : undefined}

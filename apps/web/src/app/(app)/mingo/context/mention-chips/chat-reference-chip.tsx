@@ -11,24 +11,19 @@
  * conversation as context, the picker does not offer one, and it has no entry
  * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
  *
- * Unlike every entity chip, the target is not a page. The conversation opens IN
- * THE DRAWER, in place, over whatever page the drawer floats — the same path a
- * notification click takes — so the reader keeps their page and their place.
- * The `href` (`mingoDialogLink`) stays on the anchor for a middle-click or a
- * copy; a fresh load of it resolves into the drawer through the URL sync.
+ * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *
  * The title comes from `conversationMemoryChatReference(id)` on the ai-agent
  * GraphQL. `null` is the backend refusing to name the chat for this caller — not
  * theirs, or gone — and the ONE case with nothing to open, so the chip says so
  * and links nowhere. A failed lookup is not that case: the chip keeps its link
- * under a generic label, since the drawer resolves the dialog on its own.
+ * under a generic label, since the chat resolves the dialog on its own.
  */
 
 import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
 import { MentionErrorBoundary, MentionTag } from './mention-tag';
@@ -83,9 +78,9 @@ interface ChatReferenceChipProps {
   icon?: ReactNode;
 }
 
-/** The linked form: the same in-place open whether the title resolved or not. */
+/** The linked form: the chat's page, whether the title resolved or not. */
 function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} onOpen={() => openMingoDialogInDrawer(id)} />;
+  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
 }
 
 /**

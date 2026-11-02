@@ -39,9 +39,10 @@ function DeviceCards({ org }: { org: CustomerRow | null }) {
         percentage={org ? (online ? org.activePct : org.inactivePct) : undefined}
         href={
           org
-            ? count > 0
-              ? `/devices?organizationIds=${org.organizationId}&statuses=${status}`
-              : `/devices?organizationIds=${org.organizationId}`
+            ? routes.devices.filtered({
+                organizationIds: [org.organizationId],
+                statuses: count > 0 ? [status] : undefined,
+              })
             : undefined
         }
       />

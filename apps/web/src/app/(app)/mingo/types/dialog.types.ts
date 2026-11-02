@@ -45,6 +45,8 @@ export interface DialogNode {
   };
   createdAt: string;
   statusUpdatedAt?: string;
+  /** Time of the last message; `createdAt` while the chat has none. The chat lists' order. */
+  lastActivityAt?: string;
   resolvedAt?: string;
   aiResolutionSuggestedAt?: string;
   rating?: {

@@ -17,11 +17,16 @@
  * on reopen, with realtime caught up via JetStream replay — no `keepMounted`.
  *
  * It does NOT touch the `/mingo` page: it composes the same building blocks
- * (`useMingoDialogs`, `useMingoDialogSelection`, `useMingoChat`,
+ * (`useMingoDialogs`, `useMingoDialogSelection`, `useMingoDialogChat`,
  * `useMingoRealtimeSubscription`, `useMingoMessagesStore`) independently.
  *
  * Realtime is a rendered component (`<DialogSubscription>`), not a hook, so
  * this returns a `subscription` bundle the host renders alongside the chat.
+ *
+ * Call it in ONE place: `MingoChatProvider` (`../providers`) runs it once per
+ * session and renders the subscription; surfaces read the result through
+ * `useMingoChatSurface()`. A second call is a second dialog list poll and a
+ * second live tail applying every chunk again.
  */
 
 import type {
@@ -48,7 +53,9 @@ import { useChatRuntime } from '@flamingo-stack/openframe-frontend-core/contexts
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
 import { useAiModelStatus } from '@/app/hooks/use-ai-model';
+import { isMobileViewportNow } from '@/app/hooks/use-is-mobile-viewport';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import type { DialogIntent } from '../../tickets/constants';
 import {
@@ -57,10 +64,11 @@ import {
   CONTEXT_ITEMS_MAX,
   RECENT_VIEWS_MAX,
 } from '../context/context-types';
+import { pageContextHref, resolvePageContext } from '../context/page-context';
 import { useMingoContextStore } from '../stores/mingo-context-store';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { DialogNode } from '../types';
-import { type MingoSendContext, type ProcessedMessage, useMingoChat } from './use-mingo-chat';
+import { type MingoSendContext, type ProcessedMessage, useMingoDialogChat } from './use-mingo-chat';
 import { useMingoDialogActions } from './use-mingo-dialog-actions';
 import { useMingoDialogRowStatus } from './use-mingo-dialog-row-status';
 import { useMingoDialogSelection } from './use-mingo-dialog-selection';
@@ -100,7 +108,7 @@ export interface MingoUnifiedChat {
   state: UnifiedChatState;
   subscription: MingoSubscriptionBindings;
   /**
-   * PENDING approval cards, lifted out of the thread by `useMingoChat` — it
+   * PENDING approval cards, lifted out of the thread by `useMingoDialogChat` — it
    * filters them from their bubble so an interrupted retry cannot render the
    * same request twice. They therefore reach the view ONLY through the chat's
    * sticky-footer prop, which is why they travel beside `state` rather than
@@ -109,6 +117,12 @@ export interface MingoUnifiedChat {
   pendingApprovals: MessageSegment[];
   /** The v2 list's status at the end of a row: working, waiting for approval, or none. */
   dialogStatusOf: (dialog: DialogItem) => MingoDialogStatus | undefined;
+  /**
+   * The dialog list failed to load (the query is in error). Beside `state`, whose
+   * `dialogsError` stays `false` so the classic panel keeps rendering as it always
+   * has; the Mingo-first sidebar shows "Couldn't load your chats" from this.
+   */
+  dialogsLoadFailed: boolean;
   /**
    * Create a brand-new dialog and send `text` into it, regardless of any
    * currently-active dialog. Used by external launchers (e.g. the "Ask Mingo
@@ -289,6 +303,32 @@ export function hasMingoDisplayCommand(commands: SlashCommandSummary[]): boolean
   return commands.some(supportsDisplay);
 }
 
+/**
+ * What a Mingo message carries besides its text, as it stands when it is sent: the page
+ * (read from the URL: under the sheet, the page beneath it; on the chat page, the page it
+ * was opened from), the open view and recent views from the navigation store, and the
+ * picker's selection from the lib's send options. Read imperatively (`getState`) so a
+ * send callback doesn't re-create on every navigation.
+ */
+export function snapshotSendContext(options?: UnifiedSendMessageOptions): MingoSendContext {
+  const { openView, recentViews } = useMingoContextStore.getState();
+  const { lastPage, outsidePage } = useMingoSheetStore.getState();
+  // On a phone the home and a chat started there are about the page the chat list was opened over.
+  const href = pageContextHref(window.location, lastPage, isMobileViewportNow() ? { outsidePage } : undefined);
+  return {
+    ...resolvePageContext(href, openView),
+    // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
+    // selection that slipped past the picker's `atLimit` (e.g. the @-mention
+    // path) can't 400 the whole message.
+    contextItems: options?.contextItems?.slice(0, CONTEXT_ITEMS_MAX),
+    openView: openView ? { type: openView.type, id: openView.id } : undefined,
+    // Defense-in-depth: hard-cap at the backend's recentViews limit (5),
+    // mirroring the contextItems cap above — a corrupted persisted store blob
+    // with >5 entries must not 400 the whole message.
+    recentViews: recentViews.slice(0, RECENT_VIEWS_MAX).map(r => ({ type: r.type, id: r.id })),
+  };
+}
+
 export function useMingoUnifiedChatState(): MingoUnifiedChat {
   const { aiModel } = useAiModelStatus();
 
@@ -362,7 +402,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     stopGeneration,
     isTyping,
     isCompacting,
-  } = useMingoChat(activeDialogId);
+  } = useMingoDialogChat(activeDialogId);
 
   const dialogStatusOf = useMingoDialogRowStatus({
     activeDialogId,
@@ -447,7 +487,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   // The row-level mapping is `mapMingoMessageToUnified` (above, and unit-tested);
   // what lives here is only the CACHING around it.
   // `processedMessages` hands back referentially-stable objects for unchanged
-  // messages (see useMingoChat's reconciliation), so keying a WeakMap by the
+  // messages (see useMingoDialogChat's reconciliation), so keying a WeakMap by the
   // source object yields a stable UnifiedChatMessage too — the lib's reference-
   // equality memo then re-renders only the streaming bubble, not the whole list
   // (which would otherwise collapse open menus/cards on every chunk).
@@ -507,6 +547,8 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     async (text: string, context?: MingoSendContext) => {
       const trimmed = text.trim();
       if (!trimmed) return;
+      // A launcher's prompt (a page chip, a quick action) is about the page it was sent from too.
+      const sendContext = context ?? snapshotSendContext();
 
       // A chat whose first message references an incident is listed under it.
       // Read off the message itself, so nothing else's first send — a
@@ -516,7 +558,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // prefilled mention reached the send as text with `contextItems` absent
       // (observed), and the token is what the server resolves anyway.
       const insightId =
-        context?.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
+        sendContext.contextItems?.find(item => item.type === CONTEXT_ENTITY_KIND.INSIGHT)?.id ??
         INSIGHT_MENTION.exec(trimmed)?.[1];
       const newId = await createDialog({ insightId });
       if (!newId) return;
@@ -536,7 +578,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       // dashboard-activity event (relayed to HubSpot by the backend). This
       // covers every new-dialog send — draft composer, launcher prompts, and
       // quick-action chips — so the embeddable chat matches the page 1:1.
-      const sent = await sendMingoMessage(trimmed, newId, context);
+      const sent = await sendMingoMessage(trimmed, newId, sendContext);
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
     },
     [createDialog, addMessage, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut, sendMingoMessage],
@@ -572,28 +614,9 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
     [createDialog, setActiveDialogId, resetUnread, subscribeToDialog, selectDialogMut],
   );
 
-  // Snapshot the live navigation context (open view + recent views) from the
-  // store and fold in the picker selection from the lib's send options. Read
-  // imperatively (`getState`) so `sendMessage` doesn't re-create on every
-  // navigation — it only needs the value at send time.
-  const buildSendContext = useCallback((options?: UnifiedSendMessageOptions): MingoSendContext => {
-    const { openView, recentViews } = useMingoContextStore.getState();
-    return {
-      // Defense-in-depth: hard-cap at the backend's contextItems limit (10) so a
-      // selection that slipped past the picker's `atLimit` (e.g. the @-mention
-      // path) can't 400 the whole message.
-      contextItems: options?.contextItems?.slice(0, CONTEXT_ITEMS_MAX),
-      openView: openView ? { type: openView.type, id: openView.id } : undefined,
-      // Defense-in-depth: hard-cap at the backend's recentViews limit (5),
-      // mirroring the contextItems cap above — a corrupted persisted store blob
-      // with >5 entries must not 400 the whole message.
-      recentViews: recentViews.slice(0, RECENT_VIEWS_MAX).map(r => ({ type: r.type, id: r.id })),
-    };
-  }, []);
-
   // ─── Send: create-on-first-send when no dialog is active (draft) ──────────
   // `options.contextItems` carries the composer's picker selection; the open
-  // view + recent views come from the navigation store via `buildSendContext`.
+  // view + recent views come from the navigation store via `snapshotSendContext`.
   // Resolves to whether the message went out, for programmatic senders (the
   // onboarding tour's chips): false when the chat refused it (busy) or the
   // send failed. The composer ignores the result.
@@ -602,7 +625,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       const trimmed = text.trim();
       if (!trimmed) return false;
 
-      const context = buildSendContext(options);
+      const context = snapshotSendContext(options);
 
       if (!activeDialogId) {
         // The draft branch delegates to `sendInNewDialog`, which already fires
@@ -617,7 +640,7 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
       if (sent) trackDashboardActivity(EVENT_SUBTYPE.SEND_MINGO_MESSAGE);
       return sent;
     },
-    [activeDialogId, sendInNewDialog, sendMingoMessage, buildSendContext],
+    [activeDialogId, sendInNewDialog, sendMingoMessage],
   );
 
   const stopMessage = useCallback(() => {
@@ -828,12 +851,13 @@ export function useMingoUnifiedChatState(): MingoUnifiedChat {
   return {
     state,
     subscription,
-    /** PENDING approval cards, lifted out of the thread by `useMingoChat` (it
+    /** PENDING approval cards, lifted out of the thread by `useMingoDialogChat` (it
      *  filters them from their bubble to dedupe an interrupted retry). They are
      *  displayed nowhere unless the host hands them to the chat's sticky
      *  footer, which is why they leave this hook separately from `state`. */
     pendingApprovals,
     dialogStatusOf,
+    dialogsLoadFailed: isDialogsError,
     sendInNewDialog,
     createNamedDialog,
     createIntentDialog,

@@ -89,6 +89,7 @@ export function TicketTagsManager({ selectedIds, onChange, disabled }: TicketTag
         onChange={handleChange}
         placeholder={selectedIds.length > 0 ? 'Add more...' : 'Select or create tags...'}
         label="Tags"
+        labelVariant="large"
         loading={isCreating}
         disabled={disabled}
         showChevron={false}

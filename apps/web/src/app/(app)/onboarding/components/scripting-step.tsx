@@ -141,7 +141,7 @@ export function ScriptingStep({
               <SelectButton
                 key={p.id}
                 title={p.name}
-                icon={<p.icon className="size-5" />}
+                icon={<p.icon className="size-5" color="currentColor" />}
                 selected={!isDisabled && selectedPlatforms.includes(p.id)}
                 disabled={isDisabled}
                 onClick={

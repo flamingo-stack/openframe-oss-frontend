@@ -50,7 +50,12 @@ const HC = HELP_CENTER_BASE.replace(/^\//, '');
  *  (soft-nav). The lib's hosted branch emits `/<suffix>/<slug>`; {@link toDetailRoute}
  *  then rewrites that into this app's query-param detail route. The list-filter
  *  types (roadmap, delivery) are NOT here — they have no detail route and use
- *  `overrides` instead. */
+ *  `overrides` instead.
+ *
+ *  `markdown` is a document (the product docs): it arrives with its tree path as the
+ *  slug and opens in this app's Knowledge Base at that path, where the docs view swaps
+ *  to it in place. The lib's one address rule is this composer, so the chat's doc
+ *  chips land here too (they had a `baseRoute` of their own before). */
 const HOSTED_TYPES = new Set(['onboarding_guide', 'product_release', 'markdown']);
 
 /** List path the lib composes into → this app's detail-route builder for that
@@ -104,7 +109,6 @@ const composeLibContentUrl = makeComposeContentUrl({
     ...DEFAULT_CONTENT_SUFFIXES,
     onboarding_guide: `${HC}/onboarding-guides`,
     product_release: `${HC}/releases`,
-    // A product doc (its tree path arrives as the slug) opens in this app's knowledge base.
     markdown: KNOWLEDGE_BASE_ROUTE.replace(/^\//, ''),
   },
   contentOrigin: CONTENT_HUB_ORIGIN,

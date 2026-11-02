@@ -10,19 +10,10 @@ interface TagValueAutocompleteProps {
   onChange: (values: string[]) => void;
   error?: string;
   label?: string;
-  labelVariant?: 'default' | 'large';
   className?: string;
 }
 
-export function TagValueAutocomplete({
-  tagKey,
-  values,
-  onChange,
-  error,
-  label,
-  labelVariant,
-  className,
-}: TagValueAutocompleteProps) {
+export function TagValueAutocomplete({ tagKey, values, onChange, error, label, className }: TagValueAutocompleteProps) {
   const { options, isRefetching, handleInputChange, resetInput } = useTagValueSuggestions(tagKey);
 
   const handleChange = useCallback(
@@ -42,7 +33,7 @@ export function TagValueAutocomplete({
       onInputChange={handleInputChange}
       placeholder={values.length > 0 ? 'Add More...' : 'Enter value...'}
       label={label}
-      labelVariant={labelVariant}
+      labelVariant="large"
       className={className}
       loading={isRefetching}
       error={error}

@@ -191,7 +191,9 @@ export function ShortcutsSettingsModal({ open, onOpenChange, shortcuts, onSave }
           </div>
           <div className="flex items-end gap-[var(--spacing-system-xs)]">
             <div className="flex min-w-0 flex-1 flex-col gap-[var(--spacing-system-xxs)]">
-              <Label htmlFor="shortcut-key">Key</Label>
+              <Label variant="large" htmlFor="shortcut-key">
+                Key
+              </Label>
               <Input
                 id="shortcut-key"
                 value={keyInput}

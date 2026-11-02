@@ -3,12 +3,11 @@
 import { type DialogItem, useOptionalNotifications } from '@flamingo-stack/openframe-frontend-core';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useFeatureFlag } from '@/app/hooks/use-feature-flag';
 import { apiClient } from '@/lib/api-client';
 import { getFullImageUrl } from '@/lib/image-url';
 import { sessionPollMeta, sessionPollsAllowed, sessionRetry } from '@/lib/session-poll';
 import { extractGraphQlData } from '../../tickets/utils/graphql';
-import { GET_MINGO_DIALOGS_QUERY, GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
+import { GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY } from '../queries/dialogs-queries';
 import type { DialogNode, DialogsResponse, UseMingoDialogsOptions } from '../types';
 import type { MingoDialogsPage } from '../utils/dialog-row-status';
 import { keepCreatedDialogs } from '../utils/insert-new-dialog';
@@ -21,11 +20,14 @@ import { isAwaitingGeneratedTitle } from './use-mingo-dialog-selection';
 const HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS: boolean = false;
 
 /**
- * The statuses the drawer's list shows. Sent explicitly because the backend
- * returns ARCHIVED dialogs too when no statuses are passed — and a dialog
- * outside this set cannot be opened in the drawer.
+ * The statuses the chat list shows. Sent explicitly because the backend
+ * returns ARCHIVED dialogs too when no statuses are passed — the archive is
+ * its own page.
  */
 export const ACTIVE_DIALOG_STATUSES = ['ACTIVE', 'ACTION_REQUIRED', 'ON_HOLD', 'RESOLVED'] as const;
+
+/** The chat lists' order: the chat with the latest message first. The cursor follows it. */
+export const DIALOGS_BY_LAST_ACTIVITY = { field: 'lastActivityAt', direction: 'DESC' } as const;
 
 /**
  * Dialogs one page of the Mingo list holds (`first:` of the dialogs query). The chat's conversation lists draw
@@ -54,10 +56,13 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
     // until it lands the dialog has no title — show a provisional name, not an
     // error-looking "Untitled Dialog".
     title: dialog.title || 'New Chat',
-    timestamp: new Date(dialog.createdAt),
+    timestamp: new Date(dialog.lastActivityAt ?? dialog.createdAt),
     unreadMessagesCount: unreadCount,
     owner: dialog.owner?.userId
       ? {
+          // Who it is, not only what they are called: with the viewer's id the chat
+          // lists tell someone else's chat apart (`currentUserId`).
+          id: dialog.owner.userId,
           name: ownerName || 'Admin',
           avatarUrl: getFullImageUrl(ownerUser?.image?.imageUrl, ownerUser?.image?.hash) ?? null,
         }
@@ -68,13 +73,9 @@ export function transformToDialogItem(dialog: DialogNode, unreadCount: number = 
 export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const { enabled = true, search, limit = MINGO_DIALOGS_PAGE_SIZE, scope = 'all' } = options;
   const notifications = useOptionalNotifications();
-  // Only the v2 list shows a chat waiting for approval, and only v2 asks for it (see
-  // the query). Both chat surfaces mount after the flags have answered.
-  const withPendingApproval = useFeatureFlag('mingo-v2');
-
   // Per-dialog unread badge = count of unread notifications (mingo message / approval request)
   // that carry this dialog's id. Opening a dialog marks those read (EntityViewAutoReader),
-  // which clears the badge in lockstep with the drawer and the sidebar nav count.
+  // which clears the badge in lockstep with the sidebar nav count.
   const unreadByDialog = useMemo(() => {
     const counts = new Map<string, number>();
     if (!HIGHLIGHT_UNREAD_FROM_NOTIFICATIONS) return counts;
@@ -89,7 +90,7 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
   const query = useInfiniteQuery({
     // `scope` is part of the key: MY/ALL are different server-side datasets
     // with their own cursors, so they must not share cached pages.
-    queryKey: mingoDialogQueryKeys.list({ search, limit, scope, withPendingApproval }),
+    queryKey: mingoDialogQueryKeys.list({ search, limit, scope }),
     queryFn: async ({ pageParam }): Promise<MingoDialogsPage> => {
       const variables = {
         filter: {
@@ -103,14 +104,16 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
         first: limit,
         after: pageParam,
         search,
+        sort: DIALOGS_BY_LAST_ACTIVITY,
       };
 
-      const response = await apiClient.post<DialogsResponse>('/chat/graphql', {
-        query: withPendingApproval ? GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY : GET_MINGO_DIALOGS_QUERY,
-        variables,
-      });
-
-      const { edges, pageInfo } = extractGraphQlData(response).dialogs;
+      // Each row's pending approval rides along, for the row status.
+      const { edges, pageInfo } = extractGraphQlData(
+        await apiClient.post<DialogsResponse>('/chat/graphql', {
+          query: GET_MINGO_DIALOGS_WITH_PENDING_APPROVAL_QUERY,
+          variables,
+        }),
+      ).dialogs;
       const page = { dialogs: edges.map(edge => edge.node), pageInfo };
       // A dialog created moments ago may not be in the server's answer yet; the
       // first page of an unsearched list keeps it on top until it is.
@@ -121,13 +124,11 @@ export function useMingoDialogs(options: UseMingoDialogsOptions = {}) {
     },
     initialPageParam: undefined as string | undefined,
     enabled,
-    // The Mingo drawer UNMOUNTS on close, so this query remounts on every open.
-    // A short staleTime made each reopen refetch (and, once the cache was GC'd,
-    // re-flash the loading skeleton). Keep the list cached for the session so
-    // reopening is instant: a long staleTime means reopen-within-window doesn't
-    // refetch on mount, and a long gcTime keeps the data (no skeleton) across
-    // closed periods. Freshness still comes from the 60s poll while open, the
-    // realtime subscription, and mutation invalidations (rename/archive/new).
+    // Keep the list cached for the session: a long staleTime means a remount (the
+    // phone drawer's second instance, the chat search) doesn't refetch, and a long
+    // gcTime keeps the data (no skeleton) while nothing shows it. Freshness comes
+    // from the 60s poll, the realtime subscription, and mutation invalidations
+    // (rename/archive/new).
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     retry: sessionRetry(3),

@@ -12,14 +12,13 @@ import { useState } from 'react';
 import { useAuthSession } from '@/app/(auth)/auth/hooks/use-auth-session';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { ResetOnboardingDialog, useCanResetOnboarding } from '@/app/components/reset-onboarding-dialog';
-import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
+import { isSaasTenantMode } from '@/lib/app-mode';
 import { DeleteAccountModal } from './delete-account-modal';
 import { UserIdentityRow } from './identity-row';
 import { NotificationSettingsModal } from './notification-settings-modal';
 
 interface ProfileCardProps {
   onEditProfile: () => void;
-  onVerifyEmail: () => void;
 }
 
 /**
@@ -27,7 +26,7 @@ interface ProfileCardProps {
  * lines as bars (the name line's `min-h-8` is the role `Tag`'s height, so the row is one height with or without
  * roles), and the kebab is its icon-button box.
  */
-export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) {
+export function ProfileCard({ onEditProfile }: ProfileCardProps) {
   const inScope = useLoadingScope();
   const user = useAuthStore(state => state.user);
   // `/me`'s own answer, taken from the session query rather than the store — the `!user`
@@ -35,10 +34,9 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
   const { isReady: sessionResolved, isAuthenticated, user: sessionUser } = useAuthSession();
 
   // "Reset Onboarding" replays the personal Get Started tour, when there is a finished
-  // or started one to replay. With Mingo v2 it moves to the Mingo chat's ⋯ menu, so it is offered
-  // here only once the flag has answered "off".
-  const mingoV2 = useFeatureFlagGate('mingo-v2');
-  const canResetOnboarding = useCanResetOnboarding() && mingoV2 === 'off';
+  // or started one to replay. A SaaS tenant's tour is Mingo's (onboarding v2), replayed
+  // from the chat's ⋯ menu instead.
+  const canResetOnboarding = useCanResetOnboarding() && !isSaasTenantMode();
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -65,7 +63,6 @@ export function ProfileCard({ onEditProfile, onVerifyEmail }: ProfileCardProps) 
       <UserIdentityRow
         user={user}
         loading={loading}
-        onVerifyEmail={onVerifyEmail}
         action={
           <ActionsMenuDropdown
             loading={loading}

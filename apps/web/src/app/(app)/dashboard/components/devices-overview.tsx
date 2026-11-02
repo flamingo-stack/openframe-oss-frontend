@@ -9,6 +9,7 @@ import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
 import { useDevicesOverview } from '../hooks/use-dashboard-stats';
+import { sectionListAction } from './section-list-action';
 
 type ProgressVariant = 'success' | 'error' | 'warning' | 'info';
 
@@ -108,7 +109,7 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
 
   return (
     <LoadingRegion label="Loading devices overview" announce={loading}>
-      <TitleBlock title="Devices Overview" />
+      <TitleBlock title="Devices Overview" actions={sectionListAction('Devices', routes.devices.list)} />
 
       {counts && (counts.error || counts.isOffline) && (
         <SectionLoadError
@@ -130,7 +131,9 @@ export function DevicesOverview({ devices }: { devices?: DevicesOverviewData }) 
             progressSize={{ base: 24, md: 56 }}
             href={
               // Archived devices live on their own page; /devices only lists the rest.
-              card.status === DEVICE_STATUS.ARCHIVED ? routes.devices.archive : `/devices?statuses=${card.status}`
+              card.status === DEVICE_STATUS.ARCHIVED
+                ? routes.devices.archive
+                : routes.devices.filtered({ statuses: [card.status] })
             }
           />
         ))}

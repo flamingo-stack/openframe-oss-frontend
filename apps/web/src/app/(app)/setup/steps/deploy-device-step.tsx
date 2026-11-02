@@ -57,7 +57,7 @@ function installFailureCopy(error: AgentInstallError | null): { title: string; d
     case 'cancelled':
       return {
         title: 'Deployment cancelled',
-        description: 'Approve the administrator prompt to deploy on this device.',
+        description: 'Confirm the install and approve the administrator prompt to deploy on this device.',
       };
     case 'busy':
       return { title: 'Deployment already running', description: 'Wait for the current one to finish.' };
@@ -91,7 +91,7 @@ type PrimaryAction = 'none' | 'deploy' | 'continue';
  * "Continue", live once the assistant is up on the machine; nothing moves on
  * by itself.
  *
- * In the desktop shell "Deploy on this Device" runs that same command on this
+ * In the desktop shell "Deploy on this Device" runs that same install on this
  * machine behind the OS's administrator prompt and shows what the installer
  * prints; once it has installed, "Continue" takes its place, and a failed run
  * offers it again. The web and the phone have nothing to run it with
@@ -240,7 +240,10 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
   const [expanded, setExpanded] = useState(false);
   const [handedOver, setHandedOver] = useState(false);
   const local = useLocalAgentInstall();
-  const { command, initialKey } = useInstallCommand({ organizationId: effectiveOrganizationId, platform });
+  const { command, initialKey, installRequest } = useInstallCommand({
+    organizationId: effectiveOrganizationId,
+    platform,
+  });
   const { copy } = useCopyToClipboard({
     successDescription: 'Installer command copied to clipboard',
     errorDescription: 'Could not copy command',
@@ -278,7 +281,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
     setHandedOver(true);
   };
 
-  // The shell runs the command for the OS it is on; the selector may be
+  // The shell installs for the OS it is on; the selector may be
   // showing another platform's command for copying elsewhere.
   const canDeployHere = local.supported && platform === hostPlatform;
   // Locked from the click until the run says how it went: an install hands
@@ -288,7 +291,7 @@ function DeployDeviceForm({ organizationId, onContinue, persisting }: DeployDevi
     if (!canDeployHere || deploying || !commandReady()) return;
     trackDashboardActivity(EVENT_SUBTYPE.ADD_DEVICE);
     setHandedOver(true);
-    void local.start(command);
+    void local.start(installRequest);
   };
 
   // An install that went through, or a device up from a copied command, is

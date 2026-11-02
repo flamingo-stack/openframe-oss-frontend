@@ -19,7 +19,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::{load_config, tenant_host, AppConfig, MAIN_LABEL};
 
 /// Emitted to every bundle window whenever the stored tokens change from the
-/// Rust side (refresh rotation or session death). Payload: NativeAuthTokens.
+/// Rust side (refresh rotation or session death). Payload: PageTokens.
 pub const TOKEN_UPDATE_EVENT: &str = "native-auth:token-update";
 
 /// Refresh this long before the end of the access token's life (counted from
@@ -81,6 +81,9 @@ const MAX_POLL_BACKOFF: u32 = 16;
 /// [`under_wall_clock_deadline`] rather than by reqwest — the client's own timer
 /// is monotonic and so is stopped by the sleep that makes a refresh go wrong.
 const REFRESH_WALL_CLOCK_BUDGET: Duration = Duration::from_secs(10);
+/// How long a sign-out waits on the gateway to revoke the refresh token, enforced
+/// the same way, since the wait holds the same lock.
+const REVOKE_BUDGET: Duration = Duration::from_secs(10);
 /// Bound on the connect alone, so a TCP connect left hanging by a half-up
 /// network resolves as [`Outcome::Unreached`] — which is retryable — instead of
 /// running out the total budget and being called [`Outcome::Unknown`], which is
@@ -201,6 +204,24 @@ impl NativeAuthTokens {
         }
         if incoming.refresh_token.is_some() {
             self.refresh_token = incoming.refresh_token;
+        }
+    }
+}
+
+/// What the webview gets of a token set: the bearer its requests need. The refresh
+/// token stays on this side of the bridge. The shell is the only refresher, so the
+/// page has no use for it, and it is the one credential a script in the page could
+/// carry off and keep using after the access token expires.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageTokens {
+    access_token: Option<String>,
+}
+
+impl From<NativeAuthTokens> for PageTokens {
+    fn from(tokens: NativeAuthTokens) -> Self {
+        Self {
+            access_token: tokens.access_token,
         }
     }
 }
@@ -888,9 +909,10 @@ fn refresh_base(cfg: &AppConfig) -> Option<String> {
 }
 
 fn emit_token_update(app: &AppHandle, tokens: &NativeAuthTokens) {
+    let page = PageTokens::from(tokens.clone());
     for (label, _window) in app.webview_windows() {
         if label == MAIN_LABEL || label.starts_with("child-") {
-            let _ = app.emit_to(label.as_str(), TOKEN_UPDATE_EVENT, tokens.clone());
+            let _ = app.emit_to(label.as_str(), TOKEN_UPDATE_EVENT, page.clone());
         }
     }
 }
@@ -1302,6 +1324,52 @@ async fn post_refresh(client: &reqwest::Client, base: &str, refresh_token: &str)
     Outcome::Rotated(rotated)
 }
 
+/// Ask the gateway to revoke the stored refresh token, the same GET the webview's
+/// `logoutAsync` makes on the other platforms. Any answer counts, as it does there,
+/// and the budget keeps a sign-out from waiting on a network that is not there: the
+/// caller signs out locally whatever this reports.
+///
+/// Under the refresh lock so the token presented is not one a rotation in flight is
+/// about to retire.
+pub async fn revoke_session(app: &AppHandle, tenant_id: Option<String>) -> bool {
+    let attempt = async {
+        let lifecycle = app.state::<TokenLifecycle>();
+        let _guard = lifecycle.refresh_lock.lock().await;
+        let refresh_token = load_tokens(app).refresh_token.ok_or("nothing to revoke")?;
+        let base = refresh_base(&load_config(app)).ok_or("no gateway to revoke at")?;
+        let mut url = url::Url::parse(&format!("{base}/oauth/logout"))
+            .map_err(|e| format!("bad gateway URL: {e}"))?;
+        if let Some(tenant_id) = tenant_id.filter(|id| !id.is_empty()) {
+            url.query_pairs_mut().append_pair("tenantId", &tenant_id);
+        }
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| e.to_string())?;
+        client
+            .get(url)
+            .header("Refresh-Token", refresh_token)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok::<(), String>(())
+    };
+    match under_wall_clock_deadline(REVOKE_BUDGET, attempt).await {
+        Some(Ok(())) => true,
+        Some(Err(reason)) => {
+            log::warn!("[tokens] refresh token not revoked: {reason}");
+            false
+        }
+        None => {
+            log::warn!(
+                "[tokens] refresh token not revoked: no answer within {}s",
+                REVOKE_BUDGET.as_secs()
+            );
+            false
+        }
+    }
+}
+
 /// Whether the shell currently treats the tenant as deleted. Refresh and the
 /// NATS plane read this to stand down.
 pub(crate) fn tenant_gone(app: &AppHandle) -> bool {
@@ -1526,6 +1594,15 @@ mod tests {
             access_token: access,
             refresh_token: refresh.map(str::to_string),
         }
+    }
+
+    /// The page's view of a token set, on every path that hands it one: the
+    /// commands return this type and the token-update event carries it.
+    #[test]
+    fn the_page_never_sees_a_refresh_token() {
+        let page = PageTokens::from(tokens(Some("access".into()), Some("refresh-secret")));
+        let json = serde_json::to_value(page).unwrap();
+        assert_eq!(json, serde_json::json!({ "accessToken": "access" }));
     }
 
     #[test]

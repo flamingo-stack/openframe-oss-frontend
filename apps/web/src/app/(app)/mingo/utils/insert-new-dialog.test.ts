@@ -9,7 +9,7 @@ import { type InfiniteData, QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { DialogNode } from '../types';
 import type { MingoDialogsPage } from './dialog-row-status';
-import { forgetCreatedDialogs, insertNewDialog, keepCreatedDialogs } from './insert-new-dialog';
+import { forgetCreatedDialogs, insertNewDialog, keepCreatedDialogs, raiseDialog } from './insert-new-dialog';
 import { mingoDialogQueryKeys } from './query-keys';
 
 type DialogsData = InfiniteData<MingoDialogsPage, string | undefined>;
@@ -28,8 +28,7 @@ const page = (...dialogIds: string[]): DialogsData => ({
   pageParams: [undefined],
 });
 
-const key = (params: { search?: string; scope: string }) =>
-  mingoDialogQueryKeys.list({ limit: 20, withPendingApproval: true, ...params });
+const key = (params: { search?: string; scope: string }) => mingoDialogQueryKeys.list({ limit: 20, ...params });
 
 const ids = (client: QueryClient, params: { search?: string; scope: string }) =>
   client.getQueryData<DialogsData>(key(params))?.pages.flatMap(p => p.dialogs.map(d => d.dialogId));
@@ -73,6 +72,42 @@ describe('insertNewDialog', () => {
     expect(node).toMatchObject({ dialogId: 'new', title: 'Welcome to OpenFrame' });
     // A list read that still lacks it puts it back under the same name.
     expect(keepCreatedDialogs(page('a').pages[0]).dialogs[0]).toMatchObject({ title: 'Welcome to OpenFrame' });
+  });
+});
+
+describe('raiseDialog', () => {
+  const twoPages = (first: string[], second: string[]): DialogsData => ({
+    pages: [
+      { dialogs: first.map(existing), pageInfo: { hasNextPage: true, endCursor: first.at(-1) } },
+      { dialogs: second.map(existing), pageInfo: { hasNextPage: false } },
+    ],
+    pageParams: [undefined, first.at(-1)],
+  });
+
+  it('moves the chat written in to the top of every list that holds it, active now', () => {
+    const client = new QueryClient();
+    client.setQueryData(key({ scope: 'my' }), twoPages(['a', 'b'], ['c', 'd']));
+    client.setQueryData(key({ scope: 'all', search: 'printer' }), page('x', 'c'));
+
+    raiseDialog(client, 'c', Date.parse('2026-10-22T12:00:00Z'));
+
+    expect(ids(client, { scope: 'my' })).toEqual(['c', 'a', 'b', 'd']);
+    expect(ids(client, { scope: 'all', search: 'printer' })).toEqual(['c', 'x']);
+    const node = client.getQueryData<DialogsData>(key({ scope: 'my' }))?.pages[0].dialogs[0];
+    expect(node).toMatchObject({ dialogId: 'c', lastActivityAt: '2026-10-22T12:00:00.000Z' });
+  });
+
+  it('leaves a list without the chat, or with it already first, as it is', () => {
+    const client = new QueryClient();
+    const without = page('a', 'b');
+    const first = page('c', 'a');
+    client.setQueryData(key({ scope: 'my' }), without);
+    client.setQueryData(key({ scope: 'all' }), first);
+
+    raiseDialog(client, 'c');
+
+    expect(client.getQueryData(key({ scope: 'my' }))).toBe(without);
+    expect(client.getQueryData(key({ scope: 'all' }))).toBe(first);
   });
 });
 

@@ -86,13 +86,12 @@ import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
-  mingoDrawerDialogId,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
   resolveNotificationAction,
 } from './notification-navigation';
-import { openMingoDialogInDrawer } from './open-mingo-dialog';
+import { canOpenMingoDialogOverPage, openMingoDialog } from './open-mingo-dialog';
 import { useApproveRequest } from './use-approve-request';
 
 const SHOW_POPUPS_STORAGE_KEY = 'of.notifications:showPopups';
@@ -234,37 +233,30 @@ interface TileHelpers {
   liveDurationMs?: number;
 }
 
+interface NavigationTileWrapperProps {
+  notification: Notification;
+  helpers: TileHelpers;
+  children: ReactNode;
+}
+
 /**
- * Open what a notification points at, from either imperative surface — a clicked tile
- * or a desktop OS banner.
- *
- * Shared because the drawer branch carries a compensating step that is easy to omit:
- * it changes no URL of its own here (the sync hook stamps one a commit later), so the
- * location-based `EntityViewAutoReader` never sees the user arrive and the caller has
- * to mark the notification read itself. Written out twice, one copy drifted from the
- * other within a single review pass.
- *
- * The table's action cell does NOT use this — it needs the same decision split across
- * an `href` and an `onClick` rather than run as one statement.
+ * Open what a notification points at, from either imperative surface — a clicked tile or
+ * a desktop OS banner. A Mingo chat opens over the page when the composer dock can (the
+ * sheet, as the classic drawer did): no URL changes then, so the location-based
+ * `EntityViewAutoReader` never sees the user arrive and the notification is marked read
+ * here. Anything else navigates to its route, where the auto-reader marks it.
  */
 function openNotificationTarget(
   action: NotificationAction,
   notificationId: string,
   { markRead, navigate }: { markRead: (id: string) => void; navigate: (route: string) => void },
 ): void {
-  const drawerDialogId = mingoDrawerDialogId(action);
-  if (!drawerDialogId) {
-    navigate(action.route);
+  if (action.mingoDialogId && canOpenMingoDialogOverPage()) {
+    openMingoDialog(action.mingoDialogId);
+    markRead(notificationId);
     return;
   }
-  openMingoDialogInDrawer(drawerDialogId);
-  markRead(notificationId);
-}
-
-interface NavigationTileWrapperProps {
-  notification: Notification;
-  helpers: TileHelpers;
-  children: ReactNode;
+  navigate(action.route);
 }
 
 /** Wraps a tile so its body navigates to the notification's target entity; inner buttons keep their own clicks. */
@@ -287,7 +279,7 @@ function NavigationTileWrapper({ notification, helpers, children }: NavigationTi
       helpers.onSettle(notification.id);
       openNotificationTarget(action, notification.id, { markRead, navigate: router.push });
     },
-    [action, close, markRead, helpers, notification, router],
+    [action, close, helpers, notification, router, markRead],
   );
 
   if (!action) return <>{children}</>;
@@ -570,16 +562,15 @@ function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean
 /**
  * Mirror a live notification to the OS when the user opted in, permission is
  * granted, and the tab is hidden (visible tabs already show the in-app tile).
- * `tag` dedupes re-deliveries; clicking focuses the tab and navigates to the
- * notification's entity when it has one.
+ * `tag` dedupes re-deliveries; clicking focuses the tab and opens the
+ * notification's entity when it has one (`openNotificationTarget`).
  */
 function maybeShowDesktopNotification(
   payload: NatsNotificationPayload,
   relayId: string,
   title: string,
   description: string | null,
-  navigate: (route: string) => void,
-  markRead: (notificationId: string) => void,
+  openTarget: (action: NotificationAction) => void,
 ): void {
   // Deliberately still `visibilityState`, not `isSessionActive`: this decides whether
   // to MIRROR a notification to the OS, which is reversible and costs nothing when
@@ -614,7 +605,7 @@ function maybeShowDesktopNotification(
     });
     notification.onclick = () => {
       window.focus();
-      if (action) openNotificationTarget(action, relayId, { markRead, navigate });
+      if (action) openTarget(action);
       notification.close();
     };
   } catch {
@@ -636,15 +627,15 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
   });
   // Refs keep the NATS subscription callback dependency-free (no resubscribe on toggle/navigation).
   const showDesktopPopupsRef = useRef(showDesktopPopups);
-  const markReadRef = useRef(markRead);
   const routerRef = useRef(router);
+  const markReadRef = useRef(markRead);
   // Latest-value refs, written after the commit rather than during render:
   // a render-phase ref write is what `react-hooks/refs` forbids, and every
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     showDesktopPopupsRef.current = showDesktopPopups;
-    markReadRef.current = markRead;
     routerRef.current = router;
+    markReadRef.current = markRead;
   });
 
   // Plain core NATS has no replay: anything published while the socket was down
@@ -804,13 +795,11 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       }
 
       if (showDesktopPopupsRef.current) {
-        maybeShowDesktopNotification(
-          payload,
-          relayId,
-          title,
-          description,
-          route => routerRef.current.push(route),
-          id => markReadRef.current(id),
+        maybeShowDesktopNotification(payload, relayId, title, description, action =>
+          openNotificationTarget(action, relayId, {
+            markRead: id => markReadRef.current(id),
+            navigate: route => routerRef.current.push(route),
+          }),
         );
       }
 
