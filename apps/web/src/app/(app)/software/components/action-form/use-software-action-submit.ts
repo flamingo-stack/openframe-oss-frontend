@@ -4,6 +4,7 @@ import {
   SOFTWARE_ACTION_COPY,
   type SoftwareRow,
   type SoftwareRunMode,
+  type SoftwareUpdateSettingsValues,
   applyTimeSlot,
   isScheduleStartInPast,
   PAST_START_MESSAGE,
@@ -20,6 +21,7 @@ import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { pluralize } from '@/lib/pluralize';
 import { routes } from '@/lib/routes';
 import { type PackageInput, toPackageInputs } from './software-row';
+import { toUpdateSettingsInputs } from './update-settings-input';
 
 /**
  * Runs the draft now (`schedule: null`) or creates a software schedule from it,
@@ -65,6 +67,8 @@ export interface SoftwareActionForm {
   date: Date | null;
   time: string;
   timeReference: ScheduleTimeReference;
+  /** UPDATE only: what happens where the app is running, and whether later releases follow. */
+  updateSettings?: SoftwareUpdateSettingsValues;
 }
 
 interface SoftwareActionSubmitOptions {
@@ -145,7 +149,15 @@ export function useSoftwareActionSubmit(
     const bundleId = form.bundleId;
     const { deviceCount } = form;
     commitSubmit({
-      variables: { input: { id: bundleId, action, packages, schedule } },
+      variables: {
+        input: {
+          id: bundleId,
+          action,
+          packages,
+          schedule,
+          ...(form.updateSettings ? toUpdateSettingsInputs(form.updateSettings) : {}),
+        },
+      },
       onCompleted: response => {
         onSubmitted();
         if (schedule) {

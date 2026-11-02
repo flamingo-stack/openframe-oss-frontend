@@ -188,7 +188,7 @@ jobs:
           # The web app's container; every openframe.ai page prints it. Only a release
           # gets it, so the 0.0.0-dev builds from a push stay out of production analytics.
           # The shell drops it on an install pointed at another environment (gtm_container).
-          OPENFRAME_GTM_CONTAINER_ID: ${{ needs.version.outputs.version && 'GTM-NR82B9WC' || '' }}
+          OPENFRAME_GTM_CONTAINER_ID: ${{ needs.version.outputs.version && secrets.OPENFRAME_GTM_CONTAINER_ID || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # macOS signing + notarization, performed by tauri during the build.

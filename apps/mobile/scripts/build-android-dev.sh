@@ -6,7 +6,7 @@
 #
 # Usage:
 #   NEXT_PUBLIC_SHARED_HOST_URL=https://openframe.build \
-#   [RELEASE_NOTES="fixed login"] scripts/build-android-dev.sh
+#   [VERSION_CODE=7] [VERSION_NAME=1.0.2] [RELEASE_NOTES="fixed login"] scripts/build-android-dev.sh
 #
 # Required:  NEXT_PUBLIC_SHARED_HOST_URL — the DEV shared auth host.
 # Optional:  SKIP_WEB=1         — reuse the already-staged www/ bundle (must have
@@ -18,6 +18,10 @@
 #                                 unsigned and App Distribution rejects it).
 #            TESTER_GROUP=qa    — App Distribution group (default: qa).
 #            RELEASE_NOTES=...  — shown to testers in the invite/App Tester.
+#            VERSION_CODE=n     — overrides versionCode (Android refuses to install
+#                                 a lower one over a higher one without uninstalling).
+#            VERSION_NAME=x     — overrides versionName (the version the app reports
+#                                 and the update nudge compares).
 #
 # One-time prerequisites:
 #   - Firebase console (DEV project, firebase-nwp3): App Distribution enabled
@@ -76,7 +80,9 @@ fi
 
 echo "▸ Building ${VARIANT_TASK}…"
 ( cd "$HERE/android" && JAVA_HOME="$JBR" ./gradlew "$VARIANT_TASK" \
-    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" )
+    -PofSharedHostUrl="$NEXT_PUBLIC_SHARED_HOST_URL" \
+    ${VERSION_CODE:+-PofVersionCode=$VERSION_CODE} \
+    ${VERSION_NAME:+-PofVersionName=$VERSION_NAME} )
 
 if [ ! -f "$APK" ]; then
   echo "✗ expected APK not found: $APK" >&2
