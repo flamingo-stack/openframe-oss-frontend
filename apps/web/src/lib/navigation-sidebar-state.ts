@@ -14,6 +14,32 @@ export const GROUPED_SIDEBAR_EXPANDED_WIDTH = 264;
 const SIDEBAR_MINIMIZED_STORAGE_KEY = 'of.navigationSidebar.minimized';
 
 /**
+ * The expanded width's bounds when the user drags it (`NavigationSidebarConfig.resizable`,
+ * both shells). 200px keeps an icon and a dozen characters of label (the rows truncate
+ * below their full width anyway); 480px leaves the content 800px of a 1280px window,
+ * clear of the `content-md` breakpoint (720px) its layouts switch at.
+ */
+export const SIDEBAR_MIN_EXPANDED_WIDTH = 200;
+export const SIDEBAR_MAX_EXPANDED_WIDTH = 480;
+/**
+ * Where the core sidebar keeps the width the user chose: `{ size }` under this key
+ * plus `:chosen` (its `useResizablePanelSize`). Passed as `resizable.storageKey`, and
+ * read back by the seed below so the first frame is already that wide.
+ */
+export const SIDEBAR_WIDTH_STORAGE_KEY = 'of.navigationSidebar.width';
+const SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY = `${SIDEBAR_WIDTH_STORAGE_KEY}:chosen`;
+
+/**
+ * `NavigationSidebarConfig.resizable` for both shells: the bounds above and the key
+ * the seed reads. One object, so the two shells and the seed cannot disagree.
+ */
+export const SIDEBAR_RESIZE = {
+  minWidth: SIDEBAR_MIN_EXPANDED_WIDTH,
+  maxWidth: SIDEBAR_MAX_EXPANDED_WIDTH,
+  storageKey: SIDEBAR_WIDTH_STORAGE_KEY,
+};
+
+/**
  * CSS variable seeded before first paint (by {@link sidebarWidthFoucScript}) so
  * the sidebar renders at the persisted width from the very first frame.
  * `localStorage` is unreadable on the server, so without this the sidebar
@@ -81,6 +107,11 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  * rendered width with a container query instead, so the property has no reader
  * left and seeding it is dead weight in a script that blocks first paint.
  *
+ * The expanded width is the one the user dragged the sidebar to, when there is
+ * one (`SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY`), within the bounds the config gives the
+ * sidebar, else the shell's default. A malformed entry is ignored, not fatal: its
+ * parse has a try of its own, so the collapse still seeds.
+ *
  * Viewport-free on purpose. It used to force the minimized width between 800px
  * and 1280px, back when a placeholder applied this var at every breakpoint. The
  * sidebar now pins the tablet rail in CSS (`md:w-14`) and reads the var only from
@@ -89,7 +120,7 @@ const runtimeJoin = (parts: TemplateStringsArray, ...values: Array<string | numb
  */
 export function sidebarWidthFoucScript(grouped: boolean): string {
   const expanded = grouped ? GROUPED_SIDEBAR_EXPANDED_WIDTH : SIDEBAR_EXPANDED_WIDTH;
-  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':'${expanded}px');}catch(e){}})();`;
+  return runtimeJoin`(function(){try{var m=localStorage.getItem('${SIDEBAR_MINIMIZED_STORAGE_KEY}')==='true';var w=${expanded};try{var c=JSON.parse(localStorage.getItem('${SIDEBAR_CHOSEN_WIDTH_STORAGE_KEY}'));if(c&&typeof c.size==='number'&&isFinite(c.size)){w=Math.min(${SIDEBAR_MAX_EXPANDED_WIDTH},Math.max(${SIDEBAR_MIN_EXPANDED_WIDTH},Math.round(c.size)));}}catch(e){}document.documentElement.style.setProperty('${SIDEBAR_WIDTH_CSS_VAR}',m?'${SIDEBAR_MINIMIZED_WIDTH}px':w+'px');}catch(e){}})();`;
 }
 
 // --------------------------------------------------------------------------
