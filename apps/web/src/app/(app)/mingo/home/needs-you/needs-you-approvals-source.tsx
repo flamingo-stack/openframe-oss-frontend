@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { useFragment, useLazyLoadQuery } from 'react-relay';
 import type { notificationsDrawerRelay_query$key as NotificationsDrawerFragmentKey } from '@/__generated__/notificationsDrawerRelay_query.graphql';
 import type { notificationsDrawerRelayQuery as NotificationsDrawerRelayQueryType } from '@/__generated__/notificationsDrawerRelayQuery.graphql';
@@ -43,7 +43,9 @@ export function NeedsYouApprovalsSource({ onReport }: { onReport: ReportSource }
     });
   }, [data.notifications.edges, sessionDialogs]);
 
-  useEffect(() => {
+  // Before paint: a source read from the store answers in the same commit, so a return to
+  // the page draws its rows, not the card's loading form, for a frame.
+  useLayoutEffect(() => {
     onReport('approvals', { status: 'ready', rows });
   }, [onReport, rows]);
 

@@ -33,7 +33,7 @@ export interface PageContext {
 interface ListPage {
   module: ListModule;
   nav: NavModuleId;
-  /** A variant of the list, e.g. its archive. */
+  /** A variant of the list, e.g. its archive, or the tab of its module the list is. */
   section?: string;
   /** The `tab` param is a filter on this list, and this is its value when the URL has none. */
   tabFilter?: string;
@@ -52,7 +52,9 @@ const LIST_PAGES: Record<string, ListPage> = {
   '/scripts/schedules/archived': { module: 'SCRIPT_SCHEDULES', nav: 'schedules', section: 'archive' },
   '/logs-page': { module: 'LOGS', nav: 'logs' },
   '/software': { module: 'SOFTWARE', nav: 'software' },
-  '/software/vulnerabilities': { module: 'VULNERABILITIES', nav: 'vulnerabilities' },
+  // A tab of Software, not a module of its own: Software · vulnerabilities, and the
+  // list says which one it is.
+  '/software/vulnerabilities': { module: 'VULNERABILITIES', nav: 'software', section: 'vulnerabilities' },
   '/knowledge-base': { module: 'KNOWLEDGE_BASE', nav: 'knowledge-base' },
   '/knowledge-base/archive': { module: 'KNOWLEDGE_BASE', nav: 'knowledge-base', section: 'archive' },
   '/cloud-tenant-management': { module: 'CLOUD_TENANTS', nav: 'integrations' },
@@ -201,20 +203,21 @@ export function resolvePageContext(href: string, openView: ContextRefWithLabel |
  *
  * A phone (`phone`) opens a chat from the chat list over a page, and a new one starts on
  * Mingo's home: there the home, and a chat page whose last page is the home, are about
- * the page the list was opened over (`outsidePage`), the page Mingo's × leads back to.
+ * the page the new chat was started over (`newChatPage`). The home reached any other way
+ * has none: it is about no page, as a desktop's.
  */
 export function pageContextHref(
   location: { pathname: string; search: string },
   lastPage: string | null,
-  phone?: { outsidePage: string | null },
+  phone?: { newChatPage: string | null },
 ): string {
   const path = trimSlash(location.pathname);
   const home = routes.mingo.home;
   if (path === CHAT_PATH) {
     const opener = lastPage !== null && trimSlash(lastPage.split('?')[0]) !== home ? lastPage : null;
-    return opener ?? phone?.outsidePage ?? lastPage ?? home;
+    return opener ?? phone?.newChatPage ?? lastPage ?? home;
   }
-  if (path === home && phone) return phone.outsidePage ?? home;
+  if (path === home && phone) return phone.newChatPage ?? home;
   return `${location.pathname}${location.search}`;
 }
 

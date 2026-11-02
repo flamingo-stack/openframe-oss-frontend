@@ -42,7 +42,7 @@ beforeEach(() => {
   router.back.mockClear();
   router.push.mockClear();
   viewport.mdUp = true;
-  useMingoSheetStore.setState({ outsidePage: null, listOpen: false, listAfterNavigation: false });
+  useMingoSheetStore.setState({ outsidePage: null, newChatPage: null, listOpen: false, listAfterNavigation: false });
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -74,7 +74,7 @@ describe('MingoNewChat', () => {
 
   it('leads a phone back to the page it came from, with the chat list it was opened from over it', () => {
     viewport.mdUp = false;
-    useMingoSheetStore.setState({ outsidePage: '/devices' });
+    useMingoSheetStore.setState({ newChatPage: '/devices' });
     act(() => root.render(<MingoNewChat />));
     const back = [...container.querySelectorAll('button')].find(b => b.textContent === 'Back');
     expect(back).toBeDefined();
@@ -87,13 +87,13 @@ describe('MingoNewChat', () => {
     expect(useMingoSheetStore.getState().listOpen).toBe(true);
   });
 
-  it('has no "Back" on a desktop, nor on a phone that came from no page', () => {
-    useMingoSheetStore.setState({ outsidePage: '/devices' });
+  it('has no "Back" on a desktop, nor on a phone that did not start the chat over a page', () => {
+    useMingoSheetStore.setState({ newChatPage: '/devices' });
     act(() => root.render(<MingoNewChat />));
     expect(container.textContent).not.toContain('Back');
 
     viewport.mdUp = false;
-    useMingoSheetStore.setState({ outsidePage: null });
+    useMingoSheetStore.setState({ outsidePage: '/devices', newChatPage: null });
     act(() => root.render(<MingoNewChat />));
     expect(container.textContent).not.toContain('Back');
   });

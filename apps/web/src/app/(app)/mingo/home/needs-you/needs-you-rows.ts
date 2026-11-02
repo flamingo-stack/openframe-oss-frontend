@@ -38,6 +38,9 @@ export const NEEDS_YOU_CAPS = {
 } as const satisfies Record<NeedsYouSource, number>;
 
 /** What a row is about — it picks the row's icon. */
+/** The rows the card draws while it loads: how many it will hold is unknown until every source answers. */
+export const NEEDS_YOU_SKELETON_ROWS = 3;
+
 export type NeedsYouEntity = 'approval' | 'incident' | 'ticket' | 'tenant' | 'software' | 'device';
 
 export interface NeedsYouRow {

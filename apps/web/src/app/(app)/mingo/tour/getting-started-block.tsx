@@ -151,7 +151,10 @@ export function GettingStartedBlock({
   return (
     <section
       aria-label="Getting started"
-      className="flex max-h-[60vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
+      // The dock does not shrink, so this cap is what leaves the thread above it its room
+      // (the block scrolls inside): at most 45vh, with the composer and two banners under a
+      // laptop's height, the chat's header and a few lines stay on screen.
+      className="flex max-h-[45vh] min-h-0 flex-col overflow-hidden rounded-md border border-ods-border bg-ods-card"
     >
       <header className="flex shrink-0 items-center gap-[var(--spacing-system-sf)] border-b border-ods-border p-[var(--spacing-system-xsf)]">
         <h2 className="text-ods-text-secondary text-h5">Getting started</h2>
