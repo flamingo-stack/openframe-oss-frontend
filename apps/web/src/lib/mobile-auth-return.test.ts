@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { authApiClient } from './auth-api-client';
-import { MOBILE_AUTH_ERROR, mobileAuthErrorMessage, readMobileAuthReturn } from './mobile-auth-return';
+import { appWordedMessage, isAuthErrorRef, MOBILE_AUTH_ERROR, readMobileAuthReturn } from './mobile-auth-return';
 
 const params = (query: string) => new URLSearchParams(query);
 
@@ -46,13 +46,30 @@ describe('ssoJoinReturnUrl', () => {
   });
 });
 
-describe('mobileAuthErrorMessage', () => {
-  it('passes the cancel code through verbatim so the quiet-cancel check still matches', () => {
-    expect(mobileAuthErrorMessage('USER_CANCELED')).toBe('USER_CANCELED');
+describe('appWordedMessage', () => {
+  it('has the app’s own sentence for an expired session', () => {
+    expect(appWordedMessage(MOBILE_AUTH_ERROR.SESSION_EXPIRED)).toMatch(/expired/);
   });
 
-  it('has copy for an expired session and a fallback for unknown codes', () => {
-    expect(mobileAuthErrorMessage('SESSION_EXPIRED')).toMatch(/expired/);
-    expect(mobileAuthErrorMessage('SOMETHING_ELSE')).toContain('SOMETHING_ELSE');
+  it('words the cancel as the code itself, so even a worded cancel stays quiet', () => {
+    expect(appWordedMessage(MOBILE_AUTH_ERROR.USER_CANCELED)).toBe('USER_CANCELED');
+  });
+
+  it('leaves every other code to the auth server', () => {
+    expect(appWordedMessage('SSO_SESSION_EXPIRED')).toBeUndefined();
+    expect(appWordedMessage('constructor')).toBeUndefined();
+  });
+});
+
+describe('isAuthErrorRef', () => {
+  it('accepts what the auth server hands out and nothing that reads as a sentence', () => {
+    expect(isAuthErrorRef('SSO_SESSION_EXPIRED')).toBe(true);
+    expect(isAuthErrorRef('7KQ2M9XD')).toBe(true);
+    expect(isAuthErrorRef('')).toBe(false);
+    expect(isAuthErrorRef(null)).toBe(false);
+    expect(isAuthErrorRef(undefined)).toBe(false);
+    expect(isAuthErrorRef('Your account is suspended')).toBe(false);
+    expect(isAuthErrorRef('sso_session_expired')).toBe(false);
+    expect(isAuthErrorRef('<b>hi</b>')).toBe(false);
   });
 });

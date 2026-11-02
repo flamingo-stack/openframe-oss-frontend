@@ -6,8 +6,9 @@ import {
   Copy02Icon,
   ExternalLinkIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Input, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, Input, Tag, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback } from 'react';
+import { LoadingParagraph } from '@/app/components/shared/loading-paragraph';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
 import { accessStateHint, checkResultTag, isReadable, providerPresentation } from '../../utils/tenant-presentation';
@@ -30,7 +31,7 @@ export interface ConsentPanelProps {
   disabled?: boolean;
 }
 
-export const LINK_PLACEHOLDER: Record<ConsentMode, string> = {
+const LINK_PLACEHOLDER: Record<ConsentMode, string> = {
   new: 'No consent link is available yet.',
   reconnect: 'No consent link is available yet.',
   // A connected-then-revoked tenant has no link outstanding: the one it had
@@ -38,13 +39,15 @@ export const LINK_PLACEHOLDER: Record<ConsentMode, string> = {
   details: 'No consent link is outstanding — use Reconnect to issue a new one.',
 };
 
-/** The card frame, shared with `ConsentPanelSkeleton` so the loading card has the same geometry. */
-export const CONSENT_CARD_CLASSES =
+/** The two lines the provider's consent instruction runs to at the card's usual width. */
+const CONSENT_INSTRUCTION_SKELETON_LINES = 2;
+
+const CONSENT_CARD_CLASSES =
   'flex flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
 /** The frames set the URL a step below body scale. */
-export const CONSENT_LINK_INPUT_CLASSES = '[&>input]:text-h6';
+const CONSENT_LINK_INPUT_CLASSES = '[&>input]:text-h6';
 /** The action row under the link: the button, then whatever the probe has to say beside it. */
-export const CONSENT_ACTIONS_CLASSES = 'flex flex-wrap items-center gap-[var(--spacing-system-m)]';
+const CONSENT_ACTIONS_CLASSES = 'flex flex-wrap items-center gap-[var(--spacing-system-m)]';
 
 /**
  * The consent hand-off card the Figma frames draw (2097-122222 / 2097-119207 /
@@ -53,6 +56,10 @@ export const CONSENT_ACTIONS_CLASSES = 'flex flex-wrap items-center gap-[var(--s
  * probe's verdict beside it — the read that proves the grant. Core `Input`,
  * `Button` and `Tag` only; the card owns nothing but which copy and which
  * state goes where.
+ *
+ * In a loading scope (before the record is known) it draws the same frame, field and buttons, locked; only the
+ * instruction is a text bar (it names the provider, which the record has not said yet), of the two lines it runs to
+ * at the card's usual width. Nothing but `mode` is read then.
  */
 export function ConsentLinkPanel({
   provider,
@@ -64,6 +71,7 @@ export function ConsentLinkPanel({
   onEditDomain,
   disabled = false,
 }: ConsentPanelProps) {
+  const loading = useLoadingScope();
   const { consentInstruction, reapproveInstruction, openLabel } = providerPresentation(provider);
   const sameWindow = useSameWindowLinks();
   const { copy } = useCopyToClipboard({ successDescription: 'Consent link copied to clipboard' });
@@ -72,7 +80,7 @@ export function ConsentLinkPanel({
   // Copy and open need a link; the probe does not — `checkDirectoryConnection`
   // always runs, and for a revoked tenant it is how the MSP learns whether the
   // admin has consented again.
-  const inert = disabled || !url;
+  const inert = loading || disabled || !url;
 
   const openLink = useCallback(() => {
     if (!url) return;
@@ -94,13 +102,14 @@ export function ConsentLinkPanel({
       {mode !== 'details' && (
         <div className="flex items-center justify-between gap-[var(--spacing-system-xs)]">
           <p className="text-ods-text-secondary text-h5">Grant admin consent</p>
-          {onEditDomain && (
+          {/* The connect step offers Edit Domain until the admin has consented (locked while loading). */}
+          {(onEditDomain || (loading && mode === 'new')) && (
             <Button
               variant="link"
               size="compact"
               className="underline underline-offset-2"
               onClick={onEditDomain}
-              disabled={disabled}
+              disabled={loading || disabled}
             >
               Edit Domain
             </Button>
@@ -108,11 +117,15 @@ export function ConsentLinkPanel({
         </div>
       )}
       <div className={CONSENT_CARD_CLASSES}>
-        <p className="text-ods-text-primary text-h4">
-          {mode === 'reconnect' ? reapproveInstruction : consentInstruction}
-        </p>
+        <LoadingParagraph
+          loading={loading}
+          text={mode === 'reconnect' ? reapproveInstruction : consentInstruction}
+          tone="primary"
+          lines={CONSENT_INSTRUCTION_SKELETON_LINES}
+        />
         <Input
           readOnly
+          disabled={loading}
           value={url ?? ''}
           placeholder={LINK_PLACEHOLDER[mode]}
           aria-label="Consent link"
@@ -143,7 +156,7 @@ export function ConsentLinkPanel({
             dots, then the verdict. The hook ignores a second click mid-probe, so
             the button stays live-looking without starting a second one.
           */}
-          <Button variant="outline" onClick={onCheck} disabled={disabled} aria-busy={checking || undefined}>
+          <Button variant="outline" onClick={onCheck} disabled={loading || disabled} aria-busy={checking || undefined}>
             Check Connection
           </Button>
           {checking && (

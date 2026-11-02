@@ -6,6 +6,7 @@ import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
+import { queryState } from '@/lib/query-state';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
@@ -89,7 +90,15 @@ const ASSIGNED_ITEMS_QUERY = `#graphql
   }
 `;
 
-const PAGE_SIZE = 100;
+/** A safety cap on one read, not a page: the assigned lists are unbounded in practice. */
+const ASSIGNED_ITEMS_LIMIT = 100;
+
+/**
+ * How many rows an assigned list draws while it loads. `ASSIGNED_ITEMS_LIMIT` is a SAFETY CAP on one read, not a page
+ * or a limit the list is shown at, so the full-page rule does not apply: the list is unbounded and draws this
+ * typical count (an item usually carries a handful of assignments per kind).
+ */
+export const ASSIGNED_ITEMS_SKELETON_ROWS = 5;
 
 /** Every `assignedItems` read, of any item — what a write to assignments invalidates. */
 export const ASSIGNED_ITEMS_QUERY_KEY = ['assignments', 'assigned-items'] as const;
@@ -209,7 +218,7 @@ async function fetchAssignedItems(
   const data = await postGraphQl<AssignedItemsData>(ASSIGNED_ITEMS_QUERY, {
     itemId,
     targetType,
-    first: PAGE_SIZE,
+    first: ASSIGNED_ITEMS_LIMIT,
   });
 
   const refs: AssignmentRef[] = [];
@@ -277,16 +286,44 @@ export interface AssignedItemsResult {
   articles?: AssignedArticle[];
   tickets?: Dialog[];
   isLoading: boolean;
+  /** Per kind: its read has not answered yet (a kind whose rows arrived is no longer loading). */
+  loadingTypes: Partial<Record<ServerAssignmentTargetType, true>>;
   isReady: boolean;
+  /** A read is paused on a lost connection: `isLoading` is false with nothing read. */
+  isOffline: boolean;
+  /** Per kind: its read failed or waits for the connection, so an empty list there is not "nothing assigned". */
+  failedTypes: Partial<Record<ServerAssignmentTargetType, true>>;
+  /** Some kind is in `failedTypes`. */
+  loadFailed: boolean;
+  /** Reads the kinds that failed again. */
+  retry: () => void;
 }
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
-  const out: AssignedItemsResult = { value, isLoading: false, isReady: true };
+  const out: AssignedItemsResult = {
+    value,
+    isLoading: false,
+    loadingTypes: {},
+    isReady: true,
+    isOffline: false,
+    failedTypes: {},
+    loadFailed: false,
+    retry: () => {
+      for (const result of results) if (result.isError) void result.refetch();
+    },
+  };
   ASSIGNMENT_TARGET_TYPES.forEach((type, i) => {
     const result = results[i];
+    const state = queryState(result);
+    if (state.isOffline) out.isOffline = true;
+    if (state.isOffline || state.error !== null) {
+      out.failedTypes[type] = true;
+      out.loadFailed = true;
+    }
     if (result.isLoading) {
       out.isLoading = true;
+      out.loadingTypes[type] = true;
       out.isReady = false;
     }
     // `isLoading` alone is not enough for `isReady`, which callers treat as "the

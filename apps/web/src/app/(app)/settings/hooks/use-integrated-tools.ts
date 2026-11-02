@@ -78,7 +78,9 @@ type IntegratedToolsResponse = {
 export function useIntegratedTools() {
   const { toast } = useToast();
   const [tools, setTools] = useState<IntegratedTool[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Loading from the first render: the one caller (Architecture) reads on mount, and an empty first frame would
+  // read as "no tools" before the request starts.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchIntegratedTools = useCallback(

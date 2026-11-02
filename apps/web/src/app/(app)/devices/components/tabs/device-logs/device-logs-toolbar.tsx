@@ -51,6 +51,7 @@ export function DeviceLogsToolbar({
       <div className="flex flex-col gap-[var(--spacing-system-mf)] content-md:flex-row content-md:items-start">
         <div className="min-w-0 flex-1">
           <Input
+            userValue
             placeholder="Search for Log"
             aria-label="Search device logs"
             value={search}

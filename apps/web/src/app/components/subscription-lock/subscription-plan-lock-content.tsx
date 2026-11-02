@@ -1,14 +1,11 @@
 'use client';
 
-import {
-  SubscriptionSettingsLoading,
-  SubscriptionSettingsView,
-} from '@/app/(app)/settings/billing-usage/components/plan/subscription-settings-view';
+import { SubscriptionSettingsView } from '@/app/(app)/settings/billing-usage/components/plan/subscription-settings-view';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { SubscriptionStatus } from '@/generated/schema-enums';
 import { noAccessCopy } from './no-access-copy';
 import { useSubscriptionLock } from './subscription-guard';
-import { UnpaidInvoicesLoading, UnpaidInvoicesScreen } from './unpaid-invoices-screen';
+import { UnpaidInvoicesScreen } from './unpaid-invoices-screen';
 import { WorkspaceInactiveScreen } from './workspace-inactive-screen';
 
 /**
@@ -58,9 +55,10 @@ export default function SubscriptionPlanLockContent() {
   // Plan prices are a public catalog; an amount owed is the workspace's own
   // money, and this viewer may still turn out to be a member who never gets to
   // see it (the `denied` branch above). Waiting shows the screen, not the sum.
-  if (access === 'loading') {
-    return debtStatus ? <UnpaidInvoicesLoading status={debtStatus} /> : <SubscriptionSettingsLoading />;
-  }
-
-  return debtStatus ? <UnpaidInvoicesScreen status={debtStatus} /> : <SubscriptionSettingsView />;
+  const loading = access === 'loading';
+  return debtStatus ? (
+    <UnpaidInvoicesScreen status={debtStatus} loading={loading} />
+  ) : (
+    <SubscriptionSettingsView loading={loading} />
+  );
 }

@@ -1,14 +1,21 @@
 'use client';
 
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { ticketService } from '../services';
 import type { TicketsPage } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import { type DialogsQueryParams, dialogsQueryKeys } from '../utils/query-keys';
 
-const TICKETS_PAGE_SIZE = 20;
+/** One page of a ticket list; a ticket table's loading state draws this many rows. */
+export const TICKETS_PAGE_SIZE = 20;
+
+/** The list a key belongs to: what it is scoped to, apart from search, filters and sort. */
+function scopeOf(params: unknown): string {
+  const { archived, deviceIds, organizationIds } = (params ?? {}) as DialogsQueryParams;
+  return JSON.stringify([Boolean(archived), deviceIds ?? [], organizationIds ?? []]);
+}
 
 export function useTicketsQuery({
   archived,
@@ -78,6 +85,13 @@ export function useTicketsQuery({
     },
     getNextPageParam: lastPage => (lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor : undefined),
     initialPageParam: undefined as string | undefined,
+    // A new search, filter or sort keeps the rows on screen, dimmed (`isPending`), until it answers: only the first page
+    // ever draws the loading state. A different scope (another device or organization, the archive) is another list,
+    // so it never shows the previous one's tickets.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && scopeOf(previousQuery.queryKey.at(-1)) === scopeOf({ archived, deviceIds, organizationIds })
+        ? keepPreviousData(previous)
+        : undefined,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
     retry: 2,
@@ -136,7 +150,10 @@ export function useTicketsQuery({
   return {
     dialogs,
     filteredCount,
+    /** The first page has not answered: the list draws its loading state. */
     isLoading: query.isLoading || (waitingForStatusIds && !statusesQuery.isError),
+    /** A new key is being read and the rows on screen are the previous key's: the list dims them. */
+    isPending: query.isPlaceholderData && query.isFetching,
     isFetchingNextPage: query.isFetchingNextPage,
     hasNextPage: query.hasNextPage ?? false,
     fetchNextPage: query.fetchNextPage,

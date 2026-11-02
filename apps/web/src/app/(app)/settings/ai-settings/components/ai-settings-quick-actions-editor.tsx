@@ -11,11 +11,13 @@ import {
   Button,
   CheckboxWithDescription,
   Input,
+  LoadingWhen,
   Textarea,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useState } from 'react';
 import { type Control, Controller, type FieldValues, useFieldArray, useWatch } from 'react-hook-form';
+import { NO_ITEMS } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
 import type { AiQuickAction } from '../types/ai-settings';
 import type { QuickActionsFormValues } from '../types/quick-action.types';
@@ -47,9 +49,10 @@ interface AiSettingsQuickActionsEditorProps<T extends QuickActionsFormValues & F
    * the tenant-wide screens, the tenant-inherited set on the customer screen
    * (where "default" means "inherit the tenant config", not OpenFrame's set).
    * Rendered as the dimmed read-only preview while the checkbox is on, and used
-   * to seed the editor rows on uncheck.
+   * to seed the editor rows on uncheck. `undefined` while the host still reads them: the preview draws its own
+   * loading state.
    */
-  defaultActions: AiQuickAction[];
+  defaultActions?: AiQuickAction[];
   /**
    * Overrides the "use default" wording + preview header. Omitted on the
    * tenant-wide screens (their default is literally OpenFrame's curated set);
@@ -113,7 +116,7 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       // key to keep, so that row starts without an icon.
       if (fields.length === 0) {
         replace(
-          defaultActions.map(action => ({
+          (defaultActions ?? NO_ITEMS).map(action => ({
             name: action.name,
             instructions: action.instructions,
             iconName: action.iconName ?? null,
@@ -171,14 +174,17 @@ export function AiSettingsQuickActionsEditor<T extends QuickActionsFormValues & 
       {isDefault ? (
         // Hub-defaults preview (fetched by the host, so it's available even
         // when the persisted config holds customs).
-        defaultActions.length > 0 && (
-          <AiSettingsQuickActions
-            actions={defaultActions}
-            isDefault={copy.previewIsOpenFrame}
-            agentConfig={agentConfig}
-            accent={accent}
-            className="pointer-events-none opacity-50"
-          />
+        // While they are read (`undefined`), the preview in its loading scope (the table its own skeleton).
+        (defaultActions == null || defaultActions.length > 0) && (
+          <LoadingWhen loading={defaultActions == null}>
+            <AiSettingsQuickActions
+              actions={defaultActions ?? NO_ITEMS}
+              isDefault={copy.previewIsOpenFrame}
+              agentConfig={agentConfig}
+              accent={accent}
+              className="pointer-events-none opacity-50"
+            />
+          </LoadingWhen>
         )
       ) : (
         <>

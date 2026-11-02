@@ -1,8 +1,8 @@
 'use client';
 
 import { Chevron01RightIcon, Rocket02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { formatBytes } from '@flamingo-stack/openframe-frontend-core/utils';
+import { Button, LIVE_PULSE_CLASS, Progress } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn, formatBytes } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useCallback, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
@@ -175,7 +175,7 @@ export function DesktopUpdateModal() {
               <Progress value={percent} className="bg-ods-bg" indicatorClassName="bg-ods-accent" />
             ) : (
               <div className="h-2 w-full overflow-hidden rounded-full bg-ods-bg">
-                <div className="h-full w-full animate-pulse bg-ods-accent" />
+                <div className={cn('h-full w-full bg-ods-accent', LIVE_PULSE_CLASS)} />
               </div>
             )}
           </div>

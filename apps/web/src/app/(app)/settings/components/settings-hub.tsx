@@ -1,7 +1,6 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ChartDonutIcon,
   ClipboardListIcon,
@@ -14,15 +13,14 @@ import {
   ShieldKeyholeIcon,
   UsersGroupIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, LoadingWhen, Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { type ComponentType, useCallback, useEffect, useState } from 'react';
+import { type ComponentType, useEffect, useState } from 'react';
 import { useAuthStore } from '@/app/(auth)/auth/stores';
 import { useLogoutConfirmStore } from '@/app/(auth)/auth/stores/logout-confirm-store';
 import { useBillingAccessGate } from '@/app/hooks/use-billing-access-gate';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useIsMobileShell } from '@/app/hooks/use-is-mobile-shell';
-import { apiClient } from '@/lib/api-client';
 import { isOssTenantMode } from '@/lib/app-mode';
 import { authApiClient } from '@/lib/auth-api-client';
 import { isBillingHidden } from '@/lib/billing-visibility';
@@ -33,7 +31,7 @@ import { BiometricLoginCard } from './biometric-login-card';
 import { EditProfileModal } from './edit-profile-modal';
 import { EmailVerificationBanner } from './email-verification-banner';
 import { EmailVerificationModal } from './email-verification-modal';
-import { SettingMenuItem, SettingMenuItemSkeleton } from './setting-menu-item';
+import { SettingMenuItem } from './setting-menu-item';
 
 interface SettingsNavItem {
   href: string;
@@ -45,12 +43,6 @@ interface SettingsNavItem {
 }
 
 const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  {
-    href: routes.settings.billingUsage(),
-    icon: PiggyBankIcon,
-    title: 'Billing & Usage',
-    description: 'Subscription details, usage data, and payment settings',
-  },
   {
     href: routes.settings.aiSettings(),
     icon: ShieldCheckIcon,
@@ -95,6 +87,14 @@ const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     description: 'Device logs across every device in your workspace',
     badge: 'Beta',
   },
+  // LAST on purpose: it is the one cell whose presence waits on an answer (the flag and the caller's role). Drawn while
+  // the gates load, it is the cell that leaves when they say no, and nothing after it re-flows.
+  {
+    href: routes.settings.billingUsage(),
+    icon: PiggyBankIcon,
+    title: 'Billing & Usage',
+    description: 'Subscription details, usage data, and payment settings',
+  },
 ];
 
 /**
@@ -112,9 +112,8 @@ const USAGE_MENU_ITEM = {
 export function SettingsHub() {
   const { toast } = useToast();
   const billingHidden = isBillingHidden();
-  // Tri-state, not booleans: these are the conditional cells in the grid and Billing is
-  // the FIRST one, so treating "not answered yet" as "hide it" dropped a cell and
-  // re-flowed every card after it the moment the answers landed.
+  // Tri-state, not booleans: Billing is the conditional cell in the grid (the LAST one), so the loading grid draws it
+  // and a "no" drops only the final cell.
   const billingsGate = useFeatureFlagGate('billings');
   // Billing & Usage is the workspace's money — owners and admins, nobody else.
   const billingAccessGate = useBillingAccessGate();
@@ -145,55 +144,11 @@ export function SettingsHub() {
   });
   const openLogoutConfirm = useLogoutConfirmStore(state => state.open);
   const user = useAuthStore(state => state.user);
-  const updateUser = useAuthStore(state => state.updateUser);
   const fetchFullProfile = useAuthStore(state => state.fetchFullProfile);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
-
-  const updateProfile = useCallback(
-    async (data: { firstName: string; lastName: string }) => {
-      if (!user?.id) return;
-
-      setIsUpdating(true);
-      try {
-        const res = await apiClient.put<{ firstName?: string; lastName?: string }>(
-          `api/users/${encodeURIComponent(user.id)}`,
-          data,
-        );
-        if (!res.ok) {
-          throw new Error(res.error || 'Failed to update profile');
-        }
-
-        // A 2xx with no body means the server accepted the change without echoing
-        // it back; keep the values that were just submitted.
-        const updatedData = res.data ?? data;
-
-        updateUser({
-          firstName: updatedData.firstName,
-          lastName: updatedData.lastName,
-        });
-
-        toast({
-          title: 'Profile Updated',
-          description: 'Your profile has been updated successfully.',
-          variant: 'success',
-          duration: 3000,
-        });
-
-        setIsEditModalOpen(false);
-      } catch (error) {
-        handleApiError(error, toast, 'Failed to update profile');
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    // `setIsEditModalOpen` is listed because the compiler infers it; a useState
-    // setter is stable, so it changes nothing at runtime.
-    [user, updateUser, toast, setIsEditModalOpen],
-  );
 
   const handleResendVerification = async () => {
     setIsSendingVerification(true);
@@ -229,10 +184,7 @@ export function SettingsHub() {
     >
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         {/* Organization + Profile */}
-        <AccountSettingsCard
-          onEditProfile={() => setIsEditModalOpen(true)}
-          onVerifyEmail={() => setIsVerificationModalOpen(true)}
-        />
+        <AccountSettingsCard onEditProfile={() => setIsEditModalOpen(true)} />
 
         {user?.emailVerified === false && <EmailVerificationBanner onResend={() => setIsVerificationModalOpen(true)} />}
 
@@ -240,54 +192,48 @@ export function SettingsHub() {
         <BiometricLoginCard />
       </div>
 
-      {/* Navigation Cards Grid */}
-      <LoadingRegion
+      {/* Navigation Cards Grid: until every gate has answered, the full default set this build can show (the app
+          mode and the shell are known synchronously, so only Billing's presence is in question), each card drawing
+          itself in the loading scope, rather than a lone cell wedged between real cards. */}
+      <LoadingWhen
+        loading={!gatesResolved}
         label="Loading settings"
-        announce={!gatesResolved}
         className="grid grid-cols-1 gap-[var(--spacing-system-m)] content-md:grid-cols-2"
       >
-        {gatesResolved
-          ? visibleItems.map(item => {
-              const {
-                icon: Icon,
-                title,
-                description,
-              } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
-              return (
-                <SettingMenuItem
-                  key={item.href}
-                  href={item.href}
-                  icon={<Icon size={24} />}
-                  title={title}
-                  description={description}
-                  badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
-                />
-              );
-            })
-          : // Whole grid as placeholders until every gate has answered, rather than a
-            // lone grey cell wedged between real cards. The count is the full default
-            // set this build can show — the app mode is known synchronously, so only
-            // Billing's and Download Apps' presence is actually in question.
-            defaultItems.map(item => <SettingMenuItemSkeleton key={item.href} />)}
-      </LoadingRegion>
+        {(gatesResolved ? visibleItems : defaultItems).map(item => {
+          const {
+            icon: Icon,
+            title,
+            description,
+          } = item.href === routes.settings.billingUsage() && billingHidden ? USAGE_MENU_ITEM : item;
+          return (
+            <SettingMenuItem
+              key={item.href}
+              href={item.href}
+              icon={<Icon size={24} />}
+              title={title}
+              description={description}
+              badge={item.badge ? <Tag as="span" label={item.badge} variant="warning" /> : undefined}
+            />
+          );
+        })}
+      </LoadingWhen>
 
-      {/* Log Out — pinned to the bottom-left of the page */}
-      <div className="mt-auto">
-        <Button variant="outline" onClick={openLogoutConfirm} leftIcon={<Logout01Icon className="text-ods-error" />}>
-          Log Out
-        </Button>
-      </div>
+      {/* Log Out — pinned to the bottom-left of the page, on an OSS tenant only: its desktop
+          has no other (no user cell in the header, the burger menu is the phone's). The
+          Mingo-first shell logs out from its account menu (sidebar and phone drawer). */}
+      {isOssTenantMode() && (
+        <div className="mt-auto">
+          <Button variant="outline" onClick={openLogoutConfirm} leftIcon={<Logout01Icon className="text-ods-error" />}>
+            Log Out
+          </Button>
+        </div>
+      )}
 
       {/* Modals */}
       {user && (
         <>
-          <EditProfileModal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            user={user}
-            onSave={updateProfile}
-            isSaving={isUpdating}
-          />
+          <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} user={user} />
           <EmailVerificationModal
             open={isVerificationModalOpen}
             onOpenChange={setIsVerificationModalOpen}

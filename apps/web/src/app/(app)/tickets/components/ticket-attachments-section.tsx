@@ -1,7 +1,7 @@
 'use client';
 
 import { Upload02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, TicketAttachmentsList } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, TicketAttachmentsList, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ChangeEvent, useRef, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
@@ -17,6 +17,8 @@ interface TicketAttachmentsSectionProps {
 }
 
 export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttachmentsSectionProps) {
+  // Files go to the ticket once it has been read, not to a ticket still loading.
+  const loading = useLoadingScope();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [pendingDelete, setPendingDelete] = useState<{ id: string; fileName: string } | null>(null);
@@ -81,7 +83,7 @@ export function TicketAttachmentsSection({ ticketId, attachments }: TicketAttach
         className="w-fit"
         leftIcon={<Upload02Icon />}
         onClick={addFiles}
-        disabled={addAttachments.isPending}
+        disabled={loading || addAttachments.isPending}
       >
         {addAttachments.isPending ? 'Uploading...' : 'Add Files'}
       </Button>

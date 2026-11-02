@@ -32,7 +32,7 @@ export const incidentNotesRelayFragment = graphql`
           content
           authorId
           author {
-            ...insightUserFields_user
+            ...userSummaryFields_user
           }
           createdAt
         }

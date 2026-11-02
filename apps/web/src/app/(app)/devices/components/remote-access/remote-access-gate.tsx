@@ -1,8 +1,10 @@
 'use client';
 
 import { Button, NoData, PageLayout } from '@flamingo-stack/openframe-frontend-core';
+import { MediaSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Loading01Icon, ScanXmarkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LIVE_PULSE_CLASS, LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useRemoteAccessApproval } from '../../hooks/use-remote-access-approval';
 import { useRemoteAccessApprovalGate } from '../../hooks/use-remote-access-approval-gate';
@@ -90,7 +92,6 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   };
 
   if (gate === 'off') return <>{children}</>;
-  if (gate === 'loading') return <CompactPageLoader />;
   if (approval.state === 'approved') {
     return (
       <ApprovedSessionScope
@@ -106,7 +107,12 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   const target = deviceName || 'this device';
 
   let body: ReactNode;
-  if (policyDenied) {
+  if (gate === 'loading') {
+    // The flag has not answered: the flow's own page, drawn in a loading scope. The typical next screen is the request
+    // in flight (most tenants have the gate on), so its mark is drawn, in its own loading form. The session surface is
+    // never mounted before the gate says how it starts.
+    body = <BusyMark />;
+  } else if (policyDenied) {
     // Designer decision: DENY_ACCESS disables the entry points in place; this
     // screen only exists for direct URLs, which never passed through a menu.
     body = (
@@ -124,12 +130,12 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
   } else if (approval.state === 'idle' || approval.state === 'requesting') {
     // Auto-request in flight (NOTIFY/SILENT settle instantly; APPROVAL_REQUIRED
     // proceeds to the awaiting screen).
-    body = <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />;
+    body = <BusyMark />;
   } else if (approval.state === 'awaiting') {
     const request = approval.request;
     body = (
       <>
-        <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+        <BusyMark />
         <div className="flex flex-col items-center gap-[var(--spacing-system-xxs)] text-center">
           <h2 className="text-ods-text-primary text-h3">Waiting for approval</h2>
           <p className="text-ods-text-secondary text-h6">
@@ -235,11 +241,20 @@ export function RemoteAccessGate({ deviceId, deviceName, reason, onBack, childre
           mockups draw every flow state inside it. */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto rounded-lg bg-black">
         <div className="flex w-full max-w-[420px] flex-col items-center gap-[var(--spacing-system-mf)] p-[var(--spacing-system-l)]">
-          {body}
+          <LoadingWhen loading={gate === 'loading'}>{body}</LoadingWhen>
         </div>
       </div>
     </PageLayout>
   );
+}
+
+const BUSY_MARK_CLASS = 'h-8 w-8';
+
+/** The request is on its way or waiting for the end user: a live busy mark, never a loading one. In a loading scope
+ * (the gate unanswered) it draws its own box. */
+function BusyMark() {
+  if (useLoadingScope()) return <MediaSkeleton.Icon className={BUSY_MARK_CLASS} />;
+  return <Loading01Icon className={cn(BUSY_MARK_CLASS, 'text-ods-text-secondary', LIVE_PULSE_CLASS)} />;
 }
 
 /**

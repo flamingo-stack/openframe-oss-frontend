@@ -9,12 +9,15 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components';
 import type { RoadmapItem } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import { EntityVideoSection } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { NO_ITEMS } from '@/app/components/shared';
 import { EP, HELP_CENTER_BASE } from '../../endpoints';
 
 // Injected roadmap section — wraps RoadmapGrid so linked roadmap items
 // vote/refresh via the same /content endpoints as the standalone page.
 function RoadmapSection({
   items,
+  isLoading,
   onItemUpdate,
 }: {
   items: RoadmapItem[];
@@ -24,6 +27,7 @@ function RoadmapSection({
   return (
     <RoadmapGrid
       items={items}
+      isLoading={isLoading}
       onItemUpdate={onItemUpdate}
       buildRefreshUrl={EP.roadmapById}
       votingOptions={{ voteApiEndpoint: EP.roadmapVote }}
@@ -44,9 +48,13 @@ function VideoDisplaySection(props: VideoDisplaySectionProps) {
 // lib skips the section (it gates on `&& DeliverySection`). Renders the
 // completed + in-progress tables from the data `ReleaseDetailPage` fetches via
 // `deliveryApiEndpoint` (the base `/delivery?task_ids=` route → `{ completed,
-// inProgress }`).
+// inProgress }`). While it loads ONE table draws its skeleton: a published release
+// links completed work only (measured 2026-10-21 over all 23 releases: 22 with a
+// completed table, 0 with an in-progress one), so one table is the typical page.
+// It switches itself: in a loading scope (the page drawing itself) it reads nothing, like `isLoading`.
 function DeliverySection({ data, isLoading }: { data: DeliveryResponse | null; isLoading: boolean }) {
-  if (isLoading) return <DeliveryTable items={[]} isLoading />;
+  const loading = useLoadingScope() || isLoading;
+  if (loading) return <DeliveryTable items={NO_ITEMS} isLoading />;
   if (!data) return null;
   return (
     <>

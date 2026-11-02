@@ -13,7 +13,6 @@
 
 import type { ContextItemsRenderArgs } from '@flamingo-stack/openframe-frontend-core/components/chat';
 import type { ReactNode } from 'react';
-import { UserItems } from './batch-items';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import type { ContextItemsProps } from './items-shared';
 import {
@@ -25,6 +24,7 @@ import {
   ScheduleItems,
   ScriptItems,
   SoftwareItems,
+  UserItems,
   VulnerabilityItems,
 } from './relay-items';
 import { PolicyItems, QueryItems, TicketItems } from './rest-items';

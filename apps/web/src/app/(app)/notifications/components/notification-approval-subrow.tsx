@@ -12,7 +12,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { useApproveRequest } from '@/app/components/notifications/use-approve-request';
 
 interface NotificationApprovalSubRowProps {
-  notification: Notification;
+  /** `null` while the list is read: the block draws its own loading form (a typical notification is an approval). */
+  notification: Notification | null;
   /** Called after a successful approve/reject (e.g. to mark the notification read). */
   onResolved?: (notificationId: string) => void;
 }
@@ -22,7 +23,7 @@ export function NotificationApprovalSubRow({ notification, onResolved }: Notific
   const approveRequest = useApproveRequest();
   // Optimistic status for this user's own click; backend resolution (below) wins once it arrives.
   const [localStatus, setLocalStatus] = useState<ChatApprovalStatus | null>(null);
-  const approval = getApprovalMeta(notification);
+  const approval = notification ? getApprovalMeta(notification) : null;
   const resolvedStatus = resolutionToStatus(approval?.resolution);
   const status: ChatApprovalStatus = resolvedStatus !== 'pending' ? resolvedStatus : (localStatus ?? 'pending');
 
@@ -33,14 +34,21 @@ export function NotificationApprovalSubRow({ notification, onResolved }: Notific
       if (!approval) return;
       setLocalStatus(approve ? 'approved' : 'rejected');
       if (await approveRequest(approval.approvalRequestId, approve)) {
-        onResolved?.(notification.id);
+        if (notification) onResolved?.(notification.id);
       } else {
         setLocalStatus(null); // roll back the optimistic flip; the request failed
       }
     },
-    [approval, approveRequest, onResolved, notification.id],
+    [approval, approveRequest, onResolved, notification],
   );
 
+  if (!notification) {
+    return (
+      <div data-no-row-click className="bg-ods-bg p-0">
+        <ApprovalBatchMessage data={null} className="mb-0 rounded-none border-0" />
+      </div>
+    );
+  }
   if (!approval || !batchData) return null;
 
   return (

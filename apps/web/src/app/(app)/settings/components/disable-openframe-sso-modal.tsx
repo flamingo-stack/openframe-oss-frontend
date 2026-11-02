@@ -1,9 +1,9 @@
 'use client';
 
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { useEffect, useState } from 'react';
+import { ContentErrorBoundary } from '@/app/components/shared';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
-import { fetchUsers, UserStatus } from '../hooks/use-users';
+import { ActiveUsersSsoNotice, GENERIC_SSO_NOTICE } from './active-users-sso-notice';
 
 interface DisableOpenframeSsoModalProps {
   open: boolean;
@@ -18,37 +18,16 @@ interface DisableOpenframeSsoModalProps {
  * without it.
  */
 export function DisableOpenframeSsoModal({ open, onOpenChange, isPending, onConfirm }: DisableOpenframeSsoModalProps) {
-  const [userCount, setUserCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    let cancelled = false;
-    fetchUsers(0, 1000)
-      .then(page => {
-        if (cancelled) return;
-        const activeCount = page.items?.filter(user => user.status === UserStatus.Active).length ?? 0;
-        // Past the first page the active filter undercounts — the raw total is closer.
-        setUserCount(page.totalElements > (page.items?.length ?? 0) ? page.totalElements : activeCount);
-      })
-      .catch(() => {
-        if (!cancelled) setUserCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  const description =
-    userCount === null
-      ? 'Users will switch to signing in through SSO providers.'
-      : `${userCount} ${userCount === 1 ? 'user' : 'users'} will switch to signing in through SSO providers.`;
-
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Disable OpenFrame SSO"
-      description={description}
+      description={
+        <ContentErrorBoundary label="Disable OpenFrame SSO" fallback={() => GENERIC_SSO_NOTICE}>
+          <ActiveUsersSsoNotice />
+        </ContentErrorBoundary>
+      }
       confirmLabel="Disable Configuration"
       variant="destructive"
       isPending={isPending}

@@ -30,6 +30,9 @@ function rollIntoRecents(recents: ContextRefWithLabel[], ref: ContextRefWithLabe
 interface MingoContextState {
   openView: ContextRefWithLabel | null;
   recentViews: ContextRefWithLabel[];
+  /** A detail page is mounted and still reading the entity it will set as the open view (not persisted). */
+  openViewPending: boolean;
+  setOpenViewPending: (pending: boolean) => void;
   /** Set the currently-open entity. Rolls the previous open view (if any and
    *  different) into `recentViews`. */
   setOpenView: (ref: ContextRefWithLabel) => void;
@@ -53,6 +56,11 @@ export const useMingoContextStore = create<MingoContextState>()(
       (set, get) => ({
         openView: null,
         recentViews: [],
+        openViewPending: false,
+
+        setOpenViewPending: pending => {
+          if (get().openViewPending !== pending) set({ openViewPending: pending }, false, 'setOpenViewPending');
+        },
 
         setOpenView: ref => {
           const { openView, recentViews } = get();

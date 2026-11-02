@@ -4,9 +4,17 @@ import { useLocalStorage, useToast } from '@flamingo-stack/openframe-frontend-co
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getLandingPath } from '@/lib/app-mode';
 import { authApiClient, getAuthFailureMessage } from '@/lib/auth-api-client';
-import { AppleRegistrationRequiredError, nativeLogin, SsoRegistrationRequiredError } from '@/lib/native-login';
+import { MOBILE_AUTH_ERROR } from '@/lib/mobile-auth-return';
+import {
+  AppleRegistrationRequiredError,
+  nativeLogin,
+  NativeLoginError,
+  SsoRegistrationRequiredError,
+} from '@/lib/native-login';
 import { unregisterNativePush } from '@/lib/native-push';
+import { nativeErrorCode } from '@/lib/native-shell';
 import { isAppShell, isMobileShell } from '@/lib/platform';
 import { appendPosthogHandoff, markPendingSignup } from '@/lib/posthog/posthog-events';
 import { collectRegistrationAttribution } from '@/lib/registration-attribution';
@@ -63,25 +71,30 @@ interface RegisterRequest {
  */
 function isUserCanceled(error: unknown): boolean {
   return (
-    (error as { code?: string } | null)?.code === 'USER_CANCELED' ||
-    (error instanceof Error && error.message === 'USER_CANCELED')
+    nativeErrorCode(error) === MOBILE_AUTH_ERROR.USER_CANCELED ||
+    (error instanceof Error && error.message === MOBILE_AUTH_ERROR.USER_CANCELED)
   );
+}
+
+/** A browser sign-in that never finished gets `NativeLoginError`'s title instead of the generic one. */
+function loginFailureTitle(error: unknown): string {
+  return error instanceof NativeLoginError ? error.title : 'Login Failed';
 }
 
 /**
  * Where a web login lands, pre-encoded for the `redirectTo` query param. Carries the PostHog
  * distinct_id + session_id across the (SaaS) auth-host → tenant-dashboard-host hop so the session
  * recording stays continuous: encoded here, the `#…` handoff rides through the OAuth roundtrip and
- * becomes a live fragment only when the gateway redirects to the dashboard.
+ * becomes a live fragment only when the gateway redirects to the landing page.
  */
-function dashboardReturnUrl(): string {
+function landingReturnUrl(): string {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
   const port = window.location.port ? `:${window.location.port}` : '';
   const returnUrl =
     hostname === 'localhost' || hostname === '127.0.0.1'
-      ? `${protocol}//${hostname}${port}${routes.dashboard}`
-      : `${window.location.origin}${routes.dashboard}`;
+      ? `${protocol}//${hostname}${port}${getLandingPath()}`
+      : `${window.location.origin}${getLandingPath()}`;
   return encodeURIComponent(appendPosthogHandoff(returnUrl));
 }
 
@@ -160,6 +173,10 @@ export function useAuth() {
 
       return data;
     } catch (error) {
+      // A failed lookup for an abandoned address must not toast over, or reset, the current one.
+      if (latestDiscovery.current !== userEmail) {
+        return null;
+      }
       toast({
         title: 'Discovery Failed',
         description: error instanceof Error ? error.message : 'Unable to check for existing accounts',
@@ -172,23 +189,23 @@ export function useAuth() {
     }
   };
 
-  /** Runs the shell's native sign-in and lands on the dashboard; rejects as `nativeLogin` does. */
-  const nativeLoginToDashboard = async (options: Parameters<typeof nativeLogin>[0]) => {
+  /** Runs the shell's native sign-in and lands on the landing page (`getLandingPath`); rejects as `nativeLogin` does. */
+  const nativeLoginToLanding = async (options: Parameters<typeof nativeLogin>[0]) => {
     const { tenantHostChanged } = await nativeLogin(options);
     if (tenantHostChanged) {
       // replace, not assign: keep /auth out of the history stack so
       // native/browser back can't return to the login screen post-login.
       // Small delay so a just-fired signup_completed (dataLayer/PostHog)
       // flushes before this hard navigation tears down the page context.
-      setTimeout(() => window.location.replace(routes.dashboard), 100);
+      setTimeout(() => window.location.replace(getLandingPath()), 100);
       return;
     }
     // Refetch /me BEFORE leaving the auth screen (its spinner covers the
     // round trip). A fire-and-forget invalidation left the stale
-    // signed-out session in cache, so the dashboard mounted into a brief
+    // signed-out session in cache, so the landing page mounted into a brief
     // "Sign in required" overlay until the refetch resolved.
     await queryClient.refetchQueries({ queryKey: authSessionQueryKey });
-    router.replace(routes.dashboard);
+    router.replace(getLandingPath());
     setIsLoading(false);
   };
 
@@ -268,11 +285,12 @@ export function useAuth() {
         // The shell's session is not this WebView's cookie jar, so the sign-in the server just
         // started is out of reach: run the regular native login for the new tenant instead.
         try {
-          await nativeLoginToDashboard({
+          await nativeLoginToLanding({
             tenantId: tenant.id,
             provider: 'openframe',
             // 'localhost' is the request's stand-in for "no domain" (see above), not a host.
             tenantDomain: tenant.domain && tenant.domain !== 'localhost' ? tenant.domain : undefined,
+            email: data.email,
           });
         } catch (error) {
           if (isUserCanceled(error)) {
@@ -281,7 +299,7 @@ export function useAuth() {
             return;
           }
           toast({
-            title: 'Login Failed',
+            title: loginFailureTitle(error),
             description: error instanceof Error ? error.message : 'Unable to sign in',
             variant: 'destructive',
           });
@@ -295,7 +313,7 @@ export function useAuth() {
       // continue hop lands in the new tenant without asking for the password again — the
       // same landing as an SSO signup. A top-level navigation: the chain sets the auth cookies.
       // Loading stays on while the page unloads, so the form cannot submit a second time.
-      window.location.replace(authApiClient.continueUrl(tenant.id, dashboardReturnUrl()));
+      window.location.replace(authApiClient.continueUrl(tenant.id, landingReturnUrl()));
     } catch (error) {
       toast({
         title: 'Registration Failed',
@@ -323,7 +341,9 @@ export function useAuth() {
         // Without a tenant the authorization server runs the flow against its onboarding pseudo-tenant
         // and resolves the real one from the identity the provider asserts. That deliberately does NOT
         // honour a tenant's own SSO credentials — those cannot be looked up before the tenant is known.
-        await nativeLoginToDashboard({ ...tenant, provider });
+        // The email on screen is the one discovery resolved this tenant from; without a tenant
+        // nothing was typed that names the account.
+        await nativeLoginToLanding({ ...tenant, provider, email: tenant ? email : undefined });
         return;
       }
 
@@ -336,7 +356,7 @@ export function useAuth() {
         return;
       }
 
-      window.location.href = authApiClient.loginUrl(tenant.tenantId, dashboardReturnUrl(), provider);
+      window.location.href = authApiClient.loginUrl(tenant.tenantId, landingReturnUrl(), provider);
     } catch (error) {
       // A verified Apple identity with no account is not a failure — the caller renders the
       // organization form and finishes with the credential this carries. Rethrow so the screen
@@ -347,7 +367,7 @@ export function useAuth() {
       }
       if (!isUserCanceled(error)) {
         toast({
-          title: 'Login Failed',
+          title: loginFailureTitle(error),
           description: error instanceof Error ? error.message : 'Unable to sign in with SSO',
           variant: 'destructive',
         });

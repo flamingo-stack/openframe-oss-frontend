@@ -39,14 +39,15 @@ export function useFeatureFlagsReady(): boolean {
  * Flag read for anything whose WRONG value is not acceptable for a frame:
  * redirects and route gates, navigation items, tab sets, layout switches.
  *
- * Returns `'loading'` until the answer arrives; render a loading state for that
- * branch — the chrome's own skeleton, not a guess. Callers must not collapse
- * `'loading'` into `'off'`; that is the bug this hook exists to prevent.
+ * Returns `'loading'` until the answer arrives; while it does, render the same
+ * component in a loading scope (it draws its own skeleton), not a guess. Callers
+ * must not collapse `'loading'` into `'off'`; that is the bug this hook exists to
+ * prevent.
  *
  * ```tsx
  * const gate = useFeatureFlagGate('insights');
- * if (gate === 'loading') return <TabBarSkeleton widths={TAB_WIDTHS} />;
  * if (gate === 'off') { redirect(); return null; }
+ * return <LoadingWhen loading={gate === 'loading'}><SettingsTabs … /></LoadingWhen>;
  * ```
  */
 export function useFeatureFlagGate(flagName: FeatureFlagName, envFallback?: boolean): FeatureFlagGate {

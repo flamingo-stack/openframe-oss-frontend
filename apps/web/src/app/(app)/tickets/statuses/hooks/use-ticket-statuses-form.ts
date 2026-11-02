@@ -20,7 +20,7 @@ export interface ReplacementOption {
 }
 
 export function useTicketStatusesForm() {
-  const { data } = useTicketStatusesQuery();
+  const { data, isLoading } = useTicketStatusesQuery();
   const { data: transitionRules } = useTicketStatusTransitionRules();
   const saveMutation = useSaveTicketStatusesMutation();
   const deleteMutation = useDeleteTicketStatusMutation();
@@ -110,6 +110,8 @@ export function useTicketStatusesForm() {
     deleteMutation,
     onValidSubmit,
     onInvalidSubmit,
+    /** The statuses query has not answered yet: the view draws itself in a loading scope. */
+    isLoading,
     canDelete: fieldArray.fields.length > 1,
     systemStatuses: data?.systemStatuses ?? [],
     persistedCustomIds,

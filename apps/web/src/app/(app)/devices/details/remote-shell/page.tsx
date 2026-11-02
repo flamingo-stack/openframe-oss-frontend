@@ -1,14 +1,14 @@
 'use client';
 
-import { Button, PageLayout, TruncateText } from '@flamingo-stack/openframe-frontend-core';
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { Button, PageLayout } from '@flamingo-stack/openframe-frontend-core';
 import { getDeviceName } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { TerminalSquareIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { RemoteShellDeviceBar } from '@/app/(app)/devices/components/remote-shell/remote-shell-device-bar';
 import { useDeviceDetails } from '@/app/(app)/devices/hooks/use-device-details';
 import { getMeshCentralBlockedCopy, getToolConnectionState } from '@/app/(app)/devices/utils/tool-connection-status';
 import { CONTEXT_ENTITY_KIND } from '@/app/(app)/mingo/context/context-types';
@@ -67,6 +67,7 @@ function RemoteShellSession() {
   // (the parent detail page unmounted on navigation, clearing its own openView).
   useTrackOpenView(
     deviceDetails ? { type: CONTEXT_ENTITY_KIND.DEVICE, id: deviceId, label: deviceName || deviceId } : null,
+    { loading: isDeviceLoading },
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -136,12 +137,10 @@ function RemoteShellSession() {
       // without the window changing size.
       const resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(container);
-      const disposeResize = term.onResize(() => handleResize);
       const disposeData = term.onData((d: string) => tunnelRef.current?.sendBinary(new TextEncoder().encode(d)));
 
       cleanupRef.current = () => {
         resizeObserver.disconnect();
-        disposeResize.dispose();
         disposeData.dispose();
         tunnelRef.current?.stop();
         term.dispose();
@@ -211,19 +210,23 @@ function RemoteShellSession() {
           onConsoleMessage: msg => {
             if (msg) toastRef.current({ title: 'Remote Shell', description: msg, variant: 'default' });
           },
-          onRequestPairing: async relayId => {
+          onRequestPairing: async (relayId, tunnelKey) => {
             try {
               const ctrl = controlRef.current;
               if (!ctrl) return;
+              // Before the await: with the control socket down, its authcookie reply sends this relay id.
+              ctrl.sendRelayTunnel(tunnelKey, meshcentralAgentId, relayId, 1);
               await ctrl.openSession();
               const cookies = await ctrl.getAuthCookies();
               tunnelRef.current?.updateAuthCookie(cookies.authCookie);
-              ctrl.sendRelayTunnel(meshcentralAgentId, relayId, 1);
             } catch {
               // The re-announce races the socket coming back. If it loses, the tunnel raises its own state change and the retry path above runs again — throwing out of a reconnect callback would strand the session instead.
             }
           },
-          onStateChange: s => setState(s),
+          onStateChange: (s, tunnelKey) => {
+            if (s === 0) controlRef.current?.forgetTunnel(tunnelKey);
+            setState(s);
+          },
         });
         tunnelRef.current = tunnel;
         try {
@@ -259,44 +262,8 @@ function RemoteShellSession() {
 
   const shellLabel = shellType === 'powershell' ? 'PowerShell' : 'Terminal';
 
-  // Loading skeleton
-  if (isDeviceLoading) {
-    return (
-      <LoadingRegion label="Loading device" className="flex h-full flex-col overflow-hidden p-4 content-md:p-6">
-        <div className="flex-shrink-0 bg-ods-bg py-2">
-          <div className="flex items-center gap-2">
-            <UnifiedSkeleton className="h-6 w-6 rounded" />
-            <UnifiedSkeleton className="h-5 w-28 rounded" />
-          </div>
-        </div>
-        <div className="mb-2 flex flex-shrink-0 items-center justify-between rounded-md border border-ods-border bg-ods-card px-4 py-2">
-          <div className="flex items-center gap-4">
-            <div className="rounded-md border border-ods-border bg-ods-card p-2">
-              <UnifiedSkeleton className="h-4 w-4 rounded" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <UnifiedSkeleton className="h-5 w-48 rounded" />
-              <UnifiedSkeleton className="h-4 w-36 rounded" />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <UnifiedSkeleton className="h-10 w-24 rounded-md" />
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 pb-4">
-          <div className="flex h-full items-center justify-center overflow-hidden rounded-lg border border-ods-border bg-ods-card">
-            <div className="flex flex-col items-center gap-4">
-              <TerminalSquareIcon className="h-16 w-16 text-ods-border" />
-              <UnifiedSkeleton className="h-4 w-48 rounded" />
-            </div>
-          </div>
-        </div>
-      </LoadingRegion>
-    );
-  }
-
   // Error state
-  if (deviceError) {
+  if (!isDeviceLoading && deviceError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-4 content-md:p-6">
         <div className="text-ods-error text-h4">Error: {deviceError}</div>
@@ -306,7 +273,7 @@ function RemoteShellSession() {
   }
 
   // MeshCentral connection not usable: still installing (no agent id yet) or torn down.
-  if (!meshcentralAgentId) {
+  if (!isDeviceLoading && !meshcentralAgentId) {
     const copy = getMeshCentralBlockedCopy(meshcentralState, 'Remote shell');
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 p-4 content-md:p-6">
@@ -317,53 +284,38 @@ function RemoteShellSession() {
     );
   }
 
+  // While the device is read the page draws itself: the device bar its own loading state, the terminal's frame.
   return (
-    <PageLayout
-      title="Remote Shell"
-      className="h-full px-4 pb-4 content-md:px-6 content-md:pb-6"
-      contentClassName="flex flex-col"
-      backButton={{
-        label: 'Back',
-        onClick: handleBack,
-      }}
-    >
-      <div className="mb-2 flex flex-shrink-0 items-center justify-between rounded-md border border-ods-border bg-ods-card px-4 py-2">
-        {/* Device info */}
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="shrink-0 rounded-md border border-ods-border bg-ods-card p-2">
-            <TerminalSquareIcon className="h-4 w-4 text-ods-text-primary" />
-          </div>
-          <div className="flex min-w-0 flex-col">
-            <TruncateText>{deviceName || `Device ${deviceId}`}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
-            </TruncateText>
-          </div>
-        </div>
+    <LoadingWhen loading={isDeviceLoading}>
+      <PageLayout
+        title="Remote Shell"
+        className="h-full px-4 pb-4 content-md:px-6 content-md:pb-6"
+        contentClassName="flex flex-col"
+        backButton={{
+          label: 'Back',
+          onClick: handleBack,
+        }}
+      >
+        <RemoteShellDeviceBar
+          title={deviceName || `Device ${deviceId}`}
+          subtitle={`${shellLabel}${organizationName ? ` \u2022 ${organizationName}` : ''}`}
+          status={
+            <span className={`text-h6 ${statusColor}`}>
+              {statusText}
+              {connecting ? '\u2026' : ''}
+            </span>
+          }
+          onDisconnect={() => tunnelRef.current?.stop()}
+          disconnectDisabled={state !== 3}
+        />
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-4">
-          <span className={`text-h6 ${statusColor}`}>
-            {statusText}
-            {connecting ? '\u2026' : ''}
-          </span>
-          <Button
-            onClick={() => tunnelRef.current?.stop()}
-            variant="outline"
-            className="border border-ods-border bg-ods-card text-ods-text-primary"
-            disabled={state !== 3}
-          >
-            Disconnect
-          </Button>
+        {/* Terminal */}
+        <div className="min-h-0 flex-1 pb-4">
+          <div className="h-full overflow-hidden rounded-lg bg-black">
+            <div ref={containerRef} className="h-full w-full p-2" />
+          </div>
         </div>
-      </div>
-
-      {/* Terminal */}
-      <div className="min-h-0 flex-1 pb-4">
-        <div className="h-full overflow-hidden rounded-lg bg-black">
-          <div ref={containerRef} className="h-full w-full p-2" />
-        </div>
-      </div>
-    </PageLayout>
+      </PageLayout>
+    </LoadingWhen>
   );
 }

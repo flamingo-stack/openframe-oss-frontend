@@ -1,11 +1,13 @@
 'use client';
 
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { LogEntry } from '../../logs-page/types/log.types';
 import { splitLogDetails } from '../utils/split-log-details';
 import { JsonPanel } from './json-panel';
 
 interface DetailsSectionProps {
-  logDetails: LogEntry;
+  /** Absent while the log loads: the section draws its one card's own skeleton. */
+  logDetails?: LogEntry | null;
 }
 
 /**
@@ -15,6 +17,7 @@ interface DetailsSectionProps {
  * JSON maps onto them.
  */
 export function DetailsSection({ logDetails }: DetailsSectionProps) {
+  if (useLoadingScope() || !logDetails) return <JsonPanel title="Details" value={null} loading />;
   const { input, output, outputTitle } = splitLogDetails(logDetails);
 
   return (

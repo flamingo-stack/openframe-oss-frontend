@@ -2,7 +2,7 @@
 
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { graphql, useFragment, useMutation } from 'react-relay';
 import type { moveToFolderModal_item$key } from '@/__generated__/moveToFolderModal_item.graphql';
 import type { moveToFolderModalMutation as MoveToFolderModalMutationType } from '@/__generated__/moveToFolderModalMutation.graphql';
@@ -10,7 +10,6 @@ import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import { FolderPicker } from '../shared/folder-picker';
-import { FolderPickerFallback } from '../shared/folder-picker-fallback';
 import type { FolderTarget } from '../shared/folder-tree';
 import { moveBetweenFolders } from '../shared/knowledge-base-listings';
 
@@ -105,15 +104,13 @@ export function MoveToFolderModal({ item, isOpen, onClose, listingIds }: MoveToF
       }
     >
       <p className="text-ods-text-primary text-h4">Folder Name</p>
-      <Suspense fallback={<FolderPickerFallback />}>
-        <FolderPicker
-          value={target ? target.id : undefined}
-          onSelect={setTarget}
-          // A folder cannot be moved into itself or into anything under it.
-          excludeFolderId={data.type === KnowledgeBaseItemType.FOLDER ? data.id : null}
-          disabled={isInFlight}
-        />
-      </Suspense>
+      <FolderPicker
+        value={target ? target.id : undefined}
+        onSelect={setTarget}
+        // A folder cannot be moved into itself or into anything under it.
+        excludeFolderId={data.type === KnowledgeBaseItemType.FOLDER ? data.id : null}
+        disabled={isInFlight}
+      />
     </SimpleModal>
   );
 }

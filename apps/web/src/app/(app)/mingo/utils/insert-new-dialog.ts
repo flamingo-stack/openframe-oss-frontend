@@ -32,6 +32,9 @@ const createdDialogs = new Map<string, { node: DialogNode; at: number }>();
  * Later list reads keep it there until the server returns it (see
  * `keepCreatedDialogs`).
  *
+ * `title`: a dialog the app names itself (the Getting Started tour's) is
+ * listed under that name while the rename is still on its way.
+ *
  * Lists filtered by a search term are left alone: the new chat may not match
  * it. A list that already holds the dialog is left alone too.
  */
@@ -39,16 +42,17 @@ export function insertNewDialog(
   queryClient: QueryClient,
   dialogId: string,
   owner: NewDialogOwner | null,
-  now = Date.now(),
+  { title = '', now = Date.now() }: { title?: string; now?: number } = {},
 ): void {
   const node: DialogNode = {
     id: dialogId,
     dialogId,
-    title: '',
+    title,
     status: 'ACTIVE',
     streamState: 'IDLE',
     pendingApproval: null,
     createdAt: new Date(now).toISOString(),
+    lastActivityAt: new Date(now).toISOString(),
     owner: owner
       ? {
           type: 'ADMIN',
@@ -68,6 +72,28 @@ export function insertNewDialog(
       ...data,
       pages: [{ ...first, dialogs: [node, ...first.dialogs] }, ...rest],
     });
+  }
+}
+
+/**
+ * Moves a dialog the user just wrote in to the top of every cached chat list that holds
+ * it, with its last activity now: the lists are ordered by last activity, and without
+ * this the chat stayed where it was until the next list read (up to a minute). The next
+ * read brings the server's order, which agrees. A list that does not hold the dialog is
+ * left alone.
+ */
+export function raiseDialog(queryClient: QueryClient, dialogId: string, now = Date.now()): void {
+  for (const [queryKey, data] of queryClient.getQueriesData<DialogsData>({ queryKey: mingoDialogQueryKeys.lists })) {
+    if (!data?.pages.length) continue;
+    const node = data.pages.flatMap(page => page.dialogs).find(dialog => dialog.dialogId === dialogId);
+    if (!node || data.pages[0].dialogs[0]?.dialogId === dialogId) continue;
+    const raised = { ...node, lastActivityAt: new Date(now).toISOString() };
+    const pages = data.pages.map(page => ({
+      ...page,
+      dialogs: page.dialogs.filter(dialog => dialog.dialogId !== dialogId),
+    }));
+    pages[0] = { ...pages[0], dialogs: [raised, ...pages[0].dialogs] };
+    queryClient.setQueryData<DialogsData>(queryKey, { ...data, pages });
   }
 }
 

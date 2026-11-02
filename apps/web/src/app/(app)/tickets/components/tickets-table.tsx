@@ -4,7 +4,6 @@ import { Filter02Icon } from '@flamingo-stack/openframe-frontend-core/components
 import {
   Button,
   type ColumnFiltersState,
-  DataTable,
   type DataTableSortState,
   type OnChangeFn,
   PageError,
@@ -13,9 +12,9 @@ import {
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { type ReactNode, useCallback, useMemo, useState } from 'react';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
-import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
+import { ASSIGNEE_FILTER_PAGE_SIZE, useAssigneeOptions } from '../hooks/use-assignee-options';
 import { emphasizeNewTicketAction, useTicketsActions } from '../hooks/use-tickets-actions';
-import { useTicketsQuery } from '../hooks/use-tickets-query';
+import { TICKETS_PAGE_SIZE, useTicketsQuery } from '../hooks/use-tickets-query';
 import type { TicketListSort } from '../services/ticket-service.types';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
@@ -91,6 +90,7 @@ export function TicketsTable({
   const {
     dialogs: tickets,
     isLoading,
+    isPending,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -139,8 +139,15 @@ export function TicketsTable({
   }, [isArchived, statusesQuery.data]);
 
   // Assignee filter options (value = user id) for the ASSIGNEE column header —
-  // the same list the board's Assignee autocomplete shows, flattened.
-  const assigneeOptionsQuery = useSelfFirstAssigneeOptions(!isArchived);
+  // the same list the board's Assignee autocomplete shows, flattened. The header
+  // filter has no search box, so the filtered-by users are asked for by id: a
+  // selection past the first page keeps its row.
+  const assigneeOptionsQuery = useAssigneeOptions({
+    enabled: !isArchived,
+    selectedIds: assigneeIds,
+    selfFirst: true,
+    pageSize: ASSIGNEE_FILTER_PAGE_SIZE,
+  });
   const assigneeOptions = useMemo<StatusFilterOption[] | undefined>(() => {
     if (isArchived) return undefined;
     return assigneeOptionsQuery.options.map(option => ({
@@ -197,9 +204,11 @@ export function TicketsTable({
   );
 
   const title = isArchived ? 'Archived Tickets' : 'Tickets';
-  const emptyMessage = isArchived
-    ? 'No archived tickets found. Try adjusting your search or filters.'
-    : 'No tickets found. Try adjusting your search or filters.';
+  const emptyTableState = {
+    title: isArchived
+      ? 'No archived tickets found. Try adjusting your search or filters.'
+      : 'No tickets found. Try adjusting your search or filters.',
+  };
 
   // The archive has no status/assignee/customer/new-messages filters at all.
   const hasFilterModal = !isArchived;
@@ -282,8 +291,9 @@ export function TicketsTable({
             <TicketTableBody
               tickets={tickets}
               isLoading={isLoading}
-              emptyMessage={emptyMessage}
-              skeletonRows={10}
+              isPending={isPending}
+              emptyState={emptyTableState}
+              pageSize={TICKETS_PAGE_SIZE}
               stickyHeaderOffset={stickyHeaderOffset}
               isArchived={isArchived}
               statusOptions={statusOptions}
@@ -293,14 +303,7 @@ export function TicketsTable({
               getUnreadCount={getUnreadCount}
               sort={sortState}
               onSortChange={handleSortChange}
-              footerSlot={
-                <DataTable.InfiniteFooter
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  onLoadMore={handleFetchNextPage}
-                  skeletonRows={2}
-                />
-              }
+              infiniteScroll={{ hasNextPage, isFetchingNextPage, onLoadMore: handleFetchNextPage }}
             />
           )}
         </div>

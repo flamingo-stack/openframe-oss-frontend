@@ -6,7 +6,7 @@ import {
   getDeviceName,
   getDeviceStatusConfig,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment } from 'react-relay';
 import type { softwareLogDeviceCell_machine$key } from '@/__generated__/softwareLogDeviceCell_machine.graphql';
 import { ValueText } from '@/app/components/shared';
@@ -24,7 +24,10 @@ const softwareLogDeviceCellFragment = graphql`
 
 /** DEVICE column: the type tile, the name with its status chip, when it was last online. */
 export function SoftwareLogDeviceCell({ machine }: { machine: softwareLogDeviceCell_machine$key | null | undefined }) {
-  const data = useFragment(softwareLogDeviceCellFragment, machine);
+  // A row still being read (a loading scope) has no fragment to read: the tile, the name and the last-online line
+  // draw their bars.
+  const loading = useLoadingScope();
+  const data = useFragment(softwareLogDeviceCellFragment, loading ? null : machine);
   const status = data?.status ? getDeviceStatusConfig(data.status) : null;
 
   return (
@@ -43,7 +46,7 @@ export function SoftwareLogDeviceCell({ machine }: { machine: softwareLogDeviceC
           </div>
           {status && <Tag label={status.label} variant={status.variant} />}
         </div>
-        <TruncateText variant="h6" tone="secondary">
+        <TruncateText variant="h6" tone="secondary" loading={loading}>
           {formatLastOnline(data?.lastSeen)}
         </TruncateText>
       </div>

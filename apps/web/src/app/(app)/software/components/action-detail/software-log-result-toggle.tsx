@@ -1,7 +1,7 @@
 'use client';
 
 import { Chevron02DownIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useResultPhasesContext } from './use-result-phases';
 
@@ -12,11 +12,22 @@ import { useResultPhasesContext } from './use-result-phases';
  */
 export function SoftwareLogResultToggleCell({ id }: { id: string }) {
   const { phases, toggle } = useResultPhasesContext();
-  return <SoftwareLogResultToggle open={phases.get(id) === 'open'} onToggle={() => toggle(id)} />;
+  // Static chrome: while the row is read (a loading scope) it is drawn for real and inert.
+  const loading = useLoadingScope();
+  return <SoftwareLogResultToggle open={phases.get(id) === 'open'} onToggle={() => toggle(id)} disabled={loading} />;
 }
 
 /** The row's "Show Result" / "Hide Result" control. */
-export function SoftwareLogResultToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function SoftwareLogResultToggle({
+  open,
+  onToggle,
+  disabled = false,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  /** Drawn for real and inert (a row still being read). */
+  disabled?: boolean;
+}) {
   const chevron = (
     <Chevron02DownIcon
       className={cn('transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-180')}
@@ -29,7 +40,14 @@ export function SoftwareLogResultToggle({ open, onToggle }: { open: boolean; onT
           don't resize it; `fullWidth` keeps the chevron flush right. Below md the
           column is one icon wide. */}
       <div className="hidden w-[176px] content-md:block">
-        <Button variant="outline" fullWidth onClick={onToggle} aria-expanded={open} splitIcon={chevron}>
+        <Button
+          variant="outline"
+          fullWidth
+          onClick={onToggle}
+          disabled={disabled}
+          aria-expanded={open}
+          splitIcon={chevron}
+        >
           <ToggleLabel open={open} />
         </Button>
       </div>
@@ -37,6 +55,7 @@ export function SoftwareLogResultToggle({ open, onToggle }: { open: boolean; onT
         variant="outline"
         size="icon"
         onClick={onToggle}
+        disabled={disabled}
         aria-expanded={open}
         aria-label={label}
         leftIcon={chevron}

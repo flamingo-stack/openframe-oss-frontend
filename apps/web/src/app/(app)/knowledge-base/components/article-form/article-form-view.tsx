@@ -1,7 +1,8 @@
 'use client';
 
-import { type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useMemo, useState } from 'react';
+import { LoadingWhen, type PageActionButton, PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { useMemo, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { useAssignedItems } from '@/components/assignments';
 import { KnowledgeBaseArticleStatus } from '@/generated/schema-enums';
@@ -10,8 +11,6 @@ import { ArticleFormFields } from './article-form-fields';
 import type { ArticleFormRecord, StoredArticle } from './article-form-record';
 import { ArticleRecordLoader } from './article-record-loader';
 import { useArticleForm } from './use-article-form';
-
-const NO_TAGS: ArticleFormRecord['tags'] = [];
 
 interface ArticleFormViewProps {
   /** The article edited; null creates one. */
@@ -77,21 +76,17 @@ export function ArticleFormView({ articleId, initialFolderId = null }: ArticleFo
       backButton={{ label: 'Back', onClick: handleBack }}
       actions={actions}
     >
-      {isEdit && (
-        <Suspense fallback={null}>
-          <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />
-        </Suspense>
-      )}
-      {/* Locked fields announce nothing on their own; the text switches, the live region stays mounted. */}
-      <span role="status" className="sr-only">
-        {isLoaded ? '' : 'Loading article…'}
-      </span>
-      <ArticleFormFields
-        form={form}
-        disabled={!isLoaded || isSubmitting}
-        initialTags={record?.tags ?? NO_TAGS}
-        attachments={attachments}
-      />
+      {/* The record's island renders nothing; its own boundary announces "Loading article" while it loads. */}
+      {isEdit && <ArticleRecordLoader articleId={articleId} onResolved={setRecord} />}
+      {/* Until the article and its assignments have seeded the form, the fields draw their own loading states. */}
+      <LoadingWhen loading={!isLoaded}>
+        <ArticleFormFields
+          form={form}
+          disabled={!isLoaded || isSubmitting}
+          initialTags={record?.tags ?? NO_ITEMS}
+          attachments={attachments}
+        />
+      </LoadingWhen>
     </PageLayout>
   );
 }

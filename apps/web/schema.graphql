@@ -679,9 +679,16 @@ enum DirectoryCapability {
 }
 
 """
-Narrowing for directoryConnections. Free-text search is all the Tenants list needs today; further
-dimensions become optional fields here, so adding one never changes the query's signature.
+Narrowing for directoryConnections beside the free-text search. Every field is optional and an empty list
+narrows nothing; further dimensions become optional fields here, so adding one never changes the query's signature.
 """
+input DirectoryConnectionFilterInput {
+  """
+  Only connections whose last sync ended in one of these statuses, e.g. [ERROR] for the failed-sync row.
+  """
+  lastSyncStatuses: [DirectorySyncStatus!]
+}
+
 type DirectoryConnection {
   """
   Config document id — passed as connectionId to every per-connection query/mutation.
@@ -1294,6 +1301,11 @@ input InsightFilter {
   organizationIds: [String!]
   machineIds: [String!]
   types: [InsightType!]
+
+  """
+  Explicit kinds, e.g. DISK_SPACE_LOW. Combined with types, only the kinds of those types remain.
+  """
+  kinds: [InsightKind!]
   severities: [InsightSeverity!]
   statuses: [InsightStatus!]
 
@@ -2041,6 +2053,16 @@ type Mutation {
   setUserOnboardingTourDialog(dialogId: String!): UserOnboardingProgress!
 
   """
+  Dev/QA only. Marks the tenant Initial Setup completed (all steps) and the current user's Get Started skipped, so the user lands straight in the app. Idempotent. Not part of the schema on stage/prod.
+  """
+  skipOnboarding: OnboardingSkipResult!
+
+  """
+  Dev/QA only. Clears the tenant Initial Setup back to a clean state so the wizard can be replayed. Idempotent. Not part of the schema on stage/prod.
+  """
+  resetTenantOnboarding: TenantOnboardingProgress!
+
+  """
   Create a new schedule. Returns the created schedule with its server-assigned id.
   """
   createScriptSchedule(input: CreateScriptScheduleInput!): ScriptSchedule!
@@ -2415,6 +2437,35 @@ type Mutation {
   first, then buy.
   """
   purchaseTokens(amountUsd: Float!): TokenPurchase!
+
+  """
+  One invitation per email, 1-100 emails. An email that cannot be invited (malformed, listed twice, already
+  invited, an existing user, a blocked domain, or its email could not be sent) is a userError with field
+  ["emails", "<index>"]; the rest are sent.
+  """
+  inviteUsers(input: InviteUsersInput!): InviteUsersPayload!
+
+  """Only a pending invitation can be revoked."""
+  revokeInvitation(input: RevokeInvitationInput!): RevokeInvitationPayload!
+
+  """
+  Only an expired invitation can be resent: a new invitation replaces it and the old one is revoked.
+  """
+  resendInvitation(input: ResendInvitationInput!): ResendInvitationPayload!
+
+  """Renames an ACTIVE user; a null name is kept."""
+  updateUser(input: UpdateUserInput!): UpdateUserPayload!
+
+  """
+  Soft delete: DELETED, or SELF_DELETED (anonymized) for your own account. The owner cannot be deleted;
+  transfer ownership first. Deleting a user who is not ACTIVE changes nothing.
+  """
+  deleteUser(input: DeleteUserInput!): DeleteUserPayload!
+
+  """
+  Owner only: the new owner (an ACTIVE user) becomes OWNER, you become ADMIN.
+  """
+  transferOwnership(input: TransferOwnershipInput!): TransferOwnershipPayload!
 }
 
 input MutationDeleteInput {
@@ -2475,6 +2526,9 @@ enum NotificationCategory {
 type NotificationConnection {
   edges: [NotificationEdge!]!
   pageInfo: PageInfo!
+
+  """Number of notifications matching the filter and search, across all pages."""
+  filteredCount: Int!
 }
 
 type NotificationEdge {
@@ -2489,6 +2543,17 @@ enum NotificationEntityType {
 
 input NotificationFilterInput {
   read: Boolean
+
+  """Only notifications of these categories; omitted or empty does not narrow."""
+  categories: [NotificationCategory!]
+
+  """
+  Only these notification types, by their persisted name (e.g. TICKET_APPROVAL_REQUEST, MINGO_APPROVAL_REQUEST); omitted or empty does not narrow.
+  """
+  types: [String!]
+
+  """Only these severities; omitted or empty does not narrow."""
+  severities: [NotificationSeverity!]
 }
 
 enum NotificationReadStatus {
@@ -2549,6 +2614,15 @@ input NotificationTypeSettingInput {
 
 """A Mongo ObjectId; malformed input is rejected at the schema boundary."""
 scalar ObjectId
+
+"""Dev/QA only: both progress records after a tester skipped onboarding."""
+type OnboardingSkipResult {
+  """Tenant Initial Setup, now completed with every step done."""
+  tenant: TenantOnboardingProgress!
+
+  """Current user's Get Started, now skipped."""
+  user: UserOnboardingProgress!
+}
 
 """OpenframeProduct enum represents available product features."""
 enum OpenframeProduct {
@@ -2953,6 +3027,24 @@ type ProductOption {
   priceTiers: [PriceTier!]
   quantity: Int
   status: SubscriptionProductStatus
+}
+
+"""One purchase of prepaid AI tokens and what is left of it."""
+type PurchasedTokenPack {
+  """When the pack was credited."""
+  purchasedAt: Instant!
+  tokensPurchased: Long!
+  tokensRemaining: Long!
+
+  """
+  The first instant the pack can no longer be spent; null when it never expires.
+  """
+  expiresAt: Instant
+
+  """
+  The last day the pack can be spent, the date printed on the invoice; null when it never expires.
+  """
+  validUntil: Date
 }
 
 enum PushPlatform {
@@ -3466,6 +3558,7 @@ type Query {
     and is never widened by this.
     """
     search: String
+    filter: DirectoryConnectionFilterInput
     first: Int
     after: String
   ): DirectoryConnectionConnection!
@@ -3503,6 +3596,42 @@ type Query {
   The standing automatic top-up arrangement, including why the system switched it off if it did.
   """
   autoTopUpSettings: AutoTopUpSettings!
+
+  """
+  Users of the tenant, ordered by email.
+  search: every whitespace-separated word must match the first name, last name or email
+  (a self-deleted user's placeholder email is not matched). Up to 200 characters.
+  """
+  users(
+    filter: UserFilterInput
+    search: String
+
+    """1-100, default 20."""
+    first: Int
+    after: String
+  ): UserConnection!
+
+  """
+  Open invitations (not accepted, not revoked), newest first. search matches the email; up to 200 characters.
+  """
+  invitations(
+    filter: InvitationFilterInput
+    search: String
+
+    """1-100, default 20."""
+    first: Int
+    after: String
+  ): InvitationConnection!
+
+  """
+  The users list's funnels: every status and role, each with how many users the list would show with it ticked
+  alone in its funnel. Counted under the search, the exclusions and the other funnel's ticks, but not its own
+  funnel's, so ticking within a funnel keeps all of it on offer.
+  """
+  userFilters(filter: UserFilterInput, search: String): UserFilters!
+
+  """The open invitations list's funnels, counted the way userFilters counts."""
+  invitationFilters(filter: InvitationFilterInput, search: String): InvitationFilters!
 }
 
 """
@@ -5385,6 +5514,26 @@ type SubscriptionUsage {
   """Total managed devices (active + inactive)."""
   devicesUsed: Int!
 
+  """
+  Devices used against devicesLimit: devicesUsed - devicesCommittedOverage.
+  """
+  devicesUsedAgainstLimit: Int!
+
+  """
+  Devices frozen as overage at in-period package upgrades this billing period.
+  """
+  devicesCommittedOverage: Int!
+
+  """
+  Device allowance this billing period: the package at period start plus what each in-period upgrade paid for.
+  """
+  devicesLimit: Int!
+
+  """
+  Devices billed as overage this period: devicesCommittedOverage + max(0, devicesUsedAgainstLimit - devicesLimit).
+  """
+  devicesOverage: Int!
+
   """Devices currently online."""
   activeDevices: Int!
 
@@ -5425,6 +5574,12 @@ type SubscriptionUsage {
   is settled by the next purchase and is not reported here.
   """
   purchasedTokensRemaining: Long!
+
+  """
+  Every purchased pack that can still be spent, oldest first (the order tokens are used in), with when it
+  expires. Packs past their expiry are not listed. Remaining is per pack, before any debt is settled.
+  """
+  purchasedTokenPacks: [PurchasedTokenPack!]!
 }
 
 """ Tag key definition (shared across all entity types)"""
@@ -5930,16 +6085,203 @@ input UpdateTimeEntryInput {
   durationSeconds: Long
 }
 
-" Minimal User type for KB author resolution.\n TODO: Extract to shared schema or replace after user management module."
+"""A person who signs in to the tenant."""
 type User implements Node {
   id: ID!
   firstName: String
   lastName: String
-  email: String
 
-  """ACTIVE, DELETED or SELF_DELETED"""
-  status: String
+  """
+  The sign-in address; a placeholder once the user deleted their own account.
+  """
+  email: String!
+
+  """Whether the user confirmed the email address."""
+  emailVerified: Boolean!
+  status: UserStatus!
+
+  """Effective roles: an OWNER is an ADMIN too."""
+  roles: [UserRole!]!
   image: UserImage
+}
+
+enum UserStatus {
+  ACTIVE
+
+  """
+  Deleted by an admin; personal data is kept and a re-invite revives the account.
+  """
+  DELETED
+
+  """Deleted by the user; personal data is anonymized."""
+  SELF_DELETED
+}
+
+enum UserRole {
+  ADMIN
+
+  """The tenant's owner; also an ADMIN."""
+  OWNER
+}
+
+input UserFilterInput {
+  """Omit or leave empty for every status."""
+  statuses: [UserStatus!]
+
+  """
+  Effective roles, so ADMIN matches the owners too. Omit or leave empty for every role.
+  """
+  roles: [UserRole!]
+
+  """
+  Users to leave out, e.g. yourself in a picker of someone to hand something over to.
+  """
+  excludeIds: [ID!]
+}
+
+type UserFilters {
+  statuses: [UserStatusFilterOption!]!
+
+  """Effective roles, as the filter matches them: ADMIN counts the owners too."""
+  roles: [UserRoleFilterOption!]!
+}
+
+type UserStatusFilterOption {
+  value: UserStatus!
+  count: Int!
+}
+
+type UserRoleFilterOption {
+  value: UserRole!
+  count: Int!
+}
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+
+  """Users matching the filter and search, across all pages."""
+  filteredCount: Int!
+}
+
+type UserEdge {
+  node: User!
+  cursor: String!
+}
+
+"""An invitation to join the tenant, sent to an email address."""
+type Invitation implements Node {
+  id: ID!
+  email: String!
+
+  """The roles the user gets on accepting."""
+  roles: [UserRole!]!
+  status: InvitationStatus!
+  createdAt: Instant
+  expiresAt: Instant!
+}
+
+enum InvitationStatus {
+  """Sent and not yet accepted."""
+  PENDING
+
+  """Pending past expiresAt; can be resent."""
+  EXPIRED
+}
+
+input InvitationFilterInput {
+  """Omit or leave empty for both."""
+  statuses: [InvitationStatus!]
+
+  """The roles the invitee gets. Omit or leave empty for every role."""
+  roles: [UserRole!]
+}
+
+type InvitationFilters {
+  statuses: [InvitationStatusFilterOption!]!
+  roles: [UserRoleFilterOption!]!
+}
+
+type InvitationStatusFilterOption {
+  value: InvitationStatus!
+  count: Int!
+}
+
+type InvitationConnection {
+  edges: [InvitationEdge!]!
+  pageInfo: PageInfo!
+
+  """Invitations matching the filter and search, across all pages."""
+  filteredCount: Int!
+}
+
+type InvitationEdge {
+  node: Invitation!
+  cursor: String!
+}
+
+input InviteUsersInput {
+  """1-100 addresses."""
+  emails: [String!]!
+}
+
+type InviteUsersPayload {
+  """The invitations sent, in input order."""
+  invitationEdges: [InvitationEdge!]!
+
+  """One per email that was not invited."""
+  userErrors: [MutationError!]!
+}
+
+input RevokeInvitationInput {
+  id: ID!
+}
+
+type RevokeInvitationPayload {
+  revokedInvitationId: ID!
+}
+
+input ResendInvitationInput {
+  id: ID!
+}
+
+type ResendInvitationPayload {
+  """The replacement, with a new id."""
+  invitationEdge: InvitationEdge!
+  revokedInvitationId: ID!
+}
+
+input UpdateUserInput {
+  id: ID!
+
+  """Up to 128 characters; null keeps the current one."""
+  firstName: String
+
+  """Up to 128 characters; null keeps the current one."""
+  lastName: String
+}
+
+type UpdateUserPayload {
+  user: User!
+}
+
+input DeleteUserInput {
+  id: ID!
+}
+
+type DeleteUserPayload {
+  """The user after the delete, with the new status."""
+  user: User!
+}
+
+input TransferOwnershipInput {
+  newOwnerId: ID!
+}
+
+type TransferOwnershipPayload {
+  """You, now an ADMIN."""
+  previousOwner: User!
+  newOwner: User!
 }
 
 """

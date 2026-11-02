@@ -31,7 +31,7 @@ export default function ReadOnlyLockContent() {
   // Waiting on the role shows the fact and neither remedy: the refusal is wrong
   // for an owner, and the button is wrong for a member.
   if (access === 'loading') {
-    return <WorkspaceInactiveScreen title={copy.title} description="Checking your access…" />;
+    return <WorkspaceInactiveScreen title={copy.title} loading />;
   }
 
   return (

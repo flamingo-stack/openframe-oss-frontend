@@ -18,7 +18,8 @@ import { z } from 'zod';
 import type { createTimeEntryMutation as CreateTimeEntryMutationType } from '@/__generated__/createTimeEntryMutation.graphql';
 import type { updateTimeEntryMutation as UpdateTimeEntryMutationType } from '@/__generated__/updateTimeEntryMutation.graphql';
 import { avatarStartAdornment, renderAvatarOption } from '@/app/(app)/tickets/components/avatar-autocomplete';
-import { type AvatarOption, useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-ticket-options';
+import { useAssigneeOptions } from '@/app/(app)/tickets/hooks/use-assignee-options';
+import type { AvatarOption } from '@/app/(app)/tickets/hooks/use-ticket-options';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
 import { useTicketCustomerSelection } from '@/app/components/use-ticket-customer-selection';
 import { createTimeEntryMutation } from '@/graphql/time-tracker/create-time-entry-mutation';
@@ -71,7 +72,7 @@ function AssignedUserField({
   // The pre-selected user (create default or edited entry's user)
   seedOption?: AvatarOption;
 }) {
-  const { options, isLoading } = useAssigneeOptions();
+  const { options, isLoading, onSearchChange } = useAssigneeOptions({ selectedIds: [value] });
   const mergedOptions = useMemo(() => {
     if (!seedOption || options.some(option => option.value === seedOption.value)) return options;
     return [seedOption, ...options];
@@ -79,13 +80,15 @@ function AssignedUserField({
   const selected = mergedOptions.find(option => option.value === value);
   return (
     <div className="space-y-2">
-      <Label>Employee</Label>
+      <Label variant="large">Employee</Label>
       <Autocomplete
         placeholder="Select Employee"
         value={selected ? value : null}
         onChange={onChange}
         options={mergedOptions}
+        onInputChange={onSearchChange}
         loading={isLoading}
+        disableClientFilter
         startAdornment={avatarStartAdornment(selected, 'round')}
         renderOption={renderUserOption}
       />
@@ -323,7 +326,7 @@ export function ManualEntryModal({
       )}
 
       <div className="space-y-2">
-        <Label>Work Time</Label>
+        <Label variant="large">Work Time</Label>
         <Controller
           name="workTime"
           control={control}
@@ -335,7 +338,7 @@ export function ManualEntryModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Date</Label>
+        <Label variant="large">Date</Label>
         <Controller
           name="startedAt"
           control={control}
@@ -354,7 +357,7 @@ export function ManualEntryModal({
 
       <div className="grid grid-cols-2 gap-[var(--spacing-system-m)]">
         <div className="space-y-2">
-          <Label>Ticket</Label>
+          <Label variant="large">Ticket</Label>
           <Autocomplete
             placeholder="Select Ticket"
             value={ticketCustomer.ticketId}
@@ -369,7 +372,7 @@ export function ManualEntryModal({
         </div>
 
         <div className="space-y-2">
-          <Label>Customer</Label>
+          <Label variant="large">Customer</Label>
           <Autocomplete
             placeholder="Select Customer"
             value={ticketCustomer.customerId}
@@ -388,7 +391,7 @@ export function ManualEntryModal({
       </div>
 
       <div className="space-y-2">
-        <Label>Notes</Label>
+        <Label variant="large">Notes</Label>
         <Textarea
           placeholder="Additional Notes (optional if ticket selected)"
           rows={4}

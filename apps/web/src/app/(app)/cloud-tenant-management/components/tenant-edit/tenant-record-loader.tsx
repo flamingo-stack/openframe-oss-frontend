@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { tenantRecordLoaderQuery as TenantRecordLoaderQueryType } from '@/__generated__/tenantRecordLoaderQuery.graphql';
@@ -30,10 +32,27 @@ interface TenantRecordLoaderProps {
 }
 
 /**
- * The Edit page's data island: it draws the identity card and hands the record up, where the owner
- * of `useForm` seeds the form (`useSeedForm` — the write cannot happen here).
+ * The Edit page's data island, with its own boundary: it draws the identity card and hands the record up, where the
+ * owner of `useForm` seeds the form (`useSeedForm` — the write cannot happen here).
  */
-export function TenantRecordLoader({ id, onResolved }: TenantRecordLoaderProps) {
+export function TenantRecordLoader(props: TenantRecordLoaderProps) {
+  return (
+    <LoadingSuspense label="Loading tenant">
+      <TenantRecordLoaderReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function TenantRecordLoaderReader(props: TenantRecordLoaderProps) {
+  // In a loading scope (its boundary's fallback, or the module's flag window): the card's own loading state, and
+  // nothing read or handed up.
+  if (useLoadingScope()) {
+    return <TenantIdentityCard connection={null} />;
+  }
+  return <TenantRecordQuery {...props} />;
+}
+
+function TenantRecordQuery({ id, onResolved }: TenantRecordLoaderProps) {
   const retryKey = useRetryKey();
   const { directoryConnection: connection } = useLazyLoadQuery<TenantRecordLoaderQueryType>(
     tenantRecordLoaderQuery,

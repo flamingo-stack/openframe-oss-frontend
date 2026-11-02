@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { ticketService } from '@/app/(app)/tickets/services';
 import { useTicketStatusesQuery } from '@/app/(app)/tickets/statuses/hooks/use-ticket-statuses-query';
 import { TICKET_STATUS_KIND } from '@/app/(app)/tickets/utils/ticket-statistics';
+import { NO_ITEMS } from '@/app/components/shared';
 import { postGraphQl } from './graphql';
 import type { AssignmentTargetType } from './types';
 
@@ -96,8 +97,6 @@ const SERVER_SEARCH_FETCHERS: Partial<
   DEVICE: fetchDevices,
 };
 
-const EMPTY_OPTIONS: AssignmentSearchOption[] = [];
-
 function useServerSearchOptions(
   targetType: AssignmentTargetType,
   search: string,
@@ -118,13 +117,13 @@ function useServerSearchOptions(
     queryKey: ['assignments', 'search', targetType, debouncedSearch, isTicket ? nonArchivedStatusIds : undefined],
     queryFn: () => {
       if (isTicket) return fetchTickets(debouncedSearch, nonArchivedStatusIds ?? []);
-      return fetcher ? fetcher(debouncedSearch) : Promise.resolve(EMPTY_OPTIONS);
+      return fetcher ? fetcher(debouncedSearch) : Promise.resolve(NO_ITEMS);
     },
     enabled: enabled && (isTicket ? !!nonArchivedStatusIds?.length : !!fetcher),
     staleTime: 30_000,
   });
   return {
-    options: query.data ?? EMPTY_OPTIONS,
+    options: query.data ?? NO_ITEMS,
     isLoading: query.isLoading || (isTicket && statusesQuery.isLoading),
   };
 }
@@ -141,7 +140,7 @@ function useKnowledgeArticleOptions(
   });
   const debouncedSearch = useDebounce(search, 300);
   const options = useMemo(() => {
-    const all = query.data ?? EMPTY_OPTIONS;
+    const all = query.data ?? NO_ITEMS;
     const needle = debouncedSearch.trim().toLowerCase();
     if (!needle) return all;
     return all.filter(opt => opt.label.toLowerCase().includes(needle));

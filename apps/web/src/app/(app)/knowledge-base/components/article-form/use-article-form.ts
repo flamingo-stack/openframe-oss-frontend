@@ -6,15 +6,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
+import { NO_ITEMS } from '@/app/components/shared';
 import { safeBackOrReplace } from '@/app/hooks/use-safe-back';
 import { useSeedForm } from '@/app/hooks/use-seed-form';
 import { routes } from '@/lib/routes';
-import type { StoredArticle, StoredAttachment } from './article-form-record';
+import type { StoredArticle } from './article-form-record';
 import { ARTICLE_FORM_DEFAULTS, type ArticleFormData, articleFormSchema } from './article-form.types';
 import { useArticleAttachments } from './use-article-attachments';
 import { type SaveStatus, useSaveArticle } from './use-save-article';
-
-const NO_ATTACHMENTS: ReadonlyArray<StoredAttachment> = [];
 
 interface UseArticleFormOptions {
   /** The article edited; null creates one. */
@@ -40,7 +39,7 @@ export function useArticleForm({ articleId, initialFolderId, stored }: UseArticl
   });
   useSeedForm(form, stored?.values ?? null);
 
-  const attachments = useArticleAttachments(stored?.attachments ?? NO_ATTACHMENTS);
+  const attachments = useArticleAttachments(stored?.attachments ?? NO_ITEMS);
   const { save, isSaving } = useSaveArticle();
 
   // Set on the click: `handleSubmit` awaits the resolver, so a second click can land

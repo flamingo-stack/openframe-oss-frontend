@@ -1,10 +1,5 @@
 'use client';
 
-import {
-  FlamingoMarkIcon,
-  OpenframeLogoIcon,
-  OpenframeTextIcon,
-} from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -14,6 +9,8 @@ import {
   DELETED_ACCOUNT_ORG_STORAGE_KEY,
 } from '@/app/(app)/settings/hooks/use-account-deletion';
 import { authSessionQueryKey } from '@/app/(auth)/auth/hooks/use-auth-session';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
+import { PoweredByFlamingo } from '@/app/components/shared/powered-by-flamingo';
 import { forceLogout } from '@/lib/force-logout';
 import { isAppShell } from '@/lib/platform';
 import { routes } from '@/lib/routes';
@@ -104,14 +101,7 @@ export default function AccountDeletedPage() {
     // insets and the status bar cropped the logo.
     <div className="of-standalone-shell flex min-h-screen flex-col items-center justify-between bg-ods-bg p-[var(--spacing-system-xlf)]">
       {/* Logo */}
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
+      <OpenframeLockup />
 
       {/* Content */}
       <div className="flex max-w-[600px] flex-col items-center gap-[var(--spacing-system-mf)] text-center">
@@ -126,16 +116,7 @@ export default function AccountDeletedPage() {
       </div>
 
       {/* Footer */}
-      <a
-        href="https://flamingo.run"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-[var(--spacing-system-xsf)] rounded-md bg-transparent p-[var(--spacing-system-mf)] text-ods-text-secondary transition-colors hover:bg-ods-bg-hover"
-      >
-        <span className="text-h6">Powered by</span>
-        <FlamingoMarkIcon className="h-5 w-5" color="currentColor" />
-        <span className="font-semibold text-code">Flamingo</span>
-      </a>
+      <PoweredByFlamingo />
     </div>
   );
 }

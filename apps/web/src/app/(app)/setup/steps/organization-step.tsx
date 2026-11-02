@@ -14,6 +14,9 @@ type Action = 'skip' | 'continue';
  * data layer as the settings "Edit Organization" form. "Continue" saves and then
  * persists the step; "Skip this Step" persists it as is. The logo uploads on
  * pick, as it does everywhere else the tenant logo is edited.
+ *
+ * "Continue" waits for something to brand with: a logo or a website, at least
+ * one of them, besides the name. With neither, the way on is "Skip this Step".
  */
 export function OrganizationStep({
   onSkip,
@@ -49,6 +52,7 @@ export function OrganizationStep({
   }
 
   const busy = updateTenantInfo.isPending || persisting;
+  const hasBranding = Boolean(logo.imageUrl) || website.trim() !== '';
 
   const handleContinue = () => {
     setAction('continue');
@@ -74,6 +78,7 @@ export function OrganizationStep({
           <Input
             id="setup-org-name"
             label="Organization Name"
+            labelVariant="large"
             value={name}
             onChange={event => setName(event.target.value)}
             disabled={busy}
@@ -82,6 +87,7 @@ export function OrganizationStep({
           <Input
             id="setup-org-website"
             label="Organization Website"
+            labelVariant="large"
             value={website}
             onChange={event => setWebsite(event.target.value)}
             disabled={busy}
@@ -112,7 +118,7 @@ export function OrganizationStep({
             variant="accent"
             onClick={handleContinue}
             loading={action === 'continue' && busy}
-            disabled={!name.trim() || busy || logo.isBusy}
+            disabled={!name.trim() || !hasBranding || busy || logo.isBusy}
           >
             Continue
           </Button>

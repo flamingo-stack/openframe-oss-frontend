@@ -17,6 +17,8 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A10000000000000000000002 /* NativeAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* NativeAuthPlugin.swift */; };
 		A10000000000000000000004 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000003 /* MainViewController.swift */; };
+		A1000000000000000000001A /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* SceneDelegate.swift */; };
+		A1000000000000000000001C /* ExternalLinksPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* ExternalLinksPlugin.swift */; };
 		A10000000000000000000008 /* NativeFilesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007 /* NativeFilesPlugin.swift */; };
 		A10000000000000000000010 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000000F /* TokenStore.swift */; };
 		A10000000000000000000012 /* TokenLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* TokenLifecycle.swift */; };
@@ -40,6 +42,8 @@
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000001 /* NativeAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAuthPlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000003 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		A10000000000000000000019 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		A1000000000000000000001B /* ExternalLinksPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalLinksPlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000007 /* NativeFilesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFilesPlugin.swift; sourceTree = "<group>"; };
 		A1000000000000000000000F /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* TokenLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenLifecycle.swift; sourceTree = "<group>"; };
@@ -85,9 +89,11 @@
 				D2330B093010BA22007F4D5F /* GoogleService-Info.plist */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				A10000000000000000000019 /* SceneDelegate.swift */,
 				A10000000000000000000003 /* MainViewController.swift */,
 				A10000000000000000000001 /* NativeAuthPlugin.swift */,
 				A10000000000000000000007 /* NativeFilesPlugin.swift */,
+				A1000000000000000000001B /* ExternalLinksPlugin.swift */,
 				A1000000000000000000000F /* TokenStore.swift */,
 				A10000000000000000000011 /* TokenLifecycle.swift */,
 				A10000000000000000000013 /* NotificationActions.swift */,
@@ -207,9 +213,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A1000000000000000000001A /* SceneDelegate.swift in Sources */,
 				A10000000000000000000004 /* MainViewController.swift in Sources */,
 				A10000000000000000000002 /* NativeAuthPlugin.swift in Sources */,
 				A10000000000000000000008 /* NativeFilesPlugin.swift in Sources */,
+				A1000000000000000000001C /* ExternalLinksPlugin.swift in Sources */,
 				A10000000000000000000010 /* TokenStore.swift in Sources */,
 				A10000000000000000000012 /* TokenLifecycle.swift in Sources */,
 				A10000000000000000000014 /* NotificationActions.swift in Sources */,

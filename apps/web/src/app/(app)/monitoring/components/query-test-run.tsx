@@ -8,7 +8,7 @@ import { useLiveCampaign, type UseLiveCampaignOptions } from '../hooks/use-live-
  * Fleet-flavored wrapper over the core lib's test-run state machine: binds
  * `useTestRunState` (run/stop/reset flow, duration ticking, display flags)
  * to this app's Fleet live-campaign transport. The UI building blocks
- * (TimingStat, TestRunResults, TestResultsSkeleton/Table) come from the lib.
+ * (TimingStat, TestRunResults, TestResultsTable) come from the lib.
  */
 export function useQueryTestRun(options?: UseLiveCampaignOptions) {
   const campaign = useLiveCampaign(options);

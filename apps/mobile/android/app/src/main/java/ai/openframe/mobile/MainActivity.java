@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
         // MainViewController.capacitorDidLoad registering NativeAuthPlugin).
         registerPlugin(NativeAuthPlugin.class);
         registerPlugin(NativeFilesPlugin.class);
+        registerPlugin(ExternalLinksPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AUTH_ERROR_FALLBACK, isAuthErrorRef, useAuthErrorMessage } from './use-auth-error-message';
+import { AUTH_ERROR_FALLBACK, useAuthErrorMessage } from './use-auth-error-message';
 
 const client = vi.hoisted(() => ({ authErrorMessage: vi.fn() }));
 
@@ -112,18 +112,5 @@ describe('useAuthErrorMessage', () => {
 
     expect(shown()?.getAttribute('data-loading')).toBe('false');
     expect(shown()?.textContent).toBe(AUTH_ERROR_FALLBACK.description);
-  });
-});
-
-describe('isAuthErrorRef', () => {
-  it('accepts what the auth server hands out and nothing that reads as a sentence', () => {
-    expect(isAuthErrorRef('SSO_SESSION_EXPIRED')).toBe(true);
-    expect(isAuthErrorRef('7KQ2M9XD')).toBe(true);
-    expect(isAuthErrorRef('')).toBe(false);
-    expect(isAuthErrorRef(null)).toBe(false);
-    expect(isAuthErrorRef(undefined)).toBe(false);
-    expect(isAuthErrorRef('Your account is suspended')).toBe(false);
-    expect(isAuthErrorRef('sso_session_expired')).toBe(false);
-    expect(isAuthErrorRef('<b>hi</b>')).toBe(false);
   });
 });

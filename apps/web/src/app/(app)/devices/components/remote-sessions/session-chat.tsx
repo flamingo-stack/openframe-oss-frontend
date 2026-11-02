@@ -1,9 +1,9 @@
 'use client';
 
+import { RemoteDesktopChatMessageRow } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useEffect, useRef } from 'react';
 import type { RecordingChatMessage, RecordingEmployee } from '../../types/session-recording';
-import { SessionChatMessageRow } from './session-chat-message-row';
 
 interface SessionChatProps {
   messages: RecordingChatMessage[];
@@ -35,11 +35,12 @@ export function SessionChat({ messages, employee, className }: SessionChatProps)
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollRef}
-          className="flex flex-col gap-[var(--spacing-system-xsf)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:absolute content-lg:inset-0 content-lg:overflow-y-auto"
+          className="grid grid-cols-1 content-start gap-[var(--spacing-system-xsf)] rounded-[6px] border border-ods-border bg-ods-card p-[var(--spacing-system-m)] content-lg:absolute content-lg:inset-0 content-lg:overflow-y-auto"
         >
           {messages.map(message => (
-            <SessionChatMessageRow
+            <RemoteDesktopChatMessageRow
               key={message.id}
+              data-loading-item
               authorName={message.author}
               isTechnician={message.fromTechnician}
               avatarUrl={employee.avatarUrl}

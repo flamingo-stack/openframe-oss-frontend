@@ -8,8 +8,8 @@ import {
 import { useMemo, useState } from 'react';
 import { EVENT_SUBTYPE, trackDashboardActivity } from '@/lib/analytics';
 import { useAuthStore } from '@/stores';
+import { useAssigneeOptions } from '../hooks/use-assignee-options';
 import { useTakeOverTicket } from '../hooks/use-take-over-ticket';
-import { useSelfFirstAssigneeOptions } from '../hooks/use-ticket-options';
 import { useTicketStatusesQuery } from '../statuses/hooks/use-ticket-statuses-query';
 import type { Dialog } from '../types/dialog.types';
 import { isResolvedStatusId } from '../utils/is-resolved-status';
@@ -61,7 +61,12 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
   const ticket = shown?.ticket;
 
   const currentUserId = useAuthStore(state => state.user?.id);
-  const assigneeOptions = useSelfFirstAssigneeOptions();
+  const initialAssigneeId = shown?.initialAssigneeId ?? ticket?.assignedTo ?? currentUserId ?? null;
+  const assigneeOptions = useAssigneeOptions({
+    enabled: target !== null,
+    selectedIds: [initialAssigneeId],
+    selfFirst: true,
+  });
   const { data: statusesData } = useTicketStatusesQuery();
   const takeOver = useTakeOverTicket();
 
@@ -113,8 +118,9 @@ export function TakeOverTicketModal({ target, onClose, onSuccess }: TakeOverTick
       statusOptions={statusOptions}
       assigneeOptions={assigneeOptions.options}
       assigneesLoading={assigneeOptions.isLoading}
+      onAssigneeSearchChange={assigneeOptions.onSearchChange}
       initialStatusId={shown?.initialStatusId ?? null}
-      initialAssigneeId={shown?.initialAssigneeId ?? ticket?.assignedTo ?? currentUserId ?? null}
+      initialAssigneeId={initialAssigneeId}
       isPending={takeOver.isPending}
       onConfirm={handleConfirm}
     />

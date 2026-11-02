@@ -1,5 +1,6 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   BackwardIcon,
   Collapse01Icon,
@@ -8,7 +9,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Button, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useState } from 'react';
 import type { RecordingPlaybackSpeed, RecordingPlayerState } from '@/lib/meshcentral/recording';
@@ -42,6 +43,9 @@ interface PlayerControlsProps {
  * The progress bar keeps a local value while the user drags and only commits
  * the seek on release, so the rAF-driven `currentMs` updates don't fight the
  * thumb mid-drag.
+ *
+ * In a loading scope (the recording is still read) the strip is drawn as is,
+ * every control disabled, with the clock as a bar.
  */
 export function PlayerControls({
   state,
@@ -57,8 +61,9 @@ export function PlayerControls({
   onSetSpeed,
   onToggleFullscreen,
 }: PlayerControlsProps) {
+  const loading = useLoadingScope();
   const [dragMs, setDragMs] = useState<number | null>(null);
-  const disabled = state === 'empty' || state === 'seeking';
+  const disabled = loading || state === 'empty' || state === 'seeking';
   const shownMs = dragMs ?? currentMs;
   const progress = durationMs > 0 ? Math.min(shownMs / durationMs, 1) : 0;
 
@@ -130,10 +135,17 @@ export function PlayerControls({
           disabled={disabled}
           leftIcon={<ForwardIcon className="h-6 w-6" />}
         />
-        <span className="min-w-0 flex-1 truncate text-ods-text-primary text-h4">
-          {formatTimecodeMs(shownMs)}
-          <span className="text-ods-text-secondary"> / {formatTimecodeMs(durationMs)}</span>
-        </span>
+        {loading ? (
+          // "HH:MM:SS / HH:MM:SS"
+          <span className="min-w-0 flex-1">
+            <TextLineSkeleton type="h4" className="w-[19ch] max-w-full" />
+          </span>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-ods-text-primary text-h4">
+            {formatTimecodeMs(shownMs)}
+            <span className="text-ods-text-secondary"> / {formatTimecodeMs(durationMs)}</span>
+          </span>
+        )}
         <div className="flex overflow-hidden rounded-[6px] border border-ods-border bg-ods-card">
           {SPEED_OPTIONS.map(option => (
             <button
@@ -157,6 +169,7 @@ export function PlayerControls({
           size="icon"
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           onClick={onToggleFullscreen}
+          disabled={loading}
           leftIcon={isFullscreen ? <Collapse01Icon className="h-6 w-6" /> : <Expand01Icon className="h-6 w-6" />}
         />
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Tag, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Tag, TruncateText, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { knowledgeBaseItemNameCell_item$data } from '@/__generated__/knowledgeBaseItemNameCell_item.graphql';
 import { KnowledgeBaseArticleStatus, KnowledgeBaseItemType } from '@/generated/schema-enums';
 import { ARTICLE_STATUS_VARIANT } from './article-status';
@@ -14,9 +14,12 @@ export type KnowledgeBaseItemNameProps = Omit<knowledgeBaseItemNameCell_item$dat
 
 /**
  * NAME column: the glyph, the name, the status of an article that is not live,
- * and under them the folder (where the list says it) and an article's summary.
+ * and under them the folder (where the list says it) and an article's summary. While the item is read (a loading
+ * scope, no name yet) the tile is static chrome (an article's glyph), and the name
+ * and the caption are bars.
  */
 export function KnowledgeBaseItemName({ type, name, status, summary, folder }: KnowledgeBaseItemNameProps) {
+  const loading = useLoadingScope() && !name;
   const isFolder = type === KnowledgeBaseItemType.FOLDER;
   const caption = [folder, isFolder ? null : summary].filter(Boolean).join(' · ');
   const Icon = KB_ITEM_ICON[isFolder ? KnowledgeBaseItemType.FOLDER : KnowledgeBaseItemType.ARTICLE];
@@ -36,7 +39,7 @@ export function KnowledgeBaseItemName({ type, name, status, summary, folder }: K
           </div>
           {flag && <Tag variant={ARTICLE_STATUS_VARIANT[flag]} label={flag} className="shrink-0" />}
         </div>
-        {caption && (
+        {(loading || caption) && (
           <TruncateText variant="h6" tone="secondary">
             {caption}
           </TruncateText>

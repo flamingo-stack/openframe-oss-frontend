@@ -12,15 +12,15 @@ const softwareDetailSummaryFragment = graphql`
   }
 `;
 
-/** The summary card: publisher and latest version. */
-export function SoftwareDetailSummary({ software }: { software: softwareDetailSummary_software$key }) {
-  const { publisher, latestVersion } = useFragment(softwareDetailSummaryFragment, software);
+/** The summary card: publisher and latest version. Null before the record answers (a loading scope: values are bars). */
+export function SoftwareDetailSummary({ software }: { software: softwareDetailSummary_software$key | null }) {
+  const data = useFragment(softwareDetailSummaryFragment, software);
   return (
     <SummaryCard
       columns={2}
       fields={[
-        { label: LABELS.publisher, value: publisher },
-        { label: LABELS.latestVersion, value: latestVersion },
+        { label: LABELS.publisher, value: data?.publisher },
+        { label: LABELS.latestVersion, value: data?.latestVersion },
       ]}
     />
   );

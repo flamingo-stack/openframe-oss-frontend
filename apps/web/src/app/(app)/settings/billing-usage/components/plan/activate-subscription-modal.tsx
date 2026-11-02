@@ -1,16 +1,17 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ModalV2Content, ModalV2Footer } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
+import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { ModalV2Content, ModalV2Footer, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { activateSubscriptionModal_query$key } from '@/__generated__/activateSubscriptionModal_query.graphql';
 import type { activateSubscriptionModalQuery as ActivateSubscriptionModalQueryType } from '@/__generated__/activateSubscriptionModalQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
+import { PaywallDescription } from '@/app/components/subscription-lock/paywall-header';
 import {
   getPaywallCopy,
   type PaywallCopy,
-  paywallDescription,
   PLANS_UNAVAILABLE_COPY,
 } from '@/app/components/subscription-lock/subscription-lock-copy';
 import type { SubscriptionStatus } from '@/generated/schema-enums';
@@ -72,15 +73,28 @@ export function ActivateSubscriptionModal({ isOpen, status, onClose }: ActivateS
           </ModalV2Content>
         }
       >
-        <Suspense fallback={<ActivateSubscriptionBody copy={copy} query={null} />}>
-          <ActivateSubscriptionContent copy={copy} />
-        </Suspense>
+        <ActivateSubscriptionContent copy={copy} />
       </ErrorBoundary>
     </SimpleModal>
   );
 }
 
+/** The modal's body over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
 function ActivateSubscriptionContent({ copy }: { copy: PaywallCopy }) {
+  return (
+    <LoadingSuspense label="Loading plans">
+      <ActivateSubscriptionReader copy={copy} />
+    </LoadingSuspense>
+  );
+}
+
+function ActivateSubscriptionReader({ copy }: { copy: PaywallCopy }) {
+  // In a loading scope (its boundary's fallback) it draws the body with no catalog and runs no read.
+  if (useLoadingScope()) return <ActivateSubscriptionBody copy={copy} query={null} />;
+  return <ActivateSubscriptionLive copy={copy} />;
+}
+
+function ActivateSubscriptionLive({ copy }: { copy: PaywallCopy }) {
   const data = useLazyLoadQuery<ActivateSubscriptionModalQueryType>(
     activateSubscriptionModalQuery,
     {},
@@ -107,27 +121,37 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
   return (
     <>
       <ModalV2Content className="flex flex-col gap-[var(--spacing-system-l)]">
-        <p className="text-ods-text-secondary text-h6">{paywallDescription(copy, form.deviceCount)}</p>
+        <PaywallDescription copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
         <PlanCheckoutCards query={data} form={form} />
       </ModalV2Content>
-      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
-        <PlanTotalSummary
-          total={form.selectionTotal}
-          topUpUsd={form.tokenAmountUsd}
-          showAiNote={form.showAiCard}
-          loading={form.loading}
-          className="flex-1"
-        />
-        <SubscriptionSubmitButton
-          needsCheckout
-          packageUpdates={form.packageUpdates}
-          checkoutProducts={form.checkoutProducts}
-          hasInvalidCustom={form.hasInvalidCustom}
-          tokenAmountUsd={form.tokenAmountUsd}
-          autoTopUpEnabled={form.autoTopUp}
-          validateTopUp={form.topUp.validate}
-          className="shrink-0"
-        />
+      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-sf)]">
+        {/* In the footer, not at the end of the content: the content scrolls and the footer does not, so the
+            consequence of the click is on screen whenever the button is. A trial ends the moment it is paid for. */}
+        {copy.checkoutNote && (
+          <div role="note" className="flex items-center gap-[var(--spacing-system-xsf)]">
+            <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
+            <p className="text-ods-text-secondary text-h4">{copy.checkoutNote}</p>
+          </div>
+        )}
+        <div className="flex flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
+          <PlanTotalSummary
+            total={form.selectionTotal}
+            topUpUsd={form.tokenAmountUsd}
+            showAiNote={form.showAiCard}
+            loading={form.loading}
+            className="flex-1"
+          />
+          <SubscriptionSubmitButton
+            needsCheckout
+            packageUpdates={form.packageUpdates}
+            checkoutProducts={form.checkoutProducts}
+            hasInvalidCustom={form.hasInvalidCustom}
+            tokenAmountUsd={form.tokenAmountUsd}
+            autoTopUpEnabled={form.autoTopUp}
+            validateTopUp={form.topUp.validate}
+            className="shrink-0"
+          />
+        </div>
       </ModalV2Footer>
     </>
   );

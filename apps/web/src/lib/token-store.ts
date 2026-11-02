@@ -122,10 +122,10 @@ export function dismissBiometricLock(): void {
 }
 
 /**
- * Native token-change listeners. On the web, token rotations surface through the
- * `storage` event; on native, tokens live only in this module's memory + the
- * Keychain, so the DOM event never fires. Callers that cache a bearer token
- * (e.g. the NATS WS URL builder) subscribe here to react to rotations on native.
+ * Token-change listeners: every write this module makes, on every platform. A
+ * same-tab write fires no `storage` event, and on native tokens never touch
+ * localStorage at all; other tabs' writes still arrive only as `storage` events.
+ * Callers that cache a bearer token (e.g. the NATS WS URL builder) subscribe here.
  */
 type TokenChangeListener = () => void;
 const tokenChangeListeners = new Set<TokenChangeListener>();
@@ -332,6 +332,9 @@ export async function setTokens(tokens: { accessToken?: string | null; refreshTo
       markTokenRotation();
     }
     if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    // A same-tab write fires no `storage` event, so without this nothing that
+    // caches the bearer (the NATS socket URL) learns of a web rotation.
+    emitTokenChange();
   } catch (error) {
     console.error('[Token Store] Failed to store tokens:', error);
   }
@@ -361,6 +364,7 @@ export async function clearTokens(): Promise<void> {
   try {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    emitTokenChange();
   } catch (error) {
     console.error('[Token Store] Failed to clear tokens:', error);
   }

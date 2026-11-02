@@ -1,9 +1,18 @@
 'use client';
 
 import { NoData, type NoDataProps } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 
 export type EmptyStateProps = NoDataProps;
+
+/**
+ * A list's empty state that is one line of copy, what a table body's deprecated `emptyMessage` prop drew. The
+ * `description` is stated on purpose: left out, the body's empty state adds its default "Try adjusting your search or
+ * filters" under a list nobody searched.
+ */
+export function oneLineEmptyState(title: ReactNode): EmptyStateProps {
+  return { title, description: undefined };
+}
 
 /**
  * App-wide empty state: centers `NoData`, filling the area down to the bottom of

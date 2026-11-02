@@ -1,14 +1,16 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
+  type DeviceFilters,
   DevicesList,
   type DevicesListNarrowing,
   EMPTY_DEVICES_NARROWING,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { MonitorOffIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useDebounce } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { memo, Suspense, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { scriptScheduleDetailRelayQuery as ScheduleDetailQueryType } from '@/__generated__/scriptScheduleDetailRelayQuery.graphql';
 import type { scriptScheduleDevicesRelay_schedule$key as ScheduleDevicesFragmentKey } from '@/__generated__/scriptScheduleDevicesRelay_schedule.graphql';
@@ -16,7 +18,7 @@ import type { scriptScheduleDevicesRelayPaginationQuery as ScheduleDevicesPagina
 import type { scriptScheduleDevicesRelayQuery as ScheduleDevicesQueryType } from '@/__generated__/scriptScheduleDevicesRelayQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { machineRowToDevice } from '@/app/(app)/devices/utils/device-transform';
-import { useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, NO_ITEMS, useRetryKey } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { type DeviceStatus, ScheduleDeviceSelectionMode } from '@/generated/schema-enums';
 import { scriptScheduleDetailRelayQuery } from '@/graphql/scripts/script-schedule-detail-relay';
@@ -24,9 +26,9 @@ import {
   scriptScheduleDevicesRelayFragment,
   scriptScheduleDevicesRelayQuery,
 } from '@/graphql/scripts/script-schedule-devices-relay';
-import { useScheduleDeviceFilters } from '../hooks/use-schedule-device-filters';
 import { criteriaFromStored } from '../utils/schedule-criteria';
 import { ScheduleCriteriaSummary } from './schedule-criteria-fields';
+import { ScheduleDeviceFacets } from './schedule-device-facets';
 
 /** How many assigned devices load per page. */
 const PAGE_SIZE = 20;
@@ -128,11 +130,6 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
     ScheduleDevicesFragmentKey
   >(scriptScheduleDevicesRelayFragment, queryData.scriptSchedule ?? null);
 
-  // Scoped to THIS schedule's machines, but NOT to the current narrowing — a
-  // funnel that answers through its own selection offers one option after the
-  // first click. See the hook.
-  const deviceFilters = useScheduleDeviceFilters(scheduleId, 'assigned');
-
   const devices = useMemo<Device[]>(() => {
     const edges = data?.assignedDevices?.edges ?? [];
     // Defensive null-node guard: skip any dangling edge instead of crashing the
@@ -146,6 +143,27 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
 
   const schedule = detail.scriptSchedule;
   const criteria = useMemo(() => criteriaFromStored(schedule?.deviceCriteria), [schedule?.deviceCriteria]);
+
+  const list = (deviceFilters: DeviceFilters | null) => (
+    <DevicesList
+      devices={devices}
+      deviceFilters={deviceFilters}
+      narrowing={narrowing}
+      onNarrowingChange={setNarrowing}
+      isPending={isPending}
+      // The server's count for the CURRENT narrowing: honest whether or not
+      // anything is narrowed, since the narrowing is the server's too.
+      totalCount={data?.assignedDevices?.filteredCount ?? undefined}
+      emptyState={EMPTY_STATE}
+      skeletonRows={PAGE_SIZE}
+      infiniteScroll={{
+        hasNextPage: hasNext,
+        isFetchingNextPage: isLoadingNext,
+        onLoadMore: fetchNextPage,
+        skeletonRows: PAGE_SIZE,
+      }}
+    />
+  );
 
   // Not-found is reported once, by the timing bar above; render nothing here.
   if (!schedule) {
@@ -161,32 +179,25 @@ function ScheduleDevicesTabContent({ scheduleId }: { scheduleId: string }) {
         <ScheduleCriteriaSummary criteria={criteria} />
       )}
 
-      <DevicesList
-        devices={devices}
-        deviceFilters={deviceFilters}
-        narrowing={narrowing}
-        onNarrowingChange={setNarrowing}
-        isPending={isPending}
-        // The server's count for the CURRENT narrowing — honest whether or not
-        // anything is narrowed, since the narrowing is the server's too.
-        totalCount={data?.assignedDevices?.filteredCount ?? undefined}
-        emptyState={EMPTY_STATE}
-        infiniteScroll={{
-          hasNextPage: hasNext,
-          isFetchingNextPage: isLoadingNext,
-          onLoadMore: fetchNextPage,
-          skeletonRows: 2,
-        }}
-      />
+      {/* Facets scoped to THIS schedule's machines, but NOT to the current narrowing: a
+          funnel that answers through its own selection offers one option after the
+          first click (see the hook). Read under a boundary of their own, so a failed
+          facet read draws the list without funnels (see `ScheduleDeviceFacets`). */}
+      <ContentErrorBoundary label="DeviceFilters" resetKey={scheduleId} fallback={() => list(null)}>
+        <ScheduleDeviceFacets scheduleId={scheduleId} half="assigned">
+          {list}
+        </ScheduleDeviceFacets>
+      </ContentErrorBoundary>
     </div>
   );
 }
 
-export function ScheduleDevicesTabSkeleton() {
+/** The tab before its devices: the same list in its loading state. */
+function ScheduleDevicesTabLoading() {
   return (
-    <LoadingRegion label="Loading devices" className="pt-[var(--spacing-system-l)]">
-      <DevicesList devices={[]} isLoading emptyState={EMPTY_STATE} />
-    </LoadingRegion>
+    <div className="pt-[var(--spacing-system-l)]">
+      <DevicesList devices={NO_ITEMS} isLoading emptyState={EMPTY_STATE} skeletonRows={PAGE_SIZE} />
+    </div>
   );
 }
 
@@ -194,16 +205,22 @@ export function ScheduleDevicesTabSkeleton() {
  * "Assigned Devices" tab — the machines this schedule runs on.
  *
  * Carries its own boundary: a tab that suspends is the tab's business, not the
- * page's, so switching to it draws this skeleton and leaves the header, the
+ * page's, so switching to it draws the tab's loading state and leaves the header, the
  * timing bar and the tab strip untouched.
  *
  * `memo` for the reason given in `schedule-detail-tabs.ts`.
  */
 export const ScheduleDevicesTab = memo(function ScheduleDevicesTabImpl({ scheduleId }: { scheduleId: string }) {
   return (
-    <Suspense fallback={<ScheduleDevicesTabSkeleton />}>
-      <ScheduleDevicesTabContent scheduleId={scheduleId} />
-    </Suspense>
+    <LoadingSuspense label="Loading devices">
+      <ScheduleDevicesTabReader scheduleId={scheduleId} />
+    </LoadingSuspense>
   );
 });
 ScheduleDevicesTab.displayName = 'ScheduleDevicesTab';
+
+function ScheduleDevicesTabReader({ scheduleId }: { scheduleId: string }) {
+  // In a loading scope (its boundary's fallback, or an outer loading state) it draws itself with no data and runs no read.
+  if (useLoadingScope()) return <ScheduleDevicesTabLoading />;
+  return <ScheduleDevicesTabContent scheduleId={scheduleId} />;
+}

@@ -10,7 +10,7 @@ export const assignInsightMutation = graphql`
       id
       assigneeId
       assignee {
-        ...insightUserFields_user
+        ...userSummaryFields_user
       }
     }
   }

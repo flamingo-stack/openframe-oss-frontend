@@ -1,10 +1,14 @@
 'use client';
 
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 /** The Fae window's default size (Tauri `width`/`height`): both previews lay out at it. */
 export const FAE_WINDOW_WIDTH = 1024;
 export const FAE_WINDOW_HEIGHT = 800;
+
+/** The frame's box: the Fae window's aspect at the card's width. The loading thumbnails draw the same box. */
+export const PREVIEW_FRAME_CLASS = 'relative aspect-[1024/800] w-full overflow-hidden rounded-md';
 
 /**
  * A 1024×800 source layout shrunk to the card's width. The scale is measured,
@@ -25,10 +29,7 @@ export function ScaledPreviewFrame({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div
-      ref={frameRef}
-      className="relative aspect-[1024/800] w-full overflow-hidden rounded-md border border-ods-border bg-ods-bg"
-    >
+    <div ref={frameRef} className={cn(PREVIEW_FRAME_CLASS, 'border border-ods-border bg-ods-bg')}>
       {/* Hidden until measured, so the first paint is not the layout at 1:1. */}
       {scale !== null && (
         <div

@@ -1,15 +1,9 @@
 'use client';
 
 import { Button } from '@flamingo-stack/openframe-frontend-core';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { navigatesCurrentWindow } from '@/lib/link-click';
 import { routes } from '@/lib/routes';
-
-/**
- * The box of the default `DeviceDetailsButton` ("Details", the lib's default-size outline button), for
- * a loading card that holds its place (`DeviceCardSkeleton`'s `detailsButtonClassName`): the button's
- * `h-11 md:h-12`, and its width as the label's (about 3.2em of bold `text-h3`) plus the two side paddings.
- */
-export const DEVICE_DETAILS_BUTTON_BOX = 'h-11 w-[calc(3.2em+2*var(--spacing-system-m))] text-h3 md:h-12';
 
 interface DeviceDetailsButtonProps {
   deviceId?: string;
@@ -38,15 +32,17 @@ export function DeviceDetailsButton({
   onNavigate,
 }: DeviceDetailsButtonProps) {
   const id = machineId || deviceId;
+  const loading = useLoadingScope();
 
-  if (!id) {
-    return null;
-  }
+  // A record with no device id has nothing to open: no button. While the id is read (a loading scope) the same button
+  // is drawn inert, so nothing moves when the id arrives.
+  if (!id && !loading) return null;
 
   return (
     <Button
       variant={variant}
-      href={routes.devices.details(id)}
+      href={id ? routes.devices.details(id) : undefined}
+      disabled={!id}
       openInNewTab={openInNewTab}
       className={className}
       onClick={event => {

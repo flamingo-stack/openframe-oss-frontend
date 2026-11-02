@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { deviceSoftwareTable_query$key } from '@/__generated__/deviceSoftwareTable_query.graphql';
@@ -58,8 +60,26 @@ interface DeviceSoftwareTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The Software tab's rows — suspends on the query, so it lives under the tab's `<Suspense>`. */
-export function DeviceSoftwareTable({
+/** The Software tab's rows, with their own boundary: in its scope the reader draws its own loading form. */
+export function DeviceSoftwareTable(props: DeviceSoftwareTableProps) {
+  return (
+    <LoadingSuspense label="Loading software">
+      <DeviceSoftwareTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * The Software tab's rows. In a loading scope (the device or the module's flag has not answered, or its boundary's
+ * fallback) it draws the table's own loading state and runs no query; otherwise the query below.
+ */
+function DeviceSoftwareTableReader(props: DeviceSoftwareTableProps) {
+  if (useLoadingScope()) return <SoftwareTable stickyHeaderOffset={props.stickyHeaderOffset} />;
+  return <DeviceSoftwareTableQuery {...props} />;
+}
+
+/** The Software tab's rows — suspends on the query, under the boundary above. */
+function DeviceSoftwareTableQuery({
   machineId,
   debouncedSearch,
   isPending,

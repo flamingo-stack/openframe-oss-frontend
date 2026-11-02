@@ -3,6 +3,7 @@
 import { LogDrawer, type LogDrawerInfoField } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CheckIcon, Copy02Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { NO_ITEMS } from '@/app/components/shared';
 import { logDrawerDeviceCard } from '@/app/components/shared/log-drawer-device-card';
 import { useCopyToClipboard } from '@/app/hooks/use-copy-to-clipboard';
 import { formatDateTime } from '@/lib/format-date';
@@ -42,7 +43,7 @@ export function DeviceLogDrawer({ entry, onClose, deviceId }: DeviceLogDrawerPro
       description={entry && <div className="whitespace-pre-wrap break-words">{entry.message}</div>}
       statusTag={entry ? { label: entry.level, variant: deviceLogLevelVariant(entry.level) } : undefined}
       timestamp={entry ? formatDateTime(entry.timestamp) : undefined}
-      infoFields={entry ? infoFields(entry) : []}
+      infoFields={entry ? infoFields(entry) : NO_ITEMS}
       deviceCard={logDrawerDeviceCard(entry?.machineId ?? deviceId, onClose)}
     >
       {entry && (

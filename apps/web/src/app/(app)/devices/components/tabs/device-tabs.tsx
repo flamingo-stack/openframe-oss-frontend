@@ -18,7 +18,7 @@ import {
   UsersIcon,
   WebDesignIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import type { TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
 import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
@@ -43,8 +43,29 @@ import { VulnerabilitiesTab } from './vulnerabilities-tab';
 
 // Module-level, so its identity is stable across renders (TabContent would remount the tab otherwise).
 function ArticlesTab({ device }: { device: Device | null }) {
-  if (!device?.machineId) return null;
-  return <AssignedArticlesTab target={deviceArticlesTarget(device.machineId)} />;
+  return (
+    <LoadingWhen loading={!device?.machineId}>
+      <AssignedArticlesTab target={device?.machineId ? deviceArticlesTarget(device.machineId) : null} />
+    </LoadingWhen>
+  );
+}
+
+// The gated tabs, module-level for a stable identity: while the gate is read the tab is shown and its panel draws its
+// loading form (always mounted, so nothing remounts when the gate answers); 'off' removes the tab in `useDeviceTabs`.
+function GatedIncidentsTab({ device }: { device: Device | null }) {
+  return (
+    <LoadingWhen loading={useIncidentsGate() === 'loading'}>
+      <IncidentsTab device={device} />
+    </LoadingWhen>
+  );
+}
+
+function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
+  return (
+    <LoadingWhen loading={useSessionRecordingsGate() === 'loading'}>
+      <RemoteSessionsTab device={device} />
+    </LoadingWhen>
+  );
 }
 
 // `satisfies` links each gated id to the route registry's tab union — renaming it in
@@ -71,7 +92,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     id: INCIDENTS_TAB_ID,
     label: 'Incidents',
     icon: AlertTriangleIcon,
-    component: IncidentsTab,
+    component: GatedIncidentsTab,
   },
   {
     id: 'policies',
@@ -148,7 +169,7 @@ export const ALL_DEVICE_TABS: TabItem[] = [
     // The Figma glyph is named "computer-mouse" - the same icon the Remote
     // Control header button uses.
     icon: ComputerMouseIcon,
-    component: RemoteSessionsTab,
+    component: GatedRemoteSessionsTab,
   },
   {
     id: 'assigned-articles',
@@ -161,15 +182,15 @@ export const ALL_DEVICE_TABS: TabItem[] = [
 /**
  * Tabs shown for a device. Remote Sessions is gated on the session recordings
  * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
- * 'loading' and 'off' both hide a tab, so it only ever appears when the feature
- * is actually on.
+ * Only 'off' hides a tab: while a gate is read the tab keeps its place (most
+ * tenants have the feature) and its panel draws its loading form.
  */
 export function useDeviceTabs(): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
   return ALL_DEVICE_TABS.filter(
     tab =>
-      (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate === 'on') &&
-      (tab.id !== INCIDENTS_TAB_ID || incidentsGate === 'on'),
+      (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&
+      (tab.id !== INCIDENTS_TAB_ID || incidentsGate !== 'off'),
   );
 }

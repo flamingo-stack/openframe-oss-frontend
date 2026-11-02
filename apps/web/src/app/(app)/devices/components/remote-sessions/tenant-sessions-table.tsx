@@ -1,6 +1,6 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   ComputerMouseIcon,
   Filter02Icon,
@@ -9,24 +9,24 @@ import {
 import {
   Button,
   type ColumnDef,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
   type NoDataProps,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { startTransition, Suspense, useCallback, useMemo, useState } from 'react';
+import { startTransition, useCallback, useMemo, useState } from 'react';
 import { useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantRemoteSessionsRelay_query$key as TenantSessionsKey } from '@/__generated__/tenantRemoteSessionsRelay_query.graphql';
 import type { tenantRemoteSessionsRelayPaginationQuery as TenantSessionsPaginationQuery } from '@/__generated__/tenantRemoteSessionsRelayPaginationQuery.graphql';
 import type { tenantRemoteSessionsRelayQuery as TenantSessionsQuery } from '@/__generated__/tenantRemoteSessionsRelayQuery.graphql';
 import { multiColumnFilter } from '@/app/(app)/software/components/shared/column-filters';
-import { useRetryKey } from '@/app/components/shared';
-import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { skeletonColumnMeta } from '@/app/components/shared/table-column-layout';
+import { type InfiniteScroll, NO_ITEMS, NO_NEXT_PAGE, useRetryKey } from '@/app/components/shared';
+import type { TableDateFilter } from '@/app/components/shared/date-column-header';
+import { LiveTable, loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useNow } from '@/app/hooks/use-now';
 import { useQueuedParamsWrite } from '@/app/hooks/use-queued-params-write';
@@ -35,15 +35,15 @@ import {
   tenantRemoteSessionsRelayQuery,
 } from '@/graphql/remote-sessions/tenant-remote-sessions-relay';
 import { dateRangeFromParams, toDayParam } from '@/lib/date-filter-params';
-import { routes } from '@/lib/routes';
+import { useLiveRows } from '../../hooks/use-remote-session-watch-gate';
 import { useDeleteRemoteSession } from '../../hooks/use-session-recordings';
 import { useTenantSessionFilterOptions } from '../../hooks/use-tenant-session-filter-options';
 import { emptyDescription } from '../tabs/remote-sessions-tab';
 import { DeleteSessionDialog } from './delete-session-dialog';
-import { canOpenSession, EXPIRES_FILTER_OPTIONS } from './session-status';
+import { liveSessionRowClass } from './remote-session-columns';
+import { EXPIRES_FILTER_OPTIONS, sessionHref } from './session-status';
 import {
   keepLastPick,
-  TENANT_SESSION_COLUMN_ORDER,
   TENANT_SESSION_COLUMNS,
   type TenantSessionRow,
   type TenantSessionsParams,
@@ -59,18 +59,11 @@ const FILTER_KEYS: FilterKey[] = ['device', 'customer', 'expires'];
 /** The server takes one of these at a time; devices are a list. */
 const SINGLE_VALUE_FILTERS: ReadonlySet<FilterKey> = new Set(['customer', 'expires']);
 
-/** The page a row opens: the session's recording, when it has one to play. */
-function recordingHref(row: TenantSessionRow): string | null {
-  return row.recordingId && canOpenSession(row) ? routes.devices.remoteSessionRecording(row.recordingId) : null;
-}
-
 const NO_SESSIONS: NoDataProps = {
   icon: <ComputerMouseIcon />,
   title: 'No remote sessions',
   description: 'Remote sessions on your devices will appear here.',
 };
-
-const EMPTY_ROWS: TenantSessionRow[] = [];
 
 // ----------------------------------------------------------------
 // Table
@@ -79,9 +72,7 @@ const EMPTY_ROWS: TenantSessionRow[] = [];
 interface TenantSessionsTableProps {
   rows: TenantSessionRow[];
   totalCount: number;
-  hasNext: boolean;
-  isLoadingNext: boolean;
-  onLoadMore: () => void;
+  infiniteScroll: InfiniteScroll;
   isPending: boolean;
   tableFilters: Record<FilterKey, string[]>;
   onFilterChange: (filters: Record<string, string[]>) => void;
@@ -89,22 +80,51 @@ interface TenantSessionsTableProps {
   onDeleted: () => void;
 }
 
+/** The mobile filters button, the page's full width: the header funnels go with the header cells below `md`. */
+function MobileFiltersButton({ onClick }: { onClick?: () => void }) {
+  return (
+    <div className="content-md:hidden">
+      <Button
+        variant="outline"
+        fullWidth
+        onClick={onClick}
+        disabled={!onClick}
+        leftIcon={<Filter02Icon className="text-ods-text-primary" />}
+      >
+        Filter
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The sessions table. In a loading scope (the recordings gate or the first page has not answered) it draws itself:
+ * the live columns and header with inert funnels over one page of placeholder rows drawn with the real cells, each
+ * part its own loading state, and asks for nothing (not even the
+ * funnels' options).
+ */
 function TenantSessionsTable({
   rows,
   totalCount,
-  hasNext,
-  isLoadingNext,
-  onLoadMore,
+  infiniteScroll,
   isPending,
   tableFilters,
   onFilterChange,
   dateFilter,
   onDeleted,
 }: TenantSessionsTableProps) {
+  const loading = useLoadingScope();
   const router = useRouter();
   // The "Expires in N hours" countdown keeps moving while the page is open.
   const now = useNow(60_000);
-  const { deviceOptions, customerOptions, pending: optionsPending } = useTenantSessionFilterOptions();
+  const liveRows = useLiveRows();
+  const {
+    deviceOptions,
+    customerOptions,
+    pending: optionsPending,
+  } = useTenantSessionFilterOptions({
+    enabled: !loading,
+  });
   const deleteSession = useDeleteRemoteSession('');
   const [deleteTarget, setDeleteTarget] = useState<TenantSessionRow | null>(null);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -117,13 +137,14 @@ function TenantSessionsTable({
         customerOptions,
         optionsPending,
         now,
+        liveRows,
         onOpen: row => {
-          const href = recordingHref(row);
+          const href = sessionHref(row, liveRows);
           if (href) router.push(href);
         },
         onDelete: setDeleteTarget,
       }),
-    [dateFilter, deviceOptions, customerOptions, optionsPending, now, router],
+    [dateFilter, deviceOptions, customerOptions, optionsPending, now, liveRows, router],
   );
 
   // The funnels' selection lives in the URL: every column's picks in, all of
@@ -132,8 +153,11 @@ function TenantSessionsTable({
 
   // Filtering, sorting and paging all happen on the server: the table renders
   // what it is given and only reports the funnels' picks.
+  // In a loading scope the table holds one page of placeholder rows, drawn with the real cells (each cell draws its
+  // own loading form).
+  const loadingRows = useMemo(() => (loading ? loadingPlaceholderRows<TenantSessionRow>(PAGE_SIZE) : null), [loading]);
   const table = useDataTable<TenantSessionRow>({
-    data: rows,
+    data: loadingRows ?? rows,
     columns,
     getRowId: (row: TenantSessionRow) => row.id,
     enableSorting: false,
@@ -154,7 +178,7 @@ function TenantSessionsTable({
   const hasDateRange = dateFilter.range !== undefined;
   const hasColumnFilters = columnFilters.length > 0;
   const isNarrowed = hasDateRange || hasColumnFilters;
-  const showHeader = rows.length > 0 || isNarrowed || isPending;
+  const showHeader = loading || rows.length > 0 || isNarrowed || isPending;
   const emptyState: NoDataProps = isNarrowed
     ? {
         icon: <SearchIcon />,
@@ -167,36 +191,21 @@ function TenantSessionsTable({
     <>
       {/* On mobile the header funnels go with the header cells: the standard
           filters button opens the same filters as a modal. */}
-      <div className="flex justify-end content-md:hidden">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setMobileFilterOpen(true)}
-          aria-label="Open filters"
-          leftIcon={<Filter02Icon className="text-ods-text-primary" />}
-        />
-      </div>
+      <MobileFiltersButton onClick={loading ? undefined : () => setMobileFilterOpen(true)} />
 
-      {/* Dim (don't unmount) the stale rows while a deferred refetch is in flight. */}
-      <div className={`transition-opacity duration-200 ${isPending ? 'opacity-60' : ''}`}>
-        <DataTable table={table}>
-          {showHeader && (
-            <DataTable.Header
-              stickyHeader
-              rightSlot={<DataTable.RowCount itemName="result" totalCount={totalCount} />}
-            />
-          )}
-          <DataTable.Body skeletonRows={4} emptyState={emptyState} rowClassName="mb-1" rowHref={recordingHref} />
-          {rows.length > 0 && (
-            <DataTable.InfiniteFooter
-              hasNextPage={hasNext}
-              isFetchingNextPage={isLoadingNext}
-              onLoadMore={onLoadMore}
-              skeletonRows={2}
-            />
-          )}
-        </DataTable>
-      </div>
+      <LiveTable
+        table={table}
+        pageSize={PAGE_SIZE}
+        showHeader={showHeader}
+        itemName="result"
+        totalCount={totalCount}
+        isPending={isPending}
+        emptyState={emptyState}
+        rowHref={row => sessionHref(row, liveRows)}
+        rowClassName={row => liveSessionRowClass(row, liveRows)}
+        footer={rows.length > 0 ? infiniteScroll : null}
+        loadingCells={loading}
+      />
 
       <FilterModal
         isOpen={mobileFilterOpen}
@@ -240,55 +249,43 @@ function TenantSessionsTable({
 }
 
 // ----------------------------------------------------------------
-// Skeleton
+// Relay content - with its own Suspense boundary
 // ----------------------------------------------------------------
 
-export function TenantSessionsSkeleton() {
-  // The live layout with inert funnels and an inert calendar, so the header
-  // does not shift when the rows arrive.
-  const columns = useMemo<ColumnDef<TenantSessionRow>[]>(
-    () =>
-      TENANT_SESSION_COLUMN_ORDER.map(column => {
-        const label = column.header;
-        return {
-          id: column.id,
-          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
-          enableSorting: false,
-          meta: skeletonColumnMeta(column),
-        };
-      }),
-    [],
-  );
-  const table = useDataTable<TenantSessionRow>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: TenantSessionRow) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <LoadingRegion label="Loading remote sessions">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader />
-        <DataTable.Body loading loadingRegion={false} skeletonRows={PAGE_SIZE} emptyMessage="" rowClassName="mb-1" />
-      </DataTable>
-    </LoadingRegion>
-  );
-}
-
-// ----------------------------------------------------------------
-// Relay content - inside the shell's Suspense boundary
-// ----------------------------------------------------------------
-
-interface TenantSessionsContentProps extends Omit<
-  TenantSessionsTableProps,
-  'rows' | 'totalCount' | 'hasNext' | 'isLoadingNext' | 'onLoadMore'
-> {
+interface TenantSessionsContentProps extends Omit<TenantSessionsTableProps, 'rows' | 'totalCount' | 'infiniteScroll'> {
   variables: ReturnType<typeof tenantSessionsVariables>;
   refreshKey: number;
 }
 
-function TenantSessionsContent({ variables, refreshKey, ...tableProps }: TenantSessionsContentProps) {
+/** The sessions table, with its own boundary: in its scope the reader draws its own loading form. */
+function TenantSessionsContent(props: TenantSessionsContentProps) {
+  return (
+    <LoadingSuspense label="Loading remote sessions">
+      <TenantSessionsContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/** The first page. In a loading scope (its boundary's fallback, the gate) it runs no query: the table draws itself. */
+function TenantSessionsContentReader(props: TenantSessionsContentProps) {
+  if (useLoadingScope()) {
+    return (
+      <TenantSessionsTable
+        rows={NO_ITEMS}
+        totalCount={0}
+        infiniteScroll={NO_NEXT_PAGE}
+        isPending={false}
+        tableFilters={props.tableFilters}
+        onFilterChange={props.onFilterChange}
+        dateFilter={props.dateFilter}
+        onDeleted={props.onDeleted}
+      />
+    );
+  }
+  return <TenantSessionsContentQuery {...props} />;
+}
+
+function TenantSessionsContentQuery({ variables, refreshKey, ...tableProps }: TenantSessionsContentProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantSessionsQuery>(
     tenantRemoteSessionsRelayQuery,
@@ -313,9 +310,7 @@ function TenantSessionsContent({ variables, refreshKey, ...tableProps }: TenantS
     <TenantSessionsTable
       rows={rows}
       totalCount={data.remoteSessions.totalCount}
-      hasNext={hasNext}
-      isLoadingNext={isLoadingNext}
-      onLoadMore={loadMore}
+      infiniteScroll={{ hasNextPage: hasNext, isFetchingNextPage: isLoadingNext, onLoadMore: loadMore }}
       {...tableProps}
     />
   );
@@ -406,20 +401,18 @@ export function TenantSessionsShell() {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-m)]">
-      <Suspense fallback={<TenantSessionsSkeleton />}>
-        <TenantSessionsContent
-          variables={deferredVariables}
-          refreshKey={refreshKey}
-          isPending={isPending}
-          tableFilters={tableFilters}
-          onFilterChange={handleFilterChange}
-          dateFilter={dateFilter}
-          // The delete marked the session stale in the store, so the refetch
-          // suspends; as a transition it keeps the rows on screen meanwhile
-          // instead of dropping the table to its skeleton.
-          onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
-        />
-      </Suspense>
+      <TenantSessionsContent
+        variables={deferredVariables}
+        refreshKey={refreshKey}
+        isPending={isPending}
+        tableFilters={tableFilters}
+        onFilterChange={handleFilterChange}
+        dateFilter={dateFilter}
+        // The delete marked the session stale in the store, so the refetch
+        // suspends; as a transition it keeps the rows on screen meanwhile
+        // instead of dropping the table to its skeleton.
+        onDeleted={() => startTransition(() => setRefreshKey(key => key + 1))}
+      />
     </div>
   );
 }

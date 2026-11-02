@@ -1,21 +1,23 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   lastReadAt,
   type TenantRow,
   TenantsTableView,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { CodingForkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useLayoutEffect, useMemo } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type { tenantsTable_query$key } from '@/__generated__/tenantsTable_query.graphql';
 import type { tenantsTablePaginationQuery } from '@/__generated__/tenantsTablePaginationQuery.graphql';
 import type { tenantsTableQuery as TenantsTableQueryType } from '@/__generated__/tenantsTableQuery.graphql';
-import { EmptyState, useRetryKey } from '@/app/components/shared';
+import { EmptyState, NO_NEXT_PAGE, useRetryKey, NO_ITEMS } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { routes } from '@/lib/routes';
 
-export const TENANTS_PAGE_SIZE = 20;
+const TENANTS_PAGE_SIZE = 20;
 
 const tenantsTableQuery = graphql`
   query tenantsTableQuery($search: String, $first: Int!, $after: String) {
@@ -75,8 +77,38 @@ interface TenantsTableProps {
   stickyHeaderOffset: string;
 }
 
-/** The tenant rows: suspends on the query, so it lives under the view's `<Suspense>`. */
-export function TenantsTable({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
+/** The tenant rows, with their own boundary: in its scope the reader draws its own loading form. */
+export function TenantsTable(props: TenantsTableProps) {
+  return (
+    <LoadingSuspense label="Loading tenants">
+      <TenantsTableReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+/**
+ * In a loading scope (its boundary's fallback, or the module's flag window) it draws the table with no rows, which
+ * is the table's own loading state; otherwise it runs the query, which suspends.
+ */
+function TenantsTableReader(props: TenantsTableProps) {
+  if (useLoadingScope()) {
+    return (
+      <TenantsTableView
+        rows={NO_ITEMS}
+        getHref={tenantRowHref}
+        search={props.search}
+        isPending={props.isPending}
+        totalCount={0}
+        stickyHeaderOffset={props.stickyHeaderOffset}
+        skeletonRows={TENANTS_PAGE_SIZE}
+        {...NO_NEXT_PAGE}
+      />
+    );
+  }
+  return <TenantsTableQuery {...props} />;
+}
+
+function TenantsTableQuery({ search, isPending, onEmptyChange, stickyHeaderOffset }: TenantsTableProps) {
   const retryKey = useRetryKey();
   const queryData = useLazyLoadQuery<TenantsTableQueryType>(
     tenantsTableQuery,

@@ -76,7 +76,7 @@ export function ApiKeyCreatedModal({ isOpen, fullKey, onClose }: ApiKeyCreatedMo
       </Alert>
 
       <div className="space-y-2">
-        <Label>Your API Key</Label>
+        <Label variant="large">Your API Key</Label>
         <div className="rounded-lg border border-ods-border bg-ods-bg p-4">
           <code className="block break-all text-ods-text-primary text-code">{localKey}</code>
         </div>

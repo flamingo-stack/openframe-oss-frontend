@@ -86,10 +86,6 @@ export const NATS_TOPICS = {
 
 export type NatsMessageType = (typeof NATS_TOPICS)[keyof typeof NATS_TOPICS];
 
-export const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'of_access_token',
-} as const;
-
 export const NETWORK_CONFIG = {
   SHARED_CLOSE_DELAY_MS: 3000,
   CONNECT_TIMEOUT_MS: 10_000,

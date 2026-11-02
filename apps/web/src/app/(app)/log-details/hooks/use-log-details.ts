@@ -7,7 +7,8 @@ import { GET_LOG_DETAILS_QUERY } from '../../logs-page/queries/logs-queries';
 import type { LogEntry } from '../../logs-page/types/log.types';
 
 interface LogDetailsResponse {
-  logDetails: LogEntry;
+  // Null when no log matches (a stale or deleted link).
+  logDetails: LogEntry | null;
 }
 
 interface GraphQlResponse<T> {
@@ -23,6 +24,8 @@ export function useLogDetails() {
   const [logDetails, setLogDetails] = useState<LogEntry | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // True once a request has answered (with a log, with none, or with an error): until then the page is loading.
+  const [hasAnswered, setHasAnswered] = useState(false);
 
   const fetchLogDetailsById = useCallback(
     async (logId: string, ingestDay: string, toolType: string, eventType: string, timestamp: string) => {
@@ -71,6 +74,7 @@ export function useLogDetails() {
         throw err;
       } finally {
         setIsLoading(false);
+        setHasAnswered(true);
       }
     },
     [toast],
@@ -79,11 +83,13 @@ export function useLogDetails() {
   const clearLogDetails = useCallback(() => {
     setLogDetails(null);
     setError(null);
+    setHasAnswered(false);
   }, []);
 
   return {
     logDetails,
     isLoading,
+    hasAnswered,
     error,
     fetchLogDetailsById,
     clearLogDetails,

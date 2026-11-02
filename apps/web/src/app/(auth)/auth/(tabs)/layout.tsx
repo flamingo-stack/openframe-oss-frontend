@@ -4,9 +4,11 @@ import { AuthShell, CompactAuthShell } from '@flamingo-stack/openframe-frontend-
 import { TabSelector } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { DesktopSignInWaiting } from '@/app/(auth)/auth/components/desktop-sign-in-waiting';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { useDesktopSignInWait } from '@/app/hooks/use-desktop-sign-in-wait';
 import { useLoginOnlyMobileShell } from '@/app/hooks/use-login-only-mobile-shell';
-import { isAuthOnlyMode } from '@/lib/app-mode';
+import { getLandingPath, isAuthOnlyMode } from '@/lib/app-mode';
 import { routes } from '@/lib/routes';
 
 const TABS = [
@@ -34,6 +36,7 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const loginOnly = useLoginOnlyMobileShell();
+  const wait = useDesktopSignInWait();
 
   const active = pathname?.startsWith(routes.auth.login) ? 'login' : 'signup';
 
@@ -41,7 +44,7 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
     if (isAuthenticated && !isAuthOnlyMode()) {
       // replace, not push: an authenticated user landing here (e.g. via back) is redirected
       // without leaving an auth route in the back stack — no flash, no back-loop.
-      router.replace(routes.dashboard);
+      router.replace(getLandingPath());
     }
   }, [isAuthenticated, router]);
 
@@ -52,8 +55,17 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
     router.prefetch(routes.auth.login);
   }, [router]);
 
+  // While a desktop sign-in waits on the browser the form is hidden, not unmounted, so Cancel brings
+  // it back with what was typed.
+  const content = (
+    <>
+      <div className={wait ? 'hidden' : 'contents'}>{children}</div>
+      {wait && <DesktopSignInWaiting wait={wait} />}
+    </>
+  );
+
   if (loginOnly) {
-    return <CompactAuthShell>{children}</CompactAuthShell>;
+    return <CompactAuthShell>{content}</CompactAuthShell>;
   }
 
   const tabs = (
@@ -68,5 +80,5 @@ export default function AuthTabsLayout({ children }: { children: React.ReactNode
     />
   );
 
-  return <AuthShell tabs={tabs}>{children}</AuthShell>;
+  return <AuthShell tabs={tabs}>{content}</AuthShell>;
 }

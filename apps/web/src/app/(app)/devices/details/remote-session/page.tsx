@@ -1,6 +1,6 @@
 'use client';
 
-import { CompactPageLoader } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { RemoteSessionView } from '@/app/(app)/devices/components/remote-sessions/remote-session-view';
@@ -17,6 +17,11 @@ export default function RemoteSessionPage() {
     if (gate === 'off') router.replace(routes.devices.list);
   }, [gate, router]);
 
-  if (gate !== 'on' || !recordingId) return <CompactPageLoader />;
-  return <RemoteSessionView recordingId={recordingId} />;
+  // Until the gate is on and the id is read, the view draws its own loading state and asks for nothing.
+  const ready = gate === 'on' && Boolean(recordingId);
+  return (
+    <LoadingWhen loading={!ready}>
+      <RemoteSessionView recordingId={ready ? recordingId : null} />
+    </LoadingWhen>
+  );
 }

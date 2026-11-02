@@ -2,10 +2,8 @@
 
 import { PenEditIcon, Refresh02VrIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
 import { routes } from '@/lib/routes';
 import { TenantDetailContent } from './tenant-detail-content';
-import { TenantDetailSkeleton } from './tenant-detail-skeleton';
 
 function manageActions(id: string): PageActionButton[] {
   return [
@@ -37,13 +35,7 @@ interface TenantDetailViewProps {
 export function TenantDetailView({ id, loading = false }: TenantDetailViewProps) {
   return (
     <div className="flex w-full flex-col">
-      {loading ? (
-        <TenantDetailSkeleton />
-      ) : (
-        <Suspense fallback={<TenantDetailSkeleton />}>
-          <TenantDetailContent id={id} actions={manageActions(id)} />
-        </Suspense>
-      )}
+      <TenantDetailContent id={id} actions={manageActions(id)} loading={loading} />
     </div>
   );
 }

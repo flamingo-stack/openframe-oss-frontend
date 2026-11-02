@@ -3,24 +3,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   type AgentInstallError,
+  type AgentInstallRequest,
   canInstallAgentLocally,
   onLocalAgentInstallDone,
   onLocalAgentInstallOutput,
   startLocalAgentInstall,
 } from '@/lib/native-shell';
+import type { InstallOutputLine } from '../lib/install-log-line';
 
 export type LocalInstallStatus = 'idle' | 'running' | 'succeeded' | 'failed';
 
 export interface LocalAgentInstall {
-  /** The desktop shell is here to run the command; false on the web and the phone. */
+  /** The desktop shell is here to run the install; false on the web and the phone. */
   supported: boolean;
   status: LocalInstallStatus;
-  /** What the installer printed so far, in order. Cleared by the next start. */
-  lines: string[];
+  /** What the installer printed so far, in order, stamped as it arrived. Cleared by the next start. */
+  lines: InstallOutputLine[];
   /** Why the last run failed, or null. */
   error: AgentInstallError | null;
-  /** Run `command` on this machine behind the administrator prompt. */
-  start: (command: string) => Promise<void>;
+  /** Install the agent on this machine behind the administrator prompt. */
+  start: (request: AgentInstallRequest) => Promise<void>;
 }
 
 /**
@@ -32,7 +34,7 @@ export function useLocalAgentInstall(): LocalAgentInstall {
   // Read once per mount: the shell is decided before the page loads.
   const [supported] = useState(canInstallAgentLocally);
   const [status, setStatus] = useState<LocalInstallStatus>('idle');
-  const [lines, setLines] = useState<string[]>([]);
+  const [lines, setLines] = useState<InstallOutputLine[]>([]);
   const [error, setError] = useState<AgentInstallError | null>(null);
 
   useEffect(() => {
@@ -41,7 +43,10 @@ export function useLocalAgentInstall(): LocalAgentInstall {
     // run that outlives the screen from updating state it no longer has.
     let live = true;
     void onLocalAgentInstallOutput(incoming => {
-      if (live) setLines(previous => [...previous, ...incoming]);
+      if (!live) return;
+      // The shell batches per 200ms, so the arrival is the line's time to within that.
+      const receivedAt = new Date();
+      setLines(previous => [...previous, ...incoming.map(text => ({ text, receivedAt }))]);
     });
     void onLocalAgentInstallDone(done => {
       if (!live) return;
@@ -53,12 +58,12 @@ export function useLocalAgentInstall(): LocalAgentInstall {
     };
   }, [supported]);
 
-  const start = useCallback(async (command: string) => {
+  const start = useCallback(async (request: AgentInstallRequest) => {
     setLines([]);
     setError(null);
     setStatus('running');
     try {
-      await startLocalAgentInstall(command);
+      await startLocalAgentInstall(request);
     } catch (caught) {
       setStatus('failed');
       setError(caught as AgentInstallError);

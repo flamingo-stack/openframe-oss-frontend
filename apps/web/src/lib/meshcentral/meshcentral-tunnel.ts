@@ -15,15 +15,17 @@ type TunnelCallbacks = {
   onData: (data: string | Uint8Array) => void;
   /** The agent's status line for this tunnel; `null` when the agent clears it. */
   onConsoleMessage?: (msg: string | null) => void;
-  onStateChange?: (state: TunnelState) => void;
+  onStateChange?: (state: TunnelState, tunnelKey: string) => void;
   onBinaryData?: (data: Uint8Array) => void;
   onCtrlMessage?: (msg: Record<string, unknown>) => void;
-  onRequestPairing?: (relayId: string) => void;
+  onRequestPairing?: (relayId: string, tunnelKey: string) => void;
   getAuthCookie?: () => string | null;
   onBeforeReconnect?: () => Promise<void>;
 };
 
 export class MeshTunnel {
+  /** Stable across redials, unlike the relay id. */
+  readonly key = Math.random().toString(36).slice(2);
   private wsManager?: WebSocketManager;
   private state: TunnelState = 0;
   private id: string;
@@ -111,7 +113,7 @@ export class MeshTunnel {
           this.setState(2);
           // Ask caller to re-send pairing via control connection on reconnect
           try {
-            this.params.onRequestPairing?.(this.id);
+            this.params.onRequestPairing?.(this.id, this.key);
           } catch (e) {
             console.error('[MeshTunnel] Error calling onRequestPairing:', e);
           }
@@ -276,7 +278,7 @@ export class MeshTunnel {
   private setState(s: TunnelState) {
     if (this.state === s) return;
     this.state = s;
-    this.params.onStateChange?.(s);
+    this.params.onStateChange?.(s, this.key);
   }
 
   reconnect() {

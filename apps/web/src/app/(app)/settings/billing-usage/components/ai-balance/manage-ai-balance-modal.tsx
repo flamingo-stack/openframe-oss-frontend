@@ -1,8 +1,8 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { ModalV2Content } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense } from 'react';
+import { ModalV2Content, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { graphql, useLazyLoadQuery } from 'react-relay';
 import type { manageAiBalanceModalQuery as ManageAiBalanceModalQueryType } from '@/__generated__/manageAiBalanceModalQuery.graphql';
 import { SimpleModal } from '@/app/components/shared/simple-modal';
@@ -69,15 +69,28 @@ export function ManageAiBalanceModal({ isOpen, onClose }: ManageAiBalanceModalPr
           </ModalV2Content>
         }
       >
-        <Suspense fallback={<ManageAiBalanceForm data={null} onClose={onClose} />}>
-          <ManageAiBalanceContent onClose={onClose} />
-        </Suspense>
+        <ManageAiBalanceContent onClose={onClose} />
       </ErrorBoundary>
     </SimpleModal>
   );
 }
 
+/** The modal's form over its read, with its own boundary: in its scope the reader draws its own loading form. */
 function ManageAiBalanceContent({ onClose }: { onClose: () => void }) {
+  return (
+    <LoadingSuspense label="Loading AI balance settings">
+      <ManageAiBalanceReader onClose={onClose} />
+    </LoadingSuspense>
+  );
+}
+
+function ManageAiBalanceReader({ onClose }: { onClose: () => void }) {
+  // In a loading scope (its boundary's fallback) it draws the form with no data and runs no read.
+  if (useLoadingScope()) return <ManageAiBalanceForm data={null} onClose={onClose} />;
+  return <ManageAiBalanceLive onClose={onClose} />;
+}
+
+function ManageAiBalanceLive({ onClose }: { onClose: () => void }) {
   const data = useLazyLoadQuery<ManageAiBalanceModalQueryType>(
     manageAiBalanceModalQuery,
     {},

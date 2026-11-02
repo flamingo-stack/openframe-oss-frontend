@@ -1,74 +1,46 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { PenEditIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { SquareAvatar, TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { ResponsiveActionButton } from '@/app/components/shared/responsive-action-button';
+import { IdentityRow, USER_ROW_CLASS } from './identity-row';
 
 interface MspOrganizationCardProps {
   name: string;
   website: string;
   logoUrl?: string;
-  isLoading?: boolean;
+  /** The tenant has not answered: the row draws its values as bars (as it does in a loading scope). */
+  loading?: boolean;
   /** Omitted until the org has actually loaded — see `account-settings-card`. */
   onEditOrganization?: () => void;
 }
 
-export function MspOrganizationCard({
-  name,
-  website,
-  logoUrl,
-  isLoading,
-  onEditOrganization,
-}: MspOrganizationCardProps) {
-  const displayName = name || 'Your Organization';
+const editIcon = <PenEditIcon className="h-5 w-5 text-ods-text-secondary" />;
 
+/**
+ * The organization row. While the tenant is on its way the avatar is a box of exactly what
+ * `SquareAvatar size="lg" variant="square"` occupies (with no tenant it would draw the initials of a fallback name, a
+ * plausible-looking wrong value) and the name a bar. No website bar: the website line is optional per tenant, so
+ * reserving it would be a guess; the 48px avatar sets the row height either way. The Edit button is fixed copy, drawn
+ * for real and disabled until there is an organization to edit.
+ */
+export function MspOrganizationCard({ name, website, logoUrl, loading, onEditOrganization }: MspOrganizationCardProps) {
   return (
-    <LoadingRegion
-      label="Loading your organization"
-      announce={Boolean(isLoading)}
-      className="flex items-center gap-[var(--spacing-system-m)] p-[var(--spacing-system-m)]"
-    >
-      {/* The avatar is data-dependent too, so it gets a placeholder rather than being
-          left live: with no tenant yet it rendered the initials of the *fallback* name
-          ("YO" from "Your Organization") — a plausible-looking wrong value — and then
-          swapped to the real logo or initials. `h-12 w-12 rounded-md` is exactly what
-          `SquareAvatar size="lg" variant="square"` occupies, so nothing shifts. */}
-      {isLoading ? (
-        <UnifiedSkeleton className="h-12 w-12 shrink-0 rounded-md" />
-      ) : (
-        <SquareAvatar src={logoUrl} fallback={displayName} size="lg" variant="square" />
-      )}
-
-      <div className="min-w-0 flex-1 overflow-hidden">
-        {isLoading ? (
-          // Sized off the `text-h4` name it covers — glyph height inside a line box —
-          // rather than a picked `h-*`, the same as in `ProfileCardSkeleton`. Only one
-          // bar: the website line below is optional per tenant, so reserving it would be
-          // a guess. The 48px avatar sets the row height either way.
-          <div className="flex h-[var(--font-line-space-h4-body)] items-center">
-            <UnifiedSkeleton className="h-[var(--font-size-h4-body)] w-40 max-w-full rounded-md" />
-          </div>
-        ) : (
-          <>
-            <TruncateText>{displayName}</TruncateText>
-            {website && (
-              <TruncateText variant="h6" tone="secondary">
-                {website}
-              </TruncateText>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3">
+    <IdentityRow
+      className={USER_ROW_CLASS}
+      loading={loading}
+      loadingLabel="Loading your organization"
+      name={name || 'Your Organization'}
+      avatarSrc={logoUrl}
+      avatarVariant="square"
+      subline={website}
+      action={
         <ResponsiveActionButton
           label="Edit Organization"
-          icon={<PenEditIcon className="h-5 w-5 text-ods-text-secondary" />}
+          icon={editIcon}
           onClick={onEditOrganization}
           disabled={!onEditOrganization}
         />
-      </div>
-    </LoadingRegion>
+      }
+    />
   );
 }

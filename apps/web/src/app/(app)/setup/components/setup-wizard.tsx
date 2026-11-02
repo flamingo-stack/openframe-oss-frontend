@@ -1,10 +1,13 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { ensureGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { useTenantOnboardingAutoDetect } from '@/app/(app)/onboarding/hooks/use-tenant-onboarding-auto-detect';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
+import { noop } from '@/app/components/shared/no-next-page';
 import { TenantOnboardingStep } from '@/generated/schema-enums';
 import { useOnboardingMutations } from '@/graphql/onboarding/use-onboarding-mutations';
 import { isSaasTenantMode } from '@/lib/app-mode';
@@ -20,7 +23,6 @@ import { OrganizationStep } from '../steps/organization-step';
 import { ReadyStep } from '../steps/ready-step';
 import { WelcomeStep } from '../steps/welcome-step';
 import { SetupFrame } from './setup-frame';
-import { SetupSkeleton } from './setup-skeleton';
 
 /**
  * How long "Start with Mingo" waits for the backend to mark the setup complete
@@ -30,6 +32,27 @@ import { SetupSkeleton } from './setup-skeleton';
 const START_FAIL_OPEN_MS = 8_000;
 
 /**
+ * The wizard's screen while its data is read: the screen it opens on, as the progress already in the store
+ * tells it, static copy with its button inert. "Everything is set up" for a workspace set up (an admin after
+ * the first, a tour reset), the welcome screen for one still to set up, and the bare frame before the progress
+ * answers, so no wait shows a screen the wizard is not going to open. Rendered in a loading scope both by the
+ * wizard's boundary and by the wizard itself, so the two waits are one screen.
+ */
+function SetupLoadingFrame() {
+  const tenant = useOnboardingStore(state => state.tenant);
+  if (!tenant) return <SetupFrame step="welcome">{null}</SetupFrame>;
+  return tenant.completed ? (
+    <SetupFrame step="all-set">
+      <AllSetStep onStart={noop} starting={false} />
+    </SetupFrame>
+  ) : (
+    <SetupFrame step="welcome">
+      <WelcomeStep onContinue={noop} />
+    </SetupFrame>
+  );
+}
+
+/**
  * The wizard's state machine. Which screen shows comes from the tenant's
  * progress (persisted steps plus the data auto-detect, which also writes back):
  * a workspace already set up opens on "Everything is set up"; otherwise the
@@ -37,8 +60,25 @@ const START_FAIL_OPEN_MS = 8_000;
  * itself through the onboarding mutations and the walk ends on "You are ready
  * to go". "Start with Mingo" marks the tenant setup complete, records that the
  * tour has started and leaves for the dashboard with a fresh Mingo chat.
+ *
+ * With its own boundary: in its scope the reader draws the screen the wizard opens on (`SetupLoadingFrame`). The
+ * boundary is the one element between the bare shell's column and the frame: it has to be a filling column too, or
+ * the frame's `flex-1` has nothing to fill and the screen sits at the top until the wizard loads.
  */
 export function SetupWizard() {
+  return (
+    <LoadingSuspense label="Loading setup" className="flex flex-1 flex-col">
+      <SetupWizardReader />
+    </LoadingSuspense>
+  );
+}
+
+function SetupWizardReader() {
+  if (useLoadingScope()) return <SetupLoadingFrame />;
+  return <SetupWizardLive />;
+}
+
+function SetupWizardLive() {
   const router = useRouter();
   const tenant = useOnboardingStore(state => state.tenant);
   const userId = useAuthStore(state => state.user?.id);
@@ -78,17 +118,17 @@ export function SetupWizard() {
   );
 
   const leave = useCallback(() => {
-    router.replace(routes.dashboard);
-    // The tour lives in the Mingo panel, a SaaS-tenant surface; elsewhere the
-    // dashboard is the destination on its own. Opening the panel is enough:
-    // it creates the tour's conversation itself once it sees the tour started
-    // (`useMingoTour`), and a docked panel is on screen regardless.
-    if (isSaasTenantMode()) useMingoLauncherStore.getState().setOpen(true);
+    // The tour lives in Mingo, a SaaS-tenant surface: Mingo's home, whose docked
+    // composer creates the tour's conversation once it sees the tour started
+    // (`useMingoTour`) and follows it to the chat page. Elsewhere the dashboard is
+    // the destination on its own.
+    router.replace(isSaasTenantMode() ? routes.mingo.home : routes.dashboard);
   }, [router]);
 
   const handleStart = useCallback(() => {
     setStarting(true);
     markTourStarted(userId);
+    ensureGettingStartedView(userId);
     if (tenant?.completed) {
       leave();
       return;
@@ -118,8 +158,15 @@ export function SetupWizard() {
     [persistAndAdvance],
   );
 
-  // No progress record means the redirect is already sending this session away.
-  if (!tenant) return <SetupSkeleton />;
+  // No progress record yet (or the redirect is already sending this session away): the
+  // bare frame, in a loading scope.
+  if (!tenant) {
+    return (
+      <LoadingWhen loading>
+        <SetupLoadingFrame />
+      </LoadingWhen>
+    );
+  }
 
   return (
     <SetupFrame step={step}>
@@ -141,7 +188,9 @@ export function SetupWizard() {
           persisting={persisting}
         />
       )}
-      {step === 'device' && <DeployDeviceStep organizationId={customerId} onEnrolled={handleEnrolled} />}
+      {step === 'device' && (
+        <DeployDeviceStep organizationId={customerId} onContinue={handleEnrolled} persisting={persisting} />
+      )}
       {step === 'ready' && <ReadyStep device={device} onStart={handleStart} starting={starting} />}
       {step === 'all-set' && <AllSetStep onStart={handleStart} starting={starting} />}
     </SetupFrame>

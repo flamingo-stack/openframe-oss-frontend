@@ -14,9 +14,9 @@
  * Coverage = all thirteen entity markers the agent can emit, plus `@chat:` — a
  * reference to an EARLIER CONVERSATION recalled from chat memory, which is not an
  * entity and opens in the drawer rather than on a page (`ChatReferenceChip`).
- * GraphQL types (device, customer, kb article, kb folder, scheduled script,
+ * GraphQL types (device, customer, user, kb article, kb folder, scheduled script,
  * incident, software) resolve via Relay; REST/ai-agent types (policy, query,
- * user, ticket) via `RestMentionChip`; a vulnerability needs no fetch at all —
+ * ticket) via `RestMentionChip`; a vulnerability needs no fetch at all —
  * its CVE id IS its name. SCRIPT is dual-sourced — a NEW script (24-char
  * ObjectId) resolves via Relay, a LEGACY Tactical script (numeric id) via REST —
  * so both kinds of script id render regardless of the flag. Every chip falls
@@ -105,9 +105,10 @@ export function renderMingoMention({
       ) : (
         <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />
       );
+    case M.USER:
+      return <GraphqlMentionChip kind={CONTEXT_ENTITY_KIND.USER} id={id} icon={icon} fallbackLabel={label} />;
     case M.POLICY:
     case M.QUERY:
-    case M.USER:
     case M.TICKET:
       return <RestMentionChip marker={marker} id={id} icon={icon} fallbackLabel={label} />;
     default:

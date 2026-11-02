@@ -3,7 +3,7 @@
 import { ContextItemsList } from '@flamingo-stack/openframe-frontend-core/components/chat';
 /**
  * Relay-backed context items for the GraphQL sources on OUR endpoint
- * (`/api/graphql`): Device, Organization, Knowledge Article, Knowledge Folder,
+ * (`/api/graphql`): Device, Organization, User, Knowledge Article, Knowledge Folder,
  * Script, Script Schedule, Incident, Software, Vulnerability.
  *
  * Idiomatic Relay cursor pagination: a `@refetchable` fragment with
@@ -41,12 +41,16 @@ import type { relayItemsScriptsPaginationQuery } from '@/__generated__/relayItem
 import type { relayItemsSoftware_query$key } from '@/__generated__/relayItemsSoftware_query.graphql';
 import type { relayItemsSoftwareListQuery } from '@/__generated__/relayItemsSoftwareListQuery.graphql';
 import type { relayItemsSoftwarePaginationQuery } from '@/__generated__/relayItemsSoftwarePaginationQuery.graphql';
+import type { relayItemsUsers_query$key } from '@/__generated__/relayItemsUsers_query.graphql';
+import type { relayItemsUsersListQuery } from '@/__generated__/relayItemsUsersListQuery.graphql';
+import type { relayItemsUsersPaginationQuery } from '@/__generated__/relayItemsUsersPaginationQuery.graphql';
 import type { relayItemsVulnerabilities_query$key } from '@/__generated__/relayItemsVulnerabilities_query.graphql';
 import type { relayItemsVulnerabilitiesListQuery } from '@/__generated__/relayItemsVulnerabilitiesListQuery.graphql';
 import type { relayItemsVulnerabilitiesPaginationQuery } from '@/__generated__/relayItemsVulnerabilitiesPaginationQuery.graphql';
 import { INCIDENT_SEVERITY_LABELS, labelOf, WORKING_SET_STATUSES } from '@/app/(app)/incidents/utils/incident-labels';
 import { ROOT_FOLDER } from '@/app/(app)/knowledge-base/components/shared/folder-tree';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
+import { toUserSummary } from '@/graphql/users/user-summary-fields';
 import { decodeGlobalId, rawIdOf } from '@/lib/relay-id';
 import { CONTEXT_ENTITY_KIND } from './context-types';
 import { type ContextItemsProps, MINGO_CONTEXT_PAGE_SIZE } from './items-shared';
@@ -209,6 +213,66 @@ export function OrganizationItems({ query, selectedKeys, onToggle, atLimit }: Co
       onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
       loadingMore={isLoadingNext}
       emptyLabel="No customers"
+    />
+  );
+}
+
+// ───────────────────────────── User ─────────────────────────────────────────
+
+const USERS_FRAGMENT = graphql`
+  fragment relayItemsUsers_query on Query
+  @refetchable(queryName: "relayItemsUsersPaginationQuery")
+  @argumentDefinitions(
+    search: { type: "String" }
+    first: { type: "Int", defaultValue: 10 }
+    after: { type: "String" }
+  ) {
+    users(search: $search, first: $first, after: $after) @connection(key: "relayItemsUsers_users") {
+      edges {
+        node {
+          ...userSummaryFields_user
+        }
+      }
+    }
+  }
+`;
+
+const USERS_LIST_QUERY = graphql`
+  query relayItemsUsersListQuery($search: String, $first: Int) {
+    ...relayItemsUsers_query @arguments(search: $search, first: $first)
+  }
+`;
+
+export function UserItems({ query, selectedKeys, onToggle, atLimit }: ContextItemsProps) {
+  const root = useLazyLoadQuery<relayItemsUsersListQuery>(USERS_LIST_QUERY, {
+    search: query || null,
+    first: MINGO_CONTEXT_PAGE_SIZE,
+  });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<
+    relayItemsUsersPaginationQuery,
+    relayItemsUsers_query$key
+  >(USERS_FRAGMENT, root as relayItemsUsers_query$key);
+  // Raw db id: the USER context resolver, the `@user:<id>` marker and the
+  // mention chip all take it.
+  const items = data.users.edges.map(({ node }) => {
+    const { rawId, name, email } = toUserSummary(node);
+    return {
+      type: CONTEXT_ENTITY_KIND.USER,
+      id: rawId,
+      label: name,
+      description: email && email !== name ? email : undefined,
+    };
+  });
+  return (
+    <ContextItemsList
+      items={items}
+      selectedKeys={selectedKeys}
+      onToggle={onToggle}
+      atLimit={atLimit}
+      hasMore={hasNext}
+      onLoadMore={() => loadNext(MINGO_CONTEXT_PAGE_SIZE)}
+      loadingMore={isLoadingNext}
+      emptyLabel="No users"
     />
   );
 }

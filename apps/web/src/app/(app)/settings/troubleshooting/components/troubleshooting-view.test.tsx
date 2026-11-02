@@ -175,11 +175,9 @@ function typeInto(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-/** What the list's live region says to a screen reader. */
-function listStatus() {
-  return Array.from(container.querySelectorAll('[role="status"]'))
-    .map(element => element.textContent ?? '')
-    .find(text => text.startsWith('Loading logs'));
+/** Whether the list draws its loading rows (its own skeleton) in place of its lines or its empty state. */
+function listLoading() {
+  return container.querySelector('[data-loading-item]') !== null;
 }
 
 function buttonByText(text: string) {
@@ -391,12 +389,12 @@ describe('TroubleshootingView', () => {
     // state shows it is loading, through the debounce and the request alike, with Refresh off.
     expect(levelChip('ERROR')?.getAttribute('aria-pressed')).toBe('false');
     expect(container.textContent).not.toContain('No logs in this range');
-    expect(listStatus()).toBe('Loading logs…');
+    expect(listLoading()).toBe(true);
     expect(refreshButton()?.disabled).toBe(true);
 
     await settle();
     expect(lastVariables().filter.levels).toEqual(['DEBUG', 'INFO', 'WARN']);
-    expect(listStatus()).toBe('Loading logs…');
+    expect(listLoading()).toBe(true);
     expect(refreshButton()?.disabled).toBe(true);
 
     await act(async () => {
@@ -405,7 +403,7 @@ describe('TroubleshootingView', () => {
       await inFlight;
     });
     expect(container.textContent).toContain('No logs in this range');
-    expect(listStatus()).toBeUndefined();
+    expect(listLoading()).toBe(false);
     expect(refreshButton()?.disabled).toBe(false);
   });
 

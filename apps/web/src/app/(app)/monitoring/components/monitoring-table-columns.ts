@@ -4,19 +4,16 @@ import type { TableSkeletonColumn } from '@/app/components/shared/table-column-l
  * Column layout for the two monitoring detail device tables — the policy detail
  * page's Devices section and the query detail page's Assigned Devices tab.
  *
- * Data-only on purpose (see `table-column-layout.ts`): each table is drawn by
- * two renderers — the live one and `MonitoringDetailSkeleton`, which stands in
- * for the page while the Fleet request is in flight. Both read the SAME
- * declaration, so a skeleton header cannot drift from the loaded one's the way
- * every other pair did before their layouts were centralised.
+ * Data-only on purpose (see `table-column-layout.ts`): each table reads its
+ * columns' header, width and breakpoint from here, loaded or loading (while
+ * loading the same table draws its real cells over placeholder rows, each part in
+ * its own loading form).
  *
  * The two tables are the same layout down to the class strings; they differ in
  * exactly two things, and both are spelled out below rather than left implicit:
  * the STATUS column means different things (policy compliance vs the device's
  * own state, so a different `id` and accessor), and only the query table offers
- * column funnels. The funnels are not cosmetic — `DataTable.Header` keeps a
- * filterable header alive below `lg` and draws the icon beside its label — so
- * the skeleton has to know about them, which is what `filterable` is for.
+ * column funnels (the live columns' `meta.filter`; the layout here is the same).
  *
  * Headers are the real uppercase strings the tables pass; `DataTable`
  * uppercases them in CSS anyway, but keeping them verbatim means a diff here is
@@ -48,6 +45,12 @@ const QUICK_QUERY = {
   align: 'right',
 } satisfies TableSkeletonColumn;
 
+/**
+ * A policy's or a query's devices are every assigned host, read whole (no paging): their loading body draws this
+ * typical count. One constant for both lists.
+ */
+export const MONITORING_DEVICES_SKELETON_ROWS = 5;
+
 /** Policy detail → Devices. No column funnels on this one. */
 export const POLICY_DEVICE_COLUMNS = {
   device: DEVICE,
@@ -59,33 +62,13 @@ export const POLICY_DEVICE_COLUMNS = {
   quickQuery: QUICK_QUERY,
 } satisfies Record<string, TableSkeletonColumn>;
 
-/** Query detail → Assigned Devices. Same layout, plus funnels on three headers. */
+/** Query detail → Assigned Devices. Same layout; its live columns add funnels on three headers. */
 export const QUERY_DEVICE_COLUMNS = {
   device: DEVICE,
-  organization: { ...ORGANIZATION, filterable: true },
-  os: { ...OS, filterable: true },
+  organization: ORGANIZATION,
+  os: OS,
   /** The device's own online state — hence `status`, where the policy table says `compliance`. */
-  status: { id: 'status', header: 'STATUS', width: 'w-[140px]', filterable: true },
+  status: { id: 'status', header: 'STATUS', width: 'w-[140px]' },
   open: OPEN,
   quickQuery: QUICK_QUERY,
 } satisfies Record<string, TableSkeletonColumn>;
-
-/** Render order — the live table and the page skeleton read the same list. */
-export const POLICY_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  POLICY_DEVICE_COLUMNS.device,
-  POLICY_DEVICE_COLUMNS.organization,
-  POLICY_DEVICE_COLUMNS.os,
-  POLICY_DEVICE_COLUMNS.compliance,
-  POLICY_DEVICE_COLUMNS.open,
-  POLICY_DEVICE_COLUMNS.quickQuery,
-];
-
-/** Render order — the live table and the page skeleton read the same list. */
-export const QUERY_DEVICES_TABLE_COLUMNS: readonly TableSkeletonColumn[] = [
-  QUERY_DEVICE_COLUMNS.device,
-  QUERY_DEVICE_COLUMNS.organization,
-  QUERY_DEVICE_COLUMNS.os,
-  QUERY_DEVICE_COLUMNS.status,
-  QUERY_DEVICE_COLUMNS.open,
-  QUERY_DEVICE_COLUMNS.quickQuery,
-];

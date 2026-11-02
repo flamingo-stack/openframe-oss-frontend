@@ -1,6 +1,7 @@
 'use client';
 
 import { ToolBadge } from '@flamingo-stack/openframe-frontend-core';
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   getDeviceName,
   LogDrawer,
@@ -11,12 +12,16 @@ import {
   LogsTableView,
   type UiLogEntry,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
-import type { DateFilterResult, DateRange } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  type DateFilterResult,
+  type DateRange,
+  LoadError,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useApiParams, useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { normalizeToolTypeWithFallback, toToolLabel } from '@flamingo-stack/openframe-frontend-core/utils';
 import {
   forwardRef,
-  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -33,10 +38,12 @@ import type {
 import type { logsTableRelayPaginationQuery as LogsPaginationQueryType } from '@/__generated__/logsTableRelayPaginationQuery.graphql';
 import type { logsTableRelayQuery as LogsQueryType } from '@/__generated__/logsTableRelayQuery.graphql';
 import {
+  ContentErrorBoundary,
   DateColumnHeader,
   EMBEDDED_PAGE_OFFSET,
   EmptyState,
   type EmptyStateProps,
+  NO_ITEMS,
   onboardingGuideButton,
   type TableDateFilter,
   useRetryKey,
@@ -49,16 +56,18 @@ import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { transformOrganizationFilters } from '@/lib/filter-utils';
 import { formatDateTime } from '@/lib/format-date';
+import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
+import { LOGS_PAGE_SIZE } from '../hooks/use-logs';
 import { LogCopyButton } from './log-copy-button';
 import { LogDrawerDetails } from './log-drawer-details';
-import { LogsTableSkeleton } from './logs-table-skeleton';
 
 // ----------------------------------------------------------------
 // GraphQL definitions
 // ----------------------------------------------------------------
 
-const LOGS_PAGE_SIZE = 20;
+/** The Log ID header before the rows land: the same header, inert (no calendar to act on yet). */
+const INERT_LOG_ID_HEADER = <DateColumnHeader label="Log ID" />;
 
 const logsTableRelayQuery = graphql`
   query logsTableRelayQuery(
@@ -143,6 +152,12 @@ interface LogRow extends UiLogEntry {
 
 interface LogsTableProps {
   deviceId?: string;
+  /**
+   * The table shows one device's logs (no Device column). Defaults to `Boolean(deviceId)`; pass it when the
+   * device id is not known yet (a device tab drawn in its page's loading scope) so the loading and loaded
+   * tables have the same columns.
+   */
+  deviceScoped?: boolean;
   /** Lock the table to a single organization. When set, the source/organization column filter is hidden. */
   organizationId?: string;
   /** Render inside a tab (e.g. customer/device details) — drops the standalone top padding. */
@@ -158,7 +173,7 @@ export interface LogsTableRef {
 }
 
 interface LogsTableContentProps {
-  deviceId?: string;
+  deviceScoped: boolean;
   organizationLocked?: boolean;
   backendFilters: LogFilterInput;
   sort: LogSortInput;
@@ -175,20 +190,55 @@ interface LogsTableContentProps {
    *  the filter options come from this component's logFilters query). */
   mobileFilterOpen: boolean;
   onMobileFilterClose: () => void;
+  /** In a loading scope (an embedding tab whose parent still loads) the table reads nothing. */
+  scoped: boolean;
 }
 
 const LOGS_GUIDE_BUTTON = onboardingGuideButton('logs');
+
+const LOAD_ERROR_MESSAGE = "Couldn't load logs.";
 
 const renderEmptyState = (props: EmptyStateProps) => <EmptyState {...props} />;
 
 const renderCopyAction = (log: LogRow) => <LogCopyButton log={log.originalLogEntry} />;
 
 // ----------------------------------------------------------------
-// Inner content — uses Relay hooks, must be inside Suspense
+// Inner content — uses Relay hooks, inside its own boundary
 // ----------------------------------------------------------------
 
-function LogsTableContent({
-  deviceId,
+/** The logs table, with its own boundary: in its scope the reader draws its own loading form. */
+function LogsTableContent(props: LogsTableContentProps) {
+  return (
+    <LoadingSuspense bare gated={props.scoped} label="Loading logs">
+      <LogsTableContentReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function LogsTableContentReader(props: LogsTableContentProps) {
+  // In a loading scope (its boundary's fallback while the first page is in flight, or an outer loading state) it reads
+  // nothing: the same table view draws its own loading rows.
+  if (useLoadingScope()) {
+    return (
+      <LogsTableView<LogRow>
+        logs={NO_ITEMS}
+        loading
+        filters={props.tableFilters}
+        onFilterChange={props.onFilterChange}
+        search={props.debouncedSearch}
+        dateFilter={props.dateFilter}
+        logIdHeader={INERT_LOG_ID_HEADER}
+        deviceScoped={props.deviceScoped}
+        organizationLocked={Boolean(props.organizationLocked)}
+        pageSize={LOGS_PAGE_SIZE}
+      />
+    );
+  }
+  return <LogsTableContentLive {...props} />;
+}
+
+function LogsTableContentLive({
+  deviceScoped,
   organizationLocked,
   backendFilters,
   sort,
@@ -295,6 +345,10 @@ function LogsTableContent({
   // reader below runs in an effect, a timer or an event handler.
   useEffect(() => {
     onRefreshRef.current = resetToFirstPage;
+    // A failed query unmounts this reader under the error boundary: leave no refetch behind for a refresh to call.
+    return () => {
+      onRefreshRef.current = null;
+    };
   });
 
   const transformedLogs: LogRow[] = useMemo(() => {
@@ -348,7 +402,7 @@ function LogsTableContent({
         search={debouncedSearch}
         dateFilter={dateFilter}
         logIdHeader={logIdHeader}
-        deviceScoped={Boolean(deviceId)}
+        deviceScoped={deviceScoped}
         organizationLocked={organizationLocked}
         getLogHref={getLogDetailsUrl}
         renderCopyAction={renderCopyAction}
@@ -361,6 +415,7 @@ function LogsTableContent({
         onHideSearchChange={onEmptyChange}
         renderEmptyState={renderEmptyState}
         guideButton={LOGS_GUIDE_BUTTON}
+        pageSize={LOGS_PAGE_SIZE}
       />
 
       <LogDrawer
@@ -402,7 +457,7 @@ function LogsTableContent({
 // ----------------------------------------------------------------
 
 export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsTableImpl(
-  { deviceId, organizationId, embedded, showHeader }: LogsTableProps,
+  { deviceId, deviceScoped = Boolean(deviceId), organizationId, embedded, showHeader }: LogsTableProps,
   ref,
 ) {
   const { params, setParam, setParams } = useApiParams({
@@ -517,21 +572,49 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
     refreshRef.current?.();
   }, []);
 
+  // In a loading scope (an embedding tab whose parent still loads) the table reads nothing: it draws its own loading rows.
+  const scoped = useLoadingScope();
+
+  const className = embedded ? EMBEDDED_PAGE_OFFSET : undefined;
+
+  // The boundary is here, not at each call site: the device Overview and customer Logs tabs embed this table with
+  // nothing around it, so a failed query used to reach the route boundary and take the whole details page down.
+  // A different query (the device, a filter restored from history) clears it.
+  const queryKey = JSON.stringify([backendFilters, sort, debouncedSearch]);
+
   return (
-    <LogsPageView
-      onRefresh={handleRefresh}
-      showHeader={showHeader}
-      className={embedded ? EMBEDDED_PAGE_OFFSET : undefined}
-      // The search toolbar sits outside the Suspense boundary so it keeps focus
-      // across re-queries, and hides while the empty state is shown.
-      search={searchInput}
-      onSearchChange={setSearchInput}
-      hideSearch={isEmpty}
-      onOpenFilters={() => setMobileFilterOpen(true)}
+    <ContentErrorBoundary
+      label="LogsTable"
+      resetKey={queryKey}
+      // The failed state keeps the header, with Refresh as the retry, and drops the search toolbar: its filter button
+      // would open the table's modal, which went down with the table.
+      fallback={(retry, { isOffline }) => (
+        <LogsPageView
+          onRefresh={retry}
+          showHeader={showHeader}
+          className={className}
+          search={searchInput}
+          onSearchChange={setSearchInput}
+          hideSearch
+        >
+          <LoadError {...loadErrorProps(isOffline, LOAD_ERROR_MESSAGE, retry)} />
+        </LogsPageView>
+      )}
     >
-      <Suspense fallback={<LogsTableSkeleton />}>
+      <LogsPageView
+        onRefresh={handleRefresh}
+        showHeader={showHeader}
+        className={className}
+        // The search toolbar sits outside the Suspense boundary so it keeps focus
+        // across re-queries, and hides while the empty state is shown.
+        search={searchInput}
+        onSearchChange={setSearchInput}
+        hideSearch={isEmpty}
+        onOpenFilters={() => setMobileFilterOpen(true)}
+      >
         <LogsTableContent
-          deviceId={deviceId}
+          scoped={scoped}
+          deviceScoped={deviceScoped}
           organizationLocked={Boolean(organizationId)}
           backendFilters={backendFilters}
           sort={sort}
@@ -544,8 +627,8 @@ export const LogsTable = forwardRef<LogsTableRef, LogsTableProps>(function LogsT
           mobileFilterOpen={mobileFilterOpen}
           onMobileFilterClose={() => setMobileFilterOpen(false)}
         />
-      </Suspense>
-    </LogsPageView>
+      </LogsPageView>
+    </ContentErrorBoundary>
   );
 });
 LogsTable.displayName = 'LogsTable';

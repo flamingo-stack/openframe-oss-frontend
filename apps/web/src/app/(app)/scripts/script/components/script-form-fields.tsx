@@ -88,7 +88,7 @@ export function ScriptFormFields({
               <SelectButton
                 key={p.id}
                 title={p.name}
-                icon={<p.icon className="h-5 w-5" />}
+                icon={<p.icon className="h-5 w-5" color="currentColor" />}
                 selected={!isDisabled && watchedSupportedPlatforms.includes(p.id)}
                 disabled={isDisabled || disabled}
                 tag={isDisabled ? (isMdUp ? 'Coming Soon' : 'Soon') : undefined}
@@ -118,9 +118,6 @@ export function ScriptFormFields({
                   onCheckedChange={checked => field.onChange(checked)}
                   label="Run as User"
                   disabled={disabled}
-                  // Match the SelectButton card height (h-11 content-md:h-16) — the block's
-                  // own min-height is shorter, so override it on the inner label.
-                  className="[&>label]:h-11 [&>label]:min-h-0 content-md:[&>label]:h-16"
                 />
               )}
             />
@@ -266,6 +263,7 @@ export function ScriptFormFields({
               valuePlaceholder="Enter Value (empty=flag)"
               addButtonLabel="Add Script Argument"
               titleLabel="Script Arguments"
+              labelVariant="large"
               disabled={disabled}
               className="flex-1"
             />
@@ -283,6 +281,7 @@ export function ScriptFormFields({
               addButtonLabel="Add Environment Var"
               addSecretButtonLabel="Add Secret"
               titleLabel="Environment Vars"
+              labelVariant="large"
               disabled={disabled}
               className="flex-1"
             />

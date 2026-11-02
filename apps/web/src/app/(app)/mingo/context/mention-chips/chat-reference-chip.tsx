@@ -11,25 +11,22 @@
  * conversation as context, the picker does not offer one, and it has no entry
  * in `CONTEXT_ENTITY_MARKER`. It is the one mention-only marker.
  *
- * Unlike every entity chip, the target is not a page. The conversation opens IN
- * THE DRAWER, in place, over whatever page the drawer floats — the same path a
- * notification click takes — so the reader keeps their page and their place.
- * The `href` (`mingoDialogLink`) stays on the anchor for a middle-click or a
- * copy; a fresh load of it resolves into the drawer through the URL sync.
+ * The chip links to that chat's page (`mingoDialogLink`, the canonical chat route).
  *
  * The title comes from `conversationMemoryChatReference(id)` on the ai-agent
  * GraphQL. `null` is the backend refusing to name the chat for this caller — not
  * theirs, or gone — and the ONE case with nothing to open, so the chip says so
  * and links nowhere. A failed lookup is not that case: the chip keeps its link
- * under a generic label, since the drawer resolves the dialog on its own.
+ * under a generic label, since the chat resolves the dialog on its own.
  */
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { type ReactNode, Suspense } from 'react';
-import { openMingoDialogInDrawer } from '@/app/components/notifications/open-mingo-dialog';
+import type { ReactNode } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { mingoDialogLink } from '@/lib/routes';
-import { MentionErrorBoundary, MentionTag, MentionTagSkeleton } from './mention-tag';
+import { MentionErrorBoundary, MentionTag } from './mention-tag';
 
 /** The marker the ai-agent writes in front of a recalled dialog's id
  *  (`ConversationMemoryReferenceService.CHAT_TAG_PREFIX`, without the `@`). */
@@ -81,9 +78,29 @@ interface ChatReferenceChipProps {
   icon?: ReactNode;
 }
 
-/** The linked form: the same in-place open whether the title resolved or not. */
+/** The linked form: the chat's page, whether the title resolved or not. */
 function LinkedChatTag({ id, label, icon }: { id: string; label: string; icon?: ReactNode }) {
-  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} onOpen={() => openMingoDialogInDrawer(id)} />;
+  return <MentionTag icon={icon} label={label} href={mingoDialogLink(id)} />;
+}
+
+/**
+ * The chip's boundary: while its entity is fetched, the reader draws the chip itself (no label yet) in a loading
+ * scope, where the `Tag` draws its own skeleton in the chip's box. Inline (a `span` with no box of its own: the chip
+ * lives inside a `<p>`), and with no status of its own: a message can hold several chips loading at once, and a
+ * "loading" read out mid-sentence for each would bury the message itself.
+ */
+function ChatReferenceLoader(props: ChatReferenceChipProps) {
+  return (
+    <LoadingSuspense as="span" className="contents" status={false}>
+      <ChatReferenceReader {...props} />
+    </LoadingSuspense>
+  );
+}
+
+function ChatReferenceReader(props: ChatReferenceChipProps) {
+  // In a loading scope it draws the chip with no label and runs no read.
+  if (useLoadingScope()) return <MentionTag icon={props.icon} label="" />;
+  return <ChatReferenceInner {...props} />;
 }
 
 function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
@@ -103,9 +120,7 @@ function ChatReferenceInner({ id, icon }: ChatReferenceChipProps) {
 export function ChatReferenceChip({ id, icon }: ChatReferenceChipProps) {
   return (
     <MentionErrorBoundary fallback={<LinkedChatTag id={id} label={UNRESOLVED_CHAT} icon={icon} />}>
-      <Suspense fallback={<MentionTagSkeleton icon={icon} />}>
-        <ChatReferenceInner id={id} icon={icon} />
-      </Suspense>
+      <ChatReferenceLoader id={id} icon={icon} />
     </MentionErrorBoundary>
   );
 }

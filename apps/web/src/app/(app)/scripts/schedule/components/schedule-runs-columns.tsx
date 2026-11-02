@@ -1,68 +1,44 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ArrowRightUpIcon, Copy01Icon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   ActionsMenuDropdown,
   type ActionsMenuGroup,
   Button,
   type ColumnDef,
-  DataTable,
   type Row,
-  SquareAvatar,
   Tag,
   TruncateText,
-  useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
-import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import { useCallback, useMemo } from 'react';
-import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
+import { type ReactNode, useCallback, useMemo } from 'react';
 import { DateColumnHeader, type TableDateFilter } from '@/app/components/shared/date-column-header';
-import { DeletedUserAvatar } from '@/app/components/shared/deleted-user';
-import {
-  liveColumnMeta,
-  skeletonColumnMeta,
-  type TableSkeletonColumn,
-} from '@/app/components/shared/table-column-layout';
+import { liveColumnMeta, type TableSkeletonColumn } from '@/app/components/shared/table-column-layout';
 import { openInNewTab } from '@/lib/open-in-new-tab';
-import { decodeGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { multiSelectFilterFn } from '@/lib/table-filters';
+import { type Initiator, InitiatorIdentity, toInitiator } from '../../shared/components/initiator-identity';
 import { executionStatusLabel, executionStatusVariant } from '../../shared/utils/execution-helpers';
+import { facetFilter } from '../../shared/utils/facet-options';
 
 /** How many runs load per page. */
 export const RUNS_PAGE_SIZE = 20;
 
 /**
- * Column layout — ONE declaration, read by the live table below and by
- * {@link ScheduleRunsSkeleton}. Widths, `hideAt` and `filterable` were written
- * out twice before, and the copies drifted: the skeleton's Status column lost
- * its `filterable`, so the funnel was missing while loading and popped in with
- * the facets, shifting the label. See `table-column-layout.ts`.
+ * Column layout — ONE declaration, read by {@link scheduleRunColumns} (the
+ * loaded table and its loading state draw the same columns). Widths and `hideAt` were written out twice
+ * before, and the copies drifted. See `table-column-layout.ts`.
  */
 const RUN_COLUMNS = {
   executionId: { id: 'executionId', header: 'Execution', width: 'flex-1 min-w-0', dateFilterable: true },
-  status: { id: 'status', header: 'Status', width: 'w-[120px]', filterable: true },
+  status: { id: 'status', header: 'Status', width: 'w-[120px]' },
   responded: { id: 'responded', header: 'Devices', width: 'w-[120px]', hideAt: 'lg' },
   initiatorId: { id: 'initiatorId', header: 'Executed by', width: 'flex-1 min-w-0', hideAt: 'md' },
   actions: { id: 'actions', width: 'w-12 shrink-0 flex-none', align: 'right' },
   open: { id: 'open', width: 'w-12 shrink-0 flex-none', hideAt: 'md', align: 'right' },
 } satisfies Record<string, TableSkeletonColumn>;
-
-/** Render order, shared by the live table and the skeleton. */
-const RUN_COLUMN_ORDER: readonly TableSkeletonColumn[] = [
-  RUN_COLUMNS.executionId,
-  RUN_COLUMNS.status,
-  RUN_COLUMNS.responded,
-  RUN_COLUMNS.initiatorId,
-  // The loaded table ends in two 48px action columns. They carry no header text,
-  // but they do carry width — leaving them out of the skeleton laid the `flex-1`
-  // columns across ~128px more than they get, and every label jumped left the
-  // moment the rows arrived.
-  RUN_COLUMNS.actions,
-  RUN_COLUMNS.open,
-];
 
 /** One entry of the Status funnel — the core table's `meta.filter.options` shape. */
 export interface RunStatusOption {
@@ -81,12 +57,8 @@ export interface UiRun {
   timestamp: string;
   responded: number;
   total: number;
-  initiatorId: string;
-  initiatorName: string;
-  initiatorInitials: string;
-  initiatorImage?: string;
-  /** Initiator account is DELETED / SELF_DELETED — from `User.status` on the payload. */
-  initiatorDeleted: boolean;
+  /** Who fired it (empty for a scheduled fire). */
+  initiator: Initiator;
   /** Scheduled fires carry no initiator — a person only fires a run manually. */
   isScheduled: boolean;
 }
@@ -96,8 +68,13 @@ export function runDetailsHref(run: UiRun): string {
   return routes.scripts.schedules.run(run.id);
 }
 
+/** A placeholder row's initiator (the table's loading form): nobody, so its avatar and name draw their loading form. */
+const NO_INITIATOR = toInitiator(null);
+
 /** "Executed by" — an avatar plus either the user's name (linked) or "Scheduled". */
 function InitiatorCell({ run }: { run: UiRun }) {
+  // A row still being read: the avatar and the name draw their loading form (most fires are a person's).
+  if (useLoadingScope()) return <InitiatorIdentity initiator={NO_INITIATOR} size="md" inRow />;
   if (run.isScheduled) {
     return (
       <TruncateText tone="secondary" className="flex-1">
@@ -106,51 +83,48 @@ function InitiatorCell({ run }: { run: UiRun }) {
     );
   }
 
-  // The initiator id is a User global id; decode it to the raw id the REST-backed
-  // employee page expects. `data-no-row-click` stops the row's own navigation so
-  // only the user page opens.
-  const rawInitiatorId = decodeGlobalId(run.initiatorId)?.rawId ?? run.initiatorId;
-  const href = rawInitiatorId ? employeeDetailHref(rawInitiatorId) : null;
-  const isDeleted = run.initiatorDeleted;
+  return <InitiatorIdentity initiator={run.initiator} size="md" inRow />;
+}
 
-  const avatar = isDeleted ? (
-    <DeletedUserAvatar size="md" />
-  ) : (
-    <SquareAvatar
-      variant="round"
-      size="md"
-      src={run.initiatorImage}
-      fallback={run.initiatorInitials}
-      alt={run.initiatorName}
-      initialsClassName="text-ods-text-secondary"
-    />
-  );
-
-  if (!href) {
-    return (
-      <div className="flex min-w-0 flex-1 items-center gap-[var(--spacing-system-xsf)]">
-        {avatar}
-        <div className="min-w-0 flex-1">
-          <TruncateText className={isDeleted ? 'text-ods-error' : undefined}>{run.initiatorName}</TruncateText>
-        </div>
-      </div>
-    );
-  }
-
+/** A fire's status as its tag; the tag's own loading form while the row is read. */
+function RunStatusCell({ status }: { status: string }) {
+  const loading = useLoadingScope();
   return (
-    <div data-no-row-click className="pointer-events-auto flex min-w-0 flex-1">
-      <button
-        type="button"
-        onClick={openInNewTab(href)}
-        className="flex w-full min-w-0 items-center gap-[var(--spacing-system-xsf)] text-left"
-      >
-        {avatar}
-        <div className="min-w-0 flex-1">
-          <TruncateText className={cn('underline', isDeleted ? 'text-ods-error' : 'text-ods-accent')}>
-            {run.initiatorName}
-          </TruncateText>
-        </div>
-      </button>
+    <div className="flex">
+      <Tag label={executionStatusLabel(status)} variant={executionStatusVariant(status)} loading={loading} />
+    </div>
+  );
+}
+
+/**
+ * "80/150" = devices we have processed at least one result from, over the devices the fire targeted. The denominator
+ * is greyed so the eye lands on the number that moves; no slack around the slash, it reads as one value rather than
+ * two. A bar on its line while the row is read.
+ */
+function RunDevicesCell({ run }: { run: UiRun }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-16" />;
+  return (
+    <span className="whitespace-nowrap text-ods-text-primary text-h4">
+      {run.responded}
+      <span className="text-ods-text-secondary">/{run.total}</span>
+    </span>
+  );
+}
+
+/** Opens the run's page in a new tab. Static chrome: drawn real while the row is read, and inert. */
+function OpenRunButton({ run }: { run: UiRun }) {
+  const loading = useLoadingScope();
+  return (
+    <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
+      <Button
+        onClick={loading ? undefined : openInNewTab(runDetailsHref(run))}
+        variant="outline"
+        size="icon"
+        leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
+        aria-label="Open run details in new tab"
+        className="bg-ods-card"
+        disabled={loading}
+      />
     </div>
   );
 }
@@ -192,143 +166,100 @@ export function useScheduleRunColumns(
     [toast],
   );
 
-  return useMemo<ColumnDef<UiRun>[]>(
-    () => [
-      {
-        accessorKey: 'executionId',
-        // The cell's first line is the fire's dispatchedAt, which is what the
-        // calendar (range + newest/oldest first) narrows and orders.
-        header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter} />,
-        // Stretch column: the execution id is a full uuid and this is the one
-        // place it is shown in full (it is what the Execution History drill-down
-        // and "Copy Execution ID" key on).
-        cell: ({ row }: { row: Row<UiRun> }) => (
-          <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
-            <TruncateText>{row.original.timestamp}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.executionId}
-            </TruncateText>
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(RUN_COLUMNS.executionId),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }: { row: Row<UiRun> }) => (
-          <div className="flex">
-            <Tag
-              label={executionStatusLabel(row.original.status)}
-              variant={executionStatusVariant(row.original.status)}
-            />
-          </div>
-        ),
-        enableSorting: false,
-        filterFn: multiSelectFilterFn,
-        meta: liveColumnMeta(RUN_COLUMNS.status, { filter: { options: statusOptions } }),
-      },
-      {
-        accessorKey: 'responded',
-        header: 'Devices',
-        // "80/150" = devices we have processed at least one result from, over the
-        // devices the fire targeted. The denominator is greyed so the eye lands
-        // on the number that moves; no slack around the slash, it reads as one
-        // value rather than two.
-        cell: ({ row }: { row: Row<UiRun> }) => (
-          <span className="whitespace-nowrap text-ods-text-primary text-h4">
-            {row.original.responded}
-            <span className="text-ods-text-secondary">/{row.original.total}</span>
-          </span>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(RUN_COLUMNS.responded),
-      },
-      {
-        // accessorKey is `initiatorId` so a future server facet can reuse it;
-        // the cell renders the name (or "Scheduled" for an automatic fire).
-        accessorKey: 'initiatorId',
-        header: 'Executed by',
-        cell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} />,
-        enableSorting: false,
-        meta: liveColumnMeta(RUN_COLUMNS.initiatorId, { cellClassName: 'self-stretch' }),
-      },
-      {
-        id: 'actions',
-        cell: ({ row }: { row: Row<UiRun> }) => (
-          <div
-            data-no-row-click
-            className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-xsf)]"
-          >
-            {renderRowActions(row.original)}
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(RUN_COLUMNS.actions),
-      },
-      {
-        id: 'open',
-        cell: ({ row }: { row: Row<UiRun> }) => (
-          <div data-no-row-click className="pointer-events-auto flex items-center justify-end">
-            <Button
-              onClick={openInNewTab(runDetailsHref(row.original))}
-              variant="outline"
-              size="icon"
-              leftIcon={<ArrowRightUpIcon className="h-5 w-5" />}
-              aria-label="Open run details in new tab"
-              className="bg-ods-card"
-            />
-          </div>
-        ),
-        enableSorting: false,
-        meta: liveColumnMeta(RUN_COLUMNS.open),
-      },
-    ],
+  return useMemo(
+    () => scheduleRunColumns({ statusOptions, dateFilter, renderRowActions }),
     [renderRowActions, statusOptions, dateFilter],
   );
 }
 
-const EMPTY_ROWS: UiRun[] = [];
-
-export function ScheduleRunsSkeleton({ stickyHeaderOffset }: { stickyHeaderOffset?: string } = {}) {
-  // The live table's own layout, with `skeletonColumnMeta` turning `filterable`
-  // into a filter with no options yet — the header then draws the real control,
-  // funnel included, instead of growing one when the facets land. The Execution
-  // header's calendar needs no data at all, so it is drawn inert here for the
-  // same reason: a bare label would shift when the popover replaced it.
-  const columns = useMemo<ColumnDef<UiRun>[]>(
-    () =>
-      RUN_COLUMN_ORDER.map(column => {
-        const label = column.header;
-        return {
-          id: column.id,
-          header: column.dateFilterable && label ? () => <DateColumnHeader label={label} /> : label,
-          enableSorting: false,
-          meta: skeletonColumnMeta(column),
-        };
-      }),
-    [],
-  );
-
-  const table = useDataTable<UiRun>({
-    data: EMPTY_ROWS,
-    columns,
-    getRowId: (row: UiRun) => row.id,
-    enableSorting: false,
-  });
-
-  return (
-    <LoadingRegion label="Loading schedule runs">
-      <DataTable table={table}>
-        <DataTable.Header stickyHeader stickyHeaderOffset={stickyHeaderOffset} />
-        <DataTable.Body
-          loading
-          loadingRegion={false}
-          skeletonRows={RUNS_PAGE_SIZE}
-          emptyMessage=""
-          rowClassName="mb-1"
-        />
-      </DataTable>
-    </LoadingRegion>
-  );
+/**
+ * The table's columns: the loaded table and its loading state draw the same ones. With no `statusOptions`
+ * (loading) the Status funnel is pending and the Execution header's calendar is inert.
+ */
+function scheduleRunColumns({
+  statusOptions,
+  dateFilter,
+  renderRowActions,
+}: {
+  statusOptions: RunStatusOption[] | null;
+  dateFilter: TableDateFilter | null;
+  renderRowActions: (run: UiRun) => ReactNode;
+}): ColumnDef<UiRun>[] {
+  return [
+    {
+      accessorKey: 'executionId',
+      // The cell's first line is the fire's dispatchedAt, which is what the
+      // calendar (range + newest/oldest first) narrows and orders.
+      header: () => <DateColumnHeader label={RUN_COLUMNS.executionId.header} filter={dateFilter ?? undefined} />,
+      // Stretch column: the execution id is a full uuid and this is the one
+      // place it is shown in full (it is what the Execution History drill-down
+      // and "Copy Execution ID" key on).
+      cell: ({ row }: { row: Row<UiRun> }) => (
+        <div className="flex min-w-0 flex-col justify-center gap-[var(--spacing-system-xxs)]">
+          <TruncateText>{row.original.timestamp}</TruncateText>
+          <TruncateText variant="h6" tone="secondary">
+            {row.original.executionId}
+          </TruncateText>
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(RUN_COLUMNS.executionId),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }: { row: Row<UiRun> }) => <RunStatusCell status={row.original.status} />,
+      enableSorting: false,
+      filterFn: multiSelectFilterFn,
+      meta: liveColumnMeta(RUN_COLUMNS.status, { filter: facetFilter(statusOptions) }),
+    },
+    {
+      accessorKey: 'responded',
+      header: 'Devices',
+      // "80/150" = devices we have processed at least one result from, over the
+      // devices the fire targeted. The denominator is greyed so the eye lands
+      // on the number that moves; no slack around the slash, it reads as one
+      // value rather than two.
+      cell: ({ row }: { row: Row<UiRun> }) => <RunDevicesCell run={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(RUN_COLUMNS.responded),
+    },
+    {
+      // The column's value is the initiator's id so a future server facet can reuse it;
+      // the cell renders the name (or "Scheduled" for an automatic fire).
+      id: 'initiatorId',
+      // A placeholder row (the table's loading form) has no initiator.
+      accessorFn: (run: UiRun) => run.initiator?.id,
+      header: 'Executed by',
+      cell: ({ row }: { row: Row<UiRun> }) => <InitiatorCell run={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(RUN_COLUMNS.initiatorId, { cellClassName: 'self-stretch' }),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }: { row: Row<UiRun> }) => (
+        <div
+          data-no-row-click
+          className="pointer-events-auto flex items-center justify-end gap-[var(--spacing-system-xsf)]"
+        >
+          {renderRowActions(row.original)}
+        </div>
+      ),
+      enableSorting: false,
+      meta: liveColumnMeta(RUN_COLUMNS.actions),
+    },
+    {
+      id: 'open',
+      cell: ({ row }: { row: Row<UiRun> }) => <OpenRunButton run={row.original} />,
+      enableSorting: false,
+      meta: liveColumnMeta(RUN_COLUMNS.open),
+    },
+  ];
 }
+
+/** The columns before the first answer: the Status funnel pending, the calendar inert, no row to act on. */
+export const SCHEDULE_RUN_LOADING_COLUMNS = scheduleRunColumns({
+  statusOptions: null,
+  dateFilter: null,
+  renderRowActions: () => null,
+});

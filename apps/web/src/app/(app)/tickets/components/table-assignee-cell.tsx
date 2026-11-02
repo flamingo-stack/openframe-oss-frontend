@@ -9,7 +9,7 @@ import {
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { memo, useMemo } from 'react';
 import { useAssignTicket } from '../hooks/use-assign-ticket';
-import { useAssigneeOptions } from '../hooks/use-ticket-options';
+import { useAssigneeOptions } from '../hooks/use-assignee-options';
 
 interface UnassignedTicketCellProps {
   ticketId: string;
@@ -50,8 +50,8 @@ export const UnassignedTicketCell = memo(function UnassignedTicketCellImpl({
   ticketId,
   interactive,
 }: UnassignedTicketCellProps) {
-  // The options list is shared react-query state — fetched once for the table.
-  const { options, isLoading } = useAssigneeOptions(interactive);
+  // Searched on the server; an unsearched page is served from the Relay store after the first cell.
+  const { options, isLoading, onSearchChange } = useAssigneeOptions({ enabled: interactive });
   const assign = useAssignTicket();
 
   const selectOptions = useMemo<SearchableSelectOption[]>(
@@ -91,6 +91,7 @@ export const UnassignedTicketCell = memo(function UnassignedTicketCellImpl({
         searchPlaceholder="Search users..."
         emptyText="No users found"
         isLoading={isLoading}
+        onSearchChange={onSearchChange}
         align="start"
         contentClassName="w-72"
         trigger={

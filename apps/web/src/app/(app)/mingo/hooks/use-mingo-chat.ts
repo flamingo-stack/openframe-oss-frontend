@@ -10,6 +10,7 @@ import { extractPendingApprovals, findLatestPendingApprovalId, stripPendingAppro
 import { adminDisplayName, makeChatRowId } from '@/lib/chat-stream-thread';
 import { appendImageHash, getFullImageUrl } from '@/lib/image-url';
 import { selectUser, useAuthStore } from '@/stores';
+import type { MessageListRef, MessagePageRef } from '../../tickets/services/ticket-service.types';
 import {
   type CreateMingoDialogOptions,
   useCreateDialogMutation,
@@ -18,16 +19,19 @@ import {
 } from '../services/mingo-api-service';
 import { useMingoMessagesStore } from '../stores/mingo-messages-store';
 import type { CoreMessage } from '../types/message.types';
-import { insertNewDialog } from '../utils/insert-new-dialog';
+import { insertNewDialog, raiseDialog } from '../utils/insert-new-dialog';
 import { mingoDialogQueryKeys } from '../utils/query-keys';
 
 /** Context attached to an outgoing message: the picker selection plus the
  *  current navigation context (resolved by the caller from the context store).
- *  `openView`/`recentViews` carry the minimal `{ type, id }` wire shape. */
+ *  `openView`/`recentViews` carry the minimal `{ type, id }` wire shape;
+ *  `currentPage`/`currentList` are the page the message was sent from. */
 export interface MingoSendContext {
   contextItems?: ChatContextItem[];
   openView?: { type: string; id: string } | null;
   recentViews?: Array<{ type: string; id: string }>;
+  currentPage?: MessagePageRef;
+  currentList?: MessageListRef;
 }
 
 /**
@@ -50,14 +54,15 @@ export type ProcessedMessage = CoreMessage & {
   timestamp: Date;
 };
 
-interface UseMingoChat {
+interface UseMingoDialogChat {
   // Messages
   messages: ProcessedMessage[];
   isLoading: boolean;
 
   // Actions
-  /** `insightId` lists the chat under an incident; `intent` opens it to create one entity. */
-  createDialog: (options?: CreateMingoDialogOptions) => Promise<string | null>;
+  /** `insightId` lists the chat under an incident; `intent` opens it to create one entity;
+   *  `title` lists it under the name its caller is about to give it. */
+  createDialog: (options?: CreateMingoDialogOptions & { title?: string }) => Promise<string | null>;
   sendMessage: (content: string, targetDialogId?: string, context?: MingoSendContext) => Promise<boolean>;
   stopGeneration: () => Promise<void>;
 
@@ -114,7 +119,7 @@ function shallowEqualExcept<T extends object>(a: T, b: T, skip: ReadonlySet<stri
   return keys.every(key => skip.has(key) || a[key as keyof T] === b[key as keyof T]);
 }
 
-export function useMingoChat(dialogId: string | null): UseMingoChat {
+export function useMingoDialogChat(dialogId: string | null): UseMingoDialogChat {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const user = useAuthStore(selectUser);
@@ -221,18 +226,20 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
   }, [dialogId, messagesByDialog]);
 
   const createDialog = useCallback(
-    async (options?: CreateMingoDialogOptions): Promise<string | null> => {
+    async ({ title, ...options }: CreateMingoDialogOptions & { title?: string } = {}): Promise<string | null> => {
       if (isCreatingDialog) return null;
 
       try {
         setCreatingDialog(true);
 
-        const newDialogId = await createDialogMutation.mutateAsync(options ?? {});
+        const newDialogId = await createDialogMutation.mutateAsync(options);
         // Listed at once (a list read still in flight would drop it again, so
         // it is cancelled first); the refetch then brings the server's row.
+        // A named dialog is refetched by its rename instead: before that lands
+        // the server's row is untitled, and would list it as "New Chat".
         await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
-        insertNewDialog(queryClient, newDialogId, user);
-        queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
+        insertNewDialog(queryClient, newDialogId, user, { title });
+        if (!title) queryClient.invalidateQueries({ queryKey: ['mingo-dialogs'] });
 
         return newDialogId;
       } catch (error) {
@@ -299,6 +306,10 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
         // Through the reducer: it records the sent text and consumes the
         // backend's MESSAGE_REQUEST echo itself (see `pushOptimisticSend`).
         pushOptimisticSend(effectiveDialogId, optimisticMessage);
+        // The chat now has the latest message: first in the history at once. A list
+        // read still in flight would put it back, so it is cancelled first.
+        await queryClient.cancelQueries({ queryKey: mingoDialogQueryKeys.lists });
+        raiseDialog(queryClient, effectiveDialogId);
         await sendMessageMutation.mutateAsync({
           dialogId: effectiveDialogId,
           content: content.trim(),
@@ -307,6 +318,8 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
           contextItems: context?.contextItems?.map(i => ({ type: i.type, id: i.id })),
           currentView: context?.openView ?? undefined,
           recentViews: context?.recentViews,
+          currentPage: context?.currentPage,
+          currentList: context?.currentList,
         });
 
         return true;
@@ -334,6 +347,7 @@ export function useMingoChat(dialogId: string | null): UseMingoChat {
       messagesByDialog,
       updateApprovalStatusInMessages,
       sendMessageMutation,
+      queryClient,
       toast,
       user,
     ],

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { RecordingSummary } from '../../types/session-recording';
-import { REMOTE_SESSION_COLUMNS } from '../tabs/device-tab-columns';
+import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
 import { EXPIRES_FILTER_OPTIONS } from './session-status';
 
@@ -26,6 +26,7 @@ const row = (overrides: Partial<RecordingSummary> = {}): RecordingSummary => ({
   expiresAt: new Date(NOW + 3 * DAY_MS).toISOString(),
   recordingId: 'rec-1',
   employee: { name: 'Roman Smith' },
+  technicianId: 'tech-roman',
   ...overrides,
 });
 
@@ -34,6 +35,7 @@ function expiresColumn() {
     dateFilter: { sortDirection: 'desc', range: undefined, onApply: vi.fn() },
     employeeOptions: [],
     now: NOW,
+    liveRows: null,
     onOpen: vi.fn(),
     onDelete: vi.fn(),
   });

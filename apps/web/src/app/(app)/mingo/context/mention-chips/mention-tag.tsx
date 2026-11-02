@@ -1,126 +1,87 @@
 'use client';
 
 /**
- * Presentational shell every per-type mention chip renders into — the real lib
- * `Tag` (variant `badge`: ods-card + ods-border, mono-uppercase), rendered as a
- * `<span>` via `as="span"` and shrunk to inline height.
+ * Presentational shell every per-type mention chip renders into — the lib's
+ * `InlineChip` (its `Tag` badge as an inline `<span>`), the box the chat also
+ * draws for a link to a screen of the app.
  *
- * Why `as="span"`: these chips are emitted INLINE inside markdown text, which
- * react-markdown wraps in a `<p>`. The default `<Tag>` root is a `<div>`, and a
- * block `<div>` inside `<p>` is invalid HTML (hydration error) — same reason the
- * lib's inline `card://` pills are spans. `Tag`'s `as` prop renders the same
- * skin on an inline element.
- *
- * When `href` is set the chip is a link to the entity's page — a NEW TAB on
- * desktop web, the SAME window where a new tab is unavailable or unwanted (see
- * `useSameWindowLinks`). Also exports the loading skeleton and an error boundary
- * so a per-type chip is always: skeleton while fetching → resolved chip → plain
- * id chip if the fetch throws (never crashes the message).
+ * When `href` is set the chip is a link to the entity's page, followed by the
+ * chat's normal navigation (`NavLinkAnchorViaRuntime`), exactly as every other
+ * chat link: the chat stays in the sidebar and the composer under every page, so
+ * Back returns to the conversation. Where this window can open a tab, a separate
+ * trailing segment opens the page in a NEW TAB instead. In a loading scope the chip is the `Tag`'s own
+ * skeleton, in the chip's box; `MentionSuspense` is the Suspense boundary that
+ * puts it in one, and `MentionErrorBoundary` the error boundary, so a per-type chip is
+ * always: skeleton while fetching → resolved chip → plain id chip if the fetch
+ * throws (never crashes the message).
  */
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
-import { Tag } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { useRouter } from 'next/navigation';
-import { Component, type MouseEvent, type ReactNode } from 'react';
-import { useMingoLauncherStore } from '@/app/(app)/mingo/stores/mingo-launcher-store';
+import { InlineChip, NavLinkAnchorViaRuntime } from '@flamingo-stack/openframe-frontend-core/components/chat';
+import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { FloatingTooltip } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
+import { Component } from 'react';
 import { useSameWindowLinks } from '@/app/hooks/use-same-window-links';
-import { navigatesCurrentWindow } from '@/lib/link-click';
 
-// Tweaks on top of Tag's `badge` skin so the mention matches the canonical
-// context chip (`ChatContextChipStrip`). We KEEP Tag's natural height (h-8 =
-// 32px) and padding — only adjust for inline flow + a neutral hover:
-//   - `align-middle`         → vertically center the chip in the text line.
-//   - `hover:border-ods-border` → kill the badge variant's default
-//     `hover:border-ods-accent` (bright yellow border) which the context chips
-//     don't have (last hover:border utility wins via tailwind-merge).
-//   - `[&_svg]:size-4`       → 16px lead icon, matching the context chips.
-//   - `[&_svg]:text-ods-text-secondary` → grey lead icon (label stays primary),
-//     matching the context chips' muted glyph.
-// NB: no `cursor-pointer` here — the link cursor comes from the `<a>` wrapper, so
-// a chip WITHOUT an href (e.g. user — no detail page) doesn't look clickable.
-const CHIP_CLASS = 'max-w-[16rem] align-middle [&_svg]:size-4 [&_svg]:text-ods-text-secondary hover:border-ods-border';
+// The box is the lib's `InlineChip`: the same box the chat draws for a link to a screen of the app, so a mention and
+// an app link read alike. No `cursor-pointer` here: the link cursor comes from the `<a>` wrapper, so a chip WITHOUT an
+// href (a user has no detail page) does not look clickable. `max-w-[min(16rem,100%)]` keeps the chip no wider than
+// what holds it: a table cell narrower than 16rem (a phone) truncates the label (the tooltip then shows it whole)
+// instead of letting the chip run out of the cell.
+const CHIP_CLASS = 'max-w-[min(16rem,100%)]';
+
+// The two segments of a chip that can also open a tab: one chip outline, the
+// main segment's right border is the seam between them, and each segment
+// lights up on its own hover so the two targets read as two.
+const SEGMENT_HOVER_CLASS = 'hover:bg-ods-bg-hover';
+const MAIN_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-r-none');
+const NEW_TAB_SEGMENT_CLASS = cn(SEGMENT_HOVER_CLASS, 'rounded-l-none border-l-0 hover:[&_svg]:text-ods-text-primary');
 
 interface MentionTagProps {
   icon?: ReactNode;
   label: ReactNode;
   /** Entity detail-page URL — always one of OUR routes (`routes.*`). */
   href?: string;
-  /**
-   * Opens the target IN PLACE instead of navigating to `href` — for a target
-   * that lives in the drawer itself (an earlier conversation), where a page
-   * load or a new tab would be the wrong surface. A primary click is taken over
-   * whatever `useSameWindowLinks` says, and the drawer stays open; `href` stays
-   * on the anchor for a middle-click, a modifier click or a copy.
-   */
-  onOpen?: () => void;
 }
 
-export function MentionTag({ icon, label, href, onOpen }: MentionTagProps) {
+export function MentionTag({ icon, label, href }: MentionTagProps) {
   const sameWindow = useSameWindowLinks();
-  const router = useRouter();
-  const newTab = !sameWindow && !onOpen;
+  // A tab only where this window can open one and should (see `useSameWindowLinks`).
+  const offersNewTab = !sameWindow;
 
   // String labels go straight to Tag: its label slot shows a FloatingTooltip with
   // the full entity name only when the chip's max-w actually clips it, on a span
   // trigger that stays valid inside the markdown `<p>`.
-  const chip = <Tag as="span" variant="badge" icon={icon} label={label} className={CHIP_CLASS} />;
+  const chip = (
+    <InlineChip icon={icon} label={label} className={cn(CHIP_CLASS, href && offersNewTab && MAIN_SEGMENT_CLASS)} />
+  );
   if (!href) return chip;
 
-  // Same-window: soft-nav rather than let the anchor do a full document load —
-  // every chip href is an in-app route. The `href` stays on the element
-  // regardless, so it is still a real link to copy or long-press.
-  //
-  // The drawer is closed HERE rather than left to `AppShell`'s pathname-change
-  // effect, which cannot see most of these navigations: detail pages carry their
-  // entity in `?id=`, so a chip pointing at the record already on screen changes
-  // no URL at all, and one pointing at a sibling record changes only the query —
-  // both leave `pathname` untouched, the effect never runs, and the drawer stays
-  // put. Below md that drawer covers the whole viewport, so the click reads as
-  // dead. Only in same-window mode: a new-tab chip leaves this page alone, and
-  // the conversation should still be here when the user comes back.
-  //
-  // `closeForNavigation`, not `close`: the push is a pending transition, and the
-  // URL sync runs off this close BEFORE it commits, still reading the
-  // pre-navigation location. A plain close told it the drawer no longer owned
-  // `?mingoDialog=`, so it stripped the param with a `replaceState` of the OLD
-  // URL — stamped over the navigation in flight, which is why the tap did nothing
-  // on the phone while the same chip, opening a new tab on the desktop, worked.
-  // Same rule as the runtime's `navigate` for in-chat cards.
-  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!navigatesCurrentWindow(e)) return;
-    if (onOpen) {
-      e.preventDefault();
-      onOpen();
-      return;
-    }
-    if (!sameWindow) return;
-    e.preventDefault();
-    useMingoLauncherStore.getState().closeForNavigation();
-    router.push(href);
-  };
+  // The chip is a chat link like any other: the chat's normal navigation (`NavLinkAnchorViaRuntime`, the one
+  // decision and the one executor every chat link uses).
+  if (!offersNewTab) {
+    return (
+      <NavLinkAnchorViaRuntime href={href} className="no-underline">
+        {chip}
+      </NavLinkAnchorViaRuntime>
+    );
+  }
 
+  // The new-tab segment is the same chat link, asked for a new tab (`openIn`), to the page alone: a
+  // `?mingoDialog=` would send that tab to the chat page instead (`MingoDialogParamBridge`). The pair fits what
+  // holds it too: the main segment gives up its width first.
   return (
-    <a
-      href={href}
-      {...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-      onClick={handleClick}
-      className="no-underline"
-    >
-      {chip}
-    </a>
-  );
-}
-
-/**
- * Loading state: same chip shell with an inline skeleton bar for the label (a `span`: the chip lives
- * inside a `<p>`). Busy without a status of its own: a message can hold several chips loading at once,
- * and a "loading" read out mid-sentence for each would bury the message itself.
- */
-export function MentionTagSkeleton({ icon }: { icon?: ReactNode }) {
-  return (
-    <LoadingRegion as="span" status={false} className="contents">
-      <MentionTag icon={icon} label={<UnifiedSkeleton as="span" className="h-3 w-20 rounded" />} />
-    </LoadingRegion>
+    <span className="inline-flex max-w-full align-middle">
+      <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
+        {chip}
+      </NavLinkAnchorViaRuntime>
+      <FloatingTooltip content="Open in new tab" side="top" as="span">
+        <NavLinkAnchorViaRuntime href={href} openIn="new-tab" aria-label="Open in new tab" className="no-underline">
+          <InlineChip label={<ExternalLinkIcon />} className={NEW_TAB_SEGMENT_CLASS} />
+        </NavLinkAnchorViaRuntime>
+      </FloatingTooltip>
+    </span>
   );
 }
 

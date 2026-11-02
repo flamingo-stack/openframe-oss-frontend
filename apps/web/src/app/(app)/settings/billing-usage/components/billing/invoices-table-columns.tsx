@@ -1,3 +1,4 @@
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { ExternalLinkIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
@@ -6,6 +7,7 @@ import {
   type Row,
   Tag,
   TruncateText,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { liveColumnMeta } from '@/app/components/shared/table-column-layout';
 import { ValueText } from '@/app/components/shared/value-text';
@@ -95,6 +97,32 @@ export function invoiceStatusOptions(invoices: readonly InvoiceRow[]): DataTable
   return [...labels].sort().map(label => ({ id: label, label, value: label }));
 }
 
+/**
+ * A date of the row in its cell's type. While the table draws its loading rows (a loading scope, every field absent)
+ * it is a bar of that line.
+ */
+function InvoiceDate({ iso, variant, tone }: { iso: string | null | undefined; variant?: 'h6'; tone?: 'secondary' }) {
+  if (useLoadingScope()) return <TextLineSkeleton type={variant ?? 'h4'} className="w-3/4" />;
+  return (
+    <TruncateText variant={variant} tone={tone}>
+      {formatDate(iso)}
+    </TruncateText>
+  );
+}
+
+/** The amount owed; a bar of its line while the row is read (a placeholder row has no amount to format). */
+function InvoiceAmount({ amount }: { amount: number }) {
+  if (useLoadingScope()) return <TextLineSkeleton type="h4" className="w-3/4" />;
+  return <TruncateText>{formatCurrency(amount)}</TruncateText>;
+}
+
+/** The lifecycle tag; the tag's own skeleton while the row is read (a placeholder row has no status, not "Unpaid"). */
+function InvoiceStatusTag({ status }: { status: string | null | undefined }) {
+  const loading = useLoadingScope();
+  const { variant, label } = statusTag(status);
+  return <Tag variant={variant} label={label} loading={loading} />;
+}
+
 /** The table's columns; the status column filters over `statusOptions`. */
 export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDef<InvoiceRow>[] {
   return [
@@ -109,7 +137,7 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       cell: ({ row }: { row: Row<InvoiceRow> }) => (
         <>
           <ValueText value={row.original.invoiceNumber} />
-          <span className="truncate text-ods-text-secondary text-h6">{formatDate(row.original.createdAt)}</span>
+          <InvoiceDate iso={row.original.createdAt} variant="h6" tone="secondary" />
         </>
       ),
       enableSorting: false,
@@ -119,7 +147,7 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       id: 'dueDate',
       accessorFn: (row: InvoiceRow) => dateSortValue(row.dueDate),
       header: 'DUE DATE',
-      cell: ({ row }: { row: Row<InvoiceRow> }) => <TruncateText>{formatDate(row.original.dueDate)}</TruncateText>,
+      cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceDate iso={row.original.dueDate} />,
       sortUndefined: 'last',
       meta: liveColumnMeta(INVOICE_COLUMNS.dueDate),
     },
@@ -128,19 +156,14 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       // from Stripe's cents.
       accessorKey: 'amountDue',
       header: 'AMOUNT',
-      cell: ({ row }: { row: Row<InvoiceRow> }) => (
-        <TruncateText>{formatCurrency(row.original.amountDue)}</TruncateText>
-      ),
+      cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceAmount amount={row.original.amountDue} />,
       meta: liveColumnMeta(INVOICE_COLUMNS.amountDue),
     },
     {
       id: 'status',
       accessorFn: statusKey,
       header: 'STATUS',
-      cell: ({ row }: { row: Row<InvoiceRow> }) => {
-        const { variant, label } = statusTag(row.original.status);
-        return <Tag variant={variant} label={label} />;
-      },
+      cell: ({ row }: { row: Row<InvoiceRow> }) => <InvoiceStatusTag status={row.original.status} />,
       enableSorting: false,
       filterFn: multiSelectFilterFn,
       // The body cell is a `flex-col` (default `align-items: stretch`), which stretches the
@@ -154,7 +177,8 @@ export function invoiceColumns(statusOptions: DataTableFilterOption[]): ColumnDe
       id: 'actions',
       cell: ({ row }: { row: Row<InvoiceRow> }) => (
         <div data-no-row-click className="pointer-events-auto flex justify-end">
-          {/* No link before Stripe finalizes the invoice: the control stays, disabled, so the column keeps its shape. */}
+          {/* No link before Stripe finalizes the invoice (nor on a loading row): the control stays, disabled, so the
+              column keeps its shape. */}
           {row.original.hostedInvoiceUrl ? (
             <a
               href={row.original.hostedInvoiceUrl}

@@ -1,23 +1,13 @@
 /**
- * Column layout metadata — the single source of truth shared by a live
- * `DataTable` and every skeleton that stands in for it.
+ * Column layout metadata — the single source of truth for a `DataTable`'s columns.
  *
- * Why this module is deliberately data-only (no JSX, no `'use client'`, no
- * imports at all): a skeleton must not import the page's real table just to learn
- * the column widths — the table drags its Relay artifacts, mutations and cell
- * renderers along with it. Declaring the layout on its own lets the live table
- * and every skeleton standing in for it read the SAME array while only the live
- * table pays for the heavy parts.
+ * A table's loading state is the live table itself, rendered with no rows in a loading scope, so the layout
+ * is declared once here and read by the live column defs through `liveColumnMeta`. The module stays
+ * data-only (no JSX, no `'use client'`, no imports at all) so a column layout can be shared without
+ * dragging a table's Relay artifacts, mutations and cell renderers along with it.
  *
- * Every field here is layout-affecting: omit one on either side and the loading
- * table lays out differently from the loaded one, which is the shift these
- * declarations exist to prevent. Two are easy to miss:
- * - `filterable` is not cosmetic. `DataTable.Header` keeps a filterable
- *   column's header rendered below `lg` (its `keepOnTablet` rule) and skips the
- *   `hideAt` classes for it, so a skeleton that omits the flag silently drops
- *   header cells the loaded table shows.
- * - `sortable` makes the real header render a sort icon beside its label, so a
- *   skeleton without it centers the label differently.
+ * Every field here is layout-affecting: `sortable` makes the header draw a sort icon beside its label, and
+ * `dateFilterable` keeps a calendar header cell alive below `lg`.
  */
 /**
  * The core table's own `hideAt` breakpoints, restated rather than imported —
@@ -36,13 +26,10 @@ export interface TableSkeletonColumn {
   align?: 'right';
   /** Real column declares `meta.sortable` — its header renders a sort icon. */
   sortable?: boolean;
-  /** Real column renders a filter dropdown, so its header survives below `lg`. */
-  filterable?: boolean;
   /**
-   * Real column's header hosts a `DateColumnHeader` (calendar popover). Like
-   * `filterable`, this is layout-affecting rather than cosmetic: the icon sits
-   * beside the label, so a skeleton without it draws a bare label that shifts
-   * the moment the rows arrive. The skeleton renders the same header inert.
+   * Real column's header hosts a `DateColumnHeader` (calendar popover). This
+   * is layout-affecting rather than cosmetic: the icon sits
+   * beside the label, so a header without it draws a bare label.
    *
    * It also keeps the header cell alive below `lg` (see `alwaysShowHeader`
    * below): `DataTable.Header` only does that on its own for columns with a
@@ -68,11 +55,9 @@ export interface TableSkeletonColumn {
  * The way to be narrow is `hideAt`, which every other table already uses: shed
  * columns on the way down and let the header become the toolbar. If a column
  * genuinely needs a header class, pass it through `liveColumnMeta`'s `extra` as
- * `headerClassName` — a one-column concern does not belong in the layout shared
- * with the skeleton.
+ * `headerClassName` — a one-column concern does not belong in the shared layout.
  *
- * The `meta` fields below are the ones a live column and its skeleton must agree
- * on — nothing more.
+ * The `meta` fields below are the shared layout fields — nothing more.
  */
 interface SharedColumnMeta {
   width: string;
@@ -94,28 +79,6 @@ function sharedMeta(column: TableSkeletonColumn): SharedColumnMeta {
     // the note above `SharedColumnMeta` for why wanting LABELS there is not a
     // reason.
     alwaysShowHeader: column.dateFilterable,
-  };
-}
-
-/** Shared reference so a skeleton's meta stays referentially stable across renders. */
-const NO_FILTER_OPTIONS: never[] = [];
-
-/**
- * `meta` for a column inside a SKELETON table.
- *
- * A filterable column declares its filter as PENDING: no options, and the flag
- * that says they are still coming. That is what keeps the funnel drawn (inert)
- * instead of appearing with the data and pushing every label sideways — an empty
- * filter without the flag means "there is nothing to filter by", and the table
- * hides the funnel for it. It used to say `alwaysShowHeader`, which reproduced
- * the tablet visibility but drew a bare label.
- */
-export function skeletonColumnMeta(
-  column: TableSkeletonColumn,
-): SharedColumnMeta & { filter?: { options: never[]; pending: true } } {
-  return {
-    ...sharedMeta(column),
-    filter: column.filterable ? { options: NO_FILTER_OPTIONS, pending: true } : undefined,
   };
 }
 

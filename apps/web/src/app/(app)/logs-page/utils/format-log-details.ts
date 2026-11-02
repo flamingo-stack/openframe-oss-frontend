@@ -30,17 +30,23 @@ export const formatLogDetailsFragment = graphql`
  */
 export type CopyableLogDetails = Omit<formatLogDetails_log$data, ' $fragmentType'>;
 
+/** The payload's lines, in order: one per field. */
+const COPY_LINES: ReadonlyArray<(log: CopyableLogDetails) => string> = [
+  log => `Log ID: ${log.toolEventId}`,
+  log => `Status: ${log.severity}`,
+  log => `Timestamp: ${log.timestamp}`,
+  log => `Tool Type: ${log.toolType}`,
+  log => `Event Type: ${log.eventType}`,
+  log => `Message: ${log.message || 'No message available'}`,
+  log => `Details: ${log.details || 'No details available'}`,
+];
+
+/** How many lines the payload has (a one-line message and details): what the drawer draws while the log is read. */
+export const LOG_DETAILS_COPY_LINE_COUNT = COPY_LINES.length;
+
 /** Canonical plain-text representation of a log, identical wherever it is copied from. */
 export function formatLogDetailsForCopy(log: CopyableLogDetails): string {
-  return [
-    `Log ID: ${log.toolEventId}`,
-    `Status: ${log.severity}`,
-    `Timestamp: ${log.timestamp}`,
-    `Tool Type: ${log.toolType}`,
-    `Event Type: ${log.eventType}`,
-    `Message: ${log.message || 'No message available'}`,
-    `Details: ${log.details || 'No details available'}`,
-  ].join('\n');
+  return COPY_LINES.map(line => line(log)).join('\n');
 }
 
 /** {@link formatLogDetailsForCopy} over a `LogDetails` that a Relay operation spread `...formatLogDetails_log` on. */

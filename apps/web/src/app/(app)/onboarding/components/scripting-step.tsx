@@ -141,7 +141,7 @@ export function ScriptingStep({
               <SelectButton
                 key={p.id}
                 title={p.name}
-                icon={<p.icon className="size-5" />}
+                icon={<p.icon className="size-5" color="currentColor" />}
                 selected={!isDisabled && selectedPlatforms.includes(p.id)}
                 disabled={isDisabled}
                 onClick={
@@ -168,8 +168,6 @@ export function ScriptingStep({
                 checked={field.value}
                 onCheckedChange={checked => field.onChange(checked)}
                 label="Run as User"
-                // Match the SelectButton card height (h-11 content-md:h-16).
-                className="[&>label]:h-11 [&>label]:min-h-0 content-md:[&>label]:h-16"
               />
             )}
           />

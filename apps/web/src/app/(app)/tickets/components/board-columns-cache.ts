@@ -17,6 +17,7 @@
 
 import { type BoardColumnDef, columnFromTicketStatus } from '@flamingo-stack/openframe-frontend-core';
 import { useEffect, useState } from 'react';
+import { NO_ITEMS } from '@/app/components/shared';
 import { SYSTEM_KIND_META } from '../statuses/types/ticket-statuses.types';
 
 export interface CachedBoardColumn {
@@ -72,8 +73,6 @@ export function readCachedBoardColumns(): CachedBoardColumn[] | null {
   }
 }
 
-const NO_TICKETS: never[] = [];
-
 /**
  * Cold-profile fallback: the three system statuses every tenant has (ARCHIVED
  * is filtered off the board). Custom statuses sit between them, so this is only
@@ -84,7 +83,7 @@ function systemFallbackColumn(kind: 'AI_ASSISTANCE' | 'TECH_REQUIRED' | 'RESOLVE
   // `BoardColumnDef` with the core-lib release that renders it, and the spread
   // stays type-safe on either side of that bump.
   return {
-    ...columnFromTicketStatus(kind, NO_TICKETS, { isLoading: true, system: true }),
+    ...columnFromTicketStatus(kind, NO_ITEMS, { isLoading: true, system: true }),
     tooltip: SYSTEM_KIND_META[kind].tooltip,
   };
 }
@@ -106,7 +105,7 @@ const SYSTEM_FALLBACK_COLUMNS: BoardColumnDef[] = [
 export function buildPlaceholderBoardColumns(): BoardColumnDef[] {
   const cached = readCachedBoardColumns();
   if (!cached) return SYSTEM_FALLBACK_COLUMNS;
-  return cached.map(column => ({ ...column, tickets: NO_TICKETS, isLoading: true }));
+  return cached.map(column => ({ ...column, tickets: NO_ITEMS, isLoading: true }));
 }
 
 /**

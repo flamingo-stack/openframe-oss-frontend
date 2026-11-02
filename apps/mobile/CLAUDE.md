@@ -73,11 +73,36 @@ exists.**
   that file out and then deletes it, and the path arrives from JS.
 - **`MainViewController.swift`** — registers local plugins with the bridge; enables WKWebView
   **edge-swipe back** (`allowsBackForwardNavigationGestures` → WebKit history incl.
-  `pushState` → SPA `popstate`).
-- **`AppDelegate.swift`** — stock + the three APNs forwarding methods
+  `pushState` → SPA `popstate`); puts `NewWindowRouter` in front of Capacitor's UI delegate.
+- **`ExternalLinksPlugin`** — `ios/App/App/ExternalLinksPlugin.swift` (SFSafariViewController)
+  and `android/app/src/main/java/ai/openframe/mobile/ExternalLinksPlugin.java` (Custom Tabs).
+  No JS methods: it answers Capacitor's `shouldOverrideLoad`, which every navigation asks
+  before Capacitor's own fallback hands an off-origin URL to Safari / the default browser.
+  Takes top-level `http(s)` URLs off the app origin and opens them in an in-app browser,
+  after first offering them to the app that claims the link (iOS `.universalLinksOnly`,
+  Android 11+ the default non-browser handler: `FLAG_ACTIVITY_REQUIRE_NON_BROWSER |
+  FLAG_ACTIVITY_REQUIRE_DEFAULT`). Left to the system: store hosts (`systemHosts` /
+  `SYSTEM_HOSTS`, which must cover the web's `mobile-app-links.ts` listings — a tab would
+  render the store page instead of opening the store), every non-web scheme (`mailto:`,
+  `tel:`, `itms-apps:`/`market:`, the OAuth callback). iOS subframes are never touched:
+  they load in the web view. On iOS `window.open` bypasses `shouldOverrideLoad` (it reaches `createWebViewWith`, which
+  Capacitor answers with `UIApplication.open`), hence `NewWindowRouter`; a
+  `target="_blank"` link is asked first through `decidePolicyFor` with no target frame.
+  Shell-only, not `@capacitor/browser`: that needs a frontend `Browser.open` call, which
+  frozen bundles never make. Sign-in is separate (ASWebAuthenticationSession /
+  NativeAuth's own Custom Tab). iOS reports the app inactive while the browser is up and
+  closes it on a notification tap (see the SFSafariViewController gotcha).
+  SFSafariViewController does not share Safari's cookies, so a vendor portal asks to sign
+  in again; Custom Tabs run in the default browser (Chrome on most devices) and do.
+- **`AppDelegate.swift`** — the three APNs forwarding methods
   `@capacitor-firebase/messaging` requires (NotificationCenter posts; Firebase
   auto-configures in the plugin's `load()`), plus native push retraction and the
-  background-fetch completion call (see Push).
+  background-fetch completion call (see Push). No window, no URL or user-activity
+  handlers: those are the scene's.
+- **`SceneDelegate.swift`** — the one window scene (`UIApplicationSceneManifest` in
+  Info.plist; window + `MainViewController` from Main.storyboard via
+  `UISceneStoryboardFile`). Hands URL opens and user activities — cold (connection
+  options) and warm — to Capacitor's `ApplicationDelegateProxy`. See the UIScene gotcha.
 - **`OpenFrameApplication.java`** — the Android process-level init point (manifest
   `android:name`): installs the lifecycle's foreground observer and creates the
   notification channels. **`OpenFrameMessagingService.java`**, **`PushNotifications.java`**,
@@ -426,6 +451,36 @@ swapped.
 
 ## Gotchas (hard-won)
 
+- **iOS 27 kills an app without the UIScene lifecycle at launch.** Built against the
+  iOS 27 SDK (Xcode 27), an app with no `UIApplicationSceneManifest` traps in UIKit
+  (`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`, `EXC_BREAKPOINT`
+  ~75ms after launch) on every iOS 27 device. iOS 26 only logged "`UIScene` lifecycle
+  will soon be required" and the iOS 26 SDK never tripped it, so 1.0.1 was fine and the
+  first Xcode 27 store build (1.0.2, 2026102701, 2026-10-27) crashed for everyone on
+  TestFlight. Hence `SceneDelegate`. Under scenes UIKit never calls the AppDelegate's
+  `application(_:open:options:)`, `application(_:continue:…)`,
+  `applicationDidBecomeActive`, `applicationWillResignActive`,
+  `applicationDidEnterBackground` or `applicationWillEnterForeground` — URL/activity
+  handling goes in the scene delegate, lifecycle observers use the
+  `UIApplication.*Notification`s (`TokenLifecycle` already does), and the window is the
+  scene's (plugins reach it through the bridge view). An iOS 26 simulator does not
+  reproduce the crash: verify on an iOS 27 runtime.
+- **SFSafariViewController never resigns the app active.** The in-app browser
+  (`ExternalLinksPlugin`) covers the web view while the app stays in the foreground, and
+  on the shell, foreground alone counts as attended (frontend
+  `apps/web/src/lib/session-activity.ts`): anything arriving behind it would be auto-read
+  and its push cancelled, unseen — a loss the Safari hand-off it replaced never had. So
+  the plugin emits `@capacitor/app`'s `appStateChange` itself, the only foreground signal
+  the bundles in the field listen to: `isActive: false` once the browser is actually
+  presented, again after every activation while it is still up (`@capacitor/app` reports
+  each one as active; its observer runs first, the re-send follows it), and `true` on
+  Done. Android needs none of it: a full-screen Custom Tab stops `MainActivity`, which
+  fires the real event. Foreground banners stay suppressed meanwhile
+  (`presentationOptions: []`), so such a push lands silently and stays unread. A
+  notification tap closes the browser (`NotificationActions.forward` →
+  `dismissBrowser()`) before the web deep-links to the item, which it would otherwise do
+  behind it. Known gap: a web view reloaded while the browser is up (content process
+  killed in the background) starts out active until the next activation or Done.
 - **Simulator builds must be signed**: `CODE_SIGN_IDENTITY="-"`. Never
   `CODE_SIGNING_ALLOWED=NO` — unsigned sim apps fail `SecItemAdd` **silently**, so Keychain
   tokens don't persist across restarts.

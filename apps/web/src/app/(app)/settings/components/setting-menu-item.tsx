@@ -1,7 +1,8 @@
 'use client';
 
-import { UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { Chevron02RightIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -13,69 +14,59 @@ interface SettingMenuItemProps {
   description: string;
   /** Inline stamp after the title, e.g. a "Beta" `Tag` (Figma 2097-117139). */
   badge?: ReactNode;
+  /** One card of a read list (the help center's legal documents): marked for the height gate in both forms. */
+  listItem?: boolean;
 }
 
-// Shared so the placeholder below can't drift from the card it stands in for. The two
-// frames are what set the card's height, and neither carries a height class: each is
-// `sf` padding + a 24px glyph + its own 1px border = 50px. With the shell's `m` padding
-// and border that makes the card 84px on desktop and 76px below md — so the placeholder
-// reproduces the frames rather than approximating them with a sized block (an `h-12`
-// stand-in came out 48px, and the card 2px short at both breakpoints).
+// The two frames are what set the card's height, and neither carries a height class: each is `sf` padding + a 24px
+// glyph + its own 1px border = 50px. With the shell's `m` padding and border that makes the card 84px on desktop and
+// 76px below md, loading or loaded.
 const CARD_SHELL_CLASSES =
   'bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-m)] flex gap-[var(--spacing-system-s)] items-center';
 const ICON_FRAME_CLASSES =
   'shrink-0 rounded bg-ods-bg border border-ods-border flex items-center justify-center text-ods-text-secondary p-[var(--spacing-system-sf)]';
 const CHEVRON_FRAME_CLASSES = 'shrink-0 bg-ods-card border border-ods-border rounded-md p-[var(--spacing-system-sf)]';
+/** The chevron, the same glyph and colour in both forms (static: only the link around it waits). */
+const CHEVRON_CLASSES = 'size-6 text-ods-text-primary';
 
 /**
- * Holds a grid slot for a card whose visibility isn't known yet — a feature flag or a
- * role that hasn't answered. Chrome (both frames) is drawn for real; only the glyphs and
- * the text are placeholders, so the slot is exactly the size of whatever lands in it.
+ * One settings card. In a loading scope (the grid's gates, a feature flag or a role, have not answered which cards it
+ * holds) the card's fixed copy is drawn for real; a title or description still to be read (`''`, a read list's card) is
+ * a text bar of its line. Only the link is left out, since the card may not be one this workspace keeps.
  */
-export function SettingMenuItemSkeleton() {
+export function SettingMenuItem({ href, icon, title, description, badge, listItem }: SettingMenuItemProps) {
+  const loading = useLoadingScope();
   return (
-    <div className={CARD_SHELL_CLASSES}>
-      <div className={ICON_FRAME_CLASSES}>
-        <UnifiedSkeleton className="h-6 w-6 rounded" />
-      </div>
-      {/* Each bar sits in a box the height of the line it replaces (`text-h3` title,
-          `text-h6` description) but is only as tall as the glyphs themselves. Filling the
-          whole line box made the two bars touch and read as one slab; leading is what
-          separates real text, so the placeholder borrows it — and the block still totals
-          exactly what the two `<p>`s do. */}
-      <div className="min-w-0 flex-1">
-        <div className="flex h-[var(--font-line-space-h3-body)] items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h3-body)] w-32 max-w-full rounded-md" />
-        </div>
-        <div className="flex h-[var(--font-line-space-h6-caption)] items-center">
-          <UnifiedSkeleton className="h-[var(--font-size-h6-caption)] w-56 max-w-full rounded-md" />
-        </div>
-      </div>
-      <div className={CHEVRON_FRAME_CLASSES}>
-        <UnifiedSkeleton className="h-6 w-6 rounded" />
-      </div>
-    </div>
-  );
-}
-
-export function SettingMenuItem({ href, icon, title, description, badge }: SettingMenuItemProps) {
-  return (
-    <div className={CARD_SHELL_CLASSES}>
+    <div className={CARD_SHELL_CLASSES} data-loading-item={listItem || undefined}>
       <div className={ICON_FRAME_CLASSES}>{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-[var(--spacing-system-xs)]">
-          <p className="text-ods-text-primary text-h3">{title}</p>
+          {loading && !title ? (
+            <TextLineSkeleton type="h3" className="w-2/5" />
+          ) : (
+            <p className="text-ods-text-primary text-h3">{title}</p>
+          )}
           {badge}
         </div>
-        <p className="text-ods-text-secondary text-h6">{description}</p>
+        {loading && !description ? (
+          <TextLineSkeleton type="h6" className="w-3/4" />
+        ) : (
+          <p className="text-ods-text-secondary text-h6">{description}</p>
+        )}
       </div>
-      <Link
-        href={href}
-        aria-label={title}
-        className={cn(CHEVRON_FRAME_CLASSES, 'transition-colors hover:bg-ods-bg-hover')}
-      >
-        <Chevron02RightIcon className="size-6 text-ods-text-primary" />
-      </Link>
+      {loading ? (
+        <div className={CHEVRON_FRAME_CLASSES}>
+          <Chevron02RightIcon className={CHEVRON_CLASSES} />
+        </div>
+      ) : (
+        <Link
+          href={href}
+          aria-label={title}
+          className={cn(CHEVRON_FRAME_CLASSES, 'transition-colors hover:bg-ods-bg-hover')}
+        >
+          <Chevron02RightIcon className={CHEVRON_CLASSES} />
+        </Link>
+      )}
     </div>
   );
 }

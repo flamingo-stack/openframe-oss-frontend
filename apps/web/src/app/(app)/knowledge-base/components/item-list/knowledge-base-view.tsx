@@ -2,16 +2,14 @@
 
 import { BoxArchiveIcon, PlusCircleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { PageActionButton, SplitButtonIconAction } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useGenerateWithAiAction } from '@/app/(app)/mingo/hooks/use-generate-with-ai-action';
 import { DIALOG_INTENT } from '@/app/(app)/tickets/constants';
-import { TableSkeleton } from '@/app/components/shared';
 import { useDeferredQuery } from '@/app/hooks/use-deferred-query';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { routes } from '@/lib/routes';
 import { NewFolderModal } from '../dialogs/new-folder-modal';
 import { ROOT_FOLDER } from '../shared/folder-tree';
-import { KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS, KNOWLEDGE_BASE_PAGE_SIZE } from '../shared/knowledge-base-item-columns';
 import { KnowledgeBaseSearchToolbar } from '../shared/knowledge-base-search-toolbar';
 import { useTagSearchState } from '../shared/use-tag-search-state';
 import { KnowledgeBaseFolderTitle } from './knowledge-base-folder-title';
@@ -92,23 +90,22 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
   const generateWithAi = useGenerateWithAiAction(DIALOG_INTENT.CREATE_KB_ARTICLE);
   const actions = pageActions(folderId, () => setIsNewFolderOpen(true), isEmpty, generateWithAi);
 
+  const rows = (
+    <KnowledgeBaseItemsTable
+      listing={{ parentId: folderId, search: deferredSearch, tagIds: deferredTagIds }}
+      isPending={isPending}
+      onEmptyChange={setIsEmpty}
+      stickyHeaderOffset={stickyHeaderOffset}
+    />
+  );
+
   return (
     <div className="flex w-full flex-col">
       {folderId === null ? (
         <KnowledgeBaseListTitle title={ROOT_FOLDER.name} actions={actions} />
       ) : (
-        <Suspense
-          fallback={
-            <KnowledgeBaseListTitle
-              title={ROOT_FOLDER.name}
-              loading
-              backTo={routes.knowledgeBase.list}
-              actions={actions}
-            />
-          }
-        >
-          <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
-        </Suspense>
+        // The folder's name is read: the title places its own boundary and draws its loading form there.
+        <KnowledgeBaseFolderTitle folderId={folderId} actions={actions} />
       )}
 
       <div className="flex flex-col" style={containerStyle}>
@@ -122,23 +119,8 @@ export function KnowledgeBaseView({ folderId }: KnowledgeBaseViewProps) {
           />
         )}
 
-        <Suspense
-          fallback={
-            <TableSkeleton
-              label="Loading articles"
-              columns={KNOWLEDGE_BASE_ITEM_TABLE_COLUMNS}
-              rows={KNOWLEDGE_BASE_PAGE_SIZE}
-              stickyHeaderOffset={stickyHeaderOffset}
-            />
-          }
-        >
-          <KnowledgeBaseItemsTable
-            listing={{ parentId: folderId, search: deferredSearch, tagIds: deferredTagIds }}
-            isPending={isPending}
-            onEmptyChange={setIsEmpty}
-            stickyHeaderOffset={stickyHeaderOffset}
-          />
-        </Suspense>
+        {/* The rows: the table places its own boundary and, before they answer, draws its own loading state. */}
+        {rows}
       </div>
 
       <NewFolderModal isOpen={isNewFolderOpen} onClose={() => setIsNewFolderOpen(false)} parentId={folderId} />

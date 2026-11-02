@@ -10,7 +10,6 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import {
   Button,
-  DataTable,
   type DateFilterResult,
   type DateRange,
   FilterModal,
@@ -20,17 +19,21 @@ import { useApiParams } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EmptyState, onboardingGuideButton, SectionLoadError } from '@/app/components/shared';
+import {
+  EmptyState,
+  NO_ITEMS,
+  noop,
+  onboardingGuideButton,
+  oneLineEmptyState,
+  SectionLoadError,
+} from '@/app/components/shared';
 import { useSearchParam } from '@/app/hooks/use-search-param';
 import { useStickyToolbar } from '@/app/hooks/use-sticky-toolbar';
 import { dateRangeFromParams, dateRangeToInstantBounds, toDayParam } from '@/lib/date-filter-params';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
-import { type CustomersDateQuery, useCustomers } from '../hooks/use-customers';
+import { type CustomersDateQuery, ORGANIZATIONS_PAGE_SIZE, useCustomers } from '../hooks/use-customers';
 import { type CustomersDateFilter, CustomersSearchInput, CustomersTableBody } from './customers-table-columns';
-
-const EMPTY_FILTER_GROUPS: never[] = [];
-const noopFilterChange = () => {};
 
 interface CustomersTableProps {
   status?: string;
@@ -189,24 +192,15 @@ export function CustomersTable({ status }: CustomersTableProps) {
             isLoading={isLoading}
             // Same rule as `showEmptyState`, one component down: zero rows after a
             // failed or offline load must not read as "you have no customers".
-            emptyMessage={
+            emptyState={oneLineEmptyState(
               canClaimEmpty
                 ? 'No customers found. Try adjusting your search or filters.'
-                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message
-            }
-            skeletonRows={10}
+                : loadErrorProps(isOffline, LOAD_ERROR_MESSAGE).message,
+            )}
+            pageSize={ORGANIZATIONS_PAGE_SIZE}
             stickyHeaderOffset={stickyHeaderOffset}
             dateFilter={dateFilter}
-            footerSlot={
-              hasNextPage && (
-                <DataTable.InfiniteFooter
-                  hasNextPage={hasNextPage}
-                  isFetchingNextPage={isFetchingNextPage}
-                  onLoadMore={handleLoadMore}
-                  skeletonRows={2}
-                />
-              )
-            }
+            footer={{ hasNextPage, isFetchingNextPage, onLoadMore: handleLoadMore }}
           />
         </div>
       )}
@@ -214,8 +208,8 @@ export function CustomersTable({ status }: CustomersTableProps) {
       <FilterModal
         isOpen={mobileFilterOpen}
         onClose={() => setMobileFilterOpen(false)}
-        filterGroups={EMPTY_FILTER_GROUPS}
-        onFilterChange={noopFilterChange}
+        filterGroups={NO_ITEMS}
+        onFilterChange={noop}
         dateFilter={{
           title: 'Last Activity',
           sort: sortDirection,

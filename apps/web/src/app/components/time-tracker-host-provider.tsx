@@ -7,7 +7,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLazyLoadQuery, useMutation, usePaginationFragment } from 'react-relay';
 import type { cancelTimerMutation as CancelTimerMutationType } from '@/__generated__/cancelTimerMutation.graphql';
 import type { currentTimerRelayQuery as CurrentTimerRelayQueryType } from '@/__generated__/currentTimerRelayQuery.graphql';
@@ -21,6 +21,7 @@ import type { stopTimerMutation as StopTimerMutationType } from '@/__generated__
 import { employeeDetailHref } from '@/app/(app)/settings/employees/routes';
 import { type ManualEntryEditTarget, ManualEntryModal } from '@/app/components/manual-entry-modal';
 import { ConfirmDialog } from '@/app/components/shared/confirm-dialog';
+import { HydratorBoundary } from '@/app/components/shared/hydrator-boundary';
 import { useTicketCustomerSelection } from '@/app/components/use-ticket-customer-selection';
 import { TimerState } from '@/generated/schema-enums';
 import { cancelTimerMutation } from '@/graphql/time-tracker/cancel-timer-mutation';
@@ -309,12 +310,12 @@ function TimeTrackerHost({ enabled, children }: { enabled: boolean; children: Re
     <TimeTrackerProvider enabled={enabled} {...trackerData}>
       {enabled && (
         <>
-          <Suspense fallback={null}>
+          <HydratorBoundary>
             <CurrentTimerHydrator onTimer={setTimerNode} />
-          </Suspense>
-          <Suspense fallback={null}>
+          </HydratorBoundary>
+          <HydratorBoundary>
             <RecentEntriesHydrator onEntries={setRecentNodes} />
-          </Suspense>
+          </HydratorBoundary>
         </>
       )}
       {children}

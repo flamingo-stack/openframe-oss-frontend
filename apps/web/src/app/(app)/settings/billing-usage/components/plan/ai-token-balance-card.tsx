@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingRegion, UnifiedSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import { GiftIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Card } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { Card, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingLine } from '@/app/components/shared/loading-line';
 import { formatCompactCount } from '@/lib/format-number';
 import { AI_BALANCE_EXPLANATION, AiTopUpFields } from '../ai-balance/ai-top-up-fields';
 import { AutoTopUpCheckbox } from '../ai-balance/auto-top-up-checkbox';
@@ -10,6 +10,9 @@ import { ModelTokenRatesPopover } from '../ai-balance/model-token-rates';
 import type { AiTopUp } from '../ai-balance/use-ai-top-up';
 import { freeTokensForPlan } from '../shared/ai-free-tokens';
 import type { DevicePlanMode } from './plan-selection';
+
+/** How many lines the grant sentence ("N free tokens every month. Anything beyond…") typically runs to. */
+const AI_GRANT_SENTENCE_LINES = 2;
 
 interface AiTokenBalanceCardProps {
   /** The catalog has not answered yet — see the component docblock. */
@@ -41,14 +44,15 @@ interface AiTokenBalanceCardProps {
  * the page's "Proceed to Payment" submits the whole form at once.
  */
 export function AiTokenBalanceCard({
-  loading,
+  loading: loadingProp,
   deviceMode,
   topUp,
   autoTopUp,
   onAutoTopUpChange,
 }: AiTokenBalanceCardProps) {
+  const loading = useLoadingScope() || loadingProp;
   // A prepaid year is a commitment; pay-as-you-go is not, and it grants less.
-  const freeTokens = deviceMode == null ? null : freeTokensForPlan(deviceMode === 'ANNUAL');
+  const freeTokens = loading || deviceMode == null ? null : freeTokensForPlan(deviceMode === 'ANNUAL');
 
   return (
     <Card
@@ -70,9 +74,8 @@ export function AiTokenBalanceCard({
       <div className="flex items-start gap-[var(--spacing-system-xsf)] rounded-md border border-ods-border bg-ods-bg p-[var(--spacing-system-mf)]">
         <GiftIcon className="size-6 shrink-0 text-ods-accent" />
         {freeTokens == null ? (
-          <LoadingRegion status={false} className="w-full max-w-[22rem]">
-            <UnifiedSkeleton className="h-5 w-full" />
-          </LoadingRegion>
+          // The h4 sentence typically runs to two lines in the card's column.
+          <LoadingLine type="h4" lines={AI_GRANT_SENTENCE_LINES} className="w-full" regionClassName="w-full" />
         ) : (
           <p className="text-ods-text-primary text-h4">
             <span className="text-ods-accent text-h3">{formatCompactCount(freeTokens)}</span> free tokens every month.

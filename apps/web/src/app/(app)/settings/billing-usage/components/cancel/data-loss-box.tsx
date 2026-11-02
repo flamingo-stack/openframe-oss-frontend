@@ -6,7 +6,11 @@ import { DataLossModuleRows } from './data-loss-module-rows';
 
 /**
  * The header paints at once; `children` (the core rows) and the module rows load
- * on their own. With no line left, loading ones included, the box hides (`:has(li)`).
+ * on their own. With no line left, loading ones included, the box hides (`:has([role=listitem])`).
+ *
+ * A `div` list rather than a `ul`: a part still loading is its Suspense boundary's `LoadingFallback`, whose region
+ * is a `div`, which a `ul` may not hold. The list flattens those regions (`display: contents`) so its gap spaces
+ * the lines, loading or loaded, alike.
  */
 export function DataLossBox({ children }: { children: ReactNode }) {
   return (
@@ -17,17 +21,20 @@ export function DataLossBox({ children }: { children: ReactNode }) {
     // against the rounded border) opts this box out of that protection, so it was
     // the ONE child the column could crush: it collapsed to a sliver instead of
     // pushing the body into a scroll.
-    <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg [&:not(:has(li))]:hidden">
+    <div className="shrink-0 overflow-hidden rounded-md border border-ods-warning bg-ods-bg [&:not(:has([role=listitem]))]:hidden">
       <div className="flex items-center gap-[var(--spacing-system-xs)] border-b border-ods-warning bg-[var(--ods-open-yellow-secondary)] p-[var(--spacing-system-xsf)]">
         <AlertCircleIcon className="size-6 shrink-0 text-ods-warning" />
         <p className="flex-1 text-ods-warning text-h6">
           Once your subscription ends, this data will no longer be accessible.
         </p>
       </div>
-      <ul className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-s)]">
+      <div
+        role="list"
+        className="flex flex-col gap-[var(--spacing-system-xxs)] p-[var(--spacing-system-s)] [&>div:not([role])]:contents"
+      >
         {children}
         <DataLossModuleRows />
-      </ul>
+      </div>
     </div>
   );
 }

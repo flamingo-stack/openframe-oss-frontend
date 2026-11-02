@@ -1,9 +1,7 @@
 'use client';
 
 import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
-import { FLEET_LIST_SKELETON_ROWS } from '../shared/fleet-list-paging';
 import { SoftwareListFrame } from '../shared/software-list-frame';
-import { SOFTWARE_LIST_TABLE_COLUMNS } from './software-list-columns';
 import { SoftwareListTable } from './software-list-table';
 
 export interface SoftwareListViewProps {
@@ -25,13 +23,7 @@ export function SoftwareListView({ title, emptyTitle, emptyDescription, loading 
     // No page padding here: it lives in `SoftwarePageShell`, around the error
     // boundary, so a thrown query keeps the title indented.
     <PageLayout title={title}>
-      <SoftwareListFrame
-        placeholder="Search for Software"
-        skeletonColumns={SOFTWARE_LIST_TABLE_COLUMNS}
-        skeletonRows={FLEET_LIST_SKELETON_ROWS}
-        skeletonLabel="Loading software"
-        loading={loading}
-      >
+      <SoftwareListFrame placeholder="Search for Software" loading={loading}>
         {list => <SoftwareListTable {...list} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />}
       </SoftwareListFrame>
     </PageLayout>

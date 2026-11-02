@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
  * no tabs and no benefits panel - the person is mid-flow, one click from being signed in, and there
  * is nothing to sell them. Same footprint as the invite-link notice, the other auth screen that
  * stands alone; the card itself is the shared `SsoJoinForm` (or its skeleton while the identity loads).
+ * The desktop sign-in hand-off page (`/auth/desktop-return`) stands alone the same way and uses it too.
  */
 export function SsoJoinCardLayout({ children }: { children: ReactNode }) {
   return (

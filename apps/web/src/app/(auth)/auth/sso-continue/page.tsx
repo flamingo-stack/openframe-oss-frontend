@@ -1,11 +1,10 @@
 'use client';
 
-import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { AuthShell } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { LoadingWhen } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ssoProviderLabel } from '@/app/(auth)/auth/components/native-sso-signup-section';
 import { SsoOrganizationSetup } from '@/app/(auth)/auth/components/sso-organization-setup';
 import { authApiClient, type PendingSsoIdentity } from '@/lib/auth-api-client';
 import { markPendingSignup, pushIdentify } from '@/lib/posthog/posthog-events';
@@ -32,7 +31,6 @@ export default function SsoContinuePage() {
   const { toast } = useToast();
 
   const [identity, setIdentity] = useState<PendingSsoIdentity | null>(null);
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'expired'>('loading');
 
   // Submit navigates away; without this the form re-enables under the departing page.
   const [isNavigating, setIsNavigating] = useState(false);
@@ -49,13 +47,11 @@ export default function SsoContinuePage() {
         // This is the address the tenant identifies the person by.
         pushIdentify({ email: res.data.email });
         setIdentity(res.data);
-        setLoadState('ready');
         return;
       }
 
       // 409 is the documented expiry signal and carries copy worth showing; anything else gets a
       // generic line rather than a raw status.
-      setLoadState('expired');
       toast({
         title: 'Sign-in session expired',
         description:
@@ -82,25 +78,12 @@ export default function SsoContinuePage() {
     window.location.href = authApiClient.completeSsoRegistrationUrl(values);
   }, []);
 
-  if (loadState !== 'ready' || !identity) {
-    return (
-      <AuthShell>
-        <LoadingRegion label="Loading your sign-in" className="min-h-[320px]" />
-      </AuthShell>
-    );
-  }
-
-  const label = ssoProviderLabel(identity.provider);
-
   return (
+    // One form, loaded or not: while the identity is read it draws its own loading state.
     <AuthShell>
-      <SsoOrganizationSetup
-        subtitle={`Continuing as ${identity.email} via ${label}.`}
-        email={identity.email}
-        emailReadOnlyLabel={`Signed in with ${label}`}
-        onSubmit={handleSubmit}
-        isSubmitting={isNavigating}
-      />
+      <LoadingWhen loading={!identity}>
+        <SsoOrganizationSetup identity={identity} onSubmit={handleSubmit} isSubmitting={isNavigating} />
+      </LoadingWhen>
     </AuthShell>
   );
 }

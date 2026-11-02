@@ -24,16 +24,19 @@ export function ArticleDetailAttachments({ article }: { article: articleDetailAt
   if (attachments.length === 0) {
     return null;
   }
+  // Only some articles have attachments: an optional part for the page's height gate.
   return (
-    <TicketDetailSection label="Attachments">
-      <TicketAttachmentsList
-        attachments={attachments.map(attachment => ({
-          id: attachment.id,
-          fileName: attachment.fileName,
-          fileSize: attachment.fileSize ? formatFileSize(attachment.fileSize) : '',
-          onDownload: () => download(attachment.id, attachment.fileName),
-        }))}
-      />
-    </TicketDetailSection>
+    <div data-loading-optional>
+      <TicketDetailSection label="Attachments">
+        <TicketAttachmentsList
+          attachments={attachments.map(attachment => ({
+            id: attachment.id,
+            fileName: attachment.fileName,
+            fileSize: attachment.fileSize ? formatFileSize(attachment.fileSize) : '',
+            onDownload: () => download(attachment.id, attachment.fileName),
+          }))}
+        />
+      </TicketDetailSection>
+    </div>
   );
 }

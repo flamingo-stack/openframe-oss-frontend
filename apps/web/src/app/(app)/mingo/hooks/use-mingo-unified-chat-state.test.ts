@@ -1,12 +1,16 @@
 import type { ChatRef, SlashCommandSummary } from '@flamingo-stack/openframe-frontend-core/components/chat';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useMingoSheetStore } from '@/app/components/mingo-shell/mingo-sheet-store';
+import { useMingoContextStore } from '../stores/mingo-context-store';
 import type { ProcessedMessage } from './use-mingo-chat';
 import {
   buildMingoDisplayCommand,
   hasMingoDisplayCommand,
   mapMingoMessageToUnified,
   needsAllChatsScope,
+  openNamedDialog,
   rawDialogIdToAdopt,
+  snapshotSendContext,
 } from './use-mingo-unified-chat-state';
 
 const TIMESTAMP = new Date('2026-08-26T12:00:00Z');
@@ -224,5 +228,111 @@ describe('rawDialogIdToAdopt', () => {
   it('does nothing before the dialog has loaded or with no active dialog', () => {
     expect(rawDialogIdToAdopt(GLOBAL, null)).toBeNull();
     expect(rawDialogIdToAdopt(null, dialog)).toBeNull();
+  });
+});
+
+/**
+ * A conversation the app names itself (the Getting Started tour's). While none
+ * is open the wide panel lists a "New Chat" draft row; the created dialog must
+ * replace it, named, instead of joining it as a second untitled row until the
+ * rename lands.
+ */
+describe('openNamedDialog', () => {
+  const TITLE = 'Welcome to OpenFrame';
+
+  it('creates the dialog under its name and opens it before the rename lands', async () => {
+    const events: string[] = [];
+    let landRename: () => void = () => {};
+    const create = vi.fn(async (_options: { title: string }) => {
+      events.push('create');
+      return 'd-new';
+    });
+    const open = vi.fn((id: string) => events.push(`open ${id}`));
+    const rename = vi.fn(
+      (id: string) =>
+        new Promise<void>(resolve => {
+          events.push(`rename ${id}`);
+          landRename = () => {
+            events.push('renamed');
+            resolve();
+          };
+        }),
+    );
+
+    const pending = openNamedDialog(TITLE, { create, open, rename });
+    await vi.waitFor(() => expect(rename).toHaveBeenCalled());
+
+    expect(create).toHaveBeenCalledWith({ title: TITLE });
+    expect(rename).toHaveBeenCalledWith('d-new', TITLE);
+    expect(events).toEqual(['create', 'open d-new', 'rename d-new']);
+
+    landRename();
+    await expect(pending).resolves.toBe('d-new');
+  });
+
+  it('opens and renames nothing when the dialog could not be created', async () => {
+    const open = vi.fn();
+    const rename = vi.fn(async () => {});
+
+    await expect(openNamedDialog(TITLE, { create: async () => null, open, rename })).resolves.toBeNull();
+
+    expect(open).not.toHaveBeenCalled();
+    expect(rename).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * What every Mingo send carries besides its text, the composer's and a launcher's
+ * (a page chip, a quick action) alike: the page it was sent from and its list.
+ */
+describe('snapshotSendContext', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    useMingoContextStore.setState({ openView: null, recentViews: [] });
+    useMingoSheetStore.setState({ lastPage: null });
+  });
+
+  it('carries the page on screen and the filters in its URL', () => {
+    window.history.replaceState(null, '', '/devices/?statuses=OFFLINE');
+
+    expect(snapshotSendContext()).toMatchObject({
+      currentPage: { kind: 'LIST', title: 'Devices' },
+      currentList: { module: 'DEVICES', filters: [{ field: 'statuses', values: ['OFFLINE'] }] },
+    });
+  });
+
+  it('carries the page a chat page was opened from', () => {
+    window.history.replaceState(null, '', '/mingo/chat/?id=d-1');
+    useMingoSheetStore.setState({ lastPage: '/settings/?tab=api-keys' });
+
+    expect(snapshotSendContext().currentPage).toEqual({ kind: 'SETTINGS', title: 'Settings', section: 'api-keys' });
+  });
+
+  it("on a phone, carries from Mingo's home the page the chat list was opened over", () => {
+    const matchMedia = window.matchMedia;
+    // Narrower than md: no query matches.
+    window.matchMedia = ((query: string) => ({ matches: false, media: query })) as typeof window.matchMedia;
+    try {
+      window.history.replaceState(null, '', '/mingo/');
+      useMingoSheetStore.setState({ lastPage: '/devices/', newChatPage: '/devices/?statuses=OFFLINE' });
+      expect(snapshotSendContext()).toMatchObject({
+        currentPage: { kind: 'LIST', title: 'Devices' },
+        currentList: { module: 'DEVICES', filters: [{ field: 'statuses', values: ['OFFLINE'] }] },
+      });
+    } finally {
+      window.matchMedia = matchMedia;
+      useMingoSheetStore.setState({ newChatPage: null });
+    }
+  });
+
+  it("names an entity's page after the open view and carries the picker's selection", () => {
+    window.history.replaceState(null, '', '/devices/details/?id=m-1');
+    useMingoContextStore.setState({ openView: { type: 'DEVICE', id: 'm-1', label: 'MacBook' } });
+
+    expect(snapshotSendContext({ contextItems: [{ type: 'SCRIPT', id: 's-1', label: 'Cleanup' }] })).toMatchObject({
+      currentPage: { kind: 'ENTITY', title: 'Device: MacBook' },
+      openView: { type: 'DEVICE', id: 'm-1' },
+      contextItems: [{ type: 'SCRIPT', id: 's-1', label: 'Cleanup' }],
+    });
   });
 });

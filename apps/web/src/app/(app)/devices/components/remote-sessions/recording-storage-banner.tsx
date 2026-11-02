@@ -3,14 +3,15 @@
 import { AlertTriangleIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { Alert } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
-import type { ReactNode } from 'react';
+import type { HTMLAttributes } from 'react';
 import { useRecordingStorage } from '../../hooks/use-session-recordings';
 import { formatBytes } from './format';
 
 /** The recording warning strip (Figma 2328-20598 / 2328-20570): warning colours, a triangle, one bold line. */
-export function RecordingWarningAlert({ children, className }: { children: ReactNode; className?: string }) {
+export function RecordingWarningAlert({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <Alert
+      {...props}
       variant="warning"
       className={cn(
         'flex items-center gap-[var(--spacing-system-m)] rounded-[6px] border-ods-warning p-[var(--spacing-system-m)]',
@@ -30,14 +31,14 @@ export function RecordingWarningAlert({ children, className }: { children: React
  * "Recording storage full" on the device page (Figma 2328-20598): the tenant's
  * pool of recordings that are not kept is used up, so new sessions run without
  * recording. The limit is the server's, never a hardcoded size. Renders nothing
- * while storage has room, while it is loading, or where it cannot be read.
+ * while storage has room, while it is loading, or where it cannot be read; the alert is optional (data-loading-optional).
  */
-export function RecordingStorageBanner({ className }: { className?: string }) {
+export function RecordingStorageBanner(props: HTMLAttributes<HTMLDivElement>) {
   const { data: storage } = useRecordingStorage();
   if (!storage?.full) return null;
 
   return (
-    <RecordingWarningAlert className={className}>
+    <RecordingWarningAlert data-loading-optional {...props}>
       Recording storage full. New sessions aren&apos;t recorded. All {formatBytes(storage.limitBytes)} of recording
       storage is used.
     </RecordingWarningAlert>

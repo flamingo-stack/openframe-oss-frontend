@@ -12,7 +12,7 @@ export const addInsightNoteMutation = graphql`
       content
       authorId
       author {
-        ...insightUserFields_user
+        ...userSummaryFields_user
       }
       createdAt
     }

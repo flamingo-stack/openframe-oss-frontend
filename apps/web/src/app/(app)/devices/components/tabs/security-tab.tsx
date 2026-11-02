@@ -1,12 +1,19 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   AlertTriangleIcon,
   CheckCircleIcon,
   ShieldIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { TruncateText } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import {
+  LeaderRow,
+  type LeaderRowValueTone,
+  TruncateText,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
+import type { ReactNode } from 'react';
 import { formatDateTime } from '@/lib/format-date';
 import type { Device } from '../../types/device.types';
 import { TabDeployingEmptyState, TabEmptyState } from './tab-empty-state';
@@ -39,41 +46,80 @@ interface SecuritySection {
   cards: SecurityCard[];
 }
 
-const VALUE_COLOR: Record<SecurityStatus, string> = {
-  success: 'text-ods-success',
-  error: 'text-ods-error',
-  warning: 'text-ods-warning',
-  neutral: 'text-ods-text-primary',
+/**
+ * The tab's static copy: section headings, card titles and row labels. ONE table, read by `buildSections` (the loaded
+ * tab) and by `LOADING_SECTIONS` (its loading form), so the two cannot disagree.
+ */
+const SECTION = {
+  encryption: { id: 'encryption', title: 'Encryption' },
+  agents: { id: 'agents', title: 'Security Agents' },
+  posture: { id: 'posture', title: 'Posture' },
+} as const;
+
+const ROW = {
+  diskEncryption: 'Disk Encryption',
+  version: 'Version',
+  lastSeen: 'Last Seen',
+  status: 'Status',
+  failingPolicies: 'Failing Policies',
+  totalIssues: 'Total Issues',
+} as const;
+
+const CARD_TITLE = { diskEncryption: 'Disk Encryption', policyCompliance: 'Policy Compliance' } as const;
+
+/** Each security agent's card: its title (the agent's name) and its rows, in the order the section shows them. */
+const AGENT_CARD = {
+  openframe: { title: 'OpenFrame Agent', rows: [ROW.version, ROW.lastSeen] },
+  osquery: { title: 'osquery', rows: [ROW.version, ROW.status] },
+  orbit: { title: 'Orbit', rows: [ROW.version, ROW.status] },
+  fleetDesktop: { title: 'Fleet Desktop', rows: [ROW.version] },
+} as const;
+
+/** A row's value tone on the lib's leader row: a neutral value is the primary tone. */
+const VALUE_TONE: Record<SecurityStatus, LeaderRowValueTone> = {
+  success: 'success',
+  error: 'error',
+  warning: 'warning',
+  neutral: 'primary',
 };
 
-function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
-  const icon =
-    status === 'success' ? (
-      <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />
-    ) : status === 'error' ? (
-      <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />
-    ) : status === 'warning' ? (
-      <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />
-    ) : null;
+const STATUS_ICON: Record<SecurityStatus, ReactNode> = {
+  success: <CheckCircleIcon size={16} className="shrink-0 text-ods-success" />,
+  error: <AlertTriangleIcon size={16} className="shrink-0 text-ods-error" />,
+  warning: <AlertTriangleIcon size={16} className="shrink-0 text-ods-warning" />,
+  neutral: null,
+};
 
+// One-column grids, not column flexes: they only stack, and nested column flexes cost WebKit a re-measure per level.
+const STATUS_CARD_CLASS =
+  'grid w-full grid-cols-1 gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]';
+const STATUS_CARD_ROWS_CLASS = 'grid w-full grid-cols-1 gap-[var(--spacing-system-xs)]';
+const SECTION_CLASS = 'flex flex-col gap-[var(--spacing-system-xxs)]';
+const SECTION_HEADING_CLASS = 'uppercase text-ods-text-secondary text-h5';
+
+/** One posture row: the lib's leader row. While the device is read its value is empty, so the row draws its label
+ *  real and its value as a bar (a loading row states no status, so no status box is drawn). */
+function StatusRow({ label, value, status = 'neutral' }: SecurityRow) {
   return (
-    <div className="flex h-6 w-full items-center gap-[var(--spacing-system-xs)]">
-      <span className="whitespace-nowrap text-ods-text-secondary text-h4">{label}</span>
-      <div className="h-px flex-1 bg-ods-divider" />
-      <div className="min-w-0">
-        <TruncateText className={VALUE_COLOR[status]}>{value}</TruncateText>
-      </div>
-      {icon}
-    </div>
+    <LeaderRow
+      data-loading-item
+      className="h-6"
+      label={label}
+      value={value}
+      valueTone={VALUE_TONE[status]}
+      status={STATUS_ICON[status]}
+    />
   );
 }
 
 /** Host-local replica of the design's posture card (core `InfoCard` can't color values or add status icons). */
 function SecurityStatusCard({ title, rows }: SecurityCard) {
+  // While the device is read a card whose title is the agent's name draws it as a bar.
+  const loading = useLoadingScope();
   return (
-    <div className="flex w-full flex-col gap-[var(--spacing-system-m)] rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
-      {title && <TruncateText>{title}</TruncateText>}
-      <div className="flex w-full flex-col gap-[var(--spacing-system-xs)]">
+    <div data-loading-item className={STATUS_CARD_CLASS}>
+      {title ? <TruncateText>{title}</TruncateText> : loading && <TextLineSkeleton type="h4" className="w-32" />}
+      <div className={STATUS_CARD_ROWS_CLASS}>
         {rows.map(row => (
           <StatusRow key={row.label} {...row} />
         ))}
@@ -84,8 +130,8 @@ function SecurityStatusCard({ title, rows }: SecurityCard) {
 
 function SecuritySectionBlock({ title, cards }: Omit<SecuritySection, 'id'>) {
   return (
-    <section className="flex flex-col gap-[var(--spacing-system-xxs)]">
-      <h3 className="uppercase text-ods-text-secondary text-h5">{title}</h3>
+    <section className={SECTION_CLASS}>
+      <h3 className={SECTION_HEADING_CLASS}>{title}</h3>
       <div
         className={cn('grid grid-cols-1 gap-[var(--spacing-system-l)]', cards.length > 1 && 'content-lg:grid-cols-3')}
       >
@@ -115,14 +161,13 @@ function buildSections(device: Device): SecuritySection[] {
   // Encryption — the BitLocker/FileVault analog we can populate (single boolean).
   if (device.disk_encryption_enabled !== undefined) {
     sections.push({
-      id: 'encryption',
-      title: 'Encryption',
+      ...SECTION.encryption,
       cards: [
         {
-          title: 'Disk Encryption',
+          title: CARD_TITLE.diskEncryption,
           rows: [
             {
-              label: 'Disk Encryption',
+              label: ROW.diskEncryption,
               value: device.disk_encryption_enabled ? 'Encrypted' : 'Not Encrypted',
               status: device.disk_encryption_enabled ? 'success' : 'error',
             },
@@ -141,68 +186,92 @@ function buildSections(device: Device): SecuritySection[] {
   const openframeVersion = installedVersion('openframe-client') || normalizeVersion(device.agentVersion);
   if (openframeVersion) {
     agentCards.push({
-      title: 'OpenFrame Agent',
+      title: AGENT_CARD.openframe.title,
       rows: [
-        { label: 'Version', value: openframeVersion },
-        { label: 'Last Seen', value: formatDateTime(device.last_seen) },
+        { label: ROW.version, value: openframeVersion },
+        { label: ROW.lastSeen, value: formatDateTime(device.last_seen) },
       ],
     });
   }
   if (device.osquery_version) {
     agentCards.push({
-      title: 'osquery',
+      title: AGENT_CARD.osquery.title,
       rows: [
-        { label: 'Version', value: device.osquery_version },
-        { label: 'Status', value: 'Active', status: 'success' },
+        { label: ROW.version, value: device.osquery_version },
+        { label: ROW.status, value: 'Active', status: 'success' },
       ],
     });
   }
   const orbitVersion = installedVersion('fleetmdm-agent') || normalizeVersion(device.orbit_version);
   if (orbitVersion) {
     agentCards.push({
-      title: 'Orbit',
+      title: AGENT_CARD.orbit.title,
       rows: [
-        { label: 'Version', value: orbitVersion },
-        { label: 'Status', value: 'Active', status: 'success' },
+        { label: ROW.version, value: orbitVersion },
+        { label: ROW.status, value: 'Active', status: 'success' },
       ],
     });
   }
   if (device.fleet_desktop_version) {
-    agentCards.push({ title: 'Fleet Desktop', rows: [{ label: 'Version', value: device.fleet_desktop_version }] });
+    agentCards.push({
+      title: AGENT_CARD.fleetDesktop.title,
+      rows: [{ label: ROW.version, value: device.fleet_desktop_version }],
+    });
   }
   if (agentCards.length > 0) {
-    sections.push({ id: 'agents', title: 'Security Agents', cards: agentCards });
+    sections.push({ ...SECTION.agents, cards: agentCards });
   }
 
   // Posture — Fleet policy/issue summary (from the host payload `issues`).
   const postureRows: SecurityRow[] = [];
   if (device.failingPoliciesCount !== undefined) {
     postureRows.push({
-      label: 'Failing Policies',
+      label: ROW.failingPolicies,
       value: String(device.failingPoliciesCount),
       status: device.failingPoliciesCount > 0 ? 'error' : 'success',
     });
   }
   if (device.totalIssuesCount !== undefined) {
     postureRows.push({
-      label: 'Total Issues',
+      label: ROW.totalIssues,
       value: String(device.totalIssuesCount),
       status: device.totalIssuesCount > 0 ? 'warning' : 'success',
     });
   }
   if (postureRows.length > 0) {
     sections.push({
-      id: 'posture',
-      title: 'Posture',
-      cards: [{ title: 'Policy Compliance', rows: postureRows }],
+      ...SECTION.posture,
+      cards: [{ title: CARD_TITLE.policyCompliance, rows: postureRows }],
     });
   }
 
   return sections;
 }
 
+/** A loading card's rows: the labels real, every value a bar. */
+function loadingRows(labels: readonly string[]): SecurityRow[] {
+  return labels.map(label => ({ label, value: '' }));
+}
+
+/**
+ * The sections `buildSections` draws for a typical device, drawn while the device is read, from the same copy table:
+ * the static headings, card titles and row labels real; an agent card's title (the agent's name, which agents a
+ * device reports is read) and every value a bar. A typical Fleet host reports every agent (Fleet Desktop ships with
+ * Orbit).
+ */
+const LOADING_SECTIONS: SecuritySection[] = [
+  { ...SECTION.encryption, cards: [{ title: CARD_TITLE.diskEncryption, rows: loadingRows([ROW.diskEncryption]) }] },
+  { ...SECTION.agents, cards: Object.values(AGENT_CARD).map(card => ({ rows: loadingRows(card.rows) })) },
+  {
+    ...SECTION.posture,
+    cards: [{ title: CARD_TITLE.policyCompliance, rows: loadingRows([ROW.failingPolicies, ROW.totalIssues]) }],
+  },
+];
+
 export function SecurityTab({ device }: SecurityTabProps) {
-  if (!device) {
+  const loading = useLoadingScope();
+
+  if (!loading && !device) {
     return (
       <TabEmptyState
         icon={<ShieldIcon />}
@@ -212,10 +281,10 @@ export function SecurityTab({ device }: SecurityTabProps) {
     );
   }
 
-  const sections = buildSections(device);
+  const sections = device ? buildSections(device) : LOADING_SECTIONS;
 
-  if (sections.length === 0) {
-    if (device.sources?.fleet === 'skipped-pending') {
+  if (!loading && sections.length === 0) {
+    if (device?.sources?.fleet === 'skipped-pending') {
       return <TabDeployingEmptyState icon={<ShieldIcon />} section="Security" />;
     }
     return (

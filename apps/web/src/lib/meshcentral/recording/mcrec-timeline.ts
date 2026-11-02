@@ -27,3 +27,8 @@ export function toPlaybackMs(timeline: RecordingTimeline, wallMs: number): numbe
   }
   return durationMs;
 }
+
+/** The wall-clock time of the timeline's last frame; while files are still loading, a later time is not on it yet. */
+export function lastFrameAtMs(timeline: RecordingTimeline): number {
+  return timeline.spans?.at(-1)?.endMs ?? timeline.baseTimeMs + timeline.durationMs;
+}

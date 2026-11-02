@@ -7,12 +7,14 @@
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
 import type { MobileAuthError } from './mobile-auth-return';
+import { nativeAuthPlugin } from './native-shell';
 import { isAppShell } from './platform';
 import {
   appendAttributionQueryParams,
   collectRegistrationAttribution,
+  collectTouchpoint,
   normalizeAttribution,
-  type RegistrationAttribution,
+  type Touchpoint,
 } from './registration-attribution';
 import { runtimeEnv } from './runtime-config';
 import { refreshTokens } from './token-refresh-manager';
@@ -198,6 +200,21 @@ class AuthApiClient {
   }
 
   /**
+   * "Send me download link": the backend emails the installer links, each carrying a download id
+   * recorded with this visit's attribution. It answers 204 whatever it decided about the address,
+   * so a caller shows "sent" on any success. `website` is the page's honeypot, sent as it holds:
+   * a filled one makes the request a no-op on the server.
+   */
+  requestDownloadLink(payload: { email: string; website: string }) {
+    const attribution = collectTouchpoint();
+    return requestPublic('/sas/tenant/download-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ...(attribution ? { attribution } : {}) }),
+    });
+  }
+
+  /**
    * The text the `/auth/error` page shows for the `ref` it was sent with: an `AuthErrorCode` name, or
    * the key of a message the auth server stored for a few minutes. Public and session-less, like the
    * page. The server answers anything it does not recognise - an expired key, free text - with the
@@ -371,7 +388,7 @@ class AuthApiClient {
     tenantDomain: string;
     prNumber?: number;
     /** Marketing-attribution signals (click ids, campaign labels, tracking cookies, event id). */
-    attribution?: RegistrationAttribution;
+    attribution?: Touchpoint;
   }) {
     // Same "omit, never send empty" treatment the SSO query serialization applies — an
     // explicit caller-supplied object must not smuggle blank strings into the JSON body.
@@ -517,6 +534,15 @@ class AuthApiClient {
   }
 
   async logoutAsync(tenantId?: string): Promise<boolean> {
+    const plugin = nativeAuthPlugin();
+    if (plugin?.revokeSession) {
+      try {
+        return await plugin.revokeSession({ tenantId });
+      } catch {
+        return false;
+      }
+    }
+
     const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
     const logoutUrl = buildAuthUrl(`/oauth/logout${query}`);
     const headers: Record<string, string> = {};

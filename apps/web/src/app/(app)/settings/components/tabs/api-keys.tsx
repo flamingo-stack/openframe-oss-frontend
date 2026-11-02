@@ -1,11 +1,13 @@
 'use client';
 
+import { TextLineSkeleton } from '@flamingo-stack/openframe-frontend-core/components';
 import {
   DocumentIcon,
   PlusCircleIcon,
   BannedIcon,
   CheckCircleIcon,
   EyeIcon,
+  KeyIcon,
   PenEditIcon,
   Refresh02VrIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
@@ -20,15 +22,19 @@ import {
   Tag,
   TruncateText,
   useDataTable,
+  useLoadingScope,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useToast } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EmptyState, oneLineEmptyState } from '@/app/components/shared/empty-state';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { formatDate, formatTime } from '@/lib/format-date';
 import { formatCount } from '@/lib/format-number';
 import { getErrorMessage } from '@/lib/handle-api-error';
 import { routes } from '@/lib/routes';
+import { runtimeEnv } from '@/lib/runtime-config';
 import { ApiKeyCreatedModal } from '../../components/api-key-created-modal';
 import { ApiKeyDetailsModal } from '../../components/api-key-details-modal';
 import { CreateApiKeyModal } from '../../components/create-api-key-modal';
@@ -37,6 +43,38 @@ import { RegenerateApiKeyModal } from '../../components/regenerate-api-key-modal
 import { type ApiKeyRecord, useApiKeys } from '../../hooks/use-api-keys';
 
 const MENU_ICON = 'w-6 h-6 text-ods-text-secondary';
+
+/**
+ * Rows the loading table holds (placeholder rows, drawn with their real cells): the list is read whole, so this is the
+ * body's own default count (the lib's `DATA_TABLE_SKELETON_ROWS`), stated here so the rows and the body agree.
+ */
+const API_KEYS_SKELETON_ROWS = 10;
+
+/**
+ * A cell's text line; a bar of that line on a loading row (a loading scope, no key yet), where a formatter's empty
+ * mark ("—") or a placeholder's id would otherwise be drawn as text.
+ */
+function KeyText({ text, variant, tone, mono }: { text: string; variant?: 'h6'; tone?: 'secondary'; mono?: boolean }) {
+  if (useLoadingScope()) return <TextLineSkeleton type={variant ?? 'h4'} className="w-3/4" />;
+  return (
+    <TruncateText variant={variant} tone={tone} mono={mono}>
+      {text}
+    </TruncateText>
+  );
+}
+
+/** The key's status tag; the tag's own skeleton on a loading row (a placeholder is neither active nor inactive). */
+function KeyStatusTag({ enabled }: { enabled: boolean }) {
+  const loading = useLoadingScope();
+  return (
+    <Tag
+      className="self-start"
+      label={enabled ? 'ACTIVE' : 'INACTIVE'}
+      variant={enabled ? 'success' : 'grey'}
+      loading={loading}
+    />
+  );
+}
 
 export function ApiKeysTab() {
   const handleBack = useSafeBack(routes.settings.root());
@@ -142,9 +180,7 @@ export function ApiKeysTab() {
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
             <TruncateText>{row.original.name}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {row.original.description || EMPTY_VALUE}
-            </TruncateText>
+            <KeyText variant="h6" tone="secondary" text={row.original.description || EMPTY_VALUE} />
           </div>
         ),
         meta: { width: 'flex-1 min-w-0' },
@@ -152,27 +188,19 @@ export function ApiKeysTab() {
       {
         accessorKey: 'enabled',
         header: 'Status',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <Tag
-            className="self-start"
-            label={row.original.enabled ? 'ACTIVE' : 'INACTIVE'}
-            variant={row.original.enabled ? 'success' : 'grey'}
-          />
-        ),
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyStatusTag enabled={row.original.enabled} />,
         meta: { width: 'w-auto shrink-0 content-md:w-[120px]' },
       },
       {
         accessorKey: 'id',
         header: 'Key ID',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <TruncateText mono>{row.original.id}</TruncateText>,
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText mono text={row.original.id} />,
         meta: { width: 'w-[240px] shrink-0', hideAt: 'xl' },
       },
       {
         accessorKey: 'totalRequests',
         header: 'Usage',
-        cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
-          <TruncateText>{formatCount(row.original.totalRequests)}</TruncateText>
-        ),
+        cell: ({ row }: { row: Row<ApiKeyRecord> }) => <KeyText text={formatCount(row.original.totalRequests)} />,
         meta: { width: 'w-[100px] shrink-0', hideAt: 'lg' },
       },
       {
@@ -180,10 +208,8 @@ export function ApiKeysTab() {
         header: 'Created',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{formatDate(row.original.createdAt)}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {formatTime(row.original.createdAt)}
-            </TruncateText>
+            <KeyText text={formatDate(row.original.createdAt)} />
+            <KeyText variant="h6" tone="secondary" text={formatTime(row.original.createdAt)} />
           </div>
         ),
         meta: { width: 'w-[140px] shrink-0', hideAt: 'lg' },
@@ -193,10 +219,8 @@ export function ApiKeysTab() {
         header: 'Expires',
         cell: ({ row }: { row: Row<ApiKeyRecord> }) => (
           <div className="flex min-w-0 flex-col">
-            <TruncateText>{formatDate(row.original.expiresAt)}</TruncateText>
-            <TruncateText variant="h6" tone="secondary">
-              {formatTime(row.original.expiresAt)}
-            </TruncateText>
+            <KeyText text={formatDate(row.original.expiresAt)} />
+            <KeyText variant="h6" tone="secondary" text={formatTime(row.original.expiresAt)} />
           </div>
         ),
         meta: { width: 'w-[140px] shrink-0', hideAt: 'md' },
@@ -215,23 +239,43 @@ export function ApiKeysTab() {
     [renderRowActions],
   );
 
+  // The first read (no key on screen yet): the table holds placeholder rows, drawn with their real cells
+  // (`loadingCells`), each cell its own loading form. A refetch keeps the keys on screen.
+  const loadingRows = isLoading && items.length === 0;
+  const data = useMemo(
+    () => (loadingRows ? loadingPlaceholderRows<ApiKeyRecord>(API_KEYS_SKELETON_ROWS) : items),
+    [loadingRows, items],
+  );
   const table = useDataTable<ApiKeyRecord>({
-    data: items,
+    data,
     columns,
     getRowId: (row: ApiKeyRecord) => row.id,
     enableSorting: false,
   });
 
+  // No key at all is the app's empty state in place of the table, as every list without records says it: nothing to
+  // count or open, so no row count and no column titles. A failed read keeps the table and says why in its body.
+  const showEmptyState = !isLoading && !error && items.length === 0;
+
   const actions: PageActionButton[] = [
     {
       label: 'API Documentation',
-      icon: <DocumentIcon className="h-5 w-5" />,
+      // `currentColor`: the icon's own default is the primary text colour, which would override the button's icon tone.
+      icon: <DocumentIcon className="h-5 w-5" color="currentColor" />,
       variant: 'outline',
-      onClick: () => window.open('/swagger-ui/index.html#/', '_blank', 'noopener,noreferrer'),
+      // Swagger UI is served by the tenant gateway, not the app bundle. Relative, it resolves against the desktop
+      // shell's own origin (`tauri://localhost`), which the shell opens as an in-app window that falls back to the
+      // dashboard; on the gateway origin it is off-app, so the shell hands it to the system browser.
+      onClick: () =>
+        window.open(
+          `${runtimeEnv.tenantHostUrl().replace(/\/+$/, '')}/swagger-ui/index.html#/`,
+          '_blank',
+          'noopener,noreferrer',
+        ),
     },
     {
       label: 'Create API Key',
-      icon: <PlusCircleIcon color="var(--ods-system-greys-white)" size={20} />,
+      icon: <PlusCircleIcon size={20} />,
       variant: 'outline',
       onClick: () => setIsCreateOpen(true),
     },
@@ -244,10 +288,24 @@ export function ApiKeysTab() {
       className="bg-ods-bg px-[var(--spacing-system-l)] pb-[var(--spacing-system-l)]"
       backButton={{ label: 'Back', onClick: handleBack }}
     >
-      <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" />} />
-        <DataTable.Body loading={isLoading} emptyMessage={error || 'No API keys found.'} onRowClick={openDetails} />
-      </DataTable>
+      {showEmptyState ? (
+        <EmptyState
+          icon={<KeyIcon />}
+          title="No API keys yet"
+          description="Keys that let your scripts and integrations call the OpenFrame API will be listed here."
+        />
+      ) : (
+        <DataTable table={table}>
+          <DataTable.Header rightSlot={<DataTable.RowCount itemName="API key" loading={loadingRows} />} />
+          <DataTable.Body
+            loading={isLoading}
+            loadingCells={loadingRows}
+            skeletonRows={API_KEYS_SKELETON_ROWS}
+            emptyState={oneLineEmptyState(error || 'No API keys found.')}
+            onRowClick={openDetails}
+          />
+        </DataTable>
+      )}
       <CreateApiKeyModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}

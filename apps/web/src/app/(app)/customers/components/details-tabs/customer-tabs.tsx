@@ -27,7 +27,10 @@ import { CustomerTicketsTab } from './customer-tickets-tab';
 import { CustomerWorktimeTab } from './customer-worktime-tab';
 
 export interface CustomerTabProps {
-  organization: CustomerDetails;
+  /** Known from the URL before the customer loads, so a tab that needs only the id starts its own read at once. */
+  organizationId: string;
+  /** `null` while the customer loads: a tab that reads it draws its own loading state. */
+  organization: CustomerDetails | null;
 }
 
 // Module-level wrapper components keep their function identities stable across
@@ -36,16 +39,16 @@ export interface CustomerTabProps {
 // on the `tabs` reference) doesn't briefly reset the active tab during a
 // navigation transition.
 
-function DevicesTab({ organization }: CustomerTabProps) {
-  return <CustomerDevicesTab organizationId={organization.organizationId} />;
+function DevicesTab({ organizationId }: CustomerTabProps) {
+  return <CustomerDevicesTab organizationId={organizationId} />;
 }
 
-function TicketsTab({ organization }: CustomerTabProps) {
-  return <CustomerTicketsTab organizationId={organization.organizationId} />;
+function TicketsTab({ organizationId }: CustomerTabProps) {
+  return <CustomerTicketsTab organizationId={organizationId} />;
 }
 
-function LogsTab({ organization }: CustomerTabProps) {
-  return <CustomerLogsTab organizationId={organization.organizationId} />;
+function LogsTab({ organizationId }: CustomerTabProps) {
+  return <CustomerLogsTab organizationId={organizationId} />;
 }
 
 function WorktimeTab({ organization }: CustomerTabProps) {
@@ -56,20 +59,20 @@ function DetailsTab({ organization }: CustomerTabProps) {
   return <CustomerDetailsTab organization={organization} />;
 }
 
-function CustomAiAssistantTab({ organization }: CustomerTabProps) {
-  return <CustomerCustomAiAssistantTab organizationId={organization.organizationId} />;
+function CustomAiAssistantTab({ organizationId }: CustomerTabProps) {
+  return <CustomerCustomAiAssistantTab organizationId={organizationId} />;
 }
 
-function GuardrailsTab({ organization }: CustomerTabProps) {
-  return <CustomerGuardrailsTab organizationId={organization.organizationId} />;
+function GuardrailsTab({ organizationId }: CustomerTabProps) {
+  return <CustomerGuardrailsTab organizationId={organizationId} />;
 }
 
-function DeviceGuardrailsTab({ organization }: CustomerTabProps) {
-  return <CustomerDeviceGuardrailsTab organizationId={organization.organizationId} />;
+function DeviceGuardrailsTab({ organizationId }: CustomerTabProps) {
+  return <CustomerDeviceGuardrailsTab organizationId={organizationId} />;
 }
 
-function ArticlesTab({ organization }: CustomerTabProps) {
-  return <AssignedArticlesTab target={customerArticlesTarget(organization.organizationId)} />;
+function ArticlesTab({ organizationId }: CustomerTabProps) {
+  return <AssignedArticlesTab target={customerArticlesTarget(organizationId)} />;
 }
 
 // `satisfies` links these ids to the route registry's tab union — renaming a

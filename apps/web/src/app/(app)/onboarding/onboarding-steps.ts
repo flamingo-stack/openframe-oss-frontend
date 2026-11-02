@@ -3,6 +3,7 @@
  * single source of truth for how many steps each surface has and in what order
  * they render; nothing counts steps by a hardcoded number.
  */
+import type { ReactNode, Ref } from 'react';
 import { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 
 /** Tenant "Initial Setup" steps, in display order. */
@@ -63,4 +64,50 @@ export function countCompleted(steps: readonly string[], completedSteps: readonl
 /** Whether a given step is in the completed set — same oracle as above. */
 export function isStepDone(step: string, completedSteps: readonly string[]): boolean {
   return completedSteps.includes(step);
+}
+
+/** Where a surface's steps stand: how many, how many done, the one that says "Next", and whether all are done. */
+export interface OnboardingProgress<T extends string> {
+  total: number;
+  done: number;
+  nextStep: T | null;
+  /** Every step done — never while progress is read (`loading`). */
+  allDone: boolean;
+}
+
+/** The progress of `steps` against `completedSteps`, one rule for every onboarding surface. */
+export function onboardingProgress<T extends string>(
+  steps: readonly T[],
+  completedSteps: readonly string[],
+  loading = false,
+): OnboardingProgress<T> {
+  const total = steps.length;
+  const done = countCompleted(steps, completedSteps);
+  return {
+    total,
+    done,
+    // First step still to do, in display order.
+    nextStep: steps.find(step => !isStepDone(step, completedSteps)) ?? null,
+    allDone: !loading && done >= total,
+  };
+}
+
+/** How a loaded row is wired: its anchor, its expansion and its body. Absent while progress is read. */
+export interface OnboardingStepWiring {
+  ref: Ref<HTMLDivElement>;
+  /** The URL-hash anchor (`/onboarding#step-…`); surfaces without deep-linking omit it. */
+  id?: string;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  body: ReactNode;
+}
+
+/** The lead of a surface's progress line: its static step count. */
+export function stepsToCompleteLabel(total: number): string {
+  return `${total} steps to complete`;
+}
+
+/** A surface's progress line, once progress is read: the step count and how many are done, or that all are. */
+export function progressLine({ total, done, allDone }: OnboardingProgress<string>): string {
+  return allDone ? 'All steps complete' : `${stepsToCompleteLabel(total)} · ${done}/${total} done`;
 }

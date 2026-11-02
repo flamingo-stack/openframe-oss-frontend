@@ -2,9 +2,12 @@
 
 import type {
   DeviceFilterInput,
+  DeviceFilters,
   DeviceSelectorNarrowing,
   SubTab,
 } from '@flamingo-stack/openframe-frontend-core/components/features';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import type { ReactNode } from 'react';
 import { graphql, useLazyLoadQuery, usePaginationFragment } from 'react-relay';
 import type {
   bundlePickerLists_assigned$data as AssignedFragmentData,
@@ -19,10 +22,14 @@ import type { bundlePickerListsAssignedQuery as AssignedQueryType } from '@/__ge
 import type { bundlePickerListsAvailablePaginationQuery as AvailablePaginationQueryType } from '@/__generated__/bundlePickerListsAvailablePaginationQuery.graphql';
 import type { bundlePickerListsAvailableQuery as AvailableQueryType } from '@/__generated__/bundlePickerListsAvailableQuery.graphql';
 import type { Device } from '@/app/(app)/devices/types/device.types';
-import { useRetryKey } from '@/app/components/shared';
+import { ContentErrorBoundary, noop, useRetryKey } from '@/app/components/shared';
 import type { AssignmentOwner } from '@/app/components/shared/device-selector/assignment-updaters';
 import { DEVICE_PICKER_PAGE_SIZE } from '@/app/components/shared/device-selector/picker-narrowing';
-import { ServerDevicePickerLists } from '@/app/components/shared/device-selector/server-device-picker-lists';
+import {
+  type PickerHalf,
+  ServerDevicePickerLists,
+} from '@/app/components/shared/device-selector/server-device-picker-lists';
+import { EMPTY_DEVICE_FILTERS } from '@/graphql/devices/device-facets-fields';
 import { toRelayDeviceFilter } from '@/graphql/devices/to-relay-device-filter';
 import { useBundleDeviceFilters } from './use-bundle-device-filters';
 
@@ -165,12 +172,32 @@ interface BundlePickerListsProps {
   isDeviceDisabled?: (device: Device) => string | undefined;
 }
 
+const NO_HALF: PickerHalf = { connection: null, hasNext: false, isLoadingNext: false, loadNext: noop };
+
 /**
  * Both lists of the bundle's device picker, each its own server-narrowed
  * connection over the bundle. Suspends — the picker renders it under its own
- * boundary.
+ * boundary. In a loading scope (that boundary's fallback, or before the draft
+ * exists) it draws the shared picker in its own loading state and reads nothing.
  */
-export function BundlePickerLists({
+export function BundlePickerLists(props: BundlePickerListsProps) {
+  if (useLoadingScope()) {
+    const { bundleId: _bundleId, scope: _scope, deferredFilter: _filter, deferredSearch: _search, ...lists } = props;
+    return (
+      <ServerDevicePickerLists
+        {...lists}
+        loading
+        available={NO_HALF}
+        selected={NO_HALF}
+        selectedCount={0}
+        filterOptions={EMPTY_DEVICE_FILTERS}
+      />
+    );
+  }
+  return <BundlePickerListsQuery {...props} />;
+}
+
+function BundlePickerListsQuery({
   bundleId,
   scope,
   activeTab,
@@ -223,9 +250,10 @@ export function BundlePickerLists({
   // funnel offers only values that narrow the list beside it: a Brew form does
   // not list Windows, and the Selected tab does not offer the customers of
   // machines it doesn't hold. Both halves in one read, so the tab switch is free.
-  const filterOptions = useBundleDeviceFilters(bundleId, activeTab === 'selected' ? 'assigned' : 'available', scope);
-
-  return (
+  //
+  // Read under a boundary of their own: a failed facet read draws the same lists
+  // without funnels instead of taking the picker down (see `BundleDeviceFacets`).
+  const lists = (filterOptions: DeviceFilters) => (
     <ServerDevicePickerLists
       available={{
         connection: (available.data as AvailableFragmentData | null)?.availableDevices,
@@ -255,4 +283,35 @@ export function BundlePickerLists({
       isDeviceDisabled={isDeviceDisabled}
     />
   );
+
+  return (
+    <ContentErrorBoundary
+      label="DeviceFilters"
+      resetKey={JSON.stringify([bundleId, scope])}
+      fallback={() => lists(EMPTY_DEVICE_FILTERS)}
+    >
+      <BundleDeviceFacets bundleId={bundleId} half={activeTab === 'selected' ? 'assigned' : 'available'} scope={scope}>
+        {lists}
+      </BundleDeviceFacets>
+    </ContentErrorBoundary>
+  );
+}
+
+/**
+ * The bundle's facet read as a component of its own, so that the boundary in `BundlePickerListsQuery` can sit around
+ * it alone (see `DeviceFacets`): a failed read, the bundle's own or the fleet tags it borrows, costs the funnels.
+ */
+function BundleDeviceFacets({
+  bundleId,
+  half,
+  scope,
+  children,
+}: {
+  bundleId: string;
+  half: 'assigned' | 'available';
+  scope: DeviceFilterInput;
+  children: (deviceFilters: DeviceFilters) => ReactNode;
+}) {
+  const deviceFilters = useBundleDeviceFilters(bundleId, half, scope);
+  return children(deviceFilters);
 }

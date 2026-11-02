@@ -1,6 +1,7 @@
 'use client';
 
 import { ClapperboardIcon, Loading01Icon, PlayIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import { LIVE_PULSE_CLASS } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { UseRecordingPlayerResult } from './use-recording-player';
 
@@ -36,9 +37,10 @@ export function RecordingPlayer({ player, unavailableNote, className }: Recordin
         ref={terminalHostRef}
         className={cn('absolute inset-0 p-[var(--spacing-system-xsf)]', protocol === 1 ? 'visible' : 'invisible')}
       />
-      {state === 'seeking' && (
+      {(state === 'seeking' || state === 'waiting') && (
         <div className="absolute inset-0 flex items-center justify-center bg-ods-overlay">
-          <Loading01Icon className="h-8 w-8 animate-spin text-ods-text-secondary" />
+          {/* A busy mark while the player seeks or waits for a file: a live state, never a loading one. */}
+          <Loading01Icon className={cn('h-8 w-8 text-ods-text-secondary', LIVE_PULSE_CLASS)} />
         </div>
       )}
       {/* `ready` holds only between the load and the first play. */}
@@ -48,7 +50,7 @@ export function RecordingPlayer({ player, unavailableNote, className }: Recordin
             type="button"
             aria-label="Play recording"
             onClick={togglePlay}
-            className="flex size-[100px] items-center justify-center rounded-full bg-ods-card text-ods-text-primary outline-none transition-colors hover:bg-ods-bg-hover focus-visible:ring-2 focus-visible:ring-ods-focus"
+            className="flex size-[50px] items-center justify-center rounded-full bg-ods-card text-ods-text-primary outline-none transition-colors hover:bg-ods-bg-hover focus-visible:ring-2 focus-visible:ring-ods-focus content-lg:size-[100px]"
           >
             <PlayIcon className="h-6 w-6" />
           </button>

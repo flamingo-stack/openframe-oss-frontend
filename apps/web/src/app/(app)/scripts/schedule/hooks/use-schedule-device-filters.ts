@@ -49,9 +49,10 @@ interface ScheduleDeviceFiltersOptions {
  * Tags come from the fleet-wide facets until the scoped fields carry them — see
  * `toDeviceFilters`; a tag no assigned device carries just returns nothing.
  *
- * **Suspends** — render it inside the same boundary as the list it narrows. It
- * has no narrowing of its own to change, so it settles once and then stays put
- * while the user filters.
+ * **Suspends**: render it inside the same Suspense boundary as the list it
+ * narrows, under an error boundary of its own so that a failed read costs the
+ * funnels and not the rows (see `ScheduleDeviceFacets`). It has no narrowing of
+ * its own to change, so it settles once and then stays put while the user filters.
  */
 export function useScheduleDeviceFilters(
   scheduleId: string,

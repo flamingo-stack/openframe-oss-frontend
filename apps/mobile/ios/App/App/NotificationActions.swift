@@ -197,6 +197,9 @@ final class NotificationActions: NSObject, UNUserNotificationCenterDelegate {
             completion()
             return
         }
+        // The web view deep-links to the item; an in-app browser left over it would
+        // hide the page the user tapped through to.
+        (bridge.plugin(withName: "ExternalLinks") as? ExternalLinksPlugin)?.dismissBrowser()
         handler.didReceive(response: response)
         completion()
     }

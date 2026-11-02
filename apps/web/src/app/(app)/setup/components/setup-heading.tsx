@@ -1,5 +1,5 @@
-import { OpenframeLogoIcon, OpenframeTextIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import type { ReactNode } from 'react';
+import { OpenframeLockup } from '@/app/components/shared/openframe-lockup';
 
 /**
  * Logo, title and lead of a wizard screen, centred as the design draws them.
@@ -11,14 +11,7 @@ import type { ReactNode } from 'react';
 export function SetupHeading({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) {
   return (
     <div className="flex w-full max-w-[990px] flex-col items-center gap-[var(--spacing-system-lf)] text-center sm:gap-[var(--spacing-system-xl)]">
-      <div className="flex items-center gap-[var(--spacing-system-xsf)]">
-        <OpenframeLogoIcon
-          secondaryColor="var(--color-accent-primary)"
-          className="h-10 w-auto"
-          color="var(--color-text-primary)"
-        />
-        <OpenframeTextIcon color="var(--color-text-primary)" style={{ width: '144px', height: '24px' }} />
-      </div>
+      <OpenframeLockup />
       <div className="flex flex-col items-center gap-[var(--spacing-system-lf)]">
         <h1 className="text-ods-text-primary text-h1">{title}</h1>
         {subtitle && <p className="max-w-[730px] text-ods-text-primary text-h4">{subtitle}</p>}

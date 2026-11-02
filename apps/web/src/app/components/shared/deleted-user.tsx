@@ -1,6 +1,6 @@
 'use client';
 
-import { UserStatus } from '@/app/(app)/settings/hooks/use-users';
+import { UserStatus } from '@/generated/schema-enums';
 
 /**
  * The red round user-x placeholder itself lives in the core lib (it is also
@@ -26,9 +26,7 @@ export const DELETED_EMPLOYEE_LABEL = 'Deleted Employee';
  * users never appear in any list, so it is intentionally not handled.
  */
 export function isDeletedUserStatus(status?: string | null): boolean {
-  if (!status) return false;
-  const normalized = status.toUpperCase();
-  return normalized === UserStatus.Deleted || normalized === UserStatus.SelfDeleted;
+  return status === UserStatus.DELETED || status === UserStatus.SELF_DELETED;
 }
 
 /**
@@ -38,5 +36,5 @@ export function isDeletedUserStatus(status?: string | null): boolean {
  * real email; the account is revivable).
  */
 export function isSelfDeletedUserStatus(status?: string | null): boolean {
-  return !!status && status.toUpperCase() === UserStatus.SelfDeleted;
+  return status === UserStatus.SELF_DELETED;
 }

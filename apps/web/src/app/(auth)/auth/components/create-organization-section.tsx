@@ -46,6 +46,8 @@ interface CreateOrganizationSectionProps {
   }) => void;
   /** Provider buttons, rendered under the email field on step one; they need nothing typed. */
   ssoProviders?: AuthSsoProvider[];
+  /** The providers are still being read: `ssoProviders` are the ones that may be offered, drawn as boxes. */
+  ssoProvidersLoading?: boolean;
   /**
    * Provider sign-up with nothing filled in. Runs the shared SSO login: the server resolves the
    * tenant from the asserted identity and, finding no account, routes to the page that collects
@@ -67,6 +69,7 @@ interface CreateOrganizationSectionProps {
 export function CreateOrganizationSection({
   onRegister,
   ssoProviders,
+  ssoProvidersLoading,
   onSsoLogin,
   isLoading,
 }: CreateOrganizationSectionProps) {
@@ -131,7 +134,7 @@ export function CreateOrganizationSection({
   const emailStatusMessage = !isEmailValid
     ? undefined
     : emailStatus === 'checking'
-      ? { message: 'Checking availability…', variant: 'muted' as const }
+      ? { message: 'Checking availability…', variant: 'muted' as const } // loading-standard-ok(LOADING_TEXT): the field's live availability status, not a loading state
       : emailStatus === 'taken'
         ? { message: 'This email is already registered. Sign in instead.', variant: 'error' as const }
         : emailStatus === 'blocked'
@@ -152,6 +155,7 @@ export function CreateOrganizationSection({
         loading={isLoading}
         emailStatus={emailStatusMessage}
         ssoProviders={ssoProviders ?? []}
+        ssoProvidersLoading={ssoProvidersLoading}
         onSsoClick={provider => onSsoLogin?.(provider)}
         onSubmitClick={() => {
           if (!signupStartedFired.current) {

@@ -20,6 +20,7 @@ import {
 import { Button } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { useMemo, useState } from 'react';
+import { noop } from '@/app/components/shared';
 import { getFullImageUrl } from '@/lib/image-url';
 import { useTenantInfo } from '../../../hooks/use-tenant-info';
 import { buildFaeChatPreviewMessages } from './fae-chat-preview-messages';
@@ -54,8 +55,6 @@ const SAMPLE_CHATS: SampleChat[] = [
 
 // Faces in the hand-off bar: the chat shows the workspace's technicians.
 const SAMPLE_SUPPORT_TEAM = [{ name: 'Alex Morgan' }, { name: 'Sam Lee' }, { name: 'Jordan Reed' }];
-
-const noop = () => undefined;
 
 function trailingMark(status: SampleChat['status']) {
   if (status === 'tech-required') {

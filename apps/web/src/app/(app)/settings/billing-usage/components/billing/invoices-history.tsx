@@ -1,12 +1,19 @@
 'use client';
 
-import { Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
-import { Button, DataTable, Input } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { FileDollarIcon, Filter02Icon, SearchIcon } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
+import {
+  Button,
+  DataTable,
+  Input,
+  NoData,
+  useLoadingScope,
+} from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useMemo, useState } from 'react';
 import { graphql, useFragment } from 'react-relay';
 import type { invoicesHistory_subscription$key } from '@/__generated__/invoicesHistory_subscription.graphql';
 import { toInvoiceRow } from '../shared/invoice-row';
 import { InvoicesFilterModal } from './invoices-filter-modal';
+import { INVOICES_SKELETON_ROWS } from './invoices-table-layout';
 import { useInvoicesTable } from './use-invoices-table';
 
 /**
@@ -25,9 +32,11 @@ const invoicesHistoryFragment = graphql`
 const INVOICES_UNAVAILABLE_MESSAGE =
   "Couldn't load the invoices. Try again in a moment, and contact support if this persists.";
 
-export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key }) {
+/** `subscription` is `null` only while the page loads: the section draws itself with the table's skeleton rows. */
+export function InvoicesHistory({ subscription }: { subscription: invoicesHistory_subscription$key | null }) {
   const data = useFragment(invoicesHistoryFragment, subscription);
-  const pendingInvoices = data.pendingInvoices ?? null;
+  const loading = useLoadingScope() || data == null;
+  const pendingInvoices = data?.pendingInvoices ?? null;
   // Memoized for the table instance, which keys its row model on the rows'
   // identity — the fragment's array is stable between store updates, the mapped
   // one would not be.
@@ -43,12 +52,12 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     columnFilters,
     setColumnFilters,
     statusOptions,
-  } = useInvoicesTable(invoices);
+  } = useInvoicesTable(invoices, loading);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Said under the section's own title, so what failed is named — a page that
   // silently drops its invoices reads as a tenant that has none.
-  if (pendingInvoices == null) {
+  if (!loading && pendingInvoices == null) {
     return (
       <div className="flex flex-col gap-[var(--spacing-system-l)]">
         <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
@@ -57,7 +66,22 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
     );
   }
 
-  if (invoices.length === 0) return null;
+  // Drawn for every workspace, a trial's included. No invoice at all is the app's empty state under the section's title,
+  // as every other list without records says it: nothing to search, filter or sort, so no toolbar and no column titles.
+  // In the section, not filling the page (`EmptyState`) — the page goes on above it.
+  if (!loading && invoices.length === 0) {
+    return (
+      <div className="flex flex-col gap-[var(--spacing-system-l)]">
+        <h2 className="text-ods-text-primary text-h2">Invoices History</h2>
+        <NoData
+          icon={<FileDollarIcon />}
+          title="No invoices yet"
+          description="Invoices appear here once the workspace is billed."
+          className="py-[var(--spacing-system-xxl)]"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]">
@@ -69,6 +93,7 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       <div className="flex items-center gap-[var(--spacing-system-m)]">
         <div className="flex-1">
           <Input
+            userValue
             startAdornment={<SearchIcon />}
             placeholder="Search for Invoice"
             value={search}
@@ -87,8 +112,15 @@ export function InvoicesHistory({ subscription }: { subscription: invoicesHistor
       </div>
 
       <DataTable table={table}>
-        <DataTable.Header rightSlot={<DataTable.RowCount />} sort={sortState} onSortChange={handleSortChange} />
+        <DataTable.Header
+          rightSlot={<DataTable.RowCount loading={loading} />}
+          sort={sortState}
+          onSortChange={handleSortChange}
+        />
         <DataTable.Body
+          loading={loading}
+          loadingCells={loading}
+          skeletonRows={INVOICES_SKELETON_ROWS}
           emptyState={{ title: 'No invoices found', description: 'Try adjusting your search or filters.' }}
         />
       </DataTable>

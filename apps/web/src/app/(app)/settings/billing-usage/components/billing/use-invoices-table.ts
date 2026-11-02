@@ -6,9 +6,11 @@ import {
   useDataTable,
 } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { loadingPlaceholderRows } from '@/app/components/shared/live-table';
 import { formatCurrency } from '@/lib/format-currency';
 import type { InvoiceRow } from '../shared/invoice-row';
 import { invoiceColumns, invoiceStatusOptions } from './invoices-table-columns';
+import { INVOICES_SKELETON_ROWS } from './invoices-table-layout';
 
 /**
  * Client-side match on invoice number and amount. The amount haystack holds
@@ -32,15 +34,18 @@ function matchesSearch(invoice: InvoiceRow, query: string): boolean {
  * row model on their identity — not for render performance, which the compiler
  * covers.
  */
-export function useInvoicesTable(invoices: readonly InvoiceRow[]) {
+export function useInvoicesTable(invoices: readonly InvoiceRow[], loading: boolean) {
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
+  // While the history is read the table holds placeholder rows (`loadingPlaceholderRows`): the body draws them with
+  // their real cells in its loading scope (`loadingCells`). Never searched: a placeholder has no amount to match.
   const data = useMemo(() => {
+    if (loading) return loadingPlaceholderRows<InvoiceRow>(INVOICES_SKELETON_ROWS);
     const query = search.trim().toLowerCase();
     return invoices.filter(invoice => !query || matchesSearch(invoice, query));
-  }, [invoices, search]);
+  }, [invoices, search, loading]);
   const statusOptions = useMemo(() => invoiceStatusOptions(invoices), [invoices]);
   const columns = useMemo(() => invoiceColumns(statusOptions), [statusOptions]);
   const getRowId = useCallback((row: InvoiceRow) => row.id, []);

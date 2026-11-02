@@ -8,13 +8,17 @@ import type { completeTenantOnboardingMutation as CompleteTenantType } from '@/_
 import type { completeTenantOnboardingStepMutation as CompleteTenantStepType } from '@/__generated__/completeTenantOnboardingStepMutation.graphql';
 import type { completeUserOnboardingMutation as CompleteUserType } from '@/__generated__/completeUserOnboardingMutation.graphql';
 import type { completeUserOnboardingStepMutation as CompleteUserStepType } from '@/__generated__/completeUserOnboardingStepMutation.graphql';
+import type { resetTenantOnboardingMutation as ResetTenantType } from '@/__generated__/resetTenantOnboardingMutation.graphql';
 import type { resetUserOnboardingMutation as ResetUserType } from '@/__generated__/resetUserOnboardingMutation.graphql';
 import type { setUserOnboardingTourDialogMutation as SetTourDialogType } from '@/__generated__/setUserOnboardingTourDialogMutation.graphql';
+import type { skipOnboardingMutation as SkipOnboardingType } from '@/__generated__/skipOnboardingMutation.graphql';
 import type { skipUserOnboardingMutation as SkipUserType } from '@/__generated__/skipUserOnboardingMutation.graphql';
+import { clearGettingStartedView, resetGettingStartedView } from '@/app/(app)/mingo/tour/getting-started-view';
 import { clearTourStarted } from '@/app/(app)/setup/lib/tour-state';
 import { useAuthStore } from '@/app/(auth)/auth/stores/auth-store';
 import type { TenantOnboardingStep, UserOnboardingStep } from '@/generated/schema-enums';
 import type { Instant } from '@/lib/graphql-scalars';
+import { getRelayErrorMessage } from '@/lib/handle-api-error';
 import {
   type TenantOnboardingProgress,
   type UserOnboardingProgress,
@@ -24,8 +28,10 @@ import { completeTenantOnboardingMutation } from './complete-tenant-onboarding-m
 import { completeTenantOnboardingStepMutation } from './complete-tenant-onboarding-step-mutation';
 import { completeUserOnboardingMutation } from './complete-user-onboarding-mutation';
 import { completeUserOnboardingStepMutation } from './complete-user-onboarding-step-mutation';
+import { resetTenantOnboardingMutation } from './reset-tenant-onboarding-mutation';
 import { resetUserOnboardingMutation } from './reset-user-onboarding-mutation';
 import { setUserOnboardingTourDialogMutation } from './set-user-onboarding-tour-dialog-mutation';
+import { skipOnboardingMutation } from './skip-onboarding-mutation';
 import { skipUserOnboardingMutation } from './skip-user-onboarding-mutation';
 
 type TenantPayload = { completedSteps: readonly string[]; completed: boolean; completedAt?: Instant | null };
@@ -179,11 +185,15 @@ export function useOnboardingMutations() {
     commitMutation<CompleteUserType>(environment, {
       mutation: completeUserOnboardingMutation,
       variables: {},
-      onCompleted: res => setUser(toUser(res.completeUserOnboarding)),
+      onCompleted: res => {
+        setUser(toUser(res.completeUserOnboarding));
+        // The tour is over: the Getting Started block's remembered shape goes with it.
+        clearGettingStartedView(userId);
+      },
       onError: err =>
         toast({ title: 'Error', description: err.message || 'Failed to finish onboarding', variant: 'destructive' }),
     });
-  }, [environment, setUser, toast]);
+  }, [environment, setUser, toast, userId]);
 
   // The Mingo panel created the tour's conversation: remember it with the rest
   // of the user's progress, so another device finds the same conversation.
@@ -210,13 +220,30 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.skipUserOnboarding));
+          clearGettingStartedView(userId);
           onDone?.();
         },
         onError: onError('Failed to skip onboarding'),
       });
     },
-    [environment, begin, finish, setUser, onError],
+    [environment, begin, finish, setUser, onError, userId],
   );
+
+  // Fire-and-forget skip, for the tour's conversation archived while the tour
+  // is on: the user set the tour aside, and "Reset Onboarding" brings it back.
+  // No spinner and no success toast - the archive has its own. Errors toast.
+  const skipUserInBackground = useCallback(() => {
+    commitMutation<SkipUserType>(environment, {
+      mutation: skipUserOnboardingMutation,
+      variables: {},
+      onCompleted: res => {
+        setUser(toUser(res.skipUserOnboarding));
+        clearGettingStartedView(userId);
+      },
+      onError: err =>
+        toast({ title: 'Error', description: err.message || 'Failed to skip onboarding', variant: 'destructive' }),
+    });
+  }, [environment, setUser, toast, userId]);
 
   const resetUser = useCallback(
     (onDone?: () => void) => {
@@ -227,8 +254,10 @@ export function useOnboardingMutations() {
         onCompleted: res => {
           finish();
           setUser(toUser(res.resetUserOnboarding));
-          // The v2 tour's "started" marker is part of the user's progress too.
+          // The v2 tour's "started" marker is part of the user's progress too,
+          // and the tour starts over as the list.
           clearTourStarted(userId);
+          resetGettingStartedView(userId);
           toast({
             title: 'Onboarding reset',
             description: 'Your Get Started tour is available again.',
@@ -242,6 +271,63 @@ export function useOnboardingMutations() {
     [environment, begin, finish, setUser, toast, onError, userId],
   );
 
+  // Dev/QA tester shortcuts (flag `onboarding-skip`). The two fields exist in the
+  // schema only where the flag is on, so a call that slips past the flag fails
+  // validation with no data: the toast carries that GraphQL message, not relay's
+  // "No data returned" wrapper, and nothing retries.
+  const onDevError = useCallback(
+    (fallback: string) => (error: Error) => {
+      finish();
+      toast({ title: 'Error', description: getRelayErrorMessage(error, fallback), variant: 'destructive' });
+    },
+    [finish, toast],
+  );
+
+  // Finishes the tenant Initial Setup and skips this user's Get Started in one
+  // call: the same end state as walking the wizard and then skipping the tour.
+  const skipOnboarding = useCallback(
+    (onDone?: () => void) => {
+      begin();
+      commitMutation<SkipOnboardingType>(environment, {
+        mutation: skipOnboardingMutation,
+        variables: {},
+        onCompleted: res => {
+          finish();
+          setTenant(toTenant(res.skipOnboarding.tenant));
+          setUser(toUser(res.skipOnboarding.user));
+          clearGettingStartedView(userId);
+          onDone?.();
+        },
+        onError: onDevError('Failed to skip onboarding'),
+      });
+    },
+    [environment, begin, finish, setTenant, setUser, onDevError, userId],
+  );
+
+  // Clears the tenant Initial Setup so the wizard can be walked again. The
+  // user's Get Started record is untouched ("Reset Onboarding" is its reset).
+  const resetTenant = useCallback(
+    (onDone?: () => void) => {
+      begin();
+      commitMutation<ResetTenantType>(environment, {
+        mutation: resetTenantOnboardingMutation,
+        variables: {},
+        onCompleted: res => {
+          finish();
+          setTenant(toTenant(res.resetTenantOnboarding));
+          toast({
+            title: 'Initial Setup reset',
+            description: 'The setup wizard is available again.',
+            variant: 'success',
+          });
+          onDone?.();
+        },
+        onError: onDevError('Failed to reset Initial Setup'),
+      });
+    },
+    [environment, begin, finish, setTenant, toast, onDevError],
+  );
+
   return {
     completeTenantStep,
     completeTenantStepInBackground,
@@ -251,7 +337,10 @@ export function useOnboardingMutations() {
     completeUserInBackground,
     setTourDialogInBackground,
     skipUser,
+    skipUserInBackground,
     resetUser,
+    skipOnboarding,
+    resetTenant,
     isMutating: pending > 0,
   };
 }

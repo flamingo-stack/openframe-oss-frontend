@@ -7,6 +7,12 @@ import { routes } from '@/lib/routes';
 
 export const TENANT_DETAIL_TITLE = 'Tenant';
 
+/**
+ * The lines a typical tenant name takes while it loads: a customer's tenant name ("Test Andrii Microsoft") runs past
+ * the ~20 characters a phone's title line holds, so two there; one truncated line from `content-md` up.
+ */
+const TENANT_TITLE_SKELETON_LINES = { phone: 2, md: 1, lg: 1 } as const;
+
 interface TenantDetailTitleProps {
   title: string;
   /** The title is the record's name and it is still loading — drawn as a bar. */
@@ -24,6 +30,7 @@ export function TenantDetailTitle({ title, loading, actions, loadingActions }: T
     <TitleBlock
       title={title}
       loading={loading}
+      titleSkeletonLines={TENANT_TITLE_SKELETON_LINES}
       actions={actions}
       actionsVariant="icon-buttons"
       loadingActions={loadingActions}

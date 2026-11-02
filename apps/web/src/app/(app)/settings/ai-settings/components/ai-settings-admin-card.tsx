@@ -1,44 +1,33 @@
 'use client';
 
-import { NamedIcon } from '@flamingo-stack/openframe-frontend-core/components';
-import { InfoCell } from '@/app/components/shared/info-cell';
-import { EMPTY_VALUE } from '@/lib/empty-value';
+import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import type { AgentAiConfig } from '../types/ai-settings';
-import { ANSWER_STYLE_LABEL, LLM_PROVIDER_ICON, LLM_PROVIDER_LABEL } from '../utils/ai-settings-display';
+import { AI_CONFIG_CELL_CLASS, aiConfigCells } from './ai-config-cells';
 
 interface AiSettingsAdminCardProps {
-  aiConfig: AgentAiConfig;
+  /** Unread while loading. */
+  aiConfig?: AgentAiConfig;
   /** Display name for `aiConfig.providerModel` (which stores the backend model name). */
   providerModelLabel?: string;
 }
 
-const CELL = 'flex items-center gap-2 min-h-14 content-md:min-h-20 px-3 content-md:px-4 py-3 content-md:py-4';
+const GRID_CLASS = 'grid grid-cols-1 rounded-md border border-ods-border bg-ods-card content-sm:grid-cols-3';
 
 /**
- * Read-only summary card for the Mingo (ADMIN) tab: LLM provider, provider model
- * and answer style. The CLIENT counterpart (AiSettingsCustomerCard) adds the
- * appearance fields; this one carries only the AI-logic columns per the design.
+ * Read-only summary card for the Mingo (ADMIN) tab: LLM provider, provider model and answer style. The CLIENT
+ * counterpart (AiSettingsCustomerCard) adds the appearance fields; this one carries only the AI-logic columns per the
+ * design. In a loading scope (or with no configuration yet) every cell draws itself: its label real, its value a bar.
  */
 export function AiSettingsAdminCard({ aiConfig, providerModelLabel }: AiSettingsAdminCardProps) {
-  const answerStyleLabel = aiConfig.answerStyle ? ANSWER_STYLE_LABEL[aiConfig.answerStyle] : EMPTY_VALUE;
+  const loading = useLoadingScope() || aiConfig == null;
 
   return (
-    <div className="grid grid-cols-1 rounded-md border border-ods-border bg-ods-card content-sm:grid-cols-3">
-      <div className={CELL}>
-        <InfoCell
-          value={LLM_PROVIDER_LABEL[aiConfig.llmProvider]}
-          label="Mingo LLM Provider"
-          icon={
-            <NamedIcon icon={LLM_PROVIDER_ICON[aiConfig.llmProvider]} className="h-6 w-6 text-ods-text-secondary" />
-          }
-        />
-      </div>
-      <div className={CELL}>
-        <InfoCell value={providerModelLabel || aiConfig.providerModel || EMPTY_VALUE} label="Provider Model" />
-      </div>
-      <div className={CELL}>
-        <InfoCell value={answerStyleLabel} label="Answer Style" />
-      </div>
+    <div className={GRID_CLASS}>
+      {aiConfigCells({ aiConfig, providerModelLabel, loading, providerLabel: 'Mingo LLM Provider' }).map(cell => (
+        <div key={cell.key} className={AI_CONFIG_CELL_CLASS}>
+          {cell}
+        </div>
+      ))}
     </div>
   );
 }

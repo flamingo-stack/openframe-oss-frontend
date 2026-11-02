@@ -8,7 +8,8 @@ import { apiClient } from '@/lib/api-client';
 import { queryState } from '@/lib/query-state';
 import { GET_ORGANIZATIONS_QUERY } from '../queries/customers-queries';
 
-const ORGANIZATIONS_PAGE_SIZE = 20;
+/** One page of the customers list; the table's loading state draws this many rows. */
+export const ORGANIZATIONS_PAGE_SIZE = 20;
 
 export interface Customer {
   id: string;

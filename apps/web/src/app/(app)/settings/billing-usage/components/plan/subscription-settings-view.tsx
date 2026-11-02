@@ -1,13 +1,14 @@
 'use client';
 
+import { LoadingSuspense } from '@flamingo-stack/openframe-frontend-core/components';
 import { ErrorBoundary } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { PageLayout } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { PageLayout, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { useRouter } from 'next/navigation';
-import { Suspense } from 'react';
 import { graphql, useFragment, useLazyLoadQuery } from 'react-relay';
 import type { subscriptionSettingsView_query$key } from '@/__generated__/subscriptionSettingsView_query.graphql';
 import type { subscriptionSettingsViewQuery as SubscriptionSettingsViewQueryType } from '@/__generated__/subscriptionSettingsViewQuery.graphql';
-import { PaywallHeader } from '@/app/components/subscription-lock/paywall-header';
+import { OutstandingInvoicesNotice } from '@/app/components/subscription-lock/outstanding-invoices-notice';
+import { PaywallSubtitle, PaywallTitle } from '@/app/components/subscription-lock/paywall-header';
 import { useSubscriptionLock } from '@/app/components/subscription-lock/subscription-guard';
 import {
   getPaywallCopy,
@@ -29,8 +30,9 @@ const subscriptionSettingsViewQuery = graphql`
 `;
 
 /**
- * Billing data ONLY — the form's fragment and the cards' (see each). Nothing
- * here is app data a locked workspace would have refused.
+ * Billing data ONLY — the form's fragment, the cards' and the outstanding
+ * invoices' (see each). Nothing here is app data a locked workspace would have
+ * refused.
  *
  * On the root type rather than in the query, so the body below is typed by
  * what it reads and not by whichever query feeds it: the billing page's
@@ -40,6 +42,7 @@ const paywallBodyFragment = graphql`
   fragment subscriptionSettingsView_query on Query {
     ...usePlanCheckout_query
     ...planCheckoutCards_query
+    ...outstandingInvoicesNotice_query
   }
 `;
 
@@ -59,7 +62,7 @@ const PAGE_CLASS_NAME = 'px-[var(--spacing-system-l)] pb-28 md:pb-[var(--spacing
  * shared with the billing page's Activate Subscription modal. This file is the
  * page around it, and the query that feeds it.
  */
-export function SubscriptionSettingsView() {
+export function SubscriptionSettingsView({ loading = false }: { loading?: boolean }) {
   const { status } = useSubscriptionLock();
   // Resolved here rather than carried on the context, so the plan-lock wording
   // lives only in the modules that render plans (see subscription-lock-copy.ts).
@@ -74,26 +77,31 @@ export function SubscriptionSettingsView() {
           payment-free builds show: it needs no data, and it still offers a
           re-check and a sign-out. */}
       <ErrorBoundary fallback={<WorkspaceInactiveScreen {...PLANS_UNAVAILABLE_COPY} />}>
-        <Suspense fallback={<PaywallBody copy={copy} query={null} />}>
-          <SubscriptionSettingsContent copy={copy} />
-        </Suspense>
+        {/* Above the boundary: its exits keep working, and their dialogs stay open, through every wait below. */}
+        <PaywallTitle copy={copy} />
+        {/* One body for every wait: the page's gates (feature flag, role: `loading`) and the catalog query. */}
+        <SubscriptionSettingsContent copy={copy} loading={loading} />
       </ErrorBoundary>
     </PageLayout>
   );
 }
 
-/** The page while its gates (feature flag, role) are still resolving. */
-export function SubscriptionSettingsLoading() {
-  const { status } = useSubscriptionLock();
-
+/** The paywall's body over the catalog, with its own boundary: in its scope the reader draws its own loading form. */
+function SubscriptionSettingsContent({ copy, loading }: { copy: PaywallCopy; loading: boolean }) {
   return (
-    <PageLayout className={PAGE_CLASS_NAME} showHeader={false}>
-      <PaywallBody copy={getPaywallCopy(status)} query={null} />
-    </PageLayout>
+    <LoadingSuspense gated={loading} label="Loading plans">
+      <SubscriptionSettingsReader copy={copy} />
+    </LoadingSuspense>
   );
 }
 
-function SubscriptionSettingsContent({ copy }: { copy: PaywallCopy }) {
+function SubscriptionSettingsReader({ copy }: { copy: PaywallCopy }) {
+  // In a loading scope (its boundary's fallback, or the page's gates) it draws the body with no catalog and runs no read.
+  if (useLoadingScope()) return <PaywallBody copy={copy} query={null} />;
+  return <SubscriptionSettingsLive copy={copy} />;
+}
+
+function SubscriptionSettingsLive({ copy }: { copy: PaywallCopy }) {
   const data = useLazyLoadQuery<SubscriptionSettingsViewQueryType>(
     subscriptionSettingsViewQuery,
     {},
@@ -147,7 +155,10 @@ function PaywallBody({ copy, query }: PaywallBodyProps) {
 
   return (
     <>
-      <PaywallHeader copy={copy} deviceCount={form.deviceCount} />
+      <PaywallSubtitle copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
+
+      {/* What a cancelled subscription still owes: the paywall is the one screen the tenant can reach. */}
+      <OutstandingInvoicesNotice query={data} />
 
       <PlanCheckoutCards query={data} form={form} />
 
