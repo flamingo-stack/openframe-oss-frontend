@@ -58,6 +58,7 @@ function PickerField({ selectedIds, emptyPlaceholder, creatable, ...props }: Pic
   return (
     <Autocomplete
       {...props}
+      labelVariant="large"
       multiple
       creatable={creatable}
       freeSolo={creatable}

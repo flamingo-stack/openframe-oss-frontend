@@ -181,7 +181,7 @@ For local iteration without a full native rebuild, pass `WEB_ONLY=1` to stage th
 
 ### Container build
 
-`apps/web/Dockerfile` defines a multi-stage build producing a Next.js standalone server image, pinned to `node:24.21.0-alpine3.24`. The `builder` stage runs `npm ci --no-audit --no-fund` followed by `npm run build`; the `runner` stage copies `dist/standalone`, `dist/static`, `public`, and `scripts/server-entry.js`, and starts the app via `node server-entry.js` as a non-root `nextjs` user on port `3000`. This is the same image published through the `release` and `test` CI workflows as `ghcr.io/flamingo-stack/openframe-oss-frontend/openframe-oss-frontend`.
+`apps/web/Dockerfile` defines a multi-stage build producing a Next.js standalone server image, pinned to `node:26.13.0-alpine3.24`. The `builder` stage runs `npm ci --no-audit --no-fund` followed by `npm run build`; the `runner` stage copies `dist/standalone`, `dist/static`, `public`, and `scripts/server-entry.js`, and starts the app via `node server-entry.js` as a non-root `nextjs` user on port `3000`. This is the same image published through the `release` and `test` CI workflows as `ghcr.io/flamingo-stack/openframe-oss-frontend/openframe-oss-frontend`.
 
 To run the standalone server output locally without Docker (after a build):
 

@@ -208,6 +208,16 @@ export function UsersTab({ device }: UsersTabProps) {
 
   return (
     <div className="flex flex-col gap-[var(--spacing-system-l)]" style={containerStyle}>
+      {/* Only some devices report end-user emails: a strip over the users table, not drawn while the device is read. */}
+      {device?.endUserEmails && device.endUserEmails.length > 0 && (
+        <div data-loading-optional className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
+          <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
+          {device.endUserEmails.map(email => (
+            <Tag key={email} label={email} variant="grey" className="w-fit" data-loading-item />
+          ))}
+        </div>
+      )}
+
       {(!isEmpty || hasSearch) && (
         <div
           ref={toolbarRef}
@@ -232,17 +242,6 @@ export function UsersTab({ device }: UsersTabProps) {
           }}
         />
       </DataTable>
-
-      {/* Only some devices report end-user emails. The strip sits below the users table, whose dozens of system and person
-          accounts fill the first screen, so it is not drawn while the device is read. */}
-      {device?.endUserEmails && device.endUserEmails.length > 0 && (
-        <div data-loading-optional className="flex flex-wrap items-center gap-[var(--spacing-system-xs)]">
-          <span className="uppercase text-ods-text-secondary text-h6">End-user emails</span>
-          {device.endUserEmails.map(email => (
-            <Tag key={email} label={email} variant="grey" className="w-fit" data-loading-item />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

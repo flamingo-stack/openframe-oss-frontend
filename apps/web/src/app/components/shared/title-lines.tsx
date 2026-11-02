@@ -23,8 +23,6 @@ export interface TitleLinesProps {
   sublineLines?: number;
   /** Drawn beside the title once loaded (role tags). */
   titleAside?: ReactNode;
-  /** Drawn after the secondary line once loaded (a "Not verified" button). */
-  sublineAside?: ReactNode;
   /** The title bar's width while loading (a Tailwind width class). */
   titleSkeletonWidth?: string;
   /** The secondary line's bar width while loading (a Tailwind width class). */
@@ -49,7 +47,6 @@ export function TitleLines({
   wrapSubline = false,
   sublineLines = 1,
   titleAside,
-  sublineAside,
   titleSkeletonWidth = 'w-48',
   sublineSkeletonWidth = 'w-64',
   titleClassName,
@@ -96,7 +93,6 @@ export function TitleLines({
                 </TruncateText>
               </div>
             )}
-            {sublineAside}
           </div>
         ))}
     </div>

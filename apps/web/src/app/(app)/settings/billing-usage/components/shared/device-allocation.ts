@@ -1,6 +1,6 @@
 import { graphql, readInlineData } from 'react-relay';
 import type { deviceAllocation_subscription$key } from '@/__generated__/deviceAllocation_subscription.graphql';
-import { OpenframeProduct } from '@/generated/schema-enums';
+import { OpenframeProduct, SubscriptionProductStatus } from '@/generated/schema-enums';
 import { activePackage } from './active-package';
 
 /**
@@ -28,7 +28,7 @@ const deviceAllocationFragment = graphql`
     products {
       name
       payAsYouGoOption {
-        id
+        status
       }
       ...activePackage_subscriptionProduct
     }
@@ -58,6 +58,12 @@ export interface DeviceAllocation {
   overLimit: boolean;
   /** Metered billing, nothing committed. */
   isPayg: boolean;
+  /**
+   * Devices over the package are billed as pay-as-you-go. A cancellation
+   * expires the option and keeps the package: the surplus is then blocked, not
+   * billed.
+   */
+  paygActive: boolean;
 }
 
 export function deviceAllocation(ref: deviceAllocation_subscription$key): DeviceAllocation {
@@ -75,5 +81,6 @@ export function deviceAllocation(ref: deviceAllocation_subscription$key): Device
     overage,
     overLimit: !isPayg && overage > 0,
     isPayg,
+    paygActive: devices?.payAsYouGoOption?.status === SubscriptionProductStatus.ACTIVE,
   };
 }

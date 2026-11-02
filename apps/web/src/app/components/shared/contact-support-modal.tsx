@@ -157,7 +157,9 @@ export function ContactSupportModal({
       }
     >
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <Label htmlFor="support-ticket-subject">Subject</Label>
+        <Label variant="large" htmlFor="support-ticket-subject">
+          Subject
+        </Label>
         <Input
           id="support-ticket-subject"
           value={subject}
@@ -169,7 +171,9 @@ export function ContactSupportModal({
       </div>
 
       <div className="flex flex-col gap-[var(--spacing-system-xxs)]">
-        <Label htmlFor="support-ticket-message">Your Message</Label>
+        <Label variant="large" htmlFor="support-ticket-message">
+          Your Message
+        </Label>
         <Textarea
           id="support-ticket-message"
           value={message}

@@ -1,4 +1,6 @@
 import { parseMcrec } from './mcrec-parser';
+import { seekFrame } from './mcrec-seek';
+import { lastFrameAtMs, toPlaybackMs } from './mcrec-timeline';
 import type { ParsedRecording, RecordingPlaybackSpeed, RecordingPlayerState, RecordingRenderer } from './mcrec-types';
 
 export interface McrecPlayerCallbacks {
@@ -24,11 +26,12 @@ const SEEK_DRAIN_BATCH = 100;
  * agent-record whose timestamp it has passed. The renderer draws as fast as it
  * is fed, so pacing the FEED is what produces real-time playback.
  *
- * Seeking replays from the nearest restart point before the target (KVM tiles
- * are incremental, so the only places a fresh decoder can start are the
- * starts of the session's files - record zero for a single file), gated on
- * renderer drain per batch; a fresh seek aborts an in-flight one via a
- * generation counter.
+ * Seeking draws the target's screen in one pass from the tiles still visible
+ * on it (`seekFrame`, `RecordingRenderer.paint`). Where that cannot be done
+ * (terminal, a renderer without `paint`, a screen it cannot rebuild) it
+ * replays from the nearest restart point before the target - the start of the
+ * file holding it - gated on renderer drain per batch; a fresh seek aborts an
+ * in-flight one via a generation counter.
  *
  * Each later file starts from a fresh renderer too: a tunnel that dropped
  * mid-frame leaves a torn frame at the end of its file, and decoding the next
@@ -36,7 +39,8 @@ const SEEK_DRAIN_BATCH = 100;
  *
  * A session's files can arrive one by one: `loadParsed(..., { complete: false })`
  * starts on what is there, `extend` appends the rest. Until the last one lands,
- * reaching the end of the loaded part waits instead of ending.
+ * reaching the end of the loaded part waits instead of ending, and a
+ * `seekToTime` past it waits there ('waiting') until the file holding it lands.
  */
 export class McrecPlayer {
   private recording: ParsedRecording | null = null;
@@ -56,6 +60,10 @@ export class McrecPlayer {
   private complete = true;
   /** `restartIndices` past the first: where a later file begins and the renderer starts over. */
   private fileStarts = new Set<number>();
+  /** A `seekToTime` target past the loaded part (ms since epoch), and whether to play once there. */
+  private pending: { atMs: number; play: boolean } | null = null;
+  /** Whether the seek in flight plays on once it lands. */
+  private seekPlays = false;
 
   private tickTimer: ReturnType<typeof setTimeout> | null = null;
   private seekGeneration = 0;
@@ -96,6 +104,8 @@ export class McrecPlayer {
    */
   loadParsed(recording: ParsedRecording, { complete = true }: { complete?: boolean } = {}): void {
     this.stopClock();
+    this.pending = null;
+    this.seekGeneration++;
     this.recording = recording;
     this.complete = complete;
     this.fileStarts = laterFileStarts(recording);
@@ -117,10 +127,16 @@ export class McrecPlayer {
     this.complete = complete;
     this.fileStarts = laterFileStarts(recording);
     this.callbacks.onDuration?.(recording.durationMs);
+    const pending = this.pending;
+    if (pending && (complete || pending.atMs <= lastFrameAtMs(recording))) {
+      this.pending = null;
+      void this.seekTo(toPlaybackMs(recording, pending.atMs), pending.play);
+    }
   }
 
   play(): void {
     if (!this.recording || this.playerState === 'seeking' || this.disposed) return;
+    this.pending = null;
     if (this.playerState === 'ended') {
       // Replaying from the end restarts from zero, like any video player.
       void this.seek(0).then(() => this.play());
@@ -138,6 +154,12 @@ export class McrecPlayer {
     this.setState('paused');
   }
 
+  /** Drops a seek waiting for its file, as a new load does; the player stays where it is. */
+  cancelWait(): void {
+    this.pending = null;
+    if (this.playerState === 'waiting') this.setState('paused');
+  }
+
   setSpeed(speed: RecordingPlaybackSpeed): void {
     // Re-anchor so the already-elapsed stretch keeps its old speed.
     this.anchorVirtualMs = this.virtualMs;
@@ -153,46 +175,91 @@ export class McrecPlayer {
     return this.seek(this.virtualMs + STEP_MS);
   }
 
-  /**
-   * Jump to `targetMs` by resetting the renderer and replaying every agent
-   * record up to the target as fast as the decoder drains. Concurrent seeks
-   * coalesce: a newer call bumps the generation and the older loop exits.
-   */
-  async seek(targetMs: number): Promise<void> {
+  /** Jump to `targetMs` from the recording start; a newer seek takes over from an older one still running. */
+  seek(targetMs: number): Promise<void> {
+    const play = this.playsOn();
+    this.pending = null;
+    return this.seekTo(targetMs, play);
+  }
+
+  /** Jump to a wall-clock time (ms since epoch); one in a file still downloading lands once that file arrives. */
+  seekToTime(atMs: number): Promise<void> {
+    const recording = this.recording;
+    if (!recording || this.disposed) return Promise.resolve();
+    if (this.complete || atMs <= lastFrameAtMs(recording)) return this.seek(toPlaybackMs(recording, atMs));
+    this.pending = { atMs, play: this.playsOn() };
+    if (this.playerState === 'waiting') return Promise.resolve();
+    return this.seekTo(recording.durationMs, false);
+  }
+
+  /** A seek starting now plays on if the player is playing, or the seek or wait it takes over was going to. */
+  private playsOn(): boolean {
+    return (
+      this.playerState === 'playing' ||
+      (this.playerState === 'seeking' && this.seekPlays) ||
+      (this.pending?.play ?? false)
+    );
+  }
+
+  private async seekTo(targetMs: number, wasPlaying: boolean): Promise<void> {
     const recording = this.recording;
     const renderer = this.renderer;
     if (!recording || !renderer || this.disposed) return;
 
     const target = Math.min(Math.max(0, targetMs), recording.durationMs);
-    const wasPlaying = this.playerState === 'playing';
     const generation = ++this.seekGeneration;
+    this.seekPlays = wasPlaying;
 
     this.stopClock();
     this.setState('seeking');
+    // The playhead and the current event move at the click; the picture follows.
+    this.setVirtualTime(target);
     try {
-      await renderer.reset();
-      if (generation !== this.seekGeneration || this.disposed) return;
-
       const { agentRecords, baseTimeMs } = recording;
-      let index = restartIndexBefore(recording, target);
-      while (index < agentRecords.length && agentRecords[index].timeMs - baseTimeMs <= target) {
-        // Checked on EVERY feed, not only at drain points: a newer seek resets
-        // the renderer mid-replay, and even one stale tile fed into the fresh
-        // decoder draws into the wrong frame (KVM tiles are incremental).
-        if (generation !== this.seekGeneration || this.disposed) return;
-        this.feedRecord(renderer, index);
-        index++;
-        if (index % SEEK_DRAIN_BATCH === 0) {
-          await renderer.waitForIdle();
-          if (generation !== this.seekGeneration || this.disposed) return;
+      const start = restartIndexBefore(recording, target);
+      let end = start;
+      while (end < agentRecords.length && agentRecords[end].timeMs - baseTimeMs <= target) end++;
+
+      let painted = false;
+      const frame =
+        renderer.paint && recording.protocol === 2 && end > start ? seekFrame(recording, start, end - 1) : null;
+      if (frame && renderer.paint) {
+        try {
+          await renderer.paint(frame);
+          painted = true;
+        } catch {
+          // A renderer that cannot paint falls back to the replay below.
         }
       }
-      await renderer.waitForIdle();
+      if (!painted) {
+        if (generation !== this.seekGeneration || this.disposed) return;
+        await renderer.reset();
+        if (generation !== this.seekGeneration || this.disposed) return;
+
+        let index = start;
+        while (index < end) {
+          // Checked on EVERY feed, not only at drain points: a newer seek resets
+          // the renderer mid-replay, and even one stale tile fed into the fresh
+          // decoder draws into the wrong frame (KVM tiles are incremental).
+          if (generation !== this.seekGeneration || this.disposed) return;
+          this.feedRecord(renderer, index);
+          index++;
+          if (index % SEEK_DRAIN_BATCH === 0) {
+            await renderer.waitForIdle();
+            if (generation !== this.seekGeneration || this.disposed) return;
+          }
+        }
+        await renderer.waitForIdle();
+      }
       if (generation !== this.seekGeneration || this.disposed) return;
 
-      this.cursor = index;
+      this.cursor = end;
       this.setVirtualTime(target);
 
+      if (this.pending) {
+        this.setState('waiting');
+        return;
+      }
       if (this.complete && target >= recording.durationMs && recording.durationMs > 0) {
         this.setState('ended');
         return;
@@ -211,6 +278,7 @@ export class McrecPlayer {
       // the last pre-seek position no longer matches what is on screen. A stale
       // seek (newer one took over) leaves state ownership to that newer call.
       if (generation === this.seekGeneration && !this.disposed) {
+        this.pending = null;
         this.cursor = 0;
         this.setVirtualTime(0);
         this.setState('paused');
@@ -221,6 +289,7 @@ export class McrecPlayer {
 
   dispose(): void {
     this.disposed = true;
+    this.pending = null;
     this.seekGeneration++;
     this.stopClock();
     this.renderer?.dispose();

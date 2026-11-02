@@ -65,7 +65,9 @@ export function TicketsView() {
     (values: TicketActivityFilter[]) => setParam('activity', values),
     [setParam],
   );
+  const handleStatusIdsChange = useCallback((ids: string[]) => setParam('status', ids), [setParam]);
   // Single URL write: two sequential setParam calls read the same snapshot and clobber each other.
+  // `status` rides along only while the board shows its applied status filter in the modal.
   const handleFiltersChange = useCallback(
     ({
       unreadOnly,
@@ -76,6 +78,7 @@ export function TicketsView() {
       assigneeIds: string[];
       unreadOnly: boolean;
       activity: TicketActivityFilter[];
+      status?: string[];
     }) => setParams({ ...filters, unread: unreadOnly || null, activity: nextActivity }),
     [setParams],
   );
@@ -127,6 +130,8 @@ export function TicketsView() {
         onUnreadOnlyChange={handleUnreadOnlyChange}
         activity={activity}
         onActivityChange={handleActivityChange}
+        statusIds={params.status}
+        onStatusIdsChange={handleStatusIdsChange}
         onFiltersChange={handleFiltersChange}
         search={search}
         onSearchChange={setSearch}

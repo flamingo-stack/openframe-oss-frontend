@@ -126,7 +126,7 @@ export const CustomerDeviceGuardrailsSettings = forwardRef<
               value={selectedMode}
               onValueChange={value => setChoice({ useDefault: false, mode: value as RemoteAccessMode })}
             >
-              <SelectTrigger label="Default Remote Access Permission">
+              <SelectTrigger label="Default Remote Access Permission" labelVariant="large">
                 {/* Children override Radix's item mirror, so the closed trigger
                     reads the label straight from the mode, not from a mounted item. */}
                 <SelectValue>{REMOTE_ACCESS_MODE_META[selectedMode].label}</SelectValue>

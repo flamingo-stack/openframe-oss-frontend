@@ -23,6 +23,9 @@ src/generated/
 
 # Env (note: matches the monorepo — .env.local stays tracked)
 .env
+# Local backups of it (a copy pointed at another backend is not a config the repo ships)
+.env.local.*
+!.env.local.example
 
 # Logs
 *.log
@@ -40,3 +43,6 @@ src/generated/
 
 # eslint --cache (npm run lint)
 .eslintcache
+
+# Per-route stylesheets of the last `next-styles build`
+.next-styles/

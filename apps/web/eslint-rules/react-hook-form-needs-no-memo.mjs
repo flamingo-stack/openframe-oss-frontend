@@ -94,8 +94,3 @@ export const reactHookFormNeedsNoMemo = {
     };
   },
 };
-
-/** The plugin object `eslint.config.mjs` registers under the `openframe/` prefix. */
-const openframePlugin = { rules: { 'react-hook-form-needs-no-memo': reactHookFormNeedsNoMemo } };
-
-export default openframePlugin;

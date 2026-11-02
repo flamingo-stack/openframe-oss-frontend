@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { sessionRecordingsApiService_session$data as WireSession } from '@/__generated__/sessionRecordingsApiService_session.graphql';
 import { fromWireSession, SessionRecordingsApiService } from './session-recordings-api-service';
-import { RecordingNotFoundError, RecordingUnavailableError } from './session-recordings-service';
+import { RecordingNotFoundError, RecordingUnavailableError, SessionNotFoundError } from './session-recordings-service';
 
 const relay = vi.hoisted(() => ({ fetchQuery: vi.fn(), commitMutation: vi.fn(), commitLocalUpdate: vi.fn() }));
 /** The Relay store's records, by data id, and the ones a local update marked stale. */
@@ -48,6 +48,7 @@ function session(overrides: Partial<Record<keyof WireSession, unknown>> = {}): W
     recordingExpiresAt: '2026-12-24T10:49:27Z',
     recordingHold: null,
     dialogId: 'dialog-1',
+    technicianId: 'tech-roman',
     technician: { name: 'Roman Smith', avatarUrl: null },
     organization: { organizationId: 'org-1', name: 'Acme', logoUrl: null },
     recordings: [
@@ -118,6 +119,7 @@ describe('fromWireSession', () => {
       kept: false,
       expiresAt: '2026-12-24T10:49:27Z',
       recordingId: 'rec-1',
+      technicianId: 'tech-roman',
       employee: { name: 'Roman Smith' },
     });
   });
@@ -336,6 +338,47 @@ describe('SessionRecordingsApiService', () => {
     const timeout = new Error('Relay fetch timed out');
     relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(timeout) });
     await expect(service.get('rec-1')).rejects.toBe(timeout);
+  });
+
+  it('reads a live session by its id with the hostname, the customer, the chat so far and whether it is recorded', async () => {
+    queriesAnswer(
+      { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: null } },
+      { device: { hostname: 'Romans-MacBook-Pro.local' } },
+    );
+    chat.history.mockResolvedValue({
+      messages: [{ id: 'm1', author: 'user', authorName: 'User', sentAt: '2026-09-25T10:50:10Z', body: 'Hello' }],
+      lastSeq: 0,
+    });
+
+    const detail = await service.live('session-1');
+    expect(detail).toMatchObject({
+      id: 'session-1',
+      live: true,
+      technicianId: 'tech-roman',
+      hostname: 'Romans-MacBook-Pro.local',
+      organization: { id: 'org-1', name: 'Acme' },
+      notRecorded: false,
+    });
+    expect(detail.chat.map(message => message.body)).toEqual(['Hello']);
+    expect(relay.fetchQuery.mock.calls[0][2]).toEqual({ sessionId: 'session-1' });
+  });
+
+  it('reads a live session started while the recording storage was full as not recorded', async () => {
+    queriesAnswer(
+      { remoteSession: { ...session({ status: 'ACTIVE', recordings: [] }), recordingSuppressed: 'STORAGE_FULL' } },
+      { device: null },
+    );
+    chat.history.mockResolvedValue({ messages: [], lastSeq: 0 });
+    expect((await service.live('session-1')).notRecorded).toBe(true);
+  });
+
+  it('reads a session the server does not show as not found, and any other failure as itself', async () => {
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(relayError('REMOTE_SESSION_NOT_FOUND')) });
+    await expect(service.live('session-gone')).rejects.toBeInstanceOf(SessionNotFoundError);
+
+    const timeout = new Error('Relay fetch timed out');
+    relay.fetchQuery.mockReturnValueOnce({ toPromise: () => Promise.reject(timeout) });
+    await expect(service.live('session-1')).rejects.toBe(timeout);
   });
 
   it('still opens the page when the transcript cannot be read', async () => {

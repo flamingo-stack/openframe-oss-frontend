@@ -185,12 +185,21 @@ export function getDefaultRedirectPath(isAuthenticated: boolean): string {
     if (isAppShell() && !isAuthenticated) {
       return '/auth';
     }
-    // App-only: send users to the app landing (no auth pages)
-    return '/dashboard';
+    // App-only: send users to the app landing (no auth pages).
+    return getLandingPath();
   }
 
   // oss-tenant: auth + app
-  return isAuthenticated ? '/dashboard' : '/auth';
+  return isAuthenticated ? getLandingPath() : '/auth';
+}
+
+/**
+ * Where a signed-in session starts: Mingo's new chat (`/mingo`) on a SaaS tenant, the
+ * dashboard on an OSS one. Every landing the app picks itself goes here (`/`, a login,
+ * an authenticated visit to `/auth`); the Mingo-first dashboard is the sidebar's.
+ */
+export function getLandingPath(): string {
+  return isSaasTenantMode() ? routes.mingo.home : routes.dashboard;
 }
 
 /**

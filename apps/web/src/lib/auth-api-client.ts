@@ -7,6 +7,7 @@
 import { isSaasSharedMode } from './app-mode';
 import { forceLogout } from './force-logout';
 import type { MobileAuthError } from './mobile-auth-return';
+import { nativeAuthPlugin } from './native-shell';
 import { isAppShell } from './platform';
 import {
   appendAttributionQueryParams,
@@ -533,6 +534,15 @@ class AuthApiClient {
   }
 
   async logoutAsync(tenantId?: string): Promise<boolean> {
+    const plugin = nativeAuthPlugin();
+    if (plugin?.revokeSession) {
+      try {
+        return await plugin.revokeSession({ tenantId });
+      } catch {
+        return false;
+      }
+    }
+
     const query = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : '';
     const logoutUrl = buildAuthUrl(`/oauth/logout${query}`);
     const headers: Record<string, string> = {};

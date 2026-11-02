@@ -6,6 +6,7 @@ import { type Customer, mapOrganizationNode, type OrganizationNode } from '@/app
 import type { Device } from '@/app/(app)/devices/types/device.types';
 import { type DeviceRowFields, rowFieldsToDevice } from '@/app/(app)/devices/utils/device-transform';
 import type { Dialog } from '@/app/(app)/tickets/types/dialog.types';
+import { queryState } from '@/lib/query-state';
 import { decodeGlobalId } from '@/lib/relay-id';
 import { postGraphQl } from './graphql';
 import { ensureGlobalId } from './relay-id';
@@ -288,13 +289,38 @@ export interface AssignedItemsResult {
   /** Per kind: its read has not answered yet (a kind whose rows arrived is no longer loading). */
   loadingTypes: Partial<Record<ServerAssignmentTargetType, true>>;
   isReady: boolean;
+  /** A read is paused on a lost connection: `isLoading` is false with nothing read. */
+  isOffline: boolean;
+  /** Per kind: its read failed or waits for the connection, so an empty list there is not "nothing assigned". */
+  failedTypes: Partial<Record<ServerAssignmentTargetType, true>>;
+  /** Some kind is in `failedTypes`. */
+  loadFailed: boolean;
+  /** Reads the kinds that failed again. */
+  retry: () => void;
 }
 
 function combineAssignedItems(results: UseQueryResult<AssignedItemsPayload, Error>[]): AssignedItemsResult {
   const value: AssignmentsValue = {};
-  const out: AssignedItemsResult = { value, isLoading: false, loadingTypes: {}, isReady: true };
+  const out: AssignedItemsResult = {
+    value,
+    isLoading: false,
+    loadingTypes: {},
+    isReady: true,
+    isOffline: false,
+    failedTypes: {},
+    loadFailed: false,
+    retry: () => {
+      for (const result of results) if (result.isError) void result.refetch();
+    },
+  };
   ASSIGNMENT_TARGET_TYPES.forEach((type, i) => {
     const result = results[i];
+    const state = queryState(result);
+    if (state.isOffline) out.isOffline = true;
+    if (state.isOffline || state.error !== null) {
+      out.failedTypes[type] = true;
+      out.loadFailed = true;
+    }
     if (result.isLoading) {
       out.isLoading = true;
       out.loadingTypes[type] = true;

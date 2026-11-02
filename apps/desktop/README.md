@@ -42,7 +42,7 @@ your workspace from your email, and updates itself from then on.
 
 - Rust (stable) and the [Tauri 2 system prerequisites](https://tauri.app/start/prerequisites/)
   for your platform
-- Node.js 24 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
+- Node.js 26 — the repository's `.nvmrc`; the shell builds the web app's export, so it needs the
   web app's Node
 
 ## Quick start
@@ -80,6 +80,7 @@ make build OPENFRAME_SHARED_HOST_URL=https://auth.example.com
 | Variable | Purpose |
 |---|---|
 | `OPENFRAME_SHARED_HOST_URL` | **Required for `build`.** Baked into the binary; see [Configuration](#configuration). |
+| `OPENFRAME_GTM_CONTAINER_ID` | Optional. Baked into the binary; unset means no GTM and no analytics. |
 | `OPENFRAME_VERSION` | App version, applied via `tauri build --config`. Defaults to `tauri.conf.json`. |
 | `TARGET` | Rust target triple for cross-compilation. |
 | `BUNDLES` | Bundle subset, e.g. `BUNDLES=app` for an unsigned macOS `.app`. |
@@ -162,6 +163,9 @@ The shared host is baked in at build time and can be overridden per install by
 }
 ```
 
+An install whose `shared_host` differs from the baked one loads no GTM, and so no
+PostHog: test environments stay out of production analytics.
+
 `learned_host` is written by the shell after login; it is not meant to be edited.
 Tokens live next to it in `tokens.json` (owner-readable only, plaintext —
 keychain storage is a known gap).
@@ -187,8 +191,8 @@ Without it the UI renders and every data call fails.
 - **Login** — the OAuth flow runs in the user's default browser, so an SSO
   session they already have there is reused instead of asking for credentials
   again, and comes back on the `openframe-console://auth` scheme this app
-  registers with the OS. Tokens are then exchanged natively, because the response
-  headers carrying them are invisible to a cross-origin webview fetch.
+  registers with the OS. Tokens are then exchanged natively, so the refresh token
+  ends up in the shell and not in the page.
 - **Tokens** — refresh is scheduled from the JWT expiry and runs on a background
   poll, so a session survives the webview being idle in the tray. The shell is
   the *only* refresher: refresh tokens rotate, so two would invalidate each other.

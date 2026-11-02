@@ -123,32 +123,35 @@ function ActivateSubscriptionBody({ copy, query }: ActivateSubscriptionBodyProps
       <ModalV2Content className="flex flex-col gap-[var(--spacing-system-l)]">
         <PaywallDescription copy={copy} deviceCount={form.deviceCount} loading={form.loading} />
         <PlanCheckoutCards query={data} form={form} />
-        {/* Right above the button it is about: a trial ends the moment it is paid for. */}
+      </ModalV2Content>
+      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-sf)]">
+        {/* In the footer, not at the end of the content: the content scrolls and the footer does not, so the
+            consequence of the click is on screen whenever the button is. A trial ends the moment it is paid for. */}
         {copy.checkoutNote && (
-          <div className="flex items-center gap-[var(--spacing-system-xsf)]">
+          <div role="note" className="flex items-center gap-[var(--spacing-system-xsf)]">
             <AlertTriangleIcon className="size-6 shrink-0 text-ods-warning" />
             <p className="text-ods-text-secondary text-h4">{copy.checkoutNote}</p>
           </div>
         )}
-      </ModalV2Content>
-      <ModalV2Footer className="flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
-        <PlanTotalSummary
-          total={form.selectionTotal}
-          topUpUsd={form.tokenAmountUsd}
-          showAiNote={form.showAiCard}
-          loading={form.loading}
-          className="flex-1"
-        />
-        <SubscriptionSubmitButton
-          needsCheckout
-          packageUpdates={form.packageUpdates}
-          checkoutProducts={form.checkoutProducts}
-          hasInvalidCustom={form.hasInvalidCustom}
-          tokenAmountUsd={form.tokenAmountUsd}
-          autoTopUpEnabled={form.autoTopUp}
-          validateTopUp={form.topUp.validate}
-          className="shrink-0"
-        />
+        <div className="flex flex-col items-stretch gap-[var(--spacing-system-mf)] sm:flex-row sm:items-center">
+          <PlanTotalSummary
+            total={form.selectionTotal}
+            topUpUsd={form.tokenAmountUsd}
+            showAiNote={form.showAiCard}
+            loading={form.loading}
+            className="flex-1"
+          />
+          <SubscriptionSubmitButton
+            needsCheckout
+            packageUpdates={form.packageUpdates}
+            checkoutProducts={form.checkoutProducts}
+            hasInvalidCustom={form.hasInvalidCustom}
+            tokenAmountUsd={form.tokenAmountUsd}
+            autoTopUpEnabled={form.autoTopUp}
+            validateTopUp={form.topUp.validate}
+            className="shrink-0"
+          />
+        </div>
       </ModalV2Footer>
     </>
   );

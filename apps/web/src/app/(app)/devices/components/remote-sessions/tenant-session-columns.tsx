@@ -21,7 +21,7 @@ import { fromWireSession, readSession } from '../../services/session-recordings-
 import type { RecordingSummary } from '../../types/session-recording';
 import { REMOTE_SESSION_COLUMNS } from './remote-session-column-layout';
 import { remoteSessionColumns } from './remote-session-columns';
-import { type ExpiresFilterValue, isRecordingGone } from './session-status';
+import { type ExpiresFilterValue, isRecordingGone, type LiveRows } from './session-status';
 
 // The tenant-wide Remote Sessions page (the Devices page's second tab): the
 // device tab's session table with a DEVICE and a CUSTOMER column, filtered,
@@ -134,6 +134,8 @@ export interface TenantSessionColumnsOptions {
   /** The device and customer options are still loading: their funnels draw inert instead of popping in. */
   optionsPending: boolean;
   now: number;
+  /** Set while Watch live is on (the device tab's own rule). */
+  liveRows: LiveRows | null;
   onOpen: (row: TenantSessionRow) => void;
   onDelete: (row: TenantSessionRow) => void;
 }
@@ -192,10 +194,18 @@ export function tenantSessionColumns({
   customerOptions,
   optionsPending,
   now,
+  liveRows,
   onOpen,
   onDelete,
 }: TenantSessionColumnsOptions): ColumnDef<TenantSessionRow>[] {
-  const shared = remoteSessionColumns<TenantSessionRow>({ dateFilter, employeeOptions: [], now, onOpen, onDelete });
+  const shared = remoteSessionColumns<TenantSessionRow>({
+    dateFilter,
+    employeeOptions: [],
+    now,
+    liveRows,
+    onOpen,
+    onDelete,
+  });
   const pick = (id: string): ColumnDef<TenantSessionRow> => {
     const column = shared.find(candidate => candidate.id === id);
     if (!column) throw new Error(`No shared session column "${id}"`);

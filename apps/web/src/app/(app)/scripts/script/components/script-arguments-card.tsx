@@ -1,6 +1,5 @@
 'use client';
 
-import { Label } from '@flamingo-stack/openframe-frontend-core';
 import { type ScriptParamRow, ScriptParamRows } from '../../shared/components/script-param-rows';
 
 interface ScriptArgumentsCardProps {
@@ -25,7 +24,7 @@ export function ScriptArgumentsCard({ title, rows }: ScriptArgumentsCardProps) {
 
   return (
     <div className="flex w-full flex-col gap-1">
-      <Label className="w-full text-ods-text-secondary text-h5">{title}</Label>
+      <p className="w-full text-ods-text-secondary text-h5">{title}</p>
       <div className="w-full rounded-md border border-ods-border bg-ods-card p-[var(--spacing-system-m)]">
         <ScriptParamRows rows={rows} />
       </div>

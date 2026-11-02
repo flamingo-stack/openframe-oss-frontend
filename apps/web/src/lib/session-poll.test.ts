@@ -7,7 +7,9 @@ const res = (status: number, type = 'text/html') => new Response('', { status, h
 
 async function load() {
   vi.resetModules();
-  const [health, poll] = await Promise.all([import('./session-health'), import('./session-poll')]);
+  // In order: two racing imports in a freshly reset registry can each evaluate their own `session-health`.
+  const poll = await import('./session-poll');
+  const health = await import('./session-health');
   return { health, poll };
 }
 
