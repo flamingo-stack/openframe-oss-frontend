@@ -3,8 +3,9 @@
 import { DashboardInfoCard, TitleBlock } from '@flamingo-stack/openframe-frontend-core';
 import { LoadingRegion } from '@flamingo-stack/openframe-frontend-core/components';
 import { DEVICE_STATUS } from '@flamingo-stack/openframe-frontend-core/components/features';
-import { useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { LoadingWhen, useLoadingScope } from '@flamingo-stack/openframe-frontend-core/components/ui';
 import { SectionLoadError } from '@/app/components/shared';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { EMPTY_VALUE } from '@/lib/empty-value';
 import { loadErrorProps } from '@/lib/query-state';
 import { routes } from '@/lib/routes';
@@ -73,9 +74,15 @@ type DeviceStatusCard = {
 
 type DevicesOverviewData = ReturnType<typeof useDevicesOverview>;
 
-/** The device counts, read. */
+/** The device counts, read; in its loading form until the page shows its sections (`RevealTogether`). */
 export function DevicesOverviewSection() {
-  return <DevicesOverview devices={useDevicesOverview()} />;
+  const devices = useDevicesOverview();
+  useRevealPart('devices', !devices.isLoading);
+  return (
+    <LoadingWhen loading={useRevealHeld()}>
+      <DevicesOverview devices={devices} />
+    </LoadingWhen>
+  );
 }
 
 /** The section over the counts it is handed; with none (or in a loading scope) the cards draw their figures as bars. */

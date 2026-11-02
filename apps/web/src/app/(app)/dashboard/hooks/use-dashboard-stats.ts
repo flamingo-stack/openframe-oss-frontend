@@ -52,6 +52,8 @@ export function useDevicesOverview() {
     queryFn: () => dashboardApiService.fetchDeviceStats(),
     enabled: isAuthenticated,
     staleTime: 1 * 60 * 1000,
+    // Read again on every return to the dashboard, drawn over the last answer: no skeleton.
+    refetchOnMount: 'always',
     gcTime: 5 * 60 * 1000,
     retry: 2,
     retryDelay: 1000,
@@ -86,6 +88,8 @@ export function useTicketsOverview() {
     queryFn: () => dashboardApiService.fetchTicketStats(),
     enabled: isSaasMode && isAuthenticated,
     staleTime: 3 * 60 * 1000,
+    // Read again on every return to the dashboard, drawn over the last answer: no skeleton.
+    refetchOnMount: 'always',
     gcTime: 5 * 60 * 1000,
     retry: 2,
     retryDelay: 1000,

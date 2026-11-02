@@ -48,6 +48,7 @@ vi.mock('@/lib/api-client', () => {
             dialogs: {
               edges: server.dialogs.map(node => ({ node })),
               pageInfo: { hasNextPage: false, endCursor: null },
+              filteredCount: server.dialogs.length,
             },
           });
         }
@@ -371,6 +372,24 @@ describe('ApprovalsView', () => {
     await settle();
 
     expect(cardTitled('LAPTOP-7 · Acme')).not.toBeNull();
+  });
+
+  it('heads each section with the total before the next page is loaded, the same once it is', async () => {
+    server.dialogs = [mingoChat('d-1', 'ar-1', '2026-10-16T10:00:00Z')];
+    server.tickets = [techTicket('t-1', 'ar-t1')];
+    server.olderTickets = [techTicket('t-2', 'ar-t2')];
+    await renderPage();
+
+    expect(cards()).toHaveLength(2);
+    const headings = () => [...container.querySelectorAll('h2')].map(heading => heading.textContent);
+    expect(headings()).toEqual(['Approval requests · 1', 'Tickets waiting for a technician · 2']);
+    expect(badge()).toBe(3);
+
+    await scrollToEnd();
+    await settle();
+
+    expect(cards()).toHaveLength(3);
+    expect(headings()).toEqual(['Approval requests · 1', 'Tickets waiting for a technician · 2']);
   });
 
   it('draws the ✓ "Mark notification complete" only on a card that is a notification', async () => {

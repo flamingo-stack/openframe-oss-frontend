@@ -37,6 +37,8 @@ export function useEscalatedTicketsReport(gate: FeatureFlagGate): SourceReport {
         : ticketService.fetchEscalatedTickets({ statusIds, limit: ESCALATED_CANDIDATES }),
     enabled: enabled && statuses.data !== undefined,
     staleTime: 60_000,
+    // Read again on every return to the dashboard, drawn over the last answer: no skeleton.
+    refetchOnMount: 'always',
   });
 
   const statusesState = queryState(statuses, enabled ? 'open' : 'closed');
