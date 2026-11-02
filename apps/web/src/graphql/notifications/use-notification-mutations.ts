@@ -52,8 +52,8 @@ export function useNotificationMutations({
     filterPairsRef.current = filterPairs;
   });
 
-  const markRead = useCallback(
-    (id: string) => {
+  const commitMarkRead = useCallback(
+    (id: string, reportFailure: (err: Error) => void) => {
       const updater = (store: Parameters<ReturnType<typeof makeMarkReadUpdater>>[0]) =>
         makeMarkReadUpdater(id, filterPairsRef.current)(store);
       markReadCommit({
@@ -64,12 +64,34 @@ export function useNotificationMutations({
           refreshUnreadCounts(environment);
         },
         onError: err => {
-          toast({ title: 'Failed to mark as read', description: err.message, variant: 'destructive' });
+          reportFailure(err);
           onError?.('markRead', err);
         },
       });
     },
-    [environment, markReadCommit, onError, toast],
+    [environment, markReadCommit, onError],
+  );
+
+  const markRead = useCallback(
+    (id: string) => {
+      commitMarkRead(id, err => {
+        toast({ title: 'Failed to mark as read', description: err.message, variant: 'destructive' });
+      });
+    },
+    [commitMarkRead, toast],
+  );
+
+  /**
+   * `markRead` for a read nobody asked for, so no toast: the user can do nothing about it, the row
+   * just stays unread, and a route matching many rows would stack one toast per row.
+   */
+  const autoMarkRead = useCallback(
+    (id: string) => {
+      commitMarkRead(id, err => {
+        console.warn('[Notifications] auto mark-read failed:', err);
+      });
+    },
+    [commitMarkRead],
   );
 
   const markAllRead = useCallback(() => {
@@ -128,5 +150,13 @@ export function useNotificationMutations({
     });
   }, [deleteAllReadCommit, onError, onDeleteAllReadCompleted, toast]);
 
-  return { markRead, markAllRead, removeNotification, removeAllRead, isMarkingAllRead, isDeletingAllRead };
+  return {
+    markRead,
+    autoMarkRead,
+    markAllRead,
+    removeNotification,
+    removeAllRead,
+    isMarkingAllRead,
+    isDeletingAllRead,
+  };
 }

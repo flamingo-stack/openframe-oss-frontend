@@ -361,7 +361,7 @@ function NotificationsDataInner({
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
   const enabled = userId !== null;
 
-  const { markRead, markAllRead, removeNotification } = useNotificationMutations({
+  const { markRead, autoMarkRead, markAllRead, removeNotification } = useNotificationMutations({
     filterPairs: DRAWER_FILTER_PAIRS,
   });
 
@@ -433,7 +433,7 @@ function NotificationsDataInner({
             </HydratorBoundary>
           </ErrorBoundary>
           <NotificationsLiveBridge userId={userId} />
-          <EntityViewAutoReader />
+          <EntityViewAutoReader autoMarkRead={autoMarkRead} />
           <NotificationPopups className={POPUP_OFFSET_CLASS} />
         </>
       )}
@@ -445,21 +445,23 @@ function NotificationsDataInner({
 /**
  * Marks an unread notification read once the user opens the entity it points at (the mingo
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
- * every entity type a notification can carry, and routes through the context's `markRead` so
- * the drawer list, the unread connection and the sidebar bucket all update together. A Mingo
- * dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which the
- * notification's own target route never matches, so "viewing" is the union of the location
+ * every entity type a notification can carry. The read's updater moves the row in the store,
+ * and the drawer list, the unread connection and the sidebar bucket all follow from that. A
+ * Mingo dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which
+ * the notification's own target route never matches, so "viewing" is the union of the location
  * match and the active-dialog-views registry.
+ *
+ * Takes `autoMarkRead` rather than the context's `markRead`, which is the user's and toasts.
  */
-function EntityViewAutoReader() {
+function EntityViewAutoReader({ autoMarkRead }: { autoMarkRead: (id: string) => void }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const search = useSearchParams().toString();
   const activeDialogs = useSyncExternalStore(
     subscribeActiveDialogViews,
     getActiveDialogViews,
     getServerActiveDialogViews,
   );
-  const { notifications, markRead } = useNotifications();
+  const { notifications } = useNotifications();
   // The gate below is time-varying, but none of the effect's other deps change when
   // the session becomes active again — so without this a notification that arrived
   // while the user was idle on its entity would stay unread until some unrelated dep
@@ -471,6 +473,16 @@ function EntityViewAutoReader() {
   // a component that renders null.
   const [activityEdge, setActivityEdge] = useState(0);
   useEffect(() => subscribeAttention(() => setActivityEdge(edge => edge + 1)), []);
+
+  // Rows already tried since the user last did something. A failed read reverts its optimistic
+  // update, which lists the row again and re-runs the effect below with the gate still open, and
+  // every new input keeps that gate open: 40 attempts in 4.4 s when measured. So only what the
+  // user does earns a retry, and `notifications`, the one dep a failure moves, is left out here.
+  // Runs before the effect below, so a trigger's own run already sees the set cleared.
+  const attemptedRef = useRef(new Set<string>());
+  useEffect(() => {
+    attemptedRef.current.clear();
+  }, [pathname, search, activeDialogs, activityEdge]);
 
   // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
@@ -487,17 +499,18 @@ function EntityViewAutoReader() {
     // notification matching the route, including ones weeks old that the user never
     // saw. Fixing that needs an item-level signal (viewport + dwell), not this one.
     if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(search);
     for (const notification of notifications) {
-      if (notification.read) continue;
+      if (notification.read || attemptedRef.current.has(notification.id)) continue;
       if (
         notificationTargetsLocation(notification, pathname, params) ||
         notificationTargetsDialog(notification, activeDialogs)
       ) {
-        markRead(notification.id);
+        attemptedRef.current.add(notification.id);
+        autoMarkRead(notification.id);
       }
     }
-  }, [pathname, searchParams, activeDialogs, notifications, markRead, activityEdge]);
+  }, [pathname, search, activeDialogs, notifications, autoMarkRead, activityEdge]);
 
   return null;
 }
