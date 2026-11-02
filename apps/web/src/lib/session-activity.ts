@@ -106,6 +106,9 @@ let sourceStarted = false;
 /** Web: last input timestamp. Mobile: unused — `shellActive` is the whole answer. */
 let lastInputAt = 0;
 let lastMoveWrite = 0;
+/** Where the pointer last reported from, which tells a real move from a re-sent one. */
+let lastPointerX: number | null = null;
+let lastPointerY: number | null = null;
 /**
  * Hard inactive edge (blur / hidden / pagehide). Distinct from the idle timer:
  * a blurred window is inactive immediately, not after the threshold.
@@ -157,6 +160,22 @@ function recordMove(): void {
   markInput(now);
 }
 
+function notePointerPosition({ clientX, clientY }: PointerEvent): boolean {
+  const moved = clientX !== lastPointerX || clientY !== lastPointerY;
+  lastPointerX = clientX;
+  lastPointerY = clientY;
+  return moved;
+}
+
+function recordPointerDown(event: PointerEvent): void {
+  notePointerPosition(event);
+  recordInput();
+}
+
+function recordPointerMove(event: PointerEvent): void {
+  if (notePointerPosition(event)) recordMove();
+}
+
 function startWebSource(): void {
   if (webSourceStarted) return;
   webSourceStarted = true;
@@ -172,12 +191,19 @@ function startWebSource(): void {
   // that as input would keep an unattended tab "attentive" for as long as messages
   // keep arriving, on exactly the surface this gate exists to protect. `wheel` and
   // `touchmove` cover real scrolling and cannot be synthesised by a layout effect.
+  //
+  // A `pointermove` at the position the pointer already reported is the same thing. WebKit
+  // re-sends one, trusted and with movement 0, whenever programmatic scrolling moves content
+  // under a parked cursor, so in Safari and the desktop app a chat streaming under the cursor
+  // read as a human at the keyboard, with both idle windows held open (measured in WKWebView,
+  // 2026-11-02; Blink does not do this). `pointerdown` records the position as well: the first
+  // re-send lands exactly where a click left the cursor.
   const options = { capture: true, passive: true } as const;
-  document.addEventListener('pointerdown', recordInput, options);
+  document.addEventListener('pointerdown', recordPointerDown, options);
   document.addEventListener('keydown', recordInput, options);
   document.addEventListener('wheel', recordMove, options);
   document.addEventListener('touchmove', recordMove, options);
-  document.addEventListener('pointermove', recordMove, options);
+  document.addEventListener('pointermove', recordPointerMove, options);
 
   window.addEventListener('focus', () => setWindowActive(true));
   window.addEventListener('blur', () => setWindowActive(false));
