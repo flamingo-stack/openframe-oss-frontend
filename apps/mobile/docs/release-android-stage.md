@@ -17,9 +17,11 @@ RELEASE_NOTES="what changed" \
 scripts/build-android-stage.sh
 ```
 
-`VERSION_NAME` is the version the app reports to the force-update policy. Give every
-upload a higher `VERSION_CODE`: Android will not install a lower one over a higher one
-without an uninstall, which signs the tester out.
+`VERSION_NAME` is the shell version the "Update available" nudge compares with the policy's
+`latestVersion`; the blocking "Update required" screen follows the bundle version. Give every
+upload a higher `VERSION_CODE`: it defaults to 1, and Android will not install a lower one
+over a higher one without an uninstall, which signs the tester out. Once one upload has set
+it, every later upload to that group has to set it too.
 
 Web bundle (stage env baked) → `cap sync` → `assembleStageDebug` →
 `firebase appdistribution:distribute` to the `qa` group. The Firebase app id is

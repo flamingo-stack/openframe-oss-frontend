@@ -26,8 +26,9 @@ BUILD_NUMBER=<increasing int> \
 scripts/build-ios-stage.sh
 ```
 
-`VERSION_NAME` sets `MARKETING_VERSION` (default: the project's). It is the version the app
-reports to the force-update policy, so a nudge test needs builds that differ in it.
+`VERSION_NAME` sets `MARKETING_VERSION` (default: the project's). It is the shell version the
+"Update available" nudge compares with the policy's `latestVersion`, so a nudge test needs builds
+that differ in it; the blocking "Update required" screen follows the bundle version.
 
 Produces `build/stage/*.ipa` (App Store Connect export, automatic signing).
 Upload with the Transporter app or `xcrun altool --upload-app` (API key). Then
