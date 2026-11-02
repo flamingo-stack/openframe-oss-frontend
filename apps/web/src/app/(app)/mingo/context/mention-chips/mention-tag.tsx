@@ -70,10 +70,12 @@ export function MentionTag({ icon, label, href }: MentionTagProps) {
 
   // The new-tab segment is the same chat link, asked for a new tab (`openIn`), to the page alone: a
   // `?mingoDialog=` would send that tab to the chat page instead (`MingoDialogParamBridge`). The pair fits what
-  // holds it too: the main segment gives up its width first.
+  // holds it too: the main segment gives up its width first. The main segment's link carries the chip's 16rem cap
+  // itself: the chip's `100%` cannot cap the link it sizes, so a long label left the link at its full width and a gap
+  // between the chip and the new-tab segment.
   return (
     <span className="inline-flex max-w-full align-middle">
-      <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 no-underline">
+      <NavLinkAnchorViaRuntime href={href} className="flex min-w-0 max-w-[16rem] no-underline">
         {chip}
       </NavLinkAnchorViaRuntime>
       <FloatingTooltip content="Open in new tab" side="top" as="span">
