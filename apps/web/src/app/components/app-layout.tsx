@@ -39,7 +39,7 @@ import {
   NAVIGATION_LOADING_ROWS,
   type NavigationFlags,
 } from '../../lib/navigation-config';
-import { GROUPED_SIDEBAR_EXPANDED_WIDTH } from '../../lib/navigation-sidebar-state';
+import { GROUPED_SIDEBAR_EXPANDED_WIDTH, SIDEBAR_RESIZE } from '../../lib/navigation-sidebar-state';
 import { AnnouncementTopBar } from './announcement-top-bar';
 import {
   APP_MAIN_CLASS_NAME,
@@ -447,6 +447,10 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // pre-paint seed (`sidebarWidthFoucScript`) reads the app mode too, so the
             // first frame is already this wide.
             expandedWidth: GROUPED_SIDEBAR_EXPANDED_WIDTH,
+            // The user may drag the expanded width between `SIDEBAR_RESIZE`'s bounds; the
+            // choice is kept under its key, which the pre-paint seed reads too, and is
+            // the classic shell's as well.
+            resizable: SIDEBAR_RESIZE,
             onNavigate: handleNavigate,
             // The Mingo rows (New chat, Needs approval) above the module tree, after
             // the desktop shell's update button as in the classic sidebar.
@@ -485,6 +489,8 @@ function AppShell({ children, mainClassName }: { children: React.ReactNode; main
             // The counts this app's nav settles on, so the placeholder is the same
             // height as the loaded rail (see `NAVIGATION_LOADING_ROWS`).
             loadingRows: NAVIGATION_LOADING_ROWS.flat,
+            // Resizable like the Mingo-first sidebar: the same bounds, the same stored choice.
+            resizable: SIDEBAR_RESIZE,
             onNavigate: handleNavigate,
             // Desktop shell only: renders nothing until the shell reports an update
             // waiting. The slot is a render prop because the same node also draws in

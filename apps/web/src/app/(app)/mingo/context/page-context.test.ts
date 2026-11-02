@@ -71,6 +71,13 @@ describe('resolvePageContext', () => {
     });
   });
 
+  it('names the Vulnerabilities tab of Software as its section, the list by its own module', () => {
+    expect(resolvePageContext('/software/vulnerabilities/', null)).toMatchObject({
+      currentPage: { kind: 'LIST', title: 'Software', section: 'vulnerabilities' },
+      currentList: { module: 'VULNERABILITIES' },
+    });
+  });
+
   it('names an entity page after its open entity, and by its kind before it lands', () => {
     expect(resolvePageContext('/devices/details/?id=m-1', MACBOOK)).toEqual({
       currentPage: { kind: 'ENTITY', title: 'Device: MacBook' },

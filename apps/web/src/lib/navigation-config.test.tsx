@@ -158,7 +158,7 @@ describe('grouped navigation (Mingo-first shell)', () => {
       'inventory: organizations, devices, software, users, integrations',
       'service-desk: tickets, worktime',
       'automation: scripts, schedules, policies, queries',
-      'monitor: incidents, vulnerabilities, logs',
+      'monitor: incidents, logs',
       'knowledge-base',
     ]);
   });
@@ -198,7 +198,6 @@ describe('grouped navigation (Mingo-first shell)', () => {
         expect(has(grouped, 'tickets'), context).toBe(saas);
         expect(has(grouped, 'incidents'), context).toBe(saas && flags.insights);
         expect(has(grouped, 'software'), context).toBe(flags.softwareManagement);
-        expect(has(grouped, 'vulnerabilities'), context).toBe(flags.softwareManagement);
         expect(has(grouped, 'integrations'), context).toBe(flags.tenantManagement);
         expect(has(grouped, 'dashboard') || has(grouped, 'monitoring'), context).toBe(false);
         // Every module both sidebars show is gated the same way in both.
@@ -216,7 +215,6 @@ describe('grouped navigation (Mingo-first shell)', () => {
     expect(byId.integrations).toMatchObject({ label: 'Cloud tenants', badge: 'Beta' });
     expect(byId.software.badge).toBe('Beta');
     expect(byId.incidents.badge).toBe('Beta');
-    expect(byId.vulnerabilities.badge).toBeUndefined();
   });
 
   it('counts unread notifications on the module of their category, and the sum on its group', () => {
@@ -300,8 +298,8 @@ describe('grouped navigation (Mingo-first shell)', () => {
       '/devicesx': '',
       '/software': 'inventory/software',
       '/software/actions': 'inventory/software',
-      '/software/vulnerabilities': 'monitor/vulnerabilities',
-      '/software/vulnerability?id=CVE-1': 'monitor/vulnerabilities',
+      '/software/vulnerabilities': 'inventory/software',
+      '/software/vulnerability?id=CVE-1': 'inventory/software',
       '/cloud-tenant-management/details?id=1': 'inventory/integrations',
       '/tickets/dialog?id=1': 'service-desk/tickets',
       '/worktime': 'service-desk/worktime',
