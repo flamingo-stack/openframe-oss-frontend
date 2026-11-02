@@ -20,11 +20,12 @@ import {
   WebDesignIcon,
 } from '@flamingo-stack/openframe-frontend-core/components/icons-v2';
 import { LoadingWhen, type TabItem } from '@flamingo-stack/openframe-frontend-core/components/ui';
+import { createContext, useContext } from 'react';
 import { useIncidentsGate } from '@/app/(app)/incidents/hooks/use-incidents-gate';
 import { AssignedArticlesTab } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-tab';
 import { deviceArticlesTarget } from '@/app/(app)/knowledge-base/components/assigned-articles/assigned-articles-target';
+import type { FeatureFlagGate } from '@/lib/feature-flags';
 import type { DeviceDetailTab } from '@/lib/routes';
-import { useDirectoryGate } from '../../hooks/use-directory-gate';
 import { useSessionRecordingsGate } from '../../hooks/use-session-recordings-gate';
 import type { Device } from '../../types/device.types';
 import { AgentsTab } from './agents-tab';
@@ -72,9 +73,16 @@ function GatedRemoteSessionsTab({ device }: { device: Device | null }) {
   );
 }
 
+/**
+ * The page's one read of `useDirectoryGate`, so that the tab bar and the tab under it cannot disagree. A tab mounts per
+ * open; with its own read it would draw a loading form each time, however settled the answer. Off without a provider:
+ * the local accounts.
+ */
+export const DeviceDirectoryGateContext = createContext<FeatureFlagGate>('off');
+
 /** Directory users where the tenant has directories (D30), the machine's local accounts where it has none. */
 function GatedUsersTab({ device }: { device: Device | null }) {
-  const gate = useDirectoryGate();
+  const gate = useContext(DeviceDirectoryGateContext);
   if (gate === 'off') return <UsersTab device={device} />;
   return (
     <LoadingWhen loading={gate === 'loading'}>
@@ -85,7 +93,7 @@ function GatedUsersTab({ device }: { device: Device | null }) {
 
 function GatedDirectoryTab({ device }: { device: Device | null }) {
   return (
-    <LoadingWhen loading={useDirectoryGate() === 'loading'}>
+    <LoadingWhen loading={useContext(DeviceDirectoryGateContext) === 'loading'}>
       <DirectoryTab device={device} />
     </LoadingWhen>
   );
@@ -213,12 +221,12 @@ export const ALL_DEVICE_TABS: TabItem[] = [
  * Tabs shown for a device. Remote Sessions is gated on the session recordings
  * gate (same pattern as `getCustomerTabs`), Incidents on the Incidents page's gate.
  * Only 'off' hides a tab: while a gate is read the tab keeps its place (most
- * tenants have the feature) and its panel draws its loading form.
+ * tenants have the feature) and its panel draws its loading form. Directory reads
+ * the same way so that a link to it survives the read, though most tenants have none.
  */
-export function useDeviceTabs(): TabItem[] {
+export function useDeviceTabs(directoryGate: FeatureFlagGate): TabItem[] {
   const recordingsGate = useSessionRecordingsGate();
   const incidentsGate = useIncidentsGate();
-  const directoryGate = useDirectoryGate();
   return ALL_DEVICE_TABS.filter(
     tab =>
       (tab.id !== REMOTE_SESSIONS_TAB_ID || recordingsGate !== 'off') &&

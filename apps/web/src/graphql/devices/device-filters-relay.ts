@@ -6,6 +6,8 @@ import { graphql } from 'react-relay';
  *
  * Separate from the list query on purpose: the facets are re-read whenever the
  * user changes a filter, while the list itself paginates independently.
+ *
+ * The USER and SOURCES facets are not here, see `useDirectoryFacets`.
  */
 export const deviceFiltersRelayQuery = graphql`
   query deviceFiltersRelayQuery($filter: DeviceFilterInput) {
@@ -32,14 +34,6 @@ export const deviceFiltersRelayQuery = graphql`
       }
       tagKeys {
         key
-        value
-        count
-      }
-      directorySources {
-        value
-        count
-      }
-      userLinks {
         value
         count
       }

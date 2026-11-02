@@ -1,0 +1,281 @@
+/**
+ * The panel's wiring of the directory gate, over the real gate and facet hooks and a fake network. What matters:
+ * - the rows never depend on the directory: they are asked for at once and a failing session or count cannot strand them
+ * - a table does not change shape under its rows on the common path, and rows are never pulled away once drawn
+ * - USER and SOURCES filters in the address apply only where their columns are drawn, and can always be cleared there
+ */
+
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { RelayEnvironmentProvider } from 'react-relay';
+import { Environment, Network, RecordSource, Store } from 'relay-runtime';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useFeatureFlagsStore } from '@/stores/feature-flags-store';
+
+const env = vi.hoisted(() => ({
+  // One object per address, as Next hands out: a new one per render would never let a deferred filter settle.
+  searchParams: new URLSearchParams(),
+  router: { push: () => undefined, replace: () => undefined, back: () => undefined },
+  listFilters: [] as Record<string, unknown>[],
+  fleetFacets: {
+    statuses: [{ value: 'ONLINE', label: 'Online', count: 1 }],
+    deviceTypes: [],
+    osTypes: [{ value: 'WINDOWS', label: 'Windows', count: 1 }],
+    organizationIds: [{ value: 'o1', label: 'Org', count: 1 }],
+    tagKeys: [],
+    filteredCount: 1,
+  },
+}));
+
+vi.mock('@/lib/runtime-config', async importOriginal => {
+  const actual = await importOriginal<{ runtimeEnv: object }>();
+  return { ...actual, runtimeEnv: { ...actual.runtimeEnv, appMode: () => 'saas-tenant' } };
+});
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => env.router,
+  usePathname: () => '/devices',
+  useSearchParams: () => env.searchParams,
+}));
+
+// Vitest runs no Relay Babel transform, so the tags resolve to their compiled artifacts, as the transform makes them.
+vi.mock('react-relay', async importOriginal => {
+  const gate = (await import('@/__generated__/useDirectoryGateQuery.graphql')).default;
+  const facets = (await import('@/__generated__/useDirectoryFacetsQuery.graphql')).default;
+  const actual = await importOriginal<Record<string, unknown> & { default?: Record<string, unknown> }>();
+  return {
+    ...actual.default,
+    ...actual,
+    graphql: (strings: TemplateStringsArray) => {
+      if (strings[0].includes('useDirectoryGateQuery')) return gate;
+      return strings[0].includes('useDirectoryFacetsQuery') ? facets : {};
+    },
+  };
+});
+
+// The list and the fleet facets suspend through Relay; what is under test is what the panel does around them.
+vi.mock('@/app/(app)/devices/hooks/use-devices', () => ({
+  useDevices: (filters: Record<string, unknown>) => {
+    env.listFilters.push(filters);
+    return {
+      devices: [{ id: 'd1', machineId: 'm1', status: 'ONLINE', hostname: 'host-1' }],
+      filteredCount: 1,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: () => undefined,
+    };
+  },
+}));
+vi.mock('@/app/(app)/devices/hooks/use-device-filters', () => ({
+  useDeviceFilters: () => env.fleetFacets,
+}));
+vi.mock('@/app/(app)/devices/components/device-actions-dropdown', () => ({ DeviceActionsDropdown: () => null }));
+vi.mock('@/app/(app)/devices/hooks/use-remote-access-policy', () => ({ useRowRemoteAccessPolicies: () => undefined }));
+
+import { DevicesPanel, type DevicesPanelProps } from './devices-panel';
+
+const DIRECTORY_FACETS = {
+  directorySources: [{ value: 'MICROSOFT_365', count: 1 }],
+  userLinks: [{ value: 'SHARED', count: 1 }],
+};
+
+let container: HTMLDivElement;
+let root: Root;
+let environment: Environment;
+let fetchFn: ReturnType<typeof vi.fn>;
+let countAnswer: () => Promise<unknown>;
+let facetsAnswer: () => Promise<unknown>;
+
+const settle = async () => {
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  });
+};
+const funnels = () =>
+  [...container.querySelectorAll('[aria-label^="Filter by"]')].map(node => node.getAttribute('aria-label'));
+const text = () => container.textContent ?? '';
+const countAsked = () => fetchFn.mock.calls.filter(call => call[0].name === 'useDirectoryGateQuery').length;
+const flagOn = () => useFeatureFlagsStore.getState().setFlags([{ name: 'tenant-management', enabled: true }]);
+const hasDirectory = (totalCount: number) => async () => ({ data: { directoryConnections: { totalCount } } });
+
+function setAddress(search: string) {
+  env.searchParams = new URLSearchParams(search);
+  window.history.replaceState(null, '', `/devices${search}`);
+}
+
+function render(props: DevicesPanelProps = {}) {
+  act(() => {
+    root.render(
+      <RelayEnvironmentProvider environment={environment}>
+        <DevicesPanel {...props} />
+      </RelayEnvironmentProvider>,
+    );
+  });
+}
+
+describe('DevicesPanel and the directory gate', () => {
+  beforeEach(() => {
+    setAddress('');
+    env.listFilters = [];
+    const Observer = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    globalThis.ResizeObserver = Observer as never;
+    globalThis.IntersectionObserver = Observer as never;
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+    })) as never;
+    useFeatureFlagsStore.getState().reset();
+    countAnswer = hasDirectory(1);
+    facetsAnswer = async () => ({ data: { deviceFilters: DIRECTORY_FACETS } });
+    fetchFn = vi.fn((request: { name: string }) =>
+      request.name === 'useDirectoryGateQuery' ? countAnswer() : facetsAnswer(),
+    );
+    environment = new Environment({ network: Network.create(fetchFn as never), store: new Store(new RecordSource()) });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('draws the rows when the flag never answers: a failing session holds nothing', async () => {
+    render();
+    await settle();
+    expect(useFeatureFlagsStore.getState().isLoaded).toBe(false);
+    expect(env.listFilters.length).toBeGreaterThan(0);
+    expect(text()).toContain('host-1');
+    expect(text()).not.toContain('USER');
+    expect(countAsked()).toBe(0);
+  });
+
+  it('asks for the list at once, and draws it only when the count answers', async () => {
+    let answerCount: (value: unknown) => void = () => undefined;
+    countAnswer = () => new Promise(resolve => (answerCount = resolve));
+    flagOn();
+    render();
+    await settle();
+    expect(env.listFilters.length).toBeGreaterThan(0);
+    expect(text()).not.toContain('host-1');
+
+    await act(async () => {
+      answerCount({ data: { directoryConnections: { totalCount: 1 } } });
+    });
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(text()).toContain('USER');
+    expect(text()).toContain('SOURCES');
+    expect(countAsked()).toBe(1);
+  });
+
+  it('draws USER and SOURCES only where a connection has synced', async () => {
+    countAnswer = hasDirectory(0);
+    flagOn();
+    render();
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(text()).not.toContain('USER');
+    expect(text()).not.toContain('SOURCES');
+    expect(fetchFn.mock.calls.every(call => call[0].name === 'useDirectoryGateQuery')).toBe(true);
+  });
+
+  it('draws the rows with no directory columns when the count fails, and asks once', async () => {
+    countAnswer = async () => {
+      throw new Error('down');
+    };
+    flagOn();
+    render();
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(text()).not.toContain('USER');
+    expect(countAsked()).toBe(1);
+  });
+
+  it('keeps the rows and the search box mounted when the flag turns on after they are drawn', async () => {
+    useFeatureFlagsStore.getState().setLoaded();
+    let answerCount: (value: unknown) => void = () => undefined;
+    countAnswer = () => new Promise(resolve => (answerCount = resolve));
+    render();
+    await settle();
+    const searchBox = container.querySelector('input');
+    expect(searchBox).not.toBeNull();
+    expect(text()).toContain('host-1');
+
+    act(() => flagOn());
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(container.querySelector('input')).toBe(searchBox);
+
+    await act(async () => {
+      answerCount({ data: { directoryConnections: { totalCount: 1 } } });
+    });
+    await settle();
+    expect(container.querySelector('input')).toBe(searchBox);
+    expect(text()).toContain('USER');
+  });
+
+  it('keeps every other funnel when the directory facets fail', async () => {
+    facetsAnswer = async () => {
+      throw new Error('PINOT_QUERY_ERROR');
+    };
+    flagOn();
+    render();
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(funnels()).toEqual(expect.arrayContaining(['Filter by STATUS', 'Filter by OS', 'Filter by CUSTOMER']));
+    expect(funnels()).not.toContain('Filter by USER');
+  });
+
+  it('offers USER and SOURCES funnels once the facets answer', async () => {
+    flagOn();
+    render();
+    await settle();
+    expect(funnels()).toEqual(expect.arrayContaining(['Filter by USER', 'Filter by SOURCES', 'Filter by STATUS']));
+  });
+
+  it('keeps a funnel for a USER filter in the address, even with the facets failing', async () => {
+    setAddress('?userLinks=SHARED');
+    facetsAnswer = async () => {
+      throw new Error('PINOT_QUERY_ERROR');
+    };
+    flagOn();
+    render();
+    await settle();
+    expect(env.listFilters.at(-1)).toMatchObject({ userLinks: ['SHARED'] });
+    expect(funnels()).toContain('Filter by USER');
+  });
+
+  it('ignores USER and SOURCES filters in the address where no connection has synced', async () => {
+    setAddress('?userLinks=SHARED&directorySources=MICROSOFT_365');
+    countAnswer = hasDirectory(0);
+    flagOn();
+    render();
+    await settle();
+    expect(text()).toContain('host-1');
+    for (const filter of env.listFilters) {
+      expect(filter).not.toHaveProperty('userLinks');
+      expect(filter).not.toHaveProperty('directorySources');
+    }
+  });
+
+  it('holds nothing and ignores those filters on the archive, whatever the tenant has', async () => {
+    setAddress('?userLinks=SHARED');
+    countAnswer = () => new Promise(() => undefined);
+    flagOn();
+    render({ withoutDirectory: true });
+    await settle();
+    expect(text()).toContain('host-1');
+    expect(text()).not.toContain('USER');
+    expect(env.listFilters.at(-1)).not.toHaveProperty('userLinks');
+  });
+});

@@ -22,11 +22,13 @@ import {
 import { useContentMdUp } from '@flamingo-stack/openframe-frontend-core/hooks';
 import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ReactNode, useCallback, useMemo } from 'react';
+import { type ReactNode, useCallback, useMemo, useState } from 'react';
+import { useTenantManagementGate } from '@/app/(app)/cloud-tenant-management/components/shared/use-tenant-management-gate';
 import { DeviceActionsDropdown } from '@/app/(app)/devices/components/device-actions-dropdown';
 import { DeviceFacets } from '@/app/(app)/devices/components/device-facets';
 import { type UseDevicesResult, useDevices } from '@/app/(app)/devices/hooks/use-devices';
 import { useDevicesUrlParams } from '@/app/(app)/devices/hooks/use-devices-url-params';
+import { useDirectoryFacets } from '@/app/(app)/devices/hooks/use-directory-facets';
 import { useDirectoryGate } from '@/app/(app)/devices/hooks/use-directory-gate';
 import { useGridInfiniteScroll } from '@/app/(app)/devices/hooks/use-grid-infinite-scroll';
 import { useRowRemoteAccessPolicies } from '@/app/(app)/devices/hooks/use-remote-access-policy';
@@ -44,13 +46,27 @@ import { devicesViewMode } from './devices-view-mode';
 /** The loaded table's actions column, minus the actions: the loading panel's columns take the same widths. */
 const PENDING_ACTIONS_COLUMN = getDeviceActionsColumn<Device>();
 
+interface DirectoryPanelState {
+  /** USER and SOURCES are drawn (Figma 865:55733, 187:61663), and those filters in the address apply. */
+  columns: boolean;
+  /** The rows are not drawn yet: the answer that would add two columns under them is on its way. */
+  holdRows: boolean;
+}
+
 /**
- * The USER and SOURCES columns (Figma 865:55733, 187:61663). Drawn while the flag is read: most tenants of a SaaS build
- * have it, so the table does not gain two columns when it answers.
+ * The panel's one read of the directory gate. Only the drawing of the rows waits for it: the list is asked for at once,
+ * so the count costs a list that fails no extra time.
+ *
+ * Only a count that started with the page holds the rows. A flag that answers later (its query failed, then a reconnect)
+ * adds the columns under drawn rows instead of pulling the rows, a typed search and an open modal away, and a flag that
+ * never answers (the session is failing) holds nothing.
  */
-function useDirectoryColumns(panel: DevicesPanelProps): boolean {
+function useDirectoryPanelState(panel: DevicesPanelProps): DirectoryPanelState {
   const gate = useDirectoryGate();
-  return !panel.withoutDirectory && gate !== 'off';
+  const flag = useTenantManagementGate();
+  const [countStartedWithPage] = useState(flag === 'on');
+  if (panel.withoutDirectory) return { columns: false, holdRows: false };
+  return { columns: gate === 'on', holdRows: countStartedWithPage && gate === 'loading' };
 }
 
 /** The per-row overflow menu. Post-action list refresh is handled centrally, so it takes no callback. */
@@ -125,9 +141,11 @@ export interface DevicesPanelProps {
   readOnlyRows?: boolean;
 }
 
-function DevicesPanelContent(props: DevicesPanelProps) {
+function DevicesPanelContent(body: DevicesPanelBodyProps) {
+  const { panel: props, directory } = body;
   const { lockedFilters, defaultStatuses } = props;
-  const urlParams = useDevicesUrlParams({ defaultStatuses });
+  const directoryColumns = directory.columns;
+  const urlParams = useDevicesUrlParams({ defaultStatuses, directoryColumns });
   const { filters: urlFilters, debouncedSearch } = urlParams;
 
   const filters = useMemo<DeviceFilterInput>(() => ({ ...urlFilters, ...lockedFilters }), [urlFilters, lockedFilters]);
@@ -139,18 +157,24 @@ function DevicesPanelContent(props: DevicesPanelProps) {
   // themselves still read the live `params`, so a checkbox ticks immediately.
   const { deferredFilters, deferredSearch, isPending: isNarrowing } = useDeferredQuery(filters, debouncedSearch);
 
+  const directoryFacets = useDirectoryFacets(deferredFilters, directoryColumns);
   const list = useDevices(deferredFilters, deferredSearch);
   const epoch = useDeviceEpoch();
 
-  const renderPanel = (deviceFilters: DeviceFilters | null) => (
-    <DevicesPanelLoaded
-      panel={props}
-      urlParams={urlParams}
-      list={list}
-      isNarrowing={isNarrowing}
-      deviceFilters={deviceFilters}
-    />
-  );
+  const renderPanel = (fleetFacets: DeviceFilters | null) =>
+    directory.holdRows ? (
+      <DevicesPanelPending {...body} />
+    ) : (
+      <DevicesPanelLoaded
+        panel={props}
+        urlParams={urlParams}
+        list={list}
+        isNarrowing={isNarrowing}
+        directoryColumns={directoryColumns}
+        fleetFacets={fleetFacets}
+        directoryFacets={directoryFacets}
+      />
+    );
 
   // The facets load with the rows (one Suspense boundary) but fail apart from them: a failed facet query used to
   // take the whole panel down while the list had answered. Now it costs only the filters, and the panel is drawn
@@ -171,11 +195,21 @@ interface DevicesPanelLoadedProps {
   urlParams: ReturnType<typeof useDevicesUrlParams>;
   list: UseDevicesResult;
   isNarrowing: boolean;
+  directoryColumns: boolean;
   /** `null` when the facet query failed: no options, so no funnels, no grid filter row, an empty filter modal. */
-  deviceFilters: DeviceFilters | null;
+  fleetFacets: DeviceFilters | null;
+  directoryFacets: Pick<DeviceFilters, 'directorySources' | 'userLinks'>;
 }
 
-function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters }: DevicesPanelLoadedProps) {
+function DevicesPanelLoaded({
+  panel,
+  urlParams,
+  list,
+  isNarrowing,
+  directoryColumns,
+  fleetFacets,
+  directoryFacets,
+}: DevicesPanelLoadedProps) {
   const {
     title = 'Devices',
     backButton,
@@ -193,7 +227,10 @@ function DevicesPanelLoaded({ panel, urlParams, list, isNarrowing, deviceFilters
     readOnlyRows = false,
   } = panel;
   const router = useRouter();
-  const directoryColumns = useDirectoryColumns(panel);
+  const deviceFilters = useMemo(
+    () => fleetFacets && { ...fleetFacets, ...directoryFacets },
+    [fleetFacets, directoryFacets],
+  );
 
   const {
     params,
@@ -429,20 +466,25 @@ interface DevicesPanelBodyProps {
   panel: DevicesPanelProps;
   chrome: DevicesPanelChrome;
   viewMode: 'table' | 'grid';
+  directory: DirectoryPanelState;
 }
 
-/** The panel's content, with its own boundary: in its scope the reader draws the panel's loading state. */
-function DevicesPanelBody(props: DevicesPanelBodyProps) {
+/**
+ * The panel's content, with its own boundary: in its scope the reader draws the panel's loading state. The gate is read
+ * above the boundary, so the count goes out with the list rather than after it.
+ */
+function DevicesPanelBody(props: Omit<DevicesPanelBodyProps, 'directory'>) {
+  const directory = useDirectoryPanelState(props.panel);
   return (
     <LoadingSuspense bare label="Loading devices">
-      <DevicesPanelBodyReader {...props} />
+      <DevicesPanelBodyReader {...props} directory={directory} />
     </LoadingSuspense>
   );
 }
 
 function DevicesPanelBodyReader(props: DevicesPanelBodyProps) {
   if (useLoadingScope()) return <DevicesPanelPending {...props} />;
-  return <DevicesPanelContent {...props.panel} />;
+  return <DevicesPanelContent {...props} />;
 }
 
 /**
@@ -452,8 +494,8 @@ function DevicesPanelBodyReader(props: DevicesPanelBodyProps) {
  * view switch reflects `?viewMode` (table and grid are different shapes), and the filter toolbar is the real one
  * with empty tags. Only what the request answers draws its loading form: the rows.
  */
-function DevicesPanelPending({ panel: props, chrome, viewMode }: DevicesPanelBodyProps) {
-  const directoryColumns = useDirectoryColumns(props);
+function DevicesPanelPending({ panel: props, chrome, viewMode, directory }: DevicesPanelBodyProps) {
+  const directoryColumns = directory.columns;
   return (
     <DevicesPanelView<Device>
       pageSize={DEVICES_PAGE_SIZE}
