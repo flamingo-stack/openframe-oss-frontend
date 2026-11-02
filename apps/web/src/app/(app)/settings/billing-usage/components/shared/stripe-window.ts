@@ -10,6 +10,8 @@
  * re-issued session.
  */
 
+import { paintStripeTabPlaceholder } from './stripe-tab-placeholder';
+
 /** A tab already opened, waiting for the URL it will show. */
 export interface DeferredTab {
   /** Point the tab at `url`, or navigate this one if it could not be opened. */
@@ -29,10 +31,20 @@ export interface DeferredTab {
  * `noopener` is NOT passed, deliberately: with it browsers return no handle at
  * all, and the handle is the entire point here. The link back is severed on the
  * opened tab instead, which is the same guarantee.
+ *
+ * `caption` says what the tab is waiting for: the URL takes seconds to arrive.
  */
-export function openDeferredTab(): DeferredTab {
+export function openDeferredTab(caption: string): DeferredTab {
   const target = typeof window === 'undefined' ? null : window.open('', '_blank');
-  if (target) target.opener = null;
+  if (target) {
+    target.opener = null;
+    try {
+      paintStripeTabPlaceholder(target, caption);
+    } catch (err) {
+      // Only a nicer wait: it must not cost the user the payment.
+      console.warn('Could not draw the Stripe tab placeholder', err);
+    }
+  }
 
   return {
     navigate: url => {
