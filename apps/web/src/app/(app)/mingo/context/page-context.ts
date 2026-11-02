@@ -33,7 +33,7 @@ export interface PageContext {
 interface ListPage {
   module: ListModule;
   nav: NavModuleId;
-  /** A variant of the list, e.g. its archive. */
+  /** A variant of the list, e.g. its archive, or the tab of its module the list is. */
   section?: string;
   /** The `tab` param is a filter on this list, and this is its value when the URL has none. */
   tabFilter?: string;
@@ -52,7 +52,9 @@ const LIST_PAGES: Record<string, ListPage> = {
   '/scripts/schedules/archived': { module: 'SCRIPT_SCHEDULES', nav: 'schedules', section: 'archive' },
   '/logs-page': { module: 'LOGS', nav: 'logs' },
   '/software': { module: 'SOFTWARE', nav: 'software' },
-  '/software/vulnerabilities': { module: 'VULNERABILITIES', nav: 'vulnerabilities' },
+  // A tab of Software, not a module of its own: Software · vulnerabilities, and the
+  // list says which one it is.
+  '/software/vulnerabilities': { module: 'VULNERABILITIES', nav: 'software', section: 'vulnerabilities' },
   '/knowledge-base': { module: 'KNOWLEDGE_BASE', nav: 'knowledge-base' },
   '/knowledge-base/archive': { module: 'KNOWLEDGE_BASE', nav: 'knowledge-base', section: 'archive' },
   '/cloud-tenant-management': { module: 'CLOUD_TENANTS', nav: 'integrations' },
