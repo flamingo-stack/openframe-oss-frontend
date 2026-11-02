@@ -83,9 +83,11 @@ import {
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS, isSessionActive, subscribeAttention } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive, PRESENCE_IDLE_MS, subscribeAttention } from '@/lib/session-activity';
 import { withNotificationIcon } from './notification-category-icons';
 import {
+  ADMIN_AI_MESSAGE_TYPE,
+  ADMIN_AI_TICKET_MESSAGE_TYPE,
   type NotificationAction,
   notificationTargetsDialog,
   notificationTargetsLocation,
@@ -103,6 +105,7 @@ const POPUP_OFFSET_CLASS = 'top-16 md:top-[4.5rem]';
 const NOTIFICATIONS_HISTORY_HREF = routes.notifications({ tab: 'history' });
 
 const DRAWER_FILTER_PAIRS = [UNFILTERED_NOTIFICATION_PAIR];
+const MINGO_REPLY_TYPES = new Set<string>([ADMIN_AI_MESSAGE_TYPE, ADMIN_AI_TICKET_MESSAGE_TYPE]);
 /** Write a JSON custom-scalar field: RecordProxy.setValue rejects objects, so use the normalizer's unsafe setter. */
 function setJsonScalar(record: unknown, name: string, value: Record<string, unknown> | null) {
   (record as Record<string, (v: unknown, n: string) => void>).setValue__UNSAFE(value, name);
@@ -358,7 +361,7 @@ function NotificationsDataInner({
   const [pagination, setPagination] = useState<PaginationState>(EMPTY_PAGINATION);
   const enabled = userId !== null;
 
-  const { markRead, markAllRead, removeNotification } = useNotificationMutations({
+  const { markRead, autoMarkRead, markAllRead, removeNotification } = useNotificationMutations({
     filterPairs: DRAWER_FILTER_PAIRS,
   });
 
@@ -430,7 +433,7 @@ function NotificationsDataInner({
             </HydratorBoundary>
           </ErrorBoundary>
           <NotificationsLiveBridge userId={userId} />
-          <EntityViewAutoReader />
+          <EntityViewAutoReader autoMarkRead={autoMarkRead} />
           <NotificationPopups className={POPUP_OFFSET_CLASS} />
         </>
       )}
@@ -442,21 +445,23 @@ function NotificationsDataInner({
 /**
  * Marks an unread notification read once the user opens the entity it points at (the mingo
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
- * every entity type a notification can carry, and routes through the context's `markRead` so
- * the drawer list, the unread connection and the sidebar bucket all update together. A Mingo
- * dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which the
- * notification's own target route never matches, so "viewing" is the union of the location
- * match and the active-dialog-views registry.
+ * every entity type a notification can carry. The read's updater moves the row in the store,
+ * and the drawer list, the unread connection and the sidebar bucket all follow from that. A
+ * chat in the sheet over a page changes no URL, so the notification's own target route never
+ * matches it, and "viewing" is the union of the location match and the active-dialog-views
+ * registry.
+ *
+ * Takes `autoMarkRead` rather than the context's `markRead`, which is the user's and toasts.
  */
-function EntityViewAutoReader() {
+function EntityViewAutoReader({ autoMarkRead }: { autoMarkRead: (id: string) => void }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const search = useSearchParams().toString();
   const activeDialogs = useSyncExternalStore(
     subscribeActiveDialogViews,
     getActiveDialogViews,
     getServerActiveDialogViews,
   );
-  const { notifications, markRead } = useNotifications();
+  const { notifications } = useNotifications();
   // The gate below is time-varying, but none of the effect's other deps change when
   // the session becomes active again — so without this a notification that arrived
   // while the user was idle on its entity would stay unread until some unrelated dep
@@ -469,31 +474,43 @@ function EntityViewAutoReader() {
   const [activityEdge, setActivityEdge] = useState(0);
   useEffect(() => subscribeAttention(() => setActivityEdge(edge => edge + 1)), []);
 
+  // Rows already tried since the user last did something. A failed read reverts its optimistic
+  // update, which lists the row again and re-runs the effect below with the gate still open, and
+  // every new input keeps that gate open: 40 attempts in 4.4 s when measured. So only what the
+  // user does earns a retry, and `notifications`, the one dep a failure moves, is left out here.
+  // Runs before the effect below, so a trigger's own run already sees the set cleared.
+  const attemptedRef = useRef(new Set<string>());
+  useEffect(() => {
+    attemptedRef.current.clear();
+  }, [pathname, search, activeDialogs, activityEdge]);
+
   // activityEdge is the re-run trigger, not read in the body.
   useEffect(() => {
     // Called live rather than snapshotted into state: the idle timer lapsing fires no
     // event, so a captured boolean would go stale and re-open the very hole this closes.
     //
-    // Same cross-device consequence as the arrival-time path above, so the same gate:
-    // it stops a tab left sitting on an entity from reading — and retracting from the
-    // phone — notifications that arrive later.
+    // Same cross-device consequence as the arrival-time path, so the attention window, with
+    // no exception for Mingo replies: this runs over every loaded row, not one arrival. It
+    // stops a tab left sitting on an entity from reading — and retracting from the phone —
+    // notifications that arrive later.
     //
     // It does NOT help at the moment of navigation: navigating is itself input, so the
     // gate passes by construction, and this effect then reads EVERY loaded unread
     // notification matching the route, including ones weeks old that the user never
     // saw. Fixing that needs an item-level signal (viewport + dwell), not this one.
     if (!isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })) return;
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(search);
     for (const notification of notifications) {
-      if (notification.read) continue;
+      if (notification.read || attemptedRef.current.has(notification.id)) continue;
       if (
         notificationTargetsLocation(notification, pathname, params) ||
         notificationTargetsDialog(notification, activeDialogs)
       ) {
-        markRead(notification.id);
+        attemptedRef.current.add(notification.id);
+        autoMarkRead(notification.id);
       }
     }
-  }, [pathname, searchParams, activeDialogs, notifications, markRead, activityEdge]);
+  }, [pathname, search, activeDialogs, notifications, autoMarkRead, activityEdge]);
 
   return null;
 }
@@ -542,12 +559,12 @@ interface NotificationsLiveBridgeProps {
 }
 
 /**
- * True when the notification points at a dialog the user is watching live
- * (mingo page or chat drawer) in a visible tab — any notification carrying a
- * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
- * requests. Such notifications are redundant — the message or approval card is
+ * True when the notification points at a dialog the user is watching live (the Mingo chat
+ * page, the sheet over a page, or a ticket's client chat) in a visible tab — any notification
+ * carrying a `dialogId`. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
- * auto-marked read. Requires an actively-attended session, not merely a visible tab.
+ * auto-marked read. Requires an attended session, how recently depending on the type
+ * (below), not merely a visible tab.
  */
 function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean {
   const dialogId = payloadDialogId(payload);
@@ -556,7 +573,17 @@ function isWatchingNotificationDialog(payload: NatsNotificationPayload): boolean
   // read state is CROSS-DEVICE — it drives PushRetractionListener, which pulls the
   // banner off the user's phone. A visible tab on an unattended desk satisfied the
   // old gate, so a laptop left open silently cleared notifications nobody saw.
-  return isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
+  //
+  // A Mingo reply is measured against presence instead. The user asked for it and is
+  // waiting on it, which produces no input (the thread scrolls itself), and it lands when
+  // the run ends, usually past the attention window: a popup and a phone push for the
+  // reply they were reading. Presence is also where the server stops holding the push for
+  // its grace, so past it the reply alerts like anything else. The cost: input recency
+  // cannot tell a reader from someone who sent a prompt and walked off with the window
+  // focused, and that person's phone stays silent. Nobody is waiting on an approval or a
+  // client chat message, and missing one costs more, so they keep the tight window.
+  const idleAfterMs = payload.type && MINGO_REPLY_TYPES.has(payload.type) ? PRESENCE_IDLE_MS : ATTENTION_IDLE_MS;
+  return isSessionActive({ idleAfterMs });
 }
 
 /**
@@ -784,7 +811,8 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
 
       if (suppress) {
         // Persist the auto-read server-side; refresh sidebar badges either way
-        // so they stay truthful even if the mutation fails.
+        // so they stay truthful even if the mutation fails. A failed read leaves the store
+        // saying read and the server unread until the next drawer refetch.
         commitMutation<MarkReadMutationType>(environmentRef.current, {
           mutation: markNotificationReadMutation,
           variables: { id: relayId },
