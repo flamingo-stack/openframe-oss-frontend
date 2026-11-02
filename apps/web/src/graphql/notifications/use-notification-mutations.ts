@@ -88,7 +88,7 @@ export function useNotificationMutations({
   const autoMarkRead = useCallback(
     (id: string) => {
       commitMarkRead(id, err => {
-        console.warn('[Notifications] auto mark-read failed:', err);
+        console.warn('[Notifications] auto mark-read failed:', id, err);
       });
     },
     [commitMarkRead],

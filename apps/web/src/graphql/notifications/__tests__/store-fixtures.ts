@@ -5,11 +5,21 @@
 import {
   commitLocalUpdate,
   ConnectionHandler,
-  type Environment,
+  Environment,
   getRelayHandleKey,
+  Network,
+  RecordSource,
   type RecordSourceSelectorProxy,
+  Store,
 } from 'relay-runtime';
 import { NOTIFICATIONS_CONNECTION_KEY, type NotificationsConnectionFilters } from '../notifications-helpers';
+
+export function makeOfflineEnvironment(): Environment {
+  return new Environment({
+    network: Network.create(() => Promise.reject(new Error('no network in this test'))),
+    store: new Store(new RecordSource()),
+  });
+}
 
 /** Materialise an empty connection under the root, the way a query response would. */
 export function createConnection(store: RecordSourceSelectorProxy, filters: NotificationsConnectionFilters): void {

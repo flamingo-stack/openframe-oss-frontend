@@ -447,9 +447,9 @@ function NotificationsDataInner({
  * dialog, the ticket, …). Works off the shared route mapping so it stays consistent across
  * every entity type a notification can carry. The read's updater moves the row in the store,
  * and the drawer list, the unread connection and the sidebar bucket all follow from that. A
- * Mingo dialog's resting URL is `?mingoDialog=` on whatever route the drawer floats over, which
- * the notification's own target route never matches, so "viewing" is the union of the location
- * match and the active-dialog-views registry.
+ * chat in the sheet over a page changes no URL, so the notification's own target route never
+ * matches it, and "viewing" is the union of the location match and the active-dialog-views
+ * registry.
  *
  * Takes `autoMarkRead` rather than the context's `markRead`, which is the user's and toasts.
  */
@@ -559,9 +559,9 @@ interface NotificationsLiveBridgeProps {
 }
 
 /**
- * True when the notification points at a dialog the user is watching live
- * (mingo page or chat drawer) in a visible tab — any notification carrying a
- * `dialogId`. Such notifications are redundant — the message or approval card is
+ * True when the notification points at a dialog the user is watching live (the Mingo chat
+ * page, the sheet over a page, or a ticket's client chat) in a visible tab — any notification
+ * carrying a `dialogId`. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
  * auto-marked read. Requires an attended session, how recently depending on the type
  * (below), not merely a visible tab.

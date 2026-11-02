@@ -9,7 +9,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type ReactRelay from 'react-relay';
 import { RelayEnvironmentProvider } from 'react-relay';
-import { commitLocalUpdate, Environment, Network, RecordSource, Store } from 'relay-runtime';
+import { commitLocalUpdate, type Environment } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -52,8 +52,8 @@ vi.mock('@/lib/app-mode', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   isSaasTenantMode: () => true,
 }));
-// The drawer's hydrator reads compiled artifacts vitest has no transform for. What these tests
-// pin is the store and the mutations, which is what the drawer and the popups render from.
+// `entity-view-auto-reader.test.tsx` runs the hydrator. What these tests pin is the store and the
+// mutations, which is what the drawer and the popups render from.
 vi.mock('@/app/components/shared/hydrator-boundary', () => ({ HydratorBoundary: () => null }));
 vi.mock('@/graphql/notifications/notifications-drawer-relay', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -71,7 +71,7 @@ vi.mock('@/graphql/notifications/use-notification-mutations', () => ({
 vi.mock('./use-approve-request', () => ({ useApproveRequest: () => vi.fn() }));
 vi.mock('./open-mingo-dialog', () => ({ canOpenMingoDialogOverPage: () => false, openMingoDialog: vi.fn() }));
 
-import { createConnection, nodeIds } from '@/graphql/notifications/__tests__/store-fixtures';
+import { createConnection, makeOfflineEnvironment, nodeIds } from '@/graphql/notifications/__tests__/store-fixtures';
 import { UNFILTERED_NOTIFICATION_PAIR } from '@/graphql/notifications/notifications-helpers';
 import { refreshUnreadCounts } from '@/graphql/notifications/unread-counts-relay';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
@@ -89,10 +89,7 @@ const READ_ON_ARRIVAL = { unread: false, read: true, markedRead: true };
 const ALERT = { unread: true, read: false, markedRead: false };
 
 function makeEnvironment(): Environment {
-  const environment = new Environment({
-    network: Network.create(() => Promise.reject(new Error('no network in this test'))),
-    store: new Store(new RecordSource()),
-  });
+  const environment = makeOfflineEnvironment();
   commitLocalUpdate(environment, store => {
     createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
     createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);

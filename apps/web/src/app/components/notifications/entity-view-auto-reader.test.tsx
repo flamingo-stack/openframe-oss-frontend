@@ -80,8 +80,10 @@ vi.mock('@/graphql/notifications/unread-counts-relay', () => ({ refreshUnreadCou
 vi.mock('./use-approve-request', () => ({ useApproveRequest: () => vi.fn() }));
 vi.mock('./open-mingo-dialog', () => ({ canOpenMingoDialogOverPage: () => false, openMingoDialog: vi.fn() }));
 
+import type { notificationFields_notification$data } from '@/__generated__/notificationFields_notification.graphql';
 import { refreshUnreadCounts } from '@/graphql/notifications/unread-counts-relay';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
+import { asInstant } from '@/lib/graphql-scalars';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
 import { ATTENTION_IDLE_MS, isSessionActive } from '@/lib/session-activity';
@@ -113,22 +115,20 @@ function ticketRow(id: string) {
 }
 
 function row(id: string, attributes: Record<string, string>) {
-  return {
-    cursor: id,
-    node: {
-      __typename: 'Notification',
-      id,
-      severity: 'INFO',
-      title: id,
-      description: null,
-      createdAt: '2026-11-01T10:00:00Z',
-      read: false,
-      status: 'UNREAD',
-      category: 'TICKETS',
-      type: 'TICKET_ASSIGNED',
-      attributes,
-    },
+  // Typed so a field added to the fragment fails to compile here instead of going missing.
+  const node: Omit<notificationFields_notification$data, ' $fragmentType'> = {
+    id,
+    severity: 'INFO',
+    title: id,
+    description: null,
+    createdAt: asInstant('2026-11-01T10:00:00Z'),
+    read: false,
+    status: 'UNREAD',
+    category: 'TICKETS',
+    type: 'TICKET_ASSIGNED',
+    attributes,
   };
+  return { cursor: id, node: { __typename: 'Notification', ...node } };
 }
 
 async function answerMarkRead(id: string) {
@@ -278,7 +278,7 @@ describe('EntityViewAutoReader', () => {
       setLocation(OTHER_ROUTE);
       const unregister = registerActiveDialogView(DIALOG);
       await mount();
-      unregister();
+      act(() => unregister());
 
       expect(h.attempts).toEqual([FIRST]);
       expect(h.toast).not.toHaveBeenCalled();
@@ -329,6 +329,26 @@ describe('EntityViewAutoReader', () => {
       expect(h.attempts).toEqual([FIRST, FIRST]);
     });
 
+    it('retries once when only the query changes', async () => {
+      await mount();
+
+      await navigate(routes.tickets.dialog(TICKET, { tab: 'chat' }));
+
+      expect(h.attempts).toEqual([FIRST, FIRST]);
+    });
+
+    it('retries once when only the path changes', async () => {
+      h.rows = [row(FIRST, { dialogId: DIALOG })];
+      setLocation(OTHER_ROUTE);
+      const unregister = registerActiveDialogView(DIALOG);
+      await mount();
+
+      await navigate(routes.devices.list);
+      act(() => unregister());
+
+      expect(h.attempts).toEqual([FIRST, FIRST]);
+    });
+
     it('retries once when a dialog view comes on screen', async () => {
       h.rows = [row(FIRST, { dialogId: DIALOG })];
       setLocation(OTHER_ROUTE);
@@ -341,7 +361,7 @@ describe('EntityViewAutoReader', () => {
         unregister = registerActiveDialogView(DIALOG);
       });
       await settle();
-      unregister();
+      act(() => unregister());
 
       expect(h.attempts).toEqual([FIRST, FIRST]);
     });

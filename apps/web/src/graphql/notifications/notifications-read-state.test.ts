@@ -1,13 +1,5 @@
 import type ReactRelay from 'react-relay';
-import {
-  commitLocalUpdate,
-  ConnectionHandler,
-  Environment,
-  Network,
-  RecordSource,
-  type RecordSourceSelectorProxy,
-  Store,
-} from 'relay-runtime';
+import { commitLocalUpdate, ConnectionHandler, type Environment, type RecordSourceSelectorProxy } from 'relay-runtime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run;
@@ -18,7 +10,7 @@ vi.mock('react-relay', async importOriginal => ({
 }));
 
 import { NotificationReadStatus } from '@/generated/schema-enums';
-import { createConnection, nodeIds } from './__tests__/store-fixtures';
+import { createConnection, makeOfflineEnvironment, nodeIds } from './__tests__/store-fixtures';
 import { getLiveConnectionPairs, registerLiveConnectionPairs } from './live-connection-pairs';
 import {
   makeDeleteNotificationUpdater,
@@ -46,13 +38,6 @@ const SEARCH_PAIR: NotificationConnectionPair = {
   unread: notificationsConnectionFilters(false, 'dns'),
   read: notificationsConnectionFilters(true, 'dns'),
 };
-
-function makeEnvironment(): Environment {
-  return new Environment({
-    network: Network.create(() => Promise.reject(new Error('no network in this test'))),
-    store: new Store(new RecordSource()),
-  });
-}
 
 function update(environment: Environment, updater: (store: RecordSourceSelectorProxy) => void): void {
   commitLocalUpdate(environment, updater);
@@ -126,7 +111,7 @@ describe('a READ event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -189,7 +174,7 @@ describe('an ARCHIVED event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -242,7 +227,7 @@ describe('a DELETED event', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -292,7 +277,7 @@ describe('an ARCHIVED notification in history', () => {
   let environment: Environment;
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
@@ -332,7 +317,7 @@ describe('a card moving into history', () => {
   }
 
   beforeEach(() => {
-    environment = makeEnvironment();
+    environment = makeOfflineEnvironment();
     update(environment, store => {
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
       createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
