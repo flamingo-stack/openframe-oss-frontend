@@ -49,7 +49,7 @@ export function useCreateCheckoutSession() {
 
   const mutate = useCallback(
     (input: CheckoutInput) => {
-      const tab = openDeferredTab();
+      const tab = openDeferredTab('Preparing checkout...');
 
       commit({
         variables: { input },
