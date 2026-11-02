@@ -812,8 +812,7 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
       if (suppress) {
         // Persist the auto-read server-side; refresh sidebar badges either way
         // so they stay truthful even if the mutation fails. A failed read leaves the store
-        // saying read and the server unread until the next drawer refetch. Don't refetch here:
-        // it lists the row again, and EntityViewAutoReader retries a failing read in a loop.
+        // saying read and the server unread until the next drawer refetch.
         commitMutation<MarkReadMutationType>(environmentRef.current, {
           mutation: markNotificationReadMutation,
           variables: { id: relayId },

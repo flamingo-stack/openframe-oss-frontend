@@ -61,7 +61,12 @@ vi.mock('@/graphql/notifications/notifications-drawer-relay', async importOrigin
 }));
 vi.mock('@/graphql/notifications/unread-counts-relay', () => ({ refreshUnreadCounts: vi.fn() }));
 vi.mock('@/graphql/notifications/use-notification-mutations', () => ({
-  useNotificationMutations: () => ({ markRead: vi.fn(), markAllRead: vi.fn(), removeNotification: vi.fn() }),
+  useNotificationMutations: () => ({
+    markRead: vi.fn(),
+    autoMarkRead: vi.fn(),
+    markAllRead: vi.fn(),
+    removeNotification: vi.fn(),
+  }),
 }));
 vi.mock('./use-approve-request', () => ({ useApproveRequest: () => vi.fn() }));
 vi.mock('./open-mingo-dialog', () => ({ canOpenMingoDialogOverPage: () => false, openMingoDialog: vi.fn() }));

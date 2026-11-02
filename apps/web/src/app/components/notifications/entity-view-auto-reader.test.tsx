@@ -84,7 +84,7 @@ import { refreshUnreadCounts } from '@/graphql/notifications/unread-counts-relay
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { routes } from '@/lib/routes';
-import { ATTENTION_IDLE_MS } from '@/lib/session-activity';
+import { ATTENTION_IDLE_MS, isSessionActive } from '@/lib/session-activity';
 import { NotificationsDataProvider } from './notifications-data-provider';
 
 const T0 = Date.parse('2026-11-02T10:00:00Z');
@@ -225,6 +225,8 @@ describe('EntityViewAutoReader', () => {
     document.body.append(container);
     root = createRoot(container);
     // Session activity is one module-level clock; every test starts focused, with input at T0.
+    // It starts lazily and nothing listens until it does, so a test running first needs this.
+    isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS });
     act(() => {
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new KeyboardEvent('keydown'));
