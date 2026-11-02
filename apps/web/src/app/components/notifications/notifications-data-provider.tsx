@@ -548,8 +548,7 @@ interface NotificationsLiveBridgeProps {
 /**
  * True when the notification points at a dialog the user is watching live
  * (mingo page or chat drawer) in a visible tab — any notification carrying a
- * `dialogId`, i.e. Mingo messages, their ticket-linked variant, and approval
- * requests. Such notifications are redundant — the message or approval card is
+ * `dialogId`. Such notifications are redundant — the message or approval card is
  * already rendering in the chat — so the popup is skipped and the notification
  * auto-marked read. Requires an attended session, how recently depending on the type
  * (below), not merely a visible tab.
@@ -799,7 +798,9 @@ function NotificationsLiveBridge({ userId }: NotificationsLiveBridgeProps) {
 
       if (suppress) {
         // Persist the auto-read server-side; refresh sidebar badges either way
-        // so they stay truthful even if the mutation fails.
+        // so they stay truthful even if the mutation fails. A failed read leaves the store
+        // saying read and the server unread until the next drawer refetch. Don't refetch here:
+        // it lists the row again, and EntityViewAutoReader retries a failing read in a loop.
         commitMutation<MarkReadMutationType>(environmentRef.current, {
           mutation: markNotificationReadMutation,
           variables: { id: relayId },

@@ -9,20 +9,14 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type ReactRelay from 'react-relay';
 import { RelayEnvironmentProvider } from 'react-relay';
-import {
-  commitLocalUpdate,
-  ConnectionHandler,
-  Environment,
-  getRelayHandleKey,
-  Network,
-  RecordSource,
-  Store,
-} from 'relay-runtime';
+import { commitLocalUpdate, Environment, Network, RecordSource, Store } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   mutations: [] as string[],
+  mutationsFail: false,
   nats: null as null | ((payload: unknown) => void),
+  refetchDrawer: vi.fn(),
 }));
 
 // `graphql` tags are compiled away by the relay babel transform, which vitest doesn't run.
@@ -34,8 +28,9 @@ vi.mock('react-relay', async importOriginal => {
     ...actual,
     ...actual.default,
     graphql: (text: TemplateStringsArray) => ({ text: text.join('') }),
-    commitMutation: (_environment: unknown, config: { mutation: { text: string } }) => {
+    commitMutation: (_environment: unknown, config: { mutation: { text: string }; onError?: (e: Error) => void }) => {
       h.mutations.push(/mutation\s+(\w+)/.exec(config.mutation.text)?.[1] ?? '?');
+      if (h.mutationsFail) config.onError?.(new Error('mutation failed'));
     },
   };
 });
@@ -60,6 +55,10 @@ vi.mock('@/lib/app-mode', async importOriginal => ({
 // The drawer's hydrator reads compiled artifacts vitest has no transform for. What these tests
 // pin is the store and the mutations, which is what the drawer and the popups render from.
 vi.mock('@/app/components/shared/hydrator-boundary', () => ({ HydratorBoundary: () => null }));
+vi.mock('@/graphql/notifications/notifications-drawer-relay', async importOriginal => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  refetchNotificationsDrawer: h.refetchDrawer,
+}));
 vi.mock('@/graphql/notifications/unread-counts-relay', () => ({ refreshUnreadCounts: vi.fn() }));
 vi.mock('@/graphql/notifications/use-notification-mutations', () => ({
   useNotificationMutations: () => ({ markRead: vi.fn(), markAllRead: vi.fn(), removeNotification: vi.fn() }),
@@ -67,11 +66,9 @@ vi.mock('@/graphql/notifications/use-notification-mutations', () => ({
 vi.mock('./use-approve-request', () => ({ useApproveRequest: () => vi.fn() }));
 vi.mock('./open-mingo-dialog', () => ({ canOpenMingoDialogOverPage: () => false, openMingoDialog: vi.fn() }));
 
-import {
-  NOTIFICATIONS_CONNECTION_KEY,
-  type NotificationsConnectionFilters,
-  UNFILTERED_NOTIFICATION_PAIR,
-} from '@/graphql/notifications/notifications-helpers';
+import { createConnection, nodeIds } from '@/graphql/notifications/__tests__/store-fixtures';
+import { UNFILTERED_NOTIFICATION_PAIR } from '@/graphql/notifications/notifications-helpers';
+import { refreshUnreadCounts } from '@/graphql/notifications/unread-counts-relay';
 import { registerActiveDialogView } from '@/lib/active-dialog-views';
 import { notificationGlobalId } from '@/lib/relay-id';
 import { ATTENTION_IDLE_MS, PRESENCE_IDLE_MS } from '@/lib/session-activity';
@@ -92,28 +89,10 @@ function makeEnvironment(): Environment {
     store: new Store(new RecordSource()),
   });
   commitLocalUpdate(environment, store => {
-    for (const filters of [UNFILTERED_NOTIFICATION_PAIR.unread, UNFILTERED_NOTIFICATION_PAIR.read]) {
-      const handleKey = getRelayHandleKey('connection', NOTIFICATIONS_CONNECTION_KEY, null);
-      const connId = `client:root:${handleKey}:${JSON.stringify(filters)}`;
-      const conn = store.create(connId, 'NotificationConnection');
-      conn.setLinkedRecords([], 'edges');
-      const pageInfo = store.create(`${connId}:pageInfo`, 'PageInfo');
-      pageInfo.setValue(false, 'hasNextPage');
-      pageInfo.setValue(null, 'endCursor');
-      conn.setLinkedRecord(pageInfo, 'pageInfo');
-      store.getRoot().setLinkedRecord(conn, handleKey, filters);
-    }
+    createConnection(store, UNFILTERED_NOTIFICATION_PAIR.unread);
+    createConnection(store, UNFILTERED_NOTIFICATION_PAIR.read);
   });
   return environment;
-}
-
-function nodeIds(environment: Environment, filters: NotificationsConnectionFilters): string[] {
-  let ids: string[] = [];
-  commitLocalUpdate(environment, store => {
-    const conn = ConnectionHandler.getConnection(store.getRoot(), NOTIFICATIONS_CONNECTION_KEY, filters);
-    ids = (conn?.getLinkedRecords('edges') ?? []).flatMap(edge => edge?.getLinkedRecord('node')?.getDataID() ?? []);
-  });
-  return ids;
 }
 
 describe('a notification for a dialog on screen', () => {
@@ -141,6 +120,9 @@ describe('a notification for a dialog on screen', () => {
     vi.setSystemTime(T0);
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     h.mutations.length = 0;
+    h.mutationsFail = false;
+    h.refetchDrawer.mockClear();
+    vi.mocked(refreshUnreadCounts).mockClear();
     environment = makeEnvironment();
     unregister = registerActiveDialogView(ON_SCREEN);
     container = document.createElement('div');
@@ -174,6 +156,15 @@ describe('a notification for a dialog on screen', () => {
 
       expect(outcome()).toEqual(READ_ON_ARRIVAL);
       expect(h.mutations).not.toContain(CANCEL_PUSH);
+    });
+
+    it('refreshes the counts but does not list the row again when its mark-read fails', async () => {
+      h.mutationsFail = true;
+      await arrive(type, PAST_ATTENTION);
+
+      expect(outcome()).toEqual(READ_ON_ARRIVAL);
+      expect(refreshUnreadCounts).toHaveBeenCalledOnce();
+      expect(h.refetchDrawer).not.toHaveBeenCalled();
     });
 
     it('is still read on arrival just inside the presence window', async () => {

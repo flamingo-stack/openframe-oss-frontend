@@ -3,7 +3,6 @@ import {
   commitLocalUpdate,
   ConnectionHandler,
   Environment,
-  getRelayHandleKey,
   Network,
   RecordSource,
   type RecordSourceSelectorProxy,
@@ -19,6 +18,7 @@ vi.mock('react-relay', async importOriginal => ({
 }));
 
 import { NotificationReadStatus } from '@/generated/schema-enums';
+import { createConnection, nodeIds } from './__tests__/store-fixtures';
 import { getLiveConnectionPairs, registerLiveConnectionPairs } from './live-connection-pairs';
 import {
   makeDeleteNotificationUpdater,
@@ -58,19 +58,6 @@ function update(environment: Environment, updater: (store: RecordSourceSelectorP
   commitLocalUpdate(environment, updater);
 }
 
-/** Materialise an empty connection under the root, the way a query response would. */
-function createConnection(store: RecordSourceSelectorProxy, filters: NotificationsConnectionFilters): void {
-  const handleKey = getRelayHandleKey('connection', NOTIFICATIONS_CONNECTION_KEY, null);
-  const connId = `client:root:${handleKey}:${JSON.stringify(filters)}`;
-  const conn = store.create(connId, 'NotificationConnection');
-  conn.setLinkedRecords([], 'edges');
-  const pageInfo = store.create(`${connId}:pageInfo`, 'PageInfo');
-  pageInfo.setValue(false, 'hasNextPage');
-  pageInfo.setValue(null, 'endCursor');
-  conn.setLinkedRecord(pageInfo, 'pageInfo');
-  store.getRoot().setLinkedRecord(conn, handleKey, filters);
-}
-
 function seedBuckets(store: RecordSourceSelectorProxy, count: number): void {
   const bucket = store.create(`client:UnreadCategoryCount:${CATEGORY}`, 'UnreadCategoryCount');
   bucket.setValue(CATEGORY, 'category');
@@ -107,18 +94,6 @@ function seedUnread(
 
 function seedArchived(store: RecordSourceSelectorProxy, id: string, createdAt: string): void {
   seedNode(store, id, UNFILTERED_NOTIFICATION_PAIR.read, NotificationReadStatus.ARCHIVED, createdAt);
-}
-
-function nodeIds(environment: Environment, filters: NotificationsConnectionFilters): string[] {
-  let ids: string[] = [];
-  update(environment, store => {
-    const conn = ConnectionHandler.getConnection(store.getRoot(), NOTIFICATIONS_CONNECTION_KEY, filters);
-    ids = (conn?.getLinkedRecords('edges') ?? []).flatMap(edge => {
-      const id = edge?.getLinkedRecord('node')?.getDataID();
-      return id ? [id] : [];
-    });
-  });
-  return ids;
 }
 
 function unreadCount(environment: Environment): number {
