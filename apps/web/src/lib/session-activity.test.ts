@@ -80,6 +80,86 @@ describe('session-activity', () => {
     expect(isSessionActive({ idleAfterMs: ATTENTION_IDLE_MS })).toBe(true);
   });
 
+  // WebKit re-sends a trusted pointermove, at the same spot with movement 0, whenever programmatic
+  // scrolling moves content under a parked cursor. Counted as input, a chat streaming under the
+  // cursor held both idle windows open with nobody there, and fired the "human is back" edge the
+  // auto-readers run on. Measured in WKWebView; Blink does not do this.
+  describe('a pointermove at an unchanged position', () => {
+    const pointer = (type: string, clientX: number, clientY: number) => {
+      document.dispatchEvent(new MouseEvent(type, { clientX, clientY }));
+    };
+
+    async function loadSilent() {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      const session = await load();
+      expect(session.isSessionActive({ idleAfterMs: session.ATTENTION_IDLE_MS })).toBe(true);
+      const edge = vi.fn();
+      session.subscribeAttention(edge);
+      const isAttentive = () => session.isSessionActive({ idleAfterMs: session.ATTENTION_IDLE_MS });
+      const goSilent = () => vi.advanceTimersByTime(session.ATTENTION_IDLE_MS + 1_000);
+      return { ...session, edge, isAttentive, goSilent };
+    }
+
+    it('is not input, and fires no edge, after a click at that position', async () => {
+      const { edge, isAttentive, goSilent } = await loadSilent();
+
+      pointer('pointerdown', 210, 200);
+      goSilent();
+      pointer('pointermove', 210, 200);
+
+      expect(isAttentive()).toBe(false);
+      expect(edge).not.toHaveBeenCalled();
+    });
+
+    it('is not input after a real move to that position', async () => {
+      const { edge, isAttentive, goSilent } = await loadSilent();
+
+      pointer('pointermove', 210, 200);
+      goSilent();
+      pointer('pointermove', 210, 200);
+
+      expect(isAttentive()).toBe(false);
+      expect(edge).not.toHaveBeenCalled();
+    });
+
+    it('is not input after a real move the throttle left off the clock', async () => {
+      const { isAttentive, goSilent } = await loadSilent();
+
+      pointer('pointermove', 100, 100);
+      pointer('pointermove', 210, 200);
+      goSilent();
+      pointer('pointermove', 210, 200);
+
+      expect(isAttentive()).toBe(false);
+    });
+
+    it('never reopens the presence window however long the stream runs', async () => {
+      const { isSessionActive, PRESENCE_IDLE_MS } = await loadSilent();
+
+      pointer('pointerdown', 210, 200);
+      for (let elapsed = 0; elapsed <= PRESENCE_IDLE_MS; elapsed += 200) {
+        vi.advanceTimersByTime(200);
+        pointer('pointermove', 210, 200);
+      }
+
+      expect(isSessionActive({ idleAfterMs: PRESENCE_IDLE_MS })).toBe(false);
+    });
+
+    it.each([
+      ['across', 211, 200],
+      ['down', 210, 201],
+    ])('counts a real move %s from it', async (_direction, x, y) => {
+      const { edge, isAttentive, goSilent } = await loadSilent();
+
+      pointer('pointerdown', 210, 200);
+      goSilent();
+      pointer('pointermove', x, y);
+
+      expect(isAttentive()).toBe(true);
+      expect(edge).toHaveBeenCalledOnce();
+    });
+  });
+
   it('blur is a hard inactive edge, not a timer', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const { isSessionActive, ATTENTION_IDLE_MS } = await load();

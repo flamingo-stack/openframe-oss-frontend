@@ -17,6 +17,7 @@ import {
 } from '@flamingo-stack/openframe-frontend-core/components/features';
 import { useMemo } from 'react';
 import type { Device } from '@/app/(app)/devices/types/device.types';
+import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { useSafeBack } from '@/app/hooks/use-safe-back';
 import { ScheduleTimeReference, type SoftwareAction } from '@/generated/schema-enums';
 import { routes } from '@/lib/routes';
@@ -96,6 +97,8 @@ export function SoftwareActionView({
   loading?: boolean;
 }) {
   const handleBack = useSafeBack(routes.software.actions);
+  // Unanswered, the block stays out and nothing submits: a submit then could leave without the settings it shows.
+  const updateSettingsGate = useFeatureFlagGate('software-update-settings');
   const { bundleId, deviceCount, createError, retryCreate, markSubmitted } = useDraftBundle({ enabled: !loading });
   const { submit, isSubmitting } = useSoftwareActionSubmit(action, { onSubmitted: markSubmitted });
 
@@ -121,14 +124,15 @@ export function SoftwareActionView({
       action={action}
       onBack={handleBack}
       onSubmit={values => submit({ ...values, bundleId, deviceCount })}
-      submitDisabled={loading || deviceCount === 0}
+      submitDisabled={loading || updateSettingsGate === 'loading' || deviceCount === 0}
       submitting={isSubmitting}
       timing={SCHEDULE_TIMING}
       initialValues={INITIAL_VALUES}
       renderPackageSearch={renderPackageSearch}
       renderDevicePicker={renderDevicePicker}
-      // The submit sends them as updateSettings + autoUpdate (use-software-action-submit).
-      showUpdateSettings
+      // The submit sends them as updateSettings + autoUpdate (use-software-action-submit); hidden, the form leaves
+      // them undefined and the submit sends neither.
+      showUpdateSettings={updateSettingsGate === 'on'}
     />
   );
 }
