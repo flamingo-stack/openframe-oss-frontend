@@ -142,17 +142,24 @@ describe('pageContextHref', () => {
     expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/mingo/')).toBe('/mingo/');
   });
 
-  it('on a phone, is the page the chat list was opened over, for the home and a chat started there', () => {
-    const phone = { outsidePage: '/devices/?statuses=OFFLINE' };
+  it('on a phone, is the page a new chat was started over, for the home and a chat started there', () => {
+    const phone = { newChatPage: '/devices/?statuses=OFFLINE' };
     expect(pageContextHref({ pathname: '/mingo/', search: '' }, '/devices/', phone)).toBe('/devices/?statuses=OFFLINE');
     expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/mingo/', phone)).toBe(
       '/devices/?statuses=OFFLINE',
     );
     // A chat opened from a page keeps that page.
     expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/tickets/', phone)).toBe('/tickets/');
-    // Pages are about themselves; no page behind the list, the home.
+    // Pages are about themselves.
     expect(pageContextHref({ pathname: '/logs-page/', search: '' }, null, phone)).toBe('/logs-page/');
-    expect(pageContextHref({ pathname: '/mingo/', search: '' }, null, { outsidePage: null })).toBe('/mingo');
+  });
+
+  it('on a phone, is no page for a home reached without starting a new chat over one', () => {
+    const phone = { newChatPage: null };
+    expect(pageContextHref({ pathname: '/mingo/', search: '' }, null, phone)).toBe('/mingo');
+    // The tab was on a page before: the home does not pick it up, nor does a chat started there.
+    expect(pageContextHref({ pathname: '/mingo/', search: '' }, '/settings/', phone)).toBe('/mingo');
+    expect(pageContextHref({ pathname: '/mingo/chat/', search: '?id=d-1' }, '/mingo/', phone)).toBe('/mingo/');
   });
 
   it("tells Mingo's home from a page", () => {
