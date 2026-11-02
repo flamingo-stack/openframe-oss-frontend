@@ -18,6 +18,7 @@ import {
 import Link from 'next/link';
 import { type ComponentType, useCallback, useState } from 'react';
 import { useTicketsOverview } from '@/app/(app)/dashboard/hooks/use-dashboard-stats';
+import { useRevealHeld, useRevealPart } from '@/app/components/shared/reveal-together';
 import { SectionLoadError } from '@/app/components/shared/section-load-error';
 import { loadErrorProps } from '@/lib/query-state';
 import { NeedsYouApprovalsSource } from './needs-you-approvals-source';
@@ -76,8 +77,12 @@ export function NeedsYouCard() {
   const incidentsReport = reports.incidents;
 
   const view = resolveNeedsYou(gates, { ...reports, tickets }, ticketsOn && ticketStats.isLoading);
-  // The page's loading state draws the card's own, as its unanswered sources do.
-  const loading = useLoadingScope() || view.status === 'loading';
+  useRevealPart('needs-you', view.status !== 'loading');
+  // The page's loading state draws the card's own, as its unanswered sources do, and so does
+  // a page still holding its sections (`RevealTogether`).
+  const scoped = useLoadingScope();
+  const held = useRevealHeld();
+  const loading = scoped || held || view.status === 'loading';
   const ready = view.status === 'ready' ? view : null;
   const footer = needsYouFooter({
     aiHandled: ticketsOn ? ticketStats.aiAssistance : null,

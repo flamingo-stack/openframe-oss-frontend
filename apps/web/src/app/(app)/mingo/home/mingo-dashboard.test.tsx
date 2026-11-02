@@ -44,7 +44,7 @@ vi.mock('./needs-you/needs-you-card', () => ({
   NeedsYouPanel: ({ loading }: { loading?: boolean }) => <p>{`needs you panel${loading ? ' (loading)' : ''}`}</p>,
 }));
 vi.mock('@/app/(app)/dashboard/components/mingo-intro-banner', () => ({
-  MingoIntroBanner: ({ loading }: { loading?: boolean }) => <p>{`intro banner${loading ? ' (loading)' : ''}`}</p>,
+  MingoIntroBanner: () => <p>intro banner</p>,
 }));
 vi.mock('./mingo-home-incidents', () => ({ MingoHomeIncidents: () => <p>incidents section</p> }));
 
@@ -105,10 +105,11 @@ describe('MingoDashboard', () => {
     expect(at('incidents section')).toBeLessThan(at('customers section'));
   });
 
-  it('keeps the call to book in its loading form while the flag is unanswered, and drops it when off', async () => {
+  it('leaves the call to book out while the flag is unanswered (it is optional), and when off', async () => {
     useFeatureFlagsStore.setState({ flags: {}, isLoaded: false });
     await renderHome();
-    expect(container.textContent).toContain('intro banner (loading)');
+    expect(container.textContent).not.toContain('intro banner');
+    expect(container.textContent).toContain('needs you card');
 
     useFeatureFlagsStore.setState({ flags: { 'onboarding-v2': false }, isLoaded: true });
     await renderHome();

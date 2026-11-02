@@ -1,6 +1,7 @@
 'use client';
 
 import { IntroBanner, OverviewSections } from '@/app/(app)/dashboard/components/dashboard-content';
+import { RevealTogether } from '@/app/components/shared/reveal-together';
 import { MingoHomeIncidents } from './mingo-home-incidents';
 import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
 
@@ -13,11 +14,13 @@ import { NeedsYouCard, NeedsYouPanel } from './needs-you/needs-you-card';
  * onboarding. It holds no composer: the shell docks one under every page, this one
  * included, without Mingo's quick actions, which are the new chat's (`/mingo`).
  *
- * `live` off: no reads, what the shell holds in the page's slot in a loading scope while
- * it waits on the onboarding answer (`holdsDashboard`), so the hand-over moves nothing.
+ * Live, it shows its blocks together (`RevealTogether`): the skeleton until every one has
+ * answered, then the content in one step. `live` off: no reads, what the shell holds in the
+ * page's slot in a loading scope while it waits on the onboarding answer (`holdsDashboard`),
+ * the same skeleton, so the hand-over moves nothing.
  */
 export function MingoDashboard({ live = true }: { live?: boolean }) {
-  return (
+  const page = (
     <div className="flex flex-col">
       {/* `empty:hidden`: both render nothing when they have nothing to offer, and the
           padding goes with them. */}
@@ -33,4 +36,5 @@ export function MingoDashboard({ live = true }: { live?: boolean }) {
       />
     </div>
   );
+  return live ? <RevealTogether>{page}</RevealTogether> : page;
 }

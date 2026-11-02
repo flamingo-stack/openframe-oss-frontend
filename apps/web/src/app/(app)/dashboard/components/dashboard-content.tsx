@@ -6,6 +6,7 @@ import { cn } from '@flamingo-stack/openframe-frontend-core/utils';
 import type { ReactNode } from 'react';
 import { InitialSetupCard } from '@/app/(app)/onboarding/components/initial-setup-card';
 import { useInitialSetupActive } from '@/app/(app)/onboarding/hooks/use-initial-setup-active';
+import { RevealTogether, useRevealPart } from '@/app/components/shared/reveal-together';
 import { useFeatureFlagGate } from '@/app/hooks/use-feature-flag';
 import { isSaasTenantMode } from '@/lib/app-mode';
 import { CustomersOverview, CustomersOverviewSection } from './customers-overview';
@@ -48,14 +49,14 @@ function InitialSetupSection() {
 
 /**
  * Onboarding v2's welcome ("OpenFrame isn't your typical RMM"), until the user closes it.
- * Nothing with the flag off. While it is unanswered a SaaS tenant, which is where the flag
- * is on, keeps the banner's place in its loading form; an OSS tenant, where it reads as
- * off, keeps nothing.
+ * Optional (closable, absent with nothing to offer), so it keeps no place while anything
+ * about it is unanswered: nothing until the flag says on, then the banner's own reads.
  */
 export function IntroBanner() {
   const onboardingV2 = useFeatureFlagGate('onboarding-v2');
-  const shows = isSaasTenantMode() ? onboardingV2 !== 'off' : onboardingV2 === 'on';
-  return shows ? <MingoIntroBanner loading={onboardingV2 === 'loading'} /> : null;
+  useRevealPart('intro-flag', onboardingV2 !== 'loading');
+  if (onboardingV2 !== 'on') return null;
+  return <MingoIntroBanner />;
 }
 
 /** The banner above the classic overview: the setup card's wrapper, so a dismissed banner collapses the gap. */
@@ -147,7 +148,11 @@ export function DashboardOverviews({ live = false }: { live?: boolean }) {
   );
 }
 
-/** The dashboard page's content: the overviews over their data. */
+/** The dashboard page's content: the overviews over their data, shown together. */
 export default function DashboardContent() {
-  return <DashboardOverviews live />;
+  return (
+    <RevealTogether>
+      <DashboardOverviews live />
+    </RevealTogether>
+  );
 }
